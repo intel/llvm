@@ -191,11 +191,10 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+             RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  RT::PiQueue Queue = UseExclusiveQueue ? TgtQueue->getExclusiveQueueHandleRef()
-                                        : TgtQueue->getHandleRef();
+  const RT::PiQueue Queue = TgtQueue->getHandleRef();
   // Adjust first dimension of copy range and offset as OpenCL expects size in
   // bytes.
   DstSize[0] *= DstElemSize;
@@ -240,11 +239,10 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+              RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  RT::PiQueue Queue = UseExclusiveQueue ? SrcQueue->getExclusiveQueueHandleRef()
-                                        : SrcQueue->getHandleRef();
+  const RT::PiQueue Queue = SrcQueue->getHandleRef();
   // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
   SrcSize[0] *= SrcElemSize;
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
@@ -287,11 +285,10 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+             RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  RT::PiQueue Queue = UseExclusiveQueue ? SrcQueue->getExclusiveQueueHandleRef()
-                                        : SrcQueue->getHandleRef();
+  const RT::PiQueue Queue = SrcQueue->getHandleRef();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
     // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
     DstOffset[0] *= DstElemSize;
@@ -330,8 +327,7 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
                     char *DstMem, QueueImplPtr TgtQueue, unsigned int DimDst,
                     sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                     sycl::id<3> DstOffset, unsigned int DstElemSize,
-                    std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
-                    RT::PiEvent &OutEvent) {
+                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -359,34 +355,34 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                          unsigned int DstElemSize,
                          std::vector<RT::PiEvent> DepEvents,
-                         bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+                         RT::PiEvent &OutEvent) {
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
       copyH2H(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
+              DstElemSize, std::move(DepEvents), OutEvent);
 
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<RT::PiMem>(DstMem), std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              UseExclusiveQueue, OutEvent);
+              OutEvent);
   } else {
     if (TgtQueue->is_host())
       copyD2H(SYCLMemObj, pi::cast<RT::PiMem>(SrcMem), std::move(SrcQueue),
               DimSrc, SrcSize, SrcAccessRange, SrcOffset, SrcElemSize,
               (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              UseExclusiveQueue, OutEvent);
+              OutEvent);
     else
       copyD2D(SYCLMemObj, pi::cast<RT::PiMem>(SrcMem), std::move(SrcQueue),
               DimSrc, SrcSize, SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<RT::PiMem>(DstMem), std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              UseExclusiveQueue, OutEvent);
+              OutEvent);
   }
 }
 
@@ -465,31 +461,25 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
                           QueueImplPtr Queue, void *MappedPtr,
                           std::vector<RT::PiEvent> DepEvents,
-                          bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+                          RT::PiEvent &OutEvent) {
 
-  PI_CALL(piEnqueueMemUnmap)(
-      UseExclusiveQueue ? Queue->getExclusiveQueueHandleRef()
-                        : Queue->getHandleRef(),
-      pi::cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent);
+  PI_CALL(piEnqueueMemUnmap)
+  (Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
+   DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
-                             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+                             RT::PiEvent &OutEvent) {
   sycl::context Context = SrcQueue->get_context();
 
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
   } else {
-    RT::PiQueue Queue = UseExclusiveQueue
-                            ? SrcQueue->getExclusiveQueueHandleRef()
-                            : SrcQueue->getHandleRef();
-
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(USMDispatch->enqueueMemcpy(Queue,
+    RT::checkPiResult(USMDispatch->enqueueMemcpy(SrcQueue->getHandleRef(),
                                                  /* blocking */ false, DstMem,
                                                  SrcMem, Len, DepEvents.size(),
                                                  &DepEvents[0], &OutEvent));

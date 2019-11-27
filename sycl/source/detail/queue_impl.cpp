@@ -51,9 +51,7 @@ event queue_impl::memcpy(std::shared_ptr<detail::queue_impl> Impl, void *Dest,
                          const void *Src, size_t Count) {
   context Context = get_context();
   RT::PiEvent Event = nullptr;
-  // Not entirely sure when UseExclusiveQueue should be true
-  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {},
-                          /*ExclusiveQueue*/ false, Event);
+  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {}, Event);
 
   if (Context.is_host())
     return event();

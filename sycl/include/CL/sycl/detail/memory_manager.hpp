@@ -104,8 +104,7 @@ public:
                    QueueImplPtr TgtQueue, unsigned int DimDst,
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                   std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
-                   RT::PiEvent &OutEvent);
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
@@ -121,11 +120,11 @@ public:
 
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                     void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
-                    bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+                    RT::PiEvent &OutEvent);
 
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                       bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+                       RT::PiEvent &OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
