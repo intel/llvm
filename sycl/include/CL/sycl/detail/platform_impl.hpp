@@ -27,14 +27,29 @@ namespace detail {
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
+  /// Constructs platform_impl for a SYCL host platform.
   platform_impl() : MHostPlatform(true) {};
 
+  /// Constructs platform_impl instance using device selector.
+  ///
+  /// One of the SYCL devices that is associated with the constructed SYCL
+  /// platform instance must be the SYCL device that is produced from the
+  /// provided device selector.
+  ///
+  /// @param DeviceSelector is an instance of SYCL device_selector.
   explicit platform_impl(const device_selector &DeviceSelector);
 
+  /// Constructs platform_impl from a plug-in interoperability platform handle.
+  ///
+  /// @param Platform is a raw plug-in platform handle.
   explicit platform_impl(RT::PiPlatform Platform) : MPlatform(Platform) {}
 
   ~platform_impl() = default;
 
+  /// Checks if this platform supports extension.
+  ///
+  /// @param ExtensionName is a string containing extension name.
+  /// @return true if platform supports specified extension.
   bool has_extension(const string_class &ExtensionName) const {
     if (is_host())
       return false;
@@ -44,9 +59,20 @@ public:
     return (all_extension_names.find(ExtensionName) != std::string::npos);
   }
 
+  /// Gets all SYCL devices associated with this platform.
+  ///
+  /// If this platform is a host platform, resulting vector contains only
+  /// a single SYCL host device. If there are no devices that match given device
+  /// type, resulting vector is empty.
+  ///
+  /// @param DeviceType is a SYCL device type.
+  /// @return a vector of SYCL devices.
   vector_class<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
+  /// Queries this SYCL platform for info.
+  ///
+  /// The return type depends on information being queried.
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
   get_info() const {
@@ -58,11 +84,23 @@ public:
         param>::get(this->getHandleRef());
   }
 
+  /// Checks if this platform is a host platform.
+  ///
+  /// @return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
+  /// Gets an OpenCL interoperability platform.
+  ///
+  /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const { return pi::cast<cl_platform_id>(MPlatform); }
 
-  // Returns underlying native platform object.
+  /// Gets raw underlying plug-in platform handle.
+  ///
+  /// Unlike get() method, this method does not retain handler. It is caller
+  /// responsibility to make sure that platform stays alive while raw handle
+  /// is in use.
+  ///
+  /// @return a raw plug-in platform handle.
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance");
@@ -70,6 +108,11 @@ public:
     return MPlatform;
   }
 
+  /// Gets all available SYCL platforms in the system.
+  ///
+  /// The resulting vector always contains a single SYCL host platform instance.
+  ///
+  /// @return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
 private:
