@@ -1822,8 +1822,8 @@ def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[Driv
   HelpText<"Specify comma-separated list of triple and device binary image pairs to add to the final SYCL binary">;
 def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
-def fno_sycl_device_code_split : Flag<["-"], "fno-sycl-device-code-split">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Do not perform SYCL device code split">;
+def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split">;
 def fsycl_one_kernel_per_module : Flag<["-"], "fsycl-one-kernel-per-module">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Emit a separate device module for each kernel">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,

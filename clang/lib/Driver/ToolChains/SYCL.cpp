@@ -301,8 +301,14 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
 
-  ArgStringList CmdArgs{"-o",  Output.getFilename()};
   InputInfoList ForeachInputs;
+  ArgStringList CmdArgs{"-o",  Output.getFilename()};
+  for (const auto &II : Inputs) {
+    std::string Filename(II.getFilename());
+    if (II.getType() == types::TY_Tempfilelist)
+      ForeachInputs.push_back(II);
+    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
+  }
   CmdArgs.push_back("-sycl");
 
   StringRef ForeachExt = "aocx";
@@ -312,12 +318,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       ForeachExt = "aocr";
     }
 
-  for (const auto &II : Inputs) {
-    std::string Filename(II.getFilename());
-    if (II.getType() == types::TY_Tempfilelist)
-      ForeachInputs.push_back(II);
-    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
-  }
 
   InputInfoList FPGADepFiles;
   for (auto *A : Args) {

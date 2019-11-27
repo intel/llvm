@@ -80,12 +80,10 @@
 // FOFFLOAD_STATIC_LIB_SRC: 13: input, "[[LIB]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, archive
 // FOFFLOAD_STATIC_LIB_SRC: 15: linker, {12, 14}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 16: sycl-post-link, {15}, tempentriesfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {15}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: llvm-spirv, {17}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: clang-offload-wrapper, {16, 18}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC_DEFAULT: 20: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {19}, image
-// FOFFLOAD_STATIC_LIB_SRC_CL: 20: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice-coff)" {19}, image
+// FOFFLOAD_STATIC_LIB_SRC: 16: llvm-spirv, {15}, spirv, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC_DEFAULT: 18: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {17}, image
+// FOFFLOAD_STATIC_LIB_SRC_CL: 18: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice-coff)" {17}, image
 
 /// ###########################################################################
 

@@ -3199,7 +3199,7 @@ class OffloadingActionBuilder final {
     bool WrapDeviceOnlyBinary = false;
 
     /// Flag to signal if the user requested do not perform device code split.
-    bool NoDeviceCodeSplit = false;
+    bool DeviceCodeSplit = false;
 
     /// The SYCL actions for the current input.
     ActionList SYCLDeviceActions;
@@ -3484,7 +3484,7 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         Action *SPIRVInput = DeviceLinkAction;
         types::ID OutType = types::TY_SPIRV;
-        if (!NoDeviceCodeSplit) {
+        if (DeviceCodeSplit) {
           auto *SplitAction = C.MakeAction<SYCLPostLinkJobAction>(
               DeviceLinkAction, types::TY_Tempfilelist);
           auto *EntryGenAction = C.MakeAction<SYCLPostLinkJobAction>(
@@ -3506,7 +3506,7 @@ class OffloadingActionBuilder final {
         // After the Link, wrap the files before the final host link
         if (SYCLAOTCompile) {
           OutType = types::TY_Tempfilelist;
-          if (NoDeviceCodeSplit) {
+          if (!DeviceCodeSplit) {
             OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
                           ? FPGAOutType
                           : types::TY_Image;
@@ -3568,7 +3568,7 @@ class OffloadingActionBuilder final {
       Arg *SYCLLinkTargets = Args.getLastArg(
                                   options::OPT_fsycl_link_targets_EQ);
       WrapDeviceOnlyBinary = Args.hasArg(options::OPT_fsycl_link_EQ);
-      NoDeviceCodeSplit = Args.hasArg(options::OPT_fno_sycl_device_code_split);
+      DeviceCodeSplit = Args.hasArg(options::OPT_fsycl_device_code_split);
       // Device only compilation for -fsycl-link (no FPGA) and
       // -fsycl-link-targets
       CompileDeviceOnly =
