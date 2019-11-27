@@ -141,6 +141,8 @@ CodeCompleteResult completions(llvm::StringRef Text,
                                PathRef FilePath = "foo.cpp") {
   MockFSProvider FS;
   MockCompilationDatabase CDB;
+  // To make sure our tests for completiopns inside templates work on Windows.
+  CDB.ExtraClangFlags = {"-fno-delayed-template-parsing"};
   IgnoreDiagnostics DiagConsumer;
   ClangdServer Server(CDB, FS, DiagConsumer, ClangdServer::optsForTest());
   return completions(Server, Text, std::move(IndexSymbols), std::move(Opts),
@@ -1028,6 +1030,16 @@ TEST(CompletionTest, DefaultArgs) {
               UnorderedElementsAre(
                   AllOf(Labeled("Z(int A, int B = 0, int C = 0, int D = 0)"),
                         SnippetSuffix("(${1:int A})"))));
+}
+
+TEST(CompletionTest, NoCrashWithTemplateParamsAndPreferredTypes) {
+  auto Completions = completions(R"cpp(
+template <template <class> class TT> int foo() {
+  int a = ^
+}
+)cpp")
+                         .Completions;
+  EXPECT_THAT(Completions, Contains(Named("TT")));
 }
 
 SignatureHelp signatures(llvm::StringRef Text, Position Point,
@@ -2451,6 +2463,26 @@ TEST(CompletionTest, NoCompletionsForNewNames) {
     )cpp",
                              {cls("naber"), cls("nx::naber")}, Opts);
   EXPECT_THAT(Results.Completions, UnorderedElementsAre());
+}
+
+TEST(CompletionTest, Lambda) {
+  clangd::CodeCompleteOptions Opts = {};
+
+  auto Results = completions(R"cpp(
+    void function() {
+      auto Lambda = [](int a, const double &b) {return 1.f;};
+      Lam^
+    }
+  )cpp",
+                             {}, Opts);
+
+  ASSERT_EQ(Results.Completions.size(), 1u);
+  const auto &A = Results.Completions.front();
+  EXPECT_EQ(A.Name, "Lambda");
+  EXPECT_EQ(A.Signature, "(int a, const double &b) const");
+  EXPECT_EQ(A.Kind, CompletionItemKind::Variable);
+  EXPECT_EQ(A.ReturnType, "float");
+  EXPECT_EQ(A.SnippetSuffix, "(${1:int a}, ${2:const double &b})");
 }
 
 TEST(CompletionTest, ObjectiveCMethodNoArguments) {

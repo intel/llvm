@@ -987,13 +987,9 @@ ClangASTContext::GetBasicTypeEnumeration(ConstString name) {
   return eBasicTypeInvalid;
 }
 
-CompilerType ClangASTContext::GetBasicType(ASTContext *ast,
-                                           ConstString name) {
-  if (ast) {
-    lldb::BasicType basic_type = ClangASTContext::GetBasicTypeEnumeration(name);
-    return ClangASTContext::GetBasicType(ast, basic_type);
-  }
-  return CompilerType();
+CompilerType ClangASTContext::GetBasicType(ConstString name) {
+  lldb::BasicType basic_type = ClangASTContext::GetBasicTypeEnumeration(name);
+  return GetBasicType(basic_type);
 }
 
 uint32_t ClangASTContext::GetPointerByteSize() {
@@ -1006,13 +1002,8 @@ uint32_t ClangASTContext::GetPointerByteSize() {
 }
 
 CompilerType ClangASTContext::GetBasicType(lldb::BasicType basic_type) {
-  return GetBasicType(getASTContext(), basic_type);
-}
+  clang::ASTContext *ast = getASTContext();
 
-CompilerType ClangASTContext::GetBasicType(ASTContext *ast,
-                                           lldb::BasicType basic_type) {
-  if (!ast)
-    return CompilerType();
   lldb::opaque_compiler_type_t clang_type =
       GetOpaqueCompilerType(ast, basic_type);
 
@@ -1242,13 +1233,6 @@ CompilerType ClangASTContext::GetBuiltinTypeForDWARFEncodingAndBitSize(
                                            "DW_ATE = 0x%x, bit_size = %u\n",
                     dw_ate, bit_size);
   }
-  return CompilerType();
-}
-
-CompilerType ClangASTContext::GetUnknownAnyType(clang::ASTContext *ast) {
-  if (ast)
-    return CompilerType(ClangASTContext::GetASTContext(ast),
-                        ast->UnknownAnyTy.getAsOpaquePtr());
   return CompilerType();
 }
 
@@ -1703,11 +1687,7 @@ ClangASTContext::UnifyAccessSpecifiers(clang::AccessSpecifier lhs,
 
 bool ClangASTContext::FieldIsBitfield(FieldDecl *field,
                                       uint32_t &bitfield_bit_size) {
-  return FieldIsBitfield(getASTContext(), field, bitfield_bit_size);
-}
-
-bool ClangASTContext::FieldIsBitfield(ASTContext *ast, FieldDecl *field,
-                                      uint32_t &bitfield_bit_size) {
+  ASTContext *ast = getASTContext();
   if (ast == nullptr || field == nullptr)
     return false;
 
@@ -1859,16 +1839,6 @@ NamespaceDecl *ClangASTContext::GetUniqueNamespaceDeclaration(
   VerifyDecl(namespace_decl);
 #endif
   return namespace_decl;
-}
-
-NamespaceDecl *ClangASTContext::GetUniqueNamespaceDeclaration(
-    clang::ASTContext *ast, const char *name, clang::DeclContext *decl_ctx,
-    bool is_inline) {
-  ClangASTContext *ast_ctx = ClangASTContext::GetASTContext(ast);
-  if (ast_ctx == nullptr)
-    return nullptr;
-
-  return ast_ctx->GetUniqueNamespaceDeclaration(name, decl_ctx, is_inline);
 }
 
 clang::BlockDecl *
@@ -2499,16 +2469,6 @@ ClangASTMetadata *ClangASTContext::GetMetadata(clang::ASTContext *ast,
     return external_source->GetMetadata(object);
   else
     return nullptr;
-}
-
-clang::DeclContext *
-ClangASTContext::GetAsDeclContext(clang::CXXMethodDecl *cxx_method_decl) {
-  return llvm::dyn_cast<clang::DeclContext>(cxx_method_decl);
-}
-
-clang::DeclContext *
-ClangASTContext::GetAsDeclContext(clang::ObjCMethodDecl *objc_method_decl) {
-  return llvm::dyn_cast<clang::DeclContext>(objc_method_decl);
 }
 
 bool ClangASTContext::SetTagTypeKind(clang::QualType tag_qual_type,
@@ -4931,7 +4891,7 @@ ClangASTContext::GetTypedefedType(lldb::opaque_compiler_type_t type) {
 // Create related types using the current type's AST
 
 CompilerType ClangASTContext::GetBasicTypeFromAST(lldb::BasicType basic_type) {
-  return ClangASTContext::GetBasicType(getASTContext(), basic_type);
+  return ClangASTContext::GetBasicType(basic_type);
 }
 // Exploring the type
 
@@ -6706,8 +6666,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
           // Figure out the field offset within the current struct/union/class
           // type
           bit_offset = record_layout.getFieldOffset(field_idx);
-          if (ClangASTContext::FieldIsBitfield(getASTContext(), *field,
-                                               child_bitfield_bit_size)) {
+          if (FieldIsBitfield(*field, child_bitfield_bit_size)) {
             child_bitfield_bit_offset = bit_offset % child_bit_size;
             const uint32_t child_bit_offset =
                 bit_offset - child_bitfield_bit_offset;
@@ -6830,8 +6789,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
                 // offset from, we still need to get the bit offset for
                 // bitfields from the layout.
 
-                if (ClangASTContext::FieldIsBitfield(getASTContext(), ivar_decl,
-                                                     child_bitfield_bit_size)) {
+                if (FieldIsBitfield(ivar_decl, child_bitfield_bit_size)) {
                   if (bit_offset == INT32_MAX)
                     bit_offset = interface_layout.getFieldOffset(
                         child_idx - superclass_idx);
@@ -8381,189 +8339,182 @@ bool ClangASTContext::AddObjCClassProperty(
   clang::ASTContext *clang_ast = ast->getASTContext();
 
   clang::ObjCInterfaceDecl *class_interface_decl = GetAsObjCInterfaceDecl(type);
+  if (!class_interface_decl)
+    return false;
 
-  if (class_interface_decl) {
-    CompilerType property_clang_type_to_access;
+  CompilerType property_clang_type_to_access;
 
-    if (property_clang_type.IsValid())
-      property_clang_type_to_access = property_clang_type;
-    else if (ivar_decl)
-      property_clang_type_to_access =
-          CompilerType(ast, ivar_decl->getType().getAsOpaquePtr());
+  if (property_clang_type.IsValid())
+    property_clang_type_to_access = property_clang_type;
+  else if (ivar_decl)
+    property_clang_type_to_access =
+        CompilerType(ast, ivar_decl->getType().getAsOpaquePtr());
 
-    if (class_interface_decl && property_clang_type_to_access.IsValid()) {
-      clang::TypeSourceInfo *prop_type_source;
-      if (ivar_decl)
-        prop_type_source =
-            clang_ast->getTrivialTypeSourceInfo(ivar_decl->getType());
-      else
-        prop_type_source = clang_ast->getTrivialTypeSourceInfo(
-            ClangUtil::GetQualType(property_clang_type));
+  if (!class_interface_decl || !property_clang_type_to_access.IsValid())
+    return false;
 
-      clang::ObjCPropertyDecl *property_decl = clang::ObjCPropertyDecl::Create(
-          *clang_ast, class_interface_decl,
-          clang::SourceLocation(), // Source Location
-          &clang_ast->Idents.get(property_name),
-          clang::SourceLocation(), // Source Location for AT
-          clang::SourceLocation(), // Source location for (
-          ivar_decl ? ivar_decl->getType()
-                    : ClangUtil::GetQualType(property_clang_type),
-          prop_type_source);
+  clang::TypeSourceInfo *prop_type_source;
+  if (ivar_decl)
+    prop_type_source =
+        clang_ast->getTrivialTypeSourceInfo(ivar_decl->getType());
+  else
+    prop_type_source = clang_ast->getTrivialTypeSourceInfo(
+        ClangUtil::GetQualType(property_clang_type));
 
-      if (property_decl) {
-        if (metadata)
-          ClangASTContext::SetMetadata(clang_ast, property_decl, *metadata);
+  clang::ObjCPropertyDecl *property_decl = clang::ObjCPropertyDecl::Create(
+      *clang_ast, class_interface_decl,
+      clang::SourceLocation(), // Source Location
+      &clang_ast->Idents.get(property_name),
+      clang::SourceLocation(), // Source Location for AT
+      clang::SourceLocation(), // Source location for (
+      ivar_decl ? ivar_decl->getType()
+                : ClangUtil::GetQualType(property_clang_type),
+      prop_type_source);
 
-        class_interface_decl->addDecl(property_decl);
+  if (!property_decl)
+    return false;
 
-        clang::Selector setter_sel, getter_sel;
+  if (metadata)
+    ClangASTContext::SetMetadata(clang_ast, property_decl, *metadata);
 
-        if (property_setter_name != nullptr) {
-          std::string property_setter_no_colon(
-              property_setter_name, strlen(property_setter_name) - 1);
-          clang::IdentifierInfo *setter_ident =
-              &clang_ast->Idents.get(property_setter_no_colon);
-          setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
-        } else if (!(property_attributes & DW_APPLE_PROPERTY_readonly)) {
-          std::string setter_sel_string("set");
-          setter_sel_string.push_back(::toupper(property_name[0]));
-          setter_sel_string.append(&property_name[1]);
-          clang::IdentifierInfo *setter_ident =
-              &clang_ast->Idents.get(setter_sel_string);
-          setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
-        }
-        property_decl->setSetterName(setter_sel);
-        property_decl->setPropertyAttributes(
-            clang::ObjCPropertyDecl::OBJC_PR_setter);
+  class_interface_decl->addDecl(property_decl);
 
-        if (property_getter_name != nullptr) {
-          clang::IdentifierInfo *getter_ident =
-              &clang_ast->Idents.get(property_getter_name);
-          getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
-        } else {
-          clang::IdentifierInfo *getter_ident =
-              &clang_ast->Idents.get(property_name);
-          getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
-        }
-        property_decl->setGetterName(getter_sel);
-        property_decl->setPropertyAttributes(
-            clang::ObjCPropertyDecl::OBJC_PR_getter);
+  clang::Selector setter_sel, getter_sel;
 
-        if (ivar_decl)
-          property_decl->setPropertyIvarDecl(ivar_decl);
+  if (property_setter_name) {
+    std::string property_setter_no_colon(property_setter_name,
+                                         strlen(property_setter_name) - 1);
+    clang::IdentifierInfo *setter_ident =
+        &clang_ast->Idents.get(property_setter_no_colon);
+    setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
+  } else if (!(property_attributes & DW_APPLE_PROPERTY_readonly)) {
+    std::string setter_sel_string("set");
+    setter_sel_string.push_back(::toupper(property_name[0]));
+    setter_sel_string.append(&property_name[1]);
+    clang::IdentifierInfo *setter_ident =
+        &clang_ast->Idents.get(setter_sel_string);
+    setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
+  }
+  property_decl->setSetterName(setter_sel);
+  property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_setter);
 
-        if (property_attributes & DW_APPLE_PROPERTY_readonly)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_readonly);
-        if (property_attributes & DW_APPLE_PROPERTY_readwrite)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_readwrite);
-        if (property_attributes & DW_APPLE_PROPERTY_assign)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_assign);
-        if (property_attributes & DW_APPLE_PROPERTY_retain)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_retain);
-        if (property_attributes & DW_APPLE_PROPERTY_copy)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_copy);
-        if (property_attributes & DW_APPLE_PROPERTY_nonatomic)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_nonatomic);
-        if (property_attributes & clang::ObjCPropertyDecl::OBJC_PR_nullability)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_nullability);
-        if (property_attributes &
-            clang::ObjCPropertyDecl::OBJC_PR_null_resettable)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_null_resettable);
-        if (property_attributes & clang::ObjCPropertyDecl::OBJC_PR_class)
-          property_decl->setPropertyAttributes(
-              clang::ObjCPropertyDecl::OBJC_PR_class);
+  if (property_getter_name != nullptr) {
+    clang::IdentifierInfo *getter_ident =
+        &clang_ast->Idents.get(property_getter_name);
+    getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
+  } else {
+    clang::IdentifierInfo *getter_ident = &clang_ast->Idents.get(property_name);
+    getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
+  }
+  property_decl->setGetterName(getter_sel);
+  property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_getter);
 
-        const bool isInstance =
-            (property_attributes & clang::ObjCPropertyDecl::OBJC_PR_class) == 0;
+  if (ivar_decl)
+    property_decl->setPropertyIvarDecl(ivar_decl);
 
-        if (!getter_sel.isNull() &&
-            !(isInstance
-                  ? class_interface_decl->lookupInstanceMethod(getter_sel)
-                  : class_interface_decl->lookupClassMethod(getter_sel))) {
-          const bool isVariadic = false;
-          const bool isPropertyAccessor = false;
-          const bool isSynthesizedAccessorStub = false;
-          const bool isImplicitlyDeclared = true;
-          const bool isDefined = false;
-          const clang::ObjCMethodDecl::ImplementationControl impControl =
-              clang::ObjCMethodDecl::None;
-          const bool HasRelatedResultType = false;
+  if (property_attributes & DW_APPLE_PROPERTY_readonly)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_readonly);
+  if (property_attributes & DW_APPLE_PROPERTY_readwrite)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_readwrite);
+  if (property_attributes & DW_APPLE_PROPERTY_assign)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_assign);
+  if (property_attributes & DW_APPLE_PROPERTY_retain)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_retain);
+  if (property_attributes & DW_APPLE_PROPERTY_copy)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_copy);
+  if (property_attributes & DW_APPLE_PROPERTY_nonatomic)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_nonatomic);
+  if (property_attributes & ObjCPropertyDecl::OBJC_PR_nullability)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_nullability);
+  if (property_attributes & ObjCPropertyDecl::OBJC_PR_null_resettable)
+    property_decl->setPropertyAttributes(
+        ObjCPropertyDecl::OBJC_PR_null_resettable);
+  if (property_attributes & ObjCPropertyDecl::OBJC_PR_class)
+    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_class);
 
-          clang::ObjCMethodDecl *getter = clang::ObjCMethodDecl::Create(
-              *clang_ast, clang::SourceLocation(), clang::SourceLocation(),
-              getter_sel, ClangUtil::GetQualType(property_clang_type_to_access),
-              nullptr, class_interface_decl, isInstance, isVariadic,
-              isPropertyAccessor, isSynthesizedAccessorStub,
-              isImplicitlyDeclared, isDefined, impControl,
-              HasRelatedResultType);
+  const bool isInstance =
+      (property_attributes & ObjCPropertyDecl::OBJC_PR_class) == 0;
 
-          if (getter && metadata)
-            ClangASTContext::SetMetadata(clang_ast, getter, *metadata);
+  clang::ObjCMethodDecl *getter = nullptr;
+  if (!getter_sel.isNull())
+    getter = isInstance ? class_interface_decl->lookupInstanceMethod(getter_sel)
+                        : class_interface_decl->lookupClassMethod(getter_sel);
+  if (!getter_sel.isNull() && !getter) {
+    const bool isVariadic = false;
+    const bool isPropertyAccessor = false;
+    const bool isSynthesizedAccessorStub = false;
+    const bool isImplicitlyDeclared = true;
+    const bool isDefined = false;
+    const clang::ObjCMethodDecl::ImplementationControl impControl =
+        clang::ObjCMethodDecl::None;
+    const bool HasRelatedResultType = false;
 
-          if (getter) {
-            getter->setMethodParams(*clang_ast,
-                                    llvm::ArrayRef<clang::ParmVarDecl *>(),
-                                    llvm::ArrayRef<clang::SourceLocation>());
+    getter = clang::ObjCMethodDecl::Create(
+        *clang_ast, clang::SourceLocation(), clang::SourceLocation(),
+        getter_sel, ClangUtil::GetQualType(property_clang_type_to_access),
+        nullptr, class_interface_decl, isInstance, isVariadic,
+        isPropertyAccessor, isSynthesizedAccessorStub, isImplicitlyDeclared,
+        isDefined, impControl, HasRelatedResultType);
 
-            class_interface_decl->addDecl(getter);
-          }
-        }
+    if (getter) {
+      if (metadata)
+        ClangASTContext::SetMetadata(clang_ast, getter, *metadata);
 
-        if (!setter_sel.isNull() &&
-            !(isInstance
-                  ? class_interface_decl->lookupInstanceMethod(setter_sel)
-                  : class_interface_decl->lookupClassMethod(setter_sel))) {
-          clang::QualType result_type = clang_ast->VoidTy;
-          const bool isVariadic = false;
-          const bool isPropertyAccessor = true;
-          const bool isSynthesizedAccessorStub = false;
-          const bool isImplicitlyDeclared = true;
-          const bool isDefined = false;
-          const clang::ObjCMethodDecl::ImplementationControl impControl =
-              clang::ObjCMethodDecl::None;
-          const bool HasRelatedResultType = false;
-
-          clang::ObjCMethodDecl *setter = clang::ObjCMethodDecl::Create(
-              *clang_ast, clang::SourceLocation(), clang::SourceLocation(),
-              setter_sel, result_type, nullptr, class_interface_decl,
-              isInstance, isVariadic, isPropertyAccessor,
-              isSynthesizedAccessorStub, isImplicitlyDeclared, isDefined,
-              impControl, HasRelatedResultType);
-
-          if (setter && metadata)
-            ClangASTContext::SetMetadata(clang_ast, setter, *metadata);
-
-          llvm::SmallVector<clang::ParmVarDecl *, 1> params;
-
-          params.push_back(clang::ParmVarDecl::Create(
-              *clang_ast, setter, clang::SourceLocation(),
-              clang::SourceLocation(),
-              nullptr, // anonymous
-              ClangUtil::GetQualType(property_clang_type_to_access), nullptr,
-              clang::SC_Auto, nullptr));
-
-          if (setter) {
-            setter->setMethodParams(
-                *clang_ast, llvm::ArrayRef<clang::ParmVarDecl *>(params),
-                llvm::ArrayRef<clang::SourceLocation>());
-
-            class_interface_decl->addDecl(setter);
-          }
-        }
-
-        return true;
-      }
+      getter->setMethodParams(*clang_ast,
+                              llvm::ArrayRef<clang::ParmVarDecl *>(),
+                              llvm::ArrayRef<clang::SourceLocation>());
+      class_interface_decl->addDecl(getter);
     }
   }
-  return false;
+  if (getter) {
+    getter->setPropertyAccessor(true);
+    property_decl->setGetterMethodDecl(getter);
+  }
+
+  clang::ObjCMethodDecl *setter = nullptr;
+    setter = isInstance ? class_interface_decl->lookupInstanceMethod(setter_sel)
+                        : class_interface_decl->lookupClassMethod(setter_sel);
+  if (!setter_sel.isNull() && !setter) {
+    clang::QualType result_type = clang_ast->VoidTy;
+    const bool isVariadic = false;
+    const bool isPropertyAccessor = true;
+    const bool isSynthesizedAccessorStub = false;
+    const bool isImplicitlyDeclared = true;
+    const bool isDefined = false;
+    const clang::ObjCMethodDecl::ImplementationControl impControl =
+        clang::ObjCMethodDecl::None;
+    const bool HasRelatedResultType = false;
+
+    setter = clang::ObjCMethodDecl::Create(
+        *clang_ast, clang::SourceLocation(), clang::SourceLocation(),
+        setter_sel, result_type, nullptr, class_interface_decl, isInstance,
+        isVariadic, isPropertyAccessor, isSynthesizedAccessorStub,
+        isImplicitlyDeclared, isDefined, impControl, HasRelatedResultType);
+
+    if (setter) {
+      if (metadata)
+        ClangASTContext::SetMetadata(clang_ast, setter, *metadata);
+
+      llvm::SmallVector<clang::ParmVarDecl *, 1> params;
+      params.push_back(clang::ParmVarDecl::Create(
+          *clang_ast, setter, clang::SourceLocation(), clang::SourceLocation(),
+          nullptr, // anonymous
+          ClangUtil::GetQualType(property_clang_type_to_access), nullptr,
+          clang::SC_Auto, nullptr));
+
+      setter->setMethodParams(*clang_ast,
+                              llvm::ArrayRef<clang::ParmVarDecl *>(params),
+                              llvm::ArrayRef<clang::SourceLocation>());
+
+      class_interface_decl->addDecl(setter);
+    }
+  }
+  if (setter) {
+    setter->setPropertyAccessor(true);
+    property_decl->setSetterMethodDecl(setter);
+  }
+
+  return true;
 }
 
 bool ClangASTContext::IsObjCClassTypeAndHasIVars(const CompilerType &type,
@@ -8997,16 +8948,23 @@ void ClangASTContext::DumpFromSymbolFile(Stream &s,
 
     s << type->GetName().AsCString() << "\n";
 
-    if (clang::TagDecl *tag_decl =
-                 GetAsTagDecl(type->GetFullCompilerType()))
+    CompilerType full_type = type->GetFullCompilerType();
+    if (clang::TagDecl *tag_decl = GetAsTagDecl(full_type)) {
       tag_decl->dump(s.AsRawOstream());
-    else if (clang::TypedefNameDecl *typedef_decl =
-                 GetAsTypedefDecl(type->GetFullCompilerType()))
-      typedef_decl->dump(s.AsRawOstream());
-    else {
-      GetCanonicalQualType(type->GetFullCompilerType().GetOpaqueQualType())
-          .dump(s.AsRawOstream());
+      continue;
     }
+    if (clang::TypedefNameDecl *typedef_decl = GetAsTypedefDecl(full_type)) {
+      typedef_decl->dump(s.AsRawOstream());
+      continue;
+    }
+    if (auto *objc_obj = llvm::dyn_cast<clang::ObjCObjectType>(
+            ClangUtil::GetQualType(full_type).getTypePtr())) {
+      if (clang::ObjCInterfaceDecl *interface_decl = objc_obj->getInterface()) {
+        interface_decl->dump(s.AsRawOstream());
+        continue;
+      }
+    }
+    GetCanonicalQualType(full_type.GetOpaqueQualType()).dump(s.AsRawOstream());
   }
 }
 
@@ -9129,8 +9087,7 @@ void ClangASTContext::DumpValue(
         field_byte_offset = field_bit_offset / 8;
         uint32_t field_bitfield_bit_size = 0;
         uint32_t field_bitfield_bit_offset = 0;
-        if (ClangASTContext::FieldIsBitfield(getASTContext(), *field,
-                                             field_bitfield_bit_size))
+        if (FieldIsBitfield(*field, field_bitfield_bit_size))
           field_bitfield_bit_offset = field_bit_offset % 8;
 
         if (show_types) {
