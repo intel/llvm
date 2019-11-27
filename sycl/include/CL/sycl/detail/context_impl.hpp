@@ -117,9 +117,9 @@ public:
     return MCachedKernels;
   }
 
-  /// Gets USM dispatch.
+  /// Gets USM dispatcher.
   ///
-  /// @return a pointer to USM dispatch.
+  /// @return a pointer to USM dispatcher.
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
 private:
   async_handler MAsyncHandler;
