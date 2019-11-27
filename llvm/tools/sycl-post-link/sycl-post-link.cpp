@@ -305,6 +305,11 @@ int main(int argc, char **argv) {
   std::vector<std::unique_ptr<Module>> ResultModules;
   std::vector<std::string> ResultSymbolsLists;
 
+  // Default usage model of that the tool is
+  // calling it twice with the same input due clang driver limitations.
+  // It should not bring much extra overhead because
+  // parseIRFile and collectKernelsSet functions are small (would be good to
+  // estimate) compared to splitModule and saveResultModules.
   bool NoLists = OutputIRFilesList.empty() && OutputTxtFilesList.empty();
   bool PerformSplit = !OutputIRFilesList.empty() || NoLists;
   bool CollectSymbols = !OutputTxtFilesList.empty() || NoLists;
