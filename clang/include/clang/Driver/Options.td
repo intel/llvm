@@ -1822,10 +1822,11 @@ def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[Driv
   HelpText<"Specify comma-separated list of triple and device binary image pairs to add to the final SYCL binary">;
 def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
-def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split">;
-def fsycl_one_kernel_per_module : Flag<["-"], "fsycl-one-kernel-per-module">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Emit a separate device module for each kernel">;
+def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split">, Values<"per_source,per_kernel">;
+def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
+  AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
+  HelpText<"Perform SYCL device code split">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,

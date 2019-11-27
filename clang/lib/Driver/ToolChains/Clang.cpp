@@ -7248,8 +7248,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back(TCArgs.MakeArgString("-o"));
   CmdArgs.push_back(TCArgs.MakeArgString(TmpName));
 
-  if (TCArgs.hasArg(options::OPT_fsycl_one_kernel_per_module))
-    CmdArgs.push_back("-one-kernel");
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ))
+    if (A->getValue() == StringRef("per_kernel"))
+      CmdArgs.push_back("-one-kernel");
 
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
