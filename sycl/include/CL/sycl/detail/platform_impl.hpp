@@ -28,7 +28,7 @@ namespace detail {
 class platform_impl {
 public:
   /// Constructs platform_impl for a SYCL host platform.
-  platform_impl() : MHostPlatform(true) {};
+  platform_impl() : MHostPlatform(true){};
 
   /// Constructs platform_impl instance using device selector.
   ///
@@ -55,7 +55,8 @@ public:
       return false;
 
     string_class all_extension_names =
-        get_platform_info<string_class, info::platform::extensions>::get(MPlatform);
+        get_platform_info<string_class, info::platform::extensions>::get(
+            MPlatform);
     return (all_extension_names.find(ExtensionName) != std::string::npos);
   }
 
@@ -103,7 +104,8 @@ public:
   /// @return a raw plug-in platform handle.
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance");
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
 
     return MPlatform;
   }
