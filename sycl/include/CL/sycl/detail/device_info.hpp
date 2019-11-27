@@ -46,7 +46,7 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 // TODO: get rid of remaining uses of OpenCL directly
 //
 template <typename T, info::device param> struct get_device_info {
-  static T _(RT::PiDevice dev) {
+  static T get(RT::PiDevice dev) {
     typename sycl_to_pi<T>::type result;
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param),
                              sizeof(result), &result, nullptr);
@@ -56,7 +56,7 @@ template <typename T, info::device param> struct get_device_info {
 
 // Specialization for platform
 template <info::device param> struct get_device_info<platform, param> {
-  static platform _(RT::PiDevice dev) {
+  static platform get(RT::PiDevice dev) {
     typename sycl_to_pi<platform>::type result;
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param),
                              sizeof(result), &result, nullptr);
@@ -67,7 +67,7 @@ template <info::device param> struct get_device_info<platform, param> {
 
 // Specialization for string return type, variable return size
 template <info::device param> struct get_device_info<string_class, param> {
-  static string_class _(RT::PiDevice dev) {
+  static string_class get(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param), 0, nullptr,
                              &resultSize);
@@ -84,12 +84,12 @@ template <info::device param> struct get_device_info<string_class, param> {
 
 // Specialization for parent device
 template <typename T> struct get_device_info<T, info::device::parent_device> {
-  static T _(RT::PiDevice dev);
+  static T get(RT::PiDevice dev);
 };
 
 // Specialization for id return type
 template <info::device param> struct get_device_info<id<3>, param> {
-  static id<3> _(RT::PiDevice dev) {
+  static id<3> get(RT::PiDevice dev) {
     size_t result[3];
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param),
                              sizeof(result), &result, nullptr);
@@ -100,12 +100,12 @@ template <info::device param> struct get_device_info<id<3>, param> {
 // Specialization for fp_config types, checks the corresponding fp type support
 template <info::device param>
 struct get_device_info<vector_class<info::fp_config>, param> {
-  static vector_class<info::fp_config> _(RT::PiDevice dev) {
+  static vector_class<info::fp_config> get(RT::PiDevice dev) {
     // Check if fp type is supported
     if (!get_device_info<
             typename info::param_traits<
                 info::device, check_fp_support<param>::value>::return_type,
-            check_fp_support<param>::value>::_(dev)) {
+            check_fp_support<param>::value>::get(dev)) {
       return {};
     }
     cl_device_fp_config result;
@@ -119,7 +119,7 @@ struct get_device_info<vector_class<info::fp_config>, param> {
 template <>
 struct get_device_info<vector_class<info::fp_config>,
                        info::device::single_fp_config> {
-  static vector_class<info::fp_config> _(RT::PiDevice dev) {
+  static vector_class<info::fp_config> get(RT::PiDevice dev) {
     cl_device_fp_config result;
     PI_CALL(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::single_fp_config),
@@ -130,7 +130,7 @@ struct get_device_info<vector_class<info::fp_config>,
 
 // Specialization for queue_profiling, OpenCL returns a bitfield
 template <> struct get_device_info<bool, info::device::queue_profiling> {
-  static bool _(RT::PiDevice dev) {
+  static bool get(RT::PiDevice dev) {
     cl_command_queue_properties result;
     PI_CALL(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::queue_profiling),
@@ -143,7 +143,7 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
 template <>
 struct get_device_info<vector_class<info::execution_capability>,
                        info::device::execution_capabilities> {
-  static vector_class<info::execution_capability> _(RT::PiDevice dev) {
+  static vector_class<info::execution_capability> get(RT::PiDevice dev) {
     cl_device_exec_capabilities result;
     PI_CALL(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
@@ -156,9 +156,9 @@ struct get_device_info<vector_class<info::execution_capability>,
 template <>
 struct get_device_info<vector_class<string_class>,
                        info::device::built_in_kernels> {
-  static vector_class<string_class> _(RT::PiDevice dev) {
+  static vector_class<string_class> get(RT::PiDevice dev) {
     string_class result =
-        get_device_info<string_class, info::device::built_in_kernels>::_(dev);
+        get_device_info<string_class, info::device::built_in_kernels>::get(dev);
     return split_string(result, ';');
   }
 };
@@ -166,9 +166,9 @@ struct get_device_info<vector_class<string_class>,
 // Specialization for extensions, splits the string returned by OpenCL
 template <>
 struct get_device_info<vector_class<string_class>, info::device::extensions> {
-  static vector_class<string_class> _(RT::PiDevice dev) {
+  static vector_class<string_class> get(RT::PiDevice dev) {
     string_class result =
-        get_device_info<string_class, info::device::extensions>::_(dev);
+        get_device_info<string_class, info::device::extensions>::get(dev);
     return split_string(result, ' ');
   }
 };
@@ -177,7 +177,7 @@ struct get_device_info<vector_class<string_class>, info::device::extensions> {
 template <>
 struct get_device_info<vector_class<info::partition_property>,
                        info::device::partition_properties> {
-  static vector_class<info::partition_property> _(RT::PiDevice dev) {
+  static vector_class<info::partition_property> get(RT::PiDevice dev) {
     auto info_partition =
         pi::cast<RT::PiDeviceInfo>(info::device::partition_properties);
 
@@ -205,7 +205,7 @@ struct get_device_info<vector_class<info::partition_property>,
 template <>
 struct get_device_info<vector_class<info::partition_affinity_domain>,
                        info::device::partition_affinity_domains> {
-  static vector_class<info::partition_affinity_domain> _(RT::PiDevice dev) {
+  static vector_class<info::partition_affinity_domain> get(RT::PiDevice dev) {
     cl_device_affinity_domain result;
     PI_CALL(piDeviceGetInfo)(
         dev,
@@ -220,7 +220,7 @@ struct get_device_info<vector_class<info::partition_affinity_domain>,
 template <>
 struct get_device_info<info::partition_affinity_domain,
                        info::device::partition_type_affinity_domain> {
-  static info::partition_affinity_domain _(RT::PiDevice dev) {
+  static info::partition_affinity_domain get(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(piDeviceGetInfo)(dev,
                              pi::cast<RT::PiDeviceInfo>(
@@ -250,7 +250,7 @@ struct get_device_info<info::partition_affinity_domain,
 template <>
 struct get_device_info<info::partition_property,
                        info::device::partition_type_property> {
-  static info::partition_property _(RT::PiDevice dev) {
+  static info::partition_property get(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(piDeviceGetInfo)(dev, PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
                              &resultSize);
@@ -271,7 +271,7 @@ struct get_device_info<info::partition_property,
 // Specialization for supported subgroup sizes
 template <>
 struct get_device_info<vector_class<size_t>, info::device::sub_group_sizes> {
-  static vector_class<size_t> _(RT::PiDevice dev) {
+  static vector_class<size_t> get(RT::PiDevice dev) {
     size_t resultSize = 0;
     PI_CALL(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::sub_group_sizes), 0,
@@ -290,10 +290,10 @@ struct get_device_info<vector_class<size_t>, info::device::sub_group_sizes> {
 // enum for global pipes feature.
 template <>
 struct get_device_info<bool, info::device::kernel_kernel_pipe_support> {
-  static bool _(RT::PiDevice dev) {
+  static bool get(RT::PiDevice dev) {
     // We claim, that all Intel FPGA devices support kernel to kernel pipe
     // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
-    platform plt = get_device_info<platform, info::device::platform>::_(dev);
+    platform plt = get_device_info<platform, info::device::platform>::get(dev);
     string_class platform_name = plt.get_info<info::platform::name>();
     if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
         platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")

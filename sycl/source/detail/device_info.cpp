@@ -25,8 +25,8 @@ namespace detail {
 
 // Specialization for parent device
 template <>
-device get_device_info<device, info::device::parent_device>::_(
-  RT::PiDevice dev) {
+device
+get_device_info<device, info::device::parent_device>::get(RT::PiDevice dev) {
 
   typename sycl_to_pi<device>::type result;
   PI_CALL(piDeviceGetInfo)(

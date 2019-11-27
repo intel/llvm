@@ -60,7 +60,7 @@ kernel_impl::get_info() const {
   }
   return get_kernel_info<
       typename info::param_traits<info::kernel, param>::return_type,
-      param>::_(this->getHandleRef());
+      param>::get(this->getHandleRef());
 }
 
 template <> context kernel_impl::get_info<info::kernel::context>() const {
@@ -79,7 +79,7 @@ kernel_impl::get_work_group_info(const device &Device) const {
   }
   return get_kernel_work_group_info<
       typename info::param_traits<info::kernel_work_group, param>::return_type,
-      param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
+      param>::get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
 }
 
 template <info::kernel_sub_group param>
@@ -90,7 +90,7 @@ kernel_impl::get_sub_group_info(const device &Device) const {
   }
   return get_kernel_sub_group_info<
       typename info::param_traits<info::kernel_sub_group, param>::return_type,
-      param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
+      param>::get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
 }
 
 template <info::kernel_sub_group param>
@@ -106,7 +106,7 @@ kernel_impl::get_sub_group_info(
       typename info::param_traits<info::kernel_sub_group, param>::return_type,
       param,
       typename info::param_traits<info::kernel_sub_group, param>::input_type>::
-      _(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value);
+      get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value);
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
