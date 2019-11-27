@@ -116,7 +116,7 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_submit>::_(
+    return get_event_profiling_info<info::event_profiling::command_submit>::get(
         this->getHandleRef());
   }
   if (!m_HostProfilingInfo)
@@ -128,7 +128,7 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_start>::_(
+    return get_event_profiling_info<info::event_profiling::command_start>::get(
         this->getHandleRef());
   }
   if (!m_HostProfilingInfo)
@@ -140,7 +140,7 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info<info::event_profiling::command_end>::_(
+    return get_event_profiling_info<info::event_profiling::command_end>::get(
         this->getHandleRef());
   }
   if (!m_HostProfilingInfo)
@@ -150,7 +150,7 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
   if (!m_HostEvent) {
-    return get_event_info<info::event::reference_count>::_(
+    return get_event_info<info::event::reference_count>::get(
         this->getHandleRef());
   }
   return 0;
@@ -160,7 +160,7 @@ template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
   if (!m_HostEvent) {
-    return get_event_info<info::event::command_execution_status>::_(
+    return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef());
   }
   return info::event_command_status::complete;

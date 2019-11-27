@@ -165,7 +165,7 @@ public:
     }
     return get_device_info<
         typename info::param_traits<info::device, param>::return_type,
-        param>::_(this->getHandleRef());
+        param>::get(this->getHandleRef());
   }
 
   /// Check if affinity partitioning by specified domain is supported by device

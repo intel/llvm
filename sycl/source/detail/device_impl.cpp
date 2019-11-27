@@ -84,7 +84,7 @@ bool device_impl::has_extension(const string_class &ExtensionName) const {
     return false;
 
   string_class AllExtensionNames =
-      get_device_info<string_class, info::device::extensions>::_(MDevice);
+      get_device_info<string_class, info::device::extensions>::get(MDevice);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
