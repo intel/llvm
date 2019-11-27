@@ -7225,9 +7225,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Construct sycl-post-link command.
   assert(isa<SYCLPostLinkJobAction>(JA) && "Expecting SYCL post link job!");
 
-  // The split command looks like this:
-  // sycl-post-link input_file.ll -ir-files-list=ir.txt
-  //   -txt-files-list=files.txt -o base_output
+  // Variants of split command look like this:
+  // sycl-post-link input_file.bc -ir-files-list=ir.txt -o base_output - for
+  // IR files generation.
+  // sycl-post-link input_file.bc -txt-files-list=files.txt -o base_output - for
+  // entries files generation.
 
   ArgStringList CmdArgs;
   InputInfo Input = Inputs.front();
