@@ -46,13 +46,6 @@ public:
   /// @param DeviceSelector is an instance of SYCL device_selector.
   explicit platform(const device_selector &DeviceSelector);
 
-  /// Queries this SYCL platform for info.
-  ///
-  /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
-
   platform(const platform &rhs) = default;
 
   platform(platform &&rhs) = default;
@@ -91,6 +84,13 @@ public:
   /// @return a vector of SYCL devices.
   vector_class<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
+
+  /// Queries this SYCL platform for info.
+  ///
+  /// The return type depends on information being queried.
+  template <info::platform param>
+  typename info::param_traits<info::platform, param>::return_type
+  get_info() const;
 
   /// Gets all available SYCL platforms in the system.
   ///
