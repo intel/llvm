@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
 namespace cl {
@@ -49,6 +50,19 @@ vector_class<platform> platform::get_platforms() {
 
   return platforms;
 }
+
+template <info::platform param>
+typename info::param_traits<info::platform, param>::return_type
+platform::get_info() const {
+  return impl->get_info<param>();
+}
+
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
+    template ret_type platform::get_info<info::param_type::param>() const;
+
+#include <CL/sycl/info/platform_traits.def>
+
+#undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
 } // namespace cl

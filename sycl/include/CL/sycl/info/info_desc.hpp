@@ -266,11 +266,7 @@ template <typename T, T param> class param_traits {};
 #include <CL/sycl/info/kernel_traits.def>
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
-PARAM_TRAITS_SPEC(platform, profile, string_class)
-PARAM_TRAITS_SPEC(platform, version, string_class)
-PARAM_TRAITS_SPEC(platform, name, string_class)
-PARAM_TRAITS_SPEC(platform, vendor, string_class)
-PARAM_TRAITS_SPEC(platform, extensions, vector_class<string_class>)
+#include <CL/sycl/info/platform_traits.def>
 
 PARAM_TRAITS_SPEC(program, context, cl::sycl::context)
 PARAM_TRAITS_SPEC(program, devices, vector_class<cl::sycl::device>)

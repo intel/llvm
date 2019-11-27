@@ -8,9 +8,9 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/stl.hpp>
+
 // 4.6.2 Platform class
 #include <utility>
 namespace cl {
@@ -20,6 +20,9 @@ namespace sycl {
 // Forward declaration
 class device_selector;
 class device;
+namespace detail {
+class platform_impl;
+}
 
 class platform {
 public:
@@ -31,9 +34,7 @@ public:
 
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  get_info() const;
 
   platform(const platform &rhs) = default;
 
