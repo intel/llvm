@@ -61,7 +61,7 @@ template <info::device param> struct get_device_info<platform, param> {
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param),
                              sizeof(result), &result, nullptr);
     return createSyclObjFromImpl<platform>(
-        std::make_shared<platform_impl_pi>(result));
+        std::make_shared<platform_impl>(result));
   }
 };
 

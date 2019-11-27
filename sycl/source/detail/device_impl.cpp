@@ -75,7 +75,7 @@ platform device_impl::get_platform() const {
   // particularly, equality comparison may fail for two consecutive
   // get_platform() on the same device, as it compares impl objects.
   return createSyclObjFromImpl<platform>(
-      std::make_shared<platform_impl_pi>(plt));
+      std::make_shared<platform_impl>(plt));
 }
 
 bool device_impl::has_extension(const string_class &ExtensionName) const {

@@ -15,10 +15,10 @@
 namespace cl {
 namespace sycl {
 
-platform::platform() : impl(std::make_shared<detail::platform_impl_host>()) {}
+platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
 
 platform::platform(cl_platform_id PlatformId)
-    : impl(std::make_shared<detail::platform_impl_pi>(
+    : impl(std::make_shared<detail::platform_impl>(
              detail::pi::cast<detail::RT::PiPlatform>(PlatformId))) {}
 
 platform::platform(const device_selector &dev_selector) {
@@ -40,7 +40,7 @@ vector_class<device> platform::get_devices(info::device_type DeviceType) const {
 vector_class<platform> platform::get_platforms() {
 
   vector_class<platform> platforms =
-    detail::platform_impl_pi::get_platforms();
+    detail::platform_impl::get_platforms();
 
   // Add host device platform if required
   info::device_type forced_type = detail::get_forced_type();

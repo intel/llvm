@@ -20,36 +20,28 @@ namespace sycl {
 namespace detail {
 
 vector_class<platform>
-platform_impl_pi::get_platforms() {
-  vector_class<platform> platforms;
+platform_impl::get_platforms() {
+  vector_class<platform> Platforms;
 
-  pi_uint32 num_platforms = 0;
-  PI_CALL(piPlatformsGet)(0, nullptr, &num_platforms);
-  info::device_type forced_type = detail::get_forced_type();
+  pi_uint32 NumPlatforms = 0;
+  PI_CALL(piPlatformsGet)(0, nullptr, &NumPlatforms);
+  info::device_type ForcedType = detail::get_forced_type();
 
-  if (num_platforms) {
-    vector_class<RT::PiPlatform> pi_platforms(num_platforms);
-    PI_CALL(piPlatformsGet)(num_platforms, pi_platforms.data(), nullptr);
+  if (NumPlatforms) {
+    vector_class<RT::PiPlatform> pi_platforms(NumPlatforms);
+    PI_CALL(piPlatformsGet)(NumPlatforms, pi_platforms.data(), nullptr);
 
-    for (pi_uint32 i = 0; i < num_platforms; i++) {
+    for (pi_uint32 i = 0; i < NumPlatforms; i++) {
 
       platform plt =
         detail::createSyclObjFromImpl<platform>(
-          std::make_shared<platform_impl_pi>(pi_platforms[i]));
+          std::make_shared<platform_impl>(pi_platforms[i]));
       // Skip platforms which do not contain requested device types
-      if (!plt.get_devices(forced_type).empty())
-        platforms.push_back(plt);
+      if (!plt.get_devices(ForcedType).empty())
+        Platforms.push_back(plt);
     }
   }
-  return platforms;
-}
-
-vector_class<device>
-platform_impl_host::get_devices(info::device_type dev_type) const {
-  vector_class<device> res;
-  if (dev_type == info::device_type::host || dev_type == info::device_type::all)
-    res.resize(1); // default device construct creates host device
-  return res;
+  return Platforms;
 }
 
 struct DevDescT {
@@ -197,36 +189,37 @@ static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices,
 }
 
 vector_class<device>
-platform_impl_pi::get_devices(info::device_type deviceType) const {
-  vector_class<device> res;
-  if (deviceType == info::device_type::host)
-    return res;
+platform_impl::get_devices(info::device_type DeviceType) const {
+  vector_class<device> Res;
+  if (is_host() && (DeviceType == info::device_type::host || DeviceType == info::device_type::all)) {
+    Res.resize(1); // default device construct creates host device
+    return Res;
+  }
 
-  pi_uint32 num_devices;
-  PI_CALL(piDevicesGet)(m_platform, pi::cast<RT::PiDeviceType>(deviceType), 0,
-                        pi::cast<RT::PiDevice *>(nullptr), &num_devices);
+  pi_uint32 NumDevices;
+  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
+                        pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
 
-  if (num_devices == 0)
-    return res;
+  if (NumDevices == 0)
+    return Res;
 
-  vector_class<RT::PiDevice> pi_devices(num_devices);
+  vector_class<RT::PiDevice> pi_devices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDevicesGet)(m_platform, pi::cast<RT::PiDeviceType>(deviceType),
-                        num_devices, pi_devices.data(), nullptr);
+  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
+                        NumDevices, pi_devices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
     filterWhiteList(pi_devices, m_platform);
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
-                [&res](const RT::PiDevice &a_pi_device) {
+                [&Res](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
                       std::make_shared<device_impl>(a_pi_device));
-                  res.push_back(sycl_device);
+                  Res.push_back(sycl_device);
                 });
-  return res;
+  return Res;
 }
-
 } // namespace detail
 } // namespace sycl
 } // namespace cl

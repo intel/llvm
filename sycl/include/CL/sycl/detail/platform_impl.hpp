@@ -14,7 +14,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-// 4.6.2 Platform class
 namespace cl {
 namespace sycl {
 
@@ -24,88 +23,59 @@ class device;
 
 namespace detail {
 
+// TODO: implement extension management for host device
+// TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  platform_impl() = default;
+  platform_impl() : MHostPlatform(true) {};
 
-  explicit platform_impl(const device_selector &);
+  explicit platform_impl(const device_selector &DeviceSelector);
 
-  virtual bool has_extension(const string_class &extension_name) const = 0;
+  explicit platform_impl(RT::PiPlatform Platform) : MPlatform(Platform) {}
 
-  virtual vector_class<device>
-      get_devices(info::device_type = info::device_type::all) const = 0;
+  ~platform_impl() = default;
+
+  bool has_extension(const string_class &ExtensionName) const {
+    if (is_host())
+      return false;
+
+    string_class all_extension_names =
+        get_platform_info<string_class, info::platform::extensions>::get(MPlatform);
+    return (all_extension_names.find(ExtensionName) != std::string::npos);
+  }
+
+  vector_class<device>
+  get_devices(info::device_type DeviceType = info::device_type::all) const;
 
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
   get_info() const {
-    if (is_host()) {
+    if (is_host())
       return get_platform_info_host<param>();
-    }
+
     return get_platform_info<
         typename info::param_traits<info::platform, param>::return_type,
         param>::get(this->getHandleRef());
   }
 
-  virtual bool is_host() const = 0;
+  bool is_host() const { return MHostPlatform; };
 
-  virtual cl_platform_id get() const = 0;
+  cl_platform_id get() const { return pi::cast<cl_platform_id>(MPlatform); }
 
   // Returns underlying native platform object.
-  virtual const RT::PiPlatform &getHandleRef() const = 0;
+  const RT::PiPlatform &getHandleRef() const {
+    if (is_host())
+      throw invalid_object_error("This instance of platform is a host instance");
 
-  virtual ~platform_impl() = default;
-};
-
-// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
-class platform_impl_pi : public platform_impl {
-public:
-  platform_impl_pi(RT::PiPlatform a_platform) : m_platform(a_platform) {}
-
-  vector_class<device> get_devices(
-      info::device_type deviceType = info::device_type::all) const override;
-
-  bool has_extension(const string_class &extension_name) const override {
-    string_class all_extension_names =
-        get_platform_info<string_class, info::platform::extensions>::get(
-            m_platform);
-    return (all_extension_names.find(extension_name) != std::string::npos);
+    return MPlatform;
   }
-
-  cl_platform_id get() const override { return pi::cast<cl_platform_id>(m_platform); }
-
-  const RT::PiPlatform &getHandleRef() const override { return m_platform; }
-
-  bool is_host() const override { return false; }
 
   static vector_class<platform> get_platforms();
 
 private:
-  RT::PiPlatform m_platform = 0;
-}; // class platform_opencl
-
-// TODO: implement extension management
-// TODO: implement parameters treatment
-// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
-class platform_impl_host : public platform_impl {
-public:
-  vector_class<device> get_devices(
-      info::device_type dev_type = info::device_type::all) const override;
-
-  bool has_extension(const string_class &extension_name) const override {
-    return false;
-  }
-
-  cl_platform_id get() const override {
-    throw invalid_object_error("This instance of platform is a host instance");
-  }
-  const RT::PiPlatform &getHandleRef() const override {
-    throw invalid_object_error("This instance of platform is a host instance");
-  }
-
-  bool is_host() const override { return true; }
-}; // class platform_host
-
-
+  bool MHostPlatform = false;
+  RT::PiPlatform MPlatform = 0;
+};
 } // namespace detail
 } // namespace sycl
 } // namespace cl
