@@ -27,16 +27,16 @@ vector_class<platform> platform_impl::get_platforms() {
   info::device_type ForcedType = detail::get_forced_type();
 
   if (NumPlatforms) {
-    vector_class<RT::PiPlatform> pi_platforms(NumPlatforms);
-    PI_CALL(piPlatformsGet)(NumPlatforms, pi_platforms.data(), nullptr);
+    vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
+    PI_CALL(piPlatformsGet)(NumPlatforms, PiPlatforms.data(), nullptr);
 
     for (pi_uint32 i = 0; i < NumPlatforms; i++) {
 
-      platform plt = detail::createSyclObjFromImpl<platform>(
-          std::make_shared<platform_impl>(pi_platforms[i]));
+      platform Platform = detail::createSyclObjFromImpl<platform>(
+          std::make_shared<platform_impl>(PiPlatforms[i]));
       // Skip platforms which do not contain requested device types
-      if (!plt.get_devices(ForcedType).empty())
-        Platforms.push_back(plt);
+      if (!Platform.get_devices(ForcedType).empty())
+        Platforms.push_back(Platform);
     }
   }
   return Platforms;
