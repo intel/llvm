@@ -322,6 +322,12 @@ Tool *ToolChain::getSPIRCheck() const {
   return SPIRCheck.get();
 }
 
+Tool *ToolChain::getSYCLPostLink() const {
+  if (!SYCLPostLink)
+    SYCLPostLink.reset(new tools::SYCLPostLink(*this));
+  return SYCLPostLink.get();
+}
+
 Tool *ToolChain::getBackendCompiler() const {
   if (!BackendCompiler)
     BackendCompiler.reset(buildBackendCompiler());
@@ -369,6 +375,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRCheckJobClass:
     return getSPIRCheck();
+
+  case Action::SYCLPostLinkJobClass:
+    return getSYCLPostLink();
 
   case Action::BackendCompileJobClass:
     return getBackendCompiler();

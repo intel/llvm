@@ -6828,15 +6828,70 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
+    ArgStringList ForeachArgs;
+
     for (const InputInfo &I : Inputs) {
       assert(I.isFilename() && "Invalid input.");
-      WrapperArgs.push_back(I.getFilename());
+      std::string FileName(I.getFilename());
+      if (I.getType() == types::TY_Tempfilelist ||
+          I.getType() == types::TY_TempEntriesfilelist) {
+        ForeachArgs.push_back(
+            C.getArgs().MakeArgString("--in-file-list=" + FileName));
+        ForeachArgs.push_back(
+            C.getArgs().MakeArgString("--in-replace=" + FileName));
+
+        if (I.getType() == types::TY_TempEntriesfilelist) {
+          WrapperArgs.push_back(
+              C.getArgs().MakeArgString("-entries=" + FileName));
+          continue;
+        }
+      }
+      WrapperArgs.push_back(C.getArgs().MakeArgString(FileName));
     }
 
-    C.addCommand(std::make_unique<Command>(
+    auto Cmd = std::make_unique<Command>(
         JA, *this,
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-        WrapperArgs, None));
+        WrapperArgs, None);
+    if (!ForeachArgs.empty()) {
+      std::string ForeachOutName =
+          C.getDriver().GetTemporaryPath("wrapper-linker", "txt");
+      const char *ForeachOutput =
+          C.addTempFile(C.getArgs().MakeArgString(ForeachOutName));
+      SmallString<128> OutOpt("--out-file-list=");
+      OutOpt += ForeachOutput;
+
+      // Construct llvm-foreach command.
+      // The llvm-foreach command looks like this:
+      // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
+      ForeachArgs.push_back(C.getArgs().MakeArgString(OutOpt));
+      ForeachArgs.push_back(
+          C.getArgs().MakeArgString("--out-replace=" + OutTmpName));
+      ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
+
+      ForeachArgs.push_back(Cmd->getExecutable());
+      for (auto &Arg : WrapperArgs)
+        ForeachArgs.push_back(Arg);
+
+      SmallString<128> ForeachPath(C.getDriver().Dir);
+      llvm::sys::path::append(ForeachPath, "llvm-foreach");
+      const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
+      C.addCommand(
+          std::make_unique<Command>(JA, *this, Foreach, ForeachArgs, None));
+
+      // Construct llvm-link command.
+      SmallString<128> InOpt("@");
+      InOpt += ForeachOutName;
+      ArgStringList LLVMLinkArgs{C.getArgs().MakeArgString("-o"),
+                                 WrapperFileName,
+                                 C.getArgs().MakeArgString(InOpt)};
+      SmallString<128> LLVMLinkPath(C.getDriver().Dir);
+      llvm::sys::path::append(LLVMLinkPath, "llvm-link");
+      const char *LLVMLink = C.getArgs().MakeArgString(LLVMLinkPath);
+      C.addCommand(
+          std::make_unique<Command>(JA, *this, LLVMLink, LLVMLinkArgs, None));
+    } else
+      C.addCommand(std::move(Cmd));
 
     // Construct llc command.
     // The output is an object file
@@ -6918,6 +6973,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   // The translator command looks like this:
   // llvm-spirv -o <file>.spv <file>.bc
+  ArgStringList ForeachArgs;
   ArgStringList TranslatorArgs;
 
   TranslatorArgs.push_back("-o");
@@ -6927,12 +6983,44 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back("-spirv-ext=+all");
   }
   for (auto I : Inputs) {
-    TranslatorArgs.push_back(I.getFilename());
+    std::string Filename(I.getFilename());
+    if (I.getType() == types::TY_Tempfilelist) {
+      ForeachArgs.push_back(
+          C.getArgs().MakeArgString("--in-file-list=" + Filename));
+      ForeachArgs.push_back(
+          C.getArgs().MakeArgString("--in-replace=" + Filename));
+      ForeachArgs.push_back(
+          C.getArgs().MakeArgString("--out-ext=spv"));
+    }
+    TranslatorArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this,
+  auto Cmd = std::make_unique<Command>(JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      TranslatorArgs, None));
+      TranslatorArgs, None);
+
+  if (!ForeachArgs.empty()) {
+    // Construct llvm-foreach command.
+    // The llvm-foreach command looks like this:
+    // llvm-foreach a.list --out-replace=out "cp {} out"
+    // --out-file-list=list
+    std::string OutputFileName(Output.getFilename());
+    ForeachArgs.push_back(
+        TCArgs.MakeArgString("--out-file-list=" + OutputFileName));
+    ForeachArgs.push_back(
+        TCArgs.MakeArgString("--out-replace=" + OutputFileName));
+    ForeachArgs.push_back(TCArgs.MakeArgString("--"));
+    ForeachArgs.push_back(TCArgs.MakeArgString(Cmd->getExecutable()));
+
+    for (auto &Arg : Cmd->getArguments())
+      ForeachArgs.push_back(Arg);
+
+    SmallString<128> ForeachPath(C.getDriver().Dir);
+    llvm::sys::path::append(ForeachPath, "llvm-foreach");
+    const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
+    C.addCommand(std::make_unique<Command>(JA, *this, Foreach, ForeachArgs, None));
+  } else
+    C.addCommand(std::move(Cmd));
 }
 
 void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
@@ -6962,3 +7050,46 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CheckArgs, None));
 }
+
+void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
+                             const InputInfo &Output,
+                             const InputInfoList &Inputs,
+                             const llvm::opt::ArgList &TCArgs,
+                             const char *LinkingOutput) const {
+  // Construct sycl-post-link command.
+  assert(isa<SYCLPostLinkJobAction>(JA) && "Expecting SYCL post link job!");
+
+  // Variants of split command look like this:
+  // sycl-post-link input_file.bc -ir-files-list=ir.txt -o base_output - for
+  // IR files generation.
+  // sycl-post-link input_file.bc -txt-files-list=files.txt -o base_output - for
+  // entries files generation.
+
+  ArgStringList CmdArgs;
+  InputInfo Input = Inputs.front();
+  const char *InputFileName = Input.getFilename();
+
+  CmdArgs.push_back(InputFileName);
+  std::string OutputFileName(Output.getFilename());
+  if (Output.getType() == types::TY_Tempfilelist)
+    CmdArgs.push_back(TCArgs.MakeArgString("-ir-files-list=" + OutputFileName));
+  else if (Output.getType() == types::TY_TempEntriesfilelist)
+    CmdArgs.push_back(
+        TCArgs.MakeArgString("-txt-files-list=" + OutputFileName));
+  SmallString<128> TmpName;
+  llvm::sys::fs::createUniquePath("split-%%%%%%", TmpName,
+                                  /*MakeAbsolute*/ true);
+  CmdArgs.push_back(TCArgs.MakeArgString("-o"));
+  CmdArgs.push_back(TCArgs.MakeArgString(TmpName));
+
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ))
+    if (A->getValue() == StringRef("per_kernel"))
+      CmdArgs.push_back("-one-kernel");
+
+  // All the inputs are encoded as commands.
+  C.addCommand(std::make_unique<Command>(
+      JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, None));
+}
+

@@ -53,9 +53,45 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   return OutputFileName;
 }
 
+void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
+                                       std::unique_ptr<Command> InputCommand,
+                                       const InputInfoList &InputFiles,
+                                       const InputInfo &Output, const Tool *T,
+                                       StringRef Ext = "out") {
+  // Construct llvm-foreach command.
+  // The llvm-foreach command looks like this:
+  // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
+  ArgStringList ForeachArgs;
+  std::string OutputFileName(Output.getFilename());
+  ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
+  for (auto &I : InputFiles) {
+    std::string Filename(I.getFilename());
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--in-file-list=" + Filename));
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--in-replace=" + Filename));
+  }
+
+  ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
+  ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
+  ForeachArgs.push_back(
+      C.getArgs().MakeArgString(InputCommand->getExecutable()));
+
+  for (auto &Arg : InputCommand->getArguments())
+    ForeachArgs.push_back(Arg);
+
+  SmallString<128> ForeachPath(C.getDriver().Dir);
+  llvm::sys::path::append(ForeachPath, "llvm-foreach");
+  const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
+  C.addCommand(std::make_unique<Command>(JA, *T, Foreach, ForeachArgs, None));
+}
+
 const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     const JobAction &JA, const InputInfo &Output, const ArgList &Args,
-    StringRef SubArchName, StringRef OutputFilePrefix, bool ToBc,
+    StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   ArgStringList CmdArgs;
   // Add the input bc's created by compile step.
@@ -82,14 +118,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   TranslateSYCLLinkerArgs(C, Args, getToolChain(), CmdArgs);
   // Add an intermediate output file.
   CmdArgs.push_back("-o");
-  const char *OutputFileName = nullptr;
-  if (ToBc) {
-    SmallString<128> TmpName(C.getDriver().GetTemporaryPath(
-                             OutputFilePrefix.str() + "-linked", "bc"));
-    OutputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
-    CmdArgs.push_back(OutputFileName);
-  } else
-    CmdArgs.push_back(Output.getFilename());
+  const char *OutputFileName = Output.getFilename();
+  CmdArgs.push_back(OutputFileName);
   // TODO: temporary workaround for a problem with warnings reported by
   // llvm-link when driver links LLVM modules with empty modules
   CmdArgs.push_back("--suppress-warnings");
@@ -150,10 +180,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  const char *LLVMLinkOutputFile =
-      constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix, true,
-                               SpirvInputs);
-  constructLLVMSpirvCommand(C, JA, Output, Prefix, false, LLVMLinkOutputFile);
+  constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
+                           SpirvInputs);
 }
 
 void SYCL::TranslateSYCLTargetArgs(Compilation &C,
@@ -272,18 +300,24 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
-  assert((JA.getType() == types::TY_FPGA_AOCX ||
-          JA.getType() == types::TY_FPGA_AOCR) &&
-         "aoc type required");
 
+  InputInfoList ForeachInputs;
   ArgStringList CmdArgs{"-o",  Output.getFilename()};
   for (const auto &II : Inputs) {
-    CmdArgs.push_back(II.getFilename());
+    std::string Filename(II.getFilename());
+    if (II.getType() == types::TY_Tempfilelist)
+      ForeachInputs.push_back(II);
+    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
   CmdArgs.push_back("-sycl");
+
+  StringRef ForeachExt = "aocx";
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
-    if (A->getValue() == StringRef("early"))
+    if (A->getValue() == StringRef("early")) {
       CmdArgs.push_back("-rtl");
+      ForeachExt = "aocr";
+    }
+
 
   InputInfoList FPGADepFiles;
   for (auto *A : Args) {
@@ -352,7 +386,12 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  if (!ForeachInputs.empty())
+    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
+                                this, ForeachExt);
+  else
+    C.addCommand(std::move(Cmd));
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -365,9 +404,13 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
   ArgStringList CmdArgs{"-output",  Output.getFilename()};
+  InputInfoList ForeachInputs;
   for (const auto &II : Inputs) {
     CmdArgs.push_back("-file");
-    CmdArgs.push_back(II.getFilename());
+    std::string Filename(II.getFilename());
+    if (II.getType() == types::TY_Tempfilelist)
+      ForeachInputs.push_back(II);
+    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
@@ -375,7 +418,12 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  if (!ForeachInputs.empty())
+    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
+                                this);
+  else
+    C.addCommand(std::move(Cmd));
 }
 
 void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
@@ -387,13 +435,22 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
   ArgStringList CmdArgs;
   CmdArgs.push_back(Args.MakeArgString(Twine("-ir=") + Output.getFilename()));
   CmdArgs.push_back("-device=cpu");
+  InputInfoList ForeachInputs;
   for (const auto &II : Inputs) {
-    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + II.getFilename()));
+    std::string Filename(II.getFilename());
+    if (II.getType() == types::TY_Tempfilelist)
+      ForeachInputs.push_back(II);
+    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + Filename));
   }
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ioc64"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  if (!ForeachInputs.empty())
+    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
+                                this);
+  else
+    C.addCommand(std::move(Cmd));
 }
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
