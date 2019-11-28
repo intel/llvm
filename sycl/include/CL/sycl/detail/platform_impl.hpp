@@ -28,7 +28,7 @@ namespace detail {
 class platform_impl {
 public:
   /// Constructs platform_impl for a SYCL host platform.
-  platform_impl() : MHostPlatform(true){};
+  platform_impl() : MHostPlatform(true) {}
 
   /// Constructs platform_impl instance using device selector.
   ///

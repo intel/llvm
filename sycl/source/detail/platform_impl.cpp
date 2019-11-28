@@ -30,14 +30,15 @@ vector_class<platform> platform_impl::get_platforms() {
     vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
     PI_CALL(piPlatformsGet)(NumPlatforms, PiPlatforms.data(), nullptr);
 
-    for (pi_uint32 i = 0; i < NumPlatforms; i++) {
-
-      platform Platform = detail::createSyclObjFromImpl<platform>(
-          std::make_shared<platform_impl>(PiPlatforms[i]));
-      // Skip platforms which do not contain requested device types
-      if (!Platform.get_devices(ForcedType).empty())
-        Platforms.push_back(Platform);
-    }
+    std::for_each(PiPlatforms.cbegin(), PiPlatforms.cend(),
+                  [&](const RT::PiPlatform &PiPlatform) {
+                    platform Platform = detail::createSyclObjFromImpl<platform>(
+                        std::make_shared<platform_impl>(PiPlatform));
+                    // Skip platforms which do not contain requested device
+                    // types
+                    if (!Platform.get_devices(ForcedType).empty())
+                      Platforms.push_back(Platform);
+                  });
   }
   return Platforms;
 }
@@ -202,20 +203,20 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (NumDevices == 0)
     return Res;
 
-  vector_class<RT::PiDevice> pi_devices(NumDevices);
+  vector_class<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
-                        NumDevices, pi_devices.data(), nullptr);
+                        NumDevices, PiDevices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
-    filterWhiteList(pi_devices, m_platform);
+    filterWhiteList(PiDevices, MPlatform);
 
-  std::for_each(pi_devices.begin(), pi_devices.end(),
-                [&Res](const RT::PiDevice &a_pi_device) {
-                  device sycl_device = detail::createSyclObjFromImpl<device>(
-                      std::make_shared<device_impl>(a_pi_device));
-                  Res.push_back(sycl_device);
+  std::for_each(PiDevices.begin(), PiDevices.end(),
+                [&Res](const RT::PiDevice &PiDevice) {
+                  device SyclDevice = detail::createSyclObjFromImpl<device>(
+                      std::make_shared<device_impl>(PiDevice));
+                  Res.push_back(SyclDevice);
                 });
   return Res;
 }
