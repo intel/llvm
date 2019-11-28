@@ -118,7 +118,7 @@ public:
 
   /// Gets devices associated with this SYCL context.
   ///
-  /// @return a list of valid SYCL device instances.
+  /// @return a vector of valid SYCL device instances.
   vector_class<device> get_devices() const;
 
 private:
