@@ -94,6 +94,12 @@ Improvements to clang-tidy
   Without the null terminator it can result in undefined behaviour when the
   string is read.
 
+- New :doc:`cert-mem57-cpp
+  <clang-tidy/checks/cert-mem57-cpp>` check.
+
+  Checks if an object of type with extended alignment is allocated by using
+  the default ``operator new``.
+
 - New alias :doc:`cert-pos44-c
   <clang-tidy/checks/cert-pos44-c>` to
   :doc:`bugprone-bad-signal-to-kill-thread
@@ -137,6 +143,11 @@ Improvements to clang-tidy
   Finds Objective-C implementations that implement ``-isEqual:`` without also
   appropriately implementing ``-hash``.
 
+- New :doc:`performance-no-automatic-move
+  <clang-tidy/checks/performance-no-automatic-move>` check.
+
+  Finds local variables that cannot be automatically moved due to constness.
+
 - New :doc:`performance-trivially-destructible
   <clang-tidy/checks/performance-trivially-destructible>` check.
 
@@ -151,6 +162,10 @@ Improvements to clang-tidy
 
 - The 'objc-avoid-spinlock' check was renamed to :doc:`darwin-avoid-spinlock
   <clang-tidy/checks/darwin-avoid-spinlock>`
+
+- The :doc:`modernize-use-equals-default
+  <clang-tidy/checks/modernize-use-equals-default>` fix no longer adds
+  semicolons where they would be redundant.
 
 - New :doc:`readability-redundant-access-specifiers
   <clang-tidy/checks/readability-redundant-access-specifiers>` check.
@@ -169,6 +184,13 @@ Improvements to clang-tidy
 
   The check now supports the ``AllowOverrideAndFinal`` option to eliminate
   conflicts with ``gcc -Wsuggest-override`` or ``gcc -Werror=suggest-override``.
+
+- Improved :doc:`readability-redundant-member-init
+  <clang-tidy/checks/readability-redundant-member-init>` check.
+
+  The check  now supports the ``IgnoreBaseInCopyConstructors`` option to avoid
+  `"base class 'Foo' should be explicitly initialized in the copy constructor"`
+  warnings or errors with ``gcc -Wextra`` or ``gcc -Werror=extra``.
 
 - The :doc:`readability-redundant-string-init
   <clang-tidy/checks/readability-redundant-string-init>` check now supports a

@@ -76,7 +76,7 @@
 #include "clang/Serialization/ContinuousRangeMap.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/InMemoryModuleCache.h"
-#include "clang/Serialization/Module.h"
+#include "clang/Serialization/ModuleFile.h"
 #include "clang/Serialization/ModuleFileExtension.h"
 #include "clang/Serialization/ModuleManager.h"
 #include "clang/Serialization/PCHContainerOperations.h"
@@ -2561,7 +2561,6 @@ ASTReader::ReadControlBlock(ModuleFile &F,
                             const ModuleFile *ImportedBy,
                             unsigned ClientLoadCapabilities) {
   BitstreamCursor &Stream = F.Stream;
-  ASTReadResult Result = Success;
 
   if (llvm::Error Err = Stream.EnterSubBlock(CONTROL_BLOCK_ID)) {
     Error(std::move(Err));
@@ -2652,7 +2651,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         }
       }
 
-      return Result;
+      return Success;
     }
 
     case llvm::BitstreamEntry::SubBlock:
@@ -2682,9 +2681,10 @@ ASTReader::ReadControlBlock(ModuleFile &F,
           bool AllowCompatibleConfigurationMismatch =
               F.Kind == MK_ExplicitModule || F.Kind == MK_PrebuiltModule;
 
-          Result = ReadOptionsBlock(Stream, ClientLoadCapabilities,
-                                    AllowCompatibleConfigurationMismatch,
-                                    *Listener, SuggestedPredefines);
+          ASTReadResult Result =
+              ReadOptionsBlock(Stream, ClientLoadCapabilities,
+                               AllowCompatibleConfigurationMismatch, *Listener,
+                               SuggestedPredefines);
           if (Result == Failure) {
             Error("malformed block record in AST file");
             return Result;

@@ -692,18 +692,6 @@ getRequiredQualification(ASTContext &Context, const DeclContext *CurContext,
   return Result;
 }
 
-/// Determine whether \p Id is a name reserved for the implementation (C99
-/// 7.1.3, C++ [lib.global.names]).
-static bool isReservedName(const IdentifierInfo *Id,
-                           bool doubleUnderscoreOnly = false) {
-  if (Id->getLength() < 2)
-    return false;
-  const char *Name = Id->getNameStart();
-  return Name[0] == '_' &&
-         (Name[1] == '_' ||
-          (Name[1] >= 'A' && Name[1] <= 'Z' && !doubleUnderscoreOnly));
-}
-
 // Some declarations have reserved names that we don't want to ever show.
 // Filter out names reserved for the implementation if they come from a
 // system header.
@@ -713,13 +701,13 @@ static bool shouldIgnoreDueToReservedName(const NamedDecl *ND, Sema &SemaRef) {
     return false;
 
   // Ignore reserved names for compiler provided decls.
-  if (isReservedName(Id) && ND->getLocation().isInvalid())
+  if (Id->isReservedName() && ND->getLocation().isInvalid())
     return true;
 
   // For system headers ignore only double-underscore names.
   // This allows for system headers providing private symbols with a single
   // underscore.
-  if (isReservedName(Id, /*doubleUnderscoreOnly=*/true) &&
+  if (Id->isReservedName(/*doubleUnderscoreOnly=*/true) &&
       SemaRef.SourceMgr.isInSystemHeader(
           SemaRef.SourceMgr.getSpellingLoc(ND->getLocation())))
     return true;
@@ -3327,6 +3315,18 @@ CodeCompletionResult::createCodeCompletionStringForOverride(
   return Result.TakeString();
 }
 
+// FIXME: Right now this works well with lambdas. Add support for other functor
+// types like std::function.
+static const NamedDecl *extractFunctorCallOperator(const NamedDecl *ND) {
+  const auto *VD = dyn_cast<VarDecl>(ND);
+  if (!VD)
+    return nullptr;
+  const auto *RecordDecl = VD->getType()->getAsCXXRecordDecl();
+  if (!RecordDecl || !RecordDecl->isLambda())
+    return nullptr;
+  return RecordDecl->getLambdaCallOperator();
+}
+
 CodeCompletionString *CodeCompletionResult::createCodeCompletionStringForDecl(
     Preprocessor &PP, ASTContext &Ctx, CodeCompletionBuilder &Result,
     bool IncludeBriefComments, const CodeCompletionContext &CCContext,
@@ -3351,9 +3351,8 @@ CodeCompletionString *CodeCompletionResult::createCodeCompletionStringForDecl(
   for (const auto *I : ND->specific_attrs<AnnotateAttr>())
     Result.AddAnnotation(Result.getAllocator().CopyString(I->getAnnotation()));
 
-  AddResultTypeChunk(Ctx, Policy, ND, CCContext.getBaseType(), Result);
-
-  if (const auto *Function = dyn_cast<FunctionDecl>(ND)) {
+  auto AddFunctionTypeAndResult = [&](const FunctionDecl *Function) {
+    AddResultTypeChunk(Ctx, Policy, Function, CCContext.getBaseType(), Result);
     AddQualifierToCompletionString(Result, Qualifier, QualifierIsInformative,
                                    Ctx, Policy);
     AddTypedNameChunk(Ctx, Policy, ND, Result);
@@ -3361,8 +3360,20 @@ CodeCompletionString *CodeCompletionResult::createCodeCompletionStringForDecl(
     AddFunctionParameterChunks(PP, Policy, Function, Result);
     Result.AddChunk(CodeCompletionString::CK_RightParen);
     AddFunctionTypeQualsToCompletionString(Result, Function);
+  };
+
+  if (const auto *Function = dyn_cast<FunctionDecl>(ND)) {
+    AddFunctionTypeAndResult(Function);
     return Result.TakeString();
   }
+
+  if (const auto *CallOperator =
+          dyn_cast_or_null<FunctionDecl>(extractFunctorCallOperator(ND))) {
+    AddFunctionTypeAndResult(CallOperator);
+    return Result.TakeString();
+  }
+
+  AddResultTypeChunk(Ctx, Policy, ND, CCContext.getBaseType(), Result);
 
   if (const FunctionTemplateDecl *FunTmpl =
           dyn_cast<FunctionTemplateDecl>(ND)) {
@@ -3429,6 +3440,7 @@ CodeCompletionString *CodeCompletionResult::createCodeCompletionStringForDecl(
     Result.AddChunk(CodeCompletionString::CK_RightAngle);
     return Result.TakeString();
   }
+
   if (const auto *Method = dyn_cast<ObjCMethodDecl>(ND)) {
     Selector Sel = Method->getSelector();
     if (Sel.isUnarySelector()) {

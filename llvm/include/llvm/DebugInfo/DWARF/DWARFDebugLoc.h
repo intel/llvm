@@ -63,6 +63,11 @@ public:
                         const MCRegisterInfo *MRI, DWARFUnit *U,
                         DIDumpOptions DumpOpts, unsigned Indent) const;
 
+  Error visitAbsoluteLocationList(
+      uint64_t Offset, Optional<object::SectionedAddress> BaseAddr,
+      std::function<Optional<object::SectionedAddress>(uint32_t)> LookupAddr,
+      function_ref<bool(Expected<DWARFLocationExpression>)> Callback) const;
+
 protected:
   DWARFDataExtractor Data;
 
@@ -96,17 +101,9 @@ public:
   void dump(raw_ostream &OS, const MCRegisterInfo *RegInfo, DIDumpOptions DumpOpts,
             Optional<uint64_t> Offset) const;
 
-  /// Parse the debug_loc section.
-  void parse();
-
-  /// Return the location list at the given offset or nullptr.
-  LocationList const *getLocationListAtOffset(uint64_t Offset) const;
-
   Error visitLocationList(
       uint64_t *Offset,
       function_ref<bool(const DWARFLocationEntry &)> Callback) const override;
-
-  Expected<LocationList> parseOneLocationList(uint64_t *Offset);
 
 protected:
   void dumpRawEntry(const DWARFLocationEntry &Entry, raw_ostream &OS,

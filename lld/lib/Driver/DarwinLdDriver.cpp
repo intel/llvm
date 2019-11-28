@@ -232,7 +232,7 @@ static std::error_code parseOrderFile(StringRef orderFilePath,
      sym = prefixAndSym.first;
     if (!sym.empty()) {
       ctx.appendOrderedSymbol(sym, prefix);
-      // lld::errs() << sym << ", prefix=" << prefix << "\n";
+      // llvm::errs() << sym << ", prefix=" << prefix << "\n";
     }
   }
   return std::error_code();
@@ -382,7 +382,7 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
         !parsedArgs.getLastArg(OPT_test_file_usage)) {
       // If no -arch and no options at all, print usage message.
       if (parsedArgs.size() == 0) {
-        table.PrintHelp(lld::outs(),
+        table.PrintHelp(llvm::outs(),
                         (std::string(args[0]) + " [options] file...").c_str(),
                         "LLVM Linker", false);
       } else {
@@ -1145,15 +1145,15 @@ static void createFiles(MachOLinkingContext &ctx, bool Implicit) {
 /// This is where the link is actually performed.
 bool link(llvm::ArrayRef<const char *> args, bool CanExitEarly,
           raw_ostream &StdoutOS, raw_ostream &StderrOS) {
+  lld::stdoutOS = &StdoutOS;
+  lld::stderrOS = &StderrOS;
+
   errorHandler().logName = args::getFilenameWithoutExe(args[0]);
   errorHandler().errorLimitExceededMsg =
       "too many errors emitted, stopping now (use "
       "'-error-limit 0' to see all errors)";
   errorHandler().exitEarly = CanExitEarly;
-  enableColors(StderrOS.has_colors());
-
-  lld::stdoutOS = &StdoutOS;
-  lld::stderrOS = &StderrOS;
+  StderrOS.enable_colors(StderrOS.has_colors());
 
   MachOLinkingContext ctx;
   if (!parse(args, ctx))

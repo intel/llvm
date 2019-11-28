@@ -17,7 +17,6 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTUnresolvedSet.h"
-#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclarationName.h"
@@ -42,7 +41,6 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
@@ -1737,10 +1735,10 @@ public:
   }
 
   /// Returns the inheritance model used for this record.
-  MSInheritanceAttr::Spelling getMSInheritanceModel() const;
+  MSInheritanceModel getMSInheritanceModel() const;
 
   /// Calculate what the inheritance model would be for this class.
-  MSInheritanceAttr::Spelling calculateInheritanceModel() const;
+  MSInheritanceModel calculateInheritanceModel() const;
 
   /// In the Microsoft C++ ABI, use zero for the field offset of a null data
   /// member pointer if we can guarantee that zero is not a valid field offset,
@@ -1748,15 +1746,11 @@ public:
   /// vfptr at offset zero, so we can use zero for null.  If there are multiple
   /// fields, we can use zero even if it is a valid field offset because
   /// null-ness testing will check the other fields.
-  bool nullFieldOffsetIsZero() const {
-    return !MSInheritanceAttr::hasOnlyOneField(/*IsMemberFunction=*/false,
-                                               getMSInheritanceModel()) ||
-           (hasDefinition() && isPolymorphic());
-  }
+  bool nullFieldOffsetIsZero() const;
 
   /// Controls when vtordisps will be emitted if this record is used as a
   /// virtual base.
-  MSVtorDispAttr::Mode getMSVtorDispMode() const;
+  MSVtorDispMode getMSVtorDispMode() const;
 
   /// Determine whether this lambda expression was known to be dependent
   /// at the time it was created, even if its context does not appear to be
@@ -2758,15 +2752,8 @@ public:
   /// Represents the language in a linkage specification.
   ///
   /// The values are part of the serialization ABI for
-  /// ASTs and cannot be changed without altering that ABI.  To help
-  /// ensure a stable ABI for this, we choose the DW_LANG_ encodings
-  /// from the dwarf standard.
-  enum LanguageIDs {
-    lang_c = llvm::dwarf::DW_LANG_C,
-    lang_cxx = llvm::dwarf::DW_LANG_C_plus_plus,
-    lang_cxx_11 = llvm::dwarf::DW_LANG_C_plus_plus_11,
-    lang_cxx_14 = llvm::dwarf::DW_LANG_C_plus_plus_14
-  };
+  /// ASTs and cannot be changed without altering that ABI.
+  enum LanguageIDs { lang_c = 1, lang_cxx = 2 };
 
 private:
   /// The source location for the extern keyword.
@@ -3050,6 +3037,80 @@ public:
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == NamespaceAlias; }
+};
+
+/// Implicit declaration of a temporary that was materialized by
+/// a MaterializeTemporaryExpr and lifetime-extended by a declaration
+class LifetimeExtendedTemporaryDecl final : public Decl {
+  friend class MaterializeTemporaryExpr;
+  friend class ASTDeclReader;
+
+  Stmt *ExprWithTemporary = nullptr;
+
+  /// The declaration which lifetime-extended this reference, if any.
+  /// Either a VarDecl, or (for a ctor-initializer) a FieldDecl.
+  ValueDecl *ExtendingDecl = nullptr;
+  unsigned ManglingNumber;
+
+  mutable APValue *Value = nullptr;
+
+  virtual void anchor();
+
+  LifetimeExtendedTemporaryDecl(Expr *Temp, ValueDecl *EDecl, unsigned Mangling)
+      : Decl(Decl::LifetimeExtendedTemporary, EDecl->getDeclContext(),
+             EDecl->getLocation()),
+        ExprWithTemporary(Temp), ExtendingDecl(EDecl),
+        ManglingNumber(Mangling) {}
+
+  LifetimeExtendedTemporaryDecl(EmptyShell)
+      : Decl(Decl::LifetimeExtendedTemporary, EmptyShell{}) {}
+
+public:
+  static LifetimeExtendedTemporaryDecl *Create(Expr *Temp, ValueDecl *EDec,
+                                               unsigned Mangling) {
+    return new (EDec->getASTContext(), EDec->getDeclContext())
+        LifetimeExtendedTemporaryDecl(Temp, EDec, Mangling);
+  }
+  static LifetimeExtendedTemporaryDecl *CreateDeserialized(ASTContext &C,
+                                                           unsigned ID) {
+    return new (C, ID) LifetimeExtendedTemporaryDecl(EmptyShell{});
+  }
+
+  ValueDecl *getExtendingDecl() { return ExtendingDecl; }
+  const ValueDecl *getExtendingDecl() const { return ExtendingDecl; }
+
+  /// Retrieve the storage duration for the materialized temporary.
+  StorageDuration getStorageDuration() const;
+
+  /// Retrieve the expression to which the temporary materialization conversion
+  /// was applied. This isn't necessarily the initializer of the temporary due
+  /// to the C++98 delayed materialization rules, but
+  /// skipRValueSubobjectAdjustments can be used to find said initializer within
+  /// the subexpression.
+  Expr *getTemporaryExpr() { return cast<Expr>(ExprWithTemporary); }
+  const Expr *getTemporaryExpr() const { return cast<Expr>(ExprWithTemporary); }
+
+  unsigned getManglingNumber() const { return ManglingNumber; }
+
+  /// Get the storage for the constant value of a materialized temporary
+  /// of static storage duration.
+  APValue *getOrCreateValue(bool MayCreate) const;
+
+  APValue *getValue() const { return Value; }
+
+  // Iterators
+  Stmt::child_range childrenExpr() {
+    return Stmt::child_range(&ExprWithTemporary, &ExprWithTemporary + 1);
+  }
+
+  Stmt::const_child_range childrenExpr() const {
+    return Stmt::const_child_range(&ExprWithTemporary, &ExprWithTemporary + 1);
+  }
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) {
+    return K == Decl::LifetimeExtendedTemporary;
+  }
 };
 
 /// Represents a shadow declaration introduced into a scope by a

@@ -2170,6 +2170,20 @@ def ObjCDesignatedInitializer : Attr {
   let Documentation = [Undocumented];
 }
 
+def ObjCDirect : Attr {
+  let Spellings = [Clang<"objc_direct">];
+  let Subjects = SubjectList<[ObjCMethod], ErrorDiag>;
+  let LangOpts = [ObjC];
+  let Documentation = [ObjCDirectDocs];
+}
+
+def ObjCDirectMembers : Attr {
+  let Spellings = [Clang<"objc_direct_members">];
+  let Subjects = SubjectList<[ObjCImpl, ObjCCategory], ErrorDiag>;
+  let LangOpts = [ObjC];
+  let Documentation = [ObjCDirectMembersDocs];
+}
+
 def ObjCRuntimeName : Attr {
   let Spellings = [Clang<"objc_runtime_name">];
   let Subjects = SubjectList<[ObjCInterface, ObjCProtocol], ErrorDiag>;
@@ -3285,25 +3299,9 @@ def MSInheritance : InheritableAttr {
                    Keyword<"__virtual_inheritance">,
                    Keyword<"__unspecified_inheritance">];
   let AdditionalMembers = [{
-  static bool hasVBPtrOffsetField(Spelling Inheritance) {
-    return Inheritance == Keyword_unspecified_inheritance;
-  }
-
-  // Only member pointers to functions need a this adjustment, since it can be
-  // combined with the field offset for data pointers.
-  static bool hasNVOffsetField(bool IsMemberFunction, Spelling Inheritance) {
-    return IsMemberFunction && Inheritance >= Keyword_multiple_inheritance;
-  }
-
-  static bool hasVBTableOffsetField(Spelling Inheritance) {
-    return Inheritance >= Keyword_virtual_inheritance;
-  }
-
-  static bool hasOnlyOneField(bool IsMemberFunction,
-                              Spelling Inheritance) {
-    if (IsMemberFunction)
-      return Inheritance <= Keyword_single_inheritance;
-    return Inheritance <= Keyword_multiple_inheritance;
+  MSInheritanceModel getInheritanceModel() const {
+    // The spelling enum should agree with MSInheritanceModel.
+    return MSInheritanceModel(getSemanticSpelling());
   }
   }];
   let Documentation = [MSInheritanceDocs];
@@ -3316,13 +3314,7 @@ def MSVtorDisp : InheritableAttr {
   let SemaHandler = 0;
 
   let AdditionalMembers = [{
-  enum Mode {
-    Never,
-    ForVBaseOverride,
-    ForVFTable
-  };
-
-  Mode getVtorDispMode() const { return Mode(vdm); }
+  MSVtorDispMode getVtorDispMode() const { return MSVtorDispMode(vdm); }
   }];
   let Documentation = [Undocumented];
 }
@@ -3632,7 +3624,8 @@ def OMPDeclareVariant : InheritableAttr {
     VariadicExprArgument<"Scores">,
     VariadicUnsignedArgument<"CtxSelectorSets">,
     VariadicUnsignedArgument<"CtxSelectors">,
-    VariadicStringArgument<"ImplVendors">
+    VariadicStringArgument<"ImplVendors">,
+    VariadicStringArgument<"DeviceKinds">
   ];
   let AdditionalMembers = [{
     void printScore(raw_ostream & OS, const PrintingPolicy &Policy, unsigned I) const {
@@ -3672,6 +3665,27 @@ def OMPDeclareVariant : InheritableAttr {
             }
             OS << ")";
             break;
+          case OMP_CTX_kind:
+            llvm_unreachable("Unexpected context selector in implementation set.");
+          case OMP_CTX_unknown:
+            llvm_unreachable("Unknown context selector.");
+          }
+          OS << "}";
+          break;
+        case OMP_CTX_SET_device:
+          OS << "device={";
+          switch (Ctx) {
+          case OMP_CTX_kind:
+            OS << "kind(";
+            if (deviceKinds_size() > 0) {
+              OS << *deviceKinds().begin();
+              for (StringRef KindName : llvm::drop_begin(deviceKinds(), 1))
+                OS << ", " << KindName;
+            }
+            OS << ")";
+            break;
+          case OMP_CTX_vendor:
+            llvm_unreachable("Unexpected context selector in device set.");
           case OMP_CTX_unknown:
             llvm_unreachable("Unknown context selector.");
           }
@@ -3680,6 +3694,8 @@ def OMPDeclareVariant : InheritableAttr {
         case OMP_CTX_SET_unknown:
           llvm_unreachable("Unknown context selector set.");
         }
+        if (I != E - 1)
+          OS << ",";
       }
       OS << ")";
     }

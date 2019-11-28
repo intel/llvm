@@ -1428,7 +1428,7 @@ void CFGBuilder::findConstructionContexts(
     if (Layer->getItem().getKind() ==
         ConstructionContextItem::ElidableConstructorKind) {
       auto *MTE = cast<MaterializeTemporaryExpr>(Child);
-      findConstructionContexts(withExtraLayer(MTE), MTE->GetTemporaryExpr());
+      findConstructionContexts(withExtraLayer(MTE), MTE->getSubExpr());
     }
     break;
   }
@@ -1694,7 +1694,7 @@ static QualType getReferenceInitTemporaryType(const Expr *Init,
     // Skip through the temporary-materialization expression.
     if (const MaterializeTemporaryExpr *MTE
           = dyn_cast<MaterializeTemporaryExpr>(Init)) {
-      Init = MTE->GetTemporaryExpr();
+      Init = MTE->getSubExpr();
       if (FoundMTE)
         *FoundMTE = true;
       continue;
@@ -3462,7 +3462,7 @@ CFGBuilder::VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *MTE,
                                           AddStmtChoice asc) {
   findConstructionContexts(
       ConstructionContextLayer::create(cfg->getBumpVectorContext(), MTE),
-      MTE->getTemporary());
+      MTE->getSubExpr());
 
   return VisitStmt(MTE, asc);
 }
@@ -4649,7 +4649,7 @@ tryAgain:
       // Find the expression whose lifetime needs to be extended.
       E = const_cast<Expr *>(
           cast<MaterializeTemporaryExpr>(E)
-              ->GetTemporaryExpr()
+              ->getSubExpr()
               ->skipRValueSubobjectAdjustments(CommaLHSs, Adjustments));
       // Visit the skipped comma operator left-hand sides for other temporaries.
       for (const Expr *CommaLHS : CommaLHSs) {
@@ -5877,6 +5877,10 @@ const Expr *CFGBlock::getLastCondition() const {
   // Also, if this method was called on a block that doesn't have 2 successors,
   // this block doesn't have retrievable condition.
   if (succ_size() < 2)
+    return nullptr;
+
+  // FIXME: Is there a better condition expression we can return in this case?
+  if (size() == 0)
     return nullptr;
 
   auto StmtElem = rbegin()->getAs<CFGStmt>();

@@ -12406,7 +12406,8 @@ static void diagnoseDeprecatedCopyOperation(Sema &S, CXXMethodDecl *CopyOp) {
 
   // In Microsoft mode, assignment operations don't affect constructors and
   // vice versa.
-  if (RD->hasUserDeclaredDestructor()) {
+  if (RD->hasUserDeclaredDestructor() &&
+      RD->getDestructor()->isUserProvided()) {
     UserDeclaredOperation = RD->getDestructor();
   } else if (!isa<CXXConstructorDecl>(CopyOp) &&
              RD->hasUserDeclaredCopyConstructor() &&
@@ -12432,7 +12433,7 @@ static void diagnoseDeprecatedCopyOperation(Sema &S, CXXMethodDecl *CopyOp) {
     assert(UserDeclaredOperation);
   }
 
-  if (UserDeclaredOperation) {
+  if (UserDeclaredOperation && UserDeclaredOperation->isUserProvided()) {
     S.Diag(UserDeclaredOperation->getLocation(),
          diag::warn_deprecated_copy_operation)
       << RD << /*copy assignment*/!isa<CXXConstructorDecl>(CopyOp)
@@ -14207,10 +14208,6 @@ Decl *Sema::ActOnStartLinkageSpecification(Scope *S, SourceLocation ExternLoc,
     Language = LinkageSpecDecl::lang_c;
   else if (Lang == "C++")
     Language = LinkageSpecDecl::lang_cxx;
-  else if (Lang == "C++11")
-    Language = LinkageSpecDecl::lang_cxx_11;
-  else if (Lang == "C++14")
-    Language = LinkageSpecDecl::lang_cxx_14;
   else {
     Diag(LangStr->getExprLoc(), diag::err_language_linkage_spec_unknown)
       << LangStr->getSourceRange();
