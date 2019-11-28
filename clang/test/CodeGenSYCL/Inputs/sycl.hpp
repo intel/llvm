@@ -230,11 +230,38 @@ public:
   void throw_asynchronous() {}
 };
 
+class auto_name {};
+template <typename Name, typename Type>
+struct get_kernel_name_t {
+  using name = Name;
+};
+template <typename Type>
+struct get_kernel_name_t<auto_name, Type> {
+  using name = Type;
+};
+#define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+  kernelFunc();
+}
+
+template <typename KernelName, typename KernelType, int Dims>
+ATTR_SYCL_KERNEL void
+kernel_parallel_for(KernelType KernelFunc) {
+  KernelFunc(id<Dims>());
+}
+
 class handler {
 public:
-  template <typename KernelName, typename KernelType, int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(range<dimensions> numWorkItems, KernelType kernelFunc) {}
+  template <typename KernelName = auto_name, typename KernelType, int Dims>
+  void parallel_for(range<Dims> numWorkItems, KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for<NameT, KernelType, Dims>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
 
   template <typename KernelName, typename KernelType, int dimensions>
   ATTR_SYCL_KERNEL
@@ -249,22 +276,20 @@ public:
   ATTR_SYCL_KERNEL
   void parallel_for(nd_range<dimensions> ndRange, kernel syclKernel) {}
 
-  template <typename KernelName, typename KernelType>
-  ATTR_SYCL_KERNEL
-  void single_task(KernelType kernelFunc) {}
-
-  template <typename KernelType>
-  ATTR_SYCL_KERNEL
-  void single_task(KernelType kernelFunc) {}
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
 
   template <typename KernelName, typename KernelType, int dimensions>
   ATTR_SYCL_KERNEL
   void parallel_for(range<dimensions> numWorkItems, kernel syclKernel,
                     KernelType kernelFunc) {}
-
-  template <typename KernelType, int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(range<dimensions> numWorkItems, KernelType kernelFunc) {}
 
   template <typename KernelName, typename KernelType, int dimensions>
   ATTR_SYCL_KERNEL

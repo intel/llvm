@@ -37,7 +37,7 @@ void restriction(int p) {
 
 void* operator new (std::size_t size, void* ptr) throw() { return ptr; };
 namespace Check_RTTI_Restriction {
-// expected-error@+1 9{{SYCL kernel cannot have a class with a virtual function table}}
+// expected-error@+1 13{{SYCL kernel cannot have a class with a virtual function table}}
 struct A {
   virtual ~A(){};
 };
@@ -50,7 +50,7 @@ struct OverloadedNewDelete {
   // This overload allocates storage, give diagnostic.
   void *operator new(std::size_t size) throw() {
     // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-    float *pt = new float; 
+    float *pt = new float;
     return 0;}
   // This overload does not allocate: no diagnostic.
   void *operator new[](std::size_t size) throw() {return 0;}
@@ -75,13 +75,12 @@ bool isa_B(A *a) {
   return dynamic_cast<B *>(a) != 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
-  // expected-note@+1 {{used here}}
-  A *a;
-  // expected-note@+1 3{{used here}}
-  isa_B(a);
+template<typename N, typename L>
+__attribute__((sycl_kernel)) void kernel1(L l) {
+  l();
 }
 }
+
 // expected-error@+1 {{SYCL kernel cannot have a class with a virtual function table}}
 typedef struct Base {
   virtual void f() const {}
@@ -126,7 +125,7 @@ void eh_not_ok(void)
   throw 20;
 }
 
-void usage(  myFuncDef functionPtr ) {
+void usage(myFuncDef functionPtr) {
 
   eh_not_ok();
 
@@ -135,12 +134,16 @@ void usage(  myFuncDef functionPtr ) {
 #else
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
-  if ((*functionPtr)(1,2))
-  // expected-error@+3 {{SYCL kernel cannot use a global variable}}
-  // expected-error@+2 {{SYCL kernel cannot call a virtual function}}
-  // expected-note@+1 {{used here}}
-  b.f();
-  Check_RTTI_Restriction::kernel1();
+  if ((*functionPtr)(1, 2))
+    // expected-error@+3 {{SYCL kernel cannot use a global variable}}
+    // expected-error@+2 {{SYCL kernel cannot call a virtual function}}
+    // expected-note@+1 {{used here}}
+    b.f();
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
+  // expected-note@+1 2{{used here}}
+  Check_RTTI_Restriction::A *a;
+  // expected-note@+1 6{{used here}}
+  Check_RTTI_Restriction::isa_B(a); });
 }
 
 namespace ns {
