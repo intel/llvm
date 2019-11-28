@@ -62,8 +62,6 @@ class __copyAcc2Acc;
 namespace cl {
 namespace sycl {
 
-namespace csd = cl::sycl::detail;
-
 // Forward declaration
 
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
@@ -106,7 +104,7 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 };
 
 /// Specialization for the case when \c Name is undefined.
-template <typename Type> struct get_kernel_name_t<csd::auto_name, Type> {
+template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
@@ -409,9 +407,9 @@ private:
       break;
     case detail::CG::PREFETCH_USM:
       CommandGroup.reset(new detail::CGPrefetchUSM(
-          MDstPtr, MLength, std::move(MArgsStorage),
-          std::move(MAccStorage), std::move(MSharedPtrStorage),
-          std::move(MRequirements), std::move(MEvents)));
+          MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
+          std::move(MSharedPtrStorage), std::move(MRequirements),
+          std::move(MEvents)));
       break;
     case detail::CG::NONE:
       throw runtime_error("Command group submitted without a kernel or a "
@@ -666,7 +664,7 @@ public:
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
                                    &KI::getParamDesc(0));
       MKernelName = KI::getName();
-      MOSModuleHandle = csd::OSUtil::getOSModuleHandle(KI::getName());
+      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -676,9 +674,10 @@ public:
   }
 
   // single_task version with a kernel represented as a lambda.
-  template <typename KernelName = csd::auto_name, typename KernelType>
+  template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(KernelFunc);
 #else
@@ -691,9 +690,11 @@ public:
 
   // parallel_for version with a kernel represented as a lambda + range that
   // specifies global size only.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -708,17 +709,18 @@ public:
     MNDRDesc.set(range<1>{1});
 
     MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(
-        new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
+    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 
   // parallel_for version with a kernel represented as a lambda + range and
   // offset that specify global size and global offset correspondingly.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -730,9 +732,11 @@ public:
 
   // parallel_for version with a kernel represented as a lambda + nd_range that
   // specifies global, local sizes and offset.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -742,10 +746,12 @@ public:
 #endif
   }
 
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -755,11 +761,13 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -823,9 +831,10 @@ public:
   // single_task version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise.
-  template <typename KernelName = csd::auto_name, typename KernelType>
+  template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel SyclKernel, KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(KernelFunc);
 #else
@@ -842,10 +851,12 @@ public:
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. range argument specifies global size.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
                     KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -862,10 +873,12 @@ public:
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. range and id specify global size and offset.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -882,10 +895,12 @@ public:
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. nd_range specifies global, local size and offset.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for(kernel SyclKernel, nd_range<Dims> NDRange,
                     KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -905,10 +920,12 @@ public:
   /// of the kernel. The same source kernel can be compiled multiple times
   /// yielding multiple kernel class objects accessible via the \c program class
   /// interface.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
                                KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -921,11 +938,13 @@ public:
 
   /// Two-kernel version of the \c parallel_for_work_group with group and local
   /// range.
-  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
   void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                KernelType KernelFunc) {
-    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
@@ -1083,7 +1102,7 @@ public:
   // Shapes can be 1, 2 or 3 dimensional rectangles.
   template <int Dims_Src, int Dims_Dst>
   static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
-                                         const range<Dims_Dst> Dst) {
+                                           const range<Dims_Dst> Dst) {
     if (Dims_Src > Dims_Dst)
       return false;
     for (size_t I = 0; I < Dims_Src; ++I)
@@ -1092,7 +1111,7 @@ public:
     return true;
   }
 
-// copy memory pointed by accessor to the memory pointed by another accessor
+  // copy memory pointed by accessor to the memory pointed by another accessor
   template <
       typename T_Src, int Dims_Src, access::mode AccessMode_Src,
       access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
@@ -1209,7 +1228,7 @@ public:
   }
 
   // Copy memory from the source to the destination.
-  void memcpy(void* Dest, const void* Src, size_t Count) {
+  void memcpy(void *Dest, const void *Src, size_t Count) {
     MSrcPtr = const_cast<void *>(Src);
     MDstPtr = Dest;
     MLength = Count;
