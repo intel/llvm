@@ -19,8 +19,7 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-vector_class<platform>
-platform_impl::get_platforms() {
+vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
 
   pi_uint32 NumPlatforms = 0;
@@ -190,7 +189,8 @@ static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices,
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
-  if (is_host() && (DeviceType == info::device_type::host || DeviceType == info::device_type::all)) {
+  if (is_host() && (DeviceType == info::device_type::host ||
+                    DeviceType == info::device_type::all)) {
     Res.resize(1); // default device construct creates host device
     return Res;
   }

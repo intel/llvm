@@ -20,7 +20,7 @@ platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
 
 platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl>(
-             detail::pi::cast<detail::RT::PiPlatform>(PlatformId))) {}
+          detail::pi::cast<detail::RT::PiPlatform>(PlatformId))) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -40,8 +40,7 @@ vector_class<device> platform::get_devices(info::device_type DeviceType) const {
 
 vector_class<platform> platform::get_platforms() {
 
-  vector_class<platform> platforms =
-    detail::platform_impl::get_platforms();
+  vector_class<platform> platforms = detail::platform_impl::get_platforms();
 
   // Add host device platform if required
   info::device_type forced_type = detail::get_forced_type();
@@ -57,8 +56,8 @@ platform::get_info() const {
   return impl->get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
-    template ret_type platform::get_info<info::param_type::param>() const;
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type platform::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/platform_traits.def>
 
