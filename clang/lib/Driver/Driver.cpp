@@ -3198,7 +3198,7 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested the device object to be wrapped.
     bool WrapDeviceOnlyBinary = false;
 
-    /// Flag to signal if the user requested do not perform device code split.
+    /// Flag to signal if the user requested device code split.
     bool DeviceCodeSplit = false;
 
     /// The SYCL actions for the current input.
@@ -3568,7 +3568,7 @@ class OffloadingActionBuilder final {
       Arg *SYCLLinkTargets = Args.getLastArg(
                                   options::OPT_fsycl_link_targets_EQ);
       WrapDeviceOnlyBinary = Args.hasArg(options::OPT_fsycl_link_EQ);
-      DeviceCodeSplit = Args.hasArg(options::OPT_fsycl_device_code_split_EQ);
+      DeviceCodeSplit = Args.hasArg(options::OPT_fsycl_device_code_split);
       // Device only compilation for -fsycl-link (no FPGA) and
       // -fsycl-link-targets
       CompileDeviceOnly =

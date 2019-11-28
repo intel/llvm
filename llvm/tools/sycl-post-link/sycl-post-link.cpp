@@ -228,9 +228,9 @@ static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
   }
 
   if (OutputIRFilesList != "-") {
-    // TODO: Figure out what can be added to output list if there are no kernels
-    // in the input module
-    // Just pass input module to next tools if there was nothing to split
+    // TODO: Figure out what can be added to the output list if there are no
+    // kernels in the input module Just pass input module to next tools if there
+    // was nothing to split
     if (IRFilesList.empty())
       IRFilesList =
           (Twine(InputFilename) + Twine("\n")).str();
