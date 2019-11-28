@@ -193,8 +193,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
     Res.resize(1); // default device construct creates host device
-    return Res;
   }
+
+  // If any DeviceType other than host was requested for host platform,
+  // an empy vector will be returned.
+  if (is_host())
+    return Res;
 
   pi_uint32 NumDevices;
   PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,

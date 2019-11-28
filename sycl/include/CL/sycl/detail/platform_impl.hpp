@@ -93,7 +93,13 @@ public:
   /// Gets an OpenCL interoperability platform.
   ///
   /// @return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const { return pi::cast<cl_platform_id>(MPlatform); }
+  cl_platform_id get() const {
+    if (is_host())
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
+
+    return pi::cast<cl_platform_id>(MPlatform);
+  }
 
   /// Gets raw underlying plug-in platform handle.
   ///
