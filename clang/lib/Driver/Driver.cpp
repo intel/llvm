@@ -3464,7 +3464,7 @@ class OffloadingActionBuilder final {
             }
           }
           if (!DeviceObjects.empty()) {
-            // When aocx or aocr is seen, there is an expectation that none of
+            // When aocx or aocr is found, there is an expectation that none of
             // the other objects processed have any kernel. So, there
             // is no need in device code split and backend compile here. Just
             // link and wrap the device binary.
