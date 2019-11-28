@@ -19,7 +19,8 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-vector_class<platform> platform_impl::get_platforms() {
+vector_class<platform>
+platform_impl::get_platforms() {
   vector_class<platform> Platforms;
 
   pi_uint32 NumPlatforms = 0;
@@ -189,25 +190,22 @@ static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices,
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
-  if (is_host() && (DeviceType == info::device_type::host ||
-                    DeviceType == info::device_type::all)) {
+  if (is_host() && (DeviceType == info::device_type::host || DeviceType == info::device_type::all)) {
     Res.resize(1); // default device construct creates host device
     return Res;
   }
 
   pi_uint32 NumDevices;
-  PI_CALL(piDevicesGet)
-  (MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
-   pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
+  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
+                        pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
 
   if (NumDevices == 0)
     return Res;
 
   vector_class<RT::PiDevice> pi_devices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDevicesGet)
-  (MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), NumDevices,
-   pi_devices.data(), nullptr);
+  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
+                        NumDevices, pi_devices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
