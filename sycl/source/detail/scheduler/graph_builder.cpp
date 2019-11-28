@@ -209,8 +209,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 
 Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
                                                    Requirement *Req,
-                                                   const QueueImplPtr &Queue,
-                                                   bool UseExclusiveQueue) {
+                                                   const QueueImplPtr &Queue) {
 
   AllocaCommandBase *AllocaCmdDst = getOrCreateAllocaForReq(Record, Req, Queue);
   if (!AllocaCmdDst)
@@ -251,10 +250,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
 
     // Full copy of buffer is needed to avoid loss of data that may be caused
     // by copying specific range from host to device and backwards.
-    NewCmd = new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
-                               *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                               AllocaCmdSrc->getQueue(),
-                               AllocaCmdDst->getQueue(), UseExclusiveQueue);
+    NewCmd =
+        new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
+                          *AllocaCmdDst->getRequirement(), AllocaCmdDst,
+                          AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
   }
 
   for (Command *Dep : Deps) {
