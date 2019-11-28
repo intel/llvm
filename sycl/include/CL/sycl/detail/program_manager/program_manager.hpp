@@ -48,10 +48,9 @@ public:
   // Returns the single instance of the program manager for the entire process.
   // Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  RT::PiProgram createPIProgramWithKernelName(OSModuleHandle M,
-                                              const context &Context,
-                                              const string_class &KernelName,
-                                              DeviceImage **I = nullptr);
+  DeviceImage &getDeviceImage(OSModuleHandle M, const string_class &KernelName,
+                              const context &Context);
+  RT::PiProgram createPIProgram(const DeviceImage &Img, const context &Context);
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
@@ -69,8 +68,8 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  RT::PiProgram loadProgram(std::vector<DeviceImage *> &Imgs,
-                            const context &Context, DeviceImage **I = nullptr);
+  DeviceImage &getDeviceImage(OSModuleHandle M, const KernelSetId &KSId,
+                              const context &Context);
   void build(RT::PiProgram Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
   /// Provides a new kernel set id for grouping kernel names together
@@ -80,7 +79,7 @@ private:
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const string_class &KernelName) const;
   /// Returns the format of the binary image
-  RT::PiDeviceBinaryType getFormat(DeviceImage *Img);
+  RT::PiDeviceBinaryType getFormat(const DeviceImage &Img);
 
   using KernelToImgsMap =
       std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>;

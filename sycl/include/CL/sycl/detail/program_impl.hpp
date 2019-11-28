@@ -185,7 +185,7 @@ public:
     throw_if_state_is_not(program_state::none);
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_cl_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
+      create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
       compile(CompileOptions);
     }
     State = program_state::compiled;
@@ -214,7 +214,7 @@ public:
             M, Context, KernelInfo<KernelT>::getName());
         PI_CALL(piProgramRetain)(Program);
       } else {
-        create_cl_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
+        create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
         build(BuildOptions);
       }
     }
@@ -347,11 +347,12 @@ private:
     }
   }
 
-  void create_cl_program_with_kernel_name(OSModuleHandle M,
+  void create_pi_program_with_kernel_name(OSModuleHandle M,
                                           string_class KernelName) {
     assert(!Program && "This program already has an encapsulated PI program");
-    Program = ProgramManager::getInstance().createPIProgramWithKernelName(
-        M, Context, KernelName);
+    ProgramManager &PM = ProgramManager::getInstance();
+    DeviceImage &Img = PM.getDeviceImage(M, KernelName, Context);
+    Program = PM.createPIProgram(Img, Context);
   }
 
   void create_cl_program_with_source(const string_class &Source) {

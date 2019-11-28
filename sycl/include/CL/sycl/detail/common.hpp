@@ -251,11 +251,11 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
 using KernelSetId = size_t;
 // For kernels contained within the SPIRV file specified with an environment
 // variable
-const KernelSetId SpvFileKSId = 0;
+constexpr KernelSetId SpvFileKSId = 0;
 // Kernel set containing all kernels, for images without entry information
 // (assumed to contain all kernels associated with the OS module)
-const KernelSetId UniversalKSId = 1;
-const KernelSetId LastKSId = UniversalKSId;
+constexpr KernelSetId UniversalKSId = 1;
+constexpr KernelSetId LastKSId = UniversalKSId;
 
 } // namespace detail
 } // namespace sycl

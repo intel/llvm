@@ -87,18 +87,108 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
   return Program;
 }
 
-RT::PiProgram ProgramManager::createPIProgramWithKernelName(
-    OSModuleHandle M, const context &Context, const string_class &KernelName,
-    DeviceImage **I) {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
+                                            const string_class &KernelName,
+                                            const context &Context) {
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \""
+              << KernelName << "\", " << getRawSyclObjImpl(Context) << ")\n";
+
   KernelSetId KSId = getKernelSetId(M, KernelName);
-  return loadProgram(*m_DeviceImages[M][KSId], Context, I);
+  return getDeviceImage(M, KSId, Context);
+}
+
+static bool is_device_binary_type_supported(const context &C,
+                                            RT::PiDeviceBinaryType Format) {
+  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+    return true;
+
+  // OpenCL 2.1 and greater require clCreateProgramWithIL
+  if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
+      C.get_platform().get_info<info::platform::version>() >= "2.1")
+    return true;
+
+  // Otherwise we need cl_khr_il_program extension to be present
+  // and we can call clCreateProgramWithILKHR using the extension
+  for (const auto &D : C.get_devices()) {
+    auto Extensions = D.get_info<info::device::extensions>();
+    if (std::find(Extensions.begin(), Extensions.end(),
+                  string_class("cl_khr_il_program")) != Extensions.end())
+      return true;
+  }
+
+  // This device binary type is not supported.
+  return false;
+}
+
+RT::PiProgram ProgramManager::createPIProgram(const DeviceImage &Img,
+                                              const context &Context) {
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ")\n";
+
+  // perform minimal sanity checks on the device image and the descriptor
+  if (Img.BinaryEnd < Img.BinaryStart) {
+    throw runtime_error("Malformed device program image descriptor");
+  }
+  if (Img.BinaryEnd == Img.BinaryStart) {
+    throw runtime_error("Invalid device program image: size is zero");
+  }
+  size_t ImgSize = static_cast<size_t>(Img.BinaryEnd - Img.BinaryStart);
+
+  // TODO if the binary image is a part of the fat binary, the clang
+  //   driver should have set proper format option to the
+  //   clang-offload-wrapper. The fix depends on AOT compilation
+  //   implementation, so will be implemented together with it.
+  //   Img->Format can't be updated as it is inside of the in-memory
+  //   OS module binary.
+  auto Format = getFormat(Img);
+  // auto Format = Img->Format;
+  // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
+
+  // Dump program image if requested
+  if (std::getenv("SYCL_DUMP_IMAGES") && SpvFile.empty()) {
+    std::string Fname("sycl_");
+    Fname += Img.DeviceTargetSpec;
+    std::string Ext;
+
+    if (Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+      Ext = ".spv";
+    else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
+      Ext = ".bc";
+    else
+      Ext = ".bin";
+    Fname += Ext;
+
+    std::ofstream F(Fname, std::ios::binary);
+
+    if (!F.is_open()) {
+      throw runtime_error(std::string("Can not write ") + Fname);
+    }
+    F.write(reinterpret_cast<const char *>(Img.BinaryStart), ImgSize);
+    F.close();
+  }
+
+  if (!is_device_binary_type_supported(Context, Format))
+    throw feature_not_supported(
+        "Online compilation is not supported in this context");
+
+  // Load the image
+  RT::PiProgram Res = nullptr;
+  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
+            ? createSpirvProgram(Ctx, Img.BinaryStart, ImgSize)
+            : createBinaryProgram(Ctx, Img.BinaryStart, ImgSize);
+
+  if (DbgProgMgr > 1)
+    std::cerr << "created native program: " << Res << "\n";
+
+  return Res;
 }
 
 RT::PiProgram
 ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName) {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   KernelSetId KSId = getKernelSetId(M, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
   std::map<KernelSetId, RT::PiProgram> &CachedPrograms =
@@ -107,13 +197,13 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   if (It != CachedPrograms.end())
     return It->second;
 
-  DeviceImage *Img = nullptr;
+  const DeviceImage &Img = getDeviceImage(M, KSId, Context);
+  RT::PiProgram Prg = createPIProgram(Img, Context);
   using PiProgramT = remove_pointer_t<RT::PiProgram>;
   unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
-      loadProgram(*m_DeviceImages[M][KSId], Context, &Img),
-      RT::PluginInformation.PiFunctionTable.piProgramRelease);
+      Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
 
-  build(ProgramManaged.get(), Img->BuildOptions);
+  build(ProgramManaged.get(), Img.BuildOptions);
   RT::PiProgram Program = ProgramManaged.release();
   CachedPrograms[KSId] = Program;
 
@@ -205,30 +295,63 @@ ProgramManager::ProgramManager() {
       throw runtime_error(std::string("read from ") + SpvFile +
                           std::string(" failed"));
     }
-    DeviceImage *Img = new DeviceImage();
-    Img->Version = PI_DEVICE_BINARY_VERSION;
-    Img->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-    Img->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
-    Img->BuildOptions = "";
-    Img->ManifestStart = nullptr;
-    Img->ManifestEnd = nullptr;
-    Img->BinaryStart = Data;
-    Img->BinaryEnd = Data + Size;
-    Img->EntriesBegin = nullptr;
-    Img->EntriesEnd = nullptr;
+    std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(new DeviceImage(),
+                                                      ImageDeleter());
+    ImgPtr->Version = PI_DEVICE_BINARY_VERSION;
+    ImgPtr->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+    ImgPtr->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+    ImgPtr->BuildOptions = "";
+    ImgPtr->ManifestStart = nullptr;
+    ImgPtr->ManifestEnd = nullptr;
+    ImgPtr->BinaryStart = Data;
+    ImgPtr->BinaryEnd = Data + Size;
+    ImgPtr->EntriesBegin = nullptr;
+    ImgPtr->EntriesEnd = nullptr;
     // TODO the environment variable name implies that the only binary format
     // it accepts is SPIRV but that is not the case, should be aligned?
-    Img->Format = getFormat(Img);
-
-    std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(Img, ImageDeleter());
-    m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
+    ImgPtr->Format = getFormat(*ImgPtr);
 
     m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKSId].reset(
-        new std::vector<DeviceImage *>({Img}));
+        new std::vector<DeviceImage *>({ImgPtr.get()}));
+
+    m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
 
     if (DbgProgMgr > 0)
       std::cerr << "loaded device image from " << SpvFile << "\n";
   }
+}
+
+DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
+                                            const KernelSetId &KSId,
+                                            const context &Context) {
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
+              << "\", " << getRawSyclObjImpl(Context) << ")\n";
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  std::vector<DeviceImage *> &Imgs = *m_DeviceImages[M][KSId];
+  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  DeviceImage *Img = nullptr;
+
+  // TODO: There may be cases with cl::sycl::program class usage in source code
+  // that will result in a multi-device context. This case needs to be handled
+  // here or at the program_impl class level
+
+  // Ask the native runtime under the given context to choose the device image
+  // it prefers.
+  if (Imgs.size() > 1) {
+    PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs.data(),
+                                     (cl_uint)Imgs.size(), &Img);
+  } else
+    Img = Imgs[0];
+
+  if (DbgProgMgr > 0) {
+    std::cerr << "available device images:\n";
+    debugDumpBinaryImages();
+    std::cerr << "selected device image: " << Img << "\n";
+    debugDumpBinaryImage(Img);
+  }
+
+  return *Img;
 }
 
 void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
@@ -329,125 +452,6 @@ void ProgramManager::debugDumpBinaryImages() const {
   }
 }
 
-static bool is_device_binary_type_supported(const context &C,
-                                            RT::PiDeviceBinaryType Format) {
-  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
-  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
-    return true;
-
-  // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
-      C.get_platform().get_info<info::platform::version>() >= "2.1")
-    return true;
-
-  // Otherwise we need cl_khr_il_program extension to be present
-  // and we can call clCreateProgramWithILKHR using the extension
-  for (const auto &D : C.get_devices()) {
-    auto Extensions = D.get_info<info::device::extensions>();
-    if (std::find(Extensions.begin(), Extensions.end(),
-                  string_class("cl_khr_il_program")) != Extensions.end())
-      return true;
-  }
-
-  // This device binary type is not supported.
-  return false;
-}
-
-RT::PiProgram ProgramManager::loadProgram(std::vector<DeviceImage *> &Imgs,
-                                          const context &Context,
-                                          DeviceImage **I) {
-  assert(Imgs.size() > 0 &&
-         "Loading a program from an empty vector of images?");
-
-  if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::loadProgram({";
-    for (const auto &Img : Imgs)
-      std::cerr << Img << " ";
-    std::cerr << "}," << getRawSyclObjImpl(Context) << ")\n";
-  }
-
-  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
-  DeviceImage *Img = nullptr;
-
-  // TODO: There may be cases with cl::sycl::program class usage in source code
-  // that will result in a multi-device context. This case needs to be handled
-  // here or at the program_impl class level
-
-  // Ask the native runtime under the given context to choose the device image
-  // it prefers.
-  if (Imgs.size() > 1) {
-    PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs.data(),
-                                        (cl_uint)Imgs.size(), &Img);
-  } else
-    Img = Imgs[0];
-
-  if (DbgProgMgr > 0) {
-    std::cerr << "available device images:\n";
-    debugDumpBinaryImages();
-    std::cerr << "selected device image: " << Img << "\n";
-    debugDumpBinaryImage(Img);
-  }
-
-  // perform minimal sanity checks on the device image and the descriptor
-  if (Img->BinaryEnd < Img->BinaryStart) {
-    throw runtime_error("Malformed device program image descriptor");
-  }
-  if (Img->BinaryEnd == Img->BinaryStart) {
-    throw runtime_error("Invalid device program image: size is zero");
-  }
-  size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
-
-  // TODO if the binary image is a part of the fat binary, the clang
-  //   driver should have set proper format option to the
-  //   clang-offload-wrapper. The fix depends on AOT compilation
-  //   implementation, so will be implemented together with it.
-  //   Img->Format can't be updated as it is inside of the in-memory
-  //   OS module binary.
-  auto Format = getFormat(Img);
-  // auto Format = Img->Format;
-  // if (Format == PI_DEVICE_BINARY_TYPE_NONE)
-  //   throw runtime_error("Image format not set");
-
-  // Dump program image if requested
-  if (std::getenv("SYCL_DUMP_IMAGES") && SpvFile.empty()) {
-    std::string Fname("sycl_");
-    Fname += Img->DeviceTargetSpec;
-    std::string Ext;
-
-    if (Format == PI_DEVICE_BINARY_TYPE_SPIRV) {
-      Ext = ".spv";
-    } else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) {
-      Ext = ".bc";
-    } else {
-      Ext = ".bin";
-    }
-    Fname += Ext;
-
-    std::ofstream F(Fname, std::ios::binary);
-
-    if (!F.is_open()) {
-      throw runtime_error(std::string("Can not write ") + Fname);
-    }
-    F.write(reinterpret_cast<const char *>(Img->BinaryStart), ImgSize);
-    F.close();
-  }
-  // Load the selected image
-  if (!is_device_binary_type_supported(Context, Format))
-    throw feature_not_supported(
-        "Online compilation is not supported in this context");
-  RT::PiProgram Res = nullptr;
-  Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
-            ? createSpirvProgram(Ctx, Img->BinaryStart, ImgSize)
-            : createBinaryProgram(Ctx, Img->BinaryStart, ImgSize);
-
-  if (I)
-    *I = Img;
-  if (DbgProgMgr > 1) {
-    std::cerr << "created native program: " << Res << "\n";
-  }
-  return Res;
-}
-
 KernelSetId ProgramManager::getNextKernelSetId() {
   // No need for atomic, should be guarded by the caller
   static KernelSetId Result = LastKSId;
@@ -461,6 +465,7 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   // return the kernel set associated with it
   if (!SpvFile.empty() && M == OSUtil::ExeModuleHandle)
     return SpvFileKSId;
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   auto KSIdIt = m_KernelSets.find(KernelName);
   // If the kernel has been assigned to a kernel set, return it
   if (KSIdIt != m_KernelSets.end())
@@ -476,10 +481,9 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   throw runtime_error("No kernel named " + KernelName + " was found");
 }
 
-RT::PiDeviceBinaryType ProgramManager::getFormat(DeviceImage *Img) {
-  assert(Img && "Null device image pointer");
-  if (Img->Format != PI_DEVICE_BINARY_TYPE_NONE)
-    return Img->Format;
+RT::PiDeviceBinaryType ProgramManager::getFormat(const DeviceImage &Img) {
+  if (Img.Format != PI_DEVICE_BINARY_TYPE_NONE)
+    return Img.Format;
 
   struct {
     RT::PiDeviceBinaryType Fmt;
@@ -487,10 +491,10 @@ RT::PiDeviceBinaryType ProgramManager::getFormat(DeviceImage *Img) {
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
 
-  size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
+  size_t ImgSize = static_cast<size_t>(Img.BinaryEnd - Img.BinaryStart);
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
     std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
-    std::copy(Img->BinaryStart, Img->BinaryStart + sizeof(Hdr),
+    std::copy(Img.BinaryStart, Img.BinaryStart + sizeof(Hdr),
               reinterpret_cast<char *>(&Hdr));
 
     for (const auto &Fmt : Fmts) {
