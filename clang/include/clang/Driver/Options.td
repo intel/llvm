@@ -1823,7 +1823,9 @@ def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[Driv
 def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
 def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split: per_kernel (device code module is created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)). Default is no device code split - all kernels go into a single module`">, Values<"per_source,per_kernel">;
+   Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split: per_kernel (device code module is "
+  "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)). "
+  "Default is no device code split - all kernels go into a single module`">, Values<"per_source,per_kernel">;
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
