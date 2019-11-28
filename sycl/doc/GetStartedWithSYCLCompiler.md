@@ -245,7 +245,7 @@ cmake -DIntel_SYCL_ROOT=%SYCL_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ### Build Doxygen documentation
 
 Building Doxygen documentation is similar to building the product itself. First,
-you need to install requirements:
+the following tools need to be installed:
 - doxygen
 - graphviz
 

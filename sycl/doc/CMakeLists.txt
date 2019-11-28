@@ -7,7 +7,7 @@ if (LLVM_ENABLE_DOXYGEN)
     set(DOT ${LLVM_PATH_DOT})
   endif()
 
-  # TODO add support for external search
+  # TODO add support for external search engine
 
   if (LLVM_ENABLE_DOXYGEN_QT_HELP)
     set(SYCL_DOXYGEN_QCH_FILENAME "org.llvm.sycl.qch" CACHE STRING
