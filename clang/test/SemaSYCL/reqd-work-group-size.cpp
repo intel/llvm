@@ -77,34 +77,30 @@ void bar() {
   FunctorAttr fattr;
   kernel<class kernel_name4>(fattr);
 
+  kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32)]] {
+   f32x32x32();
+  });
+
+
 #ifdef TRIGGER_ERROR
   Functor8 f8;
-  kernel<class kernel_name5>(f8);
+  kernel<class kernel_name6>(f8);
 
-  kernel<class kernel_name6>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+  kernel<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
     f4x1x1();
     f32x1x1();
   });
 
-  kernel<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+  kernel<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
     f16x1x1();
     f16x16x1();
   });
 
-  kernel<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+  kernel<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
     f32x32x32();
     f32x32x1();
   });
 
-  // Support for reqd_work_group_size (and other SYCL attributes) that apply to
-  // lambda expressions is not implemented in clang yet.
-  // When it lands, the following code is expected to compile successfully.
-  //
-  // expected-error@+1 {{'reqd_work_group_size' attribute cannot be applied to types}}
-  kernel<class kernel_name9>([]() [[cl::reqd_work_group_size(32, 32, 32)]] {
-    f32x32x32();
-  });
-  // While this case is not going to work (wrong syntax):
   // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
   kernel<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]] []() {
     f32x32x32();
@@ -121,4 +117,6 @@ void bar() {
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 16 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 128 128 128
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 32 32 32
 #endif // __SYCL_DEVICE_ONLY__
