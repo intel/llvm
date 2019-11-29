@@ -39,7 +39,6 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
-#include "llvm/SYCL/ASFixer.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -854,8 +853,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   case Backend_EmitBC:
     if (LangOpts.SYCLIsDevice) {
-      if (getenv("DISABLE_INFER_AS"))
-        PerModulePasses.add(createASFixerPass());
       PerModulePasses.add(createDeadCodeEliminationPass());
     }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
@@ -1282,8 +1279,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
   case Backend_EmitBC:
     if (LangOpts.SYCLIsDevice) {
-      if (getenv("DISABLE_INFER_AS"))
-        CodeGenPasses.add(createASFixerPass());
       CodeGenPasses.add(createDeadCodeEliminationPass());
     }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
