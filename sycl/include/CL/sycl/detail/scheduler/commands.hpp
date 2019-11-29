@@ -87,7 +87,7 @@ public:
     EMPTY_TASK
   };
 
-  Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue = false);
+  Command(CommandType Type, QueueImplPtr Queue);
 
   void addDep(DepDesc NewDep) {
     if (NewDep.MDepCommand)
@@ -136,8 +136,6 @@ protected:
 
   // Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
-
-  bool MUseExclusiveQueue = false;
 
   // The type of the command
   CommandType MType;
@@ -293,8 +291,7 @@ private:
 class UnMapMemObject : public Command {
 public:
   UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
-                 void **SrcPtr, QueueImplPtr Queue,
-                 bool UseExclusiveQueue = false);
+                 void **SrcPtr, QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
@@ -312,8 +309,7 @@ class MemCpyCommand : public Command {
 public:
   MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
                 Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
-                QueueImplPtr SrcQueue, QueueImplPtr DstQueue,
-                bool UseExclusiveQueue = false);
+                QueueImplPtr SrcQueue, QueueImplPtr DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }

@@ -156,8 +156,7 @@ protected:
     // the Queue. Can insert copy/map/unmap operations depending on the source
     // and destination.
     Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
-                             const QueueImplPtr &Queue,
-                             bool UseExclusiveQueue = false);
+                              const QueueImplPtr &Queue);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,

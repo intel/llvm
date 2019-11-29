@@ -172,7 +172,7 @@ Release notes for commit 918b285d8dede6ab0561fccc622f71cb858849a6
 ### Linux
 - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
   support version
-  [2019.10.10.0.1106_rel](https://github.com/intel/llvm/releases/download/2019-10/oclcpuexp-2019.10.10.0.1106_rel.tar.gz)
+  [2019.9.11.0.1106_rel](https://github.com/intel/llvm/releases/download/2019-10/oclcpuexp-2019.9.11.0.1106_rel.tar.gz)
   is recommended OpenCL CPU RT prerequisite for the SYCL compiler
 - The Intel(R) Graphics Compute Runtime for OpenCL(TM) version
   [19.43.14583](https://github.com/intel/compute-runtime/releases/tag/19.43.14583)
@@ -180,7 +180,7 @@ Release notes for commit 918b285d8dede6ab0561fccc622f71cb858849a6
 ### Windows
 - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
   support version
-  [2019.10.10.0.1106_rel](https://github.com/intel/llvm/releases/download/2019-10/win-oclcpuexp-2019.10.10.0.1106_rel.zip)
+  [2019.9.11.0.1106_rel](https://github.com/intel/llvm/releases/download/2019-10/win-oclcpuexp-2019.9.11.0.1106_rel.zip)
   is recommended OpenCL CPU RT prerequisite for the SYCL compiler
 - The Intel(R) Graphics Compute Runtime for OpenCL(TM) version
   [100.7372](https://downloadmirror.intel.com/29127/a08/1910.1007372.exe)

@@ -135,7 +135,8 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
   for (const auto &File: Files) {
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
-    if (File.second == types::TY_Tempfilelist) {
+    if (File.second == types::TY_Tempfilelist ||
+        File.second == types::TY_TempEntriesfilelist) {
       std::ifstream ListFile(File.first);
       if (ListFile) {
         // These are temporary files and need to be removed.
