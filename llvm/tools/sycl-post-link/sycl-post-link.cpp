@@ -92,7 +92,8 @@ static void writeToFile(std::string Filename, std::string Content) {
 // with same values of the sycl-module-id attribute.
 // The function fills ResKernelModuleMap using input module M.
 static void collectKernelModuleMap(
-    Module &M, std::map<std::string, std::vector<Function *>> &ResKernelModuleMap) {
+    Module &M,
+    std::map<std::string, std::vector<Function *>> &ResKernelModuleMap) {
   for (auto &F : M.functions()) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       if (OneKernelPerModule) {
@@ -205,12 +206,12 @@ splitModule(Module &M,
 
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
-static void saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
+static void
+saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
   std::string IRFilesList;
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
-    std::string CurOutFileName = BaseOutputFilename + "_" +
-                                 std::to_string(I) +
+    std::string CurOutFileName = BaseOutputFilename + "_" + std::to_string(I) +
                                  ((OutputAssembly) ? ".ll" : ".bc");
 
     raw_fd_ostream Out{CurOutFileName, EC, sys::fs::OF_None};
@@ -233,8 +234,7 @@ static void saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) 
   if (!OutputIRFilesList.empty()) {
     // Just pass input module to next tools if there was nothing to split.
     if (IRFilesList.empty())
-      IRFilesList =
-          (Twine(InputFilename) + Twine("\n")).str();
+      IRFilesList = (Twine(InputFilename) + Twine("\n")).str();
     writeToFile(OutputIRFilesList, IRFilesList);
   }
 }
@@ -313,8 +313,8 @@ int main(int argc, char **argv) {
   // Default usage model of that the tool is
   // calling it twice with the same input due clang driver limitations.
   // It should not bring much extra overhead because
-  // parseIRFile and collectKernelModuleMap functions are small (would be good to
-  // estimate) compared to splitModule and saveResultModules.
+  // parseIRFile and collectKernelModuleMap functions are small (would be good
+  // to estimate) compared to splitModule and saveResultModules.
   bool NoLists = OutputIRFilesList.empty() && OutputTxtFilesList.empty();
   bool PerformSplit = !OutputIRFilesList.empty() || NoLists;
   bool CollectSymbols = !OutputTxtFilesList.empty() || NoLists;
