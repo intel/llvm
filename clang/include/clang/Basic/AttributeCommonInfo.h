@@ -152,8 +152,6 @@ public:
     // FIXME: Eventually we want to do a list here populated via tablegen.  But
     // we want C++ attributes to be permissible on Lambdas, and get propagated
     // to the call operator declaration.
-    // FIXME: Attribute lambda capturing is not a part of SYCL 1.2.1. We shall
-    // check if a program is being compiled with -sycl-ext option.
     auto ParsedAttr = getParsedKind();
     if (ParsedAttr == AT_SYCLIntelKernelArgsRestrict ||
         (ParsedAttr == AT_ReqdWorkGroupSize && isCXX11Attribute()))
