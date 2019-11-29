@@ -88,16 +88,19 @@ static void writeToFile(std::string Filename, std::string Content) {
   OS.close();
 }
 
-static void collectKernelsSet(
-    Module &M, std::map<std::string, std::vector<Function *>> &ResKernelsSet) {
+// Output parameter ResKernelModuleMap is a map containing groups of kernels
+// with same values of the sycl-module-id attribute.
+// The function fills ResKernelModuleMap using input module M.
+static void collectKernelModuleMap(
+    Module &M, std::map<std::string, std::vector<Function *>> &ResKernelModuleMap) {
   for (auto &F : M.functions()) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       if (OneKernelPerModule) {
-        ResKernelsSet[F.getName()].push_back(&F);
+        ResKernelModuleMap[F.getName()].push_back(&F);
       } else if (F.hasFnAttribute("sycl-module-id")) {
         auto Id = F.getFnAttribute("sycl-module-id");
         auto Val = Id.getValueAsString();
-        ResKernelsSet[Val].push_back(&F);
+        ResKernelModuleMap[Val].push_back(&F);
       }
     }
   }
@@ -110,9 +113,9 @@ static void collectKernelsSet(
 // The function saves names of kernels from one group to a single std::string
 // and stores this string to the ResSymbolsLists vector.
 static void collectSymbolsLists(
-    std::map<std::string, std::vector<Function *>> &KernelsSet,
+    std::map<std::string, std::vector<Function *>> &KernelModuleMap,
     std::vector<std::string> &ResSymbolsLists) {
-  for (auto &It : KernelsSet) {
+  for (auto &It : KernelModuleMap) {
     std::string SymbolsList;
     for (auto &F : It.second) {
       SymbolsList =
@@ -122,17 +125,17 @@ static void collectSymbolsLists(
   }
 }
 
-// Splits input LLVM IR module M into smaller ones.
-// Input parameter KernelsSet is a map containing groups of kernels with same
-// values in the sycl-module-id attribute. For each group of kernels a separate
-// IR module will be produced.
-// ResModules is output parameter.
-// Result modules are stored into ResModules vector.
+// Input parameter KernelModuleMap is a map containing groups of kernels with
+// same values of the sycl-module-id attribute. For each group of kernels a
+// separate IR module will be produced.
+// ResModules is a vector of produced modules.
+// The function splits input LLVM IR module M into smaller ones and stores them
+// to the ResModules vector.
 static void
 splitModule(Module &M,
-            std::map<std::string, std::vector<Function *>> &KernelsSet,
+            std::map<std::string, std::vector<Function *>> &KernelModuleMap,
             std::vector<std::unique_ptr<Module>> &ResModules) {
-  for (auto &It : KernelsSet) {
+  for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<GlobalValue *> GVs;
     std::vector<llvm::Function *> Workqueue;
@@ -200,7 +203,7 @@ splitModule(Module &M,
   }
 }
 
-// Saves specified collection of llvm IR modules.
+// Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
 static void saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
   std::string IRFilesList;
@@ -236,7 +239,7 @@ static void saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) 
   }
 }
 
-// Saves specified collection of symbols lists.
+// Saves specified collection of symbols lists to files.
 // Saves file list if user specified corresponding filename.
 static void saveResultSymbolsLists(std::vector<std::string> &ResSymbolsLists) {
   std::string TxtFilesList;
@@ -302,7 +305,7 @@ int main(int argc, char **argv) {
 
   std::map<std::string, std::vector<Function *>> GlobalsSet;
 
-  collectKernelsSet(*M.get(), GlobalsSet);
+  collectKernelModuleMap(*M.get(), GlobalsSet);
 
   std::vector<std::unique_ptr<Module>> ResultModules;
   std::vector<std::string> ResultSymbolsLists;
@@ -310,7 +313,7 @@ int main(int argc, char **argv) {
   // Default usage model of that the tool is
   // calling it twice with the same input due clang driver limitations.
   // It should not bring much extra overhead because
-  // parseIRFile and collectKernelsSet functions are small (would be good to
+  // parseIRFile and collectKernelModuleMap functions are small (would be good to
   // estimate) compared to splitModule and saveResultModules.
   bool NoLists = OutputIRFilesList.empty() && OutputTxtFilesList.empty();
   bool PerformSplit = !OutputIRFilesList.empty() || NoLists;
