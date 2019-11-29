@@ -453,10 +453,6 @@ void foo1()
   [[intelfpga::bank_bits]]
   unsigned int bb_seven[4];
 
-  //expected-error@+1{{attribute takes at least 1 argument}}
-  [[intelfpga::bank_bits()]]
-  unsigned int bb_eight[4];
-
   //expected-error@+1{{requires integer constant between 0 and 1048576}}
   [[intelfpga::bank_bits(-1)]]
   unsigned int bb_ten[4];

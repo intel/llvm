@@ -19,8 +19,8 @@
 //CHECK: [[ANN17:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4,500}
 //CHECK: [[ANN18:@.str.[0-9]*]] = {{.*}}{memory:BLOCK_RAM}{sizeinfo:4,10,2}
 //CHECK: [[ANN19:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:4}{bank_bits:4,5}
-//CHECK: [[ANN20:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10,2}{bankwidth:16}{numbanks:4}{bank_bits:2,3}
-//CHECK: [[ANN21:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}{numbanks:8}{bank_bits:3,4,5}
+//CHECK: [[ANN20:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10,2}{bankwidth:16}{numbanks:2}{bank_bits:0}
+//CHECK: [[ANN21:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}{numbanks:8}{bank_bits:5,4,3}
 
 //CHECK: @llvm.global.annotations
 //CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5a_one to i8 addrspace(1)*)
@@ -187,11 +187,11 @@ void bankbits() {
   //CHECK: %[[VARB:[0-9]+]] = bitcast{{.*}}%b
   //CHECK: %[[VARB1:b[0-9]+]] = bitcast{{.*}}%b
   //CHECK: @llvm.var.annotation{{.*}}%[[VARB1]],{{.*}}[[ANN20]]
-  [[intelfpga::bank_bits(2,3), intelfpga::bankwidth(16)]] int b[10][2];
+  [[intelfpga::bank_bits(0), intelfpga::bankwidth(16)]] int b[10][2];
   //CHECK: %[[VARC:[0-9]+]] = bitcast{{.*}}%c
   //CHECK: %[[VARC1:c[0-9]+]] = bitcast{{.*}}%c
   //CHECK: @llvm.var.annotation{{.*}}%[[VARC1]],{{.*}}[[ANN21]]
-  [[intelfpga::bank_bits(3,4,5), intelfpga::numbanks(8), intelfpga::memory("MLAB")]] int c;
+  [[intelfpga::bank_bits(5,4,3), intelfpga::numbanks(8), intelfpga::memory("MLAB")]] int c;
   struct s s2;
   //CHECK: %[[FIELD_A:.*]] = getelementptr inbounds %struct.{{.*}}.s{{.*}}
   //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_A]]{{.*}}[[ANN19]]
