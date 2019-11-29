@@ -109,7 +109,6 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
