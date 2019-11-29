@@ -872,8 +872,6 @@ def fconstexpr_depth_EQ : Joined<["-"], "fconstexpr-depth=">, Group<f_Group>;
 def fconstexpr_steps_EQ : Joined<["-"], "fconstexpr-steps=">, Group<f_Group>;
 def fexperimental_new_constant_interpreter : Flag<["-"], "fexperimental-new-constant-interpreter">, Group<f_Group>,
   HelpText<"Enable the experimental new constant interpreter">, Flags<[CC1Option]>;
-def fforce_experimental_new_constant_interpreter : Flag<["-"], "fforce-experimental-new-constant-interpreter">, Group<f_Group>,
-  HelpText<"Force the use of the experimental new constant interpreter, failing on missing features">, Flags<[CC1Option]>;
 def fconstexpr_backtrace_limit_EQ : Joined<["-"], "fconstexpr-backtrace-limit=">,
                                     Group<f_Group>;
 def fno_crash_diagnostics : Flag<["-"], "fno-crash-diagnostics">, Group<f_clang_Group>, Flags<[NoArgumentUnused, CoreOption]>,
@@ -2328,9 +2326,8 @@ def mrestrict_it: Flag<["-"], "mrestrict-it">, Group<m_arm_Features_Group>,
 def mno_restrict_it: Flag<["-"], "mno-restrict-it">, Group<m_arm_Features_Group>,
   HelpText<"Allow generation of deprecated IT blocks for ARMv8. It is off by default for ARMv8 Thumb mode">;
 def marm : Flag<["-"], "marm">, Alias<mno_thumb>;
-foreach i = {6-11} in
-  def ffixed_r#i : Flag<["-"], "ffixed-r"#i>, Group<m_arm_Features_Group>,
-    HelpText<"Reserve the r"#i#" register (ARM only)">;
+def ffixed_r9 : Flag<["-"], "ffixed-r9">, Group<m_arm_Features_Group>,
+  HelpText<"Reserve the r9 register (ARM only)">;
 def mno_movt : Flag<["-"], "mno-movt">, Group<m_arm_Features_Group>,
   HelpText<"Disallow use of movt/movw pairs (ARM only)">;
 def mcrc : Flag<["-"], "mcrc">, Group<m_Group>,

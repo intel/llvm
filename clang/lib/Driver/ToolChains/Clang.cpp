@@ -4584,9 +4584,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_fexperimental_new_constant_interpreter))
     CmdArgs.push_back("-fexperimental-new-constant-interpreter");
 
-  if (Args.hasArg(options::OPT_fforce_experimental_new_constant_interpreter))
-    CmdArgs.push_back("-fforce-experimental-new-constant-interpreter");
-
   if (Arg *A = Args.getLastArg(options::OPT_fbracket_depth_EQ)) {
     CmdArgs.push_back("-fbracket-depth");
     CmdArgs.push_back(A->getValue());
@@ -5755,7 +5752,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     TC.getTriple().isOSBinFormatCOFF()) &&
                       !TC.getTriple().isPS4() &&
                       !TC.getTriple().isOSNetBSD() &&
-                      !Distro(D.getVFS()).IsGentoo() &&
+                      !Distro(D.getVFS(), TC.getTriple()).IsGentoo() &&
                       !TC.getTriple().isAndroid() &&
                        TC.useIntegratedAs()))
     CmdArgs.push_back("-faddrsig");

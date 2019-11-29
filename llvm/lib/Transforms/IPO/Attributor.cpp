@@ -308,15 +308,16 @@ static const Value *getPointerOperand(const Instruction *I) {
 
   return nullptr;
 }
-static const Value *getBasePointerOfAccessPointerOperand(const Instruction *I,
-                                                         int64_t &BytesOffset,
-                                                         const DataLayout &DL) {
+static const Value *
+getBasePointerOfAccessPointerOperand(const Instruction *I, int64_t &BytesOffset,
+                                     const DataLayout &DL,
+                                     bool AllowNonInbounds = false) {
   const Value *Ptr = getPointerOperand(I);
   if (!Ptr)
     return nullptr;
 
   return GetPointerBaseWithConstantOffset(Ptr, BytesOffset, DL,
-                                          /*AllowNonInbounds*/ false);
+                                          AllowNonInbounds);
 }
 
 ChangeStatus AbstractAttribute::update(Attributor &A) {
@@ -1702,8 +1703,7 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
     return 0;
   }
   if (auto *GEP = dyn_cast<GetElementPtrInst>(I))
-    if (GEP->hasAllZeroIndices() ||
-        (GEP->isInBounds() && GEP->hasAllConstantIndices())) {
+    if (GEP->hasAllConstantIndices()) {
       TrackUse = true;
       return 0;
     }
@@ -1714,6 +1714,18 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
       int64_t DerefBytes =
           (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType()) + Offset;
 
+      IsNonNull |= !NullPointerIsDefined;
+      return std::max(int64_t(0), DerefBytes);
+    }
+  }
+
+  /// Corner case when an offset is 0.
+  if (const Value *Base = getBasePointerOfAccessPointerOperand(
+          I, Offset, DL, /*AllowNonInbounds*/ true)) {
+    if (Offset == 0 && Base == &AssociatedValue &&
+        getPointerOperand(I) == UseV) {
+      int64_t DerefBytes =
+          (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType());
       IsNonNull |= !NullPointerIsDefined;
       return std::max(int64_t(0), DerefBytes);
     }
@@ -2949,14 +2961,46 @@ struct AADereferenceableImpl : AADereferenceable {
   const StateType &getState() const override { return *this; }
   /// }
 
+  /// Helper function for collecting accessed bytes in must-be-executed-context
+  void addAccessedBytesForUse(Attributor &A, const Use *U,
+                              const Instruction *I) {
+    const Value *UseV = U->get();
+    if (!UseV->getType()->isPointerTy())
+      return;
+
+    Type *PtrTy = UseV->getType();
+    const DataLayout &DL = A.getDataLayout();
+    int64_t Offset;
+    if (const Value *Base = getBasePointerOfAccessPointerOperand(
+            I, Offset, DL, /*AllowNonInbounds*/ true)) {
+      if (Base == &getAssociatedValue() && getPointerOperand(I) == UseV) {
+        uint64_t Size = DL.getTypeStoreSize(PtrTy->getPointerElementType());
+        addAccessedBytes(Offset, Size);
+      }
+    }
+    return;
+  }
+
   /// See AAFromMustBeExecutedContext
   bool followUse(Attributor &A, const Use *U, const Instruction *I) {
     bool IsNonNull = false;
     bool TrackUse = false;
     int64_t DerefBytes = getKnownNonNullAndDerefBytesForUse(
         A, *this, getAssociatedValue(), U, I, IsNonNull, TrackUse);
+
+    addAccessedBytesForUse(A, U, I);
     takeKnownDerefBytesMaximum(DerefBytes);
     return TrackUse;
+  }
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    ChangeStatus Change = AADereferenceable::manifest(A);
+    if (isAssumedNonNull() && hasAttr(Attribute::DereferenceableOrNull)) {
+      removeAttrs({Attribute::DereferenceableOrNull});
+      return ChangeStatus::CHANGED;
+    }
+    return Change;
   }
 
   void getDeducedAttributes(LLVMContext &Ctx,
