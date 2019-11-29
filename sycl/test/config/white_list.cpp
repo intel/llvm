@@ -1,8 +1,13 @@
 // REQUIRES: cpu
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env PRINT_DEVICE_INFO=1 %t.out > %t.conf
-// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t.conf %t.out
-// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_WHITE_LIST="" %t.out
+//
+// RUN: env PRINT_DEVICE_INFO=1 %t.out > %t1.conf
+// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t1.conf %t.out
+//
+// RUN: env PRINT_PLATFORM_INFO=1 %t.out > %t2.conf
+// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %t.out
+//
+// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_WHITE_LIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -12,25 +17,49 @@
 
 using namespace cl;
 
+static void replaceEscapeCharacters(std::string &Str) {
+  // As a stringwill be used as regexp pattern, we need to get rid of symbols
+  // that can be treated in a special way.  Replace common special symbols with
+  // '.' which matches to any character
+  std::replace_if(Str.begin(), Str.end(),
+                  [](const char Sym) { return '(' == Sym || ')' == Sym; }, '.');
+}
+
 int main() {
+
+  // Expected that white list filter is not set
+  if (getenv("PRINT_PLATFORM_INFO")) {
+    for (const sycl::platform &Plt : sycl::platform::get_platforms())
+      if (!Plt.is_host()) {
+
+        std::string Name = Plt.get_info<sycl::info::platform::name>();
+        const std::string Ver =
+            Plt.get_info<sycl::info::platform::version>();
+
+        replaceEscapeCharacters(Name);
+
+        std::cout << "SYCL_DEVICE_WHITE_LIST=PlatformName:{{" << Name
+                  << "}},PlatformVersion:{{" << Ver << "}}";
+
+        return 0;
+      }
+    throw std::runtime_error("Non host device is not found");
+  }
 
   // Expected that white list filter is not set
   if (getenv("PRINT_DEVICE_INFO")) {
     for (const sycl::platform &Plt : sycl::platform::get_platforms())
       if (!Plt.is_host()) {
         const sycl::device Dev = Plt.get_devices().at(0);
-        std::string DevName = Dev.get_info<sycl::info::device::name>();
-        const std::string DevVer =
+        std::string Name = Dev.get_info<sycl::info::device::name>();
+        const std::string Ver =
             Dev.get_info<sycl::info::device::driver_version>();
-        // As device name string will be used as regexp pattern, we need to
-        // get rid of symbols that can be treated in a special way.
-        // Replace common special symbols with '.' which matches to any sybmol
-        for (char &Sym : DevName) {
-          if (')' == Sym || '(' == Sym)
-            Sym = '.';
-        }
-        std::cout << "SYCL_DEVICE_WHITE_LIST=DeviceName:{{" << DevName
-                  << "}},DriverVersion:{{" << DevVer << "}}";
+
+        replaceEscapeCharacters(Name);
+
+        std::cout << "SYCL_DEVICE_WHITE_LIST=DeviceName:{{" << Name
+                  << "}},DriverVersion:{{" << Ver << "}}";
+
         return 0;
       }
     throw std::runtime_error("Non host device is not found");
