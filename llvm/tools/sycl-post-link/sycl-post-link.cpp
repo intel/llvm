@@ -103,10 +103,12 @@ static void collectKernelsSet(
   }
 }
 
-// Input parameter KernelsSet is a map containing groups of kernels with same
-// values in the sycl-module-id attribute.
-// ResSymbolsLists vector is output parameter.
-// Collects set of kernel names for each group of kernels.
+// Input parameter KernelModuleMap is a map containing groups of kernels with
+// same values of the sycl-module-id attribute. ResSymbolsLists is a vector of
+// kernel name lists. Each vector element is a string with kernel names from the
+// same module separated by \n.
+// The function saves names of kernels from one group to a single std::string
+// and stores this string to the ResSymbolsLists vector.
 static void collectSymbolsLists(
     std::map<std::string, std::vector<Function *>> &KernelsSet,
     std::vector<std::string> &ResSymbolsLists) {
