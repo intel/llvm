@@ -394,7 +394,7 @@ llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
 
-#### Device code splitting
+#### Device code split
 
 Putting all device code into a single SPIRV module does not work well in the
 following cases:
@@ -405,24 +405,40 @@ that are supposed to be executed only on FPGA can use extensions avaliable for
 FPGA only. This will cause JIT compilation failure on other devices even if this
 particular kernel is never called on them.
 
-To resolve these problems the compiler should be able to split a single module
-into smaller ones. The following features should be supported:
-* Grouping kernels on per-translation unit basis
+To resolve these problems the compiler can split a single module into smaller
+ones. The following features is supported:
+* Emitting a separate module for source (translation unit)
 * Emitting a separate module for each kernel
 
 The current approach is:
 * Generate special meta-data with translation unit ID for each kernel in SYCL
-front-end
-* Link all LLVM modules using llvm-link
-* Run the module splitter pass on fully linked device code
-* Generate a symbol table for each device module for proper module selection in
-runtime
+front-end. This ID will be used to group kernels on per-translation unit basis
+* Link all device LLVM modules using llvm-link
+* Perform split on a fully linked module
+* Generate a symbol table (list of kernels) for each produced device module for
+proper module selection in runtime
+* Perform SPIR-V translation and AOT compilation (if requested) on each produced
+module separately
+* Add information about presented kernels to a wrappring object for each device
+image
 
 Device code splitting process:
-![Device code splitting](DeviceCodeSplitting.svg)
+![Device code splitting](images/DeviceCodeSplit.svg)
 
-The "split" box will be implemented as dedicated tool ("sycl-split"?). The tool
-will run splitter pass and generate a symbol table for each produced device module.
+The "split" box is implemented as functionality of the dedicated tool
+`sycl-post-link`. The tool runs a set of LLVM passes to split input module and
+generates a symbol table (list of kernels) for each produced device module.
+
+To enable device code split, a special option must be passed to the clang
+driver:
+
+`-fsycl-device-code-split=<value>`
+
+There are three possible values for this option:
+* `per_source` - enables emitting a separate module for each source (translation
+unit)
+* `per_kernel` - enables emitting a separate module for each kernel
+* `off` - disables device code split
 
 ### Integration with SPIR-V format
 
