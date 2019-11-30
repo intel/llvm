@@ -17,10 +17,8 @@
 
 using namespace cl;
 
-static void replaceEscapeCharacters(std::string &Str) {
-  // As a stringwill be used as regexp pattern, we need to get rid of symbols
-  // that can be treated in a special way.  Replace common special symbols with
-  // '.' which matches to any character
+static void replaceSpecialCharacters(std::string &Str) {
+  //Replace common special symbols with '.' which matches to any character
   std::replace_if(Str.begin(), Str.end(),
                   [](const char Sym) { return '(' == Sym || ')' == Sym; }, '.');
 }
@@ -33,10 +31,11 @@ int main() {
       if (!Plt.is_host()) {
 
         std::string Name = Plt.get_info<sycl::info::platform::name>();
-        const std::string Ver =
-            Plt.get_info<sycl::info::platform::version>();
-
-        replaceEscapeCharacters(Name);
+        std::string Ver = Plt.get_info<sycl::info::platform::version>();
+        // As a string will be used as regexp pattern, we need to get rid of
+        // symbols that can be treated in a special way.
+        replaceSpecialCharacters(Name);
+        replaceSpecialCharacters(Ver);
 
         std::cout << "SYCL_DEVICE_WHITE_LIST=PlatformName:{{" << Name
                   << "}},PlatformVersion:{{" << Ver << "}}";
@@ -52,10 +51,12 @@ int main() {
       if (!Plt.is_host()) {
         const sycl::device Dev = Plt.get_devices().at(0);
         std::string Name = Dev.get_info<sycl::info::device::name>();
-        const std::string Ver =
-            Dev.get_info<sycl::info::device::driver_version>();
+        std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
 
-        replaceEscapeCharacters(Name);
+        // As a string will be used as regexp pattern, we need to get rid of
+        // symbols that can be treated in a special way.
+        replaceSpecialCharacters(Name);
+        replaceSpecialCharacters(Ver);
 
         std::cout << "SYCL_DEVICE_WHITE_LIST=DeviceName:{{" << Name
                   << "}},DriverVersion:{{" << Ver << "}}";

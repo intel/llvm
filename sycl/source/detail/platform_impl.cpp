@@ -59,11 +59,11 @@ struct DevDescT {
   const char *devDriverVer = nullptr;
   int devDriverVerSize = 0;
 
-  const char *pltName = nullptr;
-  int pltNameSize = 0;
+  const char *platformName = nullptr;
+  int platformNameSize = 0;
 
-  const char *pltVer = nullptr;
-  int pltVerSize = 0;
+  const char *platformVer = nullptr;
+  int platformVerSize = 0;
 };
 
 static std::vector<DevDescT> getWhiteListDesc() {
@@ -76,7 +76,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
   std::vector<DevDescT> decDescs;
   const char devNameStr[] = "DeviceName";
   const char driverVerStr[] = "DriverVersion";
-  const char pltNameStr[] = "PlatformName";
+  const char platformNameStr[] = "PlatformName";
   const char platformVerStr[] = "PlatformVersion";
   decDescs.emplace_back();
   while ('\0' != *str) {
@@ -88,13 +88,14 @@ static std::vector<DevDescT> getWhiteListDesc() {
       valuePtr = &decDescs.back().devName;
       size = &decDescs.back().devNameSize;
       str += sizeof(devNameStr) - 1;
-    } else if (0 == strncmp(pltNameStr, str, sizeof(pltNameStr) - 1)) {
-      valuePtr = &decDescs.back().pltName;
-      size = &decDescs.back().pltNameSize;
-      str += sizeof(pltNameStr) - 1;
+    } else if (0 ==
+               strncmp(platformNameStr, str, sizeof(platformNameStr) - 1)) {
+      valuePtr = &decDescs.back().platformName;
+      size = &decDescs.back().platformNameSize;
+      str += sizeof(platformNameStr) - 1;
     } else if (0 == strncmp(platformVerStr, str, sizeof(platformVerStr) - 1)) {
-      valuePtr = &decDescs.back().pltVer;
-      size = &decDescs.back().pltVerSize;
+      valuePtr = &decDescs.back().platformVer;
+      size = &decDescs.back().platformVerSize;
       str += sizeof(platformVerStr) - 1;
     } else if (0 == strncmp(driverVerStr, str, sizeof(driverVerStr) - 1)) {
       valuePtr = &decDescs.back().devDriverVer;
@@ -149,31 +150,34 @@ static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices,
   if (whiteList.empty())
     return;
 
-  const string_class pltName =
+  const string_class platformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
           pi_platform);
 
-  const string_class pltVer = sycl::detail::get_platform_info<
+  const string_class platformVer = sycl::detail::get_platform_info<
       string_class, info::platform::version>::get(pi_platform);
 
   int insertIDx = 0;
   for (RT::PiDevice dev : pi_devices) {
     const string_class devName =
-        sycl::detail::get_device_info<string_class, info::device::name>::get(dev);
+        sycl::detail::get_device_info<string_class, info::device::name>::get(
+            dev);
 
     const string_class devDriverVer =
         sycl::detail::get_device_info<string_class,
                                       info::device::driver_version>::get(dev);
 
     for (const DevDescT &desc : whiteList) {
-      if (nullptr != desc.pltName &&
-          !std::regex_match(
-              pltName, std::regex(std::string(desc.pltName, desc.pltNameSize))))
+      if (nullptr != desc.platformName &&
+          !std::regex_match(platformName,
+                            std::regex(std::string(desc.platformName,
+                                                   desc.platformNameSize))))
         continue;
 
-      if (nullptr != desc.pltVer &&
+      if (nullptr != desc.platformVer &&
           !std::regex_match(
-              pltVer, std::regex(std::string(desc.pltVer, desc.pltVerSize))))
+              platformVer,
+              std::regex(std::string(desc.platformVer, desc.platformVerSize))))
         continue;
 
       if (nullptr != desc.devName &&
