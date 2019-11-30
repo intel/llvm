@@ -71,8 +71,6 @@ static std::vector<DevDescT> getWhiteListDesc() {
   if (!str)
     return {};
 
-
-
   std::vector<DevDescT> decDescs;
   const char devNameStr[] = "DeviceName";
   const char driverVerStr[] = "DriverVersion";

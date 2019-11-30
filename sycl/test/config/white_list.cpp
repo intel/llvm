@@ -27,11 +27,11 @@ int main() {
 
   // Expected that white list filter is not set
   if (getenv("PRINT_PLATFORM_INFO")) {
-    for (const sycl::platform &Plt : sycl::platform::get_platforms())
-      if (!Plt.is_host()) {
+    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+      if (!Platform.is_host()) {
 
-        std::string Name = Plt.get_info<sycl::info::platform::name>();
-        std::string Ver = Plt.get_info<sycl::info::platform::version>();
+        std::string Name = Platform.get_info<sycl::info::platform::name>();
+        std::string Ver = Platform.get_info<sycl::info::platform::version>();
         // As a string will be used as regexp pattern, we need to get rid of
         // symbols that can be treated in a special way.
         replaceSpecialCharacters(Name);
@@ -47,9 +47,9 @@ int main() {
 
   // Expected that white list filter is not set
   if (getenv("PRINT_DEVICE_INFO")) {
-    for (const sycl::platform &Plt : sycl::platform::get_platforms())
-      if (!Plt.is_host()) {
-        const sycl::device Dev = Plt.get_devices().at(0);
+    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+      if (!Platform.is_host()) {
+        const sycl::device Dev = Platform.get_devices().at(0);
         std::string Name = Dev.get_info<sycl::info::device::name>();
         std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
 
@@ -68,9 +68,9 @@ int main() {
 
   // Expected white list to be set with result from "PRINT_DEVICE_INFO" run
   if (getenv("TEST_DEVICE_AVAILABLE")) {
-    for (const sycl::platform &Plt : sycl::platform::get_platforms())
-      if (!Plt.is_host()) {
-        if (Plt.get_devices().size() != 1)
+    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+      if (!Platform.is_host()) {
+        if (Platform.get_devices().size() != 1)
           throw std::runtime_error("Expected only one non host device.");
 
         return 0;
@@ -80,8 +80,8 @@ int main() {
 
   // Expected white list to be set but empty
   if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
-    for (const sycl::platform &Plt : sycl::platform::get_platforms())
-      if (!Plt.is_host())
+    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+      if (!Platform.is_host())
         throw std::runtime_error("Expected no non host device is available");
     return 0;
   }
