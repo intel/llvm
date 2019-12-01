@@ -1,16 +1,15 @@
 // RUN: %clang %s -S -emit-llvm -fsycl-device-only -o - | FileCheck %s
-#include "CL/sycl.hpp"
 // CHECK: %opencl.pipe_wo_t
 // CHECK: %opencl.pipe_ro_t
 
-class SomePipe;
-void foo() {
-  using Pipe = cl::sycl::pipe<SomePipe, int>;
-  // CHECK: %{{.*}} = alloca %opencl.pipe_wo_t
-  Pipe::write(42);
-  // CHECK: %{{.*}} = alloca %opencl.pipe_ro_t
-  int a = Pipe::read();
-}
+using WPipeTy = __attribute__((pipe("write_only"))) const int;
+WPipeTy WPipeCreator();
+
+using RPipeTy = __attribute__((pipe("read_only"))) const int;
+RPipeTy RPipeCreator();
+
+template <typename PipeTy>
+void foo(PipeTy Pipe) {}
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
@@ -19,7 +18,12 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 
 int main() {
   kernel_single_task<class kernel_function>([]() {
-    foo();
+    // CHECK: alloca %opencl.pipe_wo_t
+    WPipeTy wpipe = WPipeCreator();
+    // CHECK: alloca %opencl.pipe_ro_t
+    RPipeTy rpipe = RPipeCreator();
+    foo<WPipeTy>(wpipe);
+    foo<RPipeTy>(rpipe);
   });
   return 0;
 }
