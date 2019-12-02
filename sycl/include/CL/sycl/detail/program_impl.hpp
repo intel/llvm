@@ -348,7 +348,7 @@ private:
   }
 
   void create_pi_program_with_kernel_name(OSModuleHandle M,
-                                          string_class KernelName) {
+                                          const string_class &KernelName) {
     assert(!Program && "This program already has an encapsulated PI program");
     ProgramManager &PM = ProgramManager::getInstance();
     DeviceImage &Img = PM.getDeviceImage(M, KernelName, Context);

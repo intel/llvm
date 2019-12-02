@@ -68,18 +68,20 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  DeviceImage &getDeviceImage(OSModuleHandle M, const KernelSetId &KSId,
+  DeviceImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                               const context &Context);
-  void build(RT::PiProgram Program, const string_class &Options = "",
-             std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
+  void build(RT::PiProgram Program, const string_class &Options,
+             std::vector<RT::PiDevice> Devices);
   /// Provides a new kernel set id for grouping kernel names together
-  KernelSetId getNextKernelSetId();
+  KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
   /// cases (when reading images from file or using images with no entry info)
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const string_class &KernelName) const;
   /// Returns the format of the binary image
-  RT::PiDeviceBinaryType getFormat(const DeviceImage &Img);
+  RT::PiDeviceBinaryType getFormat(const DeviceImage &Img) const;
+  /// Dumps image to current directory
+  void dumpImage(const DeviceImage &Img, KernelSetId KSId) const;
 
   using KernelToImgsMap =
       std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>;
@@ -99,8 +101,8 @@ private:
   /// No image can out-live the Program manager.
   std::vector<std::unique_ptr<DeviceImage, ImageDeleter>> m_OrphanDeviceImages;
 
-  /// Path to spirv file specified with an environment variable.
-  string_class SpvFile;
+  /// True iff a SPIRV file has been specified with an environment variable
+  bool m_UseSpvFile = false;
 };
 } // namespace detail
 } // namespace sycl

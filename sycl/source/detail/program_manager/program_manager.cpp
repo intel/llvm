@@ -32,7 +32,7 @@ namespace detail {
 
 static constexpr int DbgProgMgr = 0;
 
-static const std::string UseSpvEnv{"SYCL_USE_KERNEL_SPV"};
+static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
   // The singleton ProgramManager instance, uses the "magic static" idiom.
@@ -98,8 +98,8 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
   return getDeviceImage(M, KSId, Context);
 }
 
-static bool is_device_binary_type_supported(const context &C,
-                                            RT::PiDeviceBinaryType Format) {
+static bool isDeviceBinaryTypeSupported(const context &C,
+                                        RT::PiDeviceBinaryType Format) {
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -111,8 +111,9 @@ static bool is_device_binary_type_supported(const context &C,
 
   // Otherwise we need cl_khr_il_program extension to be present
   // and we can call clCreateProgramWithILKHR using the extension
-  for (const auto &D : C.get_devices()) {
-    auto Extensions = D.get_info<info::device::extensions>();
+  for (const device &D : C.get_devices()) {
+    vector_class<string_class> Extensions =
+        D.get_info<info::device::extensions>();
     if (std::find(Extensions.begin(), Extensions.end(),
                   string_class("cl_khr_il_program")) != Extensions.end())
       return true;
@@ -142,43 +143,19 @@ RT::PiProgram ProgramManager::createPIProgram(const DeviceImage &Img,
   //   implementation, so will be implemented together with it.
   //   Img->Format can't be updated as it is inside of the in-memory
   //   OS module binary.
-  auto Format = getFormat(Img);
-  // auto Format = Img->Format;
+  RT::PiDeviceBinaryType Format = getFormat(Img);
+  // RT::PiDeviceBinaryType Format = Img->Format;
   // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
-  // Dump program image if requested
-  if (std::getenv("SYCL_DUMP_IMAGES") && SpvFile.empty()) {
-    std::string Fname("sycl_");
-    Fname += Img.DeviceTargetSpec;
-    std::string Ext;
-
-    if (Format == PI_DEVICE_BINARY_TYPE_SPIRV)
-      Ext = ".spv";
-    else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
-      Ext = ".bc";
-    else
-      Ext = ".bin";
-    Fname += Ext;
-
-    std::ofstream F(Fname, std::ios::binary);
-
-    if (!F.is_open()) {
-      throw runtime_error(std::string("Can not write ") + Fname);
-    }
-    F.write(reinterpret_cast<const char *>(Img.BinaryStart), ImgSize);
-    F.close();
-  }
-
-  if (!is_device_binary_type_supported(Context, Format))
+  if (!isDeviceBinaryTypeSupported(Context, Format))
     throw feature_not_supported(
         "Online compilation is not supported in this context");
 
   // Load the image
-  RT::PiProgram Res = nullptr;
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
-  Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
-            ? createSpirvProgram(Ctx, Img.BinaryStart, ImgSize)
-            : createBinaryProgram(Ctx, Img.BinaryStart, ImgSize);
+  RT::PiProgram Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
+                          ? createSpirvProgram(Ctx, Img.BinaryStart, ImgSize)
+                          : createBinaryProgram(Ctx, Img.BinaryStart, ImgSize);
 
   if (DbgProgMgr > 1)
     std::cerr << "created native program: " << Res << "\n";
@@ -203,7 +180,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
       Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
 
-  build(ProgramManaged.get(), Img.BuildOptions);
+  build(ProgramManaged.get(), Img.BuildOptions, {});
   RT::PiProgram Program = ProgramManaged.release();
   CachedPrograms[KSId] = Program;
 
@@ -271,12 +248,11 @@ struct ImageDeleter {
 };
 
 ProgramManager::ProgramManager() {
-  const char *SpvFileC = std::getenv(UseSpvEnv.c_str());
+  const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIRV file is specified with an environment variable,
   // register the corresponding image
-  if (SpvFileC)
-    SpvFile = SpvFileC;
-  if (!SpvFile.empty()) {
+  if (SpvFile) {
+    m_UseSpvFile = true;
     // The env var requests that the program is loaded from a SPIRV file on disk
     std::ifstream File(SpvFile, std::ios::binary);
 
@@ -285,16 +261,14 @@ ProgramManager::ProgramManager() {
                           UseSpvEnv + ": " + SpvFile);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
-    auto *Data = new unsigned char[Size];
+    std::unique_ptr<unsigned char[]> Data(new unsigned char[Size]);
     File.seekg(0);
-    File.read(reinterpret_cast<char *>(Data), Size);
+    File.read(reinterpret_cast<char *>(Data.get()), Size);
     File.close();
-
-    if (!File.good()) {
-      delete[] Data;
+    if (!File.good())
       throw runtime_error(std::string("read from ") + SpvFile +
                           std::string(" failed"));
-    }
+
     std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(new DeviceImage(),
                                                       ImageDeleter());
     ImgPtr->Version = PI_DEVICE_BINARY_VERSION;
@@ -303,8 +277,8 @@ ProgramManager::ProgramManager() {
     ImgPtr->BuildOptions = "";
     ImgPtr->ManifestStart = nullptr;
     ImgPtr->ManifestEnd = nullptr;
-    ImgPtr->BinaryStart = Data;
-    ImgPtr->BinaryEnd = Data + Size;
+    ImgPtr->BinaryStart = Data.release();
+    ImgPtr->BinaryEnd = ImgPtr->BinaryStart + Size;
     ImgPtr->EntriesBegin = nullptr;
     ImgPtr->EntriesEnd = nullptr;
     // TODO the environment variable name implies that the only binary format
@@ -321,8 +295,7 @@ ProgramManager::ProgramManager() {
   }
 }
 
-DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
-                                            const KernelSetId &KSId,
+DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                             const context &Context) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
@@ -351,6 +324,8 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
     debugDumpBinaryImage(Img);
   }
 
+  if (std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile)
+    dumpImage(*Img, KSId);
   return *Img;
 }
 
@@ -452,7 +427,7 @@ void ProgramManager::debugDumpBinaryImages() const {
   }
 }
 
-KernelSetId ProgramManager::getNextKernelSetId() {
+KernelSetId ProgramManager::getNextKernelSetId() const {
   // No need for atomic, should be guarded by the caller
   static KernelSetId Result = LastKSId;
   return ++Result;
@@ -463,7 +438,7 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
                                const string_class &KernelName) const {
   // If the env var instructs to use image from a file,
   // return the kernel set associated with it
-  if (!SpvFile.empty() && M == OSUtil::ExeModuleHandle)
+  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
     return SpvFileKSId;
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   auto KSIdIt = m_KernelSets.find(KernelName);
@@ -481,7 +456,7 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   throw runtime_error("No kernel named " + KernelName + " was found");
 }
 
-RT::PiDeviceBinaryType ProgramManager::getFormat(const DeviceImage &Img) {
+RT::PiDeviceBinaryType ProgramManager::getFormat(const DeviceImage &Img) const {
   if (Img.Format != PI_DEVICE_BINARY_TYPE_NONE)
     return Img.Format;
 
@@ -507,6 +482,31 @@ RT::PiDeviceBinaryType ProgramManager::getFormat(const DeviceImage &Img) {
   }
 
   return PI_DEVICE_BINARY_TYPE_NONE;
+}
+
+void ProgramManager::dumpImage(const DeviceImage &Img, KernelSetId KSId) const {
+  std::string Fname("sycl_");
+  Fname += Img.DeviceTargetSpec;
+  Fname += std::to_string(KSId);
+  std::string Ext;
+
+  RT::PiDeviceBinaryType Format = getFormat(Img);
+  if (Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+    Ext = ".spv";
+  else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
+    Ext = ".bc";
+  else
+    Ext = ".bin";
+  Fname += Ext;
+
+  std::ofstream F(Fname, std::ios::binary);
+
+  if (!F.is_open()) {
+    throw runtime_error(std::string("Can not write ") + Fname);
+  }
+  size_t ImgSize = static_cast<size_t>(Img.BinaryEnd - Img.BinaryStart);
+  F.write(reinterpret_cast<const char *>(Img.BinaryStart), ImgSize);
+  F.close();
 }
 
 } // namespace detail
