@@ -684,6 +684,7 @@ int main() {
       assert(BK0.get_size() == sizeof(char));
       assert(AK0.get_count() == 1);
       assert(BK0.get_count() == 1);
+      CGH.single_task<class DummyKernel>([]() {});
     });
   }
 

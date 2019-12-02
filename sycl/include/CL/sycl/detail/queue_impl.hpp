@@ -109,14 +109,7 @@ public:
   }
 
   template <typename T> event submit(T cgf, std::shared_ptr<queue_impl> self) {
-    try {
-      return submit_impl(cgf, self);
-    } catch (...) {
-      std::lock_guard<mutex_class> guard(m_Mutex);
-      m_Exceptions.PushBack(std::current_exception());
-      return event(
-          createSyclObjFromImpl<event>(std::make_shared<event_impl>(self)));
-    }
+    return submit_impl(std::move(cgf), std::move(self));
   }
 
   void wait() {
