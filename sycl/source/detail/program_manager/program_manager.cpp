@@ -391,7 +391,11 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     }
     // Otherwise assume that the image contains all kernels associated with the
     // module
-    auto &Imgs = m_DeviceImages[M][UniversalKSId];
+    KernelSetId &KSId = m_ModuleKernelSets[M];
+    if (KSId == 0)
+      KSId = getNextKernelSetId();
+
+    auto &Imgs = m_DeviceImages[M][KSId];
     if (!Imgs)
       Imgs.reset(new std::vector<DeviceImage *>({Img}));
     else
@@ -445,13 +449,11 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   // If the kernel has been assigned to a kernel set, return it
   if (KSIdIt != m_KernelSets.end())
     return KSIdIt->second;
-  // If no kernel set was found check if there are images without entries (those
-  // are assumed to contain all kernels)
-  auto ImgMapIt = m_DeviceImages.find(M);
-  assert(ImgMapIt != m_DeviceImages.end() &&
-         "No image map for the current module?");
-  if (ImgMapIt->second.find(UniversalKSId) != ImgMapIt->second.end())
-    return UniversalKSId;
+  // If no kernel set was found check if there is a kernel set containing
+  // all kernels in the given module
+  auto ModuleKSIdIt = m_ModuleKernelSets.find(M);
+  if (ModuleKSIdIt != m_ModuleKernelSets.end())
+    return ModuleKSIdIt->second;
 
   throw runtime_error("No kernel named " + KernelName + " was found");
 }

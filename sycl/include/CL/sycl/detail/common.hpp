@@ -252,10 +252,7 @@ using KernelSetId = size_t;
 // For kernels contained within the SPIRV file specified with an environment
 // variable
 constexpr KernelSetId SpvFileKSId = 0;
-// Kernel set containing all kernels, for images without entry information
-// (assumed to contain all kernels associated with the OS module)
-constexpr KernelSetId UniversalKSId = 1;
-constexpr KernelSetId LastKSId = UniversalKSId;
+constexpr KernelSetId LastKSId = SpvFileKSId;
 
 } // namespace detail
 } // namespace sycl

@@ -96,6 +96,11 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::map<string_class, KernelSetId> m_KernelSets;
 
+  /// Keeps kernel sets for modules containing images without entry info.
+  /// Such images are assumed to contain all kernel associated with the module.
+  /// Access must be guarded by the \ref Sync::getGlobalLock()
+  std::map<OSModuleHandle, KernelSetId> m_ModuleKernelSets;
+
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
   /// No image can out-live the Program manager.
