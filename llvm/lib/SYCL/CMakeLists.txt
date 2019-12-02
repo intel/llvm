@@ -1,4 +1,4 @@
-add_llvm_library(LLVMASFixer
+add_llvm_component_library(LLVMASFixer
   ASFixer.cpp
 
   ADDITIONAL_HEADER_DIRS
