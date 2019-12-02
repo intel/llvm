@@ -1,42 +1,28 @@
 #include <thread>
 #include <vector>
 
-class ParallelTask;
-
-class Thread {
-public:
-  Thread(ParallelTask *Ptr) : MTask(Ptr) {}
-  void start(size_t id);
-  void wait();
-  void body(size_t id);
-
-private:
-  std::thread MThread;
-  ParallelTask *MTask;
-};
-
 class ThreadPool {
 public:
-  ThreadPool(ParallelTask *p);
-  void initialize(int size);
-  void start();
-  void wait();
+  void clear() { MThreadPool.clear(); }
+
+  template <typename Func, typename... Args>
+  void enqueueNTimes(std::size_t N, Func &&func, Args &&... args) {
+    for (std::size_t i = 0; i < N; ++i)
+      enqueue(std::forward<Func>(func), std::forward<Args>(args)...);
+  }
+
+  template <typename Func, typename... Args>
+  void enqueue(Func &&func, Args &&... args) {
+    MThreadPool.push_back(
+        std::thread(std::forward<Func>(func), std::forward<Args>(args)...));
+  }
+
+  void wait() {
+    for (auto &t : MThreadPool) {
+      t.join();
+    }
+  }
 
 private:
-  std::vector<Thread *> MThreadPool;
-  ParallelTask *MTask;
-};
-
-class ParallelTask {
-  friend class ThreadPool;
-
-public:
-  ParallelTask() : MPool(this) {}
-
-  void execute(int threadCount);
-
-  virtual void taskBody(std::size_t id) = 0;
-
-private:
-  ThreadPool MPool;
+  std::vector<std::thread> MThreadPool;
 };

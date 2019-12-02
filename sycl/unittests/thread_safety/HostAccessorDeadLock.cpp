@@ -1,4 +1,4 @@
-//==---- SchedulerThreadSafety.cpp --- Thread Safety unit tests ------------==//
+//==----- HostAccessorDeadLock.cpp --- Thread Safety unit tests ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,40 +15,47 @@
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 
-template <typename T, int Dim> class TestDeadLock : public ParallelTask {
-public:
-  TestDeadLock(T *Data, std::size_t Size)
-      : MBuffer(Data, cl::sycl::range<Dim>(Size)), MBufferSize(Size) {}
+class HostAccessorDeadLockTest : public ::testing::Test {
+protected:
+  HostAccessorDeadLockTest() : MPool() {}
+  ~HostAccessorDeadLockTest() override = default;
 
-  void taskBody(size_t ThreadId) {
-    auto acc = MBuffer.template get_access<sycl_read_write>();
-    for (std::size_t i = 0; i < MBufferSize; ++i) {
-      acc[i] = ThreadId;
-      if (i == 0) {
-        MMutex.lock();
-        MThreadOrder.push_back(ThreadId);
-        MMutex.unlock();
-      }
-    }
-  }
-
-  std::size_t getLastWorkingThread() { return MThreadOrder.back(); }
-
-private:
-  std::vector<std::size_t> MThreadOrder;
-  cl::sycl::buffer<T, Dim> MBuffer;
-  std::size_t MBufferSize;
-  std::mutex MMutex;
+  ThreadPool MPool;
 };
 
-class HostAccessorDeadLockTest : public ::testing::Test {};
-
 TEST_F(HostAccessorDeadLockTest, CheckThreadOrder) {
-  constexpr size_t size = 1024;
-  constexpr size_t threadCount = 4;
+  constexpr std::size_t size = 1024;
+  constexpr std::size_t threadCount = 4;
   std::size_t data[size];
-  TestDeadLock<std::size_t, 1> Task(data, size);
-  Task.execute(threadCount);
-  EXPECT_EQ(data[size - 1], Task.getLastWorkingThread());
+  std::size_t lastThreadNum = -1, launchCount = 5;
+
+  {
+    std::vector<std::size_t> threadOrder;
+    cl::sycl::buffer<std::size_t, 1> buffer(data, size);
+    std::mutex mutex;
+
+    auto testLambda = [&](std::size_t threadId) {
+      auto acc = buffer.get_access<sycl_read_write>();
+      for (std::size_t i = 0; i < size; ++i) {
+        acc[i] = threadId;
+        if (i == 0) {
+          mutex.lock();
+          threadOrder.push_back(threadId);
+          mutex.unlock();
+        }
+      }
+    };
+
+    for (std::size_t k = 0; k < launchCount; ++k) {
+      MPool.clear();
+      for (std::size_t i = 0; i < threadCount; ++i)
+        MPool.enqueue(testLambda, i);
+      MPool.wait();
+    }
+
+    lastThreadNum = threadOrder.back();
+  }
+
+  EXPECT_EQ(data[size - 1], lastThreadNum);
 }
 } // namespace
