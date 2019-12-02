@@ -11,6 +11,7 @@
 #include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>

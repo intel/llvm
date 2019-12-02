@@ -256,9 +256,7 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/device_traits.def>
 
-PARAM_TRAITS_SPEC(context, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(context, platform, cl::sycl::platform)
-PARAM_TRAITS_SPEC(context, devices, vector_class<cl::sycl::device>)
+#include <CL/sycl/info/context_traits.def>
 
 PARAM_TRAITS_SPEC(event, command_execution_status, event_command_status)
 PARAM_TRAITS_SPEC(event, reference_count, cl_uint)

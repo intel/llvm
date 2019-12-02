@@ -22,74 +22,71 @@ namespace sycl {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(1, Device), m_Context(nullptr),
-      m_Platform(), m_OpenCLInterop(false), m_HostContext(true) {}
+    : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
+      MPlatform(), MPluginInterop(false), MHostContext(true) {}
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
                            async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(Devices), m_Context(nullptr),
-      m_Platform(), m_OpenCLInterop(true), m_HostContext(false) {
-  m_Platform = m_Devices[0].get_platform();
+    : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
+      MPlatform(), MPluginInterop(true), MHostContext(false) {
+  MPlatform = MDevices[0].get_platform();
   vector_class<RT::PiDevice> DeviceIds;
-  for (const auto &D : m_Devices) {
+  for (const auto &D : MDevices) {
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
   PI_CALL(piContextCreate)(nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
-                           nullptr, &m_Context);
+                           nullptr, &MContext);
 
-  m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get(), DeviceIds));
+  MUSMDispatch.reset(new usm::USMDispatcher(MPlatform.get(), DeviceIds));
 }
 
-context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(), m_Platform(),
-      m_OpenCLInterop(true), m_HostContext(false) {
+context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
+    : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
+      MPluginInterop(true), MHostContext(false) {
 
-  m_Context = pi::cast<RT::PiContext>(ClContext);
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)(m_Context, PI_CONTEXT_INFO_NUM_DEVICES,
+  PI_CALL(piContextGetInfo)(MContext, PI_CONTEXT_INFO_NUM_DEVICES,
                             sizeof(DevicesNum), &DevicesNum, nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)(m_Context, PI_CONTEXT_INFO_DEVICES,
+  PI_CALL(piContextGetInfo)(MContext, PI_CONTEXT_INFO_DEVICES,
                             sizeof(RT::PiDevice) * DevicesNum, &DeviceIds[0],
                             nullptr);
 
   for (auto Dev : DeviceIds) {
-    m_Devices.emplace_back(
+    MDevices.emplace_back(
         createSyclObjFromImpl<device>(std::make_shared<device_impl>(Dev)));
   }
   // TODO What if m_Devices if empty? m_Devices[0].get_platform()
-  m_Platform = platform(m_Devices[0].get_platform());
+  MPlatform = platform(MDevices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextRetain)(m_Context);
+  PI_CALL(piContextRetain)(MContext);
 }
 
 cl_context context_impl::get() const {
-  if (m_OpenCLInterop) {
+  if (MPluginInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRetain)(m_Context);
-    return pi::cast<cl_context>(m_Context);
+    PI_CALL(piContextRetain)(MContext);
+    return pi::cast<cl_context>(MContext);
   }
   throw invalid_object_error(
       "This instance of context doesn't support OpenCL interoperability.");
 }
 
-bool context_impl::is_host() const { return m_HostContext || !m_OpenCLInterop; }
-platform context_impl::get_platform() const { return m_Platform; }
-vector_class<device> context_impl::get_devices() const { return m_Devices; }
+bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }
 
 context_impl::~context_impl() {
-  if (m_OpenCLInterop) {
+  if (MPluginInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRelease)(m_Context);
+    PI_CALL(piContextRelease)(MContext);
   }
   // Release all programs and kernels created with this context
-  for (auto ProgIt : m_CachedPrograms) {
+  for (auto ProgIt : MCachedPrograms) {
     RT::PiProgram ToBeDeleted = ProgIt.second;
-    for (auto KernIt : m_CachedKernels[ToBeDeleted]) {
+    for (auto KernIt : MCachedKernels[ToBeDeleted]) {
       PI_CALL(piKernelRelease)(KernIt.second);
     }
     PI_CALL(piProgramRelease)(ToBeDeleted);
@@ -97,31 +94,30 @@ context_impl::~context_impl() {
 }
 
 const async_handler &context_impl::get_async_handler() const {
-  return m_AsyncHandler;
+  return MAsyncHandler;
 }
 
 template <>
 cl_uint context_impl::get_info<info::context::reference_count>() const {
-  if (is_host()) {
+  if (is_host())
     return 0;
-  }
   return get_context_info<info::context::reference_count>::get(
       this->getHandleRef());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  return get_platform();
+  return MPlatform;
 }
 template <>
 vector_class<cl::sycl::device>
 context_impl::get_info<info::context::devices>() const {
-  return get_devices();
+  return MDevices;
 }
 
-RT::PiContext &context_impl::getHandleRef() { return m_Context; }
-const RT::PiContext &context_impl::getHandleRef() const { return m_Context; }
+RT::PiContext &context_impl::getHandleRef() { return MContext; }
+const RT::PiContext &context_impl::getHandleRef() const { return MContext; }
 
 std::shared_ptr<usm::USMDispatcher> context_impl::getUSMDispatch() const {
-  return m_USMDispatch;
+  return MUSMDispatch;
 }
 
 } // namespace detail
