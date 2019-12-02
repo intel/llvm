@@ -159,6 +159,3 @@ int main() {
   kernel_single_task<class fake_kernel>([]() { usages();usages2(); });
   return 0;
 }
-
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows-msvc
