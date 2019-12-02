@@ -873,7 +873,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                 ParamType->getPointeeType().getAddressSpace())
           DRE = ImplicitCastExpr::Create(S.Context, FieldType,
                                          CK_AddressSpaceConversion, DRE,
-                                         nullptr, VK_LValue);
+                                         nullptr, VK_RValue);
         InitializationKind InitKind =
             InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
         InitializationSequence InitSeq(S, Entity, InitKind, DRE);
