@@ -269,3 +269,6 @@ endforeach( comp )
 add_custom_target(deploy-sycl-toolchain
   DEPENDS sycl-toolchain ${manifest_list}
 )
+
+# SYCL Runtime documentation
+add_subdirectory(doc)
