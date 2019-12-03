@@ -15,21 +15,14 @@
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 
-class HostAccessorDeadLockTest : public ::testing::Test {
-protected:
-  HostAccessorDeadLockTest() : MPool() {}
-  ~HostAccessorDeadLockTest() override = default;
-
-  ThreadPool MPool;
-};
-
-TEST_F(HostAccessorDeadLockTest, CheckThreadOrder) {
+TEST(HostAccessorDeadLockTest, CheckThreadOrder) {
   constexpr std::size_t size = 1024;
   constexpr std::size_t threadCount = 4;
   std::size_t data[size];
   std::size_t lastThreadNum = -1, launchCount = 5;
 
   {
+    ThreadPool MPool;
     std::vector<std::size_t> threadOrder;
     cl::sycl::buffer<std::size_t, 1> buffer(data, size);
     std::mutex mutex;
@@ -39,9 +32,8 @@ TEST_F(HostAccessorDeadLockTest, CheckThreadOrder) {
       for (std::size_t i = 0; i < size; ++i) {
         acc[i] = threadId;
         if (i == 0) {
-          mutex.lock();
+          std::lock_guard<std::mutex> lock(mutex);
           threadOrder.push_back(threadId);
-          mutex.unlock();
         }
       }
     };
