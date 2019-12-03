@@ -142,8 +142,6 @@ private:
 
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
 
-  RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
-
   std::vector<device>
   sort_devices_by_cl_device_id(vector_class<device> Devices);
 

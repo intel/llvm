@@ -78,10 +78,10 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
 
   // TODO handle the case when cl_program build is in progress
   cl_uint NumDevices;
-  PI_CALL(RT::piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES,
+  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES,
                                sizeof(cl_uint), &NumDevices, nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
-  PI_CALL(RT::piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
+  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
           sizeof(RT::PiDevice) * NumDevices, PiDevices.data(), nullptr);
   vector_class<device> SyclContextDevices = Context.get_devices();
 
@@ -100,13 +100,13 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   RT::PiDevice Device = getSyclObjImpl(Devices[0])->getHandleRef();
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
-  PI_CALL(RT::piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BINARY_TYPE,
+  PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BINARY_TYPE,
           sizeof(cl_program_binary_type), &BinaryType, nullptr);
   size_t Size = 0;
-  PI_CALL(RT::piProgramGetBuildInfo)(Program, Device,
+  PI_CALL(piProgramGetBuildInfo)(Program, Device,
           CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  PI_CALL(RT::piProgramGetBuildInfo)(Program, Device,
+  PI_CALL(piProgramGetBuildInfo)(Program, Device,
           CL_PROGRAM_BUILD_OPTIONS, Size, OptionsVector.data(), nullptr);
   string_class Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
@@ -124,7 +124,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
     LinkOptions = "";
     BuildOptions = Options;
   }
-  PI_CALL(RT::piProgramRetain)(Program);
+  PI_CALL(piProgramRetain)(Program);
 }
 
 program_impl::program_impl(ContextImplPtr &Context, RT::PiKernel Kernel)
@@ -135,7 +135,7 @@ program_impl::program_impl(ContextImplPtr &Context, RT::PiKernel Kernel)
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host() && Program != nullptr) {
-    PI_CALL(RT::piProgramRelease)(Program);
+    PI_CALL(piProgramRelease)(Program);
   }
 }
 
@@ -144,7 +144,7 @@ cl_program program_impl::get() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance");
   }
-  PI_CALL(RT::piProgramRetain)(Program);
+  PI_CALL(piProgramRetain)(Program);
   return pi::cast<cl_program>(Program);
 }
 
@@ -241,7 +241,7 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
   vector_class<vector_class<char>> Result;
   if (!is_host()) {
     vector_class<size_t> BinarySizes(Devices.size());
-    PI_CALL(RT::piProgramGetInfo)(Program, CL_PROGRAM_BINARY_SIZES,
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
     vector_class<char *> Pointers;
@@ -249,7 +249,7 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
       Result.emplace_back(BinarySizes[I]);
       Pointers.push_back(Result[I].data());
     }
-    PI_CALL(RT::piProgramGetInfo)(Program, CL_PROGRAM_BINARIES,
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARIES,
             sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
   }
   return Result;
