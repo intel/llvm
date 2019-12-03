@@ -146,18 +146,16 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Req->MBlockedCmd->MCanEnqueue = true;
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
-  for (Command *Cmd : Record->MReadLeafs) {
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-    if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
-      throw runtime_error("Enqueue process failed.");
-  }
-  for (Command *Cmd : Record->MWriteLeafs) {
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-    if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
-      throw runtime_error("Enqueue process failed.");
-  }
+  auto EnqueueLeaves = [](std::vector<Command *> &Leaves) {
+    for (Command *Cmd : Leaves) {
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+      if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
+        throw runtime_error("Enqueue process failed.");
+    }
+  };
+  EnqueueLeaves(Record->MReadLeaves);
+  EnqueueLeaves(Record->MWriteLeaves);
 }
 
 Scheduler::Scheduler() {
