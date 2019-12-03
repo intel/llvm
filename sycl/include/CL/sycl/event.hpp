@@ -25,7 +25,7 @@ class event {
 public:
   event();
 
-  event(cl_event clEvent, const context &syclContext);
+  event(cl_event ClEvent, const context &SyclContext);
 
   event(const event &rhs) = default;
 
@@ -61,7 +61,7 @@ public:
   get_profiling_info() const;
 
 private:
-  event(shared_ptr_class<detail::event_impl> event_impl);
+  event(shared_ptr_class<detail::event_impl> EventImpl);
 
   shared_ptr_class<detail::event_impl> impl;
 

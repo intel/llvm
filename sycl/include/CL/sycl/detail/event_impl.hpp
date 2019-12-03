@@ -40,7 +40,7 @@ public:
 class event_impl {
 public:
   event_impl() = default;
-  event_impl(cl_event CLEvent, const context &SyclContext);
+  event_impl(cl_event ClEvent, const context &SyclContext);
   event_impl(QueueImplPtr Queue);
 
   // Threat all devices that don't support interoperability as host devices to
@@ -77,22 +77,20 @@ public:
   // with the cl_event object stored in this class
   void setContextImpl(const ContextImplPtr &Context);
 
-  void *getCommand() { return m_Command; }
+  void *getCommand() { return MCommand; }
 
-  void setCommand(void *Command) { m_Command = Command; }
+  void setCommand(void *Command) { MCommand = Command; }
 
-  HostProfilingInfo *getHostProfilingInfo() {
-    return m_HostProfilingInfo.get();
-  }
+  HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
 private:
-  RT::PiEvent m_Event = nullptr;
-  ContextImplPtr m_Context;
-  QueueImplPtr m_Queue;
-  bool m_OpenCLInterop = false;
-  bool m_HostEvent = true;
-  std::unique_ptr<HostProfilingInfo> m_HostProfilingInfo;
-  void *m_Command = nullptr;
+  RT::PiEvent MEvent = nullptr;
+  ContextImplPtr MContext;
+  QueueImplPtr MQueue;
+  bool MOpenCLInterop = false;
+  bool MHostEvent = true;
+  std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
+  void *MCommand = nullptr;
 };
 
 } // namespace detail
