@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
@@ -18,6 +17,10 @@ namespace cl {
 namespace sycl {
 // Forward declaration
 class context;
+namespace detail {
+class event_impl;
+}
+
 class event {
 public:
   event();
@@ -58,9 +61,9 @@ public:
   get_profiling_info() const;
 
 private:
-  event(std::shared_ptr<detail::event_impl> event_impl);
+  event(shared_ptr_class<detail::event_impl> event_impl);
 
-  std::shared_ptr<detail::event_impl> impl;
+  shared_ptr_class<detail::event_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -75,7 +78,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::event> {
   size_t operator()(const cl::sycl::event &e) const {
-    return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::event_impl>>()(
         cl::sycl::detail::getSyclObjImpl(e));
   }
 };

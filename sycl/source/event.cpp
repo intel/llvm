@@ -58,7 +58,7 @@ vector_class<event> event::get_wait_list() {
   return Result;
 }
 
-event::event(std::shared_ptr<detail::event_impl> event_impl)
+event::event(shared_ptr_class<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
 template <> cl_uint event::get_info<info::event::reference_count>() const {
