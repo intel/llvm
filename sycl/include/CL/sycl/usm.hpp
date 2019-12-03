@@ -12,6 +12,7 @@
 #include <CL/sycl/usm/usm_enums.hpp>
 
 #include <cstddef>
+#include <tuple>
 
 namespace cl {
 namespace sycl {
@@ -54,6 +55,10 @@ void *aligned_alloc(size_t alignment, size_t size, const device &dev,
                     const context &ctxt, usm::alloc kind);
 void *aligned_alloc(size_t alignment, size_t size, const queue &q,
                     usm::alloc kind);
+
+// get_pointer_info
+std::tuple<usm::alloc, device> get_pointer_info(const void *ptr,
+                                                const context &ctxt);
 
 } // namespace sycl
 } // namespace cl

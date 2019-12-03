@@ -62,6 +62,7 @@ private:
     const void *BaseAddress = nullptr;
     size_t Size = 0;
     size_t Alignment = 0;
+    cl_device_id Device = nullptr;
   };
 
   using CUSMAllocMap = std::map<const void *, SUSMAllocInfo>;

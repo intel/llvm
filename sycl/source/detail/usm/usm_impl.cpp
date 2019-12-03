@@ -6,14 +6,17 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <CL/cl_usm_ext.h>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
 
 #include <cstdlib>
+#include <tuple>
 
 namespace cl {
 namespace sycl {
@@ -133,6 +136,7 @@ void free(void *Ptr, const context &Ctxt) {
   }
 }
 
+
 } // namespace usm
 } // namespace detail
 
@@ -228,6 +232,61 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
 
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind);
+}
+
+// get_pointer_info
+std::tuple<alloc, device> get_pointer_info(const void *Ptr,
+                                           const context &Ctxt) {
+  if (Ctxt.is_host()) {
+    return std::make_tuple(alloc::host, Ctxt.get_devices()[0]);
+  }
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  std::shared_ptr<detail::usm::USMDispatcher> Dispatch =
+      CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  cl_unified_shared_memory_type_intel AllocTy;
+  pi_device DeviceId;
+
+  // All these CL enums should be replicated in PI
+  detail::pi::checkPiResult(
+      Dispatch->getMemAllocInfo(C, Ptr, CL_MEM_ALLOC_TYPE_INTEL,
+                                sizeof(cl_mem_info_intel), &AllocTy, nullptr));
+  detail::pi::checkPiResult(
+      Dispatch->getMemAllocInfo(C, Ptr, CL_MEM_ALLOC_DEVICE_INTEL,
+                                sizeof(pi_device), &DeviceId, nullptr));
+
+  alloc ResultAlloc;
+  if (AllocTy == CL_MEM_TYPE_HOST_INTEL) {
+    ResultAlloc = alloc::host;
+  } else if (AllocTy == CL_MEM_TYPE_DEVICE_INTEL) {
+    ResultAlloc = alloc::device;
+  } else if (AllocTy == CL_MEM_TYPE_SHARED_INTEL) {
+    ResultAlloc = alloc::shared;
+  } else {
+    ResultAlloc = alloc::unknown;
+  }
+
+  // check device id
+  device Result;
+  if (DeviceId == nullptr) {
+    // Host allocs don't return a device id.
+    // It's irrelevant, so don't do anything in this case.
+  } else  {
+    auto Devs = Ctxt.get_devices();
+    bool found = false;
+    for (auto D : Devs) {
+      // try to find the real sycl device we used in the Context
+      if (detail::pi::cast<pi_device>(D.get()) == DeviceId) {
+        Result = D;
+        found = true;
+      }
+    }
+    if (!found) {
+      throw runtime_error("Cannot find device associated with USM allocation!");
+    }
+  }
+
+  return std::make_tuple(ResultAlloc, Result);
 }
 
 } // namespace sycl

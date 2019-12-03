@@ -69,6 +69,7 @@ void *CLUSM::deviceMemAlloc(cl_context context, cl_device_id device,
     allocInfo.BaseAddress = ptr;
     allocInfo.Size = size;
     allocInfo.Alignment = alignment;
+    allocInfo.Device = device;
 
     mUSMContextInfo.DeviceAllocVector.push_back(ptr);
   } else {
@@ -99,6 +100,7 @@ void *CLUSM::sharedMemAlloc(cl_context context, cl_device_id device,
     allocInfo.BaseAddress = ptr;
     allocInfo.Size = size;
     allocInfo.Alignment = alignment;
+    allocInfo.Device = device;
 
     mUSMContextInfo.SharedAllocVector.push_back(ptr);
   } else {
@@ -200,6 +202,11 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
   case CL_MEM_ALLOC_SIZE_INTEL: {
     auto ptr = reinterpret_cast<size_t *>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.Size,
+                              param_value_size_ret, ptr);
+  }
+  case CL_MEM_ALLOC_DEVICE_INTEL: {
+    auto ptr = reinterpret_cast<cl_device_id *>(param_value);
+    return writeParamToMemory(param_value_size, allocInfo.Device,
                               param_value_size_ret, ptr);
   }
   default:
