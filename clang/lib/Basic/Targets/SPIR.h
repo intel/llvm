@@ -64,8 +64,7 @@ public:
     TLSSupported = false;
     VLASupported = false;
     LongWidth = LongAlign = 64;
-    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice &&
-        !getenv("DISABLE_INFER_AS")) {
+    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
       AddrSpaceMap = &SYCLAddrSpaceMap;
     } else {
       AddrSpaceMap = &SPIRAddrSpaceMap;

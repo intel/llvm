@@ -4316,17 +4316,15 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     deactivateArgCleanupsBeforeCall(*this, CallArgs);
 
   // Addrspace cast to generic if necessary
-  if (!getenv("DISABLE_INFER_AS")) {
-    for (unsigned i = 0; i < IRFuncTy->getNumParams(); ++i) {
-      if (auto *PtrTy = dyn_cast<llvm::PointerType>(IRCallArgs[i]->getType())) {
-        auto *ExpectedPtrType =
-            cast<llvm::PointerType>(IRFuncTy->getParamType(i));
-        unsigned ValueAS = PtrTy->getAddressSpace();
-        unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
-        if (ValueAS != ExpectedAS) {
-          IRCallArgs[i] = Builder.CreatePointerBitCastOrAddrSpaceCast(
-              IRCallArgs[i], ExpectedPtrType);
-        }
+  for (unsigned i = 0; i < IRFuncTy->getNumParams(); ++i) {
+    if (auto *PtrTy = dyn_cast<llvm::PointerType>(IRCallArgs[i]->getType())) {
+      auto *ExpectedPtrType =
+          cast<llvm::PointerType>(IRFuncTy->getParamType(i));
+      unsigned ValueAS = PtrTy->getAddressSpace();
+      unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+      if (ValueAS != ExpectedAS) {
+        IRCallArgs[i] = Builder.CreatePointerBitCastOrAddrSpaceCast(
+            IRCallArgs[i], ExpectedPtrType);
       }
     }
   }
