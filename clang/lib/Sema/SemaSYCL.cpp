@@ -426,9 +426,9 @@ public:
 
       if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
         Attrs.insert(A);
-      else if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
+      if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-      else if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
+      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
         // Allow the intel::kernel_args_restrict only on the lambda (function
         // object) function, that is called directly from a kernel (i.e. the one
         // passed to the parallel_for function). Emit a warning and ignore all
