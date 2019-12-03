@@ -2474,6 +2474,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
+  if (LangOpts.SYCLIsDevice && Global->hasAttr<OpenCLKernelAttr>() &&
+      MustBeEmitted(Global)) {
+    addDeferredDeclToEmit(GD);
+    return;
+  }
+
   // Ignore declarations, they will be emitted on their first use.
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
     // Forward declarations are emitted lazily on first use.

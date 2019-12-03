@@ -1,0 +1,74 @@
+// RUN: %clang_cc1 -std=c++11 -I %S/Inputs -fsycl-is-device -ast-dump %s | FileCheck %s
+
+// This test checks that compiler generates correct OpenCL kernel for basic
+// case.
+
+#include <sycl.hpp>
+
+template <typename name, typename Func>
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+  kernelFunc();
+}
+
+int main() {
+  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> acc;
+  kernel<class kernel>(
+      [=]() {
+        acc.use();
+      });
+}
+
+// Check declaration of the kernel
+
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (__attribute__((address_space(1))) int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+
+// Check parameters of the kernel
+
+// CHECK: ParmVarDecl {{.*}} used [[_arg_Mem:[0-9a-zA-Z_]+]] '__attribute__((address_space(1))) int *'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_MemRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_Offset:[0-9a-zA-Z_]+]] 'cl::sycl::id<1>'
+
+// Check body of the kernel
+
+// Check lambda declaration inside the kernel
+
+// CHECK: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}basic-opencl-kernel.cpp{{.*}})'
+
+// Check accessor initialization
+
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}basic-opencl-kernel.cpp{{.*}})' lvalue Var
+
+// CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__attribute__((address_space(1))) int *' lvalue ParmVar {{.*}} '[[_arg_Mem]]' '__attribute__((address_space(1))) int *'
+
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'cl::sycl::range<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'cl::sycl::range<1>'
+
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'cl::sycl::range<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'cl::sycl::range<1>'
+
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'cl::sycl::id<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::id<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'cl::sycl::id<1>'
+
+// Check that body of the kernel caller function is included into kernel
+
+// CHECK: CompoundStmt {{.*}}
+// CHECK-NEXT: CXXOperatorCallExpr {{.*}} 'void'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)() const' <FunctionToPointerDecay>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void () const' lvalue CXXMethod {{.*}} 'operator()' 'void () const'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}basic-opencl-kernel.cpp{{.*}})' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}basic-opencl-kernel.cpp{{.*}})' lvalue Var
+
+// Check kernel's attributes
+
+// CHECK: OpenCLKernelAttr {{.*}} Implicit
+// CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel{{.*}}"
+// CHECK: ArtificialAttr {{.*}} Implicit

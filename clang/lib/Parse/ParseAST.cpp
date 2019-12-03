@@ -168,6 +168,10 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
   for (Decl *D : S.WeakTopLevelDecls())
     Consumer->HandleTopLevelDecl(DeclGroupRef(D));
 
+  if (S.getLangOpts().SYCLIsDevice)
+    for (Decl *D : S.getSYCLKernels())
+      Consumer->HandleTopLevelDecl(DeclGroupRef(D));
+
   Consumer->HandleTranslationUnit(S.getASTContext());
 
   // Finalize the template instantiation observer chain.
