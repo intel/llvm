@@ -9,6 +9,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/event.hpp>
 
@@ -22,8 +23,9 @@ namespace sycl {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
 
-event::event(cl_event clEvent, const context &syclContext)
-    : impl(std::make_shared<detail::event_impl>(clEvent, syclContext)) {}
+event::event(cl_event ClEvent, const context &SyclContext)
+    : impl(std::make_shared<detail::event_impl>(
+          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 

@@ -40,7 +40,7 @@ public:
 class event_impl {
 public:
   event_impl() = default;
-  event_impl(cl_event ClEvent, const context &SyclContext);
+  event_impl(RT::PiEvent Event, const context &SyclContext);
   event_impl(QueueImplPtr Queue);
 
   // Threat all devices that don't support interoperability as host devices to

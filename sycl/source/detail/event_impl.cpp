@@ -54,11 +54,9 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl(cl_event ClEvent, const context &SyclContext)
-    : MContext(detail::getSyclObjImpl(SyclContext)), MOpenCLInterop(true),
-      MHostEvent(false) {
-
-  MEvent = pi::cast<RT::PiEvent>(ClEvent);
+event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
+      MOpenCLInterop(true), MHostEvent(false) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
