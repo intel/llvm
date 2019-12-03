@@ -1110,16 +1110,13 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     // rather than the value.
     RValue Result = EmitReferenceBindingToExpr(RV);
     llvm::Value *Val = Result.getScalarVal();
-    if (!getenv("DISABLE_INFER_AS")) {
-      if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
-        auto *ExpectedPtrType =
-            cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
-        unsigned ValueAS = PtrTy->getAddressSpace();
-        unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
-        if (ValueAS != ExpectedAS) {
-          Val =
-              Builder.CreatePointerBitCastOrAddrSpaceCast(Val, ExpectedPtrType);
-        }
+    if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
+      auto *ExpectedPtrType =
+          cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
+      unsigned ValueAS = PtrTy->getAddressSpace();
+      unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+      if (ValueAS != ExpectedAS) {
+        Val = Builder.CreatePointerBitCastOrAddrSpaceCast(Val, ExpectedPtrType);
       }
     }
     Builder.CreateStore(Val, ReturnValue);
@@ -1128,16 +1125,14 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     case TEK_Scalar:
     {
       llvm::Value *Val = EmitScalarExpr(RV);
-      if (!getenv("DISABLE_INFER_AS")) {
-        if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
-          auto *ExpectedPtrType =
-              cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
-          unsigned ValueAS = PtrTy->getAddressSpace();
-          unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
-          if (ValueAS != ExpectedAS) {
-            Val = Builder.CreatePointerBitCastOrAddrSpaceCast(
-                Val, ExpectedPtrType);
-          }
+      if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
+        auto *ExpectedPtrType =
+            cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
+        unsigned ValueAS = PtrTy->getAddressSpace();
+        unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+        if (ValueAS != ExpectedAS) {
+          Val =
+              Builder.CreatePointerBitCastOrAddrSpaceCast(Val, ExpectedPtrType);
         }
       }
       Builder.CreateStore(Val, ReturnValue);

@@ -561,7 +561,6 @@ int main(int argc, char **argv) {
   initializeExpandReductionsPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
-  initializeASFixerPass(Registry);
   initializeHardwareLoopsPass(Registry);
 
 #ifdef LINK_POLLY_INTO_TOOLS
