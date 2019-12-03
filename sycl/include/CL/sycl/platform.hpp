@@ -58,7 +58,7 @@ public:
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
 
-  /// Gets an OpenCL interoperability platform.
+  /// Returns an OpenCL interoperability platform.
   ///
   /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const;
@@ -74,7 +74,7 @@ public:
   /// @return true if this SYCL platform is a host platform.
   bool is_host() const;
 
-  /// Gets all SYCL devices associated with this platform.
+  /// Returns all SYCL devices associated with this platform.
   ///
   /// If this SYCL platform is a host platform, resulting vector contains only
   /// a single SYCL host device. If there are no devices that match given device
@@ -92,7 +92,7 @@ public:
   typename info::param_traits<info::platform, param>::return_type
   get_info() const;
 
-  /// Gets all available SYCL platforms in the system.
+  /// Returns all available SYCL platforms in the system.
   ///
   /// The resulting vector always contains a single SYCL host platform instance.
   ///

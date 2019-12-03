@@ -51,7 +51,7 @@ public:
     return (all_extension_names.find(ExtensionName) != std::string::npos);
   }
 
-  /// Gets all SYCL devices associated with this platform.
+  /// Returns all SYCL devices associated with this platform.
   ///
   /// If this platform is a host platform, resulting vector contains only
   /// a single SYCL host device. If there are no devices that match given device
@@ -81,7 +81,7 @@ public:
   /// @return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
-  /// Gets an OpenCL interoperability platform.
+  /// Returns an OpenCL interoperability platform.
   ///
   /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
@@ -92,7 +92,7 @@ public:
     return pi::cast<cl_platform_id>(MPlatform);
   }
 
-  /// Gets raw underlying plug-in platform handle.
+  /// Returns raw underlying plug-in platform handle.
   ///
   /// Unlike get() method, this method does not retain handler. It is caller
   /// responsibility to make sure that platform stays alive while raw handle
@@ -107,7 +107,7 @@ public:
     return MPlatform;
   }
 
-  /// Gets all available SYCL platforms in the system.
+  /// Returns all available SYCL platforms in the system.
   ///
   /// The resulting vector always contains a single SYCL host platform instance.
   ///
