@@ -1,6 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DNOT_STRICT -Wno-error=sycl-strict -Wno-sycl-strict %s
+
 #ifndef NO_SYCL
 
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
@@ -25,14 +27,21 @@ class A {
   int func3() {}
 };
 
-__attribute__((sycl_device)) // expected-warning {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer return type}}
+#ifndef NOT_STRICT
+__attribute__((sycl_device)) // expected-error {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer return type}}
 int* func3() { return nullptr; }
 
-__attribute__((sycl_device)) // expected-warning {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer parameter type}}
+__attribute__((sycl_device)) // expected-error {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer parameter type}}
 void func3(int *) {}
-
 #else
+__attribute__((sycl_device))
+int* func3() { return nullptr; }
 
+__attribute__((sycl_device))
+void func3(int *) {}
+#endif
+
+#else // NO_SYCL
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
 void baz() {}
 
