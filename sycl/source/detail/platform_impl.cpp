@@ -40,6 +40,10 @@ vector_class<platform> platform_impl::get_platforms() {
                       Platforms.push_back(Platform);
                   });
   }
+
+  if (ForcedType == info::device_type::host || ForcedType == info::device_type::all)
+    Platforms.emplace_back(platform());
+
   return Platforms;
 }
 
@@ -197,7 +201,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // If any DeviceType other than host was requested for host platform,
   // an empy vector will be returned.
-  if (is_host())
+  if (is_host() || DeviceType == info::device_type::host)
     return Res;
 
   pi_uint32 NumDevices;

@@ -30,15 +30,6 @@ public:
   /// Constructs platform_impl for a SYCL host platform.
   platform_impl() : MHostPlatform(true) {}
 
-  /// Constructs platform_impl instance using device selector.
-  ///
-  /// One of the SYCL devices that is associated with the constructed SYCL
-  /// platform instance must be the SYCL device that is produced from the
-  /// provided device selector.
-  ///
-  /// @param DeviceSelector is an instance of SYCL device_selector.
-  explicit platform_impl(const device_selector &DeviceSelector);
-
   /// Constructs platform_impl from a plug-in interoperability platform handle.
   ///
   /// @param Platform is a raw plug-in platform handle.
