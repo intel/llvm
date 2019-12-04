@@ -257,3 +257,10 @@ void func_multiple_addr2(void) {
   [[clang::ocl_private]] private_int_t *var10;      // expected-warning {{multiple identical address spaces specified for type}}
 #endif // !__OPENCL_CPP_VERSION__
 }
+
+void func_with_array_param(const unsigned data[16]);
+
+__kernel void k() {
+  unsigned data[16];
+  func_with_array_param(data);
+}
