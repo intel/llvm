@@ -3,18 +3,43 @@
 
 class ThreadPool {
 public:
-  void clear() { MThreadPool.clear(); }
+  ThreadPool() = delete;
+  ThreadPool(ThreadPool &) = delete;
 
-  template <typename Func, typename... Args>
-  void enqueueNTimes(std::size_t N, Func &&func, Args &&... args) {
-    for (std::size_t i = 0; i < N; ++i)
-      enqueue(std::forward<Func>(func), std::forward<Args>(args)...);
+  template <typename Func>
+  ThreadPool(std::size_t N, Func func) {
+    for (std::size_t i = 0; i < N; ++i) {
+      enqueue(func, i);
+    }
   }
 
+  template <typename Func, typename... Funcs>
+  ThreadPool(Func &&func, Funcs &&... funcs) {
+    constexpr int N = sizeof...(funcs);
+    enqueue(std::forward<Func>(func), N);
+    enqueueHelper<N>(std::forward<Funcs>(funcs)...);
+  }
+
+  ~ThreadPool() { wait(); }
+
+private:
+  template <int N, typename Func, typename... Funcs>
+  void enqueueHelper(Func &&func, Funcs &&... funcs) {
+    enqueue(std::forward<Func>(func));
+    enqueueHelper<N - 1>(std::forward<Funcs>(funcs)...);
+  }
+
+  template <int N, typename Func>
+  void enqueueHelper(Func &&f) {
+    enqueue(std::forward<Func>(f), N);
+  }
+
+  template <int N>
+  void enqueueHelper() {}
+
   template <typename Func, typename... Args>
-  void enqueue(Func &&func, Args &&... args) {
-    MThreadPool.push_back(
-        std::thread(std::forward<Func>(func), std::forward<Args>(args)...));
+  void enqueue(Func func, Args... args) {
+    MThreadPool.push_back(std::thread(func, args...));
   }
 
   void wait() {
@@ -23,6 +48,5 @@ public:
     }
   }
 
-private:
   std::vector<std::thread> MThreadPool;
 };
