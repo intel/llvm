@@ -190,7 +190,7 @@ enum class MemorySemantics : unsigned {
 
 Instruction *genWGBarrier(Instruction &Before);
 Value *genLinearLocalID(Instruction &Before);
-Value *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
+GlobalVariable *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
 } // namespace spirv
 
 static bool isCallToAFuncMarkedWithMD(const Instruction *I, const char *MD) {
@@ -375,16 +375,25 @@ namespace {
 using LocalsSet = SmallPtrSet<AllocaInst *, 4>;
 }
 
-static void copyBetweenLocalAndShadow(AllocaInst *L, GlobalVariable *Shadow,
-                                      IRBuilder<> &Builder, bool Loc2Shadow) {
-  Type *T = L->getAllocatedType();
+static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
+                                        IRBuilder<> &Builder, bool Loc2Shadow) {
+  Type *T = nullptr;
+  int LocAlignN = 0;
+
+  if (const auto *AI = dyn_cast<AllocaInst>(L)) {
+    T = AI->getAllocatedType();
+    LocAlignN = AI->getAlignment();
+  } else {
+    T = cast<Argument>(L)->getParamByValType();
+    LocAlignN = cast<Argument>(L)->getParamAlignment();
+  }
 
   if (T->isAggregateType()) {
     // TODO: we should use methods which directly return MaybeAlign once such
     // are added to LLVM for AllocaInst and GlobalVariable
-    auto LocAlign = MaybeAlign(L->getAlignment());
+    auto LocAlign = MaybeAlign(LocAlignN);
     auto ShdAlign = MaybeAlign(Shadow->getAlignment());
-    Module &M = *L->getModule();
+    Module &M = *Shadow->getParent();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
     if (Loc2Shadow)
@@ -434,9 +443,9 @@ static void copyBetweenLocalAndShadow(AllocaInst *L, GlobalVariable *Shadow,
 //
 static void materializeLocalsInWIScopeBlocksImpl(
     const DenseMap<BasicBlock *, std::unique_ptr<LocalsSet>> &BB2MatLocals,
-    const DenseMap<AllocaInst *, Value *> &Local2Shadow) {
+    const DenseMap<AllocaInst *, GlobalVariable *> &Local2Shadow) {
   for (auto &P : BB2MatLocals) {
-    // generate LeaderBB and local<->shadow copies in proper BBs
+    // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
     BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
     // Add a barrier to the original block:
@@ -445,18 +454,19 @@ static void materializeLocalsInWIScopeBlocksImpl(
     for (AllocaInst *L : *P.second.get()) {
       auto MapEntry = Local2Shadow.find(L);
       assert(MapEntry != Local2Shadow.end() && "local must have a shadow");
-      auto *Shadow = dyn_cast<GlobalVariable>(MapEntry->second);
+      auto *Shadow = MapEntry->second;
       LLVMContext &Ctx = L->getContext();
       IRBuilder<> Builder(Ctx);
       // fill the leader BB:
       // fetch data from leader's private copy (which is always up to date) into
       // the corresponding shadow variable
       Builder.SetInsertPoint(&LeaderBB->front());
-      copyBetweenLocalAndShadow(L, Shadow, Builder, true /*local->shadow*/);
+      copyBetweenPrivateAndShadow(L, Shadow, Builder, true /*private->shadow*/);
       // store data to the local variable - effectively "refresh" the value of
       // the local in each work item in the work group
       Builder.SetInsertPoint(At);
-      copyBetweenLocalAndShadow(L, Shadow, Builder, false /*shadow->local*/);
+      copyBetweenPrivateAndShadow(L, Shadow, Builder,
+                                  false /*shadow->private*/);
     }
     // now generate the TestBB and the leader WI guard
     BasicBlock *TestBB =
@@ -528,7 +538,7 @@ void materializeLocalsInWIScopeBlocks(
     SmallPtrSetImpl<AllocaInst *> &Locals,
     SmallPtrSetImpl<BasicBlock *> &WIScopeBBs) {
   // maps local variable to its "shadow" workgroup-shared global:
-  DenseMap<AllocaInst *, Value *> Local2Shadow;
+  DenseMap<AllocaInst *, GlobalVariable *> Local2Shadow;
   // records which locals must be materialized at the beginning of a block:
   DenseMap<BasicBlock *, std::unique_ptr<LocalsSet>> BB2MatLocals;
 
@@ -543,7 +553,7 @@ void materializeLocalsInWIScopeBlocks(
         continue;
       if (Local2Shadow.find(L) == Local2Shadow.end()) {
         // lazily create a "shadow" for current local:
-        Value *Shadow = spirv::createWGLocalVariable(
+        GlobalVariable *Shadow = spirv::createWGLocalVariable(
             *BB->getModule(), L->getAllocatedType(), "WGCopy");
         Local2Shadow.insert(std::make_pair(L, Shadow));
       }
@@ -667,6 +677,47 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   }
 }
 
+// Go through "byval" parameters which are passed as AS(0) pointers
+// and: (1) create local shadows for them (2) and initialize them from the
+// leader's copy and (3) replace usages with pointer to the shadow
+static void shareByValParams(Function &F) {
+  // split
+  BasicBlock *EntryBB = &F.getEntryBlock();
+  BasicBlock *LeaderBB = EntryBB->splitBasicBlock(&EntryBB->front(), "leader");
+  BasicBlock *MergeBB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "merge");
+
+  // 1) rewire the above basic blocks so that LeaderBB is executed only for the
+  // leader workitem
+  guardBlockWithIsLeaderCheck(EntryBB, LeaderBB, MergeBB,
+                              EntryBB->back().getDebugLoc());
+  Instruction &At = LeaderBB->back();
+
+  for (auto &Arg : F.args()) {
+    if (!Arg.hasByValAttr())
+      continue;
+    assert(Arg.getType()->getPointerAddressSpace() ==
+           asUInt(spirv::AddrSpace::Private));
+    Type *T = Arg.getParamByValType();
+
+    // 2) create the shared copy - "shadow" - for current byval arg
+    GlobalVariable *Shadow =
+        spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
+
+    // 3) replace argument with shadow in all uses
+    for (auto *U : Arg.users())
+      U->replaceUsesOfWith(&Arg, Shadow);
+
+    // 4) fill the shadow from the argument for the leader WI only
+    LLVMContext &Ctx = At.getContext();
+    IRBuilder<> Builder(Ctx);
+    Builder.SetInsertPoint(&LeaderBB->front());
+    copyBetweenPrivateAndShadow(&Arg, Shadow, Builder,
+                                true /*private->shadow*/);
+  }
+  // 5) make sure workers use up-to-date shared values written by the leader
+  spirv::genWGBarrier(MergeBB->front());
+}
+
 PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
@@ -729,7 +780,13 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
     }
   }
 #ifndef NDEBUG
-  bool HaveChanges = (Ranges.size() > 0) || (Allocas.size() > 0);
+  int NByval = 0;
+  for (const auto &Arg : F.args()) {
+    if (Arg.hasByValAttr())
+      NByval++;
+  }
+
+  bool HaveChanges = (Ranges.size() > 0) || (Allocas.size() > 0) || NByval > 0;
 
   if (HaveChanges && Debug > 1) {
     dumpIR(F, "before");
@@ -762,6 +819,9 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
   for (auto *PFWICall : PFWICalls)
     fixupPrivateMemoryPFWILambdaCaptures(PFWICall);
 
+  // Finally, create shadows for and replace usages of byval pointer params
+  shareByValParams(F);
+
 #ifndef NDEBUG
   if (HaveChanges && Debug > 0)
     verifyModule(*F.getParent(), &llvm::errs());
@@ -773,7 +833,8 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-Value *spirv::createWGLocalVariable(Module &M, Type *T, const Twine &Name) {
+GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
+                                             const Twine &Name) {
   GlobalVariable *G =
       new GlobalVariable(M,                              // module
                          T,                              // type
