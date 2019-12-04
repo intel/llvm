@@ -121,11 +121,11 @@ typename std::enable_if<d::is_sgenfloat<T>::value, T>::type inline __bitselect(
   return br.f;
 }
 
-template <typename T, typename T2> inline T2 __Select(T c, T2 b, T2 a) {
+template <typename T, typename T2> inline T2 __select(T2 a, T2 b, T c) {
   return (c ? b : a);
 }
 
-template <typename T, typename T2> inline T2 __vSelect(T c, T2 b, T2 a) {
+template <typename T, typename T2> inline T2 __vselect(T2 a, T2 b, T c) {
   return d::msbIsSet(c) ? b : a;
 }
 } // namespace
@@ -407,49 +407,49 @@ MAKE_SC_1V_2V_3V(bitselect, s::cl_half, s::cl_half, s::cl_half, s::cl_half)
 // (Select) // select
 // for scalar: result = c ? b : a.
 // for vector: result[i] = (MSB of c[i] is set)? b[i] : a[i]
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_float, s::cl_int, s::cl_float,
-                        s::cl_float)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_float, s::cl_uint, s::cl_float,
-                        s::cl_float)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::cl_long,
-                        s::cl_double, s::cl_double)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::cl_ulong,
-                        s::cl_double, s::cl_double)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_char, s::cl_char, s::cl_char,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_float, s::cl_float,
+                        s::cl_float, s::cl_int)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_float, s::cl_float,
+                        s::cl_float, s::cl_uint)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_double, s::cl_double,
+                        s::cl_double, s::cl_long)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_double, s::cl_double,
+                        s::cl_double, s::cl_ulong)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_char, s::cl_char, s::cl_char,
                         s::cl_char)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_char, s::cl_uchar, s::cl_char,
-                        s::cl_char)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_uchar, s::cl_char, s::cl_uchar,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_char, s::cl_char, s::cl_char,
                         s::cl_uchar)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_uchar, s::cl_uchar,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_uchar, s::cl_uchar,
+                        s::cl_uchar, s::cl_char)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_uchar, s::cl_uchar,
                         s::cl_uchar, s::cl_uchar)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_short, s::cl_short,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_short, s::cl_short,
                         s::cl_short, s::cl_short)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_short, s::cl_ushort,
-                        s::cl_short, s::cl_short)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ushort, s::cl_short,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_short, s::cl_short,
+                        s::cl_short, s::cl_ushort)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_ushort, s::cl_ushort,
+                        s::cl_ushort, s::cl_short)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_ushort, s::cl_ushort,
                         s::cl_ushort, s::cl_ushort)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ushort, s::cl_ushort,
-                        s::cl_ushort, s::cl_ushort)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_int, s::cl_int, s::cl_int,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_int, s::cl_int, s::cl_int,
                         s::cl_int)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_int, s::cl_uint, s::cl_int,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_int, s::cl_int, s::cl_int,
+                        s::cl_uint)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_uint, s::cl_uint, s::cl_uint,
                         s::cl_int)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_uint, s::cl_int, s::cl_uint,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_uint, s::cl_uint, s::cl_uint,
                         s::cl_uint)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_uint, s::cl_uint, s::cl_uint,
-                        s::cl_uint)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_long, s::cl_long, s::cl_long,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_long, s::cl_long, s::cl_long,
                         s::cl_long)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_long, s::cl_ulong, s::cl_long,
-                        s::cl_long)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ulong, s::cl_long, s::cl_ulong,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_long, s::cl_long, s::cl_long,
                         s::cl_ulong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ulong, s::cl_ulong,
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_ulong, s::cl_ulong,
+                        s::cl_ulong, s::cl_long)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_ulong, s::cl_ulong,
                         s::cl_ulong, s::cl_ulong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_half, s::cl_short, s::cl_half,
-                        s::cl_half)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_half, s::cl_ushort, s::cl_half,
-                        s::cl_half)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
+                        s::cl_short)
+MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
+                        s::cl_ushort)
 } // namespace __host_std
 } // namespace cl

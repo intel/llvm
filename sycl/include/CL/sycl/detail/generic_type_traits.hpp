@@ -484,18 +484,6 @@ template <typename T> struct RelationalReturnType {
 #endif
 };
 
-// Used for select built-in function
-template <typename T> struct SelectWrapperTypeArgC {
-#ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
-#else
-  using type = T;
-#endif
-};
-
-template <typename T>
-using select_arg_c_t = typename SelectWrapperTypeArgC<T>::type;
-
 template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
 
 // Used for any and all built-in functions

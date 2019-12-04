@@ -239,7 +239,7 @@ MAKE_CALL_ARG1(SignBitSet, __FUNC_PREFIX_CORE)           // signbit
 MAKE_CALL_ARG1(Any, __FUNC_PREFIX_CORE)                  // any
 MAKE_CALL_ARG1(All, __FUNC_PREFIX_CORE)                  // all
 MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
-MAKE_CALL_ARG3(Select, __FUNC_PREFIX_CORE) // select
+MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #ifndef __SYCL_DEVICE_ONLY__
 } // namespace __host_std
 } // namespace cl
