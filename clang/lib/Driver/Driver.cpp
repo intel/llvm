@@ -3486,12 +3486,12 @@ class OffloadingActionBuilder final {
           }
           continue;
         }
-        ActionList AOCObjects;
+        ActionList DeviceLibObjects;
         ActionList LinkObjects;
         for (const auto &I : LI) {
           // FPGA aoco does not go through the link, everything else does.
           if (I->getType() == types::TY_FPGA_AOCO)
-            AOCObjects.push_back(I);
+            DeviceLibObjects.push_back(I);
           else
             LinkObjects.push_back(I);
         }
@@ -3532,8 +3532,8 @@ class OffloadingActionBuilder final {
           Action *DeviceBECompileAction;
           ActionList BEActionList;
           BEActionList.push_back(SPIRVTranslateAction);
-          if (!AOCObjects.empty())
-            for (const auto &A : AOCObjects)
+          if (!DeviceLibObjects.empty())
+            for (const auto &A : DeviceLibObjects)
               BEActionList.push_back(A);
           DeviceBECompileAction =
               C.MakeAction<BackendCompileJobAction>(BEActionList, OutType);
@@ -4385,36 +4385,31 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       LinkerInputs.push_back(TLI);
   }
   const llvm::opt::OptTable &Opts = getOpts();
-  if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+  auto unbundleStaticLib = [&](types::ID T) {
+    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
+      Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
+      Action *Current = C.MakeAction<InputAction>(*InputArg, T);
+      OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
+      OffloadBuilder.addDeviceDependencesToHostAction(
+          Current, InputArg, phases::Link, PL.back(), PL);
+    }
+  };
+  if (Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
     // In MSVC environment offload-static-libs are handled slightly different
     // because of missing support for partial linking in the linker. We add an
     // unbundling action for each static archive which produces list files with
     // extracted objects. Device lists are then added to the appropriate device
     // link actions and host list is ignored since we are adding
     // offload-static-libs as normal libraries to the host link command.
-    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
-      Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
-      Action *Current = C.MakeAction<InputAction>(*InputArg, types::TY_Archive);
-      OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
-      OffloadBuilder.addDeviceDependencesToHostAction(
-          Current, InputArg, phases::Link, PL.back(), PL);
-    }
+    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
+      unbundleStaticLib(types::TY_Archive);
+    // Pass along the -foffload-static-lib values to check if we need to
+    // add them for unbundling for FPGA AOT static lib usage.  Uses FPGA
+    // aoco type to differentiate if aoco unbundling is needed.
+    if (Args.hasArg(options::OPT_fintelfpga))
+      unbundleStaticLib(types::TY_FPGA_AOCO);
   }
-  // Pass along the -foffload-static-lib values to check if we need to
-  // add them for unbundling for FPGA AOT static lib usage.  Uses FPGA
-  // aoco type to differentiate if aoco unbundling is needed.
-  if (Args.hasArg(options::OPT_fintelfpga) &&
-      Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
-    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
-      Arg *InputArg = MakeInputArg(Args, getOpts(), A->getValue());
-      Action *Current = C.MakeAction<InputAction>(
-          *InputArg, types::TY_FPGA_AOCO);
-      OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
-      OffloadBuilder.addDeviceDependencesToHostAction(
-          Current, InputArg, phases::Link, PL.back(), PL);
-    }
-  }
+
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
   for (const auto &LI : LinkerInputs) {
