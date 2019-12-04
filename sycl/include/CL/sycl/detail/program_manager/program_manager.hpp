@@ -85,6 +85,7 @@ private:
 
   using KernelToImgsMap =
       std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>;
+  using StrToKSIdMap = std::map<string_class, KernelSetId>;
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a module handle (.exe .dll) to another
   /// map from a set of kernels to the vector of images containing them and
@@ -92,9 +93,10 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::map<OSModuleHandle, KernelToImgsMap> m_DeviceImages;
 
-  /// Maps kernel names to their set id (the sets are disjoint).
+  /// Maps names of kernels from a specific OS module to their set id (the
+  /// sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<string_class, KernelSetId> m_KernelSets;
+  std::map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
 
   /// Keeps kernel sets for modules containing images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.

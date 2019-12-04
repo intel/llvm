@@ -370,11 +370,12 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (EntriesB != EntriesE) {
       // The kernel sets for any pair of images are either disjoint or
       // identical, look up the kernel set using the first kernel name...
-      auto KSIdIt = m_KernelSets.find(EntriesB->name);
-      if (KSIdIt != m_KernelSets.end()) {
+      StrToKSIdMap &KSIdMap = m_KernelSets[M];
+      auto KSIdIt = KSIdMap.find(EntriesB->name);
+      if (KSIdIt != KSIdMap.end()) {
         for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
              ++EntriesIt)
-          assert(m_KernelSets[EntriesIt->name] == KSIdIt->second &&
+          assert(KSIdMap[EntriesIt->name] == KSIdIt->second &&
                  "Kernel sets are not disjoint");
         auto &Imgs = m_DeviceImages[M][KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
@@ -386,7 +387,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
            ++EntriesIt) {
         auto Result =
-            m_KernelSets.insert(std::make_pair(EntriesIt->name, KSId));
+            KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
         assert(Result.second && "Kernel sets are not disjoint");
       }
       m_DeviceImages[M][KSId].reset(new std::vector<DeviceImage *>({Img}));
@@ -448,10 +449,14 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
     return SpvFileKSId;
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  auto KSIdIt = m_KernelSets.find(KernelName);
-  // If the kernel has been assigned to a kernel set, return it
-  if (KSIdIt != m_KernelSets.end())
-    return KSIdIt->second;
+  auto KSIdMapIt = m_KernelSets.find(M);
+  if (KSIdMapIt != m_KernelSets.end()) {
+    const StrToKSIdMap &KSIdMap = KSIdMapIt->second;
+    auto KSIdIt = KSIdMap.find(KernelName);
+    // If the kernel has been assigned to a kernel set, return it
+    if (KSIdIt != KSIdMap.end())
+      return KSIdIt->second;
+  }
   // If no kernel set was found check if there is a kernel set containing
   // all kernels in the given module
   auto ModuleKSIdIt = m_ModuleKernelSets.find(M);
