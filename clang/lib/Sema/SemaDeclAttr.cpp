@@ -4329,12 +4329,12 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
-    S.Diag(AL.getLoc(), diag::warn_sycl_attibute_address_space_ext)
+    S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
         << AL << 0 /* function with a raw pointer return type */;
   }
   for (const ParmVarDecl *Param : FD->parameters())
     if (Param->getType()->isPointerType()) {
-      S.Diag(AL.getLoc(), diag::warn_sycl_attibute_address_space_ext)
+      S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
           << AL << 1 /* function with a raw pointer parameter type */;
     }
 
