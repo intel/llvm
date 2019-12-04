@@ -50,14 +50,9 @@ public:
   // caching resolution
   program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
                string_class LinkOptions = "")
-      : State(program_state::linked), LinkOptions(LinkOptions),
+      : State(program_state::linked), Context(ProgramList.at(0)->Context),
+        Devices(ProgramList.at(0)->Devices), LinkOptions(LinkOptions),
         BuildOptions(LinkOptions) {
-    // Verify arguments
-    if (ProgramList.empty()) {
-      throw runtime_error("Non-empty vector of programs expected");
-    }
-    Context = ProgramList[0]->Context;
-    Devices = ProgramList[0]->Devices;
     std::vector<device> DevicesSorted;
     if (!is_host()) {
       DevicesSorted = sort_devices_by_cl_device_id(Devices);
