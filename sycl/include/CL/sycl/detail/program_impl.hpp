@@ -62,8 +62,7 @@ public:
     if (!is_host()) {
       DevicesSorted = sort_devices_by_cl_device_id(Devices);
     }
-    check_device_feature_support<
-        info::device::is_linker_available>(Devices);
+    check_device_feature_support<info::device::is_linker_available>(Devices);
     for (const auto &Prg : ProgramList) {
       Prg->throw_if_state_is_not(program_state::compiled);
       if (Prg->Context != Context) {
@@ -235,8 +234,7 @@ public:
   void link(string_class LinkOptions = "") {
     throw_if_state_is_not(program_state::compiled);
     if (!is_host()) {
-      check_device_feature_support<
-          info::device::is_linker_available>(Devices);
+      check_device_feature_support<info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
       PI_CALL_THROW(piProgramLink, compile_program_error)(
           detail::getSyclObjImpl(Context)->getHandleRef(), Devices.size(),
@@ -337,8 +335,7 @@ public:
 
 private:
   template <info::device param>
-  void check_device_feature_support(
-      const vector_class<device> &devices) {
+  void check_device_feature_support(const vector_class<device> &devices) {
     for (const auto &device : devices) {
       if (!device.get_info<param>()) {
         throw feature_not_supported(
@@ -365,8 +362,7 @@ private:
   }
 
   void compile(const string_class &Options) {
-    check_device_feature_support<
-        info::device::is_compiler_available>(Devices);
+    check_device_feature_support<info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     RT::PiResult Err = PI_CALL_NOCHECK(piProgramCompile)(
         Program, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
@@ -381,8 +377,7 @@ private:
   }
 
   void build(const string_class &Options) {
-    check_device_feature_support<
-        info::device::is_compiler_available>(Devices);
+    check_device_feature_support<info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     RT::PiResult Err =
         PI_CALL_NOCHECK(piProgramBuild)(Program, Devices.size(), Devices.data(),
@@ -403,22 +398,19 @@ private:
     return PiDevices;
   }
 
-  bool is_cacheable() const {
-    return IsProgramAndKernelCachingAllowed;
-  }
+  bool is_cacheable() const { return IsProgramAndKernelCachingAllowed; }
 
-  static bool
-  is_cacheable_with_options(const string_class &Options) {
+  static bool is_cacheable_with_options(const string_class &Options) {
     return Options.empty();
   }
 
   bool has_cl_kernel(const string_class &KernelName) const {
     size_t Size;
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0,
-                                 nullptr, &Size);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+                              &Size);
     string_class ClResult(Size, ' ');
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES,
-                                 ClResult.size(), &ClResult[0], nullptr);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, ClResult.size(),
+                              &ClResult[0], nullptr);
     // Get rid of the null terminator
     ClResult.pop_back();
     vector_class<string_class> KernelNames(split_string(ClResult, ';'));

@@ -285,6 +285,9 @@ ProgramManager::ProgramManager() {
     // it accepts is SPIRV but that is not the case, should be aligned?
     ImgPtr->Format = getFormat(*ImgPtr);
 
+    // No need for a mutex here since all access to these private fields is
+    // blocked until the construction of the ProgramManager singleton is
+    // finished.
     m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKSId].reset(
         new std::vector<DeviceImage *>({ImgPtr.get()}));
 
