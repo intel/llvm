@@ -10123,8 +10123,8 @@ def err_sycl_attibute_cannot_be_applied_here
             "|class member function}1">;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
-              "to a function with a raw "
-              "%select{pointer return type|pointer parameter type}1">,
+              "to a function with a raw pointer "
+              "%select{return type|parameter type}1">,
       InGroup<SyclStrict>, DefaultError;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
