@@ -1159,189 +1159,6 @@ public:
   void execute(struct VPTransformState *State) override;
 };
 
-/// VPlan models a candidate for vectorization, encoding various decisions take
-/// to produce efficient output IR, including which branches, basic-blocks and
-/// output IR instructions to generate, and their cost. VPlan holds a
-/// Hierarchical-CFG of VPBasicBlocks and VPRegionBlocks rooted at an Entry
-/// VPBlock.
-class VPlan {
-  friend class VPlanPrinter;
-
-private:
-  /// Hold the single entry to the Hierarchical CFG of the VPlan.
-  VPBlockBase *Entry;
-
-  /// Holds the VFs applicable to this VPlan.
-  SmallSet<unsigned, 2> VFs;
-
-  /// Holds the name of the VPlan, for printing.
-  std::string Name;
-
-  /// Holds all the external definitions created for this VPlan.
-  // TODO: Introduce a specific representation for external definitions in
-  // VPlan. External definitions must be immutable and hold a pointer to its
-  // underlying IR that will be used to implement its structural comparison
-  // (operators '==' and '<').
-  SmallPtrSet<VPValue *, 16> VPExternalDefs;
-
-  /// Represents the backedge taken count of the original loop, for folding
-  /// the tail.
-  VPValue *BackedgeTakenCount = nullptr;
-
-  /// Holds a mapping between Values and their corresponding VPValue inside
-  /// VPlan.
-  Value2VPValueTy Value2VPValue;
-
-  /// Holds the VPLoopInfo analysis for this VPlan.
-  VPLoopInfo VPLInfo;
-
-  /// Holds the condition bit values built during VPInstruction to VPRecipe transformation.
-  SmallVector<VPValue *, 4> VPCBVs;
-
-public:
-  VPlan(VPBlockBase *Entry = nullptr) : Entry(Entry) {}
-
-  ~VPlan() {
-    if (Entry)
-      VPBlockBase::deleteCFG(Entry);
-    for (auto &MapEntry : Value2VPValue)
-      if (MapEntry.second != BackedgeTakenCount)
-        delete MapEntry.second;
-    if (BackedgeTakenCount)
-      delete BackedgeTakenCount; // Delete once, if in Value2VPValue or not.
-    for (VPValue *Def : VPExternalDefs)
-      delete Def;
-    for (VPValue *CBV : VPCBVs)
-      delete CBV;
-  }
-
-  /// Generate the IR code for this VPlan.
-  void execute(struct VPTransformState *State);
-
-  VPBlockBase *getEntry() { return Entry; }
-  const VPBlockBase *getEntry() const { return Entry; }
-
-  VPBlockBase *setEntry(VPBlockBase *Block) { return Entry = Block; }
-
-  /// The backedge taken count of the original loop.
-  VPValue *getOrCreateBackedgeTakenCount() {
-    if (!BackedgeTakenCount)
-      BackedgeTakenCount = new VPValue();
-    return BackedgeTakenCount;
-  }
-
-  void addVF(unsigned VF) { VFs.insert(VF); }
-
-  bool hasVF(unsigned VF) { return VFs.count(VF); }
-
-  const std::string &getName() const { return Name; }
-
-  void setName(const Twine &newName) { Name = newName.str(); }
-
-  /// Add \p VPVal to the pool of external definitions if it's not already
-  /// in the pool.
-  void addExternalDef(VPValue *VPVal) {
-    VPExternalDefs.insert(VPVal);
-  }
-
-  /// Add \p CBV to the vector of condition bit values.
-  void addCBV(VPValue *CBV) {
-    VPCBVs.push_back(CBV);
-  }
-
-  void addVPValue(Value *V) {
-    assert(V && "Trying to add a null Value to VPlan");
-    assert(!Value2VPValue.count(V) && "Value already exists in VPlan");
-    Value2VPValue[V] = new VPValue();
-  }
-
-  VPValue *getVPValue(Value *V) {
-    assert(V && "Trying to get the VPValue of a null Value");
-    assert(Value2VPValue.count(V) && "Value does not exist in VPlan");
-    return Value2VPValue[V];
-  }
-
-  /// Return the VPLoopInfo analysis for this VPlan.
-  VPLoopInfo &getVPLoopInfo() { return VPLInfo; }
-  const VPLoopInfo &getVPLoopInfo() const { return VPLInfo; }
-
-private:
-  /// Add to the given dominator tree the header block and every new basic block
-  /// that was created between it and the latch block, inclusive.
-  static void updateDominatorTree(DominatorTree *DT,
-                                  BasicBlock *LoopPreHeaderBB,
-                                  BasicBlock *LoopLatchBB);
-};
-
-/// VPlanPrinter prints a given VPlan to a given output stream. The printing is
-/// indented and follows the dot format.
-class VPlanPrinter {
-  friend inline raw_ostream &operator<<(raw_ostream &OS, VPlan &Plan);
-  friend inline raw_ostream &operator<<(raw_ostream &OS,
-                                        const struct VPlanIngredient &I);
-
-private:
-  raw_ostream &OS;
-  VPlan &Plan;
-  unsigned Depth = 0;
-  unsigned TabWidth = 2;
-  std::string Indent;
-  unsigned BID = 0;
-  SmallDenseMap<const VPBlockBase *, unsigned> BlockID;
-
-  VPlanPrinter(raw_ostream &O, VPlan &P) : OS(O), Plan(P) {}
-
-  /// Handle indentation.
-  void bumpIndent(int b) { Indent = std::string((Depth += b) * TabWidth, ' '); }
-
-  /// Print a given \p Block of the Plan.
-  void dumpBlock(const VPBlockBase *Block);
-
-  /// Print the information related to the CFG edges going out of a given
-  /// \p Block, followed by printing the successor blocks themselves.
-  void dumpEdges(const VPBlockBase *Block);
-
-  /// Print a given \p BasicBlock, including its VPRecipes, followed by printing
-  /// its successor blocks.
-  void dumpBasicBlock(const VPBasicBlock *BasicBlock);
-
-  /// Print a given \p Region of the Plan.
-  void dumpRegion(const VPRegionBlock *Region);
-
-  unsigned getOrCreateBID(const VPBlockBase *Block) {
-    return BlockID.count(Block) ? BlockID[Block] : BlockID[Block] = BID++;
-  }
-
-  const Twine getOrCreateName(const VPBlockBase *Block);
-
-  const Twine getUID(const VPBlockBase *Block);
-
-  /// Print the information related to a CFG edge between two VPBlockBases.
-  void drawEdge(const VPBlockBase *From, const VPBlockBase *To, bool Hidden,
-                const Twine &Label);
-
-  void dump();
-
-  static void printAsIngredient(raw_ostream &O, Value *V);
-};
-
-struct VPlanIngredient {
-  Value *V;
-
-  VPlanIngredient(Value *V) : V(V) {}
-};
-
-inline raw_ostream &operator<<(raw_ostream &OS, const VPlanIngredient &I) {
-  VPlanPrinter::printAsIngredient(OS, I.V);
-  return OS;
-}
-
-inline raw_ostream &operator<<(raw_ostream &OS, VPlan &Plan) {
-  VPlanPrinter Printer(OS, Plan);
-  Printer.dump();
-  return OS;
-}
-
 //===----------------------------------------------------------------------===//
 // GraphTraits specializations for VPlan Hierarchical Control-Flow Graphs     //
 //===----------------------------------------------------------------------===//
@@ -1463,6 +1280,192 @@ struct GraphTraits<Inverse<VPRegionBlock *>>
     return nodes_iterator::end(N);
   }
 };
+
+/// VPlan models a candidate for vectorization, encoding various decisions take
+/// to produce efficient output IR, including which branches, basic-blocks and
+/// output IR instructions to generate, and their cost. VPlan holds a
+/// Hierarchical-CFG of VPBasicBlocks and VPRegionBlocks rooted at an Entry
+/// VPBlock.
+class VPlan {
+  friend class VPlanPrinter;
+
+private:
+  /// Hold the single entry to the Hierarchical CFG of the VPlan.
+  VPBlockBase *Entry;
+
+  /// Holds the VFs applicable to this VPlan.
+  SmallSet<unsigned, 2> VFs;
+
+  /// Holds the name of the VPlan, for printing.
+  std::string Name;
+
+  /// Holds all the external definitions created for this VPlan.
+  // TODO: Introduce a specific representation for external definitions in
+  // VPlan. External definitions must be immutable and hold a pointer to its
+  // underlying IR that will be used to implement its structural comparison
+  // (operators '==' and '<').
+  SmallPtrSet<VPValue *, 16> VPExternalDefs;
+
+  /// Represents the backedge taken count of the original loop, for folding
+  /// the tail.
+  VPValue *BackedgeTakenCount = nullptr;
+
+  /// Holds a mapping between Values and their corresponding VPValue inside
+  /// VPlan.
+  Value2VPValueTy Value2VPValue;
+
+  /// Holds the VPLoopInfo analysis for this VPlan.
+  VPLoopInfo VPLInfo;
+
+  /// Holds the condition bit values built during VPInstruction to VPRecipe transformation.
+  SmallVector<VPValue *, 4> VPCBVs;
+
+public:
+  VPlan(VPBlockBase *Entry = nullptr) : Entry(Entry) {}
+
+  ~VPlan() {
+    if (Entry)
+      VPBlockBase::deleteCFG(Entry);
+    for (auto &MapEntry : Value2VPValue)
+      if (MapEntry.second != BackedgeTakenCount)
+        delete MapEntry.second;
+    if (BackedgeTakenCount)
+      delete BackedgeTakenCount; // Delete once, if in Value2VPValue or not.
+    for (VPValue *Def : VPExternalDefs)
+      delete Def;
+    for (VPValue *CBV : VPCBVs)
+      delete CBV;
+  }
+
+  /// Generate the IR code for this VPlan.
+  void execute(struct VPTransformState *State);
+
+  VPBlockBase *getEntry() { return Entry; }
+  const VPBlockBase *getEntry() const { return Entry; }
+
+  VPBlockBase *setEntry(VPBlockBase *Block) { return Entry = Block; }
+
+  /// The backedge taken count of the original loop.
+  VPValue *getOrCreateBackedgeTakenCount() {
+    if (!BackedgeTakenCount)
+      BackedgeTakenCount = new VPValue();
+    return BackedgeTakenCount;
+  }
+
+  void addVF(unsigned VF) { VFs.insert(VF); }
+
+  bool hasVF(unsigned VF) { return VFs.count(VF); }
+
+  const std::string &getName() const { return Name; }
+
+  void setName(const Twine &newName) { Name = newName.str(); }
+
+  /// Add \p VPVal to the pool of external definitions if it's not already
+  /// in the pool.
+  void addExternalDef(VPValue *VPVal) {
+    VPExternalDefs.insert(VPVal);
+  }
+
+  /// Add \p CBV to the vector of condition bit values.
+  void addCBV(VPValue *CBV) {
+    VPCBVs.push_back(CBV);
+  }
+
+  void addVPValue(Value *V) {
+    assert(V && "Trying to add a null Value to VPlan");
+    assert(!Value2VPValue.count(V) && "Value already exists in VPlan");
+    Value2VPValue[V] = new VPValue();
+  }
+
+  VPValue *getVPValue(Value *V) {
+    assert(V && "Trying to get the VPValue of a null Value");
+    assert(Value2VPValue.count(V) && "Value does not exist in VPlan");
+    return Value2VPValue[V];
+  }
+
+  /// Return the VPLoopInfo analysis for this VPlan.
+  VPLoopInfo &getVPLoopInfo() { return VPLInfo; }
+  const VPLoopInfo &getVPLoopInfo() const { return VPLInfo; }
+
+  /// Dump the plan to stderr (for debugging).
+  void dump() const;
+
+private:
+  /// Add to the given dominator tree the header block and every new basic block
+  /// that was created between it and the latch block, inclusive.
+  static void updateDominatorTree(DominatorTree *DT,
+                                  BasicBlock *LoopPreHeaderBB,
+                                  BasicBlock *LoopLatchBB);
+};
+
+/// VPlanPrinter prints a given VPlan to a given output stream. The printing is
+/// indented and follows the dot format.
+class VPlanPrinter {
+  friend inline raw_ostream &operator<<(raw_ostream &OS, const VPlan &Plan);
+  friend inline raw_ostream &operator<<(raw_ostream &OS,
+                                        const struct VPlanIngredient &I);
+
+private:
+  raw_ostream &OS;
+  const VPlan &Plan;
+  unsigned Depth = 0;
+  unsigned TabWidth = 2;
+  std::string Indent;
+  unsigned BID = 0;
+  SmallDenseMap<const VPBlockBase *, unsigned> BlockID;
+
+  VPlanPrinter(raw_ostream &O, const VPlan &P) : OS(O), Plan(P) {}
+
+  /// Handle indentation.
+  void bumpIndent(int b) { Indent = std::string((Depth += b) * TabWidth, ' '); }
+
+  /// Print a given \p Block of the Plan.
+  void dumpBlock(const VPBlockBase *Block);
+
+  /// Print the information related to the CFG edges going out of a given
+  /// \p Block, followed by printing the successor blocks themselves.
+  void dumpEdges(const VPBlockBase *Block);
+
+  /// Print a given \p BasicBlock, including its VPRecipes, followed by printing
+  /// its successor blocks.
+  void dumpBasicBlock(const VPBasicBlock *BasicBlock);
+
+  /// Print a given \p Region of the Plan.
+  void dumpRegion(const VPRegionBlock *Region);
+
+  unsigned getOrCreateBID(const VPBlockBase *Block) {
+    return BlockID.count(Block) ? BlockID[Block] : BlockID[Block] = BID++;
+  }
+
+  const Twine getOrCreateName(const VPBlockBase *Block);
+
+  const Twine getUID(const VPBlockBase *Block);
+
+  /// Print the information related to a CFG edge between two VPBlockBases.
+  void drawEdge(const VPBlockBase *From, const VPBlockBase *To, bool Hidden,
+                const Twine &Label);
+
+  void dump();
+
+  static void printAsIngredient(raw_ostream &O, Value *V);
+};
+
+struct VPlanIngredient {
+  Value *V;
+
+  VPlanIngredient(Value *V) : V(V) {}
+};
+
+inline raw_ostream &operator<<(raw_ostream &OS, const VPlanIngredient &I) {
+  VPlanPrinter::printAsIngredient(OS, I.V);
+  return OS;
+}
+
+inline raw_ostream &operator<<(raw_ostream &OS, const VPlan &Plan) {
+  VPlanPrinter Printer(OS, Plan);
+  Printer.dump();
+  return OS;
+}
 
 //===----------------------------------------------------------------------===//
 // VPlan Utilities
