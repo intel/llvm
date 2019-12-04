@@ -56,29 +56,28 @@ bool isa_B(void) {
   return 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
-  isa_B();
+template <typename N, typename L>
+__attribute__((sycl_kernel)) void kernel(L l) {
+  l();
 }
-  // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel2(void) {
-  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
-  kernel2();
-}
-__attribute__((sycl_kernel)) void kernel3(void) {
-  ;
+
+// expected-note@+1 3{{function implemented using recursion declared here}}
+void kernel2_recursive(void) {
+  // expected-error@+1 1{{SYCL kernel cannot call a recursive function}}
+  kernel2_recursive();
 }
 
 using myFuncDef = int(int,int);
 
-void usage(  myFuncDef functionPtr ) {
-  kernel1();
+void usage(myFuncDef functionPtr) {
+  kernel<class kernel1>([]() { isa_B(); });
 }
 void usage2(  myFuncDef functionPtr ) {
-  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
-  kernel2();
+  // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
+  kernel<class kernel2>([]() { kernel2_recursive(); });
 }
 void usage3(  myFuncDef functionPtr ) {
-  kernel3();
+  kernel<class kernel3>([]() { ; });
 }
 
 int addInt(int n, int m) {

@@ -590,7 +590,7 @@ public:
 
   template <typename KernelT, typename IndexerT>
   using EnableIfIndexer = detail::enable_if_t<
-      std::is_same<detail::lambda_arg_type<KernelT>, IndexerT>::value>;
+      std::is_same<detail::lambda_arg_type<KernelT>, IndexerT>::value, int>;
 
   template <typename KernelT, int Dims>
   using EnableIfId = EnableIfIndexer<KernelT, id<Dims>>;
@@ -613,27 +613,27 @@ public:
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) EnableIfId<KernelType, Dims>
-  kernel_parallel_for(KernelType KernelFunc) {
+  template <typename KernelName, typename KernelType, int Dims,
+            EnableIfId<KernelType, Dims> = 0>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
     KernelFunc(detail::Builder::getId<Dims>());
   }
 
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) EnableIfItemWithoutOffset<KernelType, Dims>
-  kernel_parallel_for(KernelType KernelFunc) {
+  template <typename KernelName, typename KernelType, int Dims,
+            EnableIfItemWithoutOffset<KernelType, Dims> = 0>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
     KernelFunc(detail::Builder::getItem<Dims, false>());
   }
 
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) EnableIfItemWithOffset<KernelType, Dims>
-  kernel_parallel_for(KernelType KernelFunc) {
+  template <typename KernelName, typename KernelType, int Dims,
+            EnableIfItemWithOffset<KernelType, Dims> = 0>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
     KernelFunc(detail::Builder::getItem<Dims, true>());
   }
 
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) EnableIfNDItem<KernelType, Dims>
-  kernel_parallel_for(KernelType KernelFunc) {
+  template <typename KernelName, typename KernelType, int Dims,
+            EnableIfNDItem<KernelType, Dims> = 0>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
     KernelFunc(detail::Builder::getNDItem<Dims>());
   }
 
