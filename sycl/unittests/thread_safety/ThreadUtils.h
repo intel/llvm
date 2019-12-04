@@ -25,21 +25,17 @@ public:
 private:
   template <int N, typename Func, typename... Funcs>
   void enqueueHelper(Func &&func, Funcs &&... funcs) {
-    enqueue(std::forward<Func>(func));
+    enqueue(std::forward<Func>(func), N - 1);
     enqueueHelper<N - 1>(std::forward<Funcs>(funcs)...);
-  }
-
-  template <int N, typename Func>
-  void enqueueHelper(Func &&f) {
-    enqueue(std::forward<Func>(f), N);
   }
 
   template <int N>
   void enqueueHelper() {}
 
   template <typename Func, typename... Args>
-  void enqueue(Func func, Args... args) {
-    MThreadPool.push_back(std::thread(func, args...));
+  void enqueue(Func &&func, Args &&... args) {
+    MThreadPool.emplace_back(std::forward<Func>(func),
+                             std::forward<Args>(args)...);
   }
 
   void wait() {
