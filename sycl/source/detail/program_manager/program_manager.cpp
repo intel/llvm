@@ -395,7 +395,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     }
     // Otherwise assume that the image contains all kernels associated with the
     // module
-    KernelSetId &KSId = m_ModuleKernelSets[M];
+    KernelSetId &KSId = m_OSModuleKernelSets[M];
     if (KSId == 0)
       KSId = getNextKernelSetId();
 
@@ -458,8 +458,8 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   }
   // If no kernel set was found check if there is a kernel set containing
   // all kernels in the given module
-  auto ModuleKSIdIt = m_ModuleKernelSets.find(M);
-  if (ModuleKSIdIt != m_ModuleKernelSets.end())
+  auto ModuleKSIdIt = m_OSModuleKernelSets.find(M);
+  if (ModuleKSIdIt != m_OSModuleKernelSets.end())
     return ModuleKSIdIt->second;
 
   throw runtime_error("No kernel named " + KernelName + " was found");

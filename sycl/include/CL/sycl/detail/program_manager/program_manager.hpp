@@ -83,6 +83,21 @@ private:
   /// Dumps image to current directory
   void dumpImage(const DeviceImage &Img, KernelSetId KSId) const;
 
+  /// The three maps below are used during kernel resolution. Any kernel is
+  /// identified by its name and the OS module it's coming from, allowing
+  /// kernels with identical names in different OS modules. The following
+  /// assumption is made: for any two device images in a SYCL application their
+  /// kernel sets are either identical or disjoint.
+  /// Based on this assumption, m_KernelSets is used to group kernels together
+  /// into sets by assigning a set ID to them during device image registration.
+  /// This ID is then mapped to a vector of device images containing kernels
+  /// from the set (m_DeviceImages).
+  /// An exception is made for device images with no entry information: a
+  /// special kernel set ID is used for them which is assigned to just the OS
+  /// module. These kernel set ids are stored in m_OSModuleKernelSets and device
+  /// images associated with them are assumed to contain all kernels coming from
+  /// that OS module.
+
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a kernel set id to the vector of images
   /// containing kernels from that set.
@@ -95,10 +110,10 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
 
-  /// Keeps kernel sets for modules containing images without entry info.
+  /// Keeps kernel sets for OS modules containing images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, KernelSetId> m_ModuleKernelSets;
+  std::map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
