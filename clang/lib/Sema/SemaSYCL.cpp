@@ -184,6 +184,15 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   return true;
 }
 
+static bool isKnownGoodDecl(Decl *D) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    IdentifierInfo *II = FD->getIdentifier();
+    if (II && II->getName().equals("__spirv_ocl_printf"))
+      return true;
+  }
+  return false;
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -312,8 +321,12 @@ public:
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *E) {
+    Decl* D = E->getDecl();
+    if (isKnownGoodDecl(D))
+      return true;
+
     CheckSYCLType(E->getType(), E->getSourceRange());
-    if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
+    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
       if (!IsConst && VD->isStaticDataMember())
         SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
