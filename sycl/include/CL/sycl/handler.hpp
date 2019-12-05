@@ -31,7 +31,6 @@
 
 #include <algorithm>
 #include <functional>
-#include <memory>
 #include <type_traits>
 
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
@@ -136,29 +135,29 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 
 // 4.8.3 Command group handler class
 class handler {
-  std::shared_ptr<detail::queue_impl> MQueue;
+  shared_ptr_class<detail::queue_impl> MQueue;
   // The storage for the arguments passed.
   // We need to store a copy of values that are passed explicitly through
   // set_arg, require and so on, because we need them to be alive after
   // we exit the method they are passed in.
-  std::vector<std::vector<char>> MArgsStorage;
-  std::vector<detail::AccessorImplPtr> MAccStorage;
-  std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
-  std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
+  vector_class<vector_class<char>> MArgsStorage;
+  vector_class<detail::AccessorImplPtr> MAccStorage;
+  vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
+  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
+  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   // The list of arguments for the kernel.
-  std::vector<detail::ArgDesc> MArgs;
+  vector_class<detail::ArgDesc> MArgs;
   // The list of associated accessors with this handler.
   // These accessors were created with this handler as argument or
   // have become required for this handler via require method.
-  std::vector<detail::ArgDesc> MAssociatedAccesors;
+  vector_class<detail::ArgDesc> MAssociatedAccesors;
   // The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::Requirement *> MRequirements;
+  vector_class<detail::Requirement *> MRequirements;
   // Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
   // Storage for a sycl::kernel object.
-  std::shared_ptr<detail::kernel_impl> MSyclKernel;
+  shared_ptr_class<detail::kernel_impl> MSyclKernel;
   // Type of the command group, e.g. kernel, fill.
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
   // Pointer to the source host memory or accessor(depending on command type).
@@ -168,17 +167,17 @@ class handler {
   // Length to copy or fill (for USM operations).
   size_t MLength = 0;
   // Pattern that is used to fill memory object in case command type is fill.
-  std::vector<char> MPattern;
+  vector_class<char> MPattern;
   // Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
   // The list of events that order this operation
-  std::vector<detail::EventImplPtr> MEvents;
+  vector_class<detail::EventImplPtr> MEvents;
 
   bool MIsHost = false;
 
 private:
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
+  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
       : MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
   // Method stores copy of Arg passed to the MArgsStorage.
@@ -234,7 +233,7 @@ private:
 
   // Save streams associated with this handler. Streams are then forwarded to
   // command group and flushed in the scheduler.
-  void addStream(std::shared_ptr<detail::stream_impl> s) {
+  void addStream(shared_ptr_class<detail::stream_impl> s) {
     MStreamStorage.push_back(std::move(s));
   }
 
@@ -423,7 +422,7 @@ public:
     MEvents.push_back(std::move(detail::getSyclObjImpl(e)));
   }
 
-  void depends_on(std::vector<event> Events) {
+  void depends_on(vector_class<event> Events) {
     for (event e : Events) {
       depends_on(e);
     }
