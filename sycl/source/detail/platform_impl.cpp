@@ -219,7 +219,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
     filterWhiteList(PiDevices, MPlatform);
 
-  Res.reserve(PiDevices.size());
+  size_t PlatformCount = PiDevices.size();
+  if (DeviceType == info::device_type::all) PlatformCount++;
+
+  Res.reserve(PlatformCount);
   std::transform(PiDevices.begin(), PiDevices.end(), Res.begin(),
                  [](const RT::PiDevice &PiDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
