@@ -1054,6 +1054,7 @@ def OpenMPLoopForm : DiagGroup<"openmp-loop-form">;
 def OpenMPTarget : DiagGroup<"openmp-target">;
 
 // SYCL warnings
+def SyclStrict : DiagGroup<"sycl-strict">;
 def SyclTarget : DiagGroup<"sycl-target">;
 
 // Backend warnings.

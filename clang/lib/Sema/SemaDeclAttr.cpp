@@ -4365,15 +4365,13 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 2 /* function with a raw pointer return type */;
-    return;
+    S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
+        << AL << 0 /* function with a raw pointer return type */;
   }
   for (const ParmVarDecl *Param : FD->parameters())
     if (Param->getType()->isPointerType()) {
-      S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-          << AL << 3 /* function with a raw pointer parameter type */;
-      return;
+      S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
+          << AL << 1 /* function with a raw pointer parameter type */;
     }
 
   S.addSyclDeviceDecl(D);

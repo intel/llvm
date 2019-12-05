@@ -10154,9 +10154,12 @@ def err_conflicting_sycl_kernel_attributes : Error<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "%select{static function or function in an anonymous namespace"
-            "|class member function"
-            "|function with a raw pointer return type"
-            "|function with a raw pointer parameter type}1">;
+            "|class member function}1">;
+def warn_sycl_attibute_function_raw_ptr
+    : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
+              "to a function with a raw pointer "
+              "%select{return type|parameter type}1">,
+      InGroup<SyclStrict>, DefaultError;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;
