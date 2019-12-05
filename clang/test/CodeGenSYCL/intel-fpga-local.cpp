@@ -18,12 +18,15 @@
 //CHECK: [[ANN16:@.str.[0-9]*]] = {{.*}}foobar
 //CHECK: [[ANN17:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4,500}
 //CHECK: [[ANN18:@.str.[0-9]*]] = {{.*}}{memory:BLOCK_RAM}{sizeinfo:4,10,2}
+//CHECK: [[ANN19:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:4}{bank_bits:4,5}
+//CHECK: [[ANN20:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10,2}{bankwidth:16}{numbanks:2}{bank_bits:0}
+//CHECK: [[ANN21:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}{numbanks:8}{bank_bits:5,4,3}
 
 //CHECK: @llvm.global.annotations
 //CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5a_one to i8 addrspace(1)*)
-//CHECK-SAME: [[ANN1]]{{.*}}i32 154
+//CHECK-SAME: [[ANN1]]{{.*}}i32 157
 //CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5b_two to i8 addrspace(1)*)
-//CHECK-SAME: [[ANN16]]{{.*}}i32 158
+//CHECK-SAME: [[ANN16]]{{.*}}i32 161
 
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
@@ -172,6 +175,29 @@ void size_info() {
   [[intelfpga::memory("BLOCK_RAM")]] int var_b[10][2];
 }
 
+struct s {
+  int a [[intelfpga::bank_bits(4, 5)]];
+};
+
+void bankbits() {
+  //CHECK: %[[VAR:[0-9]+]] = bitcast{{.*}}%a
+  //CHECK: %[[VAR1:a[0-9]+]] = bitcast{{.*}}%a
+  //CHECK: @llvm.var.annotation{{.*}}%[[VAR1]],{{.*}}[[ANN19]]
+  [[intelfpga::bank_bits(4,5)]] int a;
+  //CHECK: %[[VARB:[0-9]+]] = bitcast{{.*}}%b
+  //CHECK: %[[VARB1:b[0-9]+]] = bitcast{{.*}}%b
+  //CHECK: @llvm.var.annotation{{.*}}%[[VARB1]],{{.*}}[[ANN20]]
+  [[intelfpga::bank_bits(0), intelfpga::bankwidth(16)]] int b[10][2];
+  //CHECK: %[[VARC:[0-9]+]] = bitcast{{.*}}%c
+  //CHECK: %[[VARC1:c[0-9]+]] = bitcast{{.*}}%c
+  //CHECK: @llvm.var.annotation{{.*}}%[[VARC1]],{{.*}}[[ANN21]]
+  [[intelfpga::bank_bits(5,4,3), intelfpga::numbanks(8), intelfpga::memory("MLAB")]] int c;
+  struct s s2;
+  //CHECK: %[[FIELD_A:.*]] = getelementptr inbounds %struct.{{.*}}.s{{.*}}
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_A]]{{.*}}[[ANN19]]
+  s2.a = 0;
+}
+
 void field_addrspace_cast() {
   struct state {
     [[intelfpga::numbanks(2)]] int mem[8];
@@ -204,6 +230,7 @@ int main() {
     baz();
     qux(42);
     size_info();
+    bankbits();
     field_addrspace_cast();
   });
   return 0;

@@ -3809,6 +3809,15 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
           << &TmpAttr;
       return;
     }
+    if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
+      if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+        unsigned NumBankBits = BBA->args_size();
+        if (NumBankBits != Value.ceilLogBase2()) {
+          Diag(TmpAttr.getLocation(), diag::err_bankbits_numbanks_conflicting);
+          return;
+        }
+      }
+    }
     E = ICE.get();
   }
 
@@ -5151,6 +5160,8 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     InCompat = true;
   if (checkAttrMutualExclusion<IntelFPGAMergeAttr>(S, D, Attr))
     InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGABankBitsAttr>(S, D, Attr))
+    InCompat = true;
 
   return InCompat;
 }
@@ -5253,6 +5264,92 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   D->addAttr(::new (S.Context)
                  IntelFPGAMergeAttr(S.Context, AL, Results[0], Results[1]));
+}
+
+/// Handle the bank_bits attribute.
+/// This attribute accepts a list of values greater than zero.
+/// This is incompatible with the register attribute.
+/// The numbanks and bank_bits attributes are related. If numbanks exists
+/// when handling bank_bits they are checked for consistency. If numbanks
+/// hasn't been added yet an implicit one is added with the correct value.
+/// If the user later adds a numbanks attribute the implicit one is removed.
+/// The values must be consecutive values (i.e. 3,4,5 or 2,1).
+static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &Attr) {
+  checkForDuplicateAttribute<IntelFPGABankBitsAttr>(S, D, Attr);
+
+  if (!checkAttributeAtLeastNumArgs(S, Attr, 1))
+    return;
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  SmallVector<Expr *, 8> Args;
+  for (unsigned I = 0; I < Attr.getNumArgs(); ++I) {
+    Args.push_back(Attr.getArgAsExpr(I));
+  }
+
+  S.AddIntelFPGABankBitsAttr(D, Attr, Args.data(), Args.size());
+}
+
+void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr **Exprs, unsigned Size) {
+  IntelFPGABankBitsAttr TmpAttr(Context, CI, Exprs, Size);
+  SmallVector<Expr *, 8> Args;
+  SmallVector<int64_t, 8> Values;
+  bool ListIsValueDep = false;
+  for (auto *E : TmpAttr.args()) {
+    llvm::APSInt Value(32, /*IsUnsigned=*/false);
+    Expr::EvalResult Result;
+    ListIsValueDep = ListIsValueDep || E->isValueDependent();
+    if (!E->isValueDependent()) {
+      ExprResult ICE;
+      if (checkRangedIntegralArgument<IntelFPGABankBitsAttr>(E, &TmpAttr, ICE))
+        return;
+      if (E->EvaluateAsInt(Result, Context))
+        Value = Result.Val.getInt();
+      E = ICE.get();
+    }
+    Args.push_back(E);
+    Values.push_back(Value.getExtValue());
+  }
+
+  // Check that the list is consecutive.
+  if (!ListIsValueDep && Values.size() > 1) {
+    bool ListIsAscending = Values[0] < Values[1];
+    for (int I = 0, E = Values.size() - 1; I < E; ++I) {
+      if (Values[I + 1] != Values[I] + (ListIsAscending ? 1 : -1)) {
+        Diag(CI.getLoc(), diag::err_bankbits_non_consecutive) << &TmpAttr;
+        return;
+      }
+    }
+  }
+
+  // Check or add the related numbanks attribute.
+  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+    Expr *E = NBA->getValue();
+    if (!E->isValueDependent()) {
+      Expr::EvalResult Result;
+      E->EvaluateAsInt(Result, Context);
+      llvm::APSInt Value = Result.Val.getInt();
+      if (Args.size() != Value.ceilLogBase2()) {
+        Diag(TmpAttr.getLoc(), diag::err_bankbits_numbanks_conflicting);
+        return;
+      }
+    }
+  } else {
+    llvm::APInt Num(32, (unsigned)(1 << Args.size()));
+    Expr *NBE =
+        IntegerLiteral::Create(Context, Num, Context.IntTy, SourceLocation());
+    D->addAttr(IntelFPGANumBanksAttr::CreateImplicit(Context, NBE));
+  }
+
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (Context)
+                 IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
 static void handleIntelFPGAMaxPrivateCopiesAttr(Sema &S, Decl *D,
@@ -7728,6 +7825,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelFPGAMerge:
     handleIntelFPGAMergeAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelFPGABankBits:
+    handleIntelFPGABankBitsAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:
