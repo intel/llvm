@@ -617,6 +617,10 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
 
   // Search for a loading value in forwarding registers.
   for (; I != MBB->rend(); ++I) {
+    // Skip bundle headers.
+    if (I->isBundle())
+      continue;
+
     // If the next instruction is a call we can not interpret parameter's
     // forwarding registers or we finished the interpretation of all parameters.
     if (I->isCall())
@@ -2821,7 +2825,8 @@ void DwarfDebug::initSkeletonUnit(const DwarfUnit &U, DIE &Die,
 DwarfCompileUnit &DwarfDebug::constructSkeletonCU(const DwarfCompileUnit &CU) {
 
   auto OwnedUnit = std::make_unique<DwarfCompileUnit>(
-      CU.getUniqueID(), CU.getCUNode(), Asm, this, &SkeletonHolder);
+      CU.getUniqueID(), CU.getCUNode(), Asm, this, &SkeletonHolder,
+      UnitKind::Skeleton);
   DwarfCompileUnit &NewCU = *OwnedUnit;
   NewCU.setSection(Asm->getObjFileLowering().getDwarfInfoSection());
 

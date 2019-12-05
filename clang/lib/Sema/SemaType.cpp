@@ -7562,7 +7562,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         // Otherwise, only consider type processing for a C++11 attribute if
         // it's actually been applied to a type.
         // We also allow C++11 address_space and
-        // opencl language address space attributes to pass through.
+        // OpenCL language address space attributes to pass through.
         continue;
       }
     }

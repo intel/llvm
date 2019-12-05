@@ -63,15 +63,15 @@ constexpr bool modeWritesNewData(access::mode m) {
 }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_GLOBAL_AS __attribute__((ocl_global))
-#define SYCL_LOCAL_AS __attribute__((ocl_local))
-#define SYCL_CONSTANT_AS __attribute__((ocl_constant))
-#define SYCL_PRIVATE_AS __attribute__((ocl_private))
+#define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
+#define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
+#define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
+#define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
 #else
-#define SYCL_GLOBAL_AS
-#define SYCL_LOCAL_AS
-#define SYCL_CONSTANT_AS
-#define SYCL_PRIVATE_AS
+#define __OPENCL_GLOBAL_AS__
+#define __OPENCL_LOCAL_AS__
+#define __OPENCL_CONSTANT_AS__
+#define __OPENCL_PRIVATE_AS__
 #endif
 
 template <typename dataT, access::target accessTarget>
@@ -79,17 +79,17 @@ struct DeviceValueType;
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::global_buffer> {
-  using type = SYCL_GLOBAL_AS dataT;
+  using type = __OPENCL_GLOBAL_AS__ dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::constant_buffer> {
-  using type = SYCL_CONSTANT_AS dataT;
+  using type = __OPENCL_CONSTANT_AS__ dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::local> {
-  using type = SYCL_LOCAL_AS dataT;
+  using type = __OPENCL_LOCAL_AS__ dataT;
 };
 
 template <typename dataT>
@@ -117,12 +117,12 @@ struct PtrValueType;
 
 template <typename ElementType>
 struct PtrValueType<ElementType, access::address_space::private_space> {
-  using type = SYCL_PRIVATE_AS ElementType;
+  using type = __OPENCL_PRIVATE_AS__ ElementType;
 };
 
 template <typename ElementType>
 struct PtrValueType<ElementType, access::address_space::global_space> {
-  using type = SYCL_GLOBAL_AS ElementType;
+  using type = __OPENCL_GLOBAL_AS__ ElementType;
 };
 
 template <typename ElementType>
@@ -135,12 +135,12 @@ struct PtrValueType<ElementType, access::address_space::constant_space> {
   // contains function members which return pure ElementType without qualifiers
   // and adding const qualifier here will require adding const casts to
   // multi_ptr methods to remove const qualifiers from underlying pointer type.
-  using type = SYCL_GLOBAL_AS ElementType;
+  using type = __OPENCL_GLOBAL_AS__ ElementType;
 };
 
 template <typename ElementType>
 struct PtrValueType<ElementType, access::address_space::local_space> {
-  using type = SYCL_LOCAL_AS ElementType;
+  using type = __OPENCL_LOCAL_AS__ ElementType;
 };
 
 template <class T>
@@ -150,30 +150,30 @@ struct remove_AS {
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <class T>
-struct remove_AS<SYCL_GLOBAL_AS T> {
+struct remove_AS<__OPENCL_GLOBAL_AS__ T> {
   typedef T type;
 };
 
 template <class T>
-struct remove_AS<SYCL_PRIVATE_AS T> {
+struct remove_AS<__OPENCL_PRIVATE_AS__ T> {
   typedef T type;
 };
 
 template <class T>
-struct remove_AS<SYCL_LOCAL_AS T> {
+struct remove_AS<__OPENCL_LOCAL_AS__ T> {
   typedef T type;
 };
 
 template <class T>
-struct remove_AS<SYCL_CONSTANT_AS T> {
+struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
   typedef T type;
 };
 #endif
 
-#undef SYCL_GLOBAL_AS
-#undef SYCL_LOCAL_AS
-#undef SYCL_CONSTANT_AS
-#undef SYCL_PRIVATE_AS
+#undef __OPENCL_GLOBAL_AS__
+#undef __OPENCL_LOCAL_AS__
+#undef __OPENCL_CONSTANT_AS__
+#undef __OPENCL_PRIVATE_AS__
 
 } // namespace detail
 
