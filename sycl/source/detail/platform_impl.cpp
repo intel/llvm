@@ -136,58 +136,58 @@ static std::vector<DevDescT> getWhiteListDesc() {
   return decDescs;
 }
 
-static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices,
-                            RT::PiPlatform pi_platform) {
-  const std::vector<DevDescT> whiteList(getWhiteListDesc());
-  if (whiteList.empty())
+static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
+                            RT::PiPlatform PiPlatform) {
+  const std::vector<DevDescT> WhiteList(getWhiteListDesc());
+  if (WhiteList.empty())
     return;
 
-  const string_class platformName =
+  const string_class PlatformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
-          pi_platform);
+          PiPlatform);
 
-  const string_class platformVer = sycl::detail::get_platform_info<
-      string_class, info::platform::version>::get(pi_platform);
+  const string_class PlatformVer =
+      sycl::detail::get_platform_info<string_class,
+                                      info::platform::version>::get(PiPlatform);
 
-  int insertIDx = 0;
-  for (RT::PiDevice dev : pi_devices) {
-    const string_class devName =
+  int InsertIDx = 0;
+  for (RT::PiDevice Device : PiDevices) {
+    const string_class DeviceName =
         sycl::detail::get_device_info<string_class, info::device::name>::get(
-            dev);
+            Device);
 
-    const string_class devDriverVer =
-        sycl::detail::get_device_info<string_class,
-                                      info::device::driver_version>::get(dev);
+    const string_class DeviceDriverVer = sycl::detail::get_device_info<
+        string_class, info::device::driver_version>::get(Device);
 
-    for (const DevDescT &desc : whiteList) {
-      if (nullptr != desc.platformName &&
-          !std::regex_match(platformName,
-                            std::regex(std::string(desc.platformName,
-                                                   desc.platformNameSize))))
+    for (const DevDescT &Desc : WhiteList) {
+      if (nullptr != Desc.platformName &&
+          !std::regex_match(PlatformName,
+                            std::regex(std::string(Desc.platformName,
+                                                   Desc.platformNameSize))))
         continue;
 
-      if (nullptr != desc.platformVer &&
+      if (nullptr != Desc.platformVer &&
           !std::regex_match(
-              platformVer,
-              std::regex(std::string(desc.platformVer, desc.platformVerSize))))
+              PlatformVer,
+              std::regex(std::string(Desc.platformVer, Desc.platformVerSize))))
         continue;
 
-      if (nullptr != desc.devName &&
-          !std::regex_match(
-              devName, std::regex(std::string(desc.devName, desc.devNameSize))))
+      if (nullptr != Desc.devName &&
+          !std::regex_match(DeviceName, std::regex(std::string(
+                                            Desc.devName, Desc.devNameSize))))
         continue;
 
-      if (nullptr != desc.devDriverVer &&
-          !std::regex_match(devDriverVer,
-                            std::regex(std::string(desc.devDriverVer,
-                                                   desc.devDriverVerSize))))
+      if (nullptr != Desc.devDriverVer &&
+          !std::regex_match(DeviceDriverVer,
+                            std::regex(std::string(Desc.devDriverVer,
+                                                   Desc.devDriverVerSize))))
         continue;
 
-      pi_devices[insertIDx++] = dev;
+      PiDevices[InsertIDx++] = Device;
       break;
     }
   }
-  pi_devices.resize(insertIDx);
+  PiDevices.resize(InsertIDx);
 }
 
 vector_class<device>
