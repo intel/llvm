@@ -31,7 +31,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
     if (!Alignment) {
-      // worst case default
+      // Worst case default
       Alignment = 128;
     }
 
@@ -275,7 +275,7 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
     auto Devs = Ctxt.get_devices();
     bool found = false;
     for (auto D : Devs) {
-      // try to find the real sycl device we used in the Context
+      // Try to find the real sycl device we used in the Context
       if (detail::pi::cast<pi_device>(D.get()) == DeviceId) {
         Result = D;
         found = true;
