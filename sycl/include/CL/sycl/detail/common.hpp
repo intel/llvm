@@ -246,11 +246,12 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-// Kernel set id, used to group kernel names together based on their
-// distribution among device images
+// Kernel set ID, used to group kernels (represented by OSModule & kernel name
+// pairs) into disjoint sets based on the kernel distribution among device
+// images.
 using KernelSetId = size_t;
-// For kernels contained within the SPIRV file specified with an environment
-// variable
+// Kernel set ID for kernels contained within the SPIRV file specified via
+// environment.
 constexpr KernelSetId SpvFileKSId = 0;
 constexpr KernelSetId LastKSId = SpvFileKSId;
 

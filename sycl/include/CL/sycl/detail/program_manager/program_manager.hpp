@@ -83,18 +83,15 @@ private:
   /// Dumps image to current directory
   void dumpImage(const DeviceImage &Img, KernelSetId KSId) const;
 
-  using KernelToImgsMap =
-      std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>;
-  using StrToKSIdMap = std::map<string_class, KernelSetId>;
   /// Keeps all available device executable images added via \ref addImages.
-  /// Organizes the images as a map from a module handle (.exe .dll) to another
-  /// map from a set of kernels to the vector of images containing them and
-  /// coming from the module.
+  /// Organizes the images as a map from a kernel set id to the vector of images
+  /// containing kernels from that set.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, KernelToImgsMap> m_DeviceImages;
+  std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>> m_DeviceImages;
 
-  /// Maps names of kernels from a specific OS module to their set id (the
-  /// sets are disjoint).
+  using StrToKSIdMap = std::map<string_class, KernelSetId>;
+  /// Maps names of kernels from a specific OS module (.exe .dll) to their set
+  /// id (the sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
 

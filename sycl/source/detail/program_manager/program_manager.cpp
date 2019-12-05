@@ -288,7 +288,7 @@ ProgramManager::ProgramManager() {
     // No need for a mutex here since all access to these private fields is
     // blocked until the construction of the ProgramManager singleton is
     // finished.
-    m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKSId].reset(
+    m_DeviceImages[SpvFileKSId].reset(
         new std::vector<DeviceImage *>({ImgPtr.get()}));
 
     m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
@@ -304,7 +304,7 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  std::vector<DeviceImage *> &Imgs = *m_DeviceImages[M][KSId];
+  std::vector<DeviceImage *> &Imgs = *m_DeviceImages[KSId];
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
   DeviceImage *Img = nullptr;
 
@@ -377,7 +377,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
              ++EntriesIt)
           assert(KSIdMap[EntriesIt->name] == KSIdIt->second &&
                  "Kernel sets are not disjoint");
-        auto &Imgs = m_DeviceImages[M][KSIdIt->second];
+        auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
         Imgs->push_back(Img);
         continue;
@@ -390,7 +390,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
         assert(Result.second && "Kernel sets are not disjoint");
       }
-      m_DeviceImages[M][KSId].reset(new std::vector<DeviceImage *>({Img}));
+      m_DeviceImages[KSId].reset(new std::vector<DeviceImage *>({Img}));
       continue;
     }
     // Otherwise assume that the image contains all kernels associated with the
@@ -399,7 +399,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (KSId == 0)
       KSId = getNextKernelSetId();
 
-    auto &Imgs = m_DeviceImages[M][KSId];
+    auto &Imgs = m_DeviceImages[KSId];
     if (!Imgs)
       Imgs.reset(new std::vector<DeviceImage *>({Img}));
     else
@@ -427,11 +427,10 @@ void ProgramManager::debugDumpBinaryImage(const DeviceImage *Img) const {
 }
 
 void ProgramManager::debugDumpBinaryImages() const {
-  for (const auto &ImgMapIt : m_DeviceImages) {
-    std::cerr << "  ++++++ Module: " << ImgMapIt.first << "\n";
-    for (const auto &ImgVecIt : ImgMapIt.second)
-      for (const auto &Img : *ImgVecIt.second)
-        debugDumpBinaryImage(Img);
+  for (const auto &ImgVecIt : m_DeviceImages) {
+    std::cerr << "  ++++++ Kernel set: " << ImgVecIt.first << "\n";
+    for (const auto &Img : *ImgVecIt.second)
+      debugDumpBinaryImage(Img);
   }
 }
 
