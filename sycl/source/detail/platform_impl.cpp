@@ -30,15 +30,14 @@ vector_class<platform> platform_impl::get_platforms() {
     vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
     PI_CALL(piPlatformsGet)(NumPlatforms, PiPlatforms.data(), nullptr);
 
-    std::for_each(PiPlatforms.cbegin(), PiPlatforms.cend(),
-                  [&](const RT::PiPlatform &PiPlatform) {
-                    platform Platform = detail::createSyclObjFromImpl<platform>(
-                        std::make_shared<platform_impl>(PiPlatform));
-                    // Skip platforms which do not contain requested device
-                    // types
-                    if (!Platform.get_devices(ForcedType).empty())
-                      Platforms.push_back(Platform);
-                  });
+    for (const auto &PiPlatform : PiPlatforms) {
+      platform Platform = detail::createSyclObjFromImpl<platform>(
+          std::make_shared<platform_impl>(PiPlatform));
+      // Skip platforms which do not contain requested device
+      // types
+      if (!Platform.get_devices(ForcedType).empty())
+        Platforms.push_back(Platform);
+    }
   }
 
   if (ForcedType == info::device_type::host || ForcedType == info::device_type::all)
@@ -196,7 +195,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    Res.resize(1); // default device construct creates host device
+    Res.resize(1); // default device constructor creates host device
   }
 
   // If any DeviceType other than host was requested for host platform,
@@ -220,12 +219,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
     filterWhiteList(PiDevices, MPlatform);
 
-  std::for_each(PiDevices.begin(), PiDevices.end(),
-                [&Res](const RT::PiDevice &PiDevice) {
-                  device SyclDevice = detail::createSyclObjFromImpl<device>(
-                      std::make_shared<device_impl>(PiDevice));
-                  Res.push_back(SyclDevice);
-                });
+  Res.reserve(PiDevices.size());
+  std::transform(PiDevices.begin(), PiDevices.end(), Res.begin(),
+                 [](const RT::PiDevice &PiDevice) -> device {
+                   return detail::createSyclObjFromImpl<device>(
+                       std::make_shared<device_impl>(PiDevice));
+                 });
+
   return Res;
 }
 } // namespace detail

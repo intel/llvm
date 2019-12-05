@@ -63,7 +63,7 @@ public:
   /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const;
 
-  /// Checks if platform support specified extension.
+  /// Checks if platform supports specified extension.
   ///
   /// @param ExtensionName is a string containing extension name.
   /// @return true if specified extension is supported by this SYCL platform.
