@@ -1123,6 +1123,17 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelMaxWorkGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","max_work_group_size">];
+  let Args = [UnsignedArgument<"XDim">,
+              UnsignedArgument<"YDim">,
+              UnsignedArgument<"ZDim">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

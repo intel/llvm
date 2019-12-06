@@ -1980,6 +1980,19 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "max_work_group_size (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the maximum dimensions
+of a work group. Values must be positive integers. This is similar to
+reqd_work_group_size, but allows work groups that are smaller or equal to the
+specified sizes.
+If ``intelfpga::max_work_group_size`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to a kernel.
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";

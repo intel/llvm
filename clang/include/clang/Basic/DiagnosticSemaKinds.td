@@ -10155,6 +10155,9 @@ def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type">;
 def err_conflicting_sycl_kernel_attributes : Error<
   "conflicting attributes applied to a SYCL kernel">;
+def err_conflicting_sycl_function_attributes : Error<
+   "%0 attribute conflicts with '%1' attribute">;
+
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "%select{static function or function in an anonymous namespace"
