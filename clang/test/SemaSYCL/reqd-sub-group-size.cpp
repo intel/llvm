@@ -45,9 +45,13 @@ void bar() {
     baz();
   });
 #endif
+
+  kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}} 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}} 4
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}} 2
