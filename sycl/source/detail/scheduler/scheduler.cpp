@@ -21,14 +21,14 @@ namespace sycl {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
-  for (Command *Cmd : Record->MReadLeafs) {
+  for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
       throw runtime_error("Enqueue process failed.");
     GraphProcessor::waitForEvent(Cmd->getEvent());
   }
-  for (Command *Cmd : Record->MWriteLeafs) {
+  for (Command *Cmd : Record->MWriteLeaves) {
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
