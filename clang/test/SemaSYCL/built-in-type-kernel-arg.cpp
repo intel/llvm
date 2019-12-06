@@ -83,11 +83,9 @@ int main() {
 
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' lvalue <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' lvalue <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
 
 // Check kernel parameters
