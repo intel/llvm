@@ -1,6 +1,15 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DGOOD_PRINTF -x c++ %s
 
-extern int __spirv_ocl_printf(const char *__format, ...);
+#ifdef GOOD_PRINTF
+int __spirv_ocl_printf(const char *__format, ...);
+#else
+extern "C" int __spirv_ocl_printf(const char *__format, ...);
+namespace A {
+  int __spirv_ocl_printf(const char *__format, ...);
+}
+#endif
+
 
 int __cdecl foo(int, ...); // expected-no-error
 
@@ -21,8 +30,16 @@ int main() {
   kernel_single_task<class fake_kernel>([]() { foo(6); });
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { bar(9.0); });
-  // expected-no-error@+1
+
+#ifdef GOOD_PRINTF
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+#else
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { A::__spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+#endif
+
   bar();
   return 0;
 }

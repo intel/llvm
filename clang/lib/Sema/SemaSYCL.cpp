@@ -187,7 +187,10 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 static bool isKnownGoodDecl(Decl *D) {
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     IdentifierInfo *II = FD->getIdentifier();
-    if (II && II->getName().equals("__spirv_ocl_printf"))
+    if (II &&
+        FD->getDeclContext()->isTranslationUnit() &&
+        FD->getLanguageLinkage() == CXXLanguageLinkage &&
+        II->isStr("__spirv_ocl_printf"))
       return true;
   }
   return false;
