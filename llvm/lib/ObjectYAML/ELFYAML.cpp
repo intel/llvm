@@ -54,6 +54,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_PT>::enumeration(
   ECase(PT_GNU_EH_FRAME);
   ECase(PT_GNU_STACK);
   ECase(PT_GNU_RELRO);
+  ECase(PT_GNU_PROPERTY);
 #undef ECase
   IO.enumFallback<Hex32>(Value);
 }
@@ -1074,7 +1075,8 @@ static void sectionMapping(IO &IO, ELFYAML::NoBitsSection &Section) {
 static void sectionMapping(IO &IO, ELFYAML::VerdefSection &Section) {
   commonSectionMapping(IO, Section);
   IO.mapRequired("Info", Section.Info);
-  IO.mapRequired("Entries", Section.Entries);
+  IO.mapOptional("Entries", Section.Entries);
+  IO.mapOptional("Content", Section.Content);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::SymverSection &Section) {
@@ -1085,7 +1087,8 @@ static void sectionMapping(IO &IO, ELFYAML::SymverSection &Section) {
 static void sectionMapping(IO &IO, ELFYAML::VerneedSection &Section) {
   commonSectionMapping(IO, Section);
   IO.mapRequired("Info", Section.Info);
-  IO.mapRequired("Dependencies", Section.VerneedV);
+  IO.mapOptional("Dependencies", Section.VerneedV);
+  IO.mapOptional("Content", Section.Content);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::RelocationSection &Section) {
@@ -1416,6 +1419,20 @@ StringRef MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::validate(
       return {};
     if (F->Pattern->binary_size() != 0 && !F->Size)
       return "\"Size\" can't be 0 when \"Pattern\" is not empty";
+    return {};
+  }
+
+  if (const auto *VD = dyn_cast<ELFYAML::VerdefSection>(C.get())) {
+    if (VD->Entries && VD->Content)
+      return "SHT_GNU_verdef: \"Entries\" and \"Content\" can't be used "
+             "together";
+    return {};
+  }
+
+  if (const auto *VD = dyn_cast<ELFYAML::VerneedSection>(C.get())) {
+    if (VD->VerneedV && VD->Content)
+      return "SHT_GNU_verneed: \"Dependencies\" and \"Content\" can't be used "
+             "together";
     return {};
   }
 

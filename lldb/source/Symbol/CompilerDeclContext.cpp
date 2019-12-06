@@ -23,10 +23,6 @@ CompilerDeclContext::FindDeclByName(ConstString name,
     return std::vector<CompilerDecl>();
 }
 
-bool CompilerDeclContext::IsClang() const {
-  return IsValid() && m_type_system->getKind() == TypeSystem::eKindClang;
-}
-
 ConstString CompilerDeclContext::GetName() const {
   if (IsValid())
     return m_type_system->DeclContextGetName(m_opaque_decl_ctx);

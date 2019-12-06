@@ -1,4 +1,6 @@
 ## Test how llvm-readobj/llvm-readelf tools dump versioning sections.
+## Check that SHT_GNU_versym dumper can see versions described in
+## SHT_GNU_verdef and SHT_GNU_verneed sections.
 
 # RUN: yaml2obj %s --docnum=1 -o %t1
 # RUN: llvm-readobj -V %t1 | FileCheck %s --check-prefix=LLVM
@@ -63,6 +65,7 @@ Sections:
         Names:
           - VERSION2
           - VERSION1
+          - VERSION3
   - Name:         .gnu.version_r
     Type:         SHT_GNU_verneed
     Flags:        [ SHF_ALLOC ]
@@ -147,6 +150,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 0
 # LLVM-NEXT:     Hash: 0
 # LLVM-NEXT:     Name: VERSION1
+# LLVM-NEXT:     Predecessors: []
 # LLVM-NEXT:   }
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
@@ -156,6 +160,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 0
 # LLVM-NEXT:     Hash: 0
 # LLVM-NEXT:     Name: VERSION1
+# LLVM-NEXT:     Predecessors: []
 # LLVM-NEXT:   }
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
@@ -165,6 +170,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 0
 # LLVM-NEXT:     Hash: 0
 # LLVM-NEXT:     Name: VERSION1
+# LLVM-NEXT:     Predecessors: []
 # LLVM-NEXT:   }
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
@@ -174,6 +180,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 0
 # LLVM-NEXT:     Hash: 0
 # LLVM-NEXT:     Name: VERSION1
+# LLVM-NEXT:     Predecessors: []
 # LLVM-NEXT:   }
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
@@ -185,6 +192,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 2
 # LLVM-NEXT:     Hash: 175630257
 # LLVM-NEXT:     Name: VERSION1
+# LLVM-NEXT:     Predecessors: []
 # LLVM-NEXT:   }
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
@@ -193,7 +201,7 @@ DynamicSymbols:
 # LLVM-NEXT:     Index: 3
 # LLVM-NEXT:     Hash: 175630258
 # LLVM-NEXT:     Name: VERSION2
-# LLVM-NEXT:     Predecessor: VERSION1
+# LLVM-NEXT:     Predecessors: [VERSION1, VERSION3]
 # LLVM-NEXT:   }
 # LLVM-NEXT: ]
 # LLVM-NEXT: VersionRequirements [
@@ -273,11 +281,12 @@ DynamicSymbols:
 # GNU-NEXT:    0x0038: Rev: 1  Flags: WEAK  Index: 0  Cnt: 1  Name: VERSION1
 # GNU-NEXT:    0x0054: Rev: 1  Flags: INFO  Index: 0  Cnt: 1  Name: VERSION1
 # GNU-NEXT:    0x0070: Rev: 1  Flags: BASE | WEAK | INFO  Index: 2  Cnt: 1  Name: VERSION1
-# GNU-NEXT:    0x008c: Rev: 1  Flags: <unknown>  Index: 3  Cnt: 2  Name: VERSION2
-# GNU-NEXT:    0x00a8: Parent 1: VERSION1
+# GNU-NEXT:    0x008c: Rev: 1  Flags: <unknown>  Index: 3  Cnt: 3  Name: VERSION2
+# GNU-NEXT:    0x00b0: Parent 1: VERSION1
+# GNU-NEXT:    0x00b0: Parent 2: VERSION3
 # GNU-EMPTY:
 # GNU-NEXT:  Version needs section '.gnu.version_r' contains 2 entries:
-# GNU-NEXT:   Addr: 0000000000000000  Offset: 0x0000fc  Link: 7 (.dynstr)
+# GNU-NEXT:   Addr: 0000000000000000  Offset: 0x000104  Link: 7 (.dynstr)
 # GNU-NEXT:    0x0000: Version: 1  File: verneed1.so.0  Cnt: 5
 # GNU-NEXT:    0x0010:   Name: v1  Flags: BASE  Version: 0
 # GNU-NEXT:    0x0020:   Name: v1  Flags: WEAK  Version: 0

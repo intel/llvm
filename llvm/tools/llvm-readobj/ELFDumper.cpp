@@ -151,6 +151,41 @@ struct DynRegionInfo {
   }
 };
 
+namespace {
+struct VerdAux {
+  unsigned Offset;
+  std::string Name;
+};
+
+struct VerDef {
+  unsigned Offset;
+  unsigned Version;
+  unsigned Flags;
+  unsigned Ndx;
+  unsigned Cnt;
+  unsigned Hash;
+  std::string Name;
+  std::vector<VerdAux> AuxV;
+};
+
+struct VernAux {
+  unsigned Hash;
+  unsigned Flags;
+  unsigned Other;
+  unsigned Offset;
+  std::string Name;
+};
+
+struct VerNeed {
+  unsigned Version;
+  unsigned Cnt;
+  unsigned Offset;
+  std::string File;
+  std::vector<VernAux> AuxV;
+};
+
+} // namespace
+
 template <typename ELFT> class ELFDumper : public ObjDumper {
 public:
   ELFDumper(const object::ELFObjectFile<ELFT> *ObjF, ScopedPrinter &Writer);
@@ -223,11 +258,8 @@ private:
   void loadDynamicTable(const ELFFile<ELFT> *Obj);
   void parseDynamicTable();
 
-  StringRef getSymbolVersion(StringRef StrTab, const Elf_Sym *symb,
-                             bool &IsDefault) const;
+  StringRef getSymbolVersion(const Elf_Sym *symb, bool &IsDefault) const;
   void LoadVersionMap() const;
-  void LoadVersionNeeds(const Elf_Shdr *ec) const;
-  void LoadVersionDefs(const Elf_Shdr *sec) const;
 
   const object::ELFObjectFile<ELFT> *ObjF;
   DynRegionInfo DynRelRegion;
@@ -250,29 +282,11 @@ private:
   const Elf_Shdr *SymbolVersionNeedSection = nullptr; // .gnu.version_r
   const Elf_Shdr *SymbolVersionDefSection = nullptr; // .gnu.version_d
 
-  // Records for each version index the corresponding Verdef or Vernaux entry.
-  // This is filled the first time LoadVersionMap() is called.
-  class VersionMapEntry : public PointerIntPair<const void *, 1> {
-  public:
-    // If the integer is 0, this is an Elf_Verdef*.
-    // If the integer is 1, this is an Elf_Vernaux*.
-    VersionMapEntry() : PointerIntPair<const void *, 1>(nullptr, 0) {}
-    VersionMapEntry(const Elf_Verdef *verdef)
-        : PointerIntPair<const void *, 1>(verdef, 0) {}
-    VersionMapEntry(const Elf_Vernaux *vernaux)
-        : PointerIntPair<const void *, 1>(vernaux, 1) {}
-
-    bool isNull() const { return getPointer() == nullptr; }
-    bool isVerdef() const { return !isNull() && getInt() == 0; }
-    bool isVernaux() const { return !isNull() && getInt() == 1; }
-    const Elf_Verdef *getVerdef() const {
-      return isVerdef() ? (const Elf_Verdef *)getPointer() : nullptr;
-    }
-    const Elf_Vernaux *getVernaux() const {
-      return isVernaux() ? (const Elf_Vernaux *)getPointer() : nullptr;
-    }
+  struct VersionEntry {
+    std::string Name;
+    bool IsVerDef;
   };
-  mutable SmallVector<VersionMapEntry, 16> VersionMap;
+  mutable SmallVector<Optional<VersionEntry>, 16> VersionMap;
 
 public:
   Elf_Dyn_Range dynamic_table() const {
@@ -305,8 +319,7 @@ public:
                                            unsigned SectionIndex) const;
   Expected<std::string> getStaticSymbolName(uint32_t Index) const;
   std::string getDynamicString(uint64_t Value) const;
-  StringRef getSymbolVersionByIndex(StringRef StrTab,
-                                    uint32_t VersionSymbolIndex,
+  StringRef getSymbolVersionByIndex(uint32_t VersionSymbolIndex,
                                     bool &IsDefault) const;
 
   void printSymbolsHelper(bool IsDynamic) const;
@@ -324,7 +337,218 @@ public:
   const DynRegionInfo &getDynamicTableRegion() const { return DynamicTable; }
   const Elf_Hash *getHashTable() const { return HashTable; }
   const Elf_GnuHash *getGnuHashTable() const { return GnuHashTable; }
+
+  Expected<std::vector<VerDef>>
+  getVersionDefinitions(const Elf_Shdr *Sec) const;
+  Expected<std::vector<VerNeed>>
+  getVersionDependencies(const Elf_Shdr *Sec) const;
 };
+
+template <class ELFT>
+static Expected<StringRef> getLinkAsStrtab(const ELFFile<ELFT> *Obj,
+                                           const typename ELFT::Shdr *Sec,
+                                           unsigned SecNdx) {
+  Expected<const typename ELFT::Shdr *> StrTabSecOrErr =
+      Obj->getSection(Sec->sh_link);
+  if (!StrTabSecOrErr)
+    return createError("invalid section linked to " +
+                       object::getELFSectionTypeName(
+                           Obj->getHeader()->e_machine, Sec->sh_type) +
+                       " section with index " + Twine(SecNdx) + ": " +
+                       toString(StrTabSecOrErr.takeError()));
+
+  Expected<StringRef> StrTabOrErr = Obj->getStringTable(*StrTabSecOrErr);
+  if (!StrTabOrErr)
+    return createError("invalid string table linked to " +
+                       object::getELFSectionTypeName(
+                           Obj->getHeader()->e_machine, Sec->sh_type) +
+                       " section with index " + Twine(SecNdx) + ": " +
+                       toString(StrTabOrErr.takeError()));
+  return *StrTabOrErr;
+}
+
+template <class ELFT>
+Expected<std::vector<VerDef>>
+ELFDumper<ELFT>::getVersionDefinitions(const Elf_Shdr *Sec) const {
+  const ELFFile<ELFT> *Obj = ObjF->getELFFile();
+  unsigned SecNdx = Sec - &cantFail(Obj->sections()).front();
+
+  Expected<StringRef> StrTabOrErr = getLinkAsStrtab(Obj, Sec, SecNdx);
+  if (!StrTabOrErr)
+    return StrTabOrErr.takeError();
+
+  Expected<ArrayRef<uint8_t>> ContentsOrErr = Obj->getSectionContents(Sec);
+  if (!ContentsOrErr)
+    return createError(
+        "cannot read content of SHT_GNU_verdef section with index " +
+        Twine(SecNdx) + ": " + toString(ContentsOrErr.takeError()));
+
+  const uint8_t *Start = ContentsOrErr->data();
+  const uint8_t *End = Start + ContentsOrErr->size();
+
+  auto ExtractNextAux = [&](const uint8_t *&VerdauxBuf,
+                            unsigned VerDefNdx) -> Expected<VerdAux> {
+    if (VerdauxBuf + sizeof(Elf_Verdaux) > End)
+      return createError("invalid SHT_GNU_verdef section with index " +
+                         Twine(SecNdx) + ": version definition " +
+                         Twine(VerDefNdx) +
+                         " refers to an auxiliary entry that goes past the end "
+                         "of the section");
+
+    auto *Verdaux = reinterpret_cast<const Elf_Verdaux *>(VerdauxBuf);
+    VerdauxBuf += Verdaux->vda_next;
+
+    VerdAux Aux;
+    Aux.Offset = VerdauxBuf - Start;
+    if (Verdaux->vda_name <= StrTabOrErr->size())
+      Aux.Name = StrTabOrErr->drop_front(Verdaux->vda_name);
+    else
+      Aux.Name = "<invalid vda_name: " + to_string(Verdaux->vda_name) + ">";
+    return Aux;
+  };
+
+  std::vector<VerDef> Ret;
+  const uint8_t *VerdefBuf = Start;
+  for (unsigned I = 1; I <= /*VerDefsNum=*/Sec->sh_info; ++I) {
+    if (VerdefBuf + sizeof(Elf_Verdef) > End)
+      return createError("invalid SHT_GNU_verdef section with index " +
+                         Twine(SecNdx) + ": version definition " + Twine(I) +
+                         " goes past the end of the section");
+
+    if (uintptr_t(VerdefBuf) % sizeof(uint32_t) != 0)
+      return createError(
+          "invalid SHT_GNU_verdef section with index " + Twine(SecNdx) +
+          ": found a misaligned version definition entry at offset 0x" +
+          Twine::utohexstr(VerdefBuf - Start));
+
+    unsigned Version = *reinterpret_cast<const Elf_Half *>(VerdefBuf);
+    if (Version != 1)
+      return createError("unable to dump SHT_GNU_verdef section with index " +
+                         Twine(SecNdx) + ": version " + Twine(Version) +
+                         " is not yet supported");
+
+    const Elf_Verdef *D = reinterpret_cast<const Elf_Verdef *>(VerdefBuf);
+    VerDef &VD = *Ret.emplace(Ret.end());
+    VD.Offset = VerdefBuf - Start;
+    VD.Version = D->vd_version;
+    VD.Flags = D->vd_flags;
+    VD.Ndx = D->vd_ndx;
+    VD.Cnt = D->vd_cnt;
+    VD.Hash = D->vd_hash;
+
+    const uint8_t *VerdauxBuf = VerdefBuf + D->vd_aux;
+    for (unsigned J = 0; J < D->vd_cnt; ++J) {
+      if (uintptr_t(VerdauxBuf) % sizeof(uint32_t) != 0)
+        return createError("invalid SHT_GNU_verdef section with index " +
+                           Twine(SecNdx) +
+                           ": found a misaligned auxiliary entry at offset 0x" +
+                           Twine::utohexstr(VerdauxBuf - Start));
+
+      Expected<VerdAux> AuxOrErr = ExtractNextAux(VerdauxBuf, I);
+      if (!AuxOrErr)
+        return AuxOrErr.takeError();
+
+      if (J == 0)
+        VD.Name = AuxOrErr->Name;
+      else
+        VD.AuxV.push_back(*AuxOrErr);
+    }
+
+    VerdefBuf += D->vd_next;
+  }
+
+  return Ret;
+}
+
+template <class ELFT>
+Expected<std::vector<VerNeed>>
+ELFDumper<ELFT>::getVersionDependencies(const Elf_Shdr *Sec) const {
+  const ELFFile<ELFT> *Obj = ObjF->getELFFile();
+  unsigned SecNdx = Sec - &cantFail(Obj->sections()).front();
+
+  StringRef StrTab;
+  Expected<StringRef> StrTabOrErr = getLinkAsStrtab(Obj, Sec, SecNdx);
+  if (!StrTabOrErr)
+    ELFDumperStyle->reportUniqueWarning(StrTabOrErr.takeError());
+  else
+    StrTab = *StrTabOrErr;
+
+  Expected<ArrayRef<uint8_t>> ContentsOrErr = Obj->getSectionContents(Sec);
+  if (!ContentsOrErr)
+    return createError(
+        "cannot read content of SHT_GNU_verneed section with index " +
+        Twine(SecNdx) + ": " + toString(ContentsOrErr.takeError()));
+
+  const uint8_t *Start = ContentsOrErr->data();
+  const uint8_t *End = Start + ContentsOrErr->size();
+  const uint8_t *VerneedBuf = Start;
+
+  std::vector<VerNeed> Ret;
+  for (unsigned I = 1; I <= /*VerneedNum=*/Sec->sh_info; ++I) {
+    if (VerneedBuf + sizeof(Elf_Verdef) > End)
+      return createError("invalid SHT_GNU_verneed section with index " +
+                         Twine(SecNdx) + ": version dependency " + Twine(I) +
+                         " goes past the end of the section");
+
+    if (uintptr_t(VerneedBuf) % sizeof(uint32_t) != 0)
+      return createError(
+          "invalid SHT_GNU_verneed section with index " + Twine(SecNdx) +
+          ": found a misaligned version dependency entry at offset 0x" +
+          Twine::utohexstr(VerneedBuf - Start));
+
+    unsigned Version = *reinterpret_cast<const Elf_Half *>(VerneedBuf);
+    if (Version != 1)
+      return createError("unable to dump SHT_GNU_verneed section with index " +
+                         Twine(SecNdx) + ": version " + Twine(Version) +
+                         " is not yet supported");
+
+    const Elf_Verneed *Verneed =
+        reinterpret_cast<const Elf_Verneed *>(VerneedBuf);
+
+    VerNeed &VN = *Ret.emplace(Ret.end());
+    VN.Version = Verneed->vn_version;
+    VN.Cnt = Verneed->vn_cnt;
+    VN.Offset = VerneedBuf - Start;
+
+    if (Verneed->vn_file < StrTab.size())
+      VN.File = StrTab.drop_front(Verneed->vn_file);
+    else
+      VN.File = "<corrupt vn_file: " + to_string(Verneed->vn_file) + ">";
+
+    const uint8_t *VernauxBuf = VerneedBuf + Verneed->vn_aux;
+    for (unsigned J = 0; J < Verneed->vn_cnt; ++J) {
+      if (uintptr_t(VernauxBuf) % sizeof(uint32_t) != 0)
+        return createError("invalid SHT_GNU_verneed section with index " +
+                           Twine(SecNdx) +
+                           ": found a misaligned auxiliary entry at offset 0x" +
+                           Twine::utohexstr(VernauxBuf - Start));
+
+      if (VernauxBuf + sizeof(Elf_Vernaux) > End)
+        return createError(
+            "invalid SHT_GNU_verneed section with index " + Twine(SecNdx) +
+            ": version dependency " + Twine(I) +
+            " refers to an auxiliary entry that goes past the end "
+            "of the section");
+
+      const Elf_Vernaux *Vernaux =
+          reinterpret_cast<const Elf_Vernaux *>(VernauxBuf);
+
+      VernAux &Aux = *VN.AuxV.emplace(VN.AuxV.end());
+      Aux.Hash = Vernaux->vna_hash;
+      Aux.Flags = Vernaux->vna_flags;
+      Aux.Other = Vernaux->vna_other;
+      Aux.Offset = VernauxBuf - Start;
+      if (StrTab.size() <= Vernaux->vna_name)
+        Aux.Name = "<corrupt>";
+      else
+        Aux.Name = StrTab.drop_front(Vernaux->vna_name);
+
+      VernauxBuf += Vernaux->vna_next;
+    }
+    VerneedBuf += Verneed->vn_next;
+  }
+  return Ret;
+}
 
 template <class ELFT>
 void ELFDumper<ELFT>::printSymbolsHelper(bool IsDynamic) const {
@@ -556,6 +780,9 @@ private:
   bool checkPTDynamic(const Elf_Phdr &Phdr, const Elf_Shdr &Sec);
   void printProgramHeaders(const ELFO *Obj);
   void printSectionMapping(const ELFO *Obj);
+  void printGNUVersionSectionProlog(const ELFFile<ELFT> *Obj,
+                                    const typename ELFT::Shdr *Sec,
+                                    const Twine &Label, unsigned EntriesNum);
 };
 
 template <class ELFT>
@@ -652,78 +879,6 @@ std::error_code createELFDumper(const object::ObjectFile *Obj,
 
 } // end namespace llvm
 
-// Iterate through the versions needed section, and place each Elf_Vernaux
-// in the VersionMap according to its index.
-template <class ELFT>
-void ELFDumper<ELFT>::LoadVersionNeeds(const Elf_Shdr *Sec) const {
-  unsigned VerneedSize = Sec->sh_size;    // Size of section in bytes
-  unsigned VerneedEntries = Sec->sh_info; // Number of Verneed entries
-  const uint8_t *VerneedStart = reinterpret_cast<const uint8_t *>(
-      ObjF->getELFFile()->base() + Sec->sh_offset);
-  const uint8_t *VerneedEnd = VerneedStart + VerneedSize;
-  // The first Verneed entry is at the start of the section.
-  const uint8_t *VerneedBuf = VerneedStart;
-  for (unsigned VerneedIndex = 0; VerneedIndex < VerneedEntries;
-       ++VerneedIndex) {
-    if (VerneedBuf + sizeof(Elf_Verneed) > VerneedEnd)
-      report_fatal_error("Section ended unexpectedly while scanning "
-                         "version needed records.");
-    const Elf_Verneed *Verneed =
-        reinterpret_cast<const Elf_Verneed *>(VerneedBuf);
-    if (Verneed->vn_version != ELF::VER_NEED_CURRENT)
-      report_fatal_error("Unexpected verneed version");
-    // Iterate through the Vernaux entries
-    const uint8_t *VernauxBuf = VerneedBuf + Verneed->vn_aux;
-    for (unsigned VernauxIndex = 0; VernauxIndex < Verneed->vn_cnt;
-         ++VernauxIndex) {
-      if (VernauxBuf + sizeof(Elf_Vernaux) > VerneedEnd)
-        report_fatal_error("Section ended unexpected while scanning auxiliary "
-                           "version needed records.");
-      if ((ptrdiff_t)VernauxBuf % sizeof(uint32_t) != 0)
-        reportError(createError("SHT_GNU_verneed: the vn_aux field of the "
-                                "entry with index " +
-                                Twine(VerneedIndex) +
-                                " references a misaligned auxiliary record"),
-                    ObjF->getFileName());
-
-      const Elf_Vernaux *Vernaux =
-          reinterpret_cast<const Elf_Vernaux *>(VernauxBuf);
-      size_t Index = Vernaux->vna_other & ELF::VERSYM_VERSION;
-      if (Index >= VersionMap.size())
-        VersionMap.resize(Index + 1);
-      VersionMap[Index] = VersionMapEntry(Vernaux);
-      VernauxBuf += Vernaux->vna_next;
-    }
-    VerneedBuf += Verneed->vn_next;
-  }
-}
-
-// Iterate through the version definitions, and place each Elf_Verdef
-// in the VersionMap according to its index.
-template <class ELFT>
-void ELFDumper<ELFT>::LoadVersionDefs(const Elf_Shdr *Sec) const {
-  unsigned VerdefSize = Sec->sh_size;    // Size of section in bytes
-  unsigned VerdefEntries = Sec->sh_info; // Number of Verdef entries
-  const uint8_t *VerdefStart = reinterpret_cast<const uint8_t *>(
-      ObjF->getELFFile()->base() + Sec->sh_offset);
-  const uint8_t *VerdefEnd = VerdefStart + VerdefSize;
-  // The first Verdef entry is at the start of the section.
-  const uint8_t *VerdefBuf = VerdefStart;
-  for (unsigned VerdefIndex = 0; VerdefIndex < VerdefEntries; ++VerdefIndex) {
-    if (VerdefBuf + sizeof(Elf_Verdef) > VerdefEnd)
-      report_fatal_error("Section ended unexpectedly while scanning "
-                         "version definitions.");
-    const Elf_Verdef *Verdef = reinterpret_cast<const Elf_Verdef *>(VerdefBuf);
-    if (Verdef->vd_version != ELF::VER_DEF_CURRENT)
-      report_fatal_error("Unexpected verdef version");
-    size_t Index = Verdef->vd_ndx & ELF::VERSYM_VERSION;
-    if (Index >= VersionMap.size())
-      VersionMap.resize(Index + 1);
-    VersionMap[Index] = VersionMapEntry(Verdef);
-    VerdefBuf += Verdef->vd_next;
-  }
-}
-
 template <class ELFT> void ELFDumper<ELFT>::LoadVersionMap() const {
   // If there is no dynamic symtab or version table, there is nothing to do.
   if (!DynSymRegion.Addr || !SymbolVersionSection)
@@ -735,19 +890,37 @@ template <class ELFT> void ELFDumper<ELFT>::LoadVersionMap() const {
 
   // The first two version indexes are reserved.
   // Index 0 is LOCAL, index 1 is GLOBAL.
-  VersionMap.push_back(VersionMapEntry());
-  VersionMap.push_back(VersionMapEntry());
+  VersionMap.push_back(VersionEntry());
+  VersionMap.push_back(VersionEntry());
 
-  if (SymbolVersionDefSection)
-    LoadVersionDefs(SymbolVersionDefSection);
+  auto InsertEntry = [this](unsigned N, StringRef Version, bool IsVerdef) {
+    if (N >= VersionMap.size())
+      VersionMap.resize(N + 1);
+    VersionMap[N] = {Version, IsVerdef};
+  };
 
-  if (SymbolVersionNeedSection)
-    LoadVersionNeeds(SymbolVersionNeedSection);
+  if (SymbolVersionDefSection) {
+    Expected<std::vector<VerDef>> Defs =
+        this->getVersionDefinitions(SymbolVersionDefSection);
+    if (!Defs)
+      reportError(Defs.takeError(), ObjF->getFileName());
+    for (const VerDef &Def : *Defs)
+      InsertEntry(Def.Ndx & ELF::VERSYM_VERSION, Def.Name, true);
+  }
+
+  if (SymbolVersionNeedSection) {
+    Expected<std::vector<VerNeed>> Deps =
+        this->getVersionDependencies(SymbolVersionNeedSection);
+    if (!Deps)
+      reportError(Deps.takeError(), ObjF->getFileName());
+    for (const VerNeed &Dep : *Deps)
+      for (const VernAux &Aux : Dep.AuxV)
+        InsertEntry(Aux.Other & ELF::VERSYM_VERSION, Aux.Name, false);
+  }
 }
 
 template <typename ELFT>
-StringRef ELFDumper<ELFT>::getSymbolVersion(StringRef StrTab,
-                                            const Elf_Sym *Sym,
+StringRef ELFDumper<ELFT>::getSymbolVersion(const Elf_Sym *Sym,
                                             bool &IsDefault) const {
   // This is a dynamic symbol. Look in the GNU symbol version table.
   if (!SymbolVersionSection) {
@@ -765,7 +938,7 @@ StringRef ELFDumper<ELFT>::getSymbolVersion(StringRef StrTab,
   const Elf_Versym *Versym = unwrapOrError(
       ObjF->getFileName(), ObjF->getELFFile()->template getEntry<Elf_Versym>(
                                SymbolVersionSection, EntryIndex));
-  return this->getSymbolVersionByIndex(StrTab, Versym->vs_index, IsDefault);
+  return this->getSymbolVersionByIndex(Versym->vs_index, IsDefault);
 }
 
 static std::string maybeDemangle(StringRef Name) {
@@ -792,8 +965,7 @@ ELFDumper<ELFT>::getStaticSymbolName(uint32_t Index) const {
 }
 
 template <typename ELFT>
-StringRef ELFDumper<ELFT>::getSymbolVersionByIndex(StringRef StrTab,
-                                                   uint32_t SymbolVersionIndex,
+StringRef ELFDumper<ELFT>::getSymbolVersionByIndex(uint32_t SymbolVersionIndex,
                                                    bool &IsDefault) const {
   size_t VersionIndex = SymbolVersionIndex & VERSYM_VERSION;
 
@@ -805,23 +977,15 @@ StringRef ELFDumper<ELFT>::getSymbolVersionByIndex(StringRef StrTab,
 
   // Lookup this symbol in the version table.
   LoadVersionMap();
-  if (VersionIndex >= VersionMap.size() || VersionMap[VersionIndex].isNull())
+  if (VersionIndex >= VersionMap.size() || !VersionMap[VersionIndex])
     reportError(createError("Invalid version entry"), ObjF->getFileName());
-  const VersionMapEntry &Entry = VersionMap[VersionIndex];
 
-  // Get the version name string.
-  size_t NameOffset;
-  if (Entry.isVerdef()) {
-    // The first Verdaux entry holds the name.
-    NameOffset = Entry.getVerdef()->getAux()->vda_name;
+  const VersionEntry &Entry = *VersionMap[VersionIndex];
+  if (Entry.IsVerDef)
     IsDefault = !(SymbolVersionIndex & VERSYM_HIDDEN);
-  } else {
-    NameOffset = Entry.getVernaux()->vna_name;
+  else
     IsDefault = false;
-  }
-  if (NameOffset >= StrTab.size())
-    reportError(createError("Invalid string offset"), ObjF->getFileName());
-  return StrTab.data() + NameOffset;
+  return Entry.Name.c_str();
 }
 
 template <typename ELFT>
@@ -852,7 +1016,7 @@ std::string ELFDumper<ELFT>::getFullSymbolName(const Elf_Sym *Symbol,
     return SymbolName;
 
   bool IsDefault;
-  StringRef Version = getSymbolVersion(StrTable, &*Symbol, IsDefault);
+  StringRef Version = getSymbolVersion(&*Symbol, IsDefault);
   if (!Version.empty()) {
     SymbolName += (IsDefault ? "@@" : "@");
     SymbolName += Version;
@@ -1274,6 +1438,7 @@ static const char *getElfSegmentType(unsigned Arch, unsigned Type) {
 
     LLVM_READOBJ_ENUM_CASE(ELF, PT_GNU_STACK);
     LLVM_READOBJ_ENUM_CASE(ELF, PT_GNU_RELRO);
+    LLVM_READOBJ_ENUM_CASE(ELF, PT_GNU_PROPERTY);
 
     LLVM_READOBJ_ENUM_CASE(ELF, PT_OPENBSD_RANDOMIZE);
     LLVM_READOBJ_ENUM_CASE(ELF, PT_OPENBSD_WXNEEDED);
@@ -1298,6 +1463,7 @@ static std::string getElfPtType(unsigned Arch, unsigned Type) {
     LLVM_READOBJ_PHDR_ENUM(ELF, PT_SUNW_UNWIND)
     LLVM_READOBJ_PHDR_ENUM(ELF, PT_GNU_STACK)
     LLVM_READOBJ_PHDR_ENUM(ELF, PT_GNU_RELRO)
+    LLVM_READOBJ_PHDR_ENUM(ELF, PT_GNU_PROPERTY)
   default:
     // All machine specific PT_* types
     switch (Arch) {
@@ -3805,18 +3971,29 @@ void GNUStyle<ELFT>::printDynamicRelocations(const ELFO *Obj) {
 }
 
 template <class ELFT>
-static void printGNUVersionSectionProlog(formatted_raw_ostream &OS,
-                                         const Twine &Name, unsigned EntriesNum,
-                                         const ELFFile<ELFT> *Obj,
-                                         const typename ELFT::Shdr *Sec,
-                                         StringRef FileName) {
-  StringRef SecName = unwrapOrError(FileName, Obj->getSectionName(Sec));
-  OS << Name << " section '" << SecName << "' "
+void GNUStyle<ELFT>::printGNUVersionSectionProlog(
+    const ELFFile<ELFT> *Obj, const typename ELFT::Shdr *Sec,
+    const Twine &Label, unsigned EntriesNum) {
+  StringRef SecName = unwrapOrError(this->FileName, Obj->getSectionName(Sec));
+  OS << Label << " section '" << SecName << "' "
      << "contains " << EntriesNum << " entries:\n";
 
-  const typename ELFT::Shdr *SymTab =
-      unwrapOrError(FileName, Obj->getSection(Sec->sh_link));
-  StringRef SymTabName = unwrapOrError(FileName, Obj->getSectionName(SymTab));
+  unsigned SecNdx = Sec - &cantFail(Obj->sections()).front();
+  StringRef SymTabName = "<corrupt>";
+
+  Expected<const typename ELFT::Shdr *> SymTabOrErr =
+      Obj->getSection(Sec->sh_link);
+  if (SymTabOrErr)
+    SymTabName =
+        unwrapOrError(this->FileName, Obj->getSectionName(*SymTabOrErr));
+  else
+    this->reportUniqueWarning(
+        createError("invalid section linked to " +
+                    object::getELFSectionTypeName(Obj->getHeader()->e_machine,
+                                                  Sec->sh_type) +
+                    " section with index " + Twine(SecNdx) + ": " +
+                    toString(SymTabOrErr.takeError())));
+
   OS << " Addr: " << format_hex_no_prefix(Sec->sh_addr, 16)
      << "  Offset: " << format_hex(Sec->sh_offset, 8)
      << "  Link: " << Sec->sh_link << " (" << SymTabName << ")\n";
@@ -3829,13 +4006,11 @@ void GNUStyle<ELFT>::printVersionSymbolSection(const ELFFile<ELFT> *Obj,
     return;
 
   unsigned Entries = Sec->sh_size / sizeof(Elf_Versym);
-  printGNUVersionSectionProlog(OS, "Version symbols", Entries, Obj, Sec,
-                               this->FileName);
+  printGNUVersionSectionProlog(Obj, Sec, "Version symbols", Entries);
 
   const uint8_t *VersymBuf =
       reinterpret_cast<const uint8_t *>(Obj->base() + Sec->sh_offset);
   const ELFDumper<ELFT> *Dumper = this->dumper();
-  StringRef StrTable = Dumper->getDynamicStringTable();
 
   // readelf prints 4 entries per line.
   for (uint64_t VersymRow = 0; VersymRow < Entries; VersymRow += 4) {
@@ -3854,17 +4029,17 @@ void GNUStyle<ELFT>::printVersionSymbolSection(const ELFFile<ELFT> *Obj,
         OS << "   1 (*global*)   ";
         break;
       default:
-        OS << format("%4x%c", Versym->vs_index & VERSYM_VERSION,
-                     Versym->vs_index & VERSYM_HIDDEN ? 'h' : ' ');
-
         bool IsDefault = true;
-        std::string VersionName = Dumper->getSymbolVersionByIndex(
-            StrTable, Versym->vs_index, IsDefault);
+        std::string VersionName =
+            Dumper->getSymbolVersionByIndex(Versym->vs_index, IsDefault);
 
         if (!VersionName.empty())
           VersionName = "(" + VersionName + ")";
         else
           VersionName = "(*invalid*)";
+
+        OS << format("%4x%c", Versym->vs_index & VERSYM_VERSION,
+                     Versym->vs_index & VERSYM_HIDDEN ? 'h' : ' ');
         OS << left_justify(VersionName, 13);
       }
       VersymBuf += sizeof(Elf_Versym);
@@ -3901,42 +4076,25 @@ void GNUStyle<ELFT>::printVersionDefinitionSection(const ELFFile<ELFT> *Obj,
   if (!Sec)
     return;
 
-  unsigned VerDefsNum = Sec->sh_info;
-  printGNUVersionSectionProlog(OS, "Version definition", VerDefsNum, Obj, Sec,
-                               this->FileName);
+  printGNUVersionSectionProlog(Obj, Sec, "Version definition", Sec->sh_info);
 
-  const Elf_Shdr *StrTabSec =
-      unwrapOrError(this->FileName, Obj->getSection(Sec->sh_link));
-  StringRef StringTable(
-      reinterpret_cast<const char *>(Obj->base() + StrTabSec->sh_offset),
-      (size_t)StrTabSec->sh_size);
-
-  const uint8_t *VerdefBuf =
-      unwrapOrError(this->FileName, Obj->getSectionContents(Sec)).data();
-  const uint8_t *Begin = VerdefBuf;
-
-  while (VerDefsNum--) {
-    const Elf_Verdef *Verdef = reinterpret_cast<const Elf_Verdef *>(VerdefBuf);
-    OS << format("  0x%04x: Rev: %u  Flags: %s  Index: %u  Cnt: %u",
-                 VerdefBuf - Begin, (unsigned)Verdef->vd_version,
-                 versionFlagToString(Verdef->vd_flags).c_str(),
-                 (unsigned)Verdef->vd_ndx, (unsigned)Verdef->vd_cnt);
-
-    const uint8_t *VerdauxBuf = VerdefBuf + Verdef->vd_aux;
-    const Elf_Verdaux *Verdaux =
-        reinterpret_cast<const Elf_Verdaux *>(VerdauxBuf);
-    OS << format("  Name: %s\n",
-                 StringTable.drop_front(Verdaux->vda_name).data());
-
-    for (unsigned I = 1; I < Verdef->vd_cnt; ++I) {
-      VerdauxBuf += Verdaux->vda_next;
-      Verdaux = reinterpret_cast<const Elf_Verdaux *>(VerdauxBuf);
-      OS << format("  0x%04x: Parent %u: %s\n", VerdauxBuf - Begin, I,
-                   StringTable.drop_front(Verdaux->vda_name).data());
-    }
-
-    VerdefBuf += Verdef->vd_next;
+  Expected<std::vector<VerDef>> V = this->dumper()->getVersionDefinitions(Sec);
+  if (!V) {
+    this->reportUniqueWarning(V.takeError());
+    return;
   }
+
+  for (const VerDef &Def : *V) {
+    OS << format("  0x%04x: Rev: %u  Flags: %s  Index: %u  Cnt: %u  Name: %s\n",
+                 Def.Offset, Def.Version,
+                 versionFlagToString(Def.Flags).c_str(), Def.Ndx, Def.Cnt,
+                 Def.Name.data());
+    unsigned I = 0;
+    for (const VerdAux &Aux : Def.AuxV)
+      OS << format("  0x%04x: Parent %u: %s\n", Aux.Offset, ++I,
+                   Aux.Name.data());
+  }
+
   OS << '\n';
 }
 
@@ -3947,48 +4105,22 @@ void GNUStyle<ELFT>::printVersionDependencySection(const ELFFile<ELFT> *Obj,
     return;
 
   unsigned VerneedNum = Sec->sh_info;
-  printGNUVersionSectionProlog(OS, "Version needs", VerneedNum, Obj, Sec,
-                               this->FileName);
+  printGNUVersionSectionProlog(Obj, Sec, "Version needs", VerneedNum);
 
-  ArrayRef<uint8_t> SecData =
-      unwrapOrError(this->FileName, Obj->getSectionContents(Sec));
+  Expected<std::vector<VerNeed>> V =
+      this->dumper()->getVersionDependencies(Sec);
+  if (!V) {
+    this->reportUniqueWarning(V.takeError());
+    return;
+  }
 
-  const Elf_Shdr *StrTabSec =
-      unwrapOrError(this->FileName, Obj->getSection(Sec->sh_link));
-  StringRef StringTable = {
-      reinterpret_cast<const char *>(Obj->base() + StrTabSec->sh_offset),
-      (size_t)StrTabSec->sh_size};
-
-  const uint8_t *VerneedBuf = SecData.data();
-  for (unsigned I = 0; I < VerneedNum; ++I) {
-    const Elf_Verneed *Verneed =
-        reinterpret_cast<const Elf_Verneed *>(VerneedBuf);
-
-    StringRef File = StringTable.size() > Verneed->vn_file
-                         ? StringTable.drop_front(Verneed->vn_file)
-                         : "<invalid>";
-
-    OS << format("  0x%04x: Version: %u  File: %s  Cnt: %u\n",
-                 reinterpret_cast<const uint8_t *>(Verneed) - SecData.begin(),
-                 (unsigned)Verneed->vn_version, File.data(),
-                 (unsigned)Verneed->vn_cnt);
-
-    const uint8_t *VernauxBuf = VerneedBuf + Verneed->vn_aux;
-    for (unsigned J = 0; J < Verneed->vn_cnt; ++J) {
-      const Elf_Vernaux *Vernaux =
-          reinterpret_cast<const Elf_Vernaux *>(VernauxBuf);
-
-      StringRef Name = StringTable.size() > Vernaux->vna_name
-                           ? StringTable.drop_front(Vernaux->vna_name)
-                           : "<invalid>";
-
-      OS << format("  0x%04x:   Name: %s  Flags: %s  Version: %u\n",
-                   reinterpret_cast<const uint8_t *>(Vernaux) - SecData.begin(),
-                   Name.data(), versionFlagToString(Vernaux->vna_flags).c_str(),
-                   (unsigned)Vernaux->vna_other);
-      VernauxBuf += Vernaux->vna_next;
-    }
-    VerneedBuf += Verneed->vn_next;
+  for (const VerNeed &VN : *V) {
+    OS << format("  0x%04x: Version: %u  File: %s  Cnt: %u\n", VN.Offset,
+                 VN.Version, VN.File.data(), VN.Cnt);
+    for (const VernAux &Aux : VN.AuxV)
+      OS << format("  0x%04x:   Name: %s  Flags: %s  Version: %u\n", Aux.Offset,
+                   Aux.Name.data(), versionFlagToString(Aux.Flags).c_str(),
+                   Aux.Other);
   }
   OS << '\n';
 }
@@ -5713,44 +5845,22 @@ void LLVMStyle<ELFT>::printVersionDefinitionSection(const ELFFile<ELFT> *Obj,
   if (!Sec)
     return;
 
-  const uint8_t *SecStartAddress =
-      reinterpret_cast<const uint8_t *>(Obj->base() + Sec->sh_offset);
-  const uint8_t *SecEndAddress = SecStartAddress + Sec->sh_size;
-  const uint8_t *VerdefBuf = SecStartAddress;
-  const Elf_Shdr *StrTab =
-      unwrapOrError(this->FileName, Obj->getSection(Sec->sh_link));
+  Expected<std::vector<VerDef>> V = this->dumper()->getVersionDefinitions(Sec);
+  if (!V) {
+    this->reportUniqueWarning(V.takeError());
+    return;
+  }
 
-  unsigned VerDefsNum = Sec->sh_info;
-  while (VerDefsNum--) {
-    if (VerdefBuf + sizeof(Elf_Verdef) > SecEndAddress)
-      // FIXME: report_fatal_error is not a good way to report error. We should
-      // emit a parsing error here and below.
-      report_fatal_error("invalid offset in the section");
-
-    const Elf_Verdef *Verdef = reinterpret_cast<const Elf_Verdef *>(VerdefBuf);
+  for (const VerDef &D : *V) {
     DictScope Def(W, "Definition");
-    W.printNumber("Version", Verdef->vd_version);
-    W.printFlags("Flags", Verdef->vd_flags, makeArrayRef(SymVersionFlags));
-    W.printNumber("Index", Verdef->vd_ndx);
-    W.printNumber("Hash", Verdef->vd_hash);
-    W.printString("Name", StringRef(reinterpret_cast<const char *>(
-                              Obj->base() + StrTab->sh_offset +
-                              Verdef->getAux()->vda_name)));
-    if (!Verdef->vd_cnt)
-      report_fatal_error("at least one definition string must exist");
-    if (Verdef->vd_cnt > 2)
-      report_fatal_error("more than one predecessor is not expected");
-
-    if (Verdef->vd_cnt == 2) {
-      const uint8_t *VerdauxBuf =
-          VerdefBuf + Verdef->vd_aux + Verdef->getAux()->vda_next;
-      const Elf_Verdaux *Verdaux =
-          reinterpret_cast<const Elf_Verdaux *>(VerdauxBuf);
-      W.printString("Predecessor",
-                    StringRef(reinterpret_cast<const char *>(
-                        Obj->base() + StrTab->sh_offset + Verdaux->vda_name)));
-    }
-    VerdefBuf += Verdef->vd_next;
+    W.printNumber("Version", D.Version);
+    W.printFlags("Flags", D.Flags, makeArrayRef(SymVersionFlags));
+    W.printNumber("Index", D.Ndx);
+    W.printNumber("Hash", D.Hash);
+    W.printString("Name", D.Name.c_str());
+    W.printList(
+        "Predecessors", D.AuxV,
+        [](raw_ostream &OS, const VerdAux &Aux) { OS << Aux.Name.c_str(); });
   }
 }
 
@@ -5761,45 +5871,27 @@ void LLVMStyle<ELFT>::printVersionDependencySection(const ELFFile<ELFT> *Obj,
   if (!Sec)
     return;
 
-  const uint8_t *SecData =
-      reinterpret_cast<const uint8_t *>(Obj->base() + Sec->sh_offset);
-  const Elf_Shdr *StrTabSec =
-      unwrapOrError(this->FileName, Obj->getSection(Sec->sh_link));
-  StringRef StringTable = {
-      reinterpret_cast<const char *>(Obj->base() + StrTabSec->sh_offset),
-      (size_t)StrTabSec->sh_size};
+  Expected<std::vector<VerNeed>> V =
+      this->dumper()->getVersionDependencies(Sec);
+  if (!V) {
+    this->reportUniqueWarning(V.takeError());
+    return;
+  }
 
-  const uint8_t *VerneedBuf = SecData;
-  unsigned VerneedNum = Sec->sh_info;
-  for (unsigned I = 0; I < VerneedNum; ++I) {
-    const Elf_Verneed *Verneed =
-        reinterpret_cast<const Elf_Verneed *>(VerneedBuf);
+  for (const VerNeed &VN : *V) {
     DictScope Entry(W, "Dependency");
-    W.printNumber("Version", Verneed->vn_version);
-    W.printNumber("Count", Verneed->vn_cnt);
+    W.printNumber("Version", VN.Version);
+    W.printNumber("Count", VN.Cnt);
+    W.printString("FileName", VN.File.c_str());
 
-    StringRef FileName = StringTable.size() > Verneed->vn_file
-                             ? StringTable.drop_front(Verneed->vn_file)
-                             : "<invalid>";
-    W.printString("FileName", FileName.data());
-
-    const uint8_t *VernauxBuf = VerneedBuf + Verneed->vn_aux;
     ListScope L(W, "Entries");
-    for (unsigned J = 0; J < Verneed->vn_cnt; ++J) {
-      const Elf_Vernaux *Vernaux =
-          reinterpret_cast<const Elf_Vernaux *>(VernauxBuf);
+    for (const VernAux &Aux : VN.AuxV) {
       DictScope Entry(W, "Entry");
-      W.printNumber("Hash", Vernaux->vna_hash);
-      W.printFlags("Flags", Vernaux->vna_flags, makeArrayRef(SymVersionFlags));
-      W.printNumber("Index", Vernaux->vna_other);
-
-      StringRef Name = StringTable.size() > Vernaux->vna_name
-                           ? StringTable.drop_front(Vernaux->vna_name)
-                           : "<invalid>";
-      W.printString("Name", Name.data());
-      VernauxBuf += Vernaux->vna_next;
+      W.printNumber("Hash", Aux.Hash);
+      W.printFlags("Flags", Aux.Flags, makeArrayRef(SymVersionFlags));
+      W.printNumber("Index", Aux.Other);
+      W.printString("Name", Aux.Name.c_str());
     }
-    VerneedBuf += Verneed->vn_next;
   }
 }
 

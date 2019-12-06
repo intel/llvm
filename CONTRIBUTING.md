@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Contributing
 
 ## License
@@ -92,3 +93,15 @@ Merge of pull request is done only by project maintainers. There are three optio
    Squashing is done to shorten history and make sure that the project is buildable on any commit.
  - [Create a merge commit] Used for pull down PRs to avoid duplication of
    LLVM commits.
+=======
+# Contributing to LLVM
+
+Thank you for your interest in contributing to LLVM! There are many ways to
+contribute, and we appreciate all contributions.
+
+To get started with contributing, please take a look at the
+[Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide. It
+describes how to get involved, raise issues and submit patches. Please note
+that at the moment the LLVM project does not use either Github pull requests
+or Github issues.
+>>>>>>> effcdc3a82f2a32829170e7f7a2ff3d7853b612d

@@ -214,6 +214,7 @@ def SDT_AArch64FCmp   : SDTypeProfile<0, 2,
                                     SDTCisSameAs<0, 1>]>;
 def SDT_AArch64Dup   : SDTypeProfile<1, 1, [SDTCisVec<0>]>;
 def SDT_AArch64DupLane   : SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisInt<2>]>;
+def SDT_AArch64Insr  : SDTypeProfile<1, 2, [SDTCisVec<0>]>;
 def SDT_AArch64Zip   : SDTypeProfile<1, 2, [SDTCisVec<0>,
                                           SDTCisSameAs<0, 1>,
                                           SDTCisSameAs<0, 2>]>;
@@ -262,15 +263,17 @@ def SDT_AArch64WrapperLarge : SDTypeProfile<1, 4,
 // non-extending masked load fragment.
 def nonext_masked_load :
   PatFrag<(ops node:$ptr, node:$pred, node:$def),
-          (masked_ld node:$ptr, node:$pred, node:$def), [{
-  return cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::NON_EXTLOAD;
+          (masked_ld node:$ptr, undef, node:$pred, node:$def), [{
+  return cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::NON_EXTLOAD &&
+         cast<MaskedLoadSDNode>(N)->isUnindexed();
 }]>;
 // sign extending masked load fragments.
 def asext_masked_load :
   PatFrag<(ops node:$ptr, node:$pred, node:$def),
-          (masked_ld node:$ptr, node:$pred, node:$def),[{
-  return cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::EXTLOAD ||
-         cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::SEXTLOAD;
+          (masked_ld node:$ptr, undef, node:$pred, node:$def),[{
+  return (cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::EXTLOAD ||
+          cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::SEXTLOAD) &&
+         cast<MaskedLoadSDNode>(N)->isUnindexed();
 }]>;
 def asext_masked_load_i8 :
   PatFrag<(ops node:$ptr, node:$pred, node:$def),
@@ -290,8 +293,9 @@ def asext_masked_load_i32 :
 // zero extending masked load fragments.
 def zext_masked_load :
   PatFrag<(ops node:$ptr, node:$pred, node:$def),
-          (masked_ld node:$ptr, node:$pred, node:$def), [{
-  return cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::ZEXTLOAD;
+          (masked_ld node:$ptr, undef, node:$pred, node:$def), [{
+  return cast<MaskedLoadSDNode>(N)->getExtensionType() == ISD::ZEXTLOAD &&
+         cast<MaskedLoadSDNode>(N)->isUnindexed();
 }]>;
 def zext_masked_load_i8 :
   PatFrag<(ops node:$ptr, node:$pred, node:$def),
@@ -312,14 +316,16 @@ def zext_masked_load_i32 :
 // non-truncating masked store fragment.
 def nontrunc_masked_store :
   PatFrag<(ops node:$val, node:$ptr, node:$pred),
-          (masked_st node:$val, node:$ptr, node:$pred), [{
-  return !cast<MaskedStoreSDNode>(N)->isTruncatingStore();
+          (masked_st node:$val, node:$ptr, undef, node:$pred), [{
+  return !cast<MaskedStoreSDNode>(N)->isTruncatingStore() &&
+         cast<MaskedStoreSDNode>(N)->isUnindexed();
 }]>;
 // truncating masked store fragments.
 def trunc_masked_store :
   PatFrag<(ops node:$val, node:$ptr, node:$pred),
-          (masked_st node:$val, node:$ptr, node:$pred), [{
-  return cast<MaskedStoreSDNode>(N)->isTruncatingStore();
+          (masked_st node:$val, node:$ptr, undef, node:$pred), [{
+  return cast<MaskedStoreSDNode>(N)->isTruncatingStore() &&
+         cast<MaskedStoreSDNode>(N)->isUnindexed();
 }]>;
 def trunc_masked_store_i8 :
   PatFrag<(ops node:$val, node:$ptr, node:$pred),
@@ -395,6 +401,8 @@ def AArch64duplane8  : SDNode<"AArch64ISD::DUPLANE8", SDT_AArch64DupLane>;
 def AArch64duplane16 : SDNode<"AArch64ISD::DUPLANE16", SDT_AArch64DupLane>;
 def AArch64duplane32 : SDNode<"AArch64ISD::DUPLANE32", SDT_AArch64DupLane>;
 def AArch64duplane64 : SDNode<"AArch64ISD::DUPLANE64", SDT_AArch64DupLane>;
+
+def AArch64insr      : SDNode<"AArch64ISD::INSR", SDT_AArch64Insr>;
 
 def AArch64zip1      : SDNode<"AArch64ISD::ZIP1", SDT_AArch64Zip>;
 def AArch64zip2      : SDNode<"AArch64ISD::ZIP2", SDT_AArch64Zip>;
@@ -751,6 +759,29 @@ defm FCADD : SIMDThreeSameVectorComplexHSD<1, 0b111, complexrotateopodd,
                                            "fcadd", null_frag>;
 defm FCMLA : SIMDIndexedTiedComplexHSD<1, 0, 1, complexrotateop, "fcmla",
                                        null_frag>;
+
+let Predicates = [HasComplxNum, HasNEON, HasFullFP16] in {
+  def : Pat<(v4f16 (int_aarch64_neon_vcadd_rot90 (v4f16 V64:$Rn), (v4f16 V64:$Rm))),
+            (FCADDv4f16 (v4f16 V64:$Rn), (v4f16 V64:$Rm), (i32 0))>;
+  def : Pat<(v4f16 (int_aarch64_neon_vcadd_rot270 (v4f16 V64:$Rn), (v4f16 V64:$Rm))),
+            (FCADDv4f16 (v4f16 V64:$Rn), (v4f16 V64:$Rm), (i32 1))>;
+  def : Pat<(v8f16 (int_aarch64_neon_vcadd_rot90 (v8f16 V128:$Rn), (v8f16 V128:$Rm))),
+            (FCADDv8f16 (v8f16 V128:$Rn), (v8f16 V128:$Rm), (i32 0))>;
+  def : Pat<(v8f16 (int_aarch64_neon_vcadd_rot270 (v8f16 V128:$Rn), (v8f16 V128:$Rm))),
+            (FCADDv8f16 (v8f16 V128:$Rn), (v8f16 V128:$Rm), (i32 1))>;
+}
+let Predicates = [HasComplxNum, HasNEON] in {
+  def : Pat<(v2f32 (int_aarch64_neon_vcadd_rot90 (v2f32 V64:$Rn), (v2f32 V64:$Rm))),
+            (FCADDv2f32 (v2f32 V64:$Rn), (v2f32 V64:$Rm), (i32 0))>;
+  def : Pat<(v2f32 (int_aarch64_neon_vcadd_rot270 (v2f32 V64:$Rn), (v2f32 V64:$Rm))),
+            (FCADDv2f32 (v2f32 V64:$Rn), (v2f32 V64:$Rm), (i32 1))>;
+  foreach Ty = [v4f32, v2f64] in {
+    def : Pat<(Ty (int_aarch64_neon_vcadd_rot90 (Ty V128:$Rn), (Ty V128:$Rm))),
+              (!cast<Instruction>("FCADD"#Ty) (Ty V128:$Rn), (Ty V128:$Rm), (i32 0))>;
+    def : Pat<(Ty (int_aarch64_neon_vcadd_rot270 (Ty V128:$Rn), (Ty V128:$Rm))),
+              (!cast<Instruction>("FCADD"#Ty) (Ty V128:$Rn), (Ty V128:$Rm), (i32 1))>;
+  }
+}
 
 // v8.3a Pointer Authentication
 // These instructions inhabit part of the hint space and so can be used for
@@ -3793,10 +3824,11 @@ defm FMUL     : SIMDThreeSameVectorFP<1,0,0b011,"fmul", fmul>;
 defm FRECPS   : SIMDThreeSameVectorFP<0,0,0b111,"frecps", int_aarch64_neon_frecps>;
 defm FRSQRTS  : SIMDThreeSameVectorFP<0,1,0b111,"frsqrts", int_aarch64_neon_frsqrts>;
 defm FSUB     : SIMDThreeSameVectorFP<0,1,0b010,"fsub", fsub>;
-defm MLA      : SIMDThreeSameVectorBHSTied<0, 0b10010, "mla",
-                      TriOpFrag<(add node:$LHS, (mul node:$MHS, node:$RHS))> >;
-defm MLS      : SIMDThreeSameVectorBHSTied<1, 0b10010, "mls",
-                      TriOpFrag<(sub node:$LHS, (mul node:$MHS, node:$RHS))> >;
+
+// MLA and MLS are generated in MachineCombine
+defm MLA      : SIMDThreeSameVectorBHSTied<0, 0b10010, "mla", null_frag>;
+defm MLS      : SIMDThreeSameVectorBHSTied<1, 0b10010, "mls", null_frag>;
+
 defm MUL      : SIMDThreeSameVectorBHS<0, 0b10011, "mul", mul>;
 defm PMUL     : SIMDThreeSameVectorB<1, 0b10011, "pmul", int_aarch64_neon_pmul>;
 defm SABA     : SIMDThreeSameVectorBHSTied<0, 0b01111, "saba",
@@ -5526,10 +5558,11 @@ def : Pat<(v2f64 (fmul V128:$Rn, (AArch64dup (f64 FPR64:$Rm)))),
 
 defm SQDMULH : SIMDIndexedHS<0, 0b1100, "sqdmulh", int_aarch64_neon_sqdmulh>;
 defm SQRDMULH : SIMDIndexedHS<0, 0b1101, "sqrdmulh", int_aarch64_neon_sqrdmulh>;
-defm MLA   : SIMDVectorIndexedHSTied<1, 0b0000, "mla",
-              TriOpFrag<(add node:$LHS, (mul node:$MHS, node:$RHS))>>;
-defm MLS   : SIMDVectorIndexedHSTied<1, 0b0100, "mls",
-              TriOpFrag<(sub node:$LHS, (mul node:$MHS, node:$RHS))>>;
+
+// Generated by MachineCombine
+defm MLA   : SIMDVectorIndexedHSTied<1, 0b0000, "mla", null_frag>;
+defm MLS   : SIMDVectorIndexedHSTied<1, 0b0100, "mls", null_frag>;
+
 defm MUL   : SIMDVectorIndexedHS<0, 0b1000, "mul", mul>;
 defm SMLAL : SIMDVectorIndexedLongSDTied<0, 0b0010, "smlal",
     TriOpFrag<(add node:$LHS, (int_aarch64_neon_smull node:$MHS, node:$RHS))>>;

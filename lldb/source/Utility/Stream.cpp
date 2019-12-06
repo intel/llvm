@@ -160,65 +160,19 @@ Stream &Stream::operator<<(const void *p) {
   return *this;
 }
 
-// Stream a uint8_t "uval" out to this stream.
-Stream &Stream::operator<<(uint8_t uval) {
-  PutHex8(uval);
-  return *this;
-}
-
-// Stream a uint16_t "uval" out to this stream.
-Stream &Stream::operator<<(uint16_t uval) {
-  PutHex16(uval, m_byte_order);
-  return *this;
-}
-
-// Stream a uint32_t "uval" out to this stream.
-Stream &Stream::operator<<(uint32_t uval) {
-  PutHex32(uval, m_byte_order);
-  return *this;
-}
-
-// Stream a uint64_t "uval" out to this stream.
-Stream &Stream::operator<<(uint64_t uval) {
-  PutHex64(uval, m_byte_order);
-  return *this;
-}
-
-// Stream a int8_t "sval" out to this stream.
-Stream &Stream::operator<<(int8_t sval) {
-  Printf("%i", static_cast<int>(sval));
-  return *this;
-}
-
-// Stream a int16_t "sval" out to this stream.
-Stream &Stream::operator<<(int16_t sval) {
-  Printf("%i", static_cast<int>(sval));
-  return *this;
-}
-
-// Stream a int32_t "sval" out to this stream.
-Stream &Stream::operator<<(int32_t sval) {
-  Printf("%i", static_cast<int>(sval));
-  return *this;
-}
-
-// Stream a int64_t "sval" out to this stream.
-Stream &Stream::operator<<(int64_t sval) {
-  Printf("%" PRIi64, sval);
-  return *this;
-}
-
 // Get the current indentation level
-int Stream::GetIndentLevel() const { return m_indent_level; }
+unsigned Stream::GetIndentLevel() const { return m_indent_level; }
 
 // Set the current indentation level
-void Stream::SetIndentLevel(int indent_level) { m_indent_level = indent_level; }
+void Stream::SetIndentLevel(unsigned indent_level) {
+  m_indent_level = indent_level;
+}
 
 // Increment the current indentation level
-void Stream::IndentMore(int amount) { m_indent_level += amount; }
+void Stream::IndentMore(unsigned amount) { m_indent_level += amount; }
 
 // Decrement the current indentation level
-void Stream::IndentLess(int amount) {
+void Stream::IndentLess(unsigned amount) {
   if (m_indent_level >= amount)
     m_indent_level -= amount;
   else

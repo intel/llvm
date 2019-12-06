@@ -56,7 +56,9 @@ Error LLJIT::addObjectFile(JITDylib &JD, std::unique_ptr<MemoryBuffer> Obj) {
 
 Expected<JITEvaluatedSymbol> LLJIT::lookupLinkerMangled(JITDylib &JD,
                                                         StringRef Name) {
-  return ES->lookup(JITDylibSearchList({{&JD, true}}), ES->intern(Name));
+  return ES->lookup(
+      makeJITDylibSearchOrder(&JD, JITDylibLookupFlags::MatchAllSymbols),
+      ES->intern(Name));
 }
 
 std::unique_ptr<ObjectLayer>
@@ -103,7 +105,7 @@ LLJIT::createCompileFunction(LLJITBuilderState &S,
 
 LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
     : ES(S.ES ? std::move(S.ES) : std::make_unique<ExecutionSession>()),
-      Main(this->ES->getMainJITDylib()), DL(""),
+      Main(this->ES->createJITDylib("<main>")), DL(""),
       ObjLinkingLayer(createObjectLinkingLayer(S, *ES)),
       ObjTransformLayer(*this->ES, *ObjLinkingLayer), CtorRunner(Main),
       DtorRunner(Main) {

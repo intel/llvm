@@ -29,14 +29,14 @@ extern TempRetT __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int,
 
 template <typename dataT>
 extern __ocl_event_t
-__spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((ocl_local)) dataT *Dest,
-                       __attribute__((ocl_global)) dataT *Src, size_t NumElements, size_t Stride,
+__spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((opencl_local)) dataT *Dest,
+                       __attribute__((opencl_global)) dataT *Src, size_t NumElements, size_t Stride,
                        __ocl_event_t E) noexcept;
 
 template <typename dataT>
 extern __ocl_event_t
-__spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((ocl_global)) dataT *Dest,
-                       __attribute__((ocl_local)) dataT *Src, size_t NumElements, size_t Stride,
+__spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((opencl_global)) dataT *Dest,
+                       __attribute__((opencl_local)) dataT *Src, size_t NumElements, size_t Stride,
                        __ocl_event_t E) noexcept;
 
 #define OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
@@ -124,7 +124,7 @@ __spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((ocl_global)) dataT
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }
 
-#define __SPIRV_ATOMICS(macro, Arg) macro(__attribute__((ocl_global)), Arg) macro(__attribute__((ocl_local)), Arg)
+#define __SPIRV_ATOMICS(macro, Arg) macro(__attribute__((opencl_global)), Arg) macro(__attribute__((opencl_local)), Arg)
 
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, float)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, int)
@@ -183,28 +183,28 @@ extern dataT __spirv_SubgroupShuffleXorINTEL(dataT Data,
 
 template <typename dataT>
 extern dataT
-__spirv_SubgroupBlockReadINTEL(const __attribute__((ocl_global))
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint8_t *Ptr) noexcept;
 
 template <typename dataT>
-extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((ocl_global))
+extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global))
                                             uint8_t *Ptr,
                                             dataT Data) noexcept;
 
 template <typename dataT>
 extern dataT
-__spirv_SubgroupBlockReadINTEL(const __attribute__((ocl_global)) uint16_t *Ptr) noexcept;
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global)) uint16_t *Ptr) noexcept;
 
 template <typename dataT>
-extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((ocl_global)) uint16_t *Ptr,
+extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint16_t *Ptr,
                                             dataT Data) noexcept;
 
 template <typename dataT>
 extern dataT
-__spirv_SubgroupBlockReadINTEL(const __attribute__((ocl_global)) uint32_t *Ptr) noexcept;
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global)) uint32_t *Ptr) noexcept;
 
 template <typename dataT>
-extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((ocl_global)) uint32_t *Ptr,
+extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
                                             dataT Data) noexcept;
 
 template <typename dataT>
@@ -228,7 +228,7 @@ template <typename dataT>
 extern WPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_write(
     const ConstantPipeStorage *Storage) noexcept;
 
-extern void __spirv_ocl_prefetch(const __attribute__((ocl_global)) char *Ptr,
+extern void __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                                  size_t NumBytes) noexcept;
 #else // if !__SYCL_DEVICE_ONLY__
 

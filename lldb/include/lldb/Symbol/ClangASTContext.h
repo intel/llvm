@@ -41,15 +41,17 @@ namespace lldb_private {
 class Declaration;
 
 class ClangASTContext : public TypeSystem {
+  // LLVM RTTI support
+  static char ID;
+
 public:
   typedef void (*CompleteTagDeclCallback)(void *baton, clang::TagDecl *);
   typedef void (*CompleteObjCInterfaceDeclCallback)(void *baton,
                                                     clang::ObjCInterfaceDecl *);
 
   // llvm casting support
-  static bool classof(const TypeSystem *ts) {
-    return ts->getKind() == TypeSystem::eKindClang;
-  }
+  bool isA(const void *ClassID) const override { return ClassID == &ID; }
+  static bool classof(const TypeSystem *ts) { return ts->isA(&ID); }
 
   // Constructors and Destructors
   explicit ClangASTContext(llvm::StringRef triple = "");
@@ -148,12 +150,7 @@ public:
   CompilerType GetBuiltinTypeForEncodingAndBitSize(lldb::Encoding encoding,
                                                    size_t bit_size) override;
 
-  static CompilerType GetBuiltinTypeForEncodingAndBitSize(
-      clang::ASTContext *ast, lldb::Encoding encoding, uint32_t bit_size);
-
   CompilerType GetBasicType(lldb::BasicType type);
-
-  CompilerType GetBasicType(ConstString name);
 
   static lldb::BasicType GetBasicTypeEnumeration(ConstString name);
 
@@ -906,7 +903,8 @@ public:
 
   static clang::TypedefNameDecl *GetAsTypedefDecl(const CompilerType &type);
 
-  clang::CXXRecordDecl *GetAsCXXRecordDecl(lldb::opaque_compiler_type_t type);
+  static clang::CXXRecordDecl *
+  GetAsCXXRecordDecl(lldb::opaque_compiler_type_t type);
 
   static clang::ObjCInterfaceDecl *
   GetAsObjCInterfaceDecl(const CompilerType &type);

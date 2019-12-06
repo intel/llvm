@@ -868,7 +868,7 @@ void ArchSpec::MergeFrom(const ArchSpec &other) {
       IsCompatibleMatch(other) && GetCore() == ArchSpec::eCore_arm_generic &&
       other.GetCore() != ArchSpec::eCore_arm_generic) {
     m_core = other.GetCore();
-    CoreUpdated(true);
+    CoreUpdated(false);
   }
   if (GetFlags() == 0) {
     SetFlags(other.GetFlags());
@@ -1443,21 +1443,24 @@ bool ArchSpec::IsAlwaysThumbInstructions() const {
         GetCore() == ArchSpec::Core::eCore_thumbv6m) {
       return true;
     }
+    // Windows on ARM is always thumb.
+    if (GetTriple().isOSWindows())
+      return true;
   }
   return false;
 }
 
-void ArchSpec::DumpTriple(Stream &s) const {
+void ArchSpec::DumpTriple(llvm::raw_ostream &s) const {
   const llvm::Triple &triple = GetTriple();
   llvm::StringRef arch_str = triple.getArchName();
   llvm::StringRef vendor_str = triple.getVendorName();
   llvm::StringRef os_str = triple.getOSName();
   llvm::StringRef environ_str = triple.getEnvironmentName();
 
-  s.Printf("%s-%s-%s", arch_str.empty() ? "*" : arch_str.str().c_str(),
-           vendor_str.empty() ? "*" : vendor_str.str().c_str(),
-           os_str.empty() ? "*" : os_str.str().c_str());
+  s << llvm::formatv("{0}-{1}-{2}", arch_str.empty() ? "*" : arch_str,
+                     vendor_str.empty() ? "*" : vendor_str,
+                     os_str.empty() ? "*" : os_str);
 
   if (!environ_str.empty())
-    s.Printf("-%s", environ_str.str().c_str());
+    s << "-" << environ_str;
 }

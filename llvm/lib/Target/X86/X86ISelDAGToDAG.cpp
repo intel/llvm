@@ -2224,12 +2224,11 @@ bool X86DAGToDAGISel::selectVectorAddr(SDNode *Parent, SDValue N, SDValue &Base,
   AM.Scale = cast<ConstantSDNode>(Mgs->getScale())->getZExtValue();
 
   unsigned AddrSpace = cast<MemSDNode>(Parent)->getPointerInfo().getAddrSpace();
-  // AddrSpace 256 -> GS, 257 -> FS, 258 -> SS.
-  if (AddrSpace == 256)
+  if (AddrSpace == X86AS::GS)
     AM.Segment = CurDAG->getRegister(X86::GS, MVT::i16);
-  if (AddrSpace == 257)
+  if (AddrSpace == X86AS::FS)
     AM.Segment = CurDAG->getRegister(X86::FS, MVT::i16);
-  if (AddrSpace == 258)
+  if (AddrSpace == X86AS::SS)
     AM.Segment = CurDAG->getRegister(X86::SS, MVT::i16);
 
   SDLoc DL(N);
@@ -5222,12 +5221,20 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
   }
   case ISD::STRICT_FADD:
   case ISD::STRICT_FSUB:
+  case ISD::STRICT_FP_ROUND: {
+    // X87 instructions has enabled these strict fp operation.
+    bool UsingFp80 = Node->getSimpleValueType(0) == MVT::f80 ||
+                     Node->getOperand(1).getSimpleValueType() == MVT::f80;
+    if (UsingFp80 || (!Subtarget->hasSSE1() && Subtarget->hasX87()))
+      break;
+    LLVM_FALLTHROUGH;
+  }
   case ISD::STRICT_FP_TO_SINT:
   case ISD::STRICT_FP_TO_UINT:
-  case ISD::STRICT_FP_ROUND:
     // FIXME: Remove when we have isel patterns for strict versions of these
     // nodes.
-    CurDAG->mutateStrictFPToFP(Node);
+    if (!TLI->isStrictFPEnabled())
+      CurDAG->mutateStrictFPToFP(Node);
     break;
   }
 

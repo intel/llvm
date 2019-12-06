@@ -78,7 +78,7 @@ static void DumpTargetInfo(uint32_t target_idx, Target *target,
   uint32_t properties = 0;
   if (target_arch.IsValid()) {
     strm.Printf("%sarch=", properties++ > 0 ? ", " : " ( ");
-    target_arch.DumpTriple(strm);
+    target_arch.DumpTriple(strm.AsRawOstream());
     properties++;
   }
   PlatformSP platform_sp(target->GetPlatform());
@@ -816,15 +816,14 @@ protected:
       return;
     if (sc.module_sp) {
       if (sc.comp_unit) {
-        s.Printf("Global variables for %s in %s:\n",
-                 sc.comp_unit->GetPath().c_str(),
-                 sc.module_sp->GetFileSpec().GetPath().c_str());
+        s.Format("Global variables for {0} in {1}:\n",
+                 sc.comp_unit->GetPrimaryFile(), sc.module_sp->GetFileSpec());
       } else {
         s.Printf("Global variables for %s\n",
                  sc.module_sp->GetFileSpec().GetPath().c_str());
       }
     } else if (sc.comp_unit) {
-      s.Printf("Global variables for %s\n", sc.comp_unit->GetPath().c_str());
+      s.Format("Global variables for {0}\n", sc.comp_unit->GetPrimaryFile());
     }
 
     for (VariableSP var_sp : variable_list) {
@@ -926,9 +925,9 @@ protected:
         if (!success) {
           if (frame) {
             if (comp_unit)
-              result.AppendErrorWithFormat(
-                  "no global variables in current compile unit: %s\n",
-                  comp_unit->GetPath().c_str());
+              result.AppendErrorWithFormatv(
+                  "no global variables in current compile unit: {0}\n",
+                  comp_unit->GetPrimaryFile());
             else
               result.AppendErrorWithFormat(
                   "no debug information for frame %u\n",
@@ -1292,7 +1291,7 @@ static void DumpModuleArchitecture(Stream &strm, Module *module,
     StreamString arch_strm;
 
     if (full_triple)
-      module->GetArchitecture().DumpTriple(arch_strm);
+      module->GetArchitecture().DumpTriple(arch_strm.AsRawOstream());
     else
       arch_strm.PutCString(module->GetArchitecture().GetArchitectureName());
     std::string arch_str = arch_strm.GetString();
@@ -1327,8 +1326,8 @@ static uint32_t DumpCompileUnitLineTable(CommandInterpreter &interpreter,
         if (i > 0)
           strm << "\n\n";
 
-        strm << "Line table for " << *static_cast<FileSpec *>(sc.comp_unit)
-             << " in `" << module->GetFileSpec().GetFilename() << "\n";
+        strm << "Line table for " << sc.comp_unit->GetPrimaryFile() << " in `"
+             << module->GetFileSpec().GetFilename() << "\n";
         LineTable *line_table = sc.comp_unit->GetLineTable();
         if (line_table)
           line_table->GetDescription(

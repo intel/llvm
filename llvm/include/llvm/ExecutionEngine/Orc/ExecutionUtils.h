@@ -40,6 +40,17 @@ namespace orc {
 
 class ObjectLayer;
 
+/// Run a main function, returning the result.
+///
+/// If the optional ProgramName argument is given then it will be inserted
+/// before the strings in Args as the first argument to the called function.
+///
+/// It is legal to have an empty argument list and no program name, however
+/// many main functions will expect a name argument at least, and will fail
+/// if none is provided.
+int runAsMain(int (*Main)(int, char *[]), ArrayRef<std::string> Args,
+              Optional<StringRef> ProgramName = None);
+
 /// This iterator provides a convenient way to iterate over the elements
 ///        of an llvm.global_ctors/llvm.global_dtors instance.
 ///
@@ -268,8 +279,9 @@ public:
     return Load(nullptr, GlobalPrefix, std::move(Allow));
   }
 
-  Expected<SymbolNameSet> tryToGenerate(JITDylib &JD,
-                                        const SymbolNameSet &Names) override;
+  Error tryToGenerate(LookupKind K, JITDylib &JD,
+                      JITDylibLookupFlags JDLookupFlags,
+                      const SymbolLookupSet &Symbols) override;
 
 private:
   sys::DynamicLibrary Dylib;
@@ -297,8 +309,9 @@ public:
   static Expected<std::unique_ptr<StaticLibraryDefinitionGenerator>>
   Create(ObjectLayer &L, std::unique_ptr<MemoryBuffer> ArchiveBuffer);
 
-  Expected<SymbolNameSet> tryToGenerate(JITDylib &JD,
-                                        const SymbolNameSet &Names) override;
+  Error tryToGenerate(LookupKind K, JITDylib &JD,
+                      JITDylibLookupFlags JDLookupFlags,
+                      const SymbolLookupSet &Symbols) override;
 
 private:
   StaticLibraryDefinitionGenerator(ObjectLayer &L,
@@ -307,8 +320,7 @@ private:
 
   ObjectLayer &L;
   std::unique_ptr<MemoryBuffer> ArchiveBuffer;
-  object::Archive Archive;
-  size_t UnrealizedObjects = 0;
+  std::unique_ptr<object::Archive> Archive;
 };
 
 } // end namespace orc

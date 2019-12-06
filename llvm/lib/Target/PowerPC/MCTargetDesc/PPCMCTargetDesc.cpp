@@ -30,6 +30,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolELF.h"
+#include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -108,8 +109,11 @@ public:
       : PPCTargetStreamer(S), OS(OS) {}
 
   void emitTCEntry(const MCSymbol &S) override {
+    const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
     OS << "\t.tc ";
-    OS << S.getName();
+    OS << (MAI->getSymbolsHaveSMC()
+               ? cast<MCSymbolXCOFF>(S).getUnqualifiedName()
+               : S.getName());
     OS << "[TC],";
     OS << S.getName();
     OS << '\n';
@@ -243,7 +247,10 @@ public:
   PPCTargetXCOFFStreamer(MCStreamer &S) : PPCTargetStreamer(S) {}
 
   void emitTCEntry(const MCSymbol &S) override {
-    report_fatal_error("TOC entries not supported yet.");
+    const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
+    const unsigned PointerSize = MAI->getCodePointerSize();
+    Streamer.EmitValueToAlignment(PointerSize);
+    Streamer.EmitSymbolValue(&S, PointerSize);
   }
 
   void emitMachine(StringRef CPU) override {

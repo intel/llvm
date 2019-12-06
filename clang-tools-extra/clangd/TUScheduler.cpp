@@ -407,8 +407,12 @@ void ASTWorker::update(ParseInputs Inputs, WantDiagnostics WantDiags) {
         llvm::join(Inputs.CompileCommand.CommandLine, " "));
     // Rebuild the preamble and the AST.
     StoreDiags CompilerInvocationDiagConsumer;
-    std::unique_ptr<CompilerInvocation> Invocation =
-        buildCompilerInvocation(Inputs, CompilerInvocationDiagConsumer);
+    std::vector<std::string> CC1Args;
+    std::unique_ptr<CompilerInvocation> Invocation = buildCompilerInvocation(
+        Inputs, CompilerInvocationDiagConsumer, &CC1Args);
+    // Log cc1 args even (especially!) if creating invocation failed.
+    if (!CC1Args.empty())
+      vlog("Driver produced command: cc1 {0}", llvm::join(CC1Args, " "));
     std::vector<Diag> CompilerInvocationDiags =
         CompilerInvocationDiagConsumer.take();
     if (!Invocation) {
@@ -914,6 +918,13 @@ llvm::StringRef TUScheduler::getContents(PathRef File) const {
     return "";
   }
   return It->second->Contents;
+}
+
+llvm::StringMap<std::string> TUScheduler::getAllFileContents() const {
+  llvm::StringMap<std::string> Results;
+  for (auto &It : Files)
+    Results.try_emplace(It.getKey(), It.getValue()->Contents);
+  return Results;
 }
 
 void TUScheduler::run(llvm::StringRef Name,

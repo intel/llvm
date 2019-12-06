@@ -184,7 +184,7 @@ public:
         ((Alignment > MinAlignment) ? Alignment : Chunk::getHeaderSize());
 
     // Takes care of extravagantly large sizes as well as integer overflows.
-    COMPILER_CHECK(MaxAllowedMallocSize < UINTPTR_MAX - MaxAlignment);
+    static_assert(MaxAllowedMallocSize < UINTPTR_MAX - MaxAlignment, "");
     if (UNLIKELY(Size >= MaxAllowedMallocSize)) {
       if (Options.MayReturnNull)
         return nullptr;
@@ -457,6 +457,18 @@ public:
     Stats.get(S);
   }
 
+  // Returns true if the pointer provided was allocated by the current
+  // allocator instance, which is compliant with tcmalloc's ownership concept.
+  // A corrupted chunk will not be reported as owned, which is WAI.
+  bool isOwned(const void *Ptr) {
+    initThreadMaybe();
+    if (!Ptr || !isAligned(reinterpret_cast<uptr>(Ptr), MinAlignment))
+      return false;
+    Chunk::UnpackedHeader Header;
+    return Chunk::isValid(Cookie, Ptr, &Header) &&
+           Header.State == Chunk::State::Allocated;
+  }
+
 private:
   using SecondaryT = typename Params::Secondary;
   typedef typename PrimaryT::SizeClassMap SizeClassMap;
@@ -467,6 +479,9 @@ private:
   static const uptr MaxAlignment = 1UL << MaxAlignmentLog;
   static const uptr MaxAllowedMallocSize =
       FIRST_32_SECOND_64(1UL << 31, 1ULL << 40);
+
+  static_assert(MinAlignment >= sizeof(Chunk::PackedHeader),
+                "Minimal alignment must at least cover a chunk header.");
 
   // Constants used by the chunk iteration mechanism.
   static const u32 BlockMarker = 0x44554353U;
@@ -523,7 +538,7 @@ private:
       reportSanityCheckError("class ID");
   }
 
-  static INLINE void *getBlockBegin(const void *Ptr,
+  static inline void *getBlockBegin(const void *Ptr,
                                     Chunk::UnpackedHeader *Header) {
     return reinterpret_cast<void *>(
         reinterpret_cast<uptr>(Ptr) - Chunk::getHeaderSize() -
@@ -531,7 +546,7 @@ private:
   }
 
   // Return the size of a chunk as requested during its allocation.
-  INLINE uptr getSize(const void *Ptr, Chunk::UnpackedHeader *Header) {
+  inline uptr getSize(const void *Ptr, Chunk::UnpackedHeader *Header) {
     const uptr SizeOrUnusedBytes = Header->SizeOrUnusedBytes;
     if (LIKELY(Header->ClassId))
       return SizeOrUnusedBytes;

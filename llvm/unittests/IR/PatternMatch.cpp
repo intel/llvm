@@ -182,6 +182,29 @@ TEST_F(PatternMatchTest, SpecificIntUGT) {
           .match(NegOne));
 }
 
+TEST_F(PatternMatchTest, SignbitZeroChecks) {
+  Type *IntTy = IRB.getInt32Ty();
+
+  Value *Zero = ConstantInt::get(IntTy, 0);
+  Value *One = ConstantInt::get(IntTy, 1);
+  Value *NegOne = ConstantInt::get(IntTy, -1);
+
+  EXPECT_TRUE(m_Negative().match(NegOne));
+  EXPECT_FALSE(m_NonNegative().match(NegOne));
+  EXPECT_FALSE(m_StrictlyPositive().match(NegOne));
+  EXPECT_TRUE(m_NonPositive().match(NegOne));
+
+  EXPECT_FALSE(m_Negative().match(Zero));
+  EXPECT_TRUE(m_NonNegative().match(Zero));
+  EXPECT_FALSE(m_StrictlyPositive().match(Zero));
+  EXPECT_TRUE(m_NonPositive().match(Zero));
+
+  EXPECT_FALSE(m_Negative().match(One));
+  EXPECT_TRUE(m_NonNegative().match(One));
+  EXPECT_TRUE(m_StrictlyPositive().match(One));
+  EXPECT_FALSE(m_NonPositive().match(One));
+}
+
 TEST_F(PatternMatchTest, SpecificIntUGE) {
   Type *IntTy = IRB.getInt32Ty();
   unsigned BitWidth = IntTy->getScalarSizeInBits();
@@ -1131,6 +1154,85 @@ TEST_F(PatternMatchTest, WithOverflowInst) {
   EXPECT_EQ(Add, WOI);
   EXPECT_TRUE(match(Add1, m_ExtractValue<1>(m_WithOverflowInst(WOI))));
   EXPECT_EQ(Add, WOI);
+}
+
+TEST_F(PatternMatchTest, IntrinsicMatcher) {
+  Value *Name = IRB.CreateAlloca(IRB.getInt8Ty());
+  Value *Hash = IRB.getInt64(0);
+  Value *Num = IRB.getInt32(1);
+  Value *Index = IRB.getInt32(2);
+  Value *Step = IRB.getInt64(3);
+
+  Value *Ops[] = {Name, Hash, Num, Index, Step};
+  Module *M = BB->getParent()->getParent();
+  Function *TheFn =
+      Intrinsic::getDeclaration(M, Intrinsic::instrprof_increment_step);
+
+  Value *Intrinsic5 = CallInst::Create(TheFn, Ops, "", BB);
+
+  // Match without capturing.
+  EXPECT_TRUE(match(
+      Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                      m_Value(), m_Value(), m_Value(), m_Value(), m_Value())));
+  EXPECT_FALSE(match(
+      Intrinsic5, m_Intrinsic<Intrinsic::memmove>(
+                      m_Value(), m_Value(), m_Value(), m_Value(), m_Value())));
+
+  // Match with capturing.
+  Value *Arg1 = nullptr;
+  Value *Arg2 = nullptr;
+  Value *Arg3 = nullptr;
+  Value *Arg4 = nullptr;
+  Value *Arg5 = nullptr;
+  EXPECT_TRUE(
+      match(Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                            m_Value(Arg1), m_Value(Arg2), m_Value(Arg3),
+                            m_Value(Arg4), m_Value(Arg5))));
+  EXPECT_EQ(Arg1, Name);
+  EXPECT_EQ(Arg2, Hash);
+  EXPECT_EQ(Arg3, Num);
+  EXPECT_EQ(Arg4, Index);
+  EXPECT_EQ(Arg5, Step);
+
+  // Match specific second argument.
+  EXPECT_TRUE(
+      match(Intrinsic5,
+            m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                m_Value(), m_SpecificInt(0), m_Value(), m_Value(), m_Value())));
+  EXPECT_FALSE(
+      match(Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                            m_Value(), m_SpecificInt(10), m_Value(), m_Value(),
+                            m_Value())));
+
+  // Match specific third argument.
+  EXPECT_TRUE(
+      match(Intrinsic5,
+            m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                m_Value(), m_Value(), m_SpecificInt(1), m_Value(), m_Value())));
+  EXPECT_FALSE(
+      match(Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                            m_Value(), m_Value(), m_SpecificInt(10), m_Value(),
+                            m_Value())));
+
+  // Match specific fourth argument.
+  EXPECT_TRUE(
+      match(Intrinsic5,
+            m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                m_Value(), m_Value(), m_Value(), m_SpecificInt(2), m_Value())));
+  EXPECT_FALSE(
+      match(Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                            m_Value(), m_Value(), m_Value(), m_SpecificInt(10),
+                            m_Value())));
+
+  // Match specific fifth argument.
+  EXPECT_TRUE(
+      match(Intrinsic5,
+            m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                m_Value(), m_Value(), m_Value(), m_Value(), m_SpecificInt(3))));
+  EXPECT_FALSE(
+      match(Intrinsic5, m_Intrinsic<Intrinsic::instrprof_increment_step>(
+                            m_Value(), m_Value(), m_Value(), m_Value(),
+                            m_SpecificInt(10))));
 }
 
 template <typename T> struct MutableConstTest : PatternMatchTest { };

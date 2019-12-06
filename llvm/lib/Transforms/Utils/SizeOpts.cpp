@@ -28,6 +28,11 @@ cl::opt<bool> PGSOColdCodeOnly(
     cl::desc("Apply the profile guided size optimizations only "
              "to cold code."));
 
+cl::opt<bool> PGSOIRPassOrTestOnly(
+    "pgso-ir-pass-or-test-only", cl::Hidden, cl::init(true),
+    cl::desc("Apply the profile guided size optimizations only"
+             "to the IR passes or tests."));
+
 cl::opt<bool> ForcePGSO(
     "force-pgso", cl::Hidden, cl::init(false),
     cl::desc("Force the (profiled-guided) size optimizations. "));
@@ -70,11 +75,15 @@ struct BasicBlockBFIAdapter {
 } // end anonymous namespace
 
 bool llvm::shouldOptimizeForSize(const Function *F, ProfileSummaryInfo *PSI,
-                                 BlockFrequencyInfo *BFI) {
-  return shouldFuncOptimizeForSizeImpl<BasicBlockBFIAdapter>(F, PSI, BFI);
+                                 BlockFrequencyInfo *BFI,
+                                 PGSOQueryType QueryType) {
+  return shouldFuncOptimizeForSizeImpl<BasicBlockBFIAdapter>(F, PSI, BFI,
+                                                             QueryType);
 }
 
 bool llvm::shouldOptimizeForSize(const BasicBlock *BB, ProfileSummaryInfo *PSI,
-                                 BlockFrequencyInfo *BFI) {
-  return shouldOptimizeForSizeImpl<BasicBlockBFIAdapter>(BB, PSI, BFI);
+                                 BlockFrequencyInfo *BFI,
+                                 PGSOQueryType QueryType) {
+  return shouldOptimizeForSizeImpl<BasicBlockBFIAdapter>(BB, PSI, BFI,
+                                                         QueryType);
 }

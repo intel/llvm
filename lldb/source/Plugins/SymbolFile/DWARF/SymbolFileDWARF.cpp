@@ -198,15 +198,23 @@ GetFileByIndex(const llvm::DWARFDebugLine::Prologue &prologue, size_t idx,
   return std::move(rel_path);
 }
 
-static FileSpecList ParseSupportFilesFromPrologue(
-    const lldb::ModuleSP &module,
-    const llvm::DWARFDebugLine::Prologue &prologue, FileSpec::Style style,
-    llvm::StringRef compile_dir = {}, FileSpec first_file = {}) {
+static FileSpecList
+ParseSupportFilesFromPrologue(const lldb::ModuleSP &module,
+                              const llvm::DWARFDebugLine::Prologue &prologue,
+                              FileSpec::Style style,
+                              llvm::StringRef compile_dir = {}) {
   FileSpecList support_files;
-  support_files.Append(first_file);
+  size_t first_file = 0;
+  if (prologue.getVersion() <= 4) {
+    // File index 0 is not valid before DWARF v5. Add a dummy entry to ensure
+    // support file list indices match those we get from the debug info and line
+    // tables.
+    support_files.Append(FileSpec());
+    first_file = 1;
+  }
 
   const size_t number_of_files = prologue.FileNames.size();
-  for (size_t idx = 1; idx <= number_of_files; ++idx) {
+  for (size_t idx = first_file; idx <= number_of_files; ++idx) {
     std::string remapped_file;
     if (auto file_path = GetFileByIndex(prologue, idx, compile_dir, style))
       if (!module->RemapSourceFile(llvm::StringRef(*file_path), remapped_file))
@@ -676,21 +684,6 @@ DWARFDebugRanges *SymbolFileDWARF::GetDebugRanges() {
   return m_ranges.get();
 }
 
-DWARFDebugRngLists *SymbolFileDWARF::GetDebugRngLists() {
-  if (!m_rnglists) {
-    static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-    Timer scoped_timer(func_cat, "%s this = %p", LLVM_PRETTY_FUNCTION,
-                       static_cast<void *>(this));
-
-    if (m_context.getOrLoadRngListsData().GetByteSize() > 0)
-      m_rnglists.reset(new DWARFDebugRngLists());
-
-    if (m_rnglists)
-      m_rnglists->Extract(m_context);
-  }
-  return m_rnglists.get();
-}
-
 lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
   CompUnitSP cu_sp;
   CompileUnit *comp_unit = (CompileUnit *)dwarf_cu.GetUserData();
@@ -1046,7 +1039,7 @@ bool SymbolFileDWARF::ParseLineTable(CompileUnit &comp_unit) {
 
   comp_unit.SetSupportFiles(ParseSupportFilesFromPrologue(
       comp_unit.GetModule(), line_table->Prologue, dwarf_cu->GetPathStyle(),
-      dwarf_cu->GetCompilationDirectory().GetCString(), FileSpec(comp_unit)));
+      dwarf_cu->GetCompilationDirectory().GetCString()));
 
   return true;
 }
@@ -1949,9 +1942,8 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(const FileSpec &file_spec,
       if (!dc_cu)
         continue;
 
-      const bool full_match = (bool)file_spec.GetDirectory();
       bool file_spec_matches_cu_file_spec =
-          FileSpec::Equal(file_spec, *dc_cu, full_match);
+          FileSpec::Match(file_spec, dc_cu->GetPrimaryFile());
       if (check_inlines || file_spec_matches_cu_file_spec) {
         SymbolContext sc(m_objfile_sp->GetModule());
         sc.comp_unit = dc_cu;
