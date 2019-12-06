@@ -362,7 +362,7 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 }
 
 // The functions finds dependencies for the requirement. It starts searching
-// from list of "leaves" commands for the record and check if the examining
+// from list of "leaf" commands for the record and check if the examining
 // command can be executed in parallel with new one with regard to the memory
 // object. If can, then continue searching through dependencies of that
 // command. There are several rules used:
