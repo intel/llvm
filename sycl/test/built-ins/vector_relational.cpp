@@ -6,6 +6,7 @@
 
 #include <CL/sycl.hpp>
 
+#include <iostream>
 #include <cassert>
 #include <cmath>
 
@@ -568,6 +569,36 @@ int main() {
     assert(r2 == 112.112f);
     assert(r3 == 112.112f);
     assert(r4 == 34.34f);
+  }
+
+  {
+    s::vec<int, 4> r(0);
+    {
+      s::vec<int, 4> a(1, 2, 3, 4);
+      s::vec<int, 4> b(5, 6, 7, 8);
+      s::vec<unsigned int, 4> m(1u, 0x80000000u, 42u, 0x80001000u);
+      s::buffer<s::vec<int, 4>> A(&a, s::range<1>(1));
+      s::buffer<s::vec<int, 4>> B(&b, s::range<1>(1));
+      s::buffer<s::vec<unsigned int, 4>> M(&m, s::range<1>(1));
+      s::buffer<s::vec<int, 4>> R(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccA = A.get_access<s::access::mode::read>(cgh);
+        auto AccB = B.get_access<s::access::mode::read>(cgh);
+        auto AccM = M.get_access<s::access::mode::read>(cgh);
+        auto AccR = R.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class selectI4I4U4>([=]() {
+          AccR[0] = s::select(AccA[0], AccB[0], AccM[0]);
+        });
+      });
+    }
+    if (r.x() != 1 || r.y() != 6 || r.z() != 3 || r.w() != 8) {
+      std::cerr << "selectI4I4U4 test case failed!\n";
+      std::cerr << "Expected result: 1 6 3 8\n";
+      std::cerr << "Got: " << r.x() << " " << r.y() << " " << r.z() << " "
+                << r.w() << "\n";
+      return 1;
+    }
   }
 
   return 0;
