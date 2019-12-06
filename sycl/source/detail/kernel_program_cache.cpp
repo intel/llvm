@@ -28,11 +28,14 @@ KernelProgramCache::~KernelProgramCache() {
       KernelWithBuildStateT &KernelWithState = p.second;
       PiKernelT *Kern = KernelWithState.Ptr.load();
 
-      if (Kern)
-        PI_CALL(piKernelRelease)(Kern);
+      if (Kern) {
+        auto Plugin = MPlatform->getPlugin();
+        Plugin.call<PiApiKind::piKernelRelease>(Kern);
+      }
     }
 
-    PI_CALL(piProgramRelease)(ToBeDeleted);
+    auto Plugin = MPlatform->getPlugin();
+    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
 }

@@ -240,8 +240,10 @@ image_impl<Dimensions>::image_impl(
             std::move(Allocator)),
       MRange(InitializedVal<Dimensions, range>::template get<0>()) {
   RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-  PI_CALL(piMemGetInfo)(Mem, CL_MEM_SIZE, sizeof(size_t),
-                        &(BaseT::MSizeInBytes), nullptr);
+  const ContextImplPtr Context = getSyclObjImpl(SyclContext);
+  auto Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_SIZE, sizeof(size_t),
+                                       &(BaseT::MSizeInBytes), nullptr);
 
   RT::PiMemImageFormat Format;
   getImageInfo(PI_IMAGE_INFO_FORMAT, Format);

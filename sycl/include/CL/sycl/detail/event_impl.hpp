@@ -9,8 +9,9 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/event_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <cassert>
@@ -19,6 +20,7 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 class context;
 namespace detail {
+class plugin_impl;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
@@ -134,6 +136,10 @@ public:
   ///
   /// @return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
+
+  // @return the Plugin associated with the context of this event.
+  // Should be called when this is not a Host Event.
+  const plugin_impl &getPlugin() const;
 
   /// Associate event with the context.
   ///

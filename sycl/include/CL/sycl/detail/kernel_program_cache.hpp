@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/platform_impl.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -41,6 +42,7 @@ public:
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = EntityWithState<PiProgramT>;
   using ProgramCacheT = std::map<OSModuleHandle, ProgramWithBuildStateT>;
+  using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
   using PiKernelPtrT = std::atomic<PiKernelT *>;
@@ -49,6 +51,8 @@ public:
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
   ~KernelProgramCache();
+
+  void setPlatformImpl(PlatformImplPtr APlatform) { MPlatform = APlatform; }
 
   Locked<ProgramCacheT> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
@@ -78,6 +82,7 @@ private:
 
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
+  PlatformImplPtr MPlatform;
 };
 }
 }

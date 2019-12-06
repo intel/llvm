@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin_impl.hpp>
 
 #include <cstdarg>
 #include <cstring>
@@ -49,18 +50,19 @@ bool useBackend(Backend TheBackend) {
   return TheBackend == Use;
 }
 
-// TODO: Move this global structure into sycl::platform object,
-// associate each plugin with a platform.
-pi_plugin PluginInformation;
+// GlobalPlugin is a global Plugin used with Interoperability constructors that
+// use OpenCL objects as the
+std::shared_ptr<plugin_impl> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
 // TODO: Change the function appropriately when there are multiple plugins.
-std::string findPlugin() {
+bool findPlugins(vector_class<std::string> &PluginNames) {
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
-  return PLUGIN_NAME;
+  PluginNames.push_back(PLUGIN_NAME);
+  return true;
 }
 
 // Load the Plugin by calling the OS dependent library loading call.
@@ -75,19 +77,19 @@ void *loadPlugin(const std::string &PluginPath) {
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
-bool bindPlugin(void *Library) {
+bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
       &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
-  int err = PluginInitializeFunction(&PluginInformation);
+  int Err = PluginInitializeFunction(PluginInformation);
 
   // TODO: Compare Supported versions and check for backward compatibility.
   // Make sure err is PI_SUCCESS.
-  assert((err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
-  (void)err;
+  assert((Err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
+  (void)Err;
 
   // TODO: Return a more meaningful value/enum.
   return true;
@@ -95,34 +97,40 @@ bool bindPlugin(void *Library) {
 
 // Load the plugin based on SYCL_BE.
 // TODO: Currently only accepting OpenCL plugins. Edit it to identify and load
-// other kinds of plugins, do the required changes in the findPlugin, loadPlugin
-// and bindPlugin functions.
-void initialize() {
-  static bool Initialized = false;
-  if (Initialized) {
-    return;
-  }
+// other kinds of plugins, do the required changes in the findPlugins,
+// loadPlugin and bindPlugin functions.
+vector_class<plugin_impl> initialize() {
+  vector_class<plugin_impl> Plugins;
+
   if (!useBackend(SYCL_BE_PI_OPENCL)) {
     die("Unknown SYCL_BE");
   }
 
-  std::string PluginPath = findPlugin();
-  if (PluginPath.empty())
-    die("Plugin Not Found.");
+  bool EnableTrace = (std::getenv("SYCL_PI_TRACE") != nullptr);
 
-  void *Library = loadPlugin(PluginPath);
-  if (!Library) {
-    std::string Message =
-        "Check if plugin is present. Failed to load plugin: " + PluginPath;
-    die(Message.c_str());
+  vector_class<std::string> PluginNames;
+  findPlugins(PluginNames);
+
+  if (PluginNames.empty() && EnableTrace)
+    std::cerr << "No Plugins Found." << std::endl;
+
+  PiPlugin PluginInformation; // TODO: include.
+  for (unsigned int I = 0; I < PluginNames.size(); I++) {
+    void *Library = loadPlugin(PluginNames[I]);
+    if (!Library && EnableTrace) {
+      std::cerr << "Check if plugin is present. Failed to load plugin: "
+                << PluginNames[I] << std::endl;
+    }
+
+    if (!bindPlugin(Library, &PluginInformation) && EnableTrace) {
+      std::cerr << "Failed to bind PI APIs to the plugin: " << PluginNames[I]
+                << std::endl;
+    }
+    Plugins.push_back(plugin_impl(PluginInformation));
   }
-
-  if (!bindPlugin(Library)) {
-    std::string Message = "Failed to bind PI APIs to the plugin: " + PluginPath;
-    die(Message.c_str());
-  }
-
-  Initialized = true;
+  GlobalPlugin = std::make_shared<plugin_impl>(
+      PluginInformation); // Correct the logic for this.
+  return Plugins;
 }
 
 // Report error and no return (keeps compiler from printing warnings).
@@ -138,20 +146,6 @@ void assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
 }
-
-// TODO: Pass platform object to constructor which will contain the
-// PluginInformation class. Platform class with Plugin information is not
-// implemented yet.
-
-#define _PI_API(api)                                                           \
-  template <>                                                                  \
-  CallPi<decltype(&::api),                                                     \
-         (offsetof(pi_plugin::FunctionPointers, api))>::CallPi() {             \
-    initialize();                                                              \
-    MFnPtr = (RT::PluginInformation.PiFunctionTable.api);                      \
-    MFnName = #api;                                                            \
-  }
-#include <CL/sycl/detail/pi.def>
 
 } // namespace pi
 } // namespace detail

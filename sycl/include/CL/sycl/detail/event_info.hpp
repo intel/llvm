@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 __SYCL_INLINE namespace cl {
@@ -19,11 +20,11 @@ template <info::event_profiling Param> struct get_event_profiling_info {
   using RetType =
       typename info::param_traits<info::event_profiling, Param>::return_type;
 
-  static RetType get(RT::PiEvent Event) {
+  static RetType get(RT::PiEvent Event, const plugin_impl &Plugin) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piEventGetProfilingInfo)(Event, cl_profiling_info(Param),
-                                     sizeof(Result), &Result, nullptr);
+    Plugin.call<PiApiKind::piEventGetProfilingInfo>(
+        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr);
     return Result;
   }
 };
@@ -31,11 +32,11 @@ template <info::event_profiling Param> struct get_event_profiling_info {
 template <info::event Param> struct get_event_info {
   using RetType = typename info::param_traits<info::event, Param>::return_type;
 
-  static RetType get(RT::PiEvent Event) {
+  static RetType get(RT::PiEvent Event, const plugin_impl &Plugin) {
     RetType Result = (RetType)0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piEventGetInfo)(Event, cl_profiling_info(Param), sizeof(Result),
-                            &Result, nullptr);
+    Plugin.call<PiApiKind::piEventGetInfo>(Event, cl_profiling_info(Param),
+                                           sizeof(Result), &Result, nullptr);
     return Result;
   }
 };
