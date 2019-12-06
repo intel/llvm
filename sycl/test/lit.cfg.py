@@ -26,7 +26,7 @@ config.test_format = lit.formats.ShTest()
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
 
-config.excludes = ['CMakeLists.txt', 'run_tests.sh', 'README.txt']
+config.excludes = ['CMakeLists.txt', 'run_tests.sh', 'README.txt', 'Inputs']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
