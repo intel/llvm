@@ -121,8 +121,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     return Record;
 
   MemObject->MRecord.reset(new MemObjRecord{/*MAllocaCommands*/ {},
-                                            /*MReadLeafs*/ {},
-                                            /*MWriteLeafs*/ {},
+                                            /*MReadLeaves*/ {},
+                                            /*MWriteLeaves*/ {},
                                             Queue->get_context_impl(),
                                             /*MMemModified*/ false});
 
@@ -130,32 +130,33 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   return MemObject->MRecord.get();
 }
 
-// Helper function which removes all values in Cmds from Leafs
-void Scheduler::GraphBuilder::UpdateLeafs(const std::set<Command *> &Cmds,
-                                          MemObjRecord *Record,
-                                          access::mode AccessMode) {
+// Helper function which removes all values in Cmds from Leaves
+void Scheduler::GraphBuilder::UpdateLeaves(const std::set<Command *> &Cmds,
+                                           MemObjRecord *Record,
+                                           access::mode AccessMode) {
 
   const bool ReadOnlyReq = AccessMode == access::mode::read;
   if (ReadOnlyReq)
     return;
 
   for (const Command *Cmd : Cmds) {
-    auto NewEnd =
-        std::remove(Record->MReadLeafs.begin(), Record->MReadLeafs.end(), Cmd);
-    Record->MReadLeafs.erase(NewEnd, Record->MReadLeafs.end());
+    auto NewEnd = std::remove(Record->MReadLeaves.begin(),
+                              Record->MReadLeaves.end(), Cmd);
+    Record->MReadLeaves.erase(NewEnd, Record->MReadLeaves.end());
 
-    NewEnd = std::remove(Record->MWriteLeafs.begin(), Record->MWriteLeafs.end(),
-                         Cmd);
-    Record->MWriteLeafs.erase(NewEnd, Record->MWriteLeafs.end());
+    NewEnd = std::remove(Record->MWriteLeaves.begin(),
+                         Record->MWriteLeaves.end(), Cmd);
+    Record->MWriteLeaves.erase(NewEnd, Record->MWriteLeaves.end());
   }
 }
 
-void Scheduler::GraphBuilder::AddNodeToLeafs(MemObjRecord *Record, Command *Cmd,
-                                             access::mode AccessMode) {
+void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
+                                              Command *Cmd,
+                                              access::mode AccessMode) {
   if (AccessMode == access::mode::read)
-    Record->MReadLeafs.push_back(Cmd);
+    Record->MReadLeaves.push_back(Cmd);
   else
-    Record->MWriteLeafs.push_back(Cmd);
+    Record->MWriteLeaves.push_back(Cmd);
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
@@ -175,8 +176,8 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
   }
-  UpdateLeafs(Deps, Record, Req->MAccessMode);
-  AddNodeToLeafs(Record, UpdateCommand, Req->MAccessMode);
+  UpdateLeaves(Deps, Record, Req->MAccessMode);
+  AddNodeToLeaves(Record, UpdateCommand, Req->MAccessMode);
   return UpdateCommand;
 }
 
@@ -261,8 +262,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     NewCmd->addDep(DepDesc{Dep, NewCmd->getRequirement(), AllocaCmdDst});
     Dep->addUser(NewCmd);
   }
-  UpdateLeafs(Deps, Record, access::mode::read_write);
-  AddNodeToLeafs(Record, NewCmd, access::mode::read_write);
+  UpdateLeaves(Deps, Record, access::mode::read_write);
+  AddNodeToLeaves(Record, NewCmd, access::mode::read_write);
   Record->MCurContext = Queue->get_context_impl();
   return NewCmd;
 }
@@ -299,8 +300,8 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
     Dep->addUser(MemCpyCmd);
   }
 
-  UpdateLeafs(Deps, Record, Req->MAccessMode);
-  AddNodeToLeafs(Record, MemCpyCmd, Req->MAccessMode);
+  UpdateLeaves(Deps, Record, Req->MAccessMode);
+  AddNodeToLeaves(Record, MemCpyCmd, Req->MAccessMode);
   if (MPrintOptionsArray[AfterAddCopyBack])
     printGraphAsDot("after_addCopyBack");
   return MemCpyCmd;
@@ -339,8 +340,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
   EmptyCmd->MCanEnqueue = false;
   EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
-  UpdateLeafs({UpdateHostAccCmd}, Record, Req->MAccessMode);
-  AddNodeToLeafs(Record, EmptyCmd, Req->MAccessMode);
+  UpdateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
+  AddNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -361,7 +362,7 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 }
 
 // The functions finds dependencies for the requirement. It starts searching
-// from list of "leaf" commands for the record and check if the examining
+// from list of "leaves" commands for the record and check if the examining
 // command can be executed in parallel with new one with regard to the memory
 // object. If can, then continue searching through dependencies of that
 // command. There are several rules used:
@@ -378,11 +379,11 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 
   std::vector<Command *> ToAnalyze;
 
-  ToAnalyze = Record->MWriteLeafs;
+  ToAnalyze = Record->MWriteLeaves;
 
   if (!ReadOnlyReq)
-    ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeafs.begin(),
-                     Record->MReadLeafs.end());
+    ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeaves.begin(),
+                     Record->MReadLeaves.end());
 
   while (!ToAnalyze.empty()) {
     Command *DepCmd = ToAnalyze.back();
@@ -464,8 +465,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
-      UpdateLeafs(findDepsForReq(Record, Req, Queue->get_context_impl()),
-                  Record, access::mode::read_write);
+      UpdateLeaves(findDepsForReq(Record, Req, Queue->get_context_impl()),
+                   Record, access::mode::read_write);
     } else {
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
@@ -523,7 +524,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
-    Record->MWriteLeafs.push_back(AllocaCmd);
+    Record->MWriteLeaves.push_back(AllocaCmd);
   }
   return AllocaCmd;
 }
@@ -578,13 +579,13 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
   }
 
-  // Set new command as user for dependencies and update leafs.
+  // Set new command as user for dependencies and update leaves.
   for (DepDesc &Dep : NewCmd->MDeps) {
     Dep.MDepCommand->addUser(NewCmd.get());
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-    UpdateLeafs({Dep.MDepCommand}, Record, Req->MAccessMode);
-    AddNodeToLeafs(Record, NewCmd.get(), Req->MAccessMode);
+    UpdateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+    AddNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
   }
 
   // Register all the events as dependencies
