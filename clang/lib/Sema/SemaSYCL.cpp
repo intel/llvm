@@ -184,9 +184,9 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   return true;
 }
 
-static bool isKnownGoodDecl(Decl *D) {
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    IdentifierInfo *II = FD->getIdentifier();
+static bool isKnownGoodDecl(const Decl *D) {
+  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    const IdentifierInfo *II = FD->getIdentifier();
     if (II &&
         FD->getDeclContext()->isTranslationUnit() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
