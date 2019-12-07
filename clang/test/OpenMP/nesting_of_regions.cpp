@@ -1,7 +1,9 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -verify=expected,omp45 %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -verify=expected,omp45,omp45warn %s
 // RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=50 -verify=expected,omp50 %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -verify=expected,omp45 -Wno-openmp %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -verify=expected,omp45 -Wno-source-uses-openmp %s
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -verify=expected,omp45 %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -verify=expected,omp45,omp45warn %s
 // RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=50 -verify=expected,omp50 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 
@@ -57,6 +59,11 @@ void foo() {
     ;
 #pragma omp parallel
 #pragma omp parallel sections
+  {
+    bar();
+  }
+#pragma omp parallel
+#pragma omp parallel master
   {
     bar();
   }
@@ -229,7 +236,7 @@ void foo() {
   }
 #pragma omp simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -295,6 +302,13 @@ void foo() {
 #pragma omp simd
   for (int i = 0; i < 10; ++i) {
 #pragma omp parallel sections // expected-error {{OpenMP constructs may not be nested inside a simd region}}
+    {
+      bar();
+    }
+  }
+#pragma omp simd
+  for (int i = 0; i < 10; ++i) {
+#pragma omp parallel master // expected-error {{OpenMP constructs may not be nested inside a simd region}}
     {
       bar();
     }
@@ -563,6 +577,13 @@ void foo() {
   }
 #pragma omp for
   for (int i = 0; i < 10; ++i) {
+#pragma omp parallel master
+    {
+      bar();
+    }
+  }
+#pragma omp for
+  for (int i = 0; i < 10; ++i) {
 #pragma omp parallel sections
     {
       bar();
@@ -744,7 +765,7 @@ void foo() {
   }
 #pragma omp for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -806,6 +827,13 @@ void foo() {
 #pragma omp parallel for simd // expected-error {{OpenMP constructs may not be nested inside a simd region}}
     for (int i = 0; i < 10; ++i)
       ;
+  }
+#pragma omp for simd
+  for (int i = 0; i < 10; ++i) {
+#pragma omp parallel master // expected-error {{OpenMP constructs may not be nested inside a simd region}}
+    {
+      bar();
+    }
   }
 #pragma omp for simd
   for (int i = 0; i < 10; ++i) {
@@ -1041,6 +1069,13 @@ void foo() {
       {
         bar();
       }
+    }
+  }
+#pragma omp sections
+  {
+#pragma omp parallel master
+    {
+      bar();
     }
   }
 #pragma omp sections
@@ -1315,6 +1350,16 @@ void foo() {
       {
         bar();
       }
+    }
+  }
+#pragma omp sections
+  {
+#pragma omp section
+    {
+#pragma omp parallel master
+      bar();
+#pragma omp critical
+      bar();
     }
   }
 #pragma omp sections
@@ -1633,6 +1678,13 @@ void foo() {
   }
 #pragma omp single
   {
+#pragma omp parallel master
+    {
+      bar();
+    }
+  }
+#pragma omp single
+  {
 #pragma omp critical
     {
       bar();
@@ -1922,6 +1974,26 @@ void foo() {
   }
 #pragma omp master
   {
+#pragma omp parallel master // OK
+      {
+        bar();
+      }
+#pragma omp parallel
+    {
+#pragma omp for // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp for simd // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp sections // OK
+      {
+        bar();
+      }
+    }
+  }
+#pragma omp master
+  {
 #pragma omp parallel for
     for (int i = 0; i < 10; ++i)
       ;
@@ -2173,6 +2245,13 @@ void foo() {
       {
         bar();
       }
+    }
+  }
+#pragma omp critical
+  {
+#pragma omp parallel master
+    {
+      bar();
     }
   }
 #pragma omp critical
@@ -2649,7 +2728,7 @@ void foo() {
   }
 #pragma omp parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -2907,6 +2986,281 @@ void foo() {
   for (int i = 0; i < 10; ++i) {
 #pragma omp target teams distribute simd // expected-error {{OpenMP constructs may not be nested inside a simd region}}
     for (int j = 0; j < 10; ++j)
+      ;
+  }
+
+// PARALLEL MASTER DIRECTIVE
+#pragma omp parallel master
+  {
+#pragma omp for // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp for' directive into a parallel region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp simd
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp for simd // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp for simd' directive into a parallel region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp single // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp single' directive into a parallel region?}}
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp master // OK, though second 'master' is redundant
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp critical
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp sections // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp sections' directive into a parallel region?}}
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel
+    {
+#pragma omp parallel master // OK
+      {
+        bar();
+      }
+#pragma omp for // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp for simd // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp sections // OK
+      {
+        bar();
+      }
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel master // OK
+      {
+        bar();
+      }
+#pragma omp parallel
+    {
+#pragma omp for // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp for simd // OK
+      for (int i = 0; i < 10; ++i)
+        ;
+#pragma omp sections // OK
+      {
+        bar();
+      }
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel for
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel for simd
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp parallel sections
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp task
+    {
+      bar();
+    }
+  }
+#pragma omp parallel master
+  {
+#pragma omp taskyield
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp barrier // expected-error {{region cannot be closely nested inside 'parallel master' region}}
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp taskwait
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp flush
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp ordered // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp ordered' directive into a for or a parallel for region with 'ordered' clause?}}
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp atomic
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target parallel
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target parallel for
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target enter data map(to: a)
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target exit data map(from: a)
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp teams // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp teams' directive into a target region?}}
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp taskloop
+  for (int i = 0; i < 10; ++i)
+    ++a;
+  }
+#pragma omp parallel master
+  {
+#pragma omp distribute // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp distribute' directive into a teams region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target update to(a)
+    bar();
+  }
+#pragma omp parallel master
+  {
+#pragma omp distribute parallel for // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp distribute parallel for' directive into a teams region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp distribute parallel for simd // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp distribute parallel for simd' directive into a teams region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp distribute simd // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp distribute simd' directive into a teams region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target simd // OK
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp teams distribute // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp teams distribute' directive into a target region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp teams distribute simd // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp teams distribute simd' directive into a target region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp teams distribute parallel for simd // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp teams distribute parallel for simd' directive into a target region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp teams distribute parallel for // expected-error {{region cannot be closely nested inside 'parallel master' region; perhaps you forget to enclose 'omp teams distribute parallel for' directive into a target region?}}
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target teams // OK
+    a++;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target teams distribute // OK
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target teams distribute parallel for // OK
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target teams distribute parallel for simd // OK
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
+#pragma omp parallel master
+  {
+#pragma omp target teams distribute simd // OK
+    for (int i = 0; i < 10; ++i)
       ;
   }
 
@@ -3722,6 +4076,15 @@ void foo() {
   // expected-error@+2 {{the statement for 'atomic' must be an expression statement of form '++x;', '--x;', 'x++;', 'x--;', 'x binop= expr;', 'x = x binop expr' or 'x = expr binop x', where x is an l-value expression with scalar type}}
   // expected-note@+1 {{expected an expression statement}}
   {
+#pragma omp parallel master // expected-error {{OpenMP constructs may not be nested inside an atomic region}}
+    {
+      bar();
+    }
+  }
+#pragma omp atomic
+  // expected-error@+2 {{the statement for 'atomic' must be an expression statement of form '++x;', '--x;', 'x++;', 'x--;', 'x binop= expr;', 'x = x binop expr' or 'x = expr binop x', where x is an l-value expression with scalar type}}
+  // expected-note@+1 {{expected an expression statement}}
+  {
 #pragma omp critical // expected-error {{OpenMP constructs may not be nested inside an atomic region}}
     {
       bar();
@@ -4234,6 +4597,11 @@ void foo() {
 
 #pragma omp target parallel
 #pragma omp master
+  {
+    bar();
+  }
+#pragma omp target
+#pragma omp parallel master
   {
     bar();
   }
@@ -5860,7 +6228,7 @@ void foo() {
 #pragma omp teams
 #pragma omp distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -6172,7 +6540,7 @@ void foo() {
   }
 #pragma omp target simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -6948,7 +7316,7 @@ void foo() {
 #pragma omp target
 #pragma omp teams distribute simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -7231,7 +7599,7 @@ void foo() {
 #pragma omp target
 #pragma omp teams distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -8500,7 +8868,7 @@ void foo() {
   }
 #pragma omp target teams distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -8743,7 +9111,7 @@ void foo() {
   }
 #pragma omp target teams distribute simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -9000,6 +9368,8 @@ void foo() {
 #pragma omp parallel
 #pragma omp master
   bar();
+#pragma omp parallel master
+  bar();
 #pragma omp parallel
 #pragma omp critical
   bar();
@@ -9184,7 +9554,7 @@ void foo() {
   }
 #pragma omp simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -9674,7 +10044,7 @@ void foo() {
   }
 #pragma omp for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -10760,6 +11130,11 @@ void foo() {
     for (int i = 0; i < 10; ++i)
       ;
   }
+#pragma omp parallel master
+  {
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
 #pragma omp master
   {
 #pragma omp single // expected-error {{region cannot be closely nested inside 'master' region; perhaps you forget to enclose 'omp single' directive into a parallel region?}}
@@ -10806,6 +11181,13 @@ void foo() {
       {
         bar();
       }
+    }
+  }
+#pragma omp master
+  {
+#pragma omp parallel master
+    {
+      bar();
     }
   }
 #pragma omp master
@@ -11543,7 +11925,7 @@ void foo() {
   }
 #pragma omp parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -14489,7 +14871,7 @@ void foo() {
 #pragma omp teams
 #pragma omp distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -14801,7 +15183,7 @@ void foo() {
 #pragma omp teams
 #pragma omp distribute simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -15105,7 +15487,7 @@ void foo() {
   }
 #pragma omp target simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -15629,7 +16011,7 @@ void foo() {
 #pragma omp target
 #pragma omp teams distribute simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -15912,7 +16294,7 @@ void foo() {
 #pragma omp target
 #pragma omp teams distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -17181,7 +17563,7 @@ void foo() {
   }
 #pragma omp target teams distribute parallel for simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }
@@ -17424,7 +17806,7 @@ void foo() {
   }
 #pragma omp target teams distribute simd
   for (int i = 0; i < 10; ++i) {
-#pragma omp simd // omp45-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
+#pragma omp simd // omp45warn-warning {{OpenMP only allows an ordered construct with the simd clause nested in a simd construct}}
     for (int i = 0; i < 10; ++i)
       ;
   }

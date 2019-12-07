@@ -22,6 +22,8 @@
 #define DEVICE __attribute__((device))
 #define INLINE inline DEVICE
 #define NOINLINE __attribute__((noinline)) DEVICE
+#define SHARED __attribute__((shared))
+#define ALIGN(N) __attribute__((aligned(N)))
 
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel options
@@ -121,6 +123,10 @@ INLINE void __kmpc_impl_named_sync(int barrier, uint32_t num_threads) {
   // So it is ok to issue a full workgroup barrier here.
   __builtin_amdgcn_s_barrier();
 }
+
+EXTERN void __kmpc_impl_threadfence(void);
+EXTERN void __kmpc_impl_threadfence_block(void);
+EXTERN void __kmpc_impl_threadfence_system(void);
 
 // DEVICE versions of part of libc
 extern "C" {

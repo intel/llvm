@@ -14,6 +14,7 @@
 #include "CXXABI.h"
 #include "Interp/Context.h"
 #include "clang/AST/APValue.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Attr.h"
@@ -98,6 +99,30 @@ using namespace clang;
 enum FloatingRank {
   Float16Rank, HalfRank, FloatRank, DoubleRank, LongDoubleRank, Float128Rank
 };
+const Expr *ASTContext::traverseIgnored(const Expr *E) const {
+  return traverseIgnored(const_cast<Expr *>(E));
+}
+
+Expr *ASTContext::traverseIgnored(Expr *E) const {
+  if (!E)
+    return nullptr;
+
+  switch (Traversal) {
+  case ast_type_traits::TK_AsIs:
+    return E;
+  case ast_type_traits::TK_IgnoreImplicitCastsAndParentheses:
+    return E->IgnoreParenImpCasts();
+  }
+  llvm_unreachable("Invalid Traversal type!");
+}
+
+ast_type_traits::DynTypedNode
+ASTContext::traverseIgnored(const ast_type_traits::DynTypedNode &N) const {
+  if (const auto *E = N.get<Expr>()) {
+    return ast_type_traits::DynTypedNode::create(*traverseIgnored(E));
+  }
+  return N;
+}
 
 /// \returns location that is relevant when searching for Doc comments related
 /// to \p D.
@@ -963,7 +988,7 @@ public:
 
 void ASTContext::setTraversalScope(const std::vector<Decl *> &TopLevelDecls) {
   TraversalScope = TopLevelDecls;
-  Parents.reset();
+  Parents.clear();
 }
 
 void ASTContext::AddDeallocation(void (*Callback)(void *), void *Data) const {
@@ -2658,8 +2683,7 @@ const ObjCInterfaceDecl *ASTContext::getObjContainingInterface(
 
 /// Get the copy initialization expression of VarDecl, or nullptr if
 /// none exists.
-ASTContext::BlockVarCopyInit
-ASTContext::getBlockVarCopyInit(const VarDecl*VD) const {
+BlockVarCopyInit ASTContext::getBlockVarCopyInit(const VarDecl *VD) const {
   assert(VD && "Passed null params");
   assert(VD->hasAttr<BlocksAttr>() &&
          "getBlockVarCopyInits - not __block var");
@@ -10405,7 +10429,8 @@ createDynTypedNode(const NestedNameSpecifierLoc &Node) {
 class ASTContext::ParentMap::ASTVisitor
     : public RecursiveASTVisitor<ASTVisitor> {
 public:
-  ASTVisitor(ParentMap &Map) : Map(Map) {}
+  ASTVisitor(ParentMap &Map, ASTContext &Context)
+      : Map(Map), Context(Context) {}
 
 private:
   friend class RecursiveASTVisitor<ASTVisitor>;
@@ -10475,9 +10500,12 @@ private:
   }
 
   bool TraverseStmt(Stmt *StmtNode) {
-    return TraverseNode(
-        StmtNode, StmtNode, [&] { return VisitorBase::TraverseStmt(StmtNode); },
-        &Map.PointerParents);
+    Stmt *FilteredNode = StmtNode;
+    if (auto *ExprNode = dyn_cast_or_null<Expr>(FilteredNode))
+      FilteredNode = Context.traverseIgnored(ExprNode);
+    return TraverseNode(FilteredNode, FilteredNode,
+                        [&] { return VisitorBase::TraverseStmt(FilteredNode); },
+                        &Map.PointerParents);
   }
 
   bool TraverseTypeLoc(TypeLoc TypeLocNode) {
@@ -10495,20 +10523,22 @@ private:
   }
 
   ParentMap &Map;
+  ASTContext &Context;
   llvm::SmallVector<ast_type_traits::DynTypedNode, 16> ParentStack;
 };
 
 ASTContext::ParentMap::ParentMap(ASTContext &Ctx) {
-  ASTVisitor(*this).TraverseAST(Ctx);
+  ASTVisitor(*this, Ctx).TraverseAST(Ctx);
 }
 
 ASTContext::DynTypedNodeList
 ASTContext::getParents(const ast_type_traits::DynTypedNode &Node) {
-  if (!Parents)
+  std::unique_ptr<ParentMap> &P = Parents[Traversal];
+  if (!P)
     // We build the parent map for the traversal scope (usually whole TU), as
     // hasAncestor can escape any subtree.
-    Parents = std::make_unique<ParentMap>(*this);
-  return Parents->getParents(Node);
+    P = std::make_unique<ParentMap>(*this);
+  return P->getParents(Node);
 }
 
 bool
@@ -10756,5 +10786,68 @@ QualType ASTContext::getCorrespondingSignedFixedPointType(QualType Ty) const {
     return SatLongFractTy;
   default:
     llvm_unreachable("Unexpected unsigned fixed point type");
+  }
+}
+
+TargetAttr::ParsedTargetAttr
+ASTContext::filterFunctionTargetAttrs(const TargetAttr *TD) const {
+  assert(TD != nullptr);
+  TargetAttr::ParsedTargetAttr ParsedAttr = TD->parse();
+
+  ParsedAttr.Features.erase(
+      llvm::remove_if(ParsedAttr.Features,
+                      [&](const std::string &Feat) {
+                        return !Target->isValidFeatureName(
+                            StringRef{Feat}.substr(1));
+                      }),
+      ParsedAttr.Features.end());
+  return ParsedAttr;
+}
+
+void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
+                                       const FunctionDecl *FD) const {
+  if (FD)
+    getFunctionFeatureMap(FeatureMap, GlobalDecl().getWithDecl(FD));
+  else
+    Target->initFeatureMap(FeatureMap, getDiagnostics(),
+                           Target->getTargetOpts().CPU,
+                           Target->getTargetOpts().Features);
+}
+
+// Fills in the supplied string map with the set of target features for the
+// passed in function.
+void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
+                                       GlobalDecl GD) const {
+  StringRef TargetCPU = Target->getTargetOpts().CPU;
+  const FunctionDecl *FD = GD.getDecl()->getAsFunction();
+  if (const auto *TD = FD->getAttr<TargetAttr>()) {
+    TargetAttr::ParsedTargetAttr ParsedAttr = filterFunctionTargetAttrs(TD);
+
+    // Make a copy of the features as passed on the command line into the
+    // beginning of the additional features from the function to override.
+    ParsedAttr.Features.insert(
+        ParsedAttr.Features.begin(),
+        Target->getTargetOpts().FeaturesAsWritten.begin(),
+        Target->getTargetOpts().FeaturesAsWritten.end());
+
+    if (ParsedAttr.Architecture != "" &&
+        Target->isValidCPUName(ParsedAttr.Architecture))
+      TargetCPU = ParsedAttr.Architecture;
+
+    // Now populate the feature map, first with the TargetCPU which is either
+    // the default or a new one from the target attribute string. Then we'll use
+    // the passed in features (FeaturesAsWritten) along with the new ones from
+    // the attribute.
+    Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU,
+                           ParsedAttr.Features);
+  } else if (const auto *SD = FD->getAttr<CPUSpecificAttr>()) {
+    llvm::SmallVector<StringRef, 32> FeaturesTmp;
+    Target->getCPUSpecificCPUDispatchFeatures(
+        SD->getCPUName(GD.getMultiVersionIndex())->getName(), FeaturesTmp);
+    std::vector<std::string> Features(FeaturesTmp.begin(), FeaturesTmp.end());
+    Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU, Features);
+  } else {
+    Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU,
+                           Target->getTargetOpts().Features);
   }
 }

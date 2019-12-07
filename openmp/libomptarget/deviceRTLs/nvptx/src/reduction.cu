@@ -14,7 +14,7 @@
 #include <complex.h>
 #include <stdio.h>
 
-#include "omptarget-nvptx.h"
+#include "common/omptarget.h"
 #include "target_impl.h"
 
 EXTERN
@@ -233,7 +233,7 @@ static int32_t nvptx_teams_reduce_nowait(int32_t global_tid, int32_t num_vars,
                           : /*Master thread only*/ 1;
   uint32_t TeamId = GetBlockIdInKernel();
   uint32_t NumTeams = GetNumberOfBlocksInKernel();
-  __shared__ volatile bool IsLastTeam;
+  SHARED volatile bool IsLastTeam;
 
   // Team masters of all teams write to the scratchpad.
   if (ThreadId == 0) {
@@ -241,7 +241,7 @@ static int32_t nvptx_teams_reduce_nowait(int32_t global_tid, int32_t num_vars,
     char *scratchpad = GetTeamsReductionScratchpad();
 
     scratchFct(reduce_data, scratchpad, TeamId, NumTeams);
-    __threadfence();
+    __kmpc_impl_threadfence();
 
     // atomicInc increments 'timestamp' and has a range [0, NumTeams-1].
     // It resets 'timestamp' back to 0 once the last team increments
@@ -389,7 +389,7 @@ EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_simple(kmp_Ident *loc,
 EXTERN void
 __kmpc_nvptx_teams_end_reduce_nowait_simple(kmp_Ident *loc, int32_t global_tid,
                                             kmp_CriticalName *crit) {
-  __threadfence_system();
+  __kmpc_impl_threadfence_system();
   (void)atomicExch((uint32_t *)crit, 0);
 }
 
@@ -403,8 +403,8 @@ INLINE static uint32_t roundToWarpsize(uint32_t s) {
   return (s & ~(unsigned)(WARPSIZE - 1));
 }
 
-__device__ static volatile uint32_t IterCnt = 0;
-__device__ static volatile uint32_t Cnt = 0;
+DEVICE static volatile uint32_t IterCnt = 0;
+DEVICE static volatile uint32_t Cnt = 0;
 EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
     kmp_Ident *loc, int32_t global_tid, void *global_buffer,
     int32_t num_of_records, void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
@@ -426,8 +426,8 @@ EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
                          : /*Master thread only*/ 1;
   uint32_t TeamId = GetBlockIdInKernel();
   uint32_t NumTeams = GetNumberOfBlocksInKernel();
-  __shared__ unsigned Bound;
-  __shared__ unsigned ChunkTeamCount;
+  SHARED unsigned Bound;
+  SHARED unsigned ChunkTeamCount;
 
   // Block progress for teams greater than the current upper
   // limit. We always only allow a number of teams less or equal
@@ -446,7 +446,7 @@ EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
       lgcpyFct(global_buffer, ModBockId, reduce_data);
     else
       lgredFct(global_buffer, ModBockId, reduce_data);
-    __threadfence_system();
+    __kmpc_impl_threadfence_system();
 
     // Increment team counter.
     // This counter is incremented by all teams in the current

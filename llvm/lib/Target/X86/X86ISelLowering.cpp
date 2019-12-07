@@ -593,8 +593,6 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::FSINCOS, VT, Expand);
 
       // Handle constrained floating-point operations of scalar.
-      setOperationAction(ISD::STRICT_FMUL     , VT, Legal);
-      setOperationAction(ISD::STRICT_FDIV     , VT, Legal);
       setOperationAction(ISD::STRICT_FSQRT    , VT, Legal);
       setOperationAction(ISD::STRICT_FP_EXTEND, VT, Legal);
       // FIXME: When the target is 64-bit, STRICT_FP_ROUND will be overwritten
@@ -623,13 +621,15 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     } else // SSE immediates.
       addLegalFPImmediate(APFloat(+0.0)); // xorpd
   }
-
-  // FIXME: Mark these legal to prevent them from being expanded to a
-  // libcall in LegalizeDAG. They'll be mutated by X86ISelDAGToDAG::Select.
+  // Handle constrained floating-point operations of scalar.
   setOperationAction(ISD::STRICT_FADD, MVT::f32, Legal);
   setOperationAction(ISD::STRICT_FADD, MVT::f64, Legal);
   setOperationAction(ISD::STRICT_FSUB, MVT::f32, Legal);
   setOperationAction(ISD::STRICT_FSUB, MVT::f64, Legal);
+  setOperationAction(ISD::STRICT_FMUL, MVT::f32, Legal);
+  setOperationAction(ISD::STRICT_FMUL, MVT::f64, Legal);
+  setOperationAction(ISD::STRICT_FDIV, MVT::f32, Legal);
+  setOperationAction(ISD::STRICT_FDIV, MVT::f64, Legal);
 
   // We don't support FMA.
   setOperationAction(ISD::FMA, MVT::f64, Expand);
@@ -864,6 +864,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::STRICT_FADD,        MVT::v2f64, Legal);
     setOperationAction(ISD::STRICT_FSUB,        MVT::v4f32, Legal);
     setOperationAction(ISD::STRICT_FSUB,        MVT::v2f64, Legal);
+    setOperationAction(ISD::STRICT_FMUL,        MVT::v4f32, Legal);
+    setOperationAction(ISD::STRICT_FMUL,        MVT::v2f64, Legal);
+    setOperationAction(ISD::STRICT_FDIV,        MVT::v4f32, Legal);
+    setOperationAction(ISD::STRICT_FDIV,        MVT::v2f64, Legal);
   }
 
   if (!Subtarget.useSoftFloat() && Subtarget.hasSSE2()) {
@@ -1160,6 +1164,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::STRICT_FADD,        MVT::v4f64, Legal);
     setOperationAction(ISD::STRICT_FSUB,        MVT::v8f32, Legal);
     setOperationAction(ISD::STRICT_FSUB,        MVT::v4f64, Legal);
+    setOperationAction(ISD::STRICT_FMUL,        MVT::v8f32, Legal);
+    setOperationAction(ISD::STRICT_FMUL,        MVT::v4f64, Legal);
+    setOperationAction(ISD::STRICT_FDIV,        MVT::v8f32, Legal);
+    setOperationAction(ISD::STRICT_FDIV,        MVT::v4f64, Legal);
 
     if (!Subtarget.hasAVX512())
       setOperationAction(ISD::BITCAST, MVT::v32i1, Custom);
@@ -1429,6 +1437,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::STRICT_FADD,     MVT::v8f64, Legal);
     setOperationAction(ISD::STRICT_FSUB,     MVT::v16f32, Legal);
     setOperationAction(ISD::STRICT_FSUB,     MVT::v8f64, Legal);
+    setOperationAction(ISD::STRICT_FMUL,     MVT::v16f32, Legal);
+    setOperationAction(ISD::STRICT_FMUL,     MVT::v8f64, Legal);
+    setOperationAction(ISD::STRICT_FDIV,     MVT::v16f32, Legal);
+    setOperationAction(ISD::STRICT_FDIV,     MVT::v8f64, Legal);
 
     setTruncStoreAction(MVT::v8i64,   MVT::v8i8,   Legal);
     setTruncStoreAction(MVT::v8i64,   MVT::v8i16,  Legal);
@@ -1974,7 +1986,7 @@ bool X86TargetLowering::useLoadStackGuardNode() const {
 
 bool X86TargetLowering::useStackGuardXorFP() const {
   // Currently only MSVC CRTs XOR the frame pointer into the stack guard value.
-  return Subtarget.getTargetTriple().isOSMSVCRT();
+  return Subtarget.getTargetTriple().isOSMSVCRT() && !Subtarget.isTargetMachO();
 }
 
 SDValue X86TargetLowering::emitStackGuardXorFP(SelectionDAG &DAG, SDValue Val,
@@ -3796,7 +3808,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                          "the only memory argument");
   }
 
-  if (!IsSibcall)
+  if (!IsSibcall && !IsMustTail)
     Chain = DAG.getCALLSEQ_START(Chain, NumBytesToPush,
                                  NumBytes - NumBytesToPush, dl);
 
@@ -4081,7 +4093,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
   SmallVector<SDValue, 8> Ops;
 
-  if (!IsSibcall && isTailCall) {
+  if (!IsSibcall && isTailCall && !IsMustTail) {
     Chain = DAG.getCALLSEQ_END(Chain,
                                DAG.getIntPtrConstant(NumBytesToPop, dl, true),
                                DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
@@ -18545,10 +18557,10 @@ SDValue X86TargetLowering::LowerSINT_TO_FP(SDValue Op,
   SDValue Chain = DAG.getStore(
       DAG.getEntryNode(), dl, ValueToStore, StackSlot,
       MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), SSFI));
-  return BuildFILD(Op, SrcVT, Chain, StackSlot, DAG);
+  return BuildFILD(Op, SrcVT, Chain, StackSlot, DAG).first;
 }
 
-SDValue X86TargetLowering::BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
+std::pair<SDValue, SDValue> X86TargetLowering::BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
                                      SDValue StackSlot,
                                      SelectionDAG &DAG) const {
   // Build the FILD
@@ -18577,9 +18589,9 @@ SDValue X86TargetLowering::BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
   SDValue Result =
       DAG.getMemIntrinsicNode(useSSE ? X86ISD::FILD_FLAG : X86ISD::FILD, DL,
                               Tys, FILDOps, SrcVT, LoadMMO);
+  Chain = Result.getValue(1);
 
   if (useSSE) {
-    Chain = Result.getValue(1);
     SDValue InFlag = Result.getValue(2);
 
     // FIXME: Currently the FST is glued to the FILD_FLAG. This
@@ -18601,9 +18613,10 @@ SDValue X86TargetLowering::BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
     Result = DAG.getLoad(
         Op.getValueType(), DL, Chain, StackSlot,
         MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), SSFI));
+    Chain = Result.getValue(1);
   }
 
-  return Result;
+  return { Result, Chain };
 }
 
 /// Horizontal vector math instructions may be slower than normal math with
@@ -18915,8 +18928,7 @@ SDValue X86TargetLowering::LowerUINT_TO_FP(SDValue Op,
                                   StackSlot, MachinePointerInfo());
     SDValue Store2 = DAG.getStore(Store1, dl, DAG.getConstant(0, dl, MVT::i32),
                                   OffsetSlot, MachinePointerInfo());
-    SDValue Fild = BuildFILD(Op, MVT::i64, Store2, StackSlot, DAG);
-    return Fild;
+    return BuildFILD(Op, MVT::i64, Store2, StackSlot, DAG).first;
   }
 
   assert(SrcVT == MVT::i64 && "Unexpected type in UINT_TO_FP");
@@ -19035,8 +19047,9 @@ X86TargetLowering::FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG,
     // of a signed i64.  Let Thresh be the FP equivalent of
     // 0x8000000000000000ULL.
     //
-    //  Adjust i32 = (Value < Thresh) ? 0 : 0x80000000;
-    //  FistSrc    = (Value < Thresh) ? Value : (Value - Thresh);
+    //  Adjust = (Value < Thresh) ? 0 : 0x80000000;
+    //  FltOfs = (Value < Thresh) ? 0 : 0x80000000;
+    //  FistSrc = (Value - FltOfs);
     //  Fist-to-mem64 FistSrc
     //  Add 0 or 0x800...0ULL to the 64-bit result, which is equivalent
     //  to XOR'ing the high 32 bits with Adjust.
@@ -19044,7 +19057,6 @@ X86TargetLowering::FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG,
     // Being a power of 2, Thresh is exactly representable in all FP formats.
     // For X87 we'd like to use the smallest FP type for this constant, but
     // for DAG type consistency we have to match the FP operand type.
-    // FIXME: This code generates a spurious inexact exception for 1.0.
 
     APFloat Thresh(APFloat::IEEEsingle(), APInt(32, 0x5f000000));
     LLVM_ATTRIBUTE_UNUSED APFloat::opStatus Status = APFloat::opOK;
@@ -19070,18 +19082,16 @@ X86TargetLowering::FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG,
                            DAG.getConstant(0, DL, MVT::i64),
                            DAG.getConstant(APInt::getSignMask(64),
                                            DL, MVT::i64));
-    SDValue Sub;
-    if (IsStrict) {
-      Sub = DAG.getNode(ISD::STRICT_FSUB, DL, { TheVT, MVT::Other},
-                        { Chain, Value, ThreshVal });
-      Chain = Sub.getValue(1);
-    } else
-      Sub = DAG.getNode(ISD::FSUB, DL, TheVT, Value, ThreshVal);
+    SDValue FltOfs = DAG.getSelect(DL, TheVT, Cmp,
+                                   DAG.getConstantFP(0.0, DL, TheVT),
+                                   ThreshVal);
 
-    Cmp = DAG.getSetCC(DL, getSetCCResultType(DAG.getDataLayout(),
-                                              *DAG.getContext(), TheVT),
-                       Value, ThreshVal, ISD::SETLT);
-    Value = DAG.getSelect(DL, TheVT, Cmp, Value, Sub);
+    if (IsStrict) {
+      Value = DAG.getNode(ISD::STRICT_FSUB, DL, { TheVT, MVT::Other},
+                          { Chain, Value, FltOfs });
+      Chain = Value.getValue(1);
+    } else
+      Value = DAG.getNode(ISD::FSUB, DL, TheVT, Value, FltOfs);
   }
 
   MachinePointerInfo MPI = MachinePointerInfo::getFixedStack(MF, SSFI);
@@ -43468,10 +43478,10 @@ static SDValue combineSIntToFP(SDNode *N, SelectionDAG &DAG,
     if (Ld->isSimple() && !VT.isVector() &&
         ISD::isNON_EXTLoad(Op0.getNode()) && Op0.hasOneUse() &&
         !Subtarget.is64Bit() && LdVT == MVT::i64) {
-      SDValue FILDChain = Subtarget.getTargetLowering()->BuildFILD(
+      std::pair<SDValue, SDValue> Tmp = Subtarget.getTargetLowering()->BuildFILD(
           SDValue(N, 0), LdVT, Ld->getChain(), Op0, DAG);
-      DAG.ReplaceAllUsesOfValueWith(Op0.getValue(1), FILDChain.getValue(1));
-      return FILDChain;
+      DAG.ReplaceAllUsesOfValueWith(Op0.getValue(1), Tmp.second);
+      return Tmp.first;
     }
   }
 
