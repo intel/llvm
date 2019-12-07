@@ -15,24 +15,6 @@
 #include <string>
 #include <vector>
 
-
-// Clang headers like to use NDEBUG inside of them to enable/disable debug
-// related features using "#ifndef NDEBUG" preprocessor blocks to do one thing
-// or another. This is bad because it means that if clang was built in release
-// mode, it assumes that you are building in release mode which is not always
-// the case. You can end up with functions that are defined as empty in header
-// files when NDEBUG is not defined, and this can cause link errors with the
-// clang .a files that you have since you might be missing functions in the .a
-// file. So we have to define NDEBUG when including clang headers to avoid any
-// mismatches. This is covered by rdar://problem/8691220
-
-#if !defined(NDEBUG) && !defined(LLVM_NDEBUG_OFF)
-#define LLDB_DEFINED_NDEBUG_FOR_CLANG
-#define NDEBUG
-// Need to include assert.h so it is as clang would expect it to be (disabled)
-#include <assert.h>
-#endif
-
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTImporter.h"
 #include "clang/AST/Attr.h"
@@ -53,13 +35,6 @@
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Frontend/FrontendOptions.h"
 #include "clang/Sema/Sema.h"
-
-#ifdef LLDB_DEFINED_NDEBUG_FOR_CLANG
-#undef NDEBUG
-#undef LLDB_DEFINED_NDEBUG_FOR_CLANG
-// Need to re-include assert.h so it is as _we_ would expect it to be (enabled)
-#include <assert.h>
-#endif
 
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/Threading.h"
@@ -337,6 +312,8 @@ static ClangASTMap &GetASTMap() {
   return *g_map_ptr;
 }
 
+char ClangASTContext::ID;
+
 bool ClangASTContext::IsOperator(llvm::StringRef name,
                                  clang::OverloadedOperatorKind &op_kind) {
   // All operators have to start with "operator".
@@ -522,8 +499,7 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
   Opts.NoInlineDefine = !Opt;
 }
 
-ClangASTContext::ClangASTContext(llvm::StringRef target_triple)
-    : TypeSystem(TypeSystem::eKindClang) {
+ClangASTContext::ClangASTContext(llvm::StringRef target_triple) {
   if (!target_triple.empty())
     SetTargetTriple(target_triple);
   // The caller didn't pass an ASTContext so create a new one for this
@@ -531,16 +507,14 @@ ClangASTContext::ClangASTContext(llvm::StringRef target_triple)
   CreateASTContext();
 }
 
-ClangASTContext::ClangASTContext(ArchSpec arch)
-    : TypeSystem(TypeSystem::eKindClang) {
+ClangASTContext::ClangASTContext(ArchSpec arch) {
   SetTargetTriple(arch.GetTriple().str());
   // The caller didn't pass an ASTContext so create a new one for this
   // ClangASTContext.
   CreateASTContext();
 }
 
-ClangASTContext::ClangASTContext(ASTContext &existing_ctxt)
-  : TypeSystem(TypeSystem::eKindClang) {
+ClangASTContext::ClangASTContext(ASTContext &existing_ctxt) {
   SetTargetTriple(existing_ctxt.getTargetInfo().getTriple().str());
 
   m_ast_up.reset(&existing_ctxt);
@@ -563,47 +537,47 @@ uint32_t ClangASTContext::GetPluginVersion() { return 1; }
 lldb::TypeSystemSP ClangASTContext::CreateInstance(lldb::LanguageType language,
                                                    lldb_private::Module *module,
                                                    Target *target) {
-  if (ClangASTContextSupportsLanguage(language)) {
-    ArchSpec arch;
-    if (module)
-      arch = module->GetArchitecture();
-    else if (target)
-      arch = target->GetArchitecture();
+  if (!ClangASTContextSupportsLanguage(language))
+    return lldb::TypeSystemSP();
+  ArchSpec arch;
+  if (module)
+    arch = module->GetArchitecture();
+  else if (target)
+    arch = target->GetArchitecture();
 
-    if (arch.IsValid()) {
-      ArchSpec fixed_arch = arch;
-      // LLVM wants this to be set to iOS or MacOSX; if we're working on
-      // a bare-boards type image, change the triple for llvm's benefit.
-      if (fixed_arch.GetTriple().getVendor() == llvm::Triple::Apple &&
-          fixed_arch.GetTriple().getOS() == llvm::Triple::UnknownOS) {
-        if (fixed_arch.GetTriple().getArch() == llvm::Triple::arm ||
-            fixed_arch.GetTriple().getArch() == llvm::Triple::aarch64 ||
-            fixed_arch.GetTriple().getArch() == llvm::Triple::aarch64_32 ||
-            fixed_arch.GetTriple().getArch() == llvm::Triple::thumb) {
-          fixed_arch.GetTriple().setOS(llvm::Triple::IOS);
-        } else {
-          fixed_arch.GetTriple().setOS(llvm::Triple::MacOSX);
-        }
-      }
+  if (!arch.IsValid())
+    return lldb::TypeSystemSP();
 
-      if (module) {
-        std::shared_ptr<ClangASTContext> ast_sp(
-            new ClangASTContext(fixed_arch));
-        return ast_sp;
-      } else if (target && target->IsValid()) {
-        std::shared_ptr<ClangASTContextForExpressions> ast_sp(
-            new ClangASTContextForExpressions(*target, fixed_arch));
-        ast_sp->m_scratch_ast_source_up.reset(
-            new ClangASTSource(target->shared_from_this()));
-        lldbassert(ast_sp->getFileManager());
-        ast_sp->m_scratch_ast_source_up->InstallASTContext(
-            *ast_sp->getASTContext(), *ast_sp->getFileManager(), true);
-        llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source(
-            ast_sp->m_scratch_ast_source_up->CreateProxy());
-        ast_sp->SetExternalSource(proxy_ast_source);
-        return ast_sp;
-      }
+  ArchSpec fixed_arch = arch;
+  // LLVM wants this to be set to iOS or MacOSX; if we're working on
+  // a bare-boards type image, change the triple for llvm's benefit.
+  if (fixed_arch.GetTriple().getVendor() == llvm::Triple::Apple &&
+      fixed_arch.GetTriple().getOS() == llvm::Triple::UnknownOS) {
+    if (fixed_arch.GetTriple().getArch() == llvm::Triple::arm ||
+        fixed_arch.GetTriple().getArch() == llvm::Triple::aarch64 ||
+        fixed_arch.GetTriple().getArch() == llvm::Triple::aarch64_32 ||
+        fixed_arch.GetTriple().getArch() == llvm::Triple::thumb) {
+      fixed_arch.GetTriple().setOS(llvm::Triple::IOS);
+    } else {
+      fixed_arch.GetTriple().setOS(llvm::Triple::MacOSX);
     }
+  }
+
+  if (module) {
+    std::shared_ptr<ClangASTContext> ast_sp(new ClangASTContext(fixed_arch));
+    return ast_sp;
+  } else if (target && target->IsValid()) {
+    std::shared_ptr<ClangASTContextForExpressions> ast_sp(
+        new ClangASTContextForExpressions(*target, fixed_arch));
+    ast_sp->m_scratch_ast_source_up.reset(
+        new ClangASTSource(target->shared_from_this()));
+    lldbassert(ast_sp->getFileManager());
+    ast_sp->m_scratch_ast_source_up->InstallASTContext(
+        *ast_sp, *ast_sp->getFileManager(), true);
+    llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source(
+        ast_sp->m_scratch_ast_source_up->CreateProxy());
+    ast_sp->SetExternalSource(proxy_ast_source);
+    return ast_sp;
   }
   return lldb::TypeSystemSP();
 }
@@ -844,77 +818,62 @@ static inline bool QualTypeMatchesBitSize(const uint64_t bit_size,
 CompilerType
 ClangASTContext::GetBuiltinTypeForEncodingAndBitSize(Encoding encoding,
                                                      size_t bit_size) {
-  return ClangASTContext::GetBuiltinTypeForEncodingAndBitSize(
-      getASTContext(), encoding, bit_size);
-}
-
-CompilerType ClangASTContext::GetBuiltinTypeForEncodingAndBitSize(
-    ASTContext *ast, Encoding encoding, uint32_t bit_size) {
-  auto *clang_ast_context = ClangASTContext::GetASTContext(ast);
+  ASTContext *ast = this->getASTContext();
   if (!ast)
     return CompilerType();
   switch (encoding) {
   case eEncodingInvalid:
     if (QualTypeMatchesBitSize(bit_size, ast, ast->VoidPtrTy))
-      return CompilerType(clang_ast_context, ast->VoidPtrTy.getAsOpaquePtr());
+      return CompilerType(this, ast->VoidPtrTy.getAsOpaquePtr());
     break;
 
   case eEncodingUint:
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedCharTy))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedCharTy.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedCharTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedShortTy))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedShortTy.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedShortTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedIntTy))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedIntTy.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedIntTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedLongTy))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedLongTy.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedLongTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedLongLongTy))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedLongLongTy.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedLongLongTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->UnsignedInt128Ty))
-      return CompilerType(clang_ast_context,
-                          ast->UnsignedInt128Ty.getAsOpaquePtr());
+      return CompilerType(this, ast->UnsignedInt128Ty.getAsOpaquePtr());
     break;
 
   case eEncodingSint:
     if (QualTypeMatchesBitSize(bit_size, ast, ast->SignedCharTy))
-      return CompilerType(clang_ast_context,
-                          ast->SignedCharTy.getAsOpaquePtr());
+      return CompilerType(this, ast->SignedCharTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->ShortTy))
-      return CompilerType(clang_ast_context, ast->ShortTy.getAsOpaquePtr());
+      return CompilerType(this, ast->ShortTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->IntTy))
-      return CompilerType(clang_ast_context, ast->IntTy.getAsOpaquePtr());
+      return CompilerType(this, ast->IntTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->LongTy))
-      return CompilerType(clang_ast_context, ast->LongTy.getAsOpaquePtr());
+      return CompilerType(this, ast->LongTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->LongLongTy))
-      return CompilerType(clang_ast_context, ast->LongLongTy.getAsOpaquePtr());
+      return CompilerType(this, ast->LongLongTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->Int128Ty))
-      return CompilerType(clang_ast_context, ast->Int128Ty.getAsOpaquePtr());
+      return CompilerType(this, ast->Int128Ty.getAsOpaquePtr());
     break;
 
   case eEncodingIEEE754:
     if (QualTypeMatchesBitSize(bit_size, ast, ast->FloatTy))
-      return CompilerType(clang_ast_context, ast->FloatTy.getAsOpaquePtr());
+      return CompilerType(this, ast->FloatTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->DoubleTy))
-      return CompilerType(clang_ast_context, ast->DoubleTy.getAsOpaquePtr());
+      return CompilerType(this, ast->DoubleTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->LongDoubleTy))
-      return CompilerType(clang_ast_context,
-                          ast->LongDoubleTy.getAsOpaquePtr());
+      return CompilerType(this, ast->LongDoubleTy.getAsOpaquePtr());
     if (QualTypeMatchesBitSize(bit_size, ast, ast->HalfTy))
-      return CompilerType(clang_ast_context, ast->HalfTy.getAsOpaquePtr());
+      return CompilerType(this, ast->HalfTy.getAsOpaquePtr());
     break;
 
   case eEncodingVector:
     // Sanity check that bit_size is a multiple of 8's.
     if (bit_size && !(bit_size & 0x7u))
       return CompilerType(
-          clang_ast_context,
-          ast->getExtVectorType(ast->UnsignedCharTy, bit_size / 8)
-              .getAsOpaquePtr());
+          this, ast->getExtVectorType(ast->UnsignedCharTy, bit_size / 8)
+                    .getAsOpaquePtr());
     break;
   }
 
@@ -985,11 +944,6 @@ ClangASTContext::GetBasicTypeEnumeration(ConstString name) {
     return g_type_map.Find(name, eBasicTypeInvalid);
   }
   return eBasicTypeInvalid;
-}
-
-CompilerType ClangASTContext::GetBasicType(ConstString name) {
-  lldb::BasicType basic_type = ClangASTContext::GetBasicTypeEnumeration(name);
-  return GetBasicType(basic_type);
 }
 
 uint32_t ClangASTContext::GetPointerByteSize() {
@@ -10200,16 +10154,20 @@ bool ClangASTContext::DeclContextIsContainedInLookup(
   return false;
 }
 
+static bool IsClangDeclContext(const CompilerDeclContext &dc) {
+  return dc.IsValid() && isa<ClangASTContext>(dc.GetTypeSystem());
+}
+
 clang::DeclContext *
 ClangASTContext::DeclContextGetAsDeclContext(const CompilerDeclContext &dc) {
-  if (dc.IsClang())
+  if (IsClangDeclContext(dc))
     return (clang::DeclContext *)dc.GetOpaqueDeclContext();
   return nullptr;
 }
 
 ObjCMethodDecl *
 ClangASTContext::DeclContextGetAsObjCMethodDecl(const CompilerDeclContext &dc) {
-  if (dc.IsClang())
+  if (IsClangDeclContext(dc))
     return llvm::dyn_cast<clang::ObjCMethodDecl>(
         (clang::DeclContext *)dc.GetOpaqueDeclContext());
   return nullptr;
@@ -10217,7 +10175,7 @@ ClangASTContext::DeclContextGetAsObjCMethodDecl(const CompilerDeclContext &dc) {
 
 CXXMethodDecl *
 ClangASTContext::DeclContextGetAsCXXMethodDecl(const CompilerDeclContext &dc) {
-  if (dc.IsClang())
+  if (IsClangDeclContext(dc))
     return llvm::dyn_cast<clang::CXXMethodDecl>(
         (clang::DeclContext *)dc.GetOpaqueDeclContext());
   return nullptr;
@@ -10225,7 +10183,7 @@ ClangASTContext::DeclContextGetAsCXXMethodDecl(const CompilerDeclContext &dc) {
 
 clang::FunctionDecl *
 ClangASTContext::DeclContextGetAsFunctionDecl(const CompilerDeclContext &dc) {
-  if (dc.IsClang())
+  if (IsClangDeclContext(dc))
     return llvm::dyn_cast<clang::FunctionDecl>(
         (clang::DeclContext *)dc.GetOpaqueDeclContext());
   return nullptr;
@@ -10233,7 +10191,7 @@ ClangASTContext::DeclContextGetAsFunctionDecl(const CompilerDeclContext &dc) {
 
 clang::NamespaceDecl *
 ClangASTContext::DeclContextGetAsNamespaceDecl(const CompilerDeclContext &dc) {
-  if (dc.IsClang())
+  if (IsClangDeclContext(dc))
     return llvm::dyn_cast<clang::NamespaceDecl>(
         (clang::DeclContext *)dc.GetOpaqueDeclContext());
   return nullptr;

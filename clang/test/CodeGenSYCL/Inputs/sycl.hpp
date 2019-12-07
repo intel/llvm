@@ -137,7 +137,7 @@ public:
   _ImplT<dimensions> impl;
 
 private:
-  void __init(__attribute__((ocl_global)) dataT *Ptr, range<dimensions> AccessRange,
+  void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 

@@ -315,14 +315,14 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->Indent();
   *s << "CompileUnit  = " << comp_unit;
   if (comp_unit != nullptr)
-    *s << " {0x" << comp_unit->GetID() << "} "
-       << *(static_cast<FileSpec *>(comp_unit));
+    s->Format(" {{{0:x-16}} {1}", comp_unit->GetID(),
+              comp_unit->GetPrimaryFile());
   s->EOL();
   s->Indent();
   *s << "Function     = " << function;
   if (function != nullptr) {
-    *s << " {0x" << function->GetID() << "} " << function->GetType()->GetName()
-       << ", address-range = ";
+    s->Format(" {{{0:x-16}} {1}, address-range = ", function->GetID(),
+              function->GetType()->GetName());
     function->GetAddressRange().Dump(s, target, Address::DumpStyleLoadAddress,
                                      Address::DumpStyleModuleWithFileAddress);
     s->EOL();
@@ -337,10 +337,7 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->Indent();
   *s << "Block        = " << block;
   if (block != nullptr)
-    *s << " {0x" << block->GetID() << '}';
-  // Dump the block and pass it a negative depth to we print all the parent
-  // blocks if (block != NULL)
-  //  block->Dump(s, function->GetFileAddress(), INT_MIN);
+    s->Format(" {{{0:x-16}}", block->GetID());
   s->EOL();
   s->Indent();
   *s << "LineEntry    = ";
@@ -354,7 +351,8 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->EOL();
   *s << "Variable     = " << variable;
   if (variable != nullptr) {
-    *s << " {0x" << variable->GetID() << "} " << variable->GetType()->GetName();
+    s->Format(" {{{0:x-16}} {1}", variable->GetID(),
+              variable->GetType()->GetName());
     s->EOL();
   }
   s->IndentLess();
@@ -1028,8 +1026,7 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
           return false;
       } else {
         FileSpec module_file_spec(m_module_spec);
-        if (!FileSpec::Equal(module_file_spec, sc.module_sp->GetFileSpec(),
-                             false))
+        if (!FileSpec::Match(module_file_spec, sc.module_sp->GetFileSpec()))
           return false;
       }
     }
@@ -1048,8 +1045,8 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
             sc.block->GetInlinedFunctionInfo();
         if (inline_info != nullptr) {
           was_inlined = true;
-          if (!FileSpec::Equal(inline_info->GetDeclaration().GetFile(),
-                               *(m_file_spec_up.get()), false))
+          if (!FileSpec::Match(*m_file_spec_up,
+                               inline_info->GetDeclaration().GetFile()))
             return false;
         }
       }
@@ -1057,7 +1054,7 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
       // Next check the comp unit, but only if the SymbolContext was not
       // inlined.
       if (!was_inlined && sc.comp_unit != nullptr) {
-        if (!FileSpec::Equal(*(sc.comp_unit), *(m_file_spec_up.get()), false))
+        if (!FileSpec::Match(*m_file_spec_up, sc.comp_unit->GetPrimaryFile()))
           return false;
       }
     }

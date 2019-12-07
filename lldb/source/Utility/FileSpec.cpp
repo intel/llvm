@@ -75,15 +75,6 @@ FileSpec::FileSpec(llvm::StringRef path, Style style) : m_style(style) {
 FileSpec::FileSpec(llvm::StringRef path, const llvm::Triple &triple)
     : FileSpec{path, triple.isOSWindows() ? Style::windows : Style::posix} {}
 
-// Copy constructor
-FileSpec::FileSpec(const FileSpec *rhs) : m_directory(), m_filename() {
-  if (rhs)
-    *this = *rhs;
-}
-
-// Virtual destructor in case anyone inherits from this class.
-FileSpec::~FileSpec() {}
-
 namespace {
 /// Safely get a character at the specified index.
 ///
@@ -302,20 +293,18 @@ int FileSpec::Compare(const FileSpec &a, const FileSpec &b, bool full) {
 }
 
 bool FileSpec::Equal(const FileSpec &a, const FileSpec &b, bool full) {
-  // case sensitivity of equality test
-  const bool case_sensitive = a.IsCaseSensitive() || b.IsCaseSensitive();
+  if (full || (a.GetDirectory() && b.GetDirectory()))
+    return a == b;
 
-  const bool filenames_equal = ConstString::Equals(a.m_filename,
-                                                   b.m_filename,
-                                                   case_sensitive);
+  return a.FileEquals(b);
+}
 
-  if (!filenames_equal)
-    return false;
-
-  if (!full && (a.GetDirectory().IsEmpty() || b.GetDirectory().IsEmpty()))
-    return filenames_equal;
-
-  return a == b;
+bool FileSpec::Match(const FileSpec &pattern, const FileSpec &file) {
+  if (pattern.GetDirectory())
+    return pattern == file;
+  if (pattern.GetFilename())
+    return pattern.FileEquals(file);
+  return true;
 }
 
 llvm::Optional<FileSpec::Style> FileSpec::GuessPathStyle(llvm::StringRef absolute_path) {

@@ -57,17 +57,17 @@ struct DeviceValueType;
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::global_buffer> {
-  using type = __attribute__((ocl_global)) dataT;
+  using type = __attribute__((opencl_global)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::constant_buffer> {
-  using type = __attribute__((ocl_constant)) dataT;
+  using type = __attribute__((opencl_constant)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::local> {
-  using type = __attribute__((ocl_local)) dataT;
+  using type = __attribute__((opencl_local)) dataT;
 };
 
 template <typename dataT, int dimensions, access::mode accessmode,

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/Metadata.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
@@ -2394,6 +2395,49 @@ TEST_F(DIExpressionTest, isValid) {
 #undef EXPECT_INVALID
 }
 
+TEST_F(DIExpressionTest, createFragmentExpression) {
+#define EXPECT_VALID_FRAGMENT(Offset, Size, ...)                               \
+  do {                                                                         \
+    uint64_t Elements[] = {__VA_ARGS__};                                       \
+    DIExpression* Expression = DIExpression::get(Context, Elements);           \
+    EXPECT_TRUE(DIExpression::createFragmentExpression(                        \
+      Expression, Offset, Size).hasValue());                                   \
+  } while (false)
+#define EXPECT_INVALID_FRAGMENT(Offset, Size, ...)                             \
+  do {                                                                         \
+    uint64_t Elements[] = {__VA_ARGS__};                                       \
+    DIExpression* Expression = DIExpression::get(Context, Elements);           \
+    EXPECT_FALSE(DIExpression::createFragmentExpression(                       \
+      Expression, Offset, Size).hasValue());                                   \
+  } while (false)
+
+  // createFragmentExpression adds correct ops.
+  Optional<DIExpression*> R = DIExpression::createFragmentExpression(
+    DIExpression::get(Context, {}), 0, 32);
+  EXPECT_EQ(R.hasValue(), true);
+  EXPECT_EQ(3u, (*R)->getNumElements());
+  EXPECT_EQ(dwarf::DW_OP_LLVM_fragment, (*R)->getElement(0));
+  EXPECT_EQ(0u, (*R)->getElement(1));
+  EXPECT_EQ(32u, (*R)->getElement(2));
+
+  // Valid fragment expressions.
+  EXPECT_VALID_FRAGMENT(0, 32, {});
+  EXPECT_VALID_FRAGMENT(0, 32, dwarf::DW_OP_deref);
+  EXPECT_VALID_FRAGMENT(0, 32, dwarf::DW_OP_LLVM_fragment, 0, 32);
+  EXPECT_VALID_FRAGMENT(16, 16, dwarf::DW_OP_LLVM_fragment, 0, 32);
+
+  // Invalid fragment expressions (incompatible ops).
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 6, dwarf::DW_OP_plus);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 14, dwarf::DW_OP_minus);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shr);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shl);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shra);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_plus_uconst, 6);
+
+#undef EXPECT_VALID_FRAGMENT
+#undef EXPECT_INVALID_FRAGMENT
+}
+
 typedef MetadataTest DIObjCPropertyTest;
 
 TEST_F(DIObjCPropertyTest, get) {
@@ -2853,5 +2897,42 @@ TEST_F(DistinctMDOperandPlaceholderTest, TrackingMDRefAndDistinctMDNode) {
   }
 }
 #endif
+
+typedef MetadataTest DebugVariableTest;
+TEST_F(DebugVariableTest, DenseMap) {
+  DenseMap<DebugVariable, uint64_t> DebugVariableMap;
+
+  DILocalScope *Scope = getSubprogram();
+  DIFile *File = getFile();
+  DIType *Type = getDerivedType();
+  DINode::DIFlags Flags = static_cast<DINode::DIFlags>(7);
+
+  DILocation *InlinedLoc = DILocation::get(Context, 2, 7, Scope);
+
+  DILocalVariable *VarA =
+      DILocalVariable::get(Context, Scope, "A", File, 5, Type, 2, Flags, 8);
+  DILocalVariable *VarB =
+      DILocalVariable::get(Context, Scope, "B", File, 7, Type, 3, Flags, 8);
+
+  DebugVariable DebugVariableA(VarA, NoneType(), nullptr);
+  DebugVariable DebugVariableInlineA(VarA, NoneType(), InlinedLoc);
+  DebugVariable DebugVariableB(VarB, NoneType(), nullptr);
+  DebugVariable DebugVariableFragB(VarB, {{16, 16}}, nullptr);
+
+  DebugVariableMap.insert({DebugVariableA, 2});
+  DebugVariableMap.insert({DebugVariableInlineA, 3});
+  DebugVariableMap.insert({DebugVariableB, 6});
+  DebugVariableMap.insert({DebugVariableFragB, 12});
+
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableA), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableInlineA), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableB), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableFragB), 1u);
+
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableA)->second, 2u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableInlineA)->second, 3u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableB)->second, 6u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableFragB)->second, 12u);
+}
 
 } // end namespace

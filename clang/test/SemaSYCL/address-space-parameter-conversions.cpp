@@ -2,17 +2,17 @@
 
 void bar(int & Data) {}
 void bar2(int & Data) {}
-void bar(__attribute__((ocl_private)) int  & Data) {}
+void bar(__attribute__((opencl_private)) int  & Data) {}
 void foo(int * Data) {}
 void foo2(int * Data) {}
-void foo(__attribute__((ocl_private)) int * Data) {}
+void foo(__attribute__((opencl_private)) int * Data) {}
 
 template<typename T>
 void tmpl(T *t){}
 
 void usages() {
-  __attribute__((ocl_global)) int *GLOB;
-  __attribute__((ocl_private)) int *PRIV;
+  __attribute__((opencl_global)) int *GLOB;
+  __attribute__((opencl_private)) int *PRIV;
   __attribute__((address_space(3))) int *LOC;
   int *NoAS;
 

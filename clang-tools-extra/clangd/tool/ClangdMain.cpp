@@ -11,6 +11,7 @@
 #include "Features.inc"
 #include "Path.h"
 #include "Protocol.h"
+#include "Shutdown.h"
 #include "Trace.h"
 #include "Transport.h"
 #include "index/Background.h"
@@ -34,6 +35,10 @@
 #include <mutex>
 #include <string>
 #include <thread>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace clang {
 namespace clangd {
@@ -264,6 +269,16 @@ list<std::string> TweakList{
     CommaSeparated,
 };
 
+opt<bool> CrossFileRename{
+    "cross-file-rename",
+    cat(Features),
+    desc("Enable cross-file rename feature. Note that this feature is "
+         "experimental and may lead to broken code or incomplete rename "
+         "results"),
+    init(false),
+    Hidden,
+};
+
 opt<unsigned> WorkerThreadsCount{
     "j",
     cat(Misc),
@@ -435,6 +450,7 @@ int main(int argc, char *argv[]) {
 
   llvm::InitializeAllTargetInfos();
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+  llvm::sys::SetInterruptFunction(&requestShutdown);
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
@@ -531,6 +547,10 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   LoggingSession LoggingSession(Logger);
   // Write some initial logs before we start doing any real work.
   log("{0}", clang::getClangToolFullVersion("clangd"));
+// FIXME: abstract this better, and print PID on windows too.
+#ifndef _WIN32
+  log("PID: {0}", getpid());
+#endif
   {
     SmallString<128> CWD;
     if (auto Err = llvm::sys::fs::current_path(CWD))
@@ -595,6 +615,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.StaticIndex = StaticIdx.get();
   Opts.AsyncThreadsCount = WorkerThreadsCount;
+  Opts.CrossFileRename = CrossFileRename;
 
   clangd::CodeCompleteOptions CCOpts;
   CCOpts.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -683,12 +704,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   // However if a bug causes them to run forever, we want to ensure the process
   // eventually exits. As clangd isn't directly user-facing, an editor can
   // "leak" clangd processes. Crashing in this case contains the damage.
-  //
-  // This is more portable than sys::WatchDog, and yields a stack trace.
-  std::thread([] {
-    std::this_thread::sleep_for(std::chrono::minutes(5));
-    std::abort();
-  }).detach();
+  abortAfterTimeout(std::chrono::minutes(5));
 
   return ExitCode;
 }

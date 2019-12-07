@@ -1576,8 +1576,12 @@ TemplateInstantiator::TransformFunctionTypeParam(ParmVarDecl *OldParm,
                                                  int indexAdjustment,
                                                Optional<unsigned> NumExpansions,
                                                  bool ExpectParameterPack) {
-  return SemaRef.SubstParmVarDecl(OldParm, TemplateArgs, indexAdjustment,
-                                  NumExpansions, ExpectParameterPack);
+  auto NewParm =
+      SemaRef.SubstParmVarDecl(OldParm, TemplateArgs, indexAdjustment,
+                               NumExpansions, ExpectParameterPack);
+  if (NewParm && SemaRef.getLangOpts().OpenCL)
+    SemaRef.deduceOpenCLAddressSpace(NewParm);
+  return NewParm;
 }
 
 QualType
@@ -2284,8 +2288,10 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
   CheckCompletedCXXClass(Instantiation);
 
   // Default arguments are parsed, if not instantiated. We can go instantiate
-  // default arg exprs for default constructors if necessary now.
-  ActOnFinishCXXNonNestedClass(Instantiation);
+  // default arg exprs for default constructors if necessary now. Unless we're
+  // parsing a class, in which case wait until that's finished.
+  if (ParsingClassDepth == 0)
+    ActOnFinishCXXNonNestedClass();
 
   // Instantiate late parsed attributes, and attach them to their decls.
   // See Sema::InstantiateAttrs

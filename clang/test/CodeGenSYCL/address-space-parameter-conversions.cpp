@@ -3,7 +3,7 @@ void bar(int & Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
 void bar2(int & Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
-void bar(__attribute__((ocl_local)) int &Data) {}
+void bar(__attribute__((opencl_local)) int &Data) {}
 // CHECK-DAG: define spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* dereferenceable(4) %
 void foo(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
@@ -20,12 +20,12 @@ void usages() {
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca i32 addrspace(1)*
   __attribute__((address_space(1))) int *GLOB;
   // CHECK-DAG: [[LOC:%[a-zA-Z0-9]+]] = alloca i32 addrspace(3)*
-  __attribute__((ocl_local)) int *LOC;
+  __attribute__((opencl_local)) int *LOC;
   // CHECK-DAG: [[NoAS:%[a-zA-Z0-9]+]] = alloca i32 addrspace(4)*
   int *NoAS;
 
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9]+]] = alloca i32*
-  __attribute__((ocl_private)) int *PRIV;
+  __attribute__((opencl_private)) int *PRIV;
 
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
@@ -98,19 +98,19 @@ void usages2() {
   // CHECK-DAG: [[PRIV_NUM:%[a-zA-Z0-9_]+]] = alloca i32*
   __attribute__((address_space(0))) int *PRIV_NUM2;
   // CHECK-DAG: [[PRIV_NUM2:%[a-zA-Z0-9_]+]] = alloca i32*
-  __attribute__((ocl_private)) int *PRIV;
+  __attribute__((opencl_private)) int *PRIV;
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9_]+]] = alloca i32*
   __attribute__((address_space(1))) int *GLOB_NUM;
   // CHECK-DAG: [[GLOB_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
-  __attribute__((ocl_global)) int *GLOB;
+  __attribute__((opencl_global)) int *GLOB;
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
   __attribute__((address_space(2))) int *CONST_NUM;
   // CHECK-DAG: [[CONST_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
-  __attribute__((ocl_constant)) int *CONST;
+  __attribute__((opencl_constant)) int *CONST;
   // CHECK-DAG: [[CONST:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
   __attribute__((address_space(3))) int *LOCAL_NUM;
   // CHECK-DAG: [[LOCAL_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
-  __attribute__((ocl_local)) int *LOCAL;
+  __attribute__((opencl_local)) int *LOCAL;
   // CHECK-DAG: [[LOCAL:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
 
   bar(*PRIV_NUM);

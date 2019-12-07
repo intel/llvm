@@ -7,10 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
+#include "ClangdServer.h"
+#include "SyncAPI.h"
 #include "TestFS.h"
 #include "TestTU.h"
+#include "index/Ref.h"
 #include "refactor/Rename.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -18,8 +22,45 @@ namespace clang {
 namespace clangd {
 namespace {
 
-MATCHER_P2(RenameRange, Code, Range, "") {
-  return replacementToEdit(Code, arg).range == Range;
+using testing::Eq;
+using testing::Pair;
+using testing::UnorderedElementsAre;
+
+// Build a RefSlab from all marked ranges in the annotation. The ranges are
+// assumed to associate with the given SymbolName.
+std::unique_ptr<RefSlab> buildRefSlab(const Annotations &Code,
+                                      llvm::StringRef SymbolName,
+                                      llvm::StringRef Path) {
+  RefSlab::Builder Builder;
+  TestTU TU;
+  TU.HeaderCode = Code.code();
+  auto Symbols = TU.headerSymbols();
+  const auto &SymbolID = findSymbol(Symbols, SymbolName).ID;
+  for (const auto &Range : Code.ranges()) {
+    Ref R;
+    R.Kind = RefKind::Reference;
+    R.Location.Start.setLine(Range.start.line);
+    R.Location.Start.setColumn(Range.start.character);
+    R.Location.End.setLine(Range.end.line);
+    R.Location.End.setColumn(Range.end.character);
+    auto U = URI::create(Path).toString();
+    R.Location.FileURI = U.c_str();
+    Builder.insert(SymbolID, R);
+  }
+
+  return std::make_unique<RefSlab>(std::move(Builder).build());
+}
+
+std::vector<
+    std::pair</*FilePath*/ std::string, /*CodeAfterRename*/ std::string>>
+applyEdits(FileEdits FE) {
+  std::vector<std::pair<std::string, std::string>> Results;
+  for (auto &It : FE)
+    Results.emplace_back(
+        It.first().str(),
+        llvm::cantFail(tooling::applyAllReplacements(
+            It.getValue().InitialCode, It.getValue().Replacements)));
+  return Results;
 }
 
 // Generates an expected rename result by replacing all ranges in the given
@@ -363,11 +404,11 @@ TEST(RenameTest, WithinFileRename) {
     llvm::StringRef NewName = "abcde";
     for (const auto &RenamePos : Code.points()) {
       auto RenameResult =
-          renameWithinFile(AST, testPath(TU.Filename), RenamePos, NewName);
-      ASSERT_TRUE(bool(RenameResult)) << RenameResult.takeError() << T;
-      auto ApplyResult = llvm::cantFail(
-          tooling::applyAllReplacements(Code.code(), *RenameResult));
-      EXPECT_EQ(expectedResult(Code, NewName), ApplyResult);
+          rename({RenamePos, NewName, AST, testPath(TU.Filename)});
+      ASSERT_TRUE(bool(RenameResult)) << RenameResult.takeError();
+      ASSERT_EQ(1u, RenameResult->size());
+      EXPECT_EQ(applyEdits(std::move(*RenameResult)).front().second,
+                expectedResult(Code, NewName));
     }
   }
 }
@@ -411,12 +452,19 @@ TEST(RenameTest, Renameable) {
       )cpp",
        "used outside main file", HeaderFile, Index},
 
-      {R"cpp(// disallow -- symbol is not indexable.
+      {R"cpp(// disallow -- symbol in annonymous namespace in header is not indexable.
         namespace {
         class Unin^dexable {};
         }
       )cpp",
        "not eligible for indexing", HeaderFile, Index},
+
+      {R"cpp(// allow -- symbol in annonymous namespace in non-header file is indexable.
+        namespace {
+        class [[F^oo]] {};
+        }
+      )cpp",
+       nullptr, !HeaderFile, Index},
 
       {R"cpp(// disallow -- namespace symbol isn't supported
         namespace n^s {}
@@ -480,23 +528,23 @@ TEST(RenameTest, Renameable) {
     }
     auto AST = TU.build();
     llvm::StringRef NewName = "dummyNewName";
-    auto Results = renameWithinFile(AST, testPath(TU.Filename), T.point(),
-                                    NewName, Case.Index);
+    auto Results =
+        rename({T.point(), NewName, AST, testPath(TU.Filename), Case.Index});
     bool WantRename = true;
     if (T.ranges().empty())
       WantRename = false;
     if (!WantRename) {
       assert(Case.ErrorMessage && "Error message must be set!");
       EXPECT_FALSE(Results)
-          << "expected renameWithinFile returned an error: " << T.code();
+          << "expected rename returned an error: " << T.code();
       auto ActualMessage = llvm::toString(Results.takeError());
       EXPECT_THAT(ActualMessage, testing::HasSubstr(Case.ErrorMessage));
     } else {
-      EXPECT_TRUE(bool(Results)) << "renameWithinFile returned an error: "
+      EXPECT_TRUE(bool(Results)) << "rename returned an error: "
                                  << llvm::toString(Results.takeError());
-      auto ApplyResult =
-          llvm::cantFail(tooling::applyAllReplacements(T.code(), *Results));
-      EXPECT_EQ(expectedResult(T, NewName), ApplyResult);
+      ASSERT_EQ(1u, Results->size());
+      EXPECT_EQ(applyEdits(std::move(*Results)).front().second,
+                expectedResult(T, NewName));
     }
   }
 }
@@ -522,11 +570,287 @@ TEST(RenameTest, MainFileReferencesOnly) {
   llvm::StringRef NewName = "abcde";
 
   auto RenameResult =
-      renameWithinFile(AST, testPath(TU.Filename), Code.point(), NewName);
+      rename({Code.point(), NewName, AST, testPath(TU.Filename)});
   ASSERT_TRUE(bool(RenameResult)) << RenameResult.takeError() << Code.point();
-  auto ApplyResult =
-      llvm::cantFail(tooling::applyAllReplacements(Code.code(), *RenameResult));
-  EXPECT_EQ(expectedResult(Code, NewName), ApplyResult);
+  ASSERT_EQ(1u, RenameResult->size());
+  EXPECT_EQ(applyEdits(std::move(*RenameResult)).front().second,
+            expectedResult(Code, NewName));
+}
+
+TEST(CrossFileRenameTests, DirtyBuffer) {
+  Annotations FooCode("class [[Foo]] {};");
+  std::string FooPath = testPath("foo.cc");
+  Annotations FooDirtyBuffer("class [[Foo]] {};\n// this is dirty buffer");
+  Annotations BarCode("void [[Bar]]() {}");
+  std::string BarPath = testPath("bar.cc");
+  // Build the index, the index has "Foo" references from foo.cc and "Bar"
+  // references from bar.cc.
+  FileSymbols FSymbols;
+  FSymbols.update(FooPath, nullptr, buildRefSlab(FooCode, "Foo", FooPath),
+                  nullptr, false);
+  FSymbols.update(BarPath, nullptr, buildRefSlab(BarCode, "Bar", BarPath),
+                  nullptr, false);
+  auto Index = FSymbols.buildIndex(IndexType::Light);
+
+  Annotations MainCode("class  [[Fo^o]] {};");
+  auto MainFilePath = testPath("main.cc");
+  // Dirty buffer for foo.cc.
+  auto GetDirtyBuffer = [&](PathRef Path) -> llvm::Optional<std::string> {
+    if (Path == FooPath)
+      return FooDirtyBuffer.code().str();
+    return llvm::None;
+  };
+
+  // Run rename on Foo, there is a dirty buffer for foo.cc, rename should
+  // respect the dirty buffer.
+  TestTU TU = TestTU::withCode(MainCode.code());
+  auto AST = TU.build();
+  llvm::StringRef NewName = "newName";
+  auto Results = rename({MainCode.point(), NewName, AST, MainFilePath,
+                         Index.get(), /*CrossFile=*/true, GetDirtyBuffer});
+  ASSERT_TRUE(bool(Results)) << Results.takeError();
+  EXPECT_THAT(
+      applyEdits(std::move(*Results)),
+      UnorderedElementsAre(
+          Pair(Eq(FooPath), Eq(expectedResult(FooDirtyBuffer, NewName))),
+          Pair(Eq(MainFilePath), Eq(expectedResult(MainCode, NewName)))));
+
+  // Run rename on Bar, there is no dirty buffer for the affected file bar.cc,
+  // so we should read file content from VFS.
+  MainCode = Annotations("void [[Bar]]() { [[B^ar]](); }");
+  TU = TestTU::withCode(MainCode.code());
+  // Set a file "bar.cc" on disk.
+  TU.AdditionalFiles["bar.cc"] = BarCode.code();
+  AST = TU.build();
+  Results = rename({MainCode.point(), NewName, AST, MainFilePath, Index.get(),
+                    /*CrossFile=*/true, GetDirtyBuffer});
+  ASSERT_TRUE(bool(Results)) << Results.takeError();
+  EXPECT_THAT(
+      applyEdits(std::move(*Results)),
+      UnorderedElementsAre(
+          Pair(Eq(BarPath), Eq(expectedResult(BarCode, NewName))),
+          Pair(Eq(MainFilePath), Eq(expectedResult(MainCode, NewName)))));
+
+  // Run rename on a pagination index which couldn't return all refs in one
+  // request, we reject rename on this case.
+  class PaginationIndex : public SymbolIndex {
+    bool refs(const RefsRequest &Req,
+              llvm::function_ref<void(const Ref &)> Callback) const override {
+      return true; // has more references
+    }
+
+    bool fuzzyFind(
+        const FuzzyFindRequest &Req,
+        llvm::function_ref<void(const Symbol &)> Callback) const override {
+      return false;
+    }
+    void
+    lookup(const LookupRequest &Req,
+           llvm::function_ref<void(const Symbol &)> Callback) const override {}
+
+    void relations(const RelationsRequest &Req,
+                   llvm::function_ref<void(const SymbolID &, const Symbol &)>
+                       Callback) const override {}
+    size_t estimateMemoryUsage() const override { return 0; }
+  } PIndex;
+  Results = rename({MainCode.point(), NewName, AST, MainFilePath, &PIndex,
+                    /*CrossFile=*/true, GetDirtyBuffer});
+  EXPECT_FALSE(Results);
+  EXPECT_THAT(llvm::toString(Results.takeError()),
+              testing::HasSubstr("too many occurrences"));
+}
+
+TEST(CrossFileRenameTests, WithUpToDateIndex) {
+  MockCompilationDatabase CDB;
+  CDB.ExtraClangFlags = {"-xc++"};
+  class IgnoreDiagnostics : public DiagnosticsConsumer {
+  void onDiagnosticsReady(PathRef File,
+                          std::vector<Diag> Diagnostics) override {}
+  } DiagConsumer;
+  // rename is runnning on the "^" point in FooH, and "[[]]" ranges are the
+  // expcted rename occurrences.
+  struct Case {
+    llvm::StringRef FooH;
+    llvm::StringRef FooCC;
+  } Cases [] = {
+    {
+      // classes.
+      R"cpp(
+        class [[Fo^o]] {
+          [[Foo]]();
+          ~[[Foo]]();
+        };
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        [[Foo]]::[[Foo]]() {}
+        [[Foo]]::~[[Foo]]() {}
+
+        void func() {
+          [[Foo]] foo;
+        }
+      )cpp",
+    },
+    {
+      // class methods.
+      R"cpp(
+        class Foo {
+          void [[f^oo]]();
+        };
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        void Foo::[[foo]]() {}
+
+        void func(Foo* p) {
+          p->[[foo]]();
+        }
+      )cpp",
+    },
+    {
+      // functions.
+      R"cpp(
+        void [[f^oo]]();
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        void [[foo]]() {}
+
+        void func() {
+          [[foo]]();
+        }
+      )cpp",
+    },
+    {
+      // typedefs.
+      R"cpp(
+      typedef int [[IN^T]];
+      [[INT]] foo();
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        [[INT]] foo() {}
+      )cpp",
+    },
+    {
+      // usings.
+      R"cpp(
+      using [[I^NT]] = int;
+      [[INT]] foo();
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        [[INT]] foo() {}
+      )cpp",
+    },
+    {
+      // variables.
+      R"cpp(
+      static const int [[VA^R]] = 123;
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        int s = [[VAR]];
+      )cpp",
+    },
+    {
+      // scope enums.
+      R"cpp(
+      enum class [[K^ind]] { ABC };
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        [[Kind]] ff() {
+          return [[Kind]]::ABC;
+        }
+      )cpp",
+    },
+    {
+      // enum constants.
+      R"cpp(
+      enum class Kind { [[A^BC]] };
+      )cpp",
+      R"cpp(
+        #include "foo.h"
+        Kind ff() {
+          return Kind::[[ABC]];
+        }
+      )cpp",
+    },
+  };
+
+  for (const auto& T : Cases) {
+    Annotations FooH(T.FooH);
+    Annotations FooCC(T.FooCC);
+    std::string FooHPath = testPath("foo.h");
+    std::string FooCCPath = testPath("foo.cc");
+
+    MockFSProvider FS;
+    FS.Files[FooHPath] = FooH.code();
+    FS.Files[FooCCPath] = FooCC.code();
+
+    auto ServerOpts = ClangdServer::optsForTest();
+    ServerOpts.CrossFileRename = true;
+    ServerOpts.BuildDynamicSymbolIndex = true;
+    ClangdServer Server(CDB, FS, DiagConsumer, ServerOpts);
+
+    // Add all files to clangd server to make sure the dynamic index has been
+    // built.
+    runAddDocument(Server, FooHPath, FooH.code());
+    runAddDocument(Server, FooCCPath, FooCC.code());
+
+    llvm::StringRef NewName = "NewName";
+    auto FileEditsList =
+        llvm::cantFail(runRename(Server, FooHPath, FooH.point(), NewName));
+    EXPECT_THAT(applyEdits(std::move(FileEditsList)),
+                UnorderedElementsAre(
+                    Pair(Eq(FooHPath), Eq(expectedResult(T.FooH, NewName))),
+                    Pair(Eq(FooCCPath), Eq(expectedResult(T.FooCC, NewName)))));
+  }
+}
+
+TEST(CrossFileRenameTests, CrossFileOnLocalSymbol) {
+  // cross-file rename should work for function-local symbols, even there is no
+  // index provided.
+  Annotations Code("void f(int [[abc]]) { [[a^bc]] = 3; }");
+  auto TU = TestTU::withCode(Code.code());
+  auto Path = testPath(TU.Filename);
+  auto AST = TU.build();
+  llvm::StringRef NewName = "newName";
+  auto Results = rename({Code.point(), NewName, AST, Path});
+  ASSERT_TRUE(bool(Results)) << Results.takeError();
+  EXPECT_THAT(
+      applyEdits(std::move(*Results)),
+      UnorderedElementsAre(Pair(Eq(Path), Eq(expectedResult(Code, NewName)))));
+}
+
+TEST(CrossFileRenameTests, BuildRenameEdits) {
+  Annotations Code("[[😂]]");
+  auto LSPRange = Code.range();
+  llvm::StringRef FilePath = "/test/TestTU.cpp";
+  auto Edit = buildRenameEdit(FilePath, Code.code(), {LSPRange}, "abc");
+  ASSERT_TRUE(bool(Edit)) << Edit.takeError();
+  ASSERT_EQ(1UL, Edit->Replacements.size());
+  EXPECT_EQ(FilePath, Edit->Replacements.begin()->getFilePath());
+  EXPECT_EQ(4UL, Edit->Replacements.begin()->getLength());
+
+  // Test invalid range.
+  LSPRange.end = {10, 0}; // out of range
+  Edit = buildRenameEdit(FilePath, Code.code(), {LSPRange}, "abc");
+  EXPECT_FALSE(Edit);
+  EXPECT_THAT(llvm::toString(Edit.takeError()),
+              testing::HasSubstr("fail to convert"));
+
+  // Normal ascii characters.
+  Annotations T(R"cpp(
+    [[range]]
+              [[range]]
+      [[range]]
+  )cpp");
+  Edit = buildRenameEdit(FilePath, T.code(), T.ranges(), "abc");
+  ASSERT_TRUE(bool(Edit)) << Edit.takeError();
+  EXPECT_EQ(applyEdits(FileEdits{{T.code(), std::move(*Edit)}}).front().second,
+            expectedResult(Code, expectedResult(T, "abc")));
 }
 
 } // namespace

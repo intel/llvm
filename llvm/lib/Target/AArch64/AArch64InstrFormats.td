@@ -358,6 +358,16 @@ def am_indexed7s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S128", []>;
 def am_indexedu6s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedU6S128", []>;
 def am_indexeds9s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedS9S128", []>;
 
+def UImmS2XForm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() / 2, SDLoc(N), MVT::i64);
+}]>;
+def UImmS4XForm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() / 4, SDLoc(N), MVT::i64);
+}]>;
+def UImmS8XForm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() / 8, SDLoc(N), MVT::i64);
+}]>;
+
 // uimm5sN predicate - True if the immediate is a multiple of N in the range
 // [0 * N, 32 * N].
 def UImm5s2Operand : UImmScaledMemoryIndexed<5, 2>;
@@ -365,17 +375,20 @@ def UImm5s4Operand : UImmScaledMemoryIndexed<5, 4>;
 def UImm5s8Operand : UImmScaledMemoryIndexed<5, 8>;
 
 def uimm5s2 : Operand<i64>, ImmLeaf<i64,
-                [{ return Imm >= 0 && Imm < (32*2) && ((Imm % 2) == 0); }]> {
+                [{ return Imm >= 0 && Imm < (32*2) && ((Imm % 2) == 0); }],
+                UImmS2XForm> {
   let ParserMatchClass = UImm5s2Operand;
   let PrintMethod = "printImmScale<2>";
 }
 def uimm5s4 : Operand<i64>, ImmLeaf<i64,
-                [{ return Imm >= 0 && Imm < (32*4) && ((Imm % 4) == 0); }]> {
+                [{ return Imm >= 0 && Imm < (32*4) && ((Imm % 4) == 0); }],
+                UImmS4XForm> {
   let ParserMatchClass = UImm5s4Operand;
   let PrintMethod = "printImmScale<4>";
 }
 def uimm5s8 : Operand<i64>, ImmLeaf<i64,
-                [{ return Imm >= 0 && Imm < (32*8) && ((Imm % 8) == 0); }]> {
+                [{ return Imm >= 0 && Imm < (32*8) && ((Imm % 8) == 0); }],
+                UImmS8XForm> {
   let ParserMatchClass = UImm5s8Operand;
   let PrintMethod = "printImmScale<8>";
 }
@@ -1473,7 +1486,7 @@ multiclass AuthLoad<bit M, string asm, Operand opr> {
                   (!cast<Instruction>(NAME # "indexed") GPR64:$Rt, GPR64sp:$Rn, 0)>;
 
   def : InstAlias<asm # "\t$Rt, [$wback]!",
-                  (!cast<Instruction>(NAME # "writeback") GPR64sp:$wback, GPR64:$Rt, 0)>;
+                  (!cast<Instruction>(NAME # "writeback") GPR64sp:$wback, GPR64:$Rt, 0), 0>;
 }
 
 //---
@@ -10407,9 +10420,9 @@ class CryptoRRTied<bits<1>op0, bits<2>op1, string asm, string asmops>
   let Inst{11-10} = op1;
 }
 class CryptoRRTied_2D<bits<1>op0, bits<2>op1, string asm>
-  : CryptoRRTied<op0, op1, asm, "{\t$Vd.2d, $Vn.2d}">;
+  : CryptoRRTied<op0, op1, asm, "{\t$Vd.2d, $Vn.2d|.2d\t$Vd, $Vn}">;
 class CryptoRRTied_4S<bits<1>op0, bits<2>op1, string asm>
-  : CryptoRRTied<op0, op1, asm, "{\t$Vd.4s, $Vn.4s}">;
+  : CryptoRRTied<op0, op1, asm, "{\t$Vd.4s, $Vn.4s|.4s\t$Vd, $Vn}">;
 
 class CryptoRRR<bits<1> op0, bits<2>op1, dag oops, dag iops, string asm,
                 string asmops, string cst>
@@ -10424,19 +10437,19 @@ class CryptoRRR<bits<1> op0, bits<2>op1, dag oops, dag iops, string asm,
 }
 class CryptoRRR_2D<bits<1> op0, bits<2>op1, string asm>
   : CryptoRRR<op0, op1, (outs V128:$Vd), (ins V128:$Vn, V128:$Vm), asm,
-              "{\t$Vd.2d, $Vn.2d, $Vm.2d}", "">;
+              "{\t$Vd.2d, $Vn.2d, $Vm.2d|.2d\t$Vd, $Vn, $Vm}", "">;
 class CryptoRRRTied_2D<bits<1> op0, bits<2>op1, string asm>
   : CryptoRRR<op0, op1, (outs V128:$Vdst), (ins V128:$Vd, V128:$Vn, V128:$Vm), asm,
-              "{\t$Vd.2d, $Vn.2d, $Vm.2d}", "$Vd = $Vdst">;
+              "{\t$Vd.2d, $Vn.2d, $Vm.2d|.2d\t$Vd, $Vn, $Vm}", "$Vd = $Vdst">;
 class CryptoRRR_4S<bits<1> op0, bits<2>op1, string asm>
   : CryptoRRR<op0, op1, (outs V128:$Vd), (ins V128:$Vn, V128:$Vm), asm,
-              "{\t$Vd.4s, $Vn.4s, $Vm.4s}", "">;
+              "{\t$Vd.4s, $Vn.4s, $Vm.4s|.4s\t$Vd, $Vn, $Vm}", "">;
 class CryptoRRRTied_4S<bits<1> op0, bits<2>op1, string asm>
   : CryptoRRR<op0, op1, (outs V128:$Vdst), (ins V128:$Vd, V128:$Vn, V128:$Vm), asm,
-              "{\t$Vd.4s, $Vn.4s, $Vm.4s}", "$Vd = $Vdst">;
+              "{\t$Vd.4s, $Vn.4s, $Vm.4s|.4s\t$Vd, $Vn, $Vm}", "$Vd = $Vdst">;
 class CryptoRRRTied<bits<1> op0, bits<2>op1, string asm>
   : CryptoRRR<op0, op1, (outs FPR128:$Vdst), (ins FPR128:$Vd, FPR128:$Vn, V128:$Vm),
-              asm, "{\t$Vd, $Vn, $Vm.2d}", "$Vd = $Vdst">;
+              asm, "{\t$Vd, $Vn, $Vm.2d|.2d\t$Vd, $Vn, $Vm}", "$Vd = $Vdst">;
 
 class CryptoRRRR<bits<2>op0, string asm, string asmops>
   : BaseCryptoV82<(outs V128:$Vd), (ins V128:$Vn, V128:$Vm, V128:$Va), asm,
@@ -10450,15 +10463,18 @@ class CryptoRRRR<bits<2>op0, string asm, string asmops>
   let Inst{14-10} = Va;
 }
 class CryptoRRRR_16B<bits<2>op0, string asm>
- : CryptoRRRR<op0, asm, "{\t$Vd.16b, $Vn.16b, $Vm.16b, $Va.16b}"> {
+ : CryptoRRRR<op0, asm, "{\t$Vd.16b, $Vn.16b, $Vm.16b, $Va.16b" #
+                        "|.16b\t$Vd, $Vn, $Vm, $Va}"> {
 }
 class CryptoRRRR_4S<bits<2>op0, string asm>
- : CryptoRRRR<op0, asm, "{\t$Vd.4s, $Vn.4s, $Vm.4s, $Va.4s}"> {
+ : CryptoRRRR<op0, asm, "{\t$Vd.4s, $Vn.4s, $Vm.4s, $Va.4s" #
+                         "|.4s\t$Vd, $Vn, $Vm, $Va}"> {
 }
 
 class CryptoRRRi6<string asm>
   : BaseCryptoV82<(outs V128:$Vd), (ins V128:$Vn, V128:$Vm, uimm6:$imm), asm,
-                  "{\t$Vd.2d, $Vn.2d, $Vm.2d, $imm}", "", []> {
+                  "{\t$Vd.2d, $Vn.2d, $Vm.2d, $imm" #
+                  "|.2d\t$Vd, $Vn, $Vm, $imm}", "", []> {
   bits<6> imm;
   bits<5> Vm;
   let Inst{24-21} = 0b0100;
@@ -10471,7 +10487,8 @@ class CryptoRRRi6<string asm>
 class CryptoRRRi2Tied<bits<1>op0, bits<2>op1, string asm>
   : BaseCryptoV82<(outs V128:$Vdst),
                   (ins V128:$Vd, V128:$Vn, V128:$Vm, VectorIndexS:$imm),
-                  asm, "{\t$Vd.4s, $Vn.4s, $Vm.s$imm}", "$Vd = $Vdst", []> {
+                  asm, "{\t$Vd.4s, $Vn.4s, $Vm.s$imm" #
+                       "|.4s\t$Vd, $Vn, $Vm$imm}", "$Vd = $Vdst", []> {
   bits<2> imm;
   bits<5> Vm;
   let Inst{24-21} = 0b0010;
