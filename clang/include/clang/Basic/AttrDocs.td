@@ -1921,6 +1921,17 @@ loads).
   }];
 }
 
+def IntelFPGABankBitsDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "bank_bits (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to implement the variable or struct member in a banked
+memory with 2^(N+1) banks, where the (b0, ..., bn) bits specified determine the
+pointer address bits to bank on.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
@@ -1955,6 +1966,30 @@ program is ill-formed and no diagnostic is required.
 
 The ``intel::kernel_args_restrict`` attribute has an effect when applied to a
 function, and no effect otherwise.
+  }];
+}
+
+def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "num_simd_work_items (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the number of work
+items that should be processed in parallel. Valid values are positive integers.
+If ``intelfpga::num_simd_work_items`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to a kernel.
+  }];
+}
+
+def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "max_work_group_size (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the maximum dimensions
+of a work group. Values must be positive integers. This is similar to
+reqd_work_group_size, but allows work groups that are smaller or equal to the
+specified sizes.
+If ``intelfpga::max_work_group_size`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 

@@ -2856,9 +2856,41 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) WeakImportAttr(S.Context, AL));
 }
 
-// Handles reqd_work_group_size and work_group_size_hint.
+// Checks correctness of mutual usage of different work_group_size attributes:
+// reqd_work_group_size, max_work_group_size. Values of reqd_work_group_size
+// arguments shall be equal or less than values coming from max_work_group_size.
+static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
+                                     uint32_t WGSize[3]) {
+  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
+      D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+          WGSize[2] <= A->getZDim())) {
+      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << Attr << A->getSpelling();
+      D->setInvalidDecl();
+      return false;
+    }
+  }
+
+  if (const ReqdWorkGroupSizeAttr *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    if (!(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+          WGSize[2] >= A->getZDim())) {
+      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << Attr << A->getSpelling();
+      D->setInvalidDecl();
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Handles reqd_work_group_size, work_group_size_hint and max_work_group_size
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (D->isInvalidDecl())
+    return;
+
   uint32_t WGSize[3];
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
@@ -2871,6 +2903,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
   }
+
+  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
+    return;
 
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
   if (Existing && !(Existing->getXDim() == WGSize[0] &&
@@ -2901,6 +2936,31 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   D->addAttr(::new (S.Context)
                  IntelReqdSubGroupSizeAttr(S.Context, AL, SGSize));
+}
+
+// Handles num_simd_work_items.
+static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
+                                       const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  uint32_t NumSimdWorkItems = 0;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, NumSimdWorkItems, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+
+  if (NumSimdWorkItems == 0) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
+      << Attr << E->getSourceRange();
+    return;
+  }
+
+  if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
+
+  D->addAttr(::new (S.Context) SYCLIntelNumSimdWorkItemsAttr(
+        S.Context, Attr, NumSimdWorkItems));
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -3784,6 +3844,15 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
           << &TmpAttr;
       return;
     }
+    if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
+      if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+        unsigned NumBankBits = BBA->args_size();
+        if (NumBankBits != Value.ceilLogBase2()) {
+          Diag(TmpAttr.getLocation(), diag::err_bankbits_numbanks_conflicting);
+          return;
+        }
+      }
+    }
     E = ICE.get();
   }
 
@@ -4365,15 +4434,13 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 2 /* function with a raw pointer return type */;
-    return;
+    S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
+        << AL << 0 /* function with a raw pointer return type */;
   }
   for (const ParmVarDecl *Param : FD->parameters())
     if (Param->getType()->isPointerType()) {
-      S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-          << AL << 3 /* function with a raw pointer parameter type */;
-      return;
+      S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
+          << AL << 1 /* function with a raw pointer parameter type */;
     }
 
   S.addSyclDeviceDecl(D);
@@ -5128,6 +5195,8 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     InCompat = true;
   if (checkAttrMutualExclusion<IntelFPGAMergeAttr>(S, D, Attr))
     InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGABankBitsAttr>(S, D, Attr))
+    InCompat = true;
 
   return InCompat;
 }
@@ -5230,6 +5299,92 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   D->addAttr(::new (S.Context)
                  IntelFPGAMergeAttr(S.Context, AL, Results[0], Results[1]));
+}
+
+/// Handle the bank_bits attribute.
+/// This attribute accepts a list of values greater than zero.
+/// This is incompatible with the register attribute.
+/// The numbanks and bank_bits attributes are related. If numbanks exists
+/// when handling bank_bits they are checked for consistency. If numbanks
+/// hasn't been added yet an implicit one is added with the correct value.
+/// If the user later adds a numbanks attribute the implicit one is removed.
+/// The values must be consecutive values (i.e. 3,4,5 or 2,1).
+static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &Attr) {
+  checkForDuplicateAttribute<IntelFPGABankBitsAttr>(S, D, Attr);
+
+  if (!checkAttributeAtLeastNumArgs(S, Attr, 1))
+    return;
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  SmallVector<Expr *, 8> Args;
+  for (unsigned I = 0; I < Attr.getNumArgs(); ++I) {
+    Args.push_back(Attr.getArgAsExpr(I));
+  }
+
+  S.AddIntelFPGABankBitsAttr(D, Attr, Args.data(), Args.size());
+}
+
+void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr **Exprs, unsigned Size) {
+  IntelFPGABankBitsAttr TmpAttr(Context, CI, Exprs, Size);
+  SmallVector<Expr *, 8> Args;
+  SmallVector<int64_t, 8> Values;
+  bool ListIsValueDep = false;
+  for (auto *E : TmpAttr.args()) {
+    llvm::APSInt Value(32, /*IsUnsigned=*/false);
+    Expr::EvalResult Result;
+    ListIsValueDep = ListIsValueDep || E->isValueDependent();
+    if (!E->isValueDependent()) {
+      ExprResult ICE;
+      if (checkRangedIntegralArgument<IntelFPGABankBitsAttr>(E, &TmpAttr, ICE))
+        return;
+      if (E->EvaluateAsInt(Result, Context))
+        Value = Result.Val.getInt();
+      E = ICE.get();
+    }
+    Args.push_back(E);
+    Values.push_back(Value.getExtValue());
+  }
+
+  // Check that the list is consecutive.
+  if (!ListIsValueDep && Values.size() > 1) {
+    bool ListIsAscending = Values[0] < Values[1];
+    for (int I = 0, E = Values.size() - 1; I < E; ++I) {
+      if (Values[I + 1] != Values[I] + (ListIsAscending ? 1 : -1)) {
+        Diag(CI.getLoc(), diag::err_bankbits_non_consecutive) << &TmpAttr;
+        return;
+      }
+    }
+  }
+
+  // Check or add the related numbanks attribute.
+  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+    Expr *E = NBA->getValue();
+    if (!E->isValueDependent()) {
+      Expr::EvalResult Result;
+      E->EvaluateAsInt(Result, Context);
+      llvm::APSInt Value = Result.Val.getInt();
+      if (Args.size() != Value.ceilLogBase2()) {
+        Diag(TmpAttr.getLoc(), diag::err_bankbits_numbanks_conflicting);
+        return;
+      }
+    }
+  } else {
+    llvm::APInt Num(32, (unsigned)(1 << Args.size()));
+    Expr *NBE =
+        IntegerLiteral::Create(Context, Num, Context.IntTy, SourceLocation());
+    D->addAttr(IntelFPGANumBanksAttr::CreateImplicit(Context, NBE));
+  }
+
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (Context)
+                 IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
 static void handleIntelFPGAMaxPrivateCopiesAttr(Sema &S, Decl *D,
@@ -7322,8 +7477,14 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_ReqdWorkGroupSize:
     handleWorkGroupSize<ReqdWorkGroupSizeAttr>(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
+    handleWorkGroupSize<SYCLIntelMaxWorkGroupSizeAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleSubGroupSize(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
+    handleNumSimdWorkItemsAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
@@ -7703,6 +7864,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_IntelFPGAMerge:
     handleIntelFPGAMergeAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_IntelFPGABankBits:
+    handleIntelFPGABankBitsAttr(S, D, AL);
+    break;
 
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:
     handleSimpleAttribute<AnyX86NoCallerSavedRegistersAttr>(S, D, AL);
@@ -7788,6 +7952,9 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<WorkGroupSizeHintAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {

@@ -62,6 +62,37 @@ void foo1()
   [[intelfpga::merge("mrg2","width")]]
   unsigned int v_eleven[64];
 
+  //CHECK: VarDecl{{.*}}v_twelve
+  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}5{{$}}
+  [[intelfpga::bank_bits(2,3,4,5)]]
+  unsigned int v_twelve[64];
+
+  //CHECK: VarDecl{{.*}}v_thirteen
+  //CHECK-NEXT: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
+  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  //CHECK-NEXT: IntelFPGABankWidthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
+  [[intelfpga::bank_bits(2,3), intelfpga::bankwidth(16)]]
+  unsigned int v_thirteen[64];
+
   //CHECK: VarDecl{{.*}}v_fourteen
   //CHECK: IntelFPGADoublePumpAttr
   //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB{{$}}
@@ -93,6 +124,7 @@ void foo1()
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::singlepump]] int B;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::doublepump]] int C;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16)]] int E;
+  [[intelfpga::bank_bits(2,3), intelfpga::bankwidth(16)]] int F;
   [[intelfpga::max_replicates(2)]] int G;
   [[intelfpga::simple_dual_port]] int H;
 
@@ -156,7 +188,13 @@ void foo1()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_four[64];
 
-  //expected-error@+2{{attributes are not compatible}}
+  //expected-error@+2{{'bank_bits' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  [[intelfpga::bank_bits(4,5)]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int reg_five[64];
+
+  //expected-error@+2{{'bankwidth' and 'register' attributes are not compatible}}
   [[intelfpga::register]]
   [[intelfpga::bankwidth(16)]]
   //expected-note@-2 {{conflicting attribute is here}}
@@ -372,6 +410,53 @@ void foo1()
   [[intelfpga::merge("mrg5","width")]]
   unsigned int mrg_six[4];
 
+  // bank_bits
+  //expected-error@+2 1{{'register' and 'bank_bits' attributes are not compatible}}
+  [[intelfpga::bank_bits(2,3)]]
+  [[intelfpga::register]]
+  //expected-note@-2 1{{conflicting attribute is here}}
+  unsigned int bb_one[4];
+
+  //CHECK: VarDecl{{.*}}bb_two
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}42{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}43{{$}}
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //expected-warning@+2{{attribute 'bank_bits' is already applied}}
+  [[intelfpga::bank_bits(42,43)]]
+  [[intelfpga::bank_bits(1,2)]]
+  unsigned int bb_two[4];
+
+  //expected-error@+1{{the number of bank_bits must be equal to ceil(log2(numbanks))}}
+  [[intelfpga::numbanks(8), intelfpga::bank_bits(3,4)]]
+  unsigned int bb_three[4];
+
+  //expected-error@+1{{the number of bank_bits must be equal to ceil(log2(numbanks))}}
+  [[intelfpga::bank_bits(3,4), intelfpga::numbanks(8)]]
+  unsigned int bb_four[4];
+
+  //expected-error@+1{{bank_bits must be consecutive}}
+  [[intelfpga::bank_bits(3,3,4), intelfpga::bankwidth(4)]]
+  unsigned int bb_five[4];
+
+  //expected-error@+1{{bank_bits must be consecutive}}
+  [[intelfpga::bank_bits(1,3,4), intelfpga::bankwidth(4)]]
+  unsigned int bb_six[4];
+
+  //expected-error@+1{{attribute takes at least 1 argument}}
+  [[intelfpga::bank_bits]]
+  unsigned int bb_seven[4];
+
+  //expected-error@+1{{requires integer constant between 0 and 1048576}}
+  [[intelfpga::bank_bits(-1)]]
+  unsigned int bb_ten[4];
+
   // GNU style
   //expected-warning@+1{{unknown attribute 'numbanks' ignored}}
   int __attribute__((numbanks(4))) a_one;
@@ -402,6 +487,9 @@ void foo1()
 
   //expected-warning@+1{{unknown attribute 'simple_dual_port' ignored}}
   int __attribute__((simple_dual_port)) a_ten;
+
+  //expected-warning@+1{{unknown attribute 'bank_bits' ignored}}
+  int __attribute__((bank_bits(4))) a_eleven;
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
@@ -480,6 +568,15 @@ struct foo {
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
   [[intelfpga::merge("mrg2", "width")]] unsigned int v_eleven[64];
+
+  //CHECK: FieldDecl{{.*}}v_twelve
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  [[intelfpga::bank_bits(2,3)]] unsigned int v_twelve[64];
 };
 
 template <typename name, typename Func>

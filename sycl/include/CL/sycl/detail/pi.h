@@ -229,8 +229,16 @@ typedef _pi_sampler_addressing_mode pi_sampler_addressing_mode;
 typedef _pi_sampler_filter_mode     pi_sampler_filter_mode;
 typedef _pi_sampler_info            pi_sampler_info;
 
-// Opaque data type for compatibility with OpenMP.
-typedef void * _pi_offload_entry;
+// Entry type, matches OpenMP for compatibility
+struct _pi_offload_entry_struct {
+  void *addr;
+  char *name;
+  size_t size;
+  int32_t flags;
+  int32_t reserved;
+};
+
+typedef _pi_offload_entry_struct * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
@@ -302,7 +310,7 @@ struct pi_device_binary_struct {
   const unsigned char *BinaryStart;
   /// Pointer to the target code end
   const unsigned char *BinaryEnd;
-  /// the offload entry table (not used, for compatibility with OpenMP)
+  /// the offload entry table
   _pi_offload_entry EntriesBegin;
   _pi_offload_entry EntriesEnd;
 };

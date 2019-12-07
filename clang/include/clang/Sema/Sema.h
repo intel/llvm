@@ -9259,6 +9259,8 @@ public:
   template <typename AttrType>
   void AddOneConstantPowerTwoValueAttr(Decl *D, const AttributeCommonInfo &CI,
                                        Expr *E);
+  void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr **Exprs, unsigned Size);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,

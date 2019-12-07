@@ -1115,6 +1115,26 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
 }
 
+def SYCLIntelNumSimdWorkItems : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
+  let Args = [UnsignedArgument<"Number">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
+def SYCLIntelMaxWorkGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","max_work_group_size">];
+  let Args = [UnsignedArgument<"XDim">,
+              UnsignedArgument<"YDim">,
+              UnsignedArgument<"ZDim">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1748,6 +1768,24 @@ def SYCLFPGAPipe : TypeAttr {
   let Args = [StringArgument<"Mode">];
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLFPGAPipeDocs];
+}
+
+// Variadic integral arguments.
+def IntelFPGABankBits : Attr {
+  let Spellings = [CXX11<"intelfpga", "bank_bits">];
+  let Args = [VariadicExprArgument<"Args">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [IntelFPGABankBitsDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1024*1024;
+    }
+  }];
 }
 
 def Naked : InheritableAttr {

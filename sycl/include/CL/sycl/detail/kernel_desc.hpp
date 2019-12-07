@@ -63,7 +63,14 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr const char *getName() { return ""; }
 };
 #else
-template <char...> struct KernelInfoData; // Should this have dummy impl?
+template <char...> struct KernelInfoData {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int Idx) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return ""; }
+};
 
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented

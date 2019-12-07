@@ -68,10 +68,10 @@ pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
   return cast<pi_result>(result);
 }
 
-pi_result OCL(piextDeviceSelectBinary)(
-    pi_device device, // TODO: does this need to be context?
-    pi_device_binary *images, pi_uint32 num_images,
-    pi_device_binary *selected_image) {
+pi_result OCL(piextDeviceSelectBinary)(pi_device device,
+                                       pi_device_binary *images,
+                                       pi_uint32 num_images,
+                                       pi_device_binary *selected_image) {
 
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled

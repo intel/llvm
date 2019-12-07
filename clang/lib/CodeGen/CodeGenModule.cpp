@@ -3963,8 +3963,20 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     Out << '{' << MCA->getSpelling() << ':' << MCAInt << '}';
   }
   if (const auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
-    llvm::APSInt BWAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << NBA->getSpelling() << ':' << BWAInt << '}';
+    llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << NBA->getSpelling() << ':' << NBAInt << '}';
+  }
+  if (const auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+    Out << '{' << BBA->getSpelling() << ':';
+    for (IntelFPGABankBitsAttr::args_iterator I = BBA->args_begin(),
+                                              E = BBA->args_end();
+         I != E; ++I) {
+      if (I != BBA->args_begin())
+        Out << ',';
+      llvm::APSInt BBAInt = (*I)->EvaluateKnownConstInt(getContext());
+      Out << BBAInt;
+    }
+    Out << '}';
   }
   if (const auto *MRA = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
     llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
