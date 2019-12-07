@@ -494,7 +494,7 @@ void foo1()
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
 [[intelfpga::max_private_copies(8)]]
-__attribute__((ocl_constant)) unsigned int ext_two[64] = { 1, 2, 3 };
+__attribute__((opencl_constant)) unsigned int ext_two[64] = { 1, 2, 3 };
 
 void other2()
 {
