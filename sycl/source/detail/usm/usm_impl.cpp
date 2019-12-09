@@ -255,18 +255,16 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
       Dispatch->getMemAllocInfo(C, Ptr, CL_MEM_ALLOC_DEVICE_INTEL,
                                 sizeof(pi_device), &DeviceId, nullptr));
 
-  alloc ResultAlloc;
+  alloc ResultAlloc = alloc::unknown;;
   if (AllocTy == CL_MEM_TYPE_HOST_INTEL) {
     ResultAlloc = alloc::host;
   } else if (AllocTy == CL_MEM_TYPE_DEVICE_INTEL) {
     ResultAlloc = alloc::device;
   } else if (AllocTy == CL_MEM_TYPE_SHARED_INTEL) {
     ResultAlloc = alloc::shared;
-  } else {
-    ResultAlloc = alloc::unknown;
   }
 
-  // check device id
+  // Check device id
   device Result;
   if (DeviceId == nullptr) {
     // Host allocs don't return a device id.
@@ -279,6 +277,7 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
       if (detail::pi::cast<pi_device>(D.get()) == DeviceId) {
         Result = D;
         found = true;
+        break;
       }
     }
     if (!found) {
