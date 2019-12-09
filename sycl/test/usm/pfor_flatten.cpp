@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
-//==----------------- depends_on.cpp - depends_on test ---------------------==//
+//==--------------- pfor_flatten.cpp - Kernel Launch Flattening test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
