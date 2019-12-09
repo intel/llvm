@@ -117,8 +117,8 @@ public:
   }
 
   event prefetch(const void* Ptr, size_t Count) {
-    return submit([=](handler &cgh) {
-        cgh.prefetch(Ptr, Count);
+    return submit([=](handler &CGH) {
+        CGH.prefetch(Ptr, Count);
     });
   }
 
@@ -126,15 +126,15 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.template single_task<KernelName, KernelType>(KernelFunc);
+      CGH.template single_task<KernelName, KernelType>(KernelFunc);
     });
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(std::vector<event> &DepEvents, KernelType KernelFunc) {
+  event single_task(std::vector<event> DepEvents, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.depends_on(Events);
-      cgh.template single_task<KernelName, KernelType>(KernelFunc);
+      CGH.depends_on(DepEvents);
+      CGH.template single_task<KernelName, KernelType>(KernelFunc);
     });
   }
 
@@ -144,18 +144,18 @@ public:
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
                                                               KernelFunc);
     });
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, std::vector<event> &DepEvents,
+  event parallel_for(range<Dims> NumWorkItems, std::vector<event> DepEvents,
                      KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.depends_on(Events);
-      cgh.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+      CGH.depends_on(DepEvents);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
                                                               KernelFunc);
     });
   }
@@ -167,7 +167,7 @@ public:
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(
+      CGH.template parallel_for<KernelName, KernelType, Dims>(
           NumWorkItems, WorkItemOffset, KernelFunc);
     });
   }
@@ -175,10 +175,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     std::vector<event> &DepEvents, KernelType KernelFunc) {
+                     std::vector<event> DepEvents, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.depends_on(Events);
-      cgh.template parallel_for<KernelName, KernelType, Dims>(
+      CGH.depends_on(DepEvents);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(
           NumWorkItems, WorkItemOffset, KernelFunc);
     });
   }
@@ -189,7 +189,7 @@ public:
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
+      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
                                                               KernelFunc);
     });
   }
@@ -197,10 +197,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     std::vector<event> &DepEvents, KernelType KernelFunc) {
+                     std::vector<event> DepEvents, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
-      cgh.depends_on(Events);
-      cgh.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
+      CGH.depends_on(DepEvents);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
                                                               KernelFunc);
     });
   }
