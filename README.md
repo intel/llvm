@@ -2,18 +2,9 @@
 
 ## Introduction
 
-<<<<<<< HEAD
 Intel staging area for llvm.org contribution.
 Home for Intel LLVM-based projects:
  - SYCL* Compiler and Runtimes - compiler and runtime libraries for SYCL ([https://www.khronos.org/sycl/](https://www.khronos.org/sycl/)). See **sycl** branch.
-=======
-The README briefly describes how to get started with building LLVM.
-For more information on how to contribute to the LLVM project, please
-take a look at the
-[Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
-
-## Getting Started with the LLVM System
->>>>>>> effcdc3a82f2a32829170e7f7a2ff3d7853b612d
 
 ## License
 See [LICENSE.txt](sycl/LICENSE.TXT) for details.
