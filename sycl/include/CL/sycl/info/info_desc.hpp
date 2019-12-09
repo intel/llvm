@@ -258,12 +258,9 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/context_traits.def>
 
-PARAM_TRAITS_SPEC(event, command_execution_status, event_command_status)
-PARAM_TRAITS_SPEC(event, reference_count, cl_uint)
+#include <CL/sycl/info/event_traits.def>
 
-PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
+#include <CL/sycl/info/event_profiling_traits.def>
 
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 #include <CL/sycl/info/kernel_traits.def>
