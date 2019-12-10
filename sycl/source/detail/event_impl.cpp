@@ -19,71 +19,68 @@ namespace detail {
 
 // Threat all devices that don't support interoperability as host devices to
 // avoid attempts to call method get on such events.
-bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
+bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
 
 cl_event event_impl::get() const {
-  if (m_OpenCLInterop) {
-    PI_CALL(piEventRetain)(m_Event);
-    return pi::cast<cl_event>(m_Event);
+  if (MOpenCLInterop) {
+    PI_CALL(piEventRetain)(MEvent);
+    return pi::cast<cl_event>(MEvent);
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.");
 }
 
 event_impl::~event_impl() {
-  if (m_Event) {
-    PI_CALL(piEventRelease)(m_Event);
-  }
+  if (MEvent)
+    PI_CALL(piEventRelease)(MEvent);
 }
 
 void event_impl::waitInternal() const {
-  if (!m_HostEvent) {
-    PI_CALL(piEventsWait)(1, &m_Event);
+  if (!MHostEvent) {
+    PI_CALL(piEventsWait)(1, &MEvent);
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
 }
 
-const RT::PiEvent &event_impl::getHandleRef() const { return m_Event; }
-RT::PiEvent &event_impl::getHandleRef() { return m_Event; }
+const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
+RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
-const ContextImplPtr &event_impl::getContextImpl() { return m_Context; }
+const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  m_HostEvent = Context->is_host();
-  m_OpenCLInterop = !m_HostEvent;
-  m_Context = Context;
+  MHostEvent = Context->is_host();
+  MOpenCLInterop = !MHostEvent;
+  MContext = Context;
 }
 
-event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
-    : m_Context(detail::getSyclObjImpl(SyclContext)), m_OpenCLInterop(true),
-      m_HostEvent(false) {
+event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
+      MOpenCLInterop(true), MHostEvent(false) {
 
-  m_Event = pi::cast<RT::PiEvent>(CLEvent);
-
-  if (m_Context->is_host()) {
+  if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
   RT::PiContext TempContext;
-  PI_CALL(piEventGetInfo)(m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
+  PI_CALL(piEventGetInfo)(MEvent, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
                           &TempContext, nullptr);
-  if (m_Context->getHandleRef() != TempContext) {
+  if (MContext->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
-  PI_CALL(piEventRetain)(m_Event);
+  PI_CALL(piEventRetain)(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) : m_Queue(Queue) {
+event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
   if (Queue->is_host() &&
       Queue->has_property<property::queue::enable_profiling>()) {
-    m_HostProfilingInfo.reset(new HostProfilingInfo());
-    if (!m_HostProfilingInfo)
+    MHostProfilingInfo.reset(new HostProfilingInfo());
+    if (!MHostProfilingInfo)
       throw runtime_error("Out of host memory");
   }
 }
@@ -91,11 +88,11 @@ event_impl::event_impl(QueueImplPtr Queue) : m_Queue(Queue) {
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
 
-  if (m_Event)
-    // presence of m_Event means the command has been enqueued, so no need to
+  if (MEvent)
+    // presence of MEvent means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
     waitInternal();
-  else if (m_Command)
+  else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(std::move(Self));
 }
 
@@ -108,48 +105,48 @@ void event_impl::wait_and_throw(
     if (Cmd)
       Cmd->getQueue()->throw_asynchronous();
   }
-  if (m_Queue)
-    m_Queue->throw_asynchronous();
+  if (MQueue)
+    MQueue->throw_asynchronous();
 }
 
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
-  if (!m_HostEvent) {
+  if (!MHostEvent) {
     return get_event_profiling_info<info::event_profiling::command_submit>::get(
         this->getHandleRef());
   }
-  if (!m_HostProfilingInfo)
+  if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.");
-  return m_HostProfilingInfo->getStartTime();
+  return MHostProfilingInfo->getStartTime();
 }
 
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
-  if (!m_HostEvent) {
+  if (!MHostEvent) {
     return get_event_profiling_info<info::event_profiling::command_start>::get(
         this->getHandleRef());
   }
-  if (!m_HostProfilingInfo)
+  if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.");
-  return m_HostProfilingInfo->getStartTime();
+  return MHostProfilingInfo->getStartTime();
 }
 
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
-  if (!m_HostEvent) {
+  if (!MHostEvent) {
     return get_event_profiling_info<info::event_profiling::command_end>::get(
         this->getHandleRef());
   }
-  if (!m_HostProfilingInfo)
+  if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.");
-  return m_HostProfilingInfo->getEndTime();
+  return MHostProfilingInfo->getEndTime();
 }
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
-  if (!m_HostEvent) {
+  if (!MHostEvent) {
     return get_event_info<info::event::reference_count>::get(
         this->getHandleRef());
   }
@@ -159,7 +156,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
-  if (!m_HostEvent) {
+  if (!MHostEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef());
   }
@@ -167,8 +164,9 @@ event_impl::get_info<info::event::command_execution_status>() const {
 }
 
 static uint64_t getTimestamp() {
-  auto ts = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(ts).count();
+  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
+      .count();
 }
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }

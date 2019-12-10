@@ -9,7 +9,9 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/event.hpp>
 
 #include <CL/sycl/stl.hpp>
@@ -22,8 +24,9 @@ namespace sycl {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
 
-event::event(cl_event clEvent, const context &syclContext)
-    : impl(std::make_shared<detail::event_impl>(clEvent, syclContext)) {}
+event::event(cl_event ClEvent, const context &SyclContext)
+    : impl(std::make_shared<detail::event_impl>(
+          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
@@ -58,37 +61,28 @@ vector_class<event> event::get_wait_list() {
   return Result;
 }
 
-event::event(std::shared_ptr<detail::event_impl> event_impl)
+event::event(shared_ptr_class<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
-template <> cl_uint event::get_info<info::event::reference_count>() const {
-  return impl->get_info<info::event::reference_count>();
-}
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+    template <> ret_type event::get_info<info::param_type::param>() const {    \
+      return impl->get_info<info::param_type::param>();                        \
+    }
 
-template <>
-info::event_command_status
-event::get_info<info::event::command_execution_status>() const {
-  return impl->get_info<info::event::command_execution_status>();
-}
+#include <CL/sycl/info/event_traits.def>
 
-template <>
-cl_ulong
-event::get_profiling_info<info::event_profiling::command_submit>() const {
-  impl->wait(impl);
-  return impl->get_profiling_info<info::event_profiling::command_submit>();
-}
-template <>
-cl_ulong
-event::get_profiling_info<info::event_profiling::command_start>() const {
-  impl->wait(impl);
-  return impl->get_profiling_info<info::event_profiling::command_start>();
-}
+#undef PARAM_TRAITS_SPEC
 
-template <>
-cl_ulong event::get_profiling_info<info::event_profiling::command_end>() const {
-  impl->wait(impl);
-  return impl->get_profiling_info<info::event_profiling::command_end>();
-}
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+    template <>                                                                \
+    ret_type event::get_profiling_info<info::param_type::param>() const {      \
+      impl->wait(impl);                                                        \
+      return impl->get_profiling_info<info::param_type::param>();              \
+    }
+
+#include <CL/sycl/info/event_profiling_traits.def>
+
+#undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
 } // namespace cl
