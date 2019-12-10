@@ -563,11 +563,12 @@ Return value:: none
 .Unified Shared Memory Pointer Query
 [source,cpp]
 ----
-std::tuple<usm::alloc, sycl::device*> get_pointer_info(const void* ptr);
+std::tuple<usm::alloc, sycl::device> get_pointer_info(const void* ptr, const sycl::context& ctxt);
 ----
 Parameters::
   * `const void* ptr` - the pointer to query
-Return value:: Returns a `std::tuple` containing the type of the allocation and a pointer to the `device` against which it was allocated.  If this is a host allocation, the `device` pointer will be `nullptr`.
+Return value:: Returns a `std::tuple` containing the type of the allocation and the SYCL `device` against which it was allocated (in the case of `device` and `shared` allocations).  The returned `device` is not assumed to be valid if the allocation is a `host` allocation.
+  * `const sycl::context& ctxt` - the SYCL `context` against which the specified pointers were allocated
 
 [cols="^25,^15,60",options="header"]
 .Unified Shared Memory Device Information Descriptors
