@@ -57,6 +57,8 @@ void *aligned_alloc(size_t alignment, size_t size, const queue &q,
                     usm::alloc kind);
 
 // get_pointer_info
+// Returns the type of allocation for a given USM pointer
+// and, if applicable, the device against which it was allocated
 std::tuple<usm::alloc, device> get_pointer_info(const void *ptr,
                                                 const context &ctxt);
 

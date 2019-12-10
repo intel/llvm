@@ -32,6 +32,7 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
+#include <CL/cl_usm_ext.h>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -193,6 +194,22 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR  = CL_FILTER_LINEAR,
 } _pi_sampler_filter_mode;
 
+typedef enum {
+  PI_MEM_ALLOC_TYPE        = CL_MEM_ALLOC_TYPE_INTEL,
+  PI_MEM_ALLOC_BASE_PTR    = CL_MEM_ALLOC_BASE_PTR_INTEL,
+  PI_MEM_ALLOC_SIZE        = CL_MEM_ALLOC_SIZE_INTEL,
+  PI_MEM_ALLOC_INFO_DEVICE = CL_MEM_ALLOC_INFO_DEVICE_INTEL,
+  PI_MEM_ALLOC_INFO_TBD0   = CL_MEM_ALLOC_INFO_TBD0_INTEL,
+  PI_MEM_ALLOC_INFO_TBD1   = CL_MEM_ALLOC_INFO_TBD1_INTEL
+} _pi_mem_info;
+
+typedef enum {
+  PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
+  PI_MEM_TYPE_HOST    = CL_MEM_TYPE_HOST_INTEL,
+  PI_MEM_TYPE_DEVICE  = CL_MEM_TYPE_DEVICE_INTEL,
+  PI_MEM_TYPE_SHARED  = CL_MEM_TYPE_SHARED_INTEL
+} _pi_usm_type;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -228,6 +245,8 @@ typedef _pi_buffer_create_type      pi_buffer_create_type;
 typedef _pi_sampler_addressing_mode pi_sampler_addressing_mode;
 typedef _pi_sampler_filter_mode     pi_sampler_filter_mode;
 typedef _pi_sampler_info            pi_sampler_info;
+typedef _pi_mem_info                pi_mem_info;
+typedef _pi_usm_type                pi_usm_type;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;

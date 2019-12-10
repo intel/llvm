@@ -248,19 +248,17 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
   pi_device DeviceId;
 
   // All these CL enums should be replicated in PI
-  detail::pi::checkPiResult(
-      Dispatch->getMemAllocInfo(C, Ptr, CL_MEM_ALLOC_TYPE_INTEL,
-                                sizeof(cl_mem_info_intel), &AllocTy, nullptr));
-  detail::pi::checkPiResult(
-      Dispatch->getMemAllocInfo(C, Ptr, CL_MEM_ALLOC_DEVICE_INTEL,
-                                sizeof(pi_device), &DeviceId, nullptr));
+  detail::pi::checkPiResult(Dispatch->getMemAllocInfo(
+      C, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_mem_info), &AllocTy, nullptr));
+  detail::pi::checkPiResult(Dispatch->getMemAllocInfo(
+      C, Ptr, PI_MEM_ALLOC_INFO_DEVICE, sizeof(pi_device), &DeviceId, nullptr));
 
   alloc ResultAlloc = alloc::unknown;;
-  if (AllocTy == CL_MEM_TYPE_HOST_INTEL) {
+  if (AllocTy == PI_MEM_TYPE_HOST) {
     ResultAlloc = alloc::host;
-  } else if (AllocTy == CL_MEM_TYPE_DEVICE_INTEL) {
+  } else if (AllocTy == PI_MEM_TYPE_DEVICE) {
     ResultAlloc = alloc::device;
-  } else if (AllocTy == CL_MEM_TYPE_SHARED_INTEL) {
+  } else if (AllocTy == PI_MEM_TYPE_SHARED) {
     ResultAlloc = alloc::shared;
   }
 
@@ -271,16 +269,16 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
     // It's irrelevant, so don't do anything in this case.
   } else  {
     auto Devs = Ctxt.get_devices();
-    bool found = false;
+    bool Found = false;
     for (auto D : Devs) {
       // Try to find the real sycl device we used in the Context
       if (detail::pi::cast<pi_device>(D.get()) == DeviceId) {
         Result = D;
-        found = true;
+        Found = true;
         break;
       }
     }
-    if (!found) {
+    if (!Found) {
       throw runtime_error("Cannot find device associated with USM allocation!");
     }
   }

@@ -204,7 +204,7 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
     return writeParamToMemory(param_value_size, allocInfo.Size,
                               param_value_size_ret, ptr);
   }
-  case CL_MEM_ALLOC_DEVICE_INTEL: {
+  case CL_MEM_ALLOC_INFO_DEVICE_INTEL: {
     auto ptr = reinterpret_cast<cl_device_id *>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.Device,
                               param_value_size_ret, ptr);
