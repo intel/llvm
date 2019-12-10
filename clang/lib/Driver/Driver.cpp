@@ -3488,12 +3488,12 @@ class OffloadingActionBuilder final {
         }
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
-        for (const auto &I : LI) {
+        for (const auto &Input : LI) {
           // FPGA aoco does not go through the link, everything else does.
-          if (I->getType() == types::TY_FPGA_AOCO)
-            DeviceLibObjects.push_back(I);
+          if (Input->getType() == types::TY_FPGA_AOCO)
+            DeviceLibObjects.push_back(Input);
           else
-            LinkObjects.push_back(I);
+            LinkObjects.push_back(Input);
         }
         auto *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
