@@ -244,7 +244,7 @@ std::tuple<alloc, device> get_pointer_info(const void *Ptr,
   std::shared_ptr<detail::usm::USMDispatcher> Dispatch =
       CtxImpl->getUSMDispatch();
   pi_context C = CtxImpl->getHandleRef();
-  cl_unified_shared_memory_type_intel AllocTy;
+  pi_usm_type AllocTy;
   pi_device DeviceId;
 
   // All these CL enums should be replicated in PI
