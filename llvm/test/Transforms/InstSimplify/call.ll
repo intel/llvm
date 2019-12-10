@@ -943,8 +943,7 @@ define <2 x double> @copysign_same_operand_vec(<2 x double> %x) {
 define float @negated_sign_arg(float %x) {
 ; CHECK-LABEL: @negated_sign_arg(
 ; CHECK-NEXT:    [[NEGX:%.*]] = fsub ninf float -0.000000e+00, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call arcp float @llvm.copysign.f32(float [[X]], float [[NEGX]])
-; CHECK-NEXT:    ret float [[R]]
+; CHECK-NEXT:    ret float [[NEGX]]
 ;
   %negx = fsub ninf float -0.0, %x
   %r = call arcp float @llvm.copysign.f32(float %x, float %negx)
@@ -954,8 +953,7 @@ define float @negated_sign_arg(float %x) {
 define <2 x double> @negated_sign_arg_vec(<2 x double> %x) {
 ; CHECK-LABEL: @negated_sign_arg_vec(
 ; CHECK-NEXT:    [[NEGX:%.*]] = fneg afn <2 x double> [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> [[X]], <2 x double> [[NEGX]])
-; CHECK-NEXT:    ret <2 x double> [[R]]
+; CHECK-NEXT:    ret <2 x double> [[NEGX]]
 ;
   %negx = fneg afn <2 x double> %x
   %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %negx)
@@ -964,9 +962,7 @@ define <2 x double> @negated_sign_arg_vec(<2 x double> %x) {
 
 define float @negated_mag_arg(float %x) {
 ; CHECK-LABEL: @negated_mag_arg(
-; CHECK-NEXT:    [[NEGX:%.*]] = fneg nnan float [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call ninf float @llvm.copysign.f32(float [[NEGX]], float [[X]])
-; CHECK-NEXT:    ret float [[R]]
+; CHECK-NEXT:    ret float [[X:%.*]]
 ;
   %negx = fneg nnan float %x
   %r = call ninf float @llvm.copysign.f32(float %negx, float %x)
@@ -975,9 +971,7 @@ define float @negated_mag_arg(float %x) {
 
 define <2 x double> @negated_mag_arg_vec(<2 x double> %x) {
 ; CHECK-LABEL: @negated_mag_arg_vec(
-; CHECK-NEXT:    [[NEGX:%.*]] = fneg afn <2 x double> [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> [[NEGX]], <2 x double> [[X]])
-; CHECK-NEXT:    ret <2 x double> [[R]]
+; CHECK-NEXT:    ret <2 x double> [[X:%.*]]
 ;
   %negx = fneg afn <2 x double> %x
   %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %negx, <2 x double> %x)

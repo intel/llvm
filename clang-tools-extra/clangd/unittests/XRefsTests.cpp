@@ -450,7 +450,22 @@ TEST(LocateSymbol, All) {
           +^+x;
         }
       )cpp",
-  };
+
+      R"cpp(// Declaration of explicit template specialization
+        template <typename T>
+        struct $decl[[Foo]] {};
+
+        template <>
+        struct Fo^o<int> {};
+      )cpp",
+
+      R"cpp(// Declaration of partial template specialization
+        template <typename T>
+        struct $decl[[Foo]] {};
+
+        template <typename T>
+        struct Fo^o<T*> {};
+      )cpp"};
   for (const char *Test : Tests) {
     Annotations T(Test);
     llvm::Optional<Range> WantDecl;
@@ -795,6 +810,19 @@ TEST(FindReferences, WithinAST) {
         struct Foo {};
         } // namespace ns
         int main() { [[^ns]]::Foo foo; }
+      )cpp",
+
+      R"cpp(// Macros
+        #define TYPE(X) X
+        #define FOO Foo
+        #define CAT(X, Y) X##Y
+        class [[Fo^o]] {};
+        void test() {
+          TYPE([[Foo]]) foo;
+          [[FOO]] foo2;
+          TYPE(TYPE([[Foo]])) foo3;
+          [[CAT]](Fo, o) foo4;
+        }
       )cpp",
   };
   for (const char *Test : Tests) {
