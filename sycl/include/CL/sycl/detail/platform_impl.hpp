@@ -45,17 +45,18 @@ public:
     if (is_host())
       return false;
 
-    string_class all_extension_names =
+    string_class AllExtensionNames =
         get_platform_info<string_class, info::platform::extensions>::get(
             MPlatform);
-    return (all_extension_names.find(ExtensionName) != std::string::npos);
+    return (AllExtensionNames.find(ExtensionName) != std::string::npos);
   }
 
   /// Returns all SYCL devices associated with this platform.
   ///
-  /// If this platform is a host platform, resulting vector contains only
-  /// a single SYCL host device. If there are no devices that match given device
-  /// type, resulting vector is empty.
+  /// If this platform is a host platform and device type requested is either
+  /// info::device_type::all or info::device_type::host, resulting vector
+  /// contains only a single SYCL host device. If there are no devices that
+  /// match given device type, resulting vector is empty.
   ///
   /// @param DeviceType is a SYCL device type.
   /// @return a vector of SYCL devices.
@@ -76,13 +77,9 @@ public:
         param>::get(this->getHandleRef());
   }
 
-  /// Checks if this platform is a host platform.
-  ///
   /// @return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
-  /// Returns an OpenCL interoperability platform.
-  ///
   /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())

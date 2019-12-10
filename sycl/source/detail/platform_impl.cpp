@@ -199,7 +199,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   // If any DeviceType other than host was requested for host platform,
-  // an empy vector will be returned.
+  // an empty vector will be returned.
   if (is_host() || DeviceType == info::device_type::host)
     return Res;
 
@@ -219,7 +219,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
     filterWhiteList(PiDevices, MPlatform);
 
-  std::transform(PiDevices.rbegin(), PiDevices.rend(), std::front_inserter(Res),
+  std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
                  [](const RT::PiDevice &PiDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
                        std::make_shared<device_impl>(PiDevice));
