@@ -3532,9 +3532,8 @@ class OffloadingActionBuilder final {
           Action *DeviceBECompileAction;
           ActionList BEActionList;
           BEActionList.push_back(SPIRVTranslateAction);
-          if (!DeviceLibObjects.empty())
-            for (const auto &A : DeviceLibObjects)
-              BEActionList.push_back(A);
+          for (const auto &A : DeviceLibObjects)
+            BEActionList.push_back(A);
           DeviceBECompileAction =
               C.MakeAction<BackendCompileJobAction>(BEActionList, OutType);
           WrapperInputs.push_back(DeviceBECompileAction);
