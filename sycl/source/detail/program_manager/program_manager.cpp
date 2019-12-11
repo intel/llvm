@@ -33,6 +33,8 @@ namespace detail {
 
 static constexpr int DbgProgMgr = 0;
 
+enum BuildState { BS_InProgress, BS_Done, BS_Failed };
+
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
@@ -97,6 +99,96 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   KernelSetId KSId = getKernelSetId(M, KernelName);
   return getDeviceImage(M, KSId, Context);
+}
+
+template <typename ExceptionT, typename RetT>
+RetT *
+waitUntilBuilt(KernelProgramCache &Cache,
+               KernelProgramCache::EntityWithState<RetT> *WithBuildState) {
+  // any thread which will find nullptr in cache will wait until the pointer
+  // is not null anymore
+  Cache.waitUntilBuilt([WithBuildState]() {
+    int State = WithBuildState->State.load();
+
+    return State == BS_Done || State == BS_Failed;
+  });
+
+  RetT *Result = WithBuildState->Ptr.load();
+
+  if (!Result)
+    throw ExceptionT("The other thread tried to build the program/kernel but "
+                     "did not succeed.");
+
+  return Result;
+}
+
+/// Try to fetch entity (kernel or program) from cache. If there is no such
+/// entity try to build it. Throw any exception build process may throw.
+/// This method eliminates unwanted builds by employing atomic variable with
+/// build state and waiting until the entity is built in another thread.
+/// If the building thread has failed the awaiting thread will fail either.
+/// Exception thrown by build procedure are rethrown.
+///
+/// \tparam RetT type of entity to get
+/// \tparam ExceptionT type of exception to throw on awaiting thread if the
+///         building thread fails build step.
+/// \tparam KeyT key (in cache) to fetch built entity with
+/// \tparam AcquireFT type of function which will acquire the locked version of
+///         the cache. Accept reference to KernelProgramCache.
+/// \tparam GetCacheFT type of function which will fetch proper cache from
+///         locked version. Accepts reference to locked version of cache.
+/// \tparam BuildFT type of function which will build the entity if it is not in
+///         cache. Accepts nothing. Return pointer to built entity.
+template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
+          typename GetCacheFT, typename BuildFT>
+RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
+                 AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
+  bool InsertionTookPlace;
+  KernelProgramCache::EntityWithState<RetT> *WithState;
+
+  {
+    auto LockedCache = Acquire(KPCache);
+    auto &Cache = GetCache(LockedCache);
+    auto Inserted =
+        Cache.emplace(std::piecewise_construct, std::forward_as_tuple(CacheKey),
+                      std::forward_as_tuple(nullptr, BS_InProgress));
+
+    InsertionTookPlace = Inserted.second;
+    WithState = &Inserted.first->second;
+  }
+
+  // no insertion took place, thus some other thread has already inserted smth
+  // in the cache
+  if (!InsertionTookPlace) {
+    return waitUntilBuilt<ExceptionT>(KPCache, WithState);
+  }
+
+  // only the building thread will run this, and only once.
+  try {
+    RetT *Desired = Build();
+
+#ifndef NDEBUG
+    RetT *Expected = nullptr;
+
+    if (!WithState->Ptr.compare_exchange_strong(Expected, Desired))
+      // We've got a funny story here
+      assert(false && "We've build an entity that is already have been built.");
+#else
+    WithState->Ptr.store(Desired);
+#endif
+
+    WithState->State.store(BS_Done);
+
+    KPCache.notifyAllBuild();
+
+    return Desired;
+  } catch (...) {
+    WithState->State.store(BS_Failed);
+
+    KPCache.notifyAllBuild();
+
+    std::rethrow_exception(std::current_exception());
+  }
 }
 
 static bool isDeviceBinaryTypeSupported(const context &C,
@@ -184,36 +276,49 @@ RT::PiProgram
 ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
+
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<KernelSetId, RT::PiProgram> &CachedPrograms =
-      Ctx->getCachedPrograms();
-  auto It = CachedPrograms.find(KSId);
-  if (It != CachedPrograms.end())
-    return It->second;
 
-  const DeviceImage &Img = getDeviceImage(M, KSId, Context);
-  RT::PiProgram Prg = createPIProgram(Img, Context);
-  ProgramPtr ProgramManaged(
-      Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
+  using PiProgramT = KernelProgramCache::PiProgramT;
+  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
-  // Link a fallback implementation of device libraries if they are not
-  // supported by a device compiler.
-  // Pre-compiled programs are supposed to be already linked.
-  const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  context_impl *ContextImpl = getRawSyclObjImpl(Context);
-  RT::PiContext PiContext = ContextImpl->getHandleRef();
-  const std::vector<device> &Devices = ContextImpl->getDevices();
-  std::vector<RT::PiDevice> PiDevices(Devices.size());
-  std::transform(
-      Devices.begin(), Devices.end(), PiDevices.begin(),
-      [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
+  auto AcquireF = [](KernelProgramCache &Cache) {
+    return Cache.acquireCachedPrograms();
+  };
+  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT& {
+    return LockedCache.get();
+  };
+  auto BuildF = [this, &M, &KSId, &Context] {
+    const DeviceImage &Img = getDeviceImage(M, KSId, Context);
 
-  ProgramPtr BuiltProgram =
-      build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
-            ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
-  CachedPrograms[KSId] = BuiltProgram.get();
-  return BuiltProgram.release();
+    RT::PiProgram Prg = createPIProgram(Img, Context);
+    ProgramPtr ProgramManaged(
+          Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
+
+    // Link a fallback implementation of device libraries if they are not
+    // supported by a device compiler.
+    // Pre-compiled programs are supposed to be already linked.
+    const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
+
+    context_impl *ContextImpl = getRawSyclObjImpl(Context);
+    RT::PiContext PiContext = ContextImpl->getHandleRef();
+    const std::vector<device> &Devices = ContextImpl->getDevices();
+    std::vector<RT::PiDevice> PiDevices(Devices.size());
+    std::transform(
+        Devices.begin(), Devices.end(), PiDevices.begin(),
+        [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
+
+    ProgramPtr BuiltProgram =
+        build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
+              ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
+
+    return BuiltProgram.release();
+  };
+
+  return getOrBuild<PiProgramT, compile_program_error>(Cache, KSId, AcquireF,
+                                                       GetF, BuildF);
 }
 
 RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
@@ -223,18 +328,34 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
+
   RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &CachedKernels =
-      Ctx->getCachedKernels();
-  std::map<string_class, RT::PiKernel> &KernelsCache = CachedKernels[Program];
-  RT::PiKernel &Kernel = KernelsCache[KernelName];
-  if (!Kernel) {
-    PI_CALL(piKernelCreate)(Program, KernelName.c_str(), &Kernel);
+
+  using PiKernelT = KernelProgramCache::PiKernelT;
+  using KernelCacheT = KernelProgramCache::KernelCacheT;
+  using KernelByNameT = KernelProgramCache::KernelByNameT;
+
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+
+  auto AcquireF = [] (KernelProgramCache &Cache) {
+    return Cache.acquireKernelsPerProgramCache();
+  };
+  auto GetF = [&Program] (const Locked<KernelCacheT> &LockedCache) -> KernelByNameT& {
+    return LockedCache.get()[Program];
+  };
+  auto BuildF = [this, &Program, &KernelName] {
+    PiKernelT *Result = nullptr;
+
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-  }
-  return Kernel;
+    PI_CALL(piKernelCreate)(Program, KernelName.c_str(), &Result);
+
+    return Result;
+  };
+
+  return getOrBuild<PiKernelT, invalid_object_error>(
+        Cache, KernelName, AcquireF, GetF, BuildF);
 }
 
 RT::PiProgram ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel) {
