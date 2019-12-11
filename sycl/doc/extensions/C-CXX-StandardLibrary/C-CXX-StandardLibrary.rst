@@ -35,7 +35,7 @@ Example of usage
 
    template <typename T, size_t N>
    void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
-		    std::array<T, N>& VC) {
+                    std::array<T, N>& VC) {
      // ...
      cl::sycl::range<1> numOfItems{N};
      cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
@@ -49,8 +49,8 @@ Example of usage
 
        cgh.parallel_for<class SimpleVadd<T>>(numOfItems,
        [=](cl::sycl::id<1> wiID) {
-	   accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-	   assert(accessorC[wiID] > 0 && "Invalid value");
+           accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+           assert(accessorC[wiID] > 0 && "Invalid value");
        });
      });
      deviceQueue.wait_and_throw();
