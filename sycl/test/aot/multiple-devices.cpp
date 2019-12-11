@@ -6,7 +6,7 @@
 //
 //===------------------------------------------------------------------------===//
 
-// REQUIRES: ocloc, aoc
+// REQUIRES: opencl-aot, ocloc, aoc
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
