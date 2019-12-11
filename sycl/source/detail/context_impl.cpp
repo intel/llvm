@@ -90,6 +90,9 @@ context_impl::~context_impl() {
       PI_CALL(piKernelRelease)(KernIt.second);
     PI_CALL(piProgramRelease)(ToBeDeleted);
   }
+  for (auto LibProg : MCachedLibPrograms) {
+    PI_CALL(piProgramRelease)(LibProg.second);
+  }
 }
 
 const async_handler &context_impl::get_async_handler() const {
