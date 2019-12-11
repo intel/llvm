@@ -1,0 +1,5 @@
+PARAM_TRAITS_SPEC(platform, profile, string_class)
+PARAM_TRAITS_SPEC(platform, version, string_class)
+PARAM_TRAITS_SPEC(platform, name, string_class)
+PARAM_TRAITS_SPEC(platform, vendor, string_class)
+PARAM_TRAITS_SPEC(platform, extensions, vector_class<string_class>)
