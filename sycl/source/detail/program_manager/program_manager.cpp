@@ -189,8 +189,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
 
   const DeviceImage &Img = getDeviceImage(M, KSId, Context);
   RT::PiProgram Prg = createPIProgram(Img, Context);
-  using PiProgramT = remove_pointer_t<RT::PiProgram>;
-  unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
+  ProgramPtr ProgramManaged(
       Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
 
   // Link a fallback implementation of device libraries if they are not
@@ -202,21 +201,15 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   std::vector<RT::PiDevice> Devices;
   getContextDevices(getRawSyclObjImpl(Context)->getHandleRef(), Devices);
 
-  RT::PiProgram BuiltProgram =
-      build(ProgramManaged.get(),
-        getRawSyclObjImpl(Context)->getHandleRef(),
-        Img.BuildOptions,
-        Devices,
-        getRawSyclObjImpl(Context)->getCachedLibPrograms(),
-        LinkDeviceLibs);
-  CachedPrograms[KSId] = BuiltProgram;
-  // FIXME: better to replace w/ unique_ptr
-  if (BuiltProgram != ProgramManaged.get()) {
-    ProgramManaged.release();
-  }
-
-
-  return BuiltProgram;
+  ProgramPtr BuiltProgram =
+      build(std::move(ProgramManaged),
+            getRawSyclObjImpl(Context)->getHandleRef(),
+            Img.BuildOptions,
+            Devices,
+            getRawSyclObjImpl(Context)->getCachedLibPrograms(),
+            LinkDeviceLibs);
+  CachedPrograms[KSId] = BuiltProgram.get();
+  return BuiltProgram.release();
 }
 
 RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
@@ -444,7 +437,7 @@ RT::PiProgram ProgramManager::build(
     bool LinkDeviceLibs) {
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << Program << ", " << Options
+    std::cerr << ">>> ProgramManager::build(" << Program.get() << ", " << Options
               << ", ... " << Devices.size() << ")\n";
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
@@ -492,7 +485,7 @@ RT::PiProgram ProgramManager::build(
 
   if (LinkPrograms.empty()) {
     pi_result Error =
-        PI_CALL_NOCHECK(piProgramBuild)(Program, Devices.size(), Devices.data(),
+        PI_CALL_NOCHECK(piProgramBuild)(Program.get(), Devices.size(), Devices.data(),
                                         Opts, nullptr, nullptr);
     if (Error == PI_SUCCESS)
       return Program;
