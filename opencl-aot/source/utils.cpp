@@ -14,11 +14,11 @@
 
 #include "utils.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fstream>
 #include <functional>
-#include <algorithm>
 
 std::string getOpenCLErrorNameByErrorCode(cl_int CLErr) {
   switch (CLErr) {
@@ -381,34 +381,21 @@ readBinaryFile(std::string FileName) {
   return std::make_tuple(FileContent, "", CL_SUCCESS);
 }
 
-bool fileExists(const std::string &FileName) {
-  std::ifstream InFile(FileName);
-  return InFile.good();
-}
-
-static bool
-isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
-                                 const uint32_t ExpectedMagicNumber,
-                                 const size_t &ExpectedMagicNumberSize) {
-  if (BinaryData.size() < ExpectedMagicNumberSize)
+bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
+                                      const uint32_t ExpectedMagicNumber) {
+  if (BinaryData.size() < sizeof(ExpectedMagicNumber))
     return false;
-
-  const std::string BinaryDataStr(BinaryData.begin(),
-                                  BinaryData.begin() + ExpectedMagicNumberSize);
-  auto MagicNumber = reinterpret_cast<const uint32_t *>(BinaryDataStr.data());
-  return *MagicNumber == ExpectedMagicNumber;
+  const auto &BinaryDataAsIntBuffer =
+      reinterpret_cast<decltype(ExpectedMagicNumber) *>(BinaryData.data());
+  return BinaryDataAsIntBuffer[0] == ExpectedMagicNumber;
 }
 
 bool isFileELF(const std::vector<char> &BinaryData) {
   const uint32_t ELFMagicNumber = 0x464c457f;
-  return isFileStartsWithGivenMagicNumber(
-      BinaryData, ELFMagicNumber,
-      /*Size of magic number (in bytes) =*/sizeof(uint32_t));
+  return isFileStartsWithGivenMagicNumber(BinaryData, ELFMagicNumber);
 }
 
 bool isFileSPIRV(const std::vector<char> &BinaryData) {
   const uint32_t SPIRVMagicNumber = 0x07230203;
-  return isFileStartsWithGivenMagicNumber(
-      BinaryData, SPIRVMagicNumber,
-      /*Size of magic number (in bytes) =*/sizeof(uint32_t));
+  return isFileStartsWithGivenMagicNumber(BinaryData, SPIRVMagicNumber);
 }

@@ -21,9 +21,9 @@
 #include <string>
 #include <vector>
 
-enum DeviceType { cpu, gpu, fpga_fast_emu };
+enum DeviceType : int8_t { cpu, gpu, fpga_fast_emu };
 
-enum Errors {
+enum Errors : int8_t {
   OPENCL_AOT_FILE_NOT_EXIST = 1,
   OPENCL_AOT_FAILED_TO_CREATE_OPENCL_PROGRAM,
   OPENCL_AOT_FAILED_TO_CREATE_ELF,
@@ -100,8 +100,6 @@ createProgramWithIL(std::vector<char> IL, cl_context Context,
  */
 std::tuple<std::vector<char>, std::string, cl_int>
 readBinaryFile(std::string FileName);
-
-bool fileExists(const std::string &FileName);
 
 bool isFileELF(const std::vector<char> &BinaryData);
 

@@ -18,7 +18,6 @@
 #include <CL/cl.h>
 
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 
 #include <algorithm>
@@ -170,7 +169,7 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
     cl_int BinaryStatus(CL_SUCCESS);
 
     const size_t BinarySize = Data.size();
-    const unsigned char *BinaryContent = (const unsigned char *)Data.data();
+    auto *BinaryContent = reinterpret_cast<const unsigned char *>(Data.data());
 
     switch (FileType) {
     case ELF:
@@ -268,7 +267,7 @@ int main(int Argc, char *Argv[]) {
           clEnumVal(gpu, "Intel(R) Processor Graphics device"),
           clEnumVal(fpga_fast_emu,
                     "Intel(R) FPGA Emulation Platform for OpenCL(TM) device")));
-  enum ArchType { sse42 = 0, avx, avx2, avx512 };
+  enum ArchType : int8_t { sse42 = 0, avx, avx2, avx512 };
   cl::opt<ArchType> OptMArch(
       "march",
       cl::desc("Set target CPU architecture (for --device=cpu or "
@@ -311,7 +310,9 @@ int main(int Argc, char *Argv[]) {
                               "OpenCL ahead-of-time (AOT) compilation tool");
 
   // step 1: perform checks for command line options
-  if (!fileExists(OptInputBinary)) {
+  bool IsFileExists = false;
+  sys::fs::is_regular_file(OptInputBinary, IsFileExists);
+  if (!IsFileExists) {
     std::cerr << "File " << OptInputBinary << " does not exist!" << '\n';
     return OPENCL_AOT_FILE_NOT_EXIST;
   }
