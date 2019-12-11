@@ -1522,7 +1522,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVCopyMemorySized *BC = static_cast<SPIRVCopyMemorySized *>(BV);
     CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
-    Align Alignment = Align(BC->getAlignment());
+    unsigned Align = BC->getAlignment();
     llvm::Value *Size = transValue(BC->getSize(), F, BB);
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
@@ -1545,14 +1545,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
               NewDst = llvm::BitCastInst::CreatePointerCast(Dst, Int8PointerTy,
                                                             "", BB);
             }
-            CI = Builder.CreateMemSet(NewDst, Src, Size, Alignment, IsVolatile);
+            CI = Builder.CreateMemSet(NewDst, Src, Size, MaybeAlign(Align),
+                                      IsVolatile);
           }
         }
       }
     }
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
-      CI = Builder.CreateMemCpy(Dst, BC->getAlignment(), Src, BC->getAlignment(), Size, IsVolatile);
+      CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);
     }
     if (isFuncNoUnwind())
       CI->getFunction()->addFnAttr(Attribute::NoUnwind);
