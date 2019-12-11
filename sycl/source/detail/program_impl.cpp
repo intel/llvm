@@ -153,7 +153,7 @@ void program_impl::compile_with_kernel_type(string_class KernelName,
   throw_if_state_is_not(program_state::none);
   if (!is_host()) {
     OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-    create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
+    create_pi_program_with_kernel_name(M, KernelName);
     compile(CompileOptions);
   }
   State = program_state::compiled;
@@ -179,10 +179,10 @@ void program_impl::build_with_kernel_type(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       IsProgramAndKernelCachingAllowed = true;
       Program = ProgramManager::getInstance().getBuiltPIProgram(
-          M, get_context(), KernelInfo<KernelT>::getName());
+          M, get_context(), KernelName);
       PI_CALL(piProgramRetain)(Program);
     } else {
-      create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
+      create_pi_program_with_kernel_name(M, KernelName);
       build(BuildOptions);
     }
   }
@@ -365,7 +365,7 @@ void program_impl::throw_if_state_is_not(program_state State) const {
   }
 }
 
-void pi_program::create_pi_program_with_kernel_name(OSModuleHandle M,
+void program_impl::create_pi_program_with_kernel_name(OSModuleHandle M,
                                         const string_class &KernelName) {
   assert(!Program && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();

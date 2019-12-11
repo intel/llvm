@@ -122,8 +122,6 @@ private:
   void create_pi_program_with_kernel_name(OSModuleHandle M,
                                           const string_class &KernelName);
 
-  void create_cl_program_with_il(OSModuleHandle M);
-
   void create_cl_program_with_source(const string_class &Source);
 
   void compile(const string_class &Options);
