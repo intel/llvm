@@ -23,6 +23,8 @@
 
 # Nested build directory
 /build
+/cmake-build-debug
+/cmake-build-release
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).

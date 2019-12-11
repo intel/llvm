@@ -198,6 +198,7 @@ add_custom_target( sycl-toolchain
           llvm-objcopy
           opt
           sycl-post-link
+          opencl-aot
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -244,6 +245,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      opencl-headers
      sycl-headers
      sycl
+     opencl-aot
      pi_opencl
 )
 

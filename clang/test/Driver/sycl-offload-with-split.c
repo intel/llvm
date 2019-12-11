@@ -216,7 +216,7 @@
 // CHK-TOOLS-AOT: llvm-foreach{{.*}}  "--in-file-list=[[OUTPUT3]]" "--in-replace=[[OUTPUT3]]" "--out-ext=spv" "--out-file-list=[[OUTPUT4:.+\.txt]]" "--out-replace=[[OUTPUT4]]" "--" "{{.*}}llvm-spirv{{.*}} "-o" "[[OUTPUT4]]" {{.*}} "[[OUTPUT3]]"
 // CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT5:.+\.txt]]{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT5]]" "[[OUTPUT4]]"
 // CHK-TOOLS-GEN: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT5:.+\.txt]]{{.*}} "--" "{{.*}}ocloc{{.*}} "-output" "[[OUTPUT5]]" "-file" "[[OUTPUT4]]"
-// CHK-TOOLS-CPU: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT5:.+\.txt]]{{.*}} "--" "{{.*}}ioc{{.*}} "-ir=[[OUTPUT5]]" "-device=cpu" "-binary=[[OUTPUT4]]"
+// CHK-TOOLS-CPU: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT5:.+\.txt]]{{.*}} "--" "{{.*}}opencl-aot{{.*}} "-o=[[OUTPUT5]]" "--device=cpu" "[[OUTPUT4]]"
 // CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT7:.+\.txt]]{{.*}} "--" "{{.*}}clang-offload-wrapper{{.*}} "-o={{.*}}" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga{{.*}}" "-kind=sycl" "-entries=[[OUTPUT6]]" "[[OUTPUT5]]"
 // CHK-TOOLS-GEN: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT7:.+\.txt]]{{.*}} "--" "{{.*}}clang-offload-wrapper{{.*}} "-o={{.*}}" "-host=x86_64-unknown-linux-gnu" "-target=spir64_gen{{.*}}" "-kind=sycl" "-entries=[[OUTPUT6]]" "[[OUTPUT5]]"
 // CHK-TOOLS-CPU: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT7:.+\.txt]]{{.*}} "--" "{{.*}}clang-offload-wrapper{{.*}} "-o={{.*}}" "-host=x86_64-unknown-linux-gnu" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "-entries=[[OUTPUT6]]" "[[OUTPUT5]]"
