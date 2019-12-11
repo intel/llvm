@@ -18,6 +18,7 @@
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <algorithm>
 
 std::string getOpenCLErrorNameByErrorCode(cl_int CLErr) {
   switch (CLErr) {
@@ -387,7 +388,7 @@ bool fileExists(const std::string &FileName) {
 
 static bool
 isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
-                                 const int &ExpectedMagicNumber,
+                                 const uint32_t ExpectedMagicNumber,
                                  const size_t &ExpectedMagicNumberSize) {
   if (BinaryData.size() < ExpectedMagicNumberSize)
     return false;
@@ -410,4 +411,4 @@ bool isFileSPIRV(const std::vector<char> &BinaryData) {
   return isFileStartsWithGivenMagicNumber(
       BinaryData, SPIRVMagicNumber,
       /*Size of magic number (in bytes) =*/sizeof(uint32_t));
-};
+}

@@ -300,7 +300,7 @@ int main(int Argc, char *Argv[]) {
               "Compiler and Media Accelerator, Intel(R) SSE3, Intel(R) SSE2, "
               "Intel(R) SSE, and SSSE3 instructions")));
   cl::opt<std::string> OptOutputElf(
-      "o", cl::init("output.elf"),
+      "o", cl::init("output.bin"),
       cl::desc("Specify the output OpenCL program binary filename"),
       cl::value_desc("filename"));
   cl::opt<std::string> OptBuildOptions("bo",
@@ -386,11 +386,8 @@ int main(int Argc, char *Argv[]) {
                                  ArchTypeToCPUTargetArchEnvVarValues[OptMArch])
                          .c_str());
 #else
-    EnvErr = setenv(
-        CPUTargetArchEnvVarName.c_str(),
-        ArchTypeToCPUTargetArchEnvVarValues[CPUTargetArchOnCurrentMachine]
-            .c_str(),
-        1);
+    EnvErr = setenv(CPUTargetArchEnvVarName.c_str(),
+                    ArchTypeToCPUTargetArchEnvVarValues[OptMArch].c_str(), 1);
 #endif
     std::map<ArchType, std::string> ArchTypeToArchTypeName{
         {sse42, "Intel(R) Streaming SIMD Extensions 4.2 (Intel(R) SSE4.2)"},
