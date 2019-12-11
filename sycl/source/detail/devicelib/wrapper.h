@@ -9,8 +9,8 @@
 #ifndef __SYCL_WRAPPERS_H__
 #define __SYCL_WRAPPERS_H__
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 
 SYCL_EXTERNAL
 extern "C" void __devicelib_assert_fail(const char *expr, const char *file,

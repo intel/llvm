@@ -9,7 +9,8 @@
 #include "wrapper.h"
 
 // __attribute((format(...))) enables compiler checks for a format string.
-int __spirv_ocl_printf(const  __attribute__((opencl_constant)) char* fmt, ...) __attribute__((format(printf, 1, 2)));
+int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: local id: [%lu,%lu,%lu], global id: [%lu,%lu,%lu] "

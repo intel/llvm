@@ -16,9 +16,9 @@
 // RUN: FileCheck %s --input-file %t.stdout.fallback --check-prefix=CHECK-FALLBACK
 // CHECK-FALLBACK: ---> piProgramLink
 
-#include <assert.h>
-#include <array>
 #include <CL/sycl.hpp>
+#include <array>
+#include <assert.h>
 
 using namespace cl::sycl;
 
@@ -26,35 +26,34 @@ constexpr auto sycl_read = cl::sycl::access::mode::read;
 constexpr auto sycl_write = cl::sycl::access::mode::write;
 
 template <typename T, size_t N>
-void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
-                 std::array<T, N>& VC) {
+void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
+                 std::array<T, N> &VC) {
   queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
-                      for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
-                        try {
-                          std::rethrow_exception(ExceptionPtr);
-                        } catch (cl::sycl::exception &E) {
-                          std::cerr << E.what() << std::endl;
-                        } catch (...) {
-                          std::cerr << "Unknown async exception was caught." << std::endl;
-                        }
-                      }
-                    });
+    for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (cl::sycl::exception &E) {
+        std::cerr << E.what() << std::endl;
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
+      }
+    }
+  });
 
   cl::sycl::range<1> numOfItems{N};
   cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-  deviceQueue.submit([&](cl::sycl::handler& cgh) {
+  deviceQueue.submit([&](cl::sycl::handler &cgh) {
     auto accessorA = bufferA.template get_access<sycl_read>(cgh);
     auto accessorB = bufferB.template get_access<sycl_read>(cgh);
     auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
-    cgh.parallel_for<class SimpleVaddT>(numOfItems,
-      [=](cl::sycl::id<1> wiID) {
-       accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-       assert(accessorC[wiID] == 0 && "Invalid value");
-      });
+    cgh.parallel_for<class SimpleVaddT>(numOfItems, [=](cl::sycl::id<1> wiID) {
+      accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+      assert(accessorC[wiID] == 0 && "Invalid value");
+    });
   });
   deviceQueue.wait_and_throw();
 }

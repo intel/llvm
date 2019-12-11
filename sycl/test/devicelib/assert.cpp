@@ -92,14 +92,13 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
-#include <assert.h>
-#include <array>
 #include <CL/sycl.hpp>
-
+#include <array>
+#include <assert.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <stdlib.h>
 
 using namespace cl::sycl;
 
@@ -109,19 +108,19 @@ constexpr auto sycl_write = cl::sycl::access::mode::write;
 const int EXIT_SKIP_TEST = 42;
 
 template <typename T, size_t N>
-void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
-                 std::array<T, N>& VC) {
+void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
+                 std::array<T, N> &VC) {
   queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
-                      for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
-                        try {
-                          std::rethrow_exception(ExceptionPtr);
-                        } catch (cl::sycl::exception &E) {
-                          std::cerr << E.what() << std::endl;
-                        } catch (...) {
-                          std::cerr << "Unknown async exception was caught." << std::endl;
-                        }
-                      }
-                    });
+    for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (cl::sycl::exception &E) {
+        std::cerr << E.what() << std::endl;
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
+      }
+    }
+  });
   device dev = deviceQueue.get_device();
   bool unsupported = true;
   for (auto &ext : dev.get_info<info::device::extensions>()) {
@@ -131,7 +130,7 @@ void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
   }
   if (unsupported && getenv("SKIP_IF_NO_EXT")) {
     fprintf(stderr, "Device has no support for cl_intel_devicelib_assert, "
-            "skipping the test\n");
+                    "skipping the test\n");
     exit(EXIT_SKIP_TEST);
   }
 
@@ -140,16 +139,15 @@ void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
   cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-  deviceQueue.submit([&](cl::sycl::handler& cgh) {
+  deviceQueue.submit([&](cl::sycl::handler &cgh) {
     auto accessorA = bufferA.template get_access<sycl_read>(cgh);
     auto accessorB = bufferB.template get_access<sycl_read>(cgh);
     auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
-    cgh.parallel_for<class SimpleVaddT>(numOfItems,
-      [=](cl::sycl::id<1> wiID) {
-       accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-       assert(accessorC[wiID] == 0 && "Invalid value");
-      });
+    cgh.parallel_for<class SimpleVaddT>(numOfItems, [=](cl::sycl::id<1> wiID) {
+      accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+      assert(accessorC[wiID] == 0 && "Invalid value");
+    });
   });
   deviceQueue.wait_and_throw();
 }
@@ -168,16 +166,15 @@ int main() {
     }
     int sig = WTERMSIG(status);
     int expected = 0;
-    if (const char* env = getenv("EXPECTED_SIGNAL")) {
+    if (const char *env = getenv("EXPECTED_SIGNAL")) {
       if (0 == strcmp(env, "SIGABRT")) {
         expected = SIGABRT;
       } else if (0 == strcmp(env, "SIGSEGV")) {
         expected = SIGSEGV;
       }
       if (!expected) {
-        fprintf(stderr,
-                "EXPECTED_SIGNAL should be set to either \"SIGABRT\", "
-                "or \"SIGSEGV\"!\n");
+        fprintf(stderr, "EXPECTED_SIGNAL should be set to either \"SIGABRT\", "
+                        "or \"SIGSEGV\"!\n");
         return 1;
       }
     }

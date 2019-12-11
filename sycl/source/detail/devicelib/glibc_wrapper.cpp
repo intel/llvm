@@ -12,17 +12,15 @@
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
 
-extern "C" {
-  SYCL_EXTERNAL
-  void __assert_fail(const char *expr, const char *file,
-                     unsigned int line, const char *func) {
-    __devicelib_assert_fail(expr, file, line, func,
-                            __spirv_BuiltInGlobalInvocationId.x,
-                            __spirv_BuiltInGlobalInvocationId.y,
-                            __spirv_BuiltInGlobalInvocationId.z,
-                            __spirv_BuiltInLocalInvocationId.x,
-                            __spirv_BuiltInLocalInvocationId.y,
-                            __spirv_BuiltInLocalInvocationId.z);
-  }
+extern "C" SYCL_EXTERNAL
+void __assert_fail(const char *expr, const char *file,
+                   unsigned int line, const char *func) {
+  __devicelib_assert_fail(expr, file, line, func,
+                          __spirv_BuiltInGlobalInvocationId.x,
+                          __spirv_BuiltInGlobalInvocationId.y,
+                          __spirv_BuiltInGlobalInvocationId.z,
+                          __spirv_BuiltInLocalInvocationId.x,
+                          __spirv_BuiltInLocalInvocationId.y,
+                          __spirv_BuiltInLocalInvocationId.z);
 }
 #endif // __SYCL_DEVICE_ONLY__
