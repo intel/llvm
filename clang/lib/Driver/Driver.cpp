@@ -4384,16 +4384,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       LinkerInputs.push_back(TLI);
   }
   const llvm::opt::OptTable &Opts = getOpts();
-  auto unbundleStaticLib = [&](types::ID T) {
-    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
+  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
+    auto unbundleStaticLib = [&](types::ID T) {
       Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
       OffloadBuilder.addDeviceDependencesToHostAction(
           Current, InputArg, phases::Link, PL.back(), PL);
-    }
-  };
-  if (Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+    };
     // In MSVC environment offload-static-libs are handled slightly different
     // because of missing support for partial linking in the linker. We add an
     // unbundling action for each static archive which produces list files with
