@@ -1,3 +1,4 @@
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 
