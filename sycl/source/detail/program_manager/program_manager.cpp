@@ -310,12 +310,13 @@ loadDeviceLibFallback(const RT::PiContext &Context,
                                 Extension);
   }
   RT::PiProgram &LibProg = CachedLibPrograms[LibFileName];
-  bool ShouldCompile = !LibProg;
-  if (!LibProg && !loadDeviceLib(Context, LibFileName, LibProg))
+  if (LibProg)
+    return LibProg;
+
+  if (!loadDeviceLib(Context, LibFileName, LibProg))
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
 
-  if (ShouldCompile)
-    PI_CALL(piProgramCompile)
+  PI_CALL(piProgramCompile)
   (LibProg,
    // Assume that Devices contains all devices from Context.
    Devices.size(), Devices.data(),
@@ -485,9 +486,9 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   if (LinkPrograms.empty()) {
     pi_result Error = PI_CALL_NOCHECK(piProgramBuild)(
         Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
-    if (Error == PI_SUCCESS)
-      return Program;
-    throw compile_program_error(getProgramBuildLog(Program.get()));
+    if (Error != PI_SUCCESS)
+      compile_program_error(getProgramBuildLog(Program.get()));
+    return Program;
   }
 
   // Include the main program and compile/link everything together
