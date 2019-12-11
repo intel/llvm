@@ -16,7 +16,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-//#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/event.hpp>
@@ -114,7 +113,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 // kernel, requirements to the memory, arguments for the kernel.
 //
 // sycl::queue::submit([](handler &CGH){
-//   CGH.require(Accessor1);   // Adds a requirement to the memory object.
+///   CGH.require(Accessor1);   // Adds a requirement to the memory object.
 //   CGH.setArg(0, Accessor2); // Registers accessor given as an argument to the
 //                             // kernel + adds a requirement to the memory
 //                             // object.
@@ -134,7 +133,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 // "finalization" it constructs CG object, that represents specific operation,
 // passing fields that are required only.
 
-// 4.8.3 Command group handler class
+/// 4.8.3 Command group handler class
 class handler {
   shared_ptr_class<detail::queue_impl> MQueue;
   // The storage for the arguments passed.
@@ -156,7 +155,7 @@ class handler {
   vector_class<detail::Requirement *> MRequirements;
   // Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  std::string MKernelName;
+  string_class MKernelName;
   // Storage for a sycl::kernel object.
   unique_ptr_class<kernel> MSyclKernel;
   // Type of the command group, e.g. kernel, fill.
@@ -170,7 +169,7 @@ class handler {
   // Pattern that is used to fill memory object in case command type is fill.
   vector_class<char> MPattern;
   // Storage for a lambda or function object.
-  std::unique_ptr<detail::HostKernelBase> MHostKernel;
+  unique_ptr_class<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
   // The list of events that order this operation
   vector_class<detail::EventImplPtr> MEvents;
@@ -220,8 +219,8 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MSyclKernel && "MSyclKernel is not initialized");
-    const std::string lambdaName = detail::KernelInfo<LambdaName>::getName();
-    const std::string kernelName =
+    const string_class lambdaName = detail::KernelInfo<LambdaName>::getName();
+    const string_class kernelName =
         MSyclKernel->get_info<info::kernel::function_name>();
     return lambdaName == kernelName;
   }
