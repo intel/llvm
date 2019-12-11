@@ -309,14 +309,22 @@ loadDeviceLibFallback(const RT::PiContext &Context,
     throw compile_program_error(std::string("Unknown device library: ") +
                                 Extension);
   }
-  RT::PiProgram &LibProg = CachedLibPrograms[LibFileName];
-  if (LibProg)
+  std::map<std::string, RT::PiProgram>::iterator LibProgIt;
+  bool NotExists = false;
+  std::tie(LibProgIt, NotExists) =
+      CachedLibPrograms.insert({Extension, nullptr});
+  RT::PiProgram &LibProg = LibProgIt->second;
+
+  if (!NotExists) {
     return LibProg;
+  }
 
-  if (!loadDeviceLib(Context, LibFileName, LibProg))
+  if (!loadDeviceLib(Context, LibFileName, LibProg)) {
+    CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
+  }
 
-  PI_CALL(piProgramCompile)
+  pi_result Error = PI_CALL_NOCHECK(piProgramCompile)
   (LibProg,
    // Assume that Devices contains all devices from Context.
    Devices.size(), Devices.data(),
@@ -325,6 +333,10 @@ loadDeviceLibFallback(const RT::PiContext &Context,
    // library program as well, and what actually happens to a SPIR-V
    // program if we apply them.
    "", 0, nullptr, nullptr, nullptr, nullptr);
+  if (Error != PI_SUCCESS) {
+    CachedLibPrograms.erase(LibProgIt);
+    throw compile_program_error(ProgramManager::getProgramBuildLog(LibProg));
+  }
 
   return LibProg;
 }
