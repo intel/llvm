@@ -344,6 +344,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
     }
     RT::checkPiResult(Err);
   }
+
+  return Kernel;
 }
 
 std::vector<device>
