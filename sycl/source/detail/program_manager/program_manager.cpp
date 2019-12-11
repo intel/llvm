@@ -313,7 +313,6 @@ static std::string getDeviceExtensions(const RT::PiDevice &Dev) {
 static RT::PiProgram loadDeviceLibFallback(
     const RT::PiContext &Context,
     const std::string &Extension,
-    const char *Opts,
     const std::vector<RT::PiDevice> &Devices,
     std::map<std::string, RT::PiProgram> &CachedLibPrograms) {
 
@@ -324,7 +323,6 @@ static RT::PiProgram loadDeviceLibFallback(
     throw compile_program_error(
         std::string("Unknown device library: ") + Extension);
   }
-  // FIXME: cache with respect to compile options
   RT::PiProgram &LibProg = CachedLibPrograms[LibFileName];
   bool ShouldCompile = !LibProg;
   if (!LibProg && !loadDeviceLib(Context, LibFileName , LibProg))
@@ -332,7 +330,14 @@ static RT::PiProgram loadDeviceLibFallback(
 
   if (ShouldCompile)
     PI_CALL(piProgramCompile)
-        (LibProg, Devices.size(), Devices.data(), Opts,
+        (LibProg,
+         // Assume that Devices contains all devices from Context.
+         Devices.size(), Devices.data(),
+         // Do not use compile options for library programs: it is not clear
+         // if user options (image options) are supposed to be applied to
+         // library program as well, and what actually happens to a SPIR-V
+         // program if we apply them.
+         "",
          0, nullptr, nullptr, nullptr, nullptr);
 
   return LibProg;
@@ -477,8 +482,7 @@ RT::PiProgram ProgramManager::build(
       for (const std::string& DevExtList : DevExtensions) {
         bool DeviceSupports = DevExtList.npos != DevExtList.find(Ext);
         if (!DeviceSupports || InhibitNativeImpl) {
-          LinkPrograms.push_back(loadDeviceLibFallback(Context, Ext, Opts,
-                                                       Devices,
+          LinkPrograms.push_back(loadDeviceLibFallback(Context, Ext, Devices,
                                                        CachedLibPrograms));
           break;
         }
