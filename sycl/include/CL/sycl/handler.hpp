@@ -109,69 +109,71 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 
 } // namespace detail
 
-// Objects of the handler class collect information about command group, such as
-// kernel, requirements to the memory, arguments for the kernel.
-//
-// sycl::queue::submit([](handler &CGH){
-///   CGH.require(Accessor1);   // Adds a requirement to the memory object.
-//   CGH.setArg(0, Accessor2); // Registers accessor given as an argument to the
-//                             // kernel + adds a requirement to the memory
-//                             // object.
-//   CGH.setArg(1, N);         // Registers value given as an argument to the
-//                             // kernel.
-//   // The following registers KernelFunctor to be a kernel that will be
-//   // executed in case of queue is bound to the host device, SyclKernel - for
-//   // an OpenCL device. This function clearly indicates that command group
-//   // represents kernel execution.
-//   CGH.parallel_for(KernelFunctor, SyclKernel);
-//  });
-//
-// The command group can represent absolutely different operations. Depending
-// on the operation we need to store different data. But, in most cases, it's
-// impossible to say what kind of operation we need to perform until the very
-// end. So, handler class contains all fields simultaneously, then during
-// "finalization" it constructs CG object, that represents specific operation,
-// passing fields that are required only.
-
 /// 4.8.3 Command group handler class
+///
+/// Objects of the handler class collect information about command group, such
+/// as kernel, requirements to the memory, arguments for the kernel.
+///
+/// \code{.cpp}
+/// sycl::queue::submit([](handler &CGH){
+///   CGH.require(Accessor1);   // Adds a requirement to the memory object.
+///   CGH.setArg(0, Accessor2); // Registers accessor given as an argument to
+///                             // the kernel + adds a requirement to the memory
+///                             // object.
+///   CGH.setArg(1, N);         // Registers value given as an argument to the
+///                             // kernel.
+///   // The following registers KernelFunctor to be a kernel that will be
+///   // executed in case of queue is bound to the host device, SyclKernel - for
+///   // an OpenCL device. This function clearly indicates that command group
+///   // represents kernel execution.
+///   CGH.parallel_for(KernelFunctor, SyclKernel);
+///  });
+/// \endcode
+///
+/// The command group can represent absolutely different operations. Depending
+/// on the operation we need to store different data. But, in most cases, it's
+/// impossible to say what kind of operation we need to perform until the very
+/// end. So, handler class contains all fields simultaneously, then during
+/// "finalization" it constructs CG object, that represents specific operation,
+/// passing fields that are required only.
 class handler {
   shared_ptr_class<detail::queue_impl> MQueue;
-  // The storage for the arguments passed.
-  // We need to store a copy of values that are passed explicitly through
-  // set_arg, require and so on, because we need them to be alive after
-  // we exit the method they are passed in.
+  /// The storage for the arguments passed.
+  /// We need to store a copy of values that are passed explicitly through
+  /// set_arg, require and so on, because we need them to be alive after
+  /// we exit the method they are passed in.
   vector_class<vector_class<char>> MArgsStorage;
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
   vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
-  // The list of arguments for the kernel.
+  /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;
-  // The list of associated accessors with this handler.
-  // These accessors were created with this handler as argument or
-  // have become required for this handler via require method.
+  /// The list of associated accessors with this handler.
+  /// These accessors were created with this handler as argument or
+  /// have become required for this handler via require method.
   vector_class<detail::ArgDesc> MAssociatedAccesors;
-  // The list of requirements to the memory objects for the scheduling.
+  /// The list of requirements to the memory objects for the scheduling.
   vector_class<detail::Requirement *> MRequirements;
-  // Struct that encodes global size, local size, ...
+  /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   string_class MKernelName;
-  // Storage for a sycl::kernel object.
+  /// Storage for a sycl::kernel object.
   unique_ptr_class<kernel> MSyclKernel;
-  // Type of the command group, e.g. kernel, fill.
+  /// Type of the command group, e.g. kernel, fill.
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
-  // Pointer to the source host memory or accessor(depending on command type).
+  /// Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
-  // Pointer to the dest host memory or accessor(depends on command type).
+  /// Pointer to the dest host memory or accessor(depends on command type).
   void *MDstPtr = nullptr;
-  // Length to copy or fill (for USM operations).
+  /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
-  // Pattern that is used to fill memory object in case command type is fill.
+  /// Pattern that is used to fill memory object in case command type is fill.
   vector_class<char> MPattern;
-  // Storage for a lambda or function object.
+  /// Storage for a lambda or function object.
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
-  // The list of events that order this operation
+  /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
 
   bool MIsHost = false;
@@ -180,7 +182,7 @@ private:
   handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
       : MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
-  // Method stores copy of Arg passed to the MArgsStorage.
+  /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename std::remove_const<
                             typename std::remove_reference<T>::type>::type>
   F *storePlainArg(T &&Arg) {
@@ -198,14 +200,13 @@ private:
                                 CL_INVALID_OPERATION);
   }
 
-  // The method extracts and prepares kernel arguments from the lambda using
-  // integration header.
+  /// Extracts and prepares kernel arguments from the lambda using integration
+  /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs);
 
-  // The method extracts and prepares kernel arguments that were set
-  // via set_arg(s)
+  /// Extracts and prepares kernel arguments that were set via set_arg(s).
   void extractArgsAndReqs();
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -225,16 +226,21 @@ private:
     return lambdaName == kernelName;
   }
 
-  // The method constructs CG object of specific type, pass it to Scheduler and
-  // returns sycl::event object representing the command group.
-  // It's expected that the method is the latest method executed before
-  // object destruction.
+  /// Constructs CG object of specific type, pass it to Scheduler and
+  /// returns sycl::event object representing the command group.
+  /// It's expected that the method is the latest method executed before
+  /// object destruction.
+  ///
+  /// @return a SYCL event object representing the command group.
   event finalize();
 
-  // Save streams associated with this handler. Streams are then forwarded to
-  // command group and flushed in the scheduler.
-  void addStream(shared_ptr_class<detail::stream_impl> s) {
-    MStreamStorage.push_back(std::move(s));
+  /// Saves streams associated with this handler.
+  ///
+  /// Streams are then forwarded to command group and flushed in the scheduler.
+  ///
+  /// @param Stream is a pointer to SYCL stream.
+  void addStream(shared_ptr_class<detail::stream_impl> Stream) {
+    MStreamStorage.push_back(std::move(Stream));
   }
 
   ~handler() = default;
@@ -350,9 +356,12 @@ private:
     return {x, y, z};
   }
 
-  // The method stores lambda to the template-free object and initializes
-  // kernel name, list of arguments and requirements using information from
-  // integration header.
+  /// Stores lambda to the template-free object
+  ///
+  /// Also initializes kernel name, list of arguments and requirements using
+  /// information from the integration header.
+  ///
+  /// @param KernelFunc is a SYCL kernel function.
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType = sycl::detail::lambda_arg_type<KernelType>>
   void StoreLambda(KernelType KernelFunc) {
@@ -396,8 +405,10 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-  // The method registers requirement to the memory. So, the command group has a
-  // requirement to gain access to the given memory object before executing.
+  /// Registers requirement to the memory.
+  ///
+  /// The command group has a requirement to gain access to the given memory
+  /// object before executing.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
   void
@@ -417,24 +428,37 @@ public:
                                      /*index*/ 0);
   }
 
-  // This method registers event dependencies on this command group.
-  void depends_on(event e) {
-    MEvents.push_back(std::move(detail::getSyclObjImpl(e)));
+  /// Registers event dependencies on this command group.
+  ///
+  /// @param Event is a valid SYCL event to wait on.
+  void depends_on(event Event) {
+    MEvents.push_back(std::move(detail::getSyclObjImpl(Event)));
   }
 
+  /// Registers event dependencies on this command group.
+  ///
+  /// @param Event is a vector of valid SYCL events to wait on.
   void depends_on(vector_class<event> Events) {
     for (event e : Events) {
       depends_on(e);
     }
   }
 
-  // OpenCL interoperability interface
-  // Registers Arg passed as argument # ArgIndex.
+  /// Sets argument for OpenCL interoperability kernels.
+  ///
+  /// Registers Arg passed as argument # ArgIndex.
+  ///
+  /// @param ArgIndex is a positional number of argument to be set.
+  /// @param Arg is an argument value to be set.
   template <typename T> void set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
-  // Registers pack of arguments(Args) with indexes starting from 0.
+  /// Sets arguments for OpenCL interoperability kernels.
+  ///
+  /// Registers pack of arguments(Args) with indexes starting from 0.
+  ///
+  /// @param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&... Args) {
     setArgsHelper(0, std::move(Args)...);
   }
