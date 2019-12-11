@@ -228,6 +228,9 @@ kernel program_impl::get_kernel(string_class KernelName,
                   bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
+    if (IsCreatedFromSource)
+      throw invalid_object_error("This instance of program is a host instance");
+
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(Context, PtrToSelf));
   }
