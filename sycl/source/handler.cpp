@@ -1,6 +1,7 @@
-#include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 
 namespace cl {
 namespace sycl {
@@ -9,14 +10,18 @@ event handler::finalize() {
   std::unique_ptr<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
-  case detail::CG::RUN_ON_HOST_INTEL:
+  case detail::CG::RUN_ON_HOST_INTEL: {
+    std::shared_ptr<detail::kernel_impl> KernelImpl = nullptr;
+    if (MSyclKernel)
+      KernelImpl = detail::getSyclObjImpl(*MSyclKernel);
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
+        std::move(MNDRDesc), std::move(MHostKernel), std::move(KernelImpl),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
         std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
     break;
+  }
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
   case detail::CG::COPY_ACC_TO_ACC:
@@ -178,7 +183,8 @@ void handler::extractArgsAndReqs() {
         return (first.MIndex < second.MIndex);
       });
 
-  const bool IsKernelCreatedFromSource = MSyclKernel->isCreatedFromSource();
+  const bool IsKernelCreatedFromSource =
+      detail::getSyclObjImpl(*MSyclKernel)->isCreatedFromSource();
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {

@@ -16,7 +16,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
+//#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/event.hpp>
@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <memory>
 #include <type_traits>
 
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
@@ -157,7 +158,7 @@ class handler {
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
   // Storage for a sycl::kernel object.
-  shared_ptr_class<detail::kernel_impl> MSyclKernel;
+  unique_ptr_class<kernel> MSyclKernel;
   // Type of the command group, e.g. kernel, fill.
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
   // Pointer to the source host memory or accessor(depending on command type).
@@ -617,7 +618,7 @@ public:
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
     MNDRDesc.set(range<1>{1});
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
   }
@@ -629,7 +630,7 @@ public:
   void parallel_for(range<Dims> NumWorkItems, kernel SyclKernel) {
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -643,7 +644,7 @@ public:
                     kernel SyclKernel) {
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MNDRDesc.set(std::move(NumWorkItems), std::move(workItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -656,7 +657,7 @@ public:
   void parallel_for(nd_range<Dims> NDRange, kernel SyclKernel) {
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -678,7 +679,7 @@ public:
     kernel_single_task<NameT>(KernelFunc);
 #else
     MNDRDesc.set(range<1>{1});
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -701,7 +702,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -724,7 +725,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -747,7 +748,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NDRange));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -773,7 +774,7 @@ public:
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -793,7 +794,7 @@ public:
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
