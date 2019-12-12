@@ -913,6 +913,14 @@ defm int_arm_mve_vstr_scatter_offset: MVEPredicated<
    [], [llvm_anyptr_ty, llvm_anyvector_ty, llvm_anyvector_ty,
    llvm_i32_ty, llvm_i32_ty], llvm_anyvector_ty, [IntrWriteMem]>;
 
+def int_arm_mve_shl_imm_predicated: Intrinsic<[llvm_anyvector_ty],
+   [LLVMMatchType<0>, llvm_i32_ty, llvm_anyvector_ty, LLVMMatchType<0>],
+   [IntrNoMem]>;
+def int_arm_mve_shr_imm_predicated: Intrinsic<[llvm_anyvector_ty],
+   [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty, // extra i32 is unsigned flag
+    llvm_anyvector_ty, LLVMMatchType<0>],
+   [IntrNoMem]>;
+
 // MVE scalar shifts.
 class ARM_MVE_qrshift_single<list<LLVMType> value,
                              list<LLVMType> saturate = []> :
@@ -984,7 +992,9 @@ multiclass MVEMXPredicated<list<LLVMType> rets, list<LLVMType> flags,
 }
 
 // The first two parameters are compile-time constants:
-// * Halving: is the a halving (vhcaddq) or non-halving (vcaddq) instruction
+// * Halving: 0 means  halving (vhcaddq), 1 means non-halving (vcaddq) 
+//            instruction. Note: the flag is inverted to match the corresonding
+//            bit in the instruction encoding
 // * Rotation angle: 0 mean 90 deg, 1 means 180 deg
 defm int_arm_mve_vcaddq : MVEMXPredicated<
   [llvm_anyvector_ty],
