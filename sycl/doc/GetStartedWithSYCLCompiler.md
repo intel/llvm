@@ -66,8 +66,9 @@ mkdir $SYCL_HOME/build
 cd $SYCL_HOME/build
 
 cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl;opencl-aot" \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;opencl-aot" \
+-DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
+-DLLVM_DISTRIBUTION_COMPONENTS=opencl-aot \
 -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/llvm/sycl \
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
 $SYCL_HOME/llvm/llvm
@@ -83,8 +84,9 @@ mkdir %SYCL_HOME%\build
 cd %SYCL_HOME%\build
 
 cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl;opencl-aot" ^
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;opencl-aot" ^
+-DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" ^
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
+-DLLVM_DISTRIBUTION_COMPONENTS=opencl-aot ^
 -DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%SYCL_HOME%\llvm\sycl" ^
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%SYCL_HOME%\llvm\llvm-spirv" ^
 -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^

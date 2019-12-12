@@ -5,20 +5,21 @@ import sys
 
 DEFAULT_CPU_COUNT = 4
 
-def do_compile(args):
-    ret = False
 
+def do_compile(args):
     cpu_count = os.cpu_count()
     if cpu_count is None:
         cpu_count = DEFAULT_CPU_COUNT
 
-    make_cmd = ["ninja", "-j", str(cpu_count), "deploy-sycl-toolchain"]
-    print(make_cmd)
+    commands = [["ninja", "-j", str(cpu_count), "deploy-sycl-toolchain"],
+                ["ninja", "-j", str(cpu_count), "opencl-aot"]]
 
-    subprocess.check_call(make_cmd, cwd=args.obj_dir)
+    for command in commands:
+        print(command)
+        subprocess.check_call(command, cwd=args.obj_dir)
 
-    ret = True
-    return ret
+    return True
+
 
 def main():
     parser = argparse.ArgumentParser(prog="compile.py",
@@ -38,6 +39,7 @@ def main():
     print("args:{}".format(args))
 
     return do_compile(args)
+
 
 if __name__ == "__main__":
     ret = main()
