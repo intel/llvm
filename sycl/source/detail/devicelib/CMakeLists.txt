@@ -8,12 +8,17 @@ endif()
 
 set(clang $<TARGET_FILE:clang>)
 
+set(compile_opts
+    # suppress an error about SYCL_EXTERNAL
+    -Wno-error=sycl-strict -Wno-sycl-strict
+    # for CL/__spirv/spirv_vars.hpp
+    -I${sycl_inc_dir})
+
 if (MSVC)
     set(devicelib-obj-file ${binary_dir}/libsycl-msvc.o)
     add_custom_command(OUTPUT ${devicelib-obj-file}
                        COMMAND ${clang} -fsycl -c
-                               # suppress an error about SYCL_EXTERNAL
-                               -Wno-error=sycl-strict -Wno-sycl-strict
+                               ${compile_opts}
                                ${CMAKE_CURRENT_SOURCE_DIR}/msvc_wrapper.cpp
                                -o ${devicelib-obj-file}
                        MAIN_DEPENDENCY msvc_wrapper.cpp
@@ -23,8 +28,7 @@ else()
     set(devicelib-obj-file ${binary_dir}/libsycl-glibc.o)
     add_custom_command(OUTPUT ${devicelib-obj-file}
                        COMMAND ${clang} -fsycl -c
-                               # suppress an error about SYCL_EXTERNAL
-                               -Wno-error=sycl-strict -Wno-sycl-strict
+                               ${compile_opts}
                                ${CMAKE_CURRENT_SOURCE_DIR}/glibc_wrapper.cpp
                                -o ${devicelib-obj-file}
                        MAIN_DEPENDENCY glibc_wrapper.cpp
@@ -34,8 +38,7 @@ endif()
 
 add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.spv
                    COMMAND ${clang} -fsycl-device-only -S -Xclang -emit-llvm-bc
-                            # suppress an error about SYCL_EXTERNAL
-                            -Wno-error=sycl-strict -Wno-sycl-strict
+                           ${compile_opts}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                            -o libsycl-fallback-cassert.bc
                    COMMAND llvm-spirv libsycl-fallback-cassert.bc
