@@ -324,7 +324,7 @@ loadDeviceLibFallback(const RT::PiContext &Context,
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
   }
 
-  pi_result Error = PI_CALL_NOCHECK(piProgramCompile)
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)
   (LibProg,
    // Assume that Devices contains all devices from Context.
    Devices.size(), Devices.data(),
@@ -438,6 +438,7 @@ void getDeviceLibPrograms(
     const std::vector<RT::PiDevice> Devices,
     std::map<std::string, RT::PiProgram> &CachedLibPrograms,
     std::vector<RT::PiProgram> &Programs) {
+
   // TODO: SYCL compiler should generate a list of required extensions for a
   // particular program in order to allow us do a more fine-grained check here.
   // Require *all* possible devicelib extensions for now.
@@ -455,6 +456,8 @@ void getDeviceLibPrograms(
       InhibitNativeImpl = strstr(Env, Ext) != nullptr;
     }
 
+    // Load a fallback library for an extension if at least one device does not
+    // support it.
     for (const std::string &DevExtList : DevExtensions) {
       bool DeviceSupports = DevExtList.npos != DevExtList.find(Ext);
       if (!DeviceSupports || InhibitNativeImpl) {
@@ -496,7 +499,7 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   }
 
   if (LinkPrograms.empty()) {
-    pi_result Error = PI_CALL_NOCHECK(piProgramBuild)(
+    RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
         Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
     if (Error != PI_SUCCESS)
       compile_program_error(getProgramBuildLog(Program.get()));
@@ -510,7 +513,7 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
-  pi_result Error = PI_CALL_NOCHECK(piProgramLink)(
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
       Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
       &LinkPrograms[0], nullptr, nullptr, &LinkedProg);
 
