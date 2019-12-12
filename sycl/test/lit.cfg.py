@@ -24,7 +24,7 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
+config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
 config.excludes = ['CMakeLists.txt', 'run_tests.sh', 'README.txt', 'Inputs']
 
@@ -72,8 +72,10 @@ config.substitutions.append( ('%clangxx', ' ' + config.clangxx + ' -I'+config.op
 config.substitutions.append( ('%clang_cl', ' ' + config.clang_cl + ' /I '+config.opencl_include ) )
 config.substitutions.append( ('%clang', ' ' + config.clang + ' -I'+config.opencl_include ) )
 config.substitutions.append( ('%llvm_build_libs_dir',  config.llvm_build_libs_dir ) )
+config.substitutions.append( ('%llvm_build_bins_dir',  config.llvm_build_bins_dir ) )
 config.substitutions.append( ('%opencl_include',  config.opencl_include ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
+config.substitutions.append( ('%sycl_tools_dir',  config.sycl_tools_dir ) )
 
 tools = ['llvm-spirv']
 tool_dirs = [config.llvm_tools_dir]

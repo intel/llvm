@@ -9,6 +9,7 @@ get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 get_target_property(SYCL_SOURCE_DIR sycl-toolchain SOURCE_DIR)
 
 set(SYCL_INCLUDE "${dst_dir}")
+set(SYCL_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools/")
 
 set(RT_TEST_ARGS ${RT_TEST_ARGS} "-v")
 
