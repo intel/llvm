@@ -11,12 +11,10 @@ def do_compile(args):
     if cpu_count is None:
         cpu_count = DEFAULT_CPU_COUNT
 
-    commands = [["ninja", "-j", str(cpu_count), "deploy-sycl-toolchain"],
-                ["ninja", "-j", str(cpu_count), "opencl-aot"]]
+    make_cmd = ["ninja", "-j", str(cpu_count), "deploy-sycl-toolchain", "opencl-aot"]
+    print(make_cmd)
 
-    for command in commands:
-        print(command)
-        subprocess.check_call(command, cwd=args.obj_dir)
+    subprocess.check_call(make_cmd, cwd=args.obj_dir)
 
     return True
 
