@@ -95,7 +95,7 @@ public:
 
   bool operator!=(const program &rhs) const;
 
-  /// Gets a valid cl_program instance.
+  /// Returns a valid cl_program instance.
   ///
   /// The instance of cl_program will be retained before returning.
   /// If the program is created for a SYCL host device, an invalid_object_error

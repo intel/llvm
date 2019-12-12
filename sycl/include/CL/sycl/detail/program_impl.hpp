@@ -35,72 +35,226 @@ class program_impl {
 public:
   program_impl() = delete;
 
-  explicit program_impl(ContextImplPtr Context)
-      : program_impl(Context, Context->get_info<info::context::devices>()) {}
+  /// Constructs an instance of program.
+  ///
+  /// The program will be created in the program_state::none state and associated
+  /// with the provided context and the devices that are associated with
+  /// the context.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  explicit program_impl(ContextImplPtr Context);
 
-  program_impl(ContextImplPtr Context, vector_class<device> DeviceList)
-      : Context(Context), Devices(DeviceList) {}
+  /// Constructs an instance of SYCL program for the provided DeviceList.
+  ///
+  /// The program will be created in the program_state::none state and associated
+  /// with the provided context and the devices in the provided DeviceList.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param DeviceList is a list of SYCL devices.
+  program_impl(ContextImplPtr Context, vector_class<device> DeviceList);
 
-  // Kernels caching for linked programs won't be allowed due to only compiled
-  // state of each and every program in the list and thus unknown state of
-  // caching resolution
+  /// Constructs an instance of SYCL program by linking together each SYCL
+  /// program instance in ProgramList.
+  ///
+  /// Each program in ProgramList must be in the program_state::compiled
+  /// state and must be associated with the same SYCL context. Otherwise an
+  /// invalid_object_error SYCL exception will be thrown. A feature_not_supported
+  /// exception will be thrown if any device that the program is to be linked
+  /// for returns false for the device information query
+  /// info::device::is_linker_available.
+  /// Kernels caching for linked programs won't be allowed due to only compiled
+  /// state of each and every program in the list and thus unknown state of
+  /// caching resolution.
+  ///
+  /// @param ProgramList is a list of program_impl instances.
+  /// @param LinkOptions is a string containing valid OpenCL link options.
   program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
                string_class LinkOptions = "");
 
+  /// Constructs a program instance from plugin interface interoperability
+  /// handle.
+  ///
+  /// The state of the constructed program can be either program_state::compiled
+  /// or program_state::linked, depending on the state of the ClProgram.
+  /// Otherwise an invalid_object_error SYCL exception is thrown.
+  ///
+  /// The instance of plugin interface program will be retained on construction.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param Program is an instance of plugin interface interoperability
+  /// program.
+  program_impl(ContextImplPtr Context, RT::PiProgram Program);
 
-  program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
-
-  program_impl(const context &Context, RT::PiProgram Program);
+  /// Constructs a program instance from plugin interface interoperability
+  /// kernel.
+  program_impl(const context &Context, RT::PiKernel Kernel);
 
   ~program_impl();
 
+  /// Returns a valid cl_program instance.
+  ///
+  /// The instance of cl_program will be retained before returning.
+  /// If the program is created for a SYCL host device, an invalid_object_error
+  /// exception is thrown.
+  ///
+  /// @return a valid OpenCL cl_program instance.
   cl_program get() const;
 
   RT::PiProgram &getHandleRef() { return Program; }
   const RT::PiProgram &getHandleRef() const { return Program; }
 
+  /// @return true if this SYCL program is a host program.
   bool is_host() const { return Context->is_host(); }
 
   void compile_with_kernel_type(string_class KernelName,
                                 string_class CompileOptions, OSModuleHandle M);
 
+  /// Compiles the OpenCL C kernel function defined by source string.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::compiled.
+  /// If the program was not in the program_state::none state,
+  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
+  /// a compile_program_error SYCL exception is thrown. If any device that the
+  /// program is being compiled for returns false for the device information
+  /// query info::device::is_compiler_available, a feature_not_supported
+  /// SYCL exception is thrown.
+  ///
+  /// @param KernelSource is a string containing OpenCL C kernel source code.
+  /// @param CompileOptions is a string containing OpenCL compile options.
   void compile_with_source(string_class KernelSource,
                            string_class CompileOptions = "");
 
+  /// Builds the SYCL kernel function into encapsulated raw program.
+  ///
+  /// The SYCL kernel function is defined by the kernel name.
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If the program was not in the program_state::none
+  /// state, an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being built for returns false for the device
+  /// information queries info::device::is_compiler_available or
+  /// info::device::is_linker_available, a feature_not_supported SYCL exception
+  /// is thrown.
+  ///
+  /// @param KernelName is a string containing SYCL kernel name.
+  /// @param BuildOptions is a string containing OpenCL compile options.
   void build_with_kernel_type(string_class KernelName,
                               string_class BuildOptions, OSModuleHandle M);
 
+  /// Builds the OpenCL C kernel function defined by source code.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If this program was not in program_state::none,
+  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
+  /// a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being built for returns false for the device
+  /// information queries info::device::is_compiler_available or
+  /// info::device::is_linker_available, a feature_not_supported SYCL exception
+  /// is thrown.
+  ///
+  /// @param KernelSource is a string containing OpenCL C kernel source code.
+  /// @param BuildOptions is a string containing OpenCL build options.
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "");
 
+  /// Links encapsulated raw program.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If the program was not in the program_state::compiled
+  /// state, an invalid_object_error SYCL exception is thrown. If linking fails,
+  /// a compile_program_error is thrown. If any device that the program is to be
+  /// linked for returns false for the device information query
+  /// info::device::is_linker_available, a feature_not_supported exception
+  /// is thrown.
+  ///
+  /// @param LinkOptions is a string containing OpenCL link options.
   void link(string_class LinkOptions = "");
 
+  /// Checks if kernel is available for this program.
+  ///
+  /// The SYCL kernel is defined by kernel name. If the program state is
+  /// program_state::none an invalid_object_error SYCL exception is thrown.
+  ///
+  /// @return true if the SYCL kernel is available.
   bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
 
+  /// Returns a SYCL kernel for the SYCL kernel function defined by kernel name.
+  ///
+  /// If program is in the program_state::none state or if the SYCL kernel
+  /// function is not available, an invalid_object_error exception is thrown.
+  ///
+  /// @return a valid instance of SYCL kernel.
   kernel get_kernel(string_class KernelName,
                     std::shared_ptr<program_impl> PtrToSelf,
                     bool IsCreatedFromSource) const;
 
+  /// Queries this SYCL program for information.
+  ///
+  /// The return type depends on the information being queried.
   template <info::program param>
   typename info::param_traits<info::program, param>::return_type
   get_info() const;
 
+  /// Returns built program binaries.
+  ///
+  /// If this program is not in the program_state::compiled or
+  /// program_state::linked states, an invalid_object_error SYCL exception
+  /// is thrown.
+  ///
+  /// @return a vector of vectors representing the compiled binaries for each
+  /// associated SYCL device.
   vector_class<vector_class<char>> get_binaries() const;
 
+  /// @return the SYCL context that this program was constructed with.
   context get_context() const {
     if (is_host())
       return context();
     return createSyclObjFromImpl<context>(Context);
   }
 
+  /// @return a vector of devices that are associated with this program.
   vector_class<device> get_devices() const { return Devices; }
 
+  /// Returns compile options that were provided when the encapsulated program
+  /// was explicitly compiled.
+  ///
+  /// If the program was built instead of explicitly compiled, if the program
+  /// has not yet been compiled, or if the program has been compiled for only
+  /// the host device, then an empty string is return, unless the underlying
+  /// cl_program was explicitly compiled, in which case the compile options used
+  /// in the explicit compile are returned.
+  ///
+  /// @return a string of valid OpenCL compile options.
   string_class get_compile_options() const { return CompileOptions; }
 
+  /// Returns compile options that were provided to the most recent invocation
+  /// of link member function.
+  ///
+  /// If the program has not been explicitly linked using the aforementioned
+  /// function, constructed with an explicitly linking constructor, or if the
+  /// program has been linked for only the host device, then an empty string
+  /// is returned. If the program was constructed from cl_program, then an
+  /// empty string is returned unless the cl_program was explicitly linked,
+  /// in which case the link options used in that explicit link are returned.
+  /// If the program object was constructed using a constructor form that links
+  /// a vector of programs, then the link options passed to this constructor
+  /// are returned.
+  ///
+  /// @return a string of valid OpenCL compile options.
   string_class get_link_options() const { return LinkOptions; }
 
+  /// Returns the compile, link, or build options, from whichever of those
+  /// operations was performed most recently on the encapsulated cl_program.
+  ///
+  /// If no compile, link, or build operations have been performed on this
+  /// program, or if the program includes the host device in its device list,
+  /// then an empty string is returned.
+  ///
+  /// @return a string of valid OpenCL build options.
   string_class get_build_options() const { return BuildOptions; }
 
+  /// @return the current state of this SYCL program.
   program_state get_state() const { return State; }
 
 private:
