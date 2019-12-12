@@ -10655,8 +10655,7 @@ def err_builtin_launder_invalid_arg : Error<
 def err_sycl_attribute_address_space_invalid : Error<
   "address space is outside the valid range of values">;
 def err_sycl_kernel_name_class_not_top_level : Error<
- "kernel name class and its template argument classes' declarations can only "
- "nest in a namespace: %0">;
+ "kernel needs to have a globally-visible name">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"
