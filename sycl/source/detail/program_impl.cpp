@@ -149,10 +149,11 @@ cl_program program_impl::get() const {
 }
 
 void program_impl::compile_with_kernel_type(string_class KernelName,
-                              string_class CompileOptions) {
+                                            string_class CompileOptions,
+                                            OSModuleHandle M) {
   throw_if_state_is_not(program_state::none);
+  ProgramModuleHandle = M;
   if (!is_host()) {
-    OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
     create_pi_program_with_kernel_name(M, KernelName);
     compile(CompileOptions);
   }
@@ -171,10 +172,11 @@ void program_impl::compile_with_source(string_class KernelSource,
 }
 
 void program_impl::build_with_kernel_type(string_class KernelName,
-                              string_class BuildOptions) {
+                                          string_class BuildOptions,
+                                          OSModuleHandle M) {
   throw_if_state_is_not(program_state::none);
+  ProgramModuleHandle = M;
   if (!is_host()) {
-    OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
     // If there are no build options, program can be safely cached
     if (is_cacheable_with_options(BuildOptions)) {
       IsProgramAndKernelCachingAllowed = true;
@@ -331,10 +333,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   RT::PiKernel Kernel;
 
   if (is_cacheable()) {
-    OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-
-    Kernel = ProgramManager::getInstance().getOrCreateKernel(M, get_context(),
-                                                              KernelName);
+    Kernel = ProgramManager::getInstance().getOrCreateKernel(
+        ProgramModuleHandle, get_context(), KernelName);
   } else {
     RT::PiResult Err =
         PI_CALL_NOCHECK(piKernelCreate)(Program, KernelName.c_str(), &Kernel);

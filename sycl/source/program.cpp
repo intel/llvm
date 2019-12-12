@@ -49,13 +49,15 @@ void program::build_with_source(string_class kernelSource,
 }
 
 void program::compile_with_kernel_type(string_class KernelName,
-                                       string_class compileOptions) {
-    impl->compile_with_kernel_type(KernelName, compileOptions);
+                                       string_class compileOptions,
+                                       detail::OSModuleHandle M) {
+  impl->compile_with_kernel_type(KernelName, compileOptions, M);
 }
 
 void program::build_with_kernel_type(string_class KernelName,
-                                     string_class buildOptions) {
-    impl->build_with_kernel_type(KernelName, buildOptions);
+                                     string_class buildOptions,
+                                     detail::OSModuleHandle M) {
+  impl->build_with_kernel_type(KernelName, buildOptions, M);
 }
 
 void program::link(string_class linkOptions) { impl->link(linkOptions); }

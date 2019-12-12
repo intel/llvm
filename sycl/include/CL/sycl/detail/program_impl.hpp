@@ -31,11 +31,6 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-// Used to identify the module the user code, which included this header,
-// belongs to. Incurs some marginal inefficiency - there will be one copy
-// per '#include "program_impl.hpp"'
-static void *AddressInThisModule = &AddressInThisModule;
-
 class program_impl {
 public:
   program_impl() = delete;
@@ -67,13 +62,13 @@ public:
   bool is_host() const { return Context->is_host(); }
 
   void compile_with_kernel_type(string_class KernelName,
-                                string_class CompileOptions = "");
+                                string_class CompileOptions, OSModuleHandle M);
 
   void compile_with_source(string_class KernelSource,
                            string_class CompileOptions = "");
 
   void build_with_kernel_type(string_class KernelName,
-                              string_class BuildOptions = "");
+                              string_class BuildOptions, OSModuleHandle M);
 
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "");
@@ -155,6 +150,7 @@ private:
   string_class CompileOptions;
   string_class LinkOptions;
   string_class BuildOptions;
+  OSModuleHandle ProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Only allow kernel caching for programs constructed with context only (or
   // device list and context) and built with build_with_kernel_type with

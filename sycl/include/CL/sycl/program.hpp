@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
@@ -122,7 +123,10 @@ public:
   /// @param CompileOptions is a string of valid OpenCL compile options.
   template <typename KernelT>
   void compile_with_kernel_type(string_class CompileOptions = "") {
-    compile_with_kernel_type(detail::KernelInfo<KernelT>::getName(), CompileOptions);
+    detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
+        detail::KernelInfo<KernelT>::getName());
+    compile_with_kernel_type(detail::KernelInfo<KernelT>::getName(),
+                             CompileOptions, M);
   }
 
   /// Compiles the OpenCL C kernel function defined by source string.
@@ -156,7 +160,10 @@ public:
   /// @param BuildOptions is a string containing OpenCL compile options.
   template <typename KernelT>
   void build_with_kernel_type(string_class BuildOptions = "") {
-    build_with_kernel_type(detail::KernelInfo<KernelT>::getName(), BuildOptions);
+    detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
+        detail::KernelInfo<KernelT>::getName());
+    build_with_kernel_type(detail::KernelInfo<KernelT>::getName(), BuildOptions,
+                           M);
   }
 
   /// Builds the OpenCL C kernel function defined by source code.
@@ -209,8 +216,9 @@ public:
   /// SYCL host program.
   bool has_kernel(string_class kernelName) const;
 
-  template <typename kernelT> kernel get_kernel() const {
-    return get_kernel(detail::KernelInfo<kernelT>::getName(), /*IsCreatedFromSource*/false);
+  template <typename KernelT> kernel get_kernel() const {
+    return get_kernel(detail::KernelInfo<KernelT>::getName(),
+                      /*IsCreatedFromSource*/ false);
   }
 
   kernel get_kernel(string_class kernelName) const;
@@ -240,9 +248,13 @@ private:
 
   bool has_kernel(string_class kernelName, bool IsCreatedFromSource) const;
 
-  void compile_with_kernel_type(string_class KernelName, string_class compileOptions = "");
+  void compile_with_kernel_type(string_class KernelName,
+                                string_class compileOptions,
+                                detail::OSModuleHandle M);
 
-  void build_with_kernel_type(string_class KernelName, string_class buildOptions = "");
+  void build_with_kernel_type(string_class KernelName,
+                              string_class buildOptions,
+                              detail::OSModuleHandle M);
 
   std::shared_ptr<detail::program_impl> impl;
 };
