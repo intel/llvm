@@ -513,11 +513,19 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   pi_result Error = PI_CALL_NOCHECK(piProgramLink)(
       Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
       &LinkPrograms[0], nullptr, nullptr, &LinkedProg);
+
+  // Link program call returns a new program object if all parameters are valid,
+  // or NULL otherwise. Release the original (user) program.
+  Program.reset(LinkedProg);
   if (Error != PI_SUCCESS) {
-    throw compile_program_error(getProgramBuildLog(Program.get()));
+    if (LinkedProg) {
+      // A non-trivial error occurred during linkage: get a build log, release
+      // an incomplete (but valid) LinkedProg, and throw.
+      throw compile_program_error(getProgramBuildLog(LinkedProg));
+    }
+    pi::checkPiResult(Error);
   }
-  return ProgramPtr(LinkedProg,
-                    RT::PluginInformation.PiFunctionTable.piProgramRelease);
+  return Program;
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
