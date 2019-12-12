@@ -1506,6 +1506,55 @@ private:
   SPIRVId RightMatrix;
 };
 
+class SPIRVTranspose : public SPIRVInstruction {
+public:
+  static const Op OC = OpTranspose;
+  static const SPIRVWord FixedWordCount = 3;
+
+  // Complete constructor
+  SPIRVTranspose(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheMatrix,
+                 SPIRVBasicBlock *BB)
+      : SPIRVInstruction(4, OC, TheType, TheId, BB), Matrix(TheMatrix) {
+    validate();
+    assert(BB && "Invalid BB");
+  }
+
+  // Incomplete constructor
+  SPIRVTranspose() : SPIRVInstruction(OC), Matrix(SPIRVID_INVALID) {}
+
+  SPIRVValue *getMatrix() const { return getValue(Matrix); }
+
+  std::vector<SPIRVValue *> getOperands() override {
+    std::vector<SPIRVId> Operands;
+    Operands.push_back(Matrix);
+    return getValues(Operands);
+  }
+
+  void setWordCount(SPIRVWord FixedWordCount) override {
+    SPIRVEntry::setWordCount(FixedWordCount);
+  }
+
+  _SPIRV_DEF_ENCDEC3(Type, Id, Matrix)
+
+  void validate() const override {
+    SPIRVInstruction::validate();
+    if (getValue(Matrix)->isForward())
+      return;
+
+    SPIRVType *Ty = getType()->getScalarType();
+    SPIRVType *MTy = getValueType(Matrix)->getScalarType();
+
+    (void)Ty;
+    (void)MTy;
+
+    assert(Ty->isTypeFloat() && "Invalid result type for OpTranspose");
+    assert(Ty == MTy && "Mismatch float type");
+  }
+
+private:
+  SPIRVId Matrix;
+};
+
 class SPIRVUnary : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {

@@ -139,7 +139,7 @@ enum Entrypoints {
     Step = 101,
     Smoothstep = 102,
     Sign = 103,
-    
+
     // Geometrics
     Cross = 104,
     Distance = 105, 
@@ -149,44 +149,6 @@ enum Entrypoints {
     Fast_length = 109,
     Fast_normalize = 110,
 
-    // Images - Deprecated 
-    Read_imagef = 111,
-    Read_imagei = 112,
-    Read_imageui = 113,
-    Read_imageh = 114,
-
-    Read_imagef_samplerless = 115,
-    Read_imagei_samplerless = 116,
-    Read_imageui_samplerless = 117,
-    Read_imageh_samplerless = 118,
-
-    Write_imagef = 119,
-    Write_imagei = 120,
-    Write_imageui = 121,
-    Write_imageh = 122,
-    Read_imagef_mipmap_lod = 123,
-    Read_imagei_mipmap_lod = 124,
-    Read_imageui_mipmap_lod = 125,
-    Read_imagef_mipmap_grad = 126,
-    Read_imagei_mipmap_grad = 127,
-    Read_imageui_mipmap_grad = 128,
-
-    // Image write with LOD
-    Write_imagef_mipmap_lod = 129,
-    Write_imagei_mipmap_lod = 130,
-    Write_imageui_mipmap_lod = 131,
-
-    // Images - Deprecated
-    Get_image_width = 132,
-    Get_image_height = 133,
-    Get_image_depth = 134,
-    Get_image_channel_data_type = 135,
-    Get_image_channel_order = 136,
-    Get_image_dim = 137,
-    Get_image_array_size = 138,
-    Get_image_num_samples = 139,
-    Get_image_num_mip_levels = 140,
-    
     // Integers
     SAbs = 141,
     SAbs_diff = 142,

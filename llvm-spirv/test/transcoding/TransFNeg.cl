@@ -12,7 +12,7 @@
 
 // CHECK-LLVM: fsub half 0xH8000, %
 // CHECK-LLVM: fsub float -0.000000e+00, %
-// CHECK-LLVM: fsub double -0.000000e+00, %
+// CHECK-LLVM: fsub double -0.000000e+00, % 
 // CHECK-LLVM: fsub <8 x double> <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>, %
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable

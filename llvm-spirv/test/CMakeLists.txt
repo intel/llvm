@@ -40,7 +40,7 @@ configure_lit_site_cfg(
     ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
 )
 
-if(NOT BUILD_EXTERNAL)
+if(NOT LLVM_SPIRV_BUILD_EXTERNAL)
   set(LLVM_SPIRV_TEST_DEPS
     FileCheck
     count
@@ -63,7 +63,7 @@ if(NOT BUILD_EXTERNAL)
       llvm-readobj
     )
   endif(NOT SPIRV_SKIP_DEBUG_INFO_TESTS)
-endif(NOT BUILD_EXTERNAL)
+endif(NOT LLVM_SPIRV_BUILD_EXTERNAL)
 
 
 add_lit_testsuite(check-llvm-spirv "Running the LLVM-SPIRV regression tests"
@@ -77,7 +77,7 @@ add_lit_testsuite(check-llvm-spirv "Running the LLVM-SPIRV regression tests"
 
 # to enable a custom test target on cmake below 3.11
 # starting with 3.11 "test" is only reserved if ENABLE_TESTING(ON)
-if(BUILD_EXTERNAL)
+if(LLVM_SPIRV_BUILD_EXTERNAL)
   cmake_policy(PUSH)
   if(POLICY CMP0037 AND ${CMAKE_VERSION} VERSION_LESS "3.11.0")
     cmake_policy(SET CMP0037 OLD)
@@ -87,4 +87,4 @@ if(BUILD_EXTERNAL)
       check-llvm-spirv
   )
   cmake_policy(POP)
-endif(BUILD_EXTERNAL)
+endif(LLVM_SPIRV_BUILD_EXTERNAL)
