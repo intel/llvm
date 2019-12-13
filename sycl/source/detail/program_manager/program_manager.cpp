@@ -91,13 +91,12 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
 static void getContextDevices(const RT::PiContext &Context,
                               std::vector<RT::PiDevice> &Devices) {
   size_t NumDevices = 0;
-  PI_CALL(piContextGetInfo)
-  (Context, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
-   nullptr);
+  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_NUM_DEVICES,
+                            sizeof(NumDevices), &NumDevices, nullptr);
   Devices.resize(NumDevices);
-  PI_CALL(piContextGetInfo)
-  (Context, PI_CONTEXT_INFO_DEVICES, sizeof(RT::PiDevice) * Devices.size(),
-   &Devices[0], nullptr);
+  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_DEVICES,
+                            sizeof(RT::PiDevice) * Devices.size(), &Devices[0],
+                            nullptr);
 }
 
 DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
@@ -285,14 +284,13 @@ static bool loadDeviceLib(const RT::PiContext &Context, const char *Name,
 static std::string getDeviceExtensions(const RT::PiDevice &Dev) {
   std::string DevExt;
   size_t DevExtSize = 0;
-  PI_CALL(piDeviceGetInfo)
-  (Dev, PI_DEVICE_INFO_EXTENSIONS,
-   /*param_value_size=*/0,
-   /*param_value=*/nullptr, &DevExtSize);
+  PI_CALL(piDeviceGetInfo)(Dev, PI_DEVICE_INFO_EXTENSIONS,
+                           /*param_value_size=*/0,
+                           /*param_value=*/nullptr, &DevExtSize);
   DevExt.resize(DevExtSize);
-  PI_CALL(piDeviceGetInfo)
-  (Dev, PI_DEVICE_INFO_EXTENSIONS, DevExt.size(), &DevExt[0],
-   /*param_value_size_ret=*/nullptr);
+  PI_CALL(piDeviceGetInfo)(Dev, PI_DEVICE_INFO_EXTENSIONS, DevExt.size(),
+                           &DevExt[0],
+                           /*param_value_size_ret=*/nullptr);
   return DevExt;
 }
 
@@ -324,15 +322,15 @@ loadDeviceLibFallback(const RT::PiContext &Context,
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
   }
 
-  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)
-  (LibProg,
-   // Assume that Devices contains all devices from Context.
-   Devices.size(), Devices.data(),
-   // Do not use compile options for library programs: it is not clear
-   // if user options (image options) are supposed to be applied to
-   // library program as well, and what actually happens to a SPIR-V
-   // program if we apply them.
-   "", 0, nullptr, nullptr, nullptr, nullptr);
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)(
+      LibProg,
+      // Assume that Devices contains all devices from Context.
+      Devices.size(), Devices.data(),
+      // Do not use compile options for library programs: it is not clear
+      // if user options (image options) are supposed to be applied to
+      // library program as well, and what actually happens to a SPIR-V
+      // program if we apply them.
+      "", 0, nullptr, nullptr, nullptr, nullptr);
   if (Error != PI_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(ProgramManager::getProgramBuildLog(LibProg));
@@ -507,9 +505,8 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   }
 
   // Include the main program and compile/link everything together
-  PI_CALL(piProgramCompile)
-  (Program.get(), Devices.size(), Devices.data(), Opts, 0, nullptr, nullptr,
-   nullptr, nullptr);
+  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(), Opts,
+                            0, nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
