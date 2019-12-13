@@ -72,7 +72,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
 $SYCL_HOME/llvm/llvm
 
-make -j`nproc` sycl-toolchain
+make -j`nproc` sycl-toolchain opencl-aot
 ```
 
 **Windows (64-bit)**
@@ -90,7 +90,7 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
 -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
 "%SYCL_HOME%\llvm\llvm"
 
-ninja sycl-toolchain
+ninja sycl-toolchain opencl-aot
 ```
 
 TODO: add instructions how to deploy built SYCL toolchain.
