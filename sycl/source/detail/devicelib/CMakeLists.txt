@@ -10,7 +10,7 @@ set(clang $<TARGET_FILE:clang>)
 
 set(compile_opts
     # suppress an error about SYCL_EXTERNAL
-    -Wno-error=sycl-strict -Wno-sycl-strict
+    -Wno-sycl-strict
     # for CL/__spirv/spirv_vars.hpp
     -I${sycl_inc_dir})
 
@@ -37,11 +37,9 @@ else()
 endif()
 
 add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.spv
-                   COMMAND ${clang} -fsycl-device-only -S -Xclang -emit-llvm-bc
+                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
                            ${compile_opts}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
-                           -o libsycl-fallback-cassert.bc
-                   COMMAND llvm-spirv libsycl-fallback-cassert.bc
                            -o ${binary_dir}/libsycl-fallback-cassert.spv
                    MAIN_DEPENDENCY fallback-cassert.cpp
                    DEPENDS wrapper.h clang

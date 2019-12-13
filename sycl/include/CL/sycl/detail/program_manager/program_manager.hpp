@@ -74,7 +74,7 @@ private:
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
                    const string_class &Options,
-                   std::vector<RT::PiDevice> Devices,
+                   const std::vector<RT::PiDevice> &Devices,
                    std::map<std::string, RT::PiProgram> &CachedLibPrograms,
                    bool LinkDeviceLibs = false);
   /// Provides a new kernel set id for grouping kernel names together

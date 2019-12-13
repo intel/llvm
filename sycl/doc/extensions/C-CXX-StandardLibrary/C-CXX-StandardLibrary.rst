@@ -113,7 +113,7 @@ For example, `__assert_fail` from IR above gets transformed into:
 
 A single wrapper object provides function wrappers for *all* supported
 library functions. Every supported C library implementation (MSVC or
-glibc) have its own wrapper library object:
+glibc) has its own wrapper library object:
 
   - libsycl-glibc.o
   - libsycl-msvc.o

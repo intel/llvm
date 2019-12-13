@@ -91,6 +91,7 @@ context_impl::~context_impl() {
     PI_CALL(piProgramRelease)(ToBeDeleted);
   }
   for (auto LibProg : MCachedLibPrograms) {
+    assert(LibProg.second && "Null program must not be kept in the cache");
     PI_CALL(piProgramRelease)(LibProg.second);
   }
 }

@@ -470,7 +470,7 @@ void getDeviceLibPrograms(
 ProgramManager::ProgramPtr
 ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
                       const string_class &Options,
-                      std::vector<RT::PiDevice> Devices,
+                      const std::vector<RT::PiDevice> &Devices,
                       std::map<std::string, RT::PiProgram> &CachedLibPrograms,
                       bool LinkDeviceLibs) {
 
