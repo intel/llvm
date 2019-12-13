@@ -75,6 +75,8 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::SELECT:      Res = PromoteIntRes_SELECT(N); break;
   case ISD::VSELECT:     Res = PromoteIntRes_VSELECT(N); break;
   case ISD::SELECT_CC:   Res = PromoteIntRes_SELECT_CC(N); break;
+  case ISD::STRICT_FSETCC:
+  case ISD::STRICT_FSETCCS:
   case ISD::SETCC:       Res = PromoteIntRes_SETCC(N); break;
   case ISD::SMIN:
   case ISD::SMAX:        Res = PromoteIntRes_SExtIntBinOp(N); break;
@@ -337,8 +339,21 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BITCAST(SDNode *N) {
     // The input is widened to the same size. Convert to the widened value.
     // Make sure that the outgoing value is not a vector, because this would
     // make us bitcast between two vectors which are legalized in different ways.
-    if (NOutVT.bitsEq(NInVT) && !NOutVT.isVector())
-      return DAG.getNode(ISD::BITCAST, dl, NOutVT, GetWidenedVector(InOp));
+    if (NOutVT.bitsEq(NInVT) && !NOutVT.isVector()) {
+      SDValue Res =
+        DAG.getNode(ISD::BITCAST, dl, NOutVT, GetWidenedVector(InOp));
+
+      // For big endian targets we need to shift the casted value or the
+      // interesting bits will end up at the wrong place.
+      if (DAG.getDataLayout().isBigEndian()) {
+        unsigned ShiftAmt = NInVT.getSizeInBits() - InVT.getSizeInBits();
+        EVT ShiftAmtTy = TLI.getShiftAmountTy(NOutVT, DAG.getDataLayout());
+        assert(ShiftAmt < NOutVT.getSizeInBits() && "Too large shift amount!");
+        Res = DAG.getNode(ISD::SRL, dl, NOutVT, Res,
+                          DAG.getConstant(ShiftAmt, dl, ShiftAmtTy));
+      }
+      return Res;
+    }
     // If the output type is also a vector and widening it to the same size
     // as the widened input type would be a legal type, we can widen the bitcast
     // and handle the promotion after.
@@ -817,7 +832,8 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SELECT_CC(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_SETCC(SDNode *N) {
-  EVT InVT = N->getOperand(0).getValueType();
+  unsigned OpNo = N->isStrictFPOpcode() ? 1 : 0;
+  EVT InVT = N->getOperand(OpNo).getValueType();
   EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
 
   EVT SVT = getSetCCResultType(InVT);
@@ -836,12 +852,22 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SETCC(SDNode *N) {
   }
 
   SDLoc dl(N);
-  assert(SVT.isVector() == N->getOperand(0).getValueType().isVector() &&
+  assert(SVT.isVector() == N->getOperand(OpNo).getValueType().isVector() &&
          "Vector compare must return a vector result!");
 
   // Get the SETCC result using the canonical SETCC type.
-  SDValue SetCC = DAG.getNode(N->getOpcode(), dl, SVT, N->getOperand(0),
-                              N->getOperand(1), N->getOperand(2));
+  SDValue SetCC;
+  if (N->isStrictFPOpcode()) {
+    EVT VTs[] = {SVT, MVT::Other};
+    SDValue Opers[] = {N->getOperand(0), N->getOperand(1),
+                       N->getOperand(2), N->getOperand(3)};
+    SetCC = DAG.getNode(N->getOpcode(), dl, VTs, Opers);
+    // Legalize the chain result - switch anything that used the old chain to
+    // use the new one.
+    ReplaceValueWith(SDValue(N, 1), SetCC.getValue(1));
+  } else
+    SetCC = DAG.getNode(N->getOpcode(), dl, SVT, N->getOperand(0),
+                        N->getOperand(1), N->getOperand(2));
 
   // Convert to the expected type.
   return DAG.getSExtOrTrunc(SetCC, dl, NVT);

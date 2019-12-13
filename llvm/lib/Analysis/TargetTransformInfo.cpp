@@ -462,16 +462,16 @@ int TargetTransformInfo::getIntImmCost(const APInt &Imm, Type *Ty) const {
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCost(unsigned Opcode, unsigned Idx,
-                                       const APInt &Imm, Type *Ty) const {
-  int Cost = TTIImpl->getIntImmCost(Opcode, Idx, Imm, Ty);
+int TargetTransformInfo::getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                           const APInt &Imm, Type *Ty) const {
+  int Cost = TTIImpl->getIntImmCostInst(Opcode, Idx, Imm, Ty);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCost(Intrinsic::ID IID, unsigned Idx,
-                                       const APInt &Imm, Type *Ty) const {
-  int Cost = TTIImpl->getIntImmCost(IID, Idx, Imm, Ty);
+int TargetTransformInfo::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                             const APInt &Imm, Type *Ty) const {
+  int Cost = TTIImpl->getIntImmCostIntrin(IID, Idx, Imm, Ty);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -592,10 +592,10 @@ TargetTransformInfo::getOperandInfo(Value *V, OperandValueProperties &OpProps) {
 int TargetTransformInfo::getArithmeticInstrCost(
     unsigned Opcode, Type *Ty, OperandValueKind Opd1Info,
     OperandValueKind Opd2Info, OperandValueProperties Opd1PropInfo,
-    OperandValueProperties Opd2PropInfo,
-    ArrayRef<const Value *> Args) const {
-  int Cost = TTIImpl->getArithmeticInstrCost(Opcode, Ty, Opd1Info, Opd2Info,
-                                             Opd1PropInfo, Opd2PropInfo, Args);
+    OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args,
+    const Instruction *CxtI) const {
+  int Cost = TTIImpl->getArithmeticInstrCost(
+      Opcode, Ty, Opd1Info, Opd2Info, Opd1PropInfo, Opd2PropInfo, Args, CxtI);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -1183,7 +1183,7 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
     Op2VK = getOperandInfo(I->getOperand(1), Op2VP);
     SmallVector<const Value *, 2> Operands(I->operand_values());
     return getArithmeticInstrCost(I->getOpcode(), I->getType(), Op1VK, Op2VK,
-                                  Op1VP, Op2VP, Operands);
+                                  Op1VP, Op2VP, Operands, I);
   }
   case Instruction::FNeg: {
     TargetTransformInfo::OperandValueKind Op1VK, Op2VK;
@@ -1193,7 +1193,7 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
     Op2VP = OP_None;
     SmallVector<const Value *, 2> Operands(I->operand_values());
     return getArithmeticInstrCost(I->getOpcode(), I->getType(), Op1VK, Op2VK,
-                                  Op1VP, Op2VP, Operands);
+                                  Op1VP, Op2VP, Operands, I);
   }
   case Instruction::Select: {
     const SelectInst *SI = cast<SelectInst>(I);

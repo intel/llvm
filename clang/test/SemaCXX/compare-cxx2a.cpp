@@ -3,6 +3,9 @@
 
 // RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -fsyntax-only -pedantic -verify -Wsign-compare -std=c++2a %s
 
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -std=c++2a -x c++ %S/Inputs/std-compare.h -emit-pch -o %t.pch
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -fsyntax-only -pedantic -verify -Wsign-compare -std=c++2a %s -include-pch %t.pch
+
 #include "Inputs/std-compare.h"
 
 #define ASSERT_TYPE(...) static_assert(__is_same(__VA_ARGS__))
@@ -360,6 +363,11 @@ void test_user_conv() {
     (void)(c <=> (unsigned)0);  // expected-error {{cannot be narrowed from type 'int' to 'unsigned int'}}
   }
 }
+
+struct X {
+  constexpr const Conv<int, -1> operator<=>(X) { return {}; }
+};
+static_assert(X() < X());
 
 } // namespace TestUserDefinedConvSeq
 

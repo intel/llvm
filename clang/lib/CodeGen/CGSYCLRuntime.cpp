@@ -12,6 +12,7 @@
 
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "llvm/IR/Instructions.h"
 #include <assert.h>

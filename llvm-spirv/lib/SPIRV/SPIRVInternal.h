@@ -929,8 +929,8 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   add(kSPIRVTypeName::SampledImg, OpTypeSampledImage);
 }
 
-// Check if the module contains llvm.loop.unroll.* metadata
-bool hasLoopUnrollMetadata(const Module *M);
+// Check if the module contains llvm.loop.* metadata
+bool hasLoopMetadata(const Module *M);
 
 // If the branch instruction has !llvm.loop metadata, go through its operands
 // and find Loop Control mask and possible parameters.

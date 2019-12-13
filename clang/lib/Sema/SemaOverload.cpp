@@ -591,6 +591,12 @@ namespace {
     TemplateArgumentList *TemplateArgs;
     unsigned CallArgIndex;
   };
+  // Structure used by DeductionFailureInfo to store information about
+  // unsatisfied constraints.
+  struct CNSInfo {
+    TemplateArgumentList *TemplateArgs;
+    ConstraintSatisfaction Satisfaction;
+  };
 }
 
 /// Convert from Sema's representation of template deduction information
@@ -661,6 +667,14 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
     }
     break;
 
+  case Sema::TDK_ConstraintsNotSatisfied: {
+    CNSInfo *Saved = new (Context) CNSInfo;
+    Saved->TemplateArgs = Info.take();
+    Saved->Satisfaction = Info.AssociatedConstraintsSatisfaction;
+    Result.Data = Saved;
+    break;
+  }
+
   case Sema::TDK_Success:
   case Sema::TDK_NonDependentConversionFailure:
     llvm_unreachable("not a deduction failure");
@@ -701,6 +715,15 @@ void DeductionFailureInfo::Destroy() {
     }
     break;
 
+  case Sema::TDK_ConstraintsNotSatisfied:
+    // FIXME: Destroy the template argument list?
+    Data = nullptr;
+    if (PartialDiagnosticAt *Diag = getSFINAEDiagnostic()) {
+      Diag->~PartialDiagnosticAt();
+      HasDiagnostic = false;
+    }
+    break;
+
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
     break;
@@ -726,6 +749,7 @@ TemplateParameter DeductionFailureInfo::getTemplateParameter() {
   case Sema::TDK_NonDeducedMismatch:
   case Sema::TDK_CUDATargetMismatch:
   case Sema::TDK_NonDependentConversionFailure:
+  case Sema::TDK_ConstraintsNotSatisfied:
     return TemplateParameter();
 
   case Sema::TDK_Incomplete:
@@ -769,6 +793,9 @@ TemplateArgumentList *DeductionFailureInfo::getTemplateArgumentList() {
   case Sema::TDK_SubstitutionFailure:
     return static_cast<TemplateArgumentList*>(Data);
 
+  case Sema::TDK_ConstraintsNotSatisfied:
+    return static_cast<CNSInfo*>(Data)->TemplateArgs;
+
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
     break;
@@ -789,6 +816,7 @@ const TemplateArgument *DeductionFailureInfo::getFirstArg() {
   case Sema::TDK_SubstitutionFailure:
   case Sema::TDK_CUDATargetMismatch:
   case Sema::TDK_NonDependentConversionFailure:
+  case Sema::TDK_ConstraintsNotSatisfied:
     return nullptr;
 
   case Sema::TDK_IncompletePack:
@@ -820,6 +848,7 @@ const TemplateArgument *DeductionFailureInfo::getSecondArg() {
   case Sema::TDK_SubstitutionFailure:
   case Sema::TDK_CUDATargetMismatch:
   case Sema::TDK_NonDependentConversionFailure:
+  case Sema::TDK_ConstraintsNotSatisfied:
     return nullptr;
 
   case Sema::TDK_Inconsistent:
@@ -1254,6 +1283,8 @@ bool Sema::IsOverload(FunctionDecl *New, FunctionDecl *Old,
     // target attributes.
     return NewTarget != OldTarget;
   }
+
+  // TODO: Concepts: Check function trailing requires clauses here.
 
   // The signatures match; this is not an overload.
   return false;
@@ -5221,7 +5252,7 @@ TryObjectArgumentInitialization(Sema &S, SourceLocation Loc, QualType FromType,
     return ICS;
   }
 
-  if (FromTypeCanon.getQualifiers().hasAddressSpace()) {
+  if (FromTypeCanon.hasAddressSpace()) {
     Qualifiers QualsImplicitParamType = ImplicitParamType.getQualifiers();
     Qualifiers QualsFromType = FromTypeCanon.getQualifiers();
     if (!QualsImplicitParamType.isAddressSpaceSupersetOf(QualsFromType)) {
@@ -9692,6 +9723,7 @@ enum OverloadCandidateKind {
   oc_implicit_move_constructor,
   oc_implicit_copy_assignment,
   oc_implicit_move_assignment,
+  oc_implicit_equality_comparison,
   oc_inherited_constructor
 };
 
@@ -9720,6 +9752,9 @@ ClassifyOverloadCandidate(Sema &S, NamedDecl *Found, FunctionDecl *Fn,
   }();
 
   OverloadCandidateKind Kind = [&]() {
+    if (Fn->isImplicit() && Fn->getOverloadedOperator() == OO_EqualEqual)
+      return oc_implicit_equality_comparison;
+
     if (CRK & CRK_Reversed)
       return oc_reversed_binary_operator;
 
@@ -10352,6 +10387,21 @@ static void DiagnoseBadDeduction(Sema &S, NamedDecl *Found, Decl *Templated,
     MaybeEmitInheritedConstructorNote(S, Found);
     return;
 
+  case Sema::TDK_ConstraintsNotSatisfied: {
+    // Format the template argument list into the argument string.
+    SmallString<128> TemplateArgString;
+    TemplateArgumentList *Args = DeductionFailure.getTemplateArgumentList();
+    TemplateArgString = " ";
+    TemplateArgString += S.getTemplateArgumentBindingsText(
+        getDescribedTemplate(Templated)->getTemplateParameters(), *Args);
+    S.Diag(Templated->getLocation(),
+           diag::note_ovl_candidate_unsatisfied_constraints)
+        << TemplateArgString;
+
+    S.DiagnoseUnsatisfiedConstraint(
+        static_cast<CNSInfo*>(DeductionFailure.Data)->Satisfaction);
+    return;
+  }
   case Sema::TDK_TooManyArguments:
   case Sema::TDK_TooFewArguments:
     DiagnoseArityMismatch(S, Found, Templated, NumArgs);
@@ -10804,6 +10854,7 @@ static unsigned RankDeductionFailure(const DeductionFailureInfo &DFI) {
 
   case Sema::TDK_SubstitutionFailure:
   case Sema::TDK_DeducedMismatch:
+  case Sema::TDK_ConstraintsNotSatisfied:
   case Sema::TDK_DeducedMismatchNested:
   case Sema::TDK_NonDeducedMismatch:
   case Sema::TDK_MiscellaneousDeductionFailure:
@@ -10988,6 +11039,7 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
   unsigned ConvIdx = 0;
   unsigned ArgIdx = 0;
   ArrayRef<QualType> ParamTypes;
+  bool Reversed = Cand->RewriteKind & CRK_Reversed;
 
   if (Cand->IsSurrogate) {
     QualType ConvType
@@ -11001,7 +11053,7 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
     ParamTypes =
         Cand->Function->getType()->castAs<FunctionProtoType>()->getParamTypes();
     if (isa<CXXMethodDecl>(Cand->Function) &&
-        !isa<CXXConstructorDecl>(Cand->Function)) {
+        !isa<CXXConstructorDecl>(Cand->Function) && !Reversed) {
       // Conversion 0 is 'this', which doesn't have a corresponding parameter.
       ConvIdx = 1;
       if (CSK == OverloadCandidateSet::CSK_Operator &&
@@ -11016,7 +11068,6 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
   }
 
   // Fill in the rest of the conversions.
-  bool Reversed = Cand->RewriteKind & CRK_Reversed;
   for (unsigned ParamIdx = Reversed ? ParamTypes.size() - 1 : 0;
        ConvIdx != ConvCount;
        ++ConvIdx, ++ArgIdx, ParamIdx += (Reversed ? -1 : 1)) {
@@ -12710,6 +12761,70 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
   return CreateBuiltinUnaryOp(OpLoc, Opc, Input);
 }
 
+/// Perform lookup for an overloaded binary operator.
+void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
+                                 OverloadedOperatorKind Op,
+                                 const UnresolvedSetImpl &Fns,
+                                 ArrayRef<Expr *> Args, bool PerformADL) {
+  SourceLocation OpLoc = CandidateSet.getLocation();
+
+  OverloadedOperatorKind ExtraOp =
+      CandidateSet.getRewriteInfo().AllowRewrittenCandidates
+          ? getRewrittenOverloadedOperator(Op)
+          : OO_None;
+
+  // Add the candidates from the given function set. This also adds the
+  // rewritten candidates using these functions if necessary.
+  AddNonMemberOperatorCandidates(Fns, Args, CandidateSet);
+
+  // Add operator candidates that are member functions.
+  AddMemberOperatorCandidates(Op, OpLoc, Args, CandidateSet);
+  if (CandidateSet.getRewriteInfo().shouldAddReversed(Op))
+    AddMemberOperatorCandidates(Op, OpLoc, {Args[1], Args[0]}, CandidateSet,
+                                OverloadCandidateParamOrder::Reversed);
+
+  // In C++20, also add any rewritten member candidates.
+  if (ExtraOp) {
+    AddMemberOperatorCandidates(ExtraOp, OpLoc, Args, CandidateSet);
+    if (CandidateSet.getRewriteInfo().shouldAddReversed(ExtraOp))
+      AddMemberOperatorCandidates(ExtraOp, OpLoc, {Args[1], Args[0]},
+                                  CandidateSet,
+                                  OverloadCandidateParamOrder::Reversed);
+  }
+
+  // Add candidates from ADL. Per [over.match.oper]p2, this lookup is not
+  // performed for an assignment operator (nor for operator[] nor operator->,
+  // which don't get here).
+  if (Op != OO_Equal && PerformADL) {
+    DeclarationName OpName = Context.DeclarationNames.getCXXOperatorName(Op);
+    AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
+                                         /*ExplicitTemplateArgs*/ nullptr,
+                                         CandidateSet);
+    if (ExtraOp) {
+      DeclarationName ExtraOpName =
+          Context.DeclarationNames.getCXXOperatorName(ExtraOp);
+      AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
+                                           /*ExplicitTemplateArgs*/ nullptr,
+                                           CandidateSet);
+    }
+  }
+
+  // Add builtin operator candidates.
+  //
+  // FIXME: We don't add any rewritten candidates here. This is strictly
+  // incorrect; a builtin candidate could be hidden by a non-viable candidate,
+  // resulting in our selecting a rewritten builtin candidate. For example:
+  //
+  //   enum class E { e };
+  //   bool operator!=(E, E) requires false;
+  //   bool k = E::e != E::e;
+  //
+  // ... should select the rewritten builtin candidate 'operator==(E, E)'. But
+  // it seems unreasonable to consider rewritten builtin candidates. A core
+  // issue has been filed proposing to removed this requirement.
+  AddBuiltinOperatorCandidates(Op, OpLoc, Args, CandidateSet);
+}
+
 /// Create a binary operation that may resolve to an overloaded
 /// operator.
 ///
@@ -12726,11 +12841,19 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
 ///
 /// \param LHS Left-hand argument.
 /// \param RHS Right-hand argument.
+/// \param PerformADL Whether to consider operator candidates found by ADL.
+/// \param AllowRewrittenCandidates Whether to consider candidates found by
+///        C++20 operator rewrites.
+/// \param DefaultedFn If we are synthesizing a defaulted operator function,
+///        the function in question. Such a function is never a candidate in
+///        our overload resolution. This also enables synthesizing a three-way
+///        comparison from < and == as described in C++20 [class.spaceship]p1.
 ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                                        BinaryOperatorKind Opc,
                                        const UnresolvedSetImpl &Fns, Expr *LHS,
                                        Expr *RHS, bool PerformADL,
-                                       bool AllowRewrittenCandidates) {
+                                       bool AllowRewrittenCandidates,
+                                       FunctionDecl *DefaultedFn) {
   Expr *Args[2] = { LHS, RHS };
   LHS=RHS=nullptr; // Please use only Args instead of LHS/RHS couple
 
@@ -12738,7 +12861,6 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     AllowRewrittenCandidates = false;
 
   OverloadedOperatorKind Op = BinaryOperator::getOverloadedOperator(Opc);
-  DeclarationName OpName = Context.DeclarationNames.getCXXOperatorName(Op);
 
   // If either side is type-dependent, create an appropriate dependent
   // expression.
@@ -12760,6 +12882,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     // FIXME: save results of ADL from here?
     CXXRecordDecl *NamingClass = nullptr; // lookup ignores member operators
     // TODO: provide better source location info in DNLoc component.
+    DeclarationName OpName = Context.DeclarationNames.getCXXOperatorName(Op);
     DeclarationNameInfo OpNameInfo(OpName, OpLoc);
     UnresolvedLookupExpr *Fn = UnresolvedLookupExpr::Create(
         Context, NamingClass, NestedNameSpecifierLoc(), OpNameInfo,
@@ -12793,63 +12916,13 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   if (Opc == BO_PtrMemD)
     return CreateBuiltinBinOp(OpLoc, Opc, Args[0], Args[1]);
 
-  // Build an empty overload set.
+  // Build the overload set.
   OverloadCandidateSet CandidateSet(
       OpLoc, OverloadCandidateSet::CSK_Operator,
       OverloadCandidateSet::OperatorRewriteInfo(Op, AllowRewrittenCandidates));
-
-  OverloadedOperatorKind ExtraOp =
-      AllowRewrittenCandidates ? getRewrittenOverloadedOperator(Op) : OO_None;
-
-  // Add the candidates from the given function set. This also adds the
-  // rewritten candidates using these functions if necessary.
-  AddNonMemberOperatorCandidates(Fns, Args, CandidateSet);
-
-  // Add operator candidates that are member functions.
-  AddMemberOperatorCandidates(Op, OpLoc, Args, CandidateSet);
-  if (CandidateSet.getRewriteInfo().shouldAddReversed(Op))
-    AddMemberOperatorCandidates(Op, OpLoc, {Args[1], Args[0]}, CandidateSet,
-                                OverloadCandidateParamOrder::Reversed);
-
-  // In C++20, also add any rewritten member candidates.
-  if (ExtraOp) {
-    AddMemberOperatorCandidates(ExtraOp, OpLoc, Args, CandidateSet);
-    if (CandidateSet.getRewriteInfo().shouldAddReversed(ExtraOp))
-      AddMemberOperatorCandidates(ExtraOp, OpLoc, {Args[1], Args[0]},
-                                  CandidateSet,
-                                  OverloadCandidateParamOrder::Reversed);
-  }
-
-  // Add candidates from ADL. Per [over.match.oper]p2, this lookup is not
-  // performed for an assignment operator (nor for operator[] nor operator->,
-  // which don't get here).
-  if (Opc != BO_Assign && PerformADL) {
-    AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
-                                         /*ExplicitTemplateArgs*/ nullptr,
-                                         CandidateSet);
-    if (ExtraOp) {
-      DeclarationName ExtraOpName =
-          Context.DeclarationNames.getCXXOperatorName(ExtraOp);
-      AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
-                                           /*ExplicitTemplateArgs*/ nullptr,
-                                           CandidateSet);
-    }
-  }
-
-  // Add builtin operator candidates.
-  //
-  // FIXME: We don't add any rewritten candidates here. This is strictly
-  // incorrect; a builtin candidate could be hidden by a non-viable candidate,
-  // resulting in our selecting a rewritten builtin candidate. For example:
-  //
-  //   enum class E { e };
-  //   bool operator!=(E, E) requires false;
-  //   bool k = E::e != E::e;
-  //
-  // ... should select the rewritten builtin candidate 'operator==(E, E)'. But
-  // it seems unreasonable to consider rewritten builtin candidates. A core
-  // issue has been filed proposing to removed this requirement.
-  AddBuiltinOperatorCandidates(Op, OpLoc, Args, CandidateSet);
+  if (DefaultedFn)
+    CandidateSet.exclude(DefaultedFn);
+  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
 
   bool HadMultipleCandidates = (CandidateSet.size() > 1);
 
@@ -13058,6 +13131,15 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
       if (Opc == BO_Comma)
         break;
 
+      // When defaulting an 'operator<=>', we can try to synthesize a three-way
+      // compare result using '==' and '<'.
+      if (DefaultedFn && Opc == BO_Cmp) {
+        ExprResult E = BuildSynthesizedThreeWayComparison(OpLoc, Fns, Args[0],
+                                                          Args[1], DefaultedFn);
+        if (E.isInvalid() || E.isUsable())
+          return E;
+      }
+
       // For class as left operand for assignment or compound assignment
       // operator do not fall through to handling in built-in, but report that
       // no overloaded assignment operator found
@@ -13107,14 +13189,20 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 
     case OR_Deleted:
       if (isImplicitlyDeleted(Best->Function)) {
-        CXXMethodDecl *Method = cast<CXXMethodDecl>(Best->Function);
-        Diag(OpLoc, diag::err_ovl_deleted_special_oper)
-          << Context.getRecordType(Method->getParent())
-          << getSpecialMember(Method);
+        FunctionDecl *DeletedFD = Best->Function;
+        DefaultedFunctionKind DFK = getDefaultedFunctionKind(DeletedFD);
+        if (DFK.isSpecialMember()) {
+          Diag(OpLoc, diag::err_ovl_deleted_special_oper)
+            << Args[0]->getType() << DFK.asSpecialMember();
+        } else {
+          assert(DFK.isComparison());
+          Diag(OpLoc, diag::err_ovl_deleted_comparison)
+            << Args[0]->getType() << DeletedFD;
+        }
 
         // The user probably meant to call this special member. Just
         // explain why it's deleted.
-        NoteDeletedFunction(Method);
+        NoteDeletedFunction(DeletedFD);
         return ExprError();
       }
       CandidateSet.NoteCandidates(
@@ -13131,6 +13219,111 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 
   // We matched a built-in operator; build it.
   return CreateBuiltinBinOp(OpLoc, Opc, Args[0], Args[1]);
+}
+
+ExprResult Sema::BuildSynthesizedThreeWayComparison(
+    SourceLocation OpLoc, const UnresolvedSetImpl &Fns, Expr *LHS, Expr *RHS,
+    FunctionDecl *DefaultedFn) {
+  const ComparisonCategoryInfo *Info =
+      Context.CompCategories.lookupInfoForType(DefaultedFn->getReturnType());
+  // If we're not producing a known comparison category type, we can't
+  // synthesize a three-way comparison. Let the caller diagnose this.
+  if (!Info)
+    return ExprResult((Expr*)nullptr);
+
+  // If we ever want to perform this synthesis more generally, we will need to
+  // apply the temporary materialization conversion to the operands.
+  assert(LHS->isGLValue() && RHS->isGLValue() &&
+         "cannot use prvalue expressions more than once");
+  Expr *OrigLHS = LHS;
+  Expr *OrigRHS = RHS;
+
+  // Replace the LHS and RHS with OpaqueValueExprs; we're going to refer to
+  // each of them multiple times below.
+  LHS = new (Context)
+      OpaqueValueExpr(LHS->getExprLoc(), LHS->getType(), LHS->getValueKind(),
+                      LHS->getObjectKind(), LHS);
+  RHS = new (Context)
+      OpaqueValueExpr(RHS->getExprLoc(), RHS->getType(), RHS->getValueKind(),
+                      RHS->getObjectKind(), RHS);
+
+  ExprResult Eq = CreateOverloadedBinOp(OpLoc, BO_EQ, Fns, LHS, RHS, true, true,
+                                        DefaultedFn);
+  if (Eq.isInvalid())
+    return ExprError();
+
+  ExprResult Less;
+  if (Info->isOrdered()) {
+    Less = CreateOverloadedBinOp(OpLoc, BO_LT, Fns, LHS, RHS, true, true,
+                                 DefaultedFn);
+    if (Less.isInvalid())
+      return ExprError();
+  }
+
+  ExprResult Greater;
+  if (Info->isOrdered()) {
+    Greater = CreateOverloadedBinOp(OpLoc, BO_LT, Fns, RHS, LHS, true, true,
+                                    DefaultedFn);
+    if (Greater.isInvalid())
+      return ExprError();
+  }
+
+  // Form the list of comparisons we're going to perform.
+  struct Comparison {
+    ExprResult Cmp;
+    ComparisonCategoryResult Result;
+  } Comparisons[4] =
+  { {Eq, Info->isStrong() ? ComparisonCategoryResult::Equal
+                          : ComparisonCategoryResult::Equivalent},
+    {Less, ComparisonCategoryResult::Less},
+    {Greater, ComparisonCategoryResult::Greater},
+    {ExprResult(), ComparisonCategoryResult::Unordered},
+  };
+
+  int I;
+  if (Info->isEquality()) {
+    Comparisons[1].Result = Info->isStrong()
+                                ? ComparisonCategoryResult::Nonequal
+                                : ComparisonCategoryResult::Nonequivalent;
+    I = 1;
+  } else if (!Info->isPartial()) {
+    I = 2;
+  } else {
+    I = 3;
+  }
+
+  // Combine the comparisons with suitable conditional expressions.
+  ExprResult Result;
+  for (; I >= 0; --I) {
+    // Build a reference to the comparison category constant.
+    auto *VI = Info->lookupValueInfo(Comparisons[I].Result);
+    // FIXME: Missing a constant for a comparison category. Diagnose this?
+    if (!VI)
+      return ExprResult((Expr*)nullptr);
+    ExprResult ThisResult =
+        BuildDeclarationNameExpr(CXXScopeSpec(), DeclarationNameInfo(), VI->VD);
+    if (ThisResult.isInvalid())
+      return ExprError();
+
+    // Build a conditional unless this is the final case.
+    if (Result.get()) {
+      Result = ActOnConditionalOp(OpLoc, OpLoc, Comparisons[I].Cmp.get(),
+                                  ThisResult.get(), Result.get());
+      if (Result.isInvalid())
+        return ExprError();
+    } else {
+      Result = ThisResult;
+    }
+  }
+
+  // Build a PseudoObjectExpr to model the rewriting of an <=> operator, and to
+  // bind the OpaqueValueExprs before they're (repeatedly) used.
+  Expr *SyntacticForm = new (Context)
+      BinaryOperator(OrigLHS, OrigRHS, BO_Cmp, Result.get()->getType(),
+                     Result.get()->getValueKind(),
+                     Result.get()->getObjectKind(), OpLoc, FPFeatures);
+  Expr *SemanticForm[] = {LHS, RHS, Result.get()};
+  return PseudoObjectExpr::Create(Context, SyntacticForm, SemanticForm, 2);
 }
 
 ExprResult
