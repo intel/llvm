@@ -17,7 +17,7 @@ To enable optimizations for target CPU architecture, add `-Xsycl-target-backend 
 could be `avx512`, `avx2`, `avx` or `sse4.2`.  
 
 To execute opencl-aot directly for Intel(R) processor device, run it with `<spv> -o=<output> --device=cpu`, where `<spv>` is 
-path to SPIR-V binary file, `<output>` is path to created OpenCL program binary file which will be created.  
+path to SPIR-V binary file, `<output>` is path to created OpenCL program binary file.  
 To generate SPIR-V binary file from OpenCL device kernel code, use Clang to generate LLVM IR and pass it to 
 [llvm-spirv](https://github.com/KhronosGroup/SPIRV-LLVM-Translator) tool. For more 
 information about generation LLVM IR from OpenCL device kernel code, see 
