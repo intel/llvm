@@ -6843,8 +6843,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       TCCheck->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
     Triples = "-targets=";
     llvm::Triple TT;
-    TT.setArchName(JA.getInputs()[0]->getType() == types::TY_FPGA_AOCX
-                   ? "fpga_aocx" : "fpga_aocr");
+    TT.setArchName(types::getTypeName(JA.getInputs()[0]->getType()));
     TT.setVendorName("intel");
     TT.setOS(llvm::Triple(TCCheck->getTriple()).getOS());
     TT.setEnvironment(llvm::Triple::SYCLDevice);
@@ -6943,8 +6942,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      Input.getType() == types::TY_Archive)
+  if (Input.getType() == types::TY_FPGA_AOCO ||
+      (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+       Input.getType() == types::TY_Archive))
     TypeArg = "aoo";
 
   // Get the type.
@@ -6959,14 +6959,12 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // FPGA device triples are 'transformed' for the bundler when creating
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
-    if (Input.getType() == types::TY_FPGA_AOCX ||
-        Input.getType() == types::TY_FPGA_AOCR) {
+    if (types::isFPGA(Input.getType())) {
       if (getToolChain().getTriple().getSubArch() ==
               llvm::Triple::SPIRSubArch_fpga &&
           Dep.DependentOffloadKind == Action::OFK_SYCL) {
         llvm::Triple TT;
-        TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
-                                                              : "fpga_aocr");
+        TT.setArchName(types::getTypeName(Input.getType()));
         TT.setVendorName("intel");
         TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
