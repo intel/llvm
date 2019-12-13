@@ -433,7 +433,7 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 
 void getDeviceLibPrograms(
     const RT::PiContext Context,
-    const std::vector<RT::PiDevice> Devices,
+    const std::vector<RT::PiDevice> &Devices,
     std::map<std::string, RT::PiProgram> &CachedLibPrograms,
     std::vector<RT::PiProgram> &Programs) {
 
