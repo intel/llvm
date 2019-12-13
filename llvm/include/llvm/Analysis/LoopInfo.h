@@ -756,6 +756,17 @@ public:
   /// - guarded by a loop guard branch.
   bool isGuarded() const { return (getLoopGuardBranch() != nullptr); }
 
+  /// Return true if the loop is in rotated form.
+  ///
+  /// This does not check if the loop was rotated by loop rotation, instead it
+  /// only checks if the loop is in rotated form (has a valid latch that exists
+  /// the loop).
+  bool isRotatedForm() const {
+    assert(!isInvalid() && "Loop not in a valid state!");
+    BasicBlock *Latch = getLoopLatch();
+    return Latch && isLoopExiting(Latch);
+  }
+
   /// Return true if the loop induction variable starts at zero and increments
   /// by one each time through the loop.
   bool isCanonical(ScalarEvolution &SE) const;

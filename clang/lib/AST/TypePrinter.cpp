@@ -1784,6 +1784,35 @@ bool Qualifiers::isEmptyWhenPrinted(const PrintingPolicy &Policy) const {
   return true;
 }
 
+std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
+  switch (AS) {
+  case LangAS::Default:
+    return "";
+  case LangAS::opencl_global:
+  case LangAS::sycl_global:
+    return "__global";
+  case LangAS::opencl_local:
+  case LangAS::sycl_local:
+    return "__local";
+  case LangAS::opencl_private:
+  case LangAS::sycl_private:
+    return "";
+  case LangAS::opencl_constant:
+  case LangAS::sycl_constant:
+    return "__constant";
+  case LangAS::opencl_generic:
+    return "__generic";
+  case LangAS::cuda_device:
+    return "__device__";
+  case LangAS::cuda_constant:
+    return "__constant__";
+  case LangAS::cuda_shared:
+    return "__shared__";
+  default:
+    return std::to_string(toTargetAddressSpace(AS));
+  }
+}
+
 // Appends qualifiers to the given string, separated by spaces.  Will
 // prefix a space if the string is non-empty.  Will not append a final
 // space.
@@ -1802,47 +1831,18 @@ void Qualifiers::print(raw_ostream &OS, const PrintingPolicy& Policy,
     OS << "__unaligned";
     addSpace = true;
   }
-  LangAS addrspace = getAddressSpace();
-  if (addrspace != LangAS::Default) {
-    if (addrspace != LangAS::opencl_private) {
-      if (addSpace)
-        OS << ' ';
-      addSpace = true;
-      switch (addrspace) {
-      case LangAS::opencl_global:
-      case LangAS::sycl_global:
-        OS << "__global";
-        break;
-      case LangAS::opencl_local:
-      case LangAS::sycl_local:
-        OS << "__local";
-        break;
-      case LangAS::opencl_private:
-        break;
-      case LangAS::sycl_private:
-        OS << "__private";
-        break;
-      case LangAS::opencl_constant:
-      case LangAS::cuda_constant:
-      case LangAS::sycl_constant:
-        OS << "__constant";
-        break;
-      case LangAS::opencl_generic:
-        OS << "__generic";
-        break;
-      case LangAS::cuda_device:
-        OS << "__device__";
-        break;
-      case LangAS::cuda_shared:
-        OS << "__shared__";
-        break;
-      default:
-        OS << "__attribute__((address_space(";
-        OS << toTargetAddressSpace(addrspace);
-        OS << ")))";
-      }
-    }
+  auto ASStr = getAddrSpaceAsString(getAddressSpace());
+  if (!ASStr.empty()) {
+    if (addSpace)
+      OS << ' ';
+    addSpace = true;
+    // Wrap target address space into an attribute syntax
+    if (isTargetAddressSpace(getAddressSpace()))
+      OS << "__attribute__((address_space(" << ASStr << ")))";
+    else
+      OS << ASStr;
   }
+
   if (Qualifiers::GC gc = getObjCGCAttr()) {
     if (addSpace)
       OS << ' ';
