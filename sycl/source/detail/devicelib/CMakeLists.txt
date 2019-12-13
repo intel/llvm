@@ -42,7 +42,7 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.spv
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                            -o ${binary_dir}/libsycl-fallback-cassert.spv
                    MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h clang
+                   DEPENDS wrapper.h clang llvm-spirv
                    VERBATIM)
 
 add_custom_target(devicelib-obj DEPENDS ${devicelib-obj-file})
