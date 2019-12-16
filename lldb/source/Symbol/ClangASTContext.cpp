@@ -1344,7 +1344,7 @@ CompilerType ClangASTContext::CreateRecordType(
 
   if (decl) {
     if (metadata)
-      SetMetadata(ast, decl, *metadata);
+      SetMetadata(decl, *metadata);
 
     if (access_type != eAccessNone)
       decl->setAccess(ConvertAccessTypeToAccessSpecifier(access_type));
@@ -1701,7 +1701,7 @@ CompilerType ClangASTContext::CreateObjCClass(const char *name,
       isInternal);
 
   if (decl && metadata)
-    SetMetadata(ast, decl, *metadata);
+    SetMetadata(decl, *metadata);
 
   return CompilerType(this, ast->getObjCInterfaceType(decl).getAsOpaquePtr());
 }
@@ -2405,10 +2405,11 @@ void ClangASTContext::SetMetadataAsUserID(const void *object,
   SetMetadata(object, meta_data);
 }
 
-void ClangASTContext::SetMetadata(clang::ASTContext *ast, const void *object,
+void ClangASTContext::SetMetadata(const void *object,
                                   ClangASTMetadata &metadata) {
   ClangExternalASTSourceCommon *external_source =
-      ClangExternalASTSourceCommon::Lookup(ast->getExternalSource());
+      ClangExternalASTSourceCommon::Lookup(
+          getASTContext()->getExternalSource());
 
   if (external_source)
     external_source->SetMetadata(object, metadata);
@@ -2419,7 +2420,7 @@ ClangASTMetadata *ClangASTContext::GetMetadata(clang::ASTContext *ast,
   ClangExternalASTSourceCommon *external_source =
       ClangExternalASTSourceCommon::Lookup(ast->getExternalSource());
 
-  if (external_source && external_source->HasMetadata(object))
+  if (external_source)
     return external_source->GetMetadata(object);
   else
     return nullptr;
@@ -2466,12 +2467,39 @@ ClangASTContext::GetDeclContextForType(const CompilerType &type) {
   return GetDeclContextForType(ClangUtil::GetQualType(type));
 }
 
+/// Aggressively desugar the provided type, skipping past various kinds of
+/// syntactic sugar and other constructs one typically wants to ignore.
+/// The \p mask argument allows one to skip certain kinds of simplifications,
+/// when one wishes to handle a certain kind of type directly.
+static QualType
+RemoveWrappingTypes(QualType type, ArrayRef<clang::Type::TypeClass> mask = {}) {
+  while (true) {
+    if (find(mask, type->getTypeClass()) != mask.end())
+      return type;
+    switch (type->getTypeClass()) {
+    // This is not fully correct as _Atomic is more than sugar, but it is
+    // sufficient for the purposes we care about.
+    case clang::Type::Atomic:
+      type = cast<clang::AtomicType>(type)->getValueType();
+      break;
+    case clang::Type::Auto:
+    case clang::Type::Elaborated:
+    case clang::Type::Paren:
+    case clang::Type::Typedef:
+      type = type->getLocallyUnqualifiedSingleStepDesugaredType();
+      break;
+    default:
+      return type;
+    }
+  }
+}
+
 clang::DeclContext *
 ClangASTContext::GetDeclContextForType(clang::QualType type) {
   if (type.isNull())
     return nullptr;
 
-  clang::QualType qual_type = type.getCanonicalType();
+  clang::QualType qual_type = RemoveWrappingTypes(type.getCanonicalType());
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::ObjCInterface:
@@ -2485,19 +2513,6 @@ ClangASTContext::GetDeclContextForType(clang::QualType type) {
     return llvm::cast<clang::RecordType>(qual_type)->getDecl();
   case clang::Type::Enum:
     return llvm::cast<clang::EnumType>(qual_type)->getDecl();
-  case clang::Type::Typedef:
-    return GetDeclContextForType(llvm::cast<clang::TypedefType>(qual_type)
-                                     ->getDecl()
-                                     ->getUnderlyingType());
-  case clang::Type::Auto:
-    return GetDeclContextForType(
-        llvm::cast<clang::AutoType>(qual_type)->getDeducedType());
-  case clang::Type::Elaborated:
-    return GetDeclContextForType(
-        llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType());
-  case clang::Type::Paren:
-    return GetDeclContextForType(
-        llvm::cast<clang::ParenType>(qual_type)->desugar());
   default:
     break;
   }
@@ -2508,6 +2523,7 @@ ClangASTContext::GetDeclContextForType(clang::QualType type) {
 static bool GetCompleteQualType(clang::ASTContext *ast,
                                 clang::QualType qual_type,
                                 bool allow_completion = true) {
+  qual_type = RemoveWrappingTypes(qual_type);
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::ConstantArray:
@@ -2609,27 +2625,6 @@ static bool GetCompleteQualType(clang::ASTContext *ast,
     }
   } break;
 
-  case clang::Type::Typedef:
-    return GetCompleteQualType(ast, llvm::cast<clang::TypedefType>(qual_type)
-                                        ->getDecl()
-                                        ->getUnderlyingType(),
-                               allow_completion);
-
-  case clang::Type::Auto:
-    return GetCompleteQualType(
-        ast, llvm::cast<clang::AutoType>(qual_type)->getDeducedType(),
-        allow_completion);
-
-  case clang::Type::Elaborated:
-    return GetCompleteQualType(
-        ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType(),
-        allow_completion);
-
-  case clang::Type::Paren:
-    return GetCompleteQualType(
-        ast, llvm::cast<clang::ParenType>(qual_type)->desugar(),
-        allow_completion);
-
   case clang::Type::Attributed:
     return GetCompleteQualType(
         ast, llvm::cast<clang::AttributedType>(qual_type)->getModifiedType(),
@@ -2662,7 +2657,7 @@ ConvertAccessTypeToObjCIvarAccessControl(AccessType access) {
 // Tests
 
 bool ClangASTContext::IsAggregateType(lldb::opaque_compiler_type_t type) {
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
 
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
@@ -2675,22 +2670,6 @@ bool ClangASTContext::IsAggregateType(lldb::opaque_compiler_type_t type) {
   case clang::Type::ObjCObject:
   case clang::Type::ObjCInterface:
     return true;
-  case clang::Type::Auto:
-    return IsAggregateType(llvm::cast<clang::AutoType>(qual_type)
-                               ->getDeducedType()
-                               .getAsOpaquePtr());
-  case clang::Type::Elaborated:
-    return IsAggregateType(llvm::cast<clang::ElaboratedType>(qual_type)
-                               ->getNamedType()
-                               .getAsOpaquePtr());
-  case clang::Type::Typedef:
-    return IsAggregateType(llvm::cast<clang::TypedefType>(qual_type)
-                               ->getDecl()
-                               ->getUnderlyingType()
-                               .getAsOpaquePtr());
-  case clang::Type::Paren:
-    return IsAggregateType(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
   default:
     break;
   }
@@ -2699,7 +2678,7 @@ bool ClangASTContext::IsAggregateType(lldb::opaque_compiler_type_t type) {
 }
 
 bool ClangASTContext::IsAnonymousType(lldb::opaque_compiler_type_t type) {
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
 
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
@@ -2713,22 +2692,6 @@ bool ClangASTContext::IsAnonymousType(lldb::opaque_compiler_type_t type) {
     }
     break;
   }
-  case clang::Type::Auto:
-    return IsAnonymousType(llvm::cast<clang::AutoType>(qual_type)
-                               ->getDeducedType()
-                               .getAsOpaquePtr());
-  case clang::Type::Elaborated:
-    return IsAnonymousType(llvm::cast<clang::ElaboratedType>(qual_type)
-                               ->getNamedType()
-                               .getAsOpaquePtr());
-  case clang::Type::Typedef:
-    return IsAnonymousType(llvm::cast<clang::TypedefType>(qual_type)
-                               ->getDecl()
-                               ->getUnderlyingType()
-                               .getAsOpaquePtr());
-  case clang::Type::Paren:
-    return IsAnonymousType(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
   default:
     break;
   }
@@ -2739,7 +2702,7 @@ bool ClangASTContext::IsAnonymousType(lldb::opaque_compiler_type_t type) {
 bool ClangASTContext::IsArrayType(lldb::opaque_compiler_type_t type,
                                   CompilerType *element_type_ptr,
                                   uint64_t *size, bool *is_incomplete) {
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
 
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
@@ -2795,27 +2758,6 @@ bool ClangASTContext::IsArrayType(lldb::opaque_compiler_type_t type,
     if (is_incomplete)
       *is_incomplete = false;
     return true;
-
-  case clang::Type::Typedef:
-    return IsArrayType(llvm::cast<clang::TypedefType>(qual_type)
-                           ->getDecl()
-                           ->getUnderlyingType()
-                           .getAsOpaquePtr(),
-                       element_type_ptr, size, is_incomplete);
-  case clang::Type::Auto:
-    return IsArrayType(llvm::cast<clang::AutoType>(qual_type)
-                           ->getDeducedType()
-                           .getAsOpaquePtr(),
-                       element_type_ptr, size, is_incomplete);
-  case clang::Type::Elaborated:
-    return IsArrayType(llvm::cast<clang::ElaboratedType>(qual_type)
-                           ->getNamedType()
-                           .getAsOpaquePtr(),
-                       element_type_ptr, size, is_incomplete);
-  case clang::Type::Paren:
-    return IsArrayType(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-        element_type_ptr, size, is_incomplete);
   }
   if (element_type_ptr)
     element_type_ptr->Clear();
@@ -2924,7 +2866,7 @@ bool ClangASTContext::IsCStringType(lldb::opaque_compiler_type_t type,
 bool ClangASTContext::IsFunctionType(lldb::opaque_compiler_type_t type,
                                      bool *is_variadic_ptr) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
     if (qual_type->isFunctionType()) {
       if (is_variadic_ptr) {
@@ -2942,26 +2884,6 @@ bool ClangASTContext::IsFunctionType(lldb::opaque_compiler_type_t type,
     switch (type_class) {
     default:
       break;
-    case clang::Type::Typedef:
-      return IsFunctionType(llvm::cast<clang::TypedefType>(qual_type)
-                                ->getDecl()
-                                ->getUnderlyingType()
-                                .getAsOpaquePtr(),
-                            nullptr);
-    case clang::Type::Auto:
-      return IsFunctionType(llvm::cast<clang::AutoType>(qual_type)
-                                ->getDeducedType()
-                                .getAsOpaquePtr(),
-                            nullptr);
-    case clang::Type::Elaborated:
-      return IsFunctionType(llvm::cast<clang::ElaboratedType>(qual_type)
-                                ->getNamedType()
-                                .getAsOpaquePtr(),
-                            nullptr);
-    case clang::Type::Paren:
-      return IsFunctionType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          nullptr);
     case clang::Type::LValueReference:
     case clang::Type::RValueReference: {
       const clang::ReferenceType *reference_type =
@@ -2982,7 +2904,7 @@ ClangASTContext::IsHomogeneousAggregate(lldb::opaque_compiler_type_t type,
   if (!type)
     return 0;
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -3052,24 +2974,6 @@ ClangASTContext::IsHomogeneousAggregate(lldb::opaque_compiler_type_t type,
     }
     break;
 
-  case clang::Type::Typedef:
-    return IsHomogeneousAggregate(llvm::cast<clang::TypedefType>(qual_type)
-                                      ->getDecl()
-                                      ->getUnderlyingType()
-                                      .getAsOpaquePtr(),
-                                  base_type_ptr);
-
-  case clang::Type::Auto:
-    return IsHomogeneousAggregate(llvm::cast<clang::AutoType>(qual_type)
-                                      ->getDeducedType()
-                                      .getAsOpaquePtr(),
-                                  base_type_ptr);
-
-  case clang::Type::Elaborated:
-    return IsHomogeneousAggregate(llvm::cast<clang::ElaboratedType>(qual_type)
-                                      ->getNamedType()
-                                      .getAsOpaquePtr(),
-                                  base_type_ptr);
   default:
     break;
   }
@@ -3105,7 +3009,7 @@ ClangASTContext::GetFunctionArgumentAtIndex(lldb::opaque_compiler_type_t type,
 
 bool ClangASTContext::IsFunctionPointerType(lldb::opaque_compiler_type_t type) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
     if (qual_type->isFunctionPointerType())
       return true;
@@ -3114,22 +3018,6 @@ bool ClangASTContext::IsFunctionPointerType(lldb::opaque_compiler_type_t type) {
     switch (type_class) {
     default:
       break;
-    case clang::Type::Typedef:
-      return IsFunctionPointerType(llvm::cast<clang::TypedefType>(qual_type)
-                                       ->getDecl()
-                                       ->getUnderlyingType()
-                                       .getAsOpaquePtr());
-    case clang::Type::Auto:
-      return IsFunctionPointerType(llvm::cast<clang::AutoType>(qual_type)
-                                       ->getDeducedType()
-                                       .getAsOpaquePtr());
-    case clang::Type::Elaborated:
-      return IsFunctionPointerType(llvm::cast<clang::ElaboratedType>(qual_type)
-                                       ->getNamedType()
-                                       .getAsOpaquePtr());
-    case clang::Type::Paren:
-      return IsFunctionPointerType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
 
     case clang::Type::LValueReference:
     case clang::Type::RValueReference: {
@@ -3148,7 +3036,7 @@ bool ClangASTContext::IsBlockPointerType(
     lldb::opaque_compiler_type_t type,
     CompilerType *function_pointer_type_ptr) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
     if (qual_type->isBlockPointerType()) {
       if (function_pointer_type_ptr) {
@@ -3166,26 +3054,6 @@ bool ClangASTContext::IsBlockPointerType(
     switch (type_class) {
     default:
       break;
-    case clang::Type::Typedef:
-      return IsBlockPointerType(llvm::cast<clang::TypedefType>(qual_type)
-                                    ->getDecl()
-                                    ->getUnderlyingType()
-                                    .getAsOpaquePtr(),
-                                function_pointer_type_ptr);
-    case clang::Type::Auto:
-      return IsBlockPointerType(llvm::cast<clang::AutoType>(qual_type)
-                                    ->getDeducedType()
-                                    .getAsOpaquePtr(),
-                                function_pointer_type_ptr);
-    case clang::Type::Elaborated:
-      return IsBlockPointerType(llvm::cast<clang::ElaboratedType>(qual_type)
-                                    ->getNamedType()
-                                    .getAsOpaquePtr(),
-                                function_pointer_type_ptr);
-    case clang::Type::Paren:
-      return IsBlockPointerType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          function_pointer_type_ptr);
 
     case clang::Type::LValueReference:
     case clang::Type::RValueReference: {
@@ -3239,7 +3107,7 @@ bool ClangASTContext::IsEnumerationType(lldb::opaque_compiler_type_t type,
 bool ClangASTContext::IsPointerType(lldb::opaque_compiler_type_t type,
                                     CompilerType *pointee_type) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class) {
     case clang::Type::Builtin:
@@ -3279,26 +3147,6 @@ bool ClangASTContext::IsPointerType(lldb::opaque_compiler_type_t type,
                       ->getPointeeType()
                       .getAsOpaquePtr());
       return true;
-    case clang::Type::Typedef:
-      return IsPointerType(llvm::cast<clang::TypedefType>(qual_type)
-                               ->getDecl()
-                               ->getUnderlyingType()
-                               .getAsOpaquePtr(),
-                           pointee_type);
-    case clang::Type::Auto:
-      return IsPointerType(llvm::cast<clang::AutoType>(qual_type)
-                               ->getDeducedType()
-                               .getAsOpaquePtr(),
-                           pointee_type);
-    case clang::Type::Elaborated:
-      return IsPointerType(llvm::cast<clang::ElaboratedType>(qual_type)
-                               ->getNamedType()
-                               .getAsOpaquePtr(),
-                           pointee_type);
-    case clang::Type::Paren:
-      return IsPointerType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          pointee_type);
     default:
       break;
     }
@@ -3311,7 +3159,7 @@ bool ClangASTContext::IsPointerType(lldb::opaque_compiler_type_t type,
 bool ClangASTContext::IsPointerOrReferenceType(
     lldb::opaque_compiler_type_t type, CompilerType *pointee_type) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class) {
     case clang::Type::Builtin:
@@ -3364,27 +3212,6 @@ bool ClangASTContext::IsPointerOrReferenceType(
                       ->desugar()
                       .getAsOpaquePtr());
       return true;
-    case clang::Type::Typedef:
-      return IsPointerOrReferenceType(llvm::cast<clang::TypedefType>(qual_type)
-                                          ->getDecl()
-                                          ->getUnderlyingType()
-                                          .getAsOpaquePtr(),
-                                      pointee_type);
-    case clang::Type::Auto:
-      return IsPointerOrReferenceType(llvm::cast<clang::AutoType>(qual_type)
-                                          ->getDeducedType()
-                                          .getAsOpaquePtr(),
-                                      pointee_type);
-    case clang::Type::Elaborated:
-      return IsPointerOrReferenceType(
-          llvm::cast<clang::ElaboratedType>(qual_type)
-              ->getNamedType()
-              .getAsOpaquePtr(),
-          pointee_type);
-    case clang::Type::Paren:
-      return IsPointerOrReferenceType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          pointee_type);
     default:
       break;
     }
@@ -3398,7 +3225,7 @@ bool ClangASTContext::IsReferenceType(lldb::opaque_compiler_type_t type,
                                       CompilerType *pointee_type,
                                       bool *is_rvalue) {
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
 
     switch (type_class) {
@@ -3420,26 +3247,6 @@ bool ClangASTContext::IsReferenceType(lldb::opaque_compiler_type_t type,
       if (is_rvalue)
         *is_rvalue = true;
       return true;
-    case clang::Type::Typedef:
-      return IsReferenceType(llvm::cast<clang::TypedefType>(qual_type)
-                                 ->getDecl()
-                                 ->getUnderlyingType()
-                                 .getAsOpaquePtr(),
-                             pointee_type, is_rvalue);
-    case clang::Type::Auto:
-      return IsReferenceType(llvm::cast<clang::AutoType>(qual_type)
-                                 ->getDeducedType()
-                                 .getAsOpaquePtr(),
-                             pointee_type, is_rvalue);
-    case clang::Type::Elaborated:
-      return IsReferenceType(llvm::cast<clang::ElaboratedType>(qual_type)
-                                 ->getNamedType()
-                                 .getAsOpaquePtr(),
-                             pointee_type, is_rvalue);
-    case clang::Type::Paren:
-      return IsReferenceType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          pointee_type, is_rvalue);
 
     default:
       break;
@@ -3581,7 +3388,7 @@ bool ClangASTContext::IsPossibleDynamicType(lldb::opaque_compiler_type_t type,
                                             bool check_objc) {
   clang::QualType pointee_qual_type;
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     bool success = false;
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class) {
@@ -3628,32 +3435,6 @@ bool ClangASTContext::IsPossibleDynamicType(lldb::opaque_compiler_type_t type,
       success = true;
       break;
 
-    case clang::Type::Typedef:
-      return IsPossibleDynamicType(llvm::cast<clang::TypedefType>(qual_type)
-                                       ->getDecl()
-                                       ->getUnderlyingType()
-                                       .getAsOpaquePtr(),
-                                   dynamic_pointee_type, check_cplusplus,
-                                   check_objc);
-
-    case clang::Type::Auto:
-      return IsPossibleDynamicType(llvm::cast<clang::AutoType>(qual_type)
-                                       ->getDeducedType()
-                                       .getAsOpaquePtr(),
-                                   dynamic_pointee_type, check_cplusplus,
-                                   check_objc);
-
-    case clang::Type::Elaborated:
-      return IsPossibleDynamicType(llvm::cast<clang::ElaboratedType>(qual_type)
-                                       ->getNamedType()
-                                       .getAsOpaquePtr(),
-                                   dynamic_pointee_type, check_cplusplus,
-                                   check_objc);
-
-    case clang::Type::Paren:
-      return IsPossibleDynamicType(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          dynamic_pointee_type, check_cplusplus, check_objc);
     default:
       break;
     }
@@ -3863,7 +3644,8 @@ ClangASTContext::GetTypeInfo(lldb::opaque_compiler_type_t type,
   if (pointee_or_element_clang_type)
     pointee_or_element_clang_type->Clear();
 
-  clang::QualType qual_type(GetQualType(type));
+  clang::QualType qual_type =
+      RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef});
 
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
@@ -3981,22 +3763,6 @@ ClangASTContext::GetTypeInfo(lldb::opaque_compiler_type_t type,
                     ->getIntegerType()
                     .getAsOpaquePtr());
     return eTypeIsEnumeration | eTypeHasValue;
-
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->getDeducedType()
-                                  .getAsOpaquePtr())
-        .GetTypeInfo(pointee_or_element_clang_type);
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetTypeInfo(pointee_or_element_clang_type);
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetTypeInfo(pointee_or_element_clang_type);
 
   case clang::Type::FunctionProto:
     return eTypeIsFuncPrototype | eTypeHasValue;
@@ -4178,9 +3944,15 @@ ClangASTContext::GetTypeClass(lldb::opaque_compiler_type_t type) {
   if (!type)
     return lldb::eTypeClassInvalid;
 
-  clang::QualType qual_type(GetQualType(type));
+  clang::QualType qual_type =
+      RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef});
 
   switch (qual_type->getTypeClass()) {
+  case clang::Type::Atomic:
+  case clang::Type::Auto:
+  case clang::Type::Elaborated:
+  case clang::Type::Paren:
+    llvm_unreachable("Handled in RemoveWrappingTypes!");
   case clang::Type::UnaryTransform:
     break;
   case clang::Type::FunctionNoProto:
@@ -4243,21 +4015,6 @@ ClangASTContext::GetTypeClass(lldb::opaque_compiler_type_t type) {
     return lldb::eTypeClassTypedef;
   case clang::Type::UnresolvedUsing:
     break;
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetTypeClass();
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->getDeducedType()
-                                  .getAsOpaquePtr())
-        .GetTypeClass();
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetTypeClass();
 
   case clang::Type::Attributed:
     break;
@@ -4295,8 +4052,6 @@ ClangASTContext::GetTypeClass(lldb::opaque_compiler_type_t type) {
   case clang::Type::TemplateSpecialization:
     break;
   case clang::Type::DeducedTemplateSpecialization:
-    break;
-  case clang::Type::Atomic:
     break;
   case clang::Type::Pipe:
     break;
@@ -4446,7 +4201,7 @@ size_t
 ClangASTContext::GetNumMemberFunctions(lldb::opaque_compiler_type_t type) {
   size_t num_functions = 0;
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     switch (qual_type->getTypeClass()) {
     case clang::Type::Record:
       if (GetCompleteQualType(getASTContext(), qual_type)) {
@@ -4495,31 +4250,6 @@ ClangASTContext::GetNumMemberFunctions(lldb::opaque_compiler_type_t type) {
       }
       break;
 
-    case clang::Type::Typedef:
-      return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                    ->getDecl()
-                                    ->getUnderlyingType()
-                                    .getAsOpaquePtr())
-          .GetNumMemberFunctions();
-
-    case clang::Type::Auto:
-      return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                    ->getDeducedType()
-                                    .getAsOpaquePtr())
-          .GetNumMemberFunctions();
-
-    case clang::Type::Elaborated:
-      return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                    ->getNamedType()
-                                    .getAsOpaquePtr())
-          .GetNumMemberFunctions();
-
-    case clang::Type::Paren:
-      return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                    ->desugar()
-                                    .getAsOpaquePtr())
-          .GetNumMemberFunctions();
-
     default:
       break;
     }
@@ -4535,7 +4265,7 @@ ClangASTContext::GetMemberFunctionAtIndex(lldb::opaque_compiler_type_t type,
   CompilerType clang_type;
   CompilerDecl clang_decl;
   if (type) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     switch (qual_type->getTypeClass()) {
     case clang::Type::Record:
       if (GetCompleteQualType(getASTContext(), qual_type)) {
@@ -4633,31 +4363,6 @@ ClangASTContext::GetMemberFunctionAtIndex(lldb::opaque_compiler_type_t type,
         }
       }
       break;
-
-    case clang::Type::Typedef:
-      return GetMemberFunctionAtIndex(llvm::cast<clang::TypedefType>(qual_type)
-                                          ->getDecl()
-                                          ->getUnderlyingType()
-                                          .getAsOpaquePtr(),
-                                      idx);
-
-    case clang::Type::Auto:
-      return GetMemberFunctionAtIndex(llvm::cast<clang::AutoType>(qual_type)
-                                          ->getDeducedType()
-                                          .getAsOpaquePtr(),
-                                      idx);
-
-    case clang::Type::Elaborated:
-      return GetMemberFunctionAtIndex(
-          llvm::cast<clang::ElaboratedType>(qual_type)
-              ->getNamedType()
-              .getAsOpaquePtr(),
-          idx);
-
-    case clang::Type::Paren:
-      return GetMemberFunctionAtIndex(
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-          idx);
 
     default:
       break;
@@ -4758,6 +4463,13 @@ ClangASTContext::GetRValueReferenceType(lldb::opaque_compiler_type_t type) {
                                   .getAsOpaquePtr());
   else
     return CompilerType();
+}
+
+CompilerType ClangASTContext::GetAtomicType(lldb::opaque_compiler_type_t type) {
+  if (!type)
+    return CompilerType();
+  return CompilerType(
+      this, getASTContext()->getAtomicType(GetQualType(type)).getAsOpaquePtr());
 }
 
 CompilerType
@@ -4945,9 +4657,16 @@ lldb::Encoding ClangASTContext::GetEncoding(lldb::opaque_compiler_type_t type,
     return lldb::eEncodingInvalid;
 
   count = 1;
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
   switch (qual_type->getTypeClass()) {
+  case clang::Type::Atomic:
+  case clang::Type::Auto:
+  case clang::Type::Elaborated:
+  case clang::Type::Paren:
+  case clang::Type::Typedef:
+    llvm_unreachable("Handled in RemoveWrappingTypes!");
+
   case clang::Type::UnaryTransform:
     break;
 
@@ -5153,30 +4872,6 @@ lldb::Encoding ClangASTContext::GetEncoding(lldb::opaque_compiler_type_t type,
     break;
   case clang::Type::Enum:
     return lldb::eEncodingSint;
-  case clang::Type::Typedef:
-    return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                  ->getDecl()
-                                  ->getUnderlyingType()
-                                  .getAsOpaquePtr())
-        .GetEncoding(count);
-
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->getDeducedType()
-                                  .getAsOpaquePtr())
-        .GetEncoding(count);
-
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetEncoding(count);
-
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetEncoding(count);
   case clang::Type::TypeOfExpr:
     return CompilerType(this, llvm::cast<clang::TypeOfExprType>(qual_type)
                                   ->getUnderlyingExpr()
@@ -5208,7 +4903,6 @@ lldb::Encoding ClangASTContext::GetEncoding(lldb::opaque_compiler_type_t type,
 
   case clang::Type::TemplateSpecialization:
   case clang::Type::DeducedTemplateSpecialization:
-  case clang::Type::Atomic:
   case clang::Type::Adjusted:
   case clang::Type::Pipe:
     break;
@@ -5232,9 +4926,15 @@ lldb::Format ClangASTContext::GetFormat(lldb::opaque_compiler_type_t type) {
   if (!type)
     return lldb::eFormatDefault;
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
   switch (qual_type->getTypeClass()) {
+  case clang::Type::Atomic:
+  case clang::Type::Auto:
+  case clang::Type::Elaborated:
+  case clang::Type::Paren:
+  case clang::Type::Typedef:
+    llvm_unreachable("Handled in RemoveWrappingTypes!");
   case clang::Type::UnaryTransform:
     break;
 
@@ -5327,27 +5027,6 @@ lldb::Format ClangASTContext::GetFormat(lldb::opaque_compiler_type_t type) {
     break;
   case clang::Type::Enum:
     return lldb::eFormatEnum;
-  case clang::Type::Typedef:
-    return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                  ->getDecl()
-                                  ->getUnderlyingType()
-                                  .getAsOpaquePtr())
-        .GetFormat();
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetFormat();
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetFormat();
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetFormat();
   case clang::Type::TypeOfExpr:
     return CompilerType(this, llvm::cast<clang::TypeOfExprType>(qual_type)
                                   ->getUnderlyingExpr()
@@ -5379,7 +5058,6 @@ lldb::Format ClangASTContext::GetFormat(lldb::opaque_compiler_type_t type) {
 
   case clang::Type::TemplateSpecialization:
   case clang::Type::DeducedTemplateSpecialization:
-  case clang::Type::Atomic:
   case clang::Type::Adjusted:
   case clang::Type::Pipe:
     break;
@@ -5431,7 +5109,7 @@ uint32_t ClangASTContext::GetNumChildren(lldb::opaque_compiler_type_t type,
     return 0;
 
   uint32_t num_children = 0;
-  clang::QualType qual_type(GetQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetQualType(type)));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Builtin:
@@ -5583,36 +5261,6 @@ uint32_t ClangASTContext::GetNumChildren(lldb::opaque_compiler_type_t type,
       num_children = num_pointee_children;
   } break;
 
-  case clang::Type::Typedef:
-    num_children = CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                          ->getDecl()
-                                          ->getUnderlyingType()
-                                          .getAsOpaquePtr())
-                       .GetNumChildren(omit_empty_base_classes, exe_ctx);
-    break;
-
-  case clang::Type::Auto:
-    num_children = CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                          ->getDeducedType()
-                                          .getAsOpaquePtr())
-                       .GetNumChildren(omit_empty_base_classes, exe_ctx);
-    break;
-
-  case clang::Type::Elaborated:
-    num_children =
-        CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                               ->getNamedType()
-                               .getAsOpaquePtr())
-            .GetNumChildren(omit_empty_base_classes, exe_ctx);
-    break;
-
-  case clang::Type::Paren:
-    num_children =
-        CompilerType(
-            this,
-            llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr())
-            .GetNumChildren(omit_empty_base_classes, exe_ctx);
-    break;
   default:
     break;
   }
@@ -5728,7 +5376,7 @@ uint32_t ClangASTContext::GetNumFields(lldb::opaque_compiler_type_t type) {
     return 0;
 
   uint32_t count = 0;
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -5748,36 +5396,6 @@ uint32_t ClangASTContext::GetNumFields(lldb::opaque_compiler_type_t type) {
         }
       }
     }
-    break;
-
-  case clang::Type::Typedef:
-    count = CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                   ->getDecl()
-                                   ->getUnderlyingType()
-                                   .getAsOpaquePtr())
-                .GetNumFields();
-    break;
-
-  case clang::Type::Auto:
-    count = CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                   ->getDeducedType()
-                                   .getAsOpaquePtr())
-                .GetNumFields();
-    break;
-
-  case clang::Type::Elaborated:
-    count = CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                   ->getNamedType()
-                                   .getAsOpaquePtr())
-                .GetNumFields();
-    break;
-
-  case clang::Type::Paren:
-    count =
-        CompilerType(
-            this,
-            llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr())
-            .GetNumFields();
     break;
 
   case clang::Type::ObjCObjectPointer: {
@@ -5878,7 +5496,7 @@ CompilerType ClangASTContext::GetFieldAtIndex(lldb::opaque_compiler_type_t type,
   if (!type)
     return CompilerType();
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -5966,35 +5584,6 @@ CompilerType ClangASTContext::GetFieldAtIndex(lldb::opaque_compiler_type_t type,
     }
     break;
 
-  case clang::Type::Typedef:
-    return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                  ->getDecl()
-                                  ->getUnderlyingType()
-                                  .getAsOpaquePtr())
-        .GetFieldAtIndex(idx, name, bit_offset_ptr, bitfield_bit_size_ptr,
-                         is_bitfield_ptr);
-
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->getDeducedType()
-                                  .getAsOpaquePtr())
-        .GetFieldAtIndex(idx, name, bit_offset_ptr, bitfield_bit_size_ptr,
-                         is_bitfield_ptr);
-
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetFieldAtIndex(idx, name, bit_offset_ptr, bitfield_bit_size_ptr,
-                         is_bitfield_ptr);
-
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetFieldAtIndex(idx, name, bit_offset_ptr, bitfield_bit_size_ptr,
-                         is_bitfield_ptr);
-
   default:
     break;
   }
@@ -6004,7 +5593,7 @@ CompilerType ClangASTContext::GetFieldAtIndex(lldb::opaque_compiler_type_t type,
 uint32_t
 ClangASTContext::GetNumDirectBaseClasses(lldb::opaque_compiler_type_t type) {
   uint32_t count = 0;
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -6047,29 +5636,6 @@ ClangASTContext::GetNumDirectBaseClasses(lldb::opaque_compiler_type_t type) {
     }
     break;
 
-  case clang::Type::Typedef:
-    count = GetNumDirectBaseClasses(llvm::cast<clang::TypedefType>(qual_type)
-                                        ->getDecl()
-                                        ->getUnderlyingType()
-                                        .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Auto:
-    count = GetNumDirectBaseClasses(llvm::cast<clang::AutoType>(qual_type)
-                                        ->getDeducedType()
-                                        .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Elaborated:
-    count = GetNumDirectBaseClasses(llvm::cast<clang::ElaboratedType>(qual_type)
-                                        ->getNamedType()
-                                        .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Paren:
-    return GetNumDirectBaseClasses(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
-
   default:
     break;
   }
@@ -6079,7 +5645,7 @@ ClangASTContext::GetNumDirectBaseClasses(lldb::opaque_compiler_type_t type) {
 uint32_t
 ClangASTContext::GetNumVirtualBaseClasses(lldb::opaque_compiler_type_t type) {
   uint32_t count = 0;
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -6091,31 +5657,6 @@ ClangASTContext::GetNumVirtualBaseClasses(lldb::opaque_compiler_type_t type) {
     }
     break;
 
-  case clang::Type::Typedef:
-    count = GetNumVirtualBaseClasses(llvm::cast<clang::TypedefType>(qual_type)
-                                         ->getDecl()
-                                         ->getUnderlyingType()
-                                         .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Auto:
-    count = GetNumVirtualBaseClasses(llvm::cast<clang::AutoType>(qual_type)
-                                         ->getDeducedType()
-                                         .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Elaborated:
-    count =
-        GetNumVirtualBaseClasses(llvm::cast<clang::ElaboratedType>(qual_type)
-                                     ->getNamedType()
-                                     .getAsOpaquePtr());
-    break;
-
-  case clang::Type::Paren:
-    count = GetNumVirtualBaseClasses(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
-    break;
-
   default:
     break;
   }
@@ -6124,7 +5665,7 @@ ClangASTContext::GetNumVirtualBaseClasses(lldb::opaque_compiler_type_t type) {
 
 CompilerType ClangASTContext::GetDirectBaseClassAtIndex(
     lldb::opaque_compiler_type_t type, size_t idx, uint32_t *bit_offset_ptr) {
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -6214,31 +5755,6 @@ CompilerType ClangASTContext::GetDirectBaseClassAtIndex(
     }
     break;
 
-  case clang::Type::Typedef:
-    return GetDirectBaseClassAtIndex(llvm::cast<clang::TypedefType>(qual_type)
-                                         ->getDecl()
-                                         ->getUnderlyingType()
-                                         .getAsOpaquePtr(),
-                                     idx, bit_offset_ptr);
-
-  case clang::Type::Auto:
-    return GetDirectBaseClassAtIndex(llvm::cast<clang::AutoType>(qual_type)
-                                         ->getDeducedType()
-                                         .getAsOpaquePtr(),
-                                     idx, bit_offset_ptr);
-
-  case clang::Type::Elaborated:
-    return GetDirectBaseClassAtIndex(
-        llvm::cast<clang::ElaboratedType>(qual_type)
-            ->getNamedType()
-            .getAsOpaquePtr(),
-        idx, bit_offset_ptr);
-
-  case clang::Type::Paren:
-    return GetDirectBaseClassAtIndex(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-        idx, bit_offset_ptr);
-
   default:
     break;
   }
@@ -6247,7 +5763,7 @@ CompilerType ClangASTContext::GetDirectBaseClassAtIndex(
 
 CompilerType ClangASTContext::GetVirtualBaseClassAtIndex(
     lldb::opaque_compiler_type_t type, size_t idx, uint32_t *bit_offset_ptr) {
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -6282,31 +5798,6 @@ CompilerType ClangASTContext::GetVirtualBaseClassAtIndex(
     }
     break;
 
-  case clang::Type::Typedef:
-    return GetVirtualBaseClassAtIndex(llvm::cast<clang::TypedefType>(qual_type)
-                                          ->getDecl()
-                                          ->getUnderlyingType()
-                                          .getAsOpaquePtr(),
-                                      idx, bit_offset_ptr);
-
-  case clang::Type::Auto:
-    return GetVirtualBaseClassAtIndex(llvm::cast<clang::AutoType>(qual_type)
-                                          ->getDeducedType()
-                                          .getAsOpaquePtr(),
-                                      idx, bit_offset_ptr);
-
-  case clang::Type::Elaborated:
-    return GetVirtualBaseClassAtIndex(
-        llvm::cast<clang::ElaboratedType>(qual_type)
-            ->getNamedType()
-            .getAsOpaquePtr(),
-        idx, bit_offset_ptr);
-
-  case clang::Type::Paren:
-    return GetVirtualBaseClassAtIndex(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-        idx, bit_offset_ptr);
-
   default:
     break;
   }
@@ -6322,7 +5813,7 @@ uint32_t ClangASTContext::GetNumPointeeChildren(clang::QualType type) {
   if (type.isNull())
     return 0;
 
-  clang::QualType qual_type(type.getCanonicalType());
+  clang::QualType qual_type = RemoveWrappingTypes(type.getCanonicalType());
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Builtin:
@@ -6423,19 +5914,6 @@ uint32_t ClangASTContext::GetNumPointeeChildren(clang::QualType type) {
     return 0; // When we function pointers, they have no children...
   case clang::Type::UnresolvedUsing:
     return 0;
-  case clang::Type::Paren:
-    return GetNumPointeeChildren(
-        llvm::cast<clang::ParenType>(qual_type)->desugar());
-  case clang::Type::Typedef:
-    return GetNumPointeeChildren(llvm::cast<clang::TypedefType>(qual_type)
-                                     ->getDecl()
-                                     ->getUnderlyingType());
-  case clang::Type::Auto:
-    return GetNumPointeeChildren(
-        llvm::cast<clang::AutoType>(qual_type)->getDeducedType());
-  case clang::Type::Elaborated:
-    return GetNumPointeeChildren(
-        llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType());
   case clang::Type::TypeOfExpr:
     return GetNumPointeeChildren(llvm::cast<clang::TypeOfExprType>(qual_type)
                                      ->getUnderlyingExpr()
@@ -6489,7 +5967,8 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
     return exe_ctx ? exe_ctx->GetBestExecutionContextScope() : nullptr;
   };
 
-  clang::QualType parent_qual_type(GetCanonicalQualType(type));
+  clang::QualType parent_qual_type(
+      RemoveWrappingTypes(GetCanonicalQualType(type)));
   const clang::Type::TypeClass parent_type_class =
       parent_qual_type->getTypeClass();
   child_bitfield_bit_size = 0;
@@ -6915,55 +6394,6 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
     }
     break;
 
-  case clang::Type::Typedef: {
-    CompilerType typedefed_clang_type(
-        this, llvm::cast<clang::TypedefType>(parent_qual_type)
-                  ->getDecl()
-                  ->getUnderlyingType()
-                  .getAsOpaquePtr());
-    return typedefed_clang_type.GetChildCompilerTypeAtIndex(
-        exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, child_name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, valobj, language_flags);
-  } break;
-
-  case clang::Type::Auto: {
-    CompilerType elaborated_clang_type(
-        this, llvm::cast<clang::AutoType>(parent_qual_type)
-                  ->getDeducedType()
-                  .getAsOpaquePtr());
-    return elaborated_clang_type.GetChildCompilerTypeAtIndex(
-        exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, child_name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, valobj, language_flags);
-  }
-
-  case clang::Type::Elaborated: {
-    CompilerType elaborated_clang_type(
-        this, llvm::cast<clang::ElaboratedType>(parent_qual_type)
-                  ->getNamedType()
-                  .getAsOpaquePtr());
-    return elaborated_clang_type.GetChildCompilerTypeAtIndex(
-        exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, child_name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, valobj, language_flags);
-  }
-
-  case clang::Type::Paren: {
-    CompilerType paren_clang_type(this,
-                                  llvm::cast<clang::ParenType>(parent_qual_type)
-                                      ->desugar()
-                                      .getAsOpaquePtr());
-    return paren_clang_type.GetChildCompilerTypeAtIndex(
-        exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, child_name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, valobj, language_flags);
-  }
-
   default:
     break;
   }
@@ -7062,7 +6492,7 @@ size_t ClangASTContext::GetIndexOfChildMemberWithName(
     lldb::opaque_compiler_type_t type, const char *name,
     bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) {
   if (type && name && name[0]) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class) {
     case clang::Type::Record:
@@ -7287,35 +6717,6 @@ size_t ClangASTContext::GetIndexOfChildMemberWithName(
       }
     } break;
 
-    case clang::Type::Typedef:
-      return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                    ->getDecl()
-                                    ->getUnderlyingType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildMemberWithName(name, omit_empty_base_classes,
-                                         child_indexes);
-
-    case clang::Type::Auto:
-      return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                    ->getDeducedType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildMemberWithName(name, omit_empty_base_classes,
-                                         child_indexes);
-
-    case clang::Type::Elaborated:
-      return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                    ->getNamedType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildMemberWithName(name, omit_empty_base_classes,
-                                         child_indexes);
-
-    case clang::Type::Paren:
-      return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                    ->desugar()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildMemberWithName(name, omit_empty_base_classes,
-                                         child_indexes);
-
     default:
       break;
     }
@@ -7332,7 +6733,7 @@ ClangASTContext::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
                                          const char *name,
                                          bool omit_empty_base_classes) {
   if (type && name && name[0]) {
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
 
@@ -7519,31 +6920,6 @@ ClangASTContext::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
       }
     } break;
 
-    case clang::Type::Auto:
-      return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                    ->getDeducedType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildWithName(name, omit_empty_base_classes);
-
-    case clang::Type::Elaborated:
-      return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                    ->getNamedType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildWithName(name, omit_empty_base_classes);
-
-    case clang::Type::Paren:
-      return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                    ->desugar()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildWithName(name, omit_empty_base_classes);
-
-    case clang::Type::Typedef:
-      return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                    ->getDecl()
-                                    ->getUnderlyingType()
-                                    .getAsOpaquePtr())
-          .GetIndexOfChildWithName(name, omit_empty_base_classes);
-
     default:
       break;
     }
@@ -7556,7 +6932,7 @@ ClangASTContext::GetNumTemplateArguments(lldb::opaque_compiler_type_t type) {
   if (!type)
     return 0;
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record:
@@ -7573,31 +6949,6 @@ ClangASTContext::GetNumTemplateArguments(lldb::opaque_compiler_type_t type) {
     }
     break;
 
-  case clang::Type::Typedef:
-    return CompilerType(this, llvm::cast<clang::TypedefType>(qual_type)
-                                  ->getDecl()
-                                  ->getUnderlyingType()
-                                  .getAsOpaquePtr())
-        .GetNumTemplateArguments();
-
-  case clang::Type::Auto:
-    return CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                                  ->getDeducedType()
-                                  .getAsOpaquePtr())
-        .GetNumTemplateArguments();
-
-  case clang::Type::Elaborated:
-    return CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                                  ->getNamedType()
-                                  .getAsOpaquePtr())
-        .GetNumTemplateArguments();
-
-  case clang::Type::Paren:
-    return CompilerType(this, llvm::cast<clang::ParenType>(qual_type)
-                                  ->desugar()
-                                  .getAsOpaquePtr())
-        .GetNumTemplateArguments();
-
   default:
     break;
   }
@@ -7611,7 +6962,7 @@ ClangASTContext::GetAsTemplateSpecialization(
   if (!type)
     return nullptr;
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
   case clang::Type::Record: {
@@ -7624,27 +6975,6 @@ ClangASTContext::GetAsTemplateSpecialization(
     return llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(
         cxx_record_decl);
   }
-
-  case clang::Type::Typedef:
-    return GetAsTemplateSpecialization(llvm::cast<clang::TypedefType>(qual_type)
-                                           ->getDecl()
-                                           ->getUnderlyingType()
-                                           .getAsOpaquePtr());
-
-  case clang::Type::Auto:
-    return GetAsTemplateSpecialization(llvm::cast<clang::AutoType>(qual_type)
-                                           ->getDeducedType()
-                                           .getAsOpaquePtr());
-
-  case clang::Type::Elaborated:
-    return GetAsTemplateSpecialization(
-        llvm::cast<clang::ElaboratedType>(qual_type)
-            ->getNamedType()
-            .getAsOpaquePtr());
-
-  case clang::Type::Paren:
-    return GetAsTemplateSpecialization(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
 
   default:
     return nullptr;
@@ -8329,7 +7659,7 @@ bool ClangASTContext::AddObjCClassProperty(
     return false;
 
   if (metadata)
-    ClangASTContext::SetMetadata(clang_ast, property_decl, *metadata);
+    ast->SetMetadata(property_decl, *metadata);
 
   class_interface_decl->addDecl(property_decl);
 
@@ -8412,7 +7742,7 @@ bool ClangASTContext::AddObjCClassProperty(
 
     if (getter) {
       if (metadata)
-        ClangASTContext::SetMetadata(clang_ast, getter, *metadata);
+        ast->SetMetadata(getter, *metadata);
 
       getter->setMethodParams(*clang_ast,
                               llvm::ArrayRef<clang::ParmVarDecl *>(),
@@ -8447,7 +7777,7 @@ bool ClangASTContext::AddObjCClassProperty(
 
     if (setter) {
       if (metadata)
-        ClangASTContext::SetMetadata(clang_ast, setter, *metadata);
+        ast->SetMetadata(setter, *metadata);
 
       llvm::SmallVector<clang::ParmVarDecl *, 1> params;
       params.push_back(clang::ParmVarDecl::Create(
@@ -8605,7 +7935,7 @@ bool ClangASTContext::SetHasExternalStorage(lldb::opaque_compiler_type_t type,
   if (!type)
     return false;
 
-  clang::QualType qual_type(GetCanonicalQualType(type));
+  clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
 
   const clang::Type::TypeClass type_class = qual_type->getTypeClass();
   switch (type_class) {
@@ -8644,30 +7974,6 @@ bool ClangASTContext::SetHasExternalStorage(lldb::opaque_compiler_type_t type,
       }
     }
   } break;
-
-  case clang::Type::Typedef:
-    return SetHasExternalStorage(llvm::cast<clang::TypedefType>(qual_type)
-                                     ->getDecl()
-                                     ->getUnderlyingType()
-                                     .getAsOpaquePtr(),
-                                 has_extern);
-
-  case clang::Type::Auto:
-    return SetHasExternalStorage(llvm::cast<clang::AutoType>(qual_type)
-                                     ->getDeducedType()
-                                     .getAsOpaquePtr(),
-                                 has_extern);
-
-  case clang::Type::Elaborated:
-    return SetHasExternalStorage(llvm::cast<clang::ElaboratedType>(qual_type)
-                                     ->getNamedType()
-                                     .getAsOpaquePtr(),
-                                 has_extern);
-
-  case clang::Type::Paren:
-    return SetHasExternalStorage(
-        llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(),
-        has_extern);
 
   default:
     break;
@@ -8924,7 +8230,7 @@ void ClangASTContext::DumpFromSymbolFile(Stream &s,
 
 void ClangASTContext::DumpValue(
     lldb::opaque_compiler_type_t type, ExecutionContext *exe_ctx, Stream *s,
-    lldb::Format format, const DataExtractor &data,
+    lldb::Format format, const lldb_private::DataExtractor &data,
     lldb::offset_t data_byte_offset, size_t data_byte_size,
     uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset, bool show_types,
     bool show_summary, bool verbose, uint32_t depth) {
@@ -9381,8 +8687,8 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
 
 bool ClangASTContext::DumpTypeValue(
     lldb::opaque_compiler_type_t type, Stream *s, lldb::Format format,
-    const DataExtractor &data, lldb::offset_t byte_offset, size_t byte_size,
-    uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
+    const lldb_private::DataExtractor &data, lldb::offset_t byte_offset,
+    size_t byte_size, uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
     ExecutionContextScope *exe_scope) {
   if (!type)
     return false;
@@ -9560,7 +8866,8 @@ void ClangASTContext::DumpTypeDescription(lldb::opaque_compiler_type_t type) {
 void ClangASTContext::DumpTypeDescription(lldb::opaque_compiler_type_t type,
                                           Stream *s) {
   if (type) {
-    clang::QualType qual_type(GetQualType(type));
+    clang::QualType qual_type =
+        RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef});
 
     llvm::SmallVector<char, 1024> buf;
     llvm::raw_svector_ostream llvm_ostrm(buf);
@@ -9597,27 +8904,6 @@ void ClangASTContext::DumpTypeDescription(lldb::opaque_compiler_type_t type,
         }
       }
     } break;
-
-    case clang::Type::Auto:
-      CompilerType(this, llvm::cast<clang::AutoType>(qual_type)
-                             ->getDeducedType()
-                             .getAsOpaquePtr())
-          .DumpTypeDescription(s);
-      return;
-
-    case clang::Type::Elaborated:
-      CompilerType(this, llvm::cast<clang::ElaboratedType>(qual_type)
-                             ->getNamedType()
-                             .getAsOpaquePtr())
-          .DumpTypeDescription(s);
-      return;
-
-    case clang::Type::Paren:
-      CompilerType(
-          this,
-          llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr())
-          .DumpTypeDescription(s);
-      return;
 
     case clang::Type::Record: {
       GetCompleteType(type);

@@ -84,10 +84,10 @@ int PPCTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty) {
   return 4 * TTI::TCC_Basic;
 }
 
-int PPCTTIImpl::getIntImmCost(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                              Type *Ty) {
+int PPCTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                    const APInt &Imm, Type *Ty) {
   if (DisablePPCConstHoist)
-    return BaseT::getIntImmCost(IID, Idx, Imm, Ty);
+    return BaseT::getIntImmCostIntrin(IID, Idx, Imm, Ty);
 
   assert(Ty->isIntegerTy());
 
@@ -118,10 +118,10 @@ int PPCTTIImpl::getIntImmCost(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
   return PPCTTIImpl::getIntImmCost(Imm, Ty);
 }
 
-int PPCTTIImpl::getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                              Type *Ty) {
+int PPCTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                  const APInt &Imm, Type *Ty) {
   if (DisablePPCConstHoist)
-    return BaseT::getIntImmCost(Opcode, Idx, Imm, Ty);
+    return BaseT::getIntImmCostInst(Opcode, Idx, Imm, Ty);
 
   assert(Ty->isIntegerTy());
 
@@ -722,10 +722,13 @@ int PPCTTIImpl::vectorCostAdjustment(int Cost, unsigned Opcode, Type *Ty1,
   return Cost * 2;
 }
 
-int PPCTTIImpl::getArithmeticInstrCost(
-    unsigned Opcode, Type *Ty, TTI::OperandValueKind Op1Info,
-    TTI::OperandValueKind Op2Info, TTI::OperandValueProperties Opd1PropInfo,
-    TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args) {
+int PPCTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
+                                       TTI::OperandValueKind Op1Info,
+                                       TTI::OperandValueKind Op2Info,
+                                       TTI::OperandValueProperties Opd1PropInfo,
+                                       TTI::OperandValueProperties Opd2PropInfo,
+                                       ArrayRef<const Value *> Args,
+                                       const Instruction *CxtI) {
   assert(TLI->InstructionOpcodeToISD(Opcode) && "Invalid opcode");
 
   // Fallback to the default implementation.

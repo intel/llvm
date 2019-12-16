@@ -18,6 +18,8 @@
 #define DEVICE __device__
 #define INLINE __forceinline__ DEVICE
 #define NOINLINE __noinline__ DEVICE
+#define SHARED __shared__
+#define ALIGN(N) __align__(N)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel options
@@ -160,5 +162,15 @@ INLINE void __kmpc_impl_named_sync(int barrier, uint32_t num_threads) {
                : "r"(barrier), "r"(num_threads)
                : "memory");
 }
+
+INLINE void __kmpc_impl_threadfence(void) { __threadfence(); }
+INLINE void __kmpc_impl_threadfence_block(void) { __threadfence_block(); }
+INLINE void __kmpc_impl_threadfence_system(void) { __threadfence_system(); }
+
+// Calls to the NVPTX layer (assuming 1D layout)
+INLINE int GetThreadIdInBlock() { return threadIdx.x; }
+INLINE int GetBlockIdInKernel() { return blockIdx.x; }
+INLINE int GetNumberOfBlocksInKernel() { return gridDim.x; }
+INLINE int GetNumberOfThreadsInBlock() { return blockDim.x; }
 
 #endif

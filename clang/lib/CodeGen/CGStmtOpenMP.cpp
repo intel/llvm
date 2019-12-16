@@ -16,12 +16,14 @@
 #include "CodeGenModule.h"
 #include "TargetInfo.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/DeclOpenMP.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtOpenMP.h"
-#include "clang/AST/DeclOpenMP.h"
 #include "clang/Basic/PrettyStackTrace.h"
 using namespace clang;
 using namespace CodeGen;
+using namespace llvm::omp;
 
 namespace {
 /// Lexical scope for OpenMP executable constructs, that handles correct codegen
@@ -2897,13 +2899,17 @@ void CodeGenFunction::EmitOMPSingleDirective(const OMPSingleDirective &S) {
   }
 }
 
-void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
+static void emitMaster(CodeGenFunction &CGF, const OMPExecutableDirective &S) {
   auto &&CodeGen = [&S](CodeGenFunction &CGF, PrePostActionTy &Action) {
     Action.Enter(CGF);
     CGF.EmitStmt(S.getInnermostCapturedStmt()->getCapturedStmt());
   };
+  CGF.CGM.getOpenMPRuntime().emitMasterRegion(CGF, CodeGen, S.getBeginLoc());
+}
+
+void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
   OMPLexicalScope Scope(*this, S, OMPD_unknown);
-  CGM.getOpenMPRuntime().emitMasterRegion(*this, CodeGen, S.getBeginLoc());
+  emitMaster(*this, S);
 }
 
 void CodeGenFunction::EmitOMPCriticalDirective(const OMPCriticalDirective &S) {
@@ -2945,6 +2951,35 @@ void CodeGenFunction::EmitOMPParallelForSimdDirective(
   };
   emitCommonOMPParallelDirective(*this, S, OMPD_simd, CodeGen,
                                  emitEmptyBoundParameters);
+}
+
+void CodeGenFunction::EmitOMPParallelMasterDirective(
+    const OMPParallelMasterDirective &S) {
+  // Emit directive as a combined directive that consists of two implicit
+  // directives: 'parallel' with 'master' directive.
+  auto &&CodeGen = [&S](CodeGenFunction &CGF, PrePostActionTy &Action) {
+    Action.Enter(CGF);
+    OMPPrivateScope PrivateScope(CGF);
+    bool Copyins = CGF.EmitOMPCopyinClause(S);
+    (void)CGF.EmitOMPFirstprivateClause(S, PrivateScope);
+    if (Copyins) {
+      // Emit implicit barrier to synchronize threads and avoid data races on
+      // propagation master's thread values of threadprivate variables to local
+      // instances of that variables of all other implicit threads.
+      CGF.CGM.getOpenMPRuntime().emitBarrierCall(
+          CGF, S.getBeginLoc(), OMPD_unknown, /*EmitChecks=*/false,
+          /*ForceSimpleCall=*/true);
+    }
+    CGF.EmitOMPPrivateClause(S, PrivateScope);
+    CGF.EmitOMPReductionClauseInit(S, PrivateScope);
+    (void)PrivateScope.Privatize();
+    emitMaster(CGF, S);
+    CGF.EmitOMPReductionClauseFinal(S, /*ReductionKind=*/OMPD_parallel);
+  };
+  emitCommonOMPParallelDirective(*this, S, OMPD_master, CodeGen,
+                                 emitEmptyBoundParameters);
+  emitPostUpdateForReductionClause(*this, S,
+                                   [](CodeGenFunction &) { return nullptr; });
 }
 
 void CodeGenFunction::EmitOMPParallelSectionsDirective(
@@ -3572,8 +3607,6 @@ void CodeGenFunction::EmitOMPDistributeLoop(const OMPLoopDirective &S,
       if (RT.isStaticNonchunked(ScheduleKind,
                                 /* Chunked */ Chunk != nullptr) ||
           StaticChunked) {
-        if (isOpenMPSimdDirective(S.getDirectiveKind()))
-          EmitOMPSimdInit(S, /*IsMonotonic=*/true);
         CGOpenMPRuntime::StaticRTInput StaticInit(
             IVSize, IVSigned, /* Ordered = */ false, IL.getAddress(*this),
             LB.getAddress(*this), UB.getAddress(*this), ST.getAddress(*this),
@@ -3623,18 +3656,28 @@ void CodeGenFunction::EmitOMPDistributeLoop(const OMPLoopDirective &S,
         //   IV = LB;
         // }
         //
-        EmitOMPInnerLoop(S, LoopScope.requiresCleanups(), Cond, IncExpr,
-                         [&S, LoopExit, &CodeGenLoop](CodeGenFunction &CGF) {
-                           CodeGenLoop(CGF, S, LoopExit);
-                         },
-                         [&S, StaticChunked](CodeGenFunction &CGF) {
-                           if (StaticChunked) {
-                             CGF.EmitIgnoredExpr(S.getCombinedNextLowerBound());
-                             CGF.EmitIgnoredExpr(S.getCombinedNextUpperBound());
-                             CGF.EmitIgnoredExpr(S.getCombinedEnsureUpperBound());
-                             CGF.EmitIgnoredExpr(S.getCombinedInit());
-                           }
-                         });
+        emitCommonSimdLoop(
+            *this, S,
+            [&S](CodeGenFunction &CGF, PrePostActionTy &) {
+              if (isOpenMPSimdDirective(S.getDirectiveKind()))
+                CGF.EmitOMPSimdInit(S, /*IsMonotonic=*/true);
+            },
+            [&S, &LoopScope, Cond, IncExpr, LoopExit, &CodeGenLoop,
+             StaticChunked](CodeGenFunction &CGF, PrePostActionTy &) {
+              CGF.EmitOMPInnerLoop(
+                  S, LoopScope.requiresCleanups(), Cond, IncExpr,
+                  [&S, LoopExit, &CodeGenLoop](CodeGenFunction &CGF) {
+                    CodeGenLoop(CGF, S, LoopExit);
+                  },
+                  [&S, StaticChunked](CodeGenFunction &CGF) {
+                    if (StaticChunked) {
+                      CGF.EmitIgnoredExpr(S.getCombinedNextLowerBound());
+                      CGF.EmitIgnoredExpr(S.getCombinedNextUpperBound());
+                      CGF.EmitIgnoredExpr(S.getCombinedEnsureUpperBound());
+                      CGF.EmitIgnoredExpr(S.getCombinedInit());
+                    }
+                  });
+            });
         EmitBlock(LoopExit.getBlock());
         // Tell the runtime we are done.
         RT.emitForStaticFinish(*this, S.getBeginLoc(), S.getDirectiveKind());
@@ -4578,7 +4621,8 @@ void CodeGenFunction::EmitOMPTeamsDistributeParallelForSimdDirective(
         CGF, OMPD_distribute, CodeGenDistribute, /*HasCancel=*/false);
     CGF.EmitOMPReductionClauseFinal(S, /*ReductionKind=*/OMPD_teams);
   };
-  emitCommonOMPTeamsDirective(*this, S, OMPD_distribute_parallel_for, CodeGen);
+  emitCommonOMPTeamsDirective(*this, S, OMPD_distribute_parallel_for_simd,
+                              CodeGen);
   emitPostUpdateForReductionClause(*this, S,
                                    [](CodeGenFunction &) { return nullptr; });
 }

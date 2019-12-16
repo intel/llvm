@@ -683,6 +683,7 @@ class BackendCompileJobAction : public JobAction {
   void anchor() override;
 
 public:
+  BackendCompileJobAction(ActionList &Inputs, types::ID OutputType);
   BackendCompileJobAction(Action *Input, types::ID OutputType);
 
   static bool classof(const Action *A) {

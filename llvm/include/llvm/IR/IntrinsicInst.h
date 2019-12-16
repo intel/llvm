@@ -221,6 +221,25 @@ namespace llvm {
     }
   };
 
+  /// Constrained floating point compare intrinsics.
+  class ConstrainedFPCmpIntrinsic : public ConstrainedFPIntrinsic {
+  public:
+    FCmpInst::Predicate getPredicate() const;
+
+    // Methods for support type inquiry through isa, cast, and dyn_cast:
+    static bool classof(const IntrinsicInst *I) {
+      switch (I->getIntrinsicID()) {
+      case Intrinsic::experimental_constrained_fcmp:
+      case Intrinsic::experimental_constrained_fcmps:
+        return true;
+      default: return false;
+      }
+    }
+    static bool classof(const Value *V) {
+      return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+    }
+  };
+
   /// This class represents an intrinsic that is based on a binary operation.
   /// This includes op.with.overflow and saturating add/sub intrinsics.
   class BinaryOpIntrinsic : public IntrinsicInst {
@@ -338,11 +357,21 @@ namespace llvm {
       setArgOperand(ARG_DEST, Ptr);
     }
 
+    /// FIXME: Remove this function once transition to Align is over.
+    /// Use the version that takes MaybeAlign instead of this one.
     void setDestAlignment(unsigned Alignment) {
+      setDestAlignment(MaybeAlign(Alignment));
+    }
+    void setDestAlignment(MaybeAlign Alignment) {
       removeParamAttr(ARG_DEST, Attribute::Alignment);
-      if (Alignment > 0)
-        addParamAttr(ARG_DEST, Attribute::getWithAlignment(getContext(),
-                                                           Align(Alignment)));
+      if (Alignment)
+        addParamAttr(ARG_DEST,
+                     Attribute::getWithAlignment(getContext(), *Alignment));
+    }
+    void setDestAlignment(Align Alignment) {
+      removeParamAttr(ARG_DEST, Attribute::Alignment);
+      addParamAttr(ARG_DEST,
+                   Attribute::getWithAlignment(getContext(), Alignment));
     }
 
     void setLength(Value *L) {
@@ -387,12 +416,21 @@ namespace llvm {
       BaseCL::setArgOperand(ARG_SOURCE, Ptr);
     }
 
+    /// FIXME: Remove this function once transition to Align is over.
+    /// Use the version that takes MaybeAlign instead of this one.
     void setSourceAlignment(unsigned Alignment) {
+      setSourceAlignment(MaybeAlign(Alignment));
+    }
+    void setSourceAlignment(MaybeAlign Alignment) {
       BaseCL::removeParamAttr(ARG_SOURCE, Attribute::Alignment);
-      if (Alignment > 0)
-        BaseCL::addParamAttr(ARG_SOURCE,
-                             Attribute::getWithAlignment(BaseCL::getContext(),
-                                                         Align(Alignment)));
+      if (Alignment)
+        BaseCL::addParamAttr(ARG_SOURCE, Attribute::getWithAlignment(
+                                             BaseCL::getContext(), *Alignment));
+    }
+    void setSourceAlignment(Align Alignment) {
+      BaseCL::removeParamAttr(ARG_SOURCE, Attribute::Alignment);
+      BaseCL::addParamAttr(ARG_SOURCE, Attribute::getWithAlignment(
+                                           BaseCL::getContext(), Alignment));
     }
   };
 

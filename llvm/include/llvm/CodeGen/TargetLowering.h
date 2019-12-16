@@ -951,6 +951,8 @@ public:
       default: llvm_unreachable("Unexpected FP pseudo-opcode");
 #define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
       case ISD::STRICT_##DAGN: EqOpc = ISD::DAGN; break;
+#define CMP_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
+      case ISD::STRICT_##DAGN: EqOpc = ISD::SETCC; break;
 #include "llvm/IR/ConstrainedOps.def"
     }
 
@@ -1252,7 +1254,7 @@ public:
         Elm = PointerTy.getTypeForEVT(Ty->getContext());
       }
       return EVT::getVectorVT(Ty->getContext(), EVT::getEVT(Elm, false),
-                       VTy->getNumElements());
+                              VTy->getElementCount());
     }
 
     return getValueType(DL, Ty, AllowUnknown);

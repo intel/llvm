@@ -10,18 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CGOpenMPRuntime.h"
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
-#include "CGOpenMPRuntime.h"
 #include "CGRecordLayout.h"
 #include "CodeGenFunction.h"
-#include "clang/CodeGen/ConstantInitBuilder.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/Basic/BitmaskEnum.h"
+#include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Value.h"
@@ -31,6 +33,7 @@
 
 using namespace clang;
 using namespace CodeGen;
+using namespace llvm::omp;
 
 namespace {
 /// Base class for handling code generation inside OpenMP regions.
@@ -1277,7 +1280,7 @@ bool CGOpenMPRuntime::tryEmitDeclareVariant(const GlobalDecl &NewGD,
   llvm::GlobalValue *Addr = CGM.GetGlobalValue(NewMangledName);
   if (Addr && !Addr->isDeclaration()) {
     const auto *D = cast<FunctionDecl>(OldGD.getDecl());
-    const CGFunctionInfo &FI = CGM.getTypes().arrangeGlobalDeclaration(OldGD);
+    const CGFunctionInfo &FI = CGM.getTypes().arrangeGlobalDeclaration(NewGD);
     llvm::Type *DeclTy = CGM.getTypes().GetFunctionType(FI);
 
     // Create a reference to the named value.  This ensures that it is emitted
@@ -3479,6 +3482,29 @@ void CGOpenMPRuntime::getDefaultScheduleAndChunk(
 void CGOpenMPRuntime::emitBarrierCall(CodeGenFunction &CGF, SourceLocation Loc,
                                       OpenMPDirectiveKind Kind, bool EmitChecks,
                                       bool ForceSimpleCall) {
+  // Check if we should use the OMPBuilder
+  auto *OMPRegionInfo =
+      dyn_cast_or_null<CGOpenMPRegionInfo>(CGF.CapturedStmtInfo);
+  llvm::OpenMPIRBuilder *OMPBuilder = CGF.CGM.getOpenMPIRBuilder();
+  if (OMPBuilder) {
+    // TODO: Move cancelation point handling into the IRBuilder.
+    if (EmitChecks && !ForceSimpleCall && OMPRegionInfo &&
+        OMPRegionInfo->hasCancel() && CGF.Builder.GetInsertBlock()) {
+      CGBuilderTy::InsertPointGuard IPG(CGF.Builder);
+      llvm::BasicBlock *ExitBB = CGF.createBasicBlock(
+          ".cancel.exit", CGF.Builder.GetInsertBlock()->getParent());
+      OMPBuilder->setCancellationBlock(ExitBB);
+      CGF.Builder.SetInsertPoint(ExitBB);
+      CodeGenFunction::JumpDest CancelDestination =
+          CGF.getOMPCancelDestination(OMPRegionInfo->getDirectiveKind());
+      CGF.EmitBranchThroughCleanup(CancelDestination);
+    }
+    auto IP = OMPBuilder->CreateBarrier(CGF.Builder, Kind, ForceSimpleCall,
+                                        EmitChecks);
+    CGF.Builder.restoreIP(IP);
+    return;
+  }
+
   if (!CGF.HaveInsertPoint())
     return;
   // Build call __kmpc_cancel_barrier(loc, thread_id);
@@ -3488,8 +3514,7 @@ void CGOpenMPRuntime::emitBarrierCall(CodeGenFunction &CGF, SourceLocation Loc,
   // thread_id);
   llvm::Value *Args[] = {emitUpdateLocation(CGF, Loc, Flags),
                          getThreadID(CGF, Loc)};
-  if (auto *OMPRegionInfo =
-          dyn_cast_or_null<CGOpenMPRegionInfo>(CGF.CapturedStmtInfo)) {
+  if (OMPRegionInfo) {
     if (!ForceSimpleCall && OMPRegionInfo->hasCancel()) {
       llvm::Value *Result = CGF.EmitRuntimeCall(
           createRuntimeFunction(OMPRTL__kmpc_cancel_barrier), Args);
@@ -6189,7 +6214,7 @@ static llvm::Value *emitReduceFiniFunction(CodeGenModule &CGM,
   // Emit the finalizer body:
   // <destroy>(<type>* %0)
   RCG.emitCleanups(CGF, N, PrivateAddr);
-  CGF.FinishFunction();
+  CGF.FinishFunction(Loc);
   return Fn;
 }
 
@@ -6674,6 +6699,7 @@ emitNumTeamsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_parallel:
   case OMPD_for:
   case OMPD_parallel_for:
+  case OMPD_parallel_master:
   case OMPD_parallel_sections:
   case OMPD_for_simd:
   case OMPD_parallel_for_simd:
@@ -6984,6 +7010,7 @@ emitNumThreadsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_parallel:
   case OMPD_for:
   case OMPD_parallel_for:
+  case OMPD_parallel_master:
   case OMPD_parallel_sections:
   case OMPD_for_simd:
   case OMPD_parallel_for_simd:
@@ -8762,6 +8789,7 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_parallel:
     case OMPD_for:
     case OMPD_parallel_for:
+    case OMPD_parallel_master:
     case OMPD_parallel_sections:
     case OMPD_for_simd:
     case OMPD_parallel_for_simd:
@@ -9523,6 +9551,7 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_parallel:
     case OMPD_for:
     case OMPD_parallel_for:
+    case OMPD_parallel_master:
     case OMPD_parallel_sections:
     case OMPD_for_simd:
     case OMPD_parallel_for_simd:
@@ -10145,6 +10174,7 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_parallel:
     case OMPD_for:
     case OMPD_parallel_for:
+    case OMPD_parallel_master:
     case OMPD_parallel_sections:
     case OMPD_for_simd:
     case OMPD_parallel_for_simd:

@@ -164,36 +164,6 @@ template <> inline void SPIRVMap<OCLExtOpKind, std::string>::init() {
   add(OpenCLLIB::Fast_distance, "fast_distance");
   add(OpenCLLIB::Fast_length, "fast_length");
   add(OpenCLLIB::Fast_normalize, "fast_normalize");
-  add(OpenCLLIB::Read_imagef, "read_imagef");
-  add(OpenCLLIB::Read_imagei, "read_imagei");
-  add(OpenCLLIB::Read_imageui, "read_imageui");
-  add(OpenCLLIB::Read_imageh, "read_imageh");
-  add(OpenCLLIB::Read_imagef_samplerless, "read_imagef_samplerless");
-  add(OpenCLLIB::Read_imagei_samplerless, "read_imagei_samplerless");
-  add(OpenCLLIB::Read_imageui_samplerless, "read_imageui_samplerless");
-  add(OpenCLLIB::Read_imageh_samplerless, "read_imageh_samplerless");
-  add(OpenCLLIB::Write_imagef, "write_imagef");
-  add(OpenCLLIB::Write_imagei, "write_imagei");
-  add(OpenCLLIB::Write_imageui, "write_imageui");
-  add(OpenCLLIB::Write_imageh, "write_imageh");
-  add(OpenCLLIB::Read_imagef_mipmap_lod, "read_imagef_mipmap_lod");
-  add(OpenCLLIB::Read_imagei_mipmap_lod, "read_imagei_mipmap_lod");
-  add(OpenCLLIB::Read_imageui_mipmap_lod, "read_imageui_mipmap_lod");
-  add(OpenCLLIB::Read_imagef_mipmap_grad, "read_imagef_mipmap_gradient");
-  add(OpenCLLIB::Read_imagei_mipmap_grad, "read_imagei_mipmap_gradient");
-  add(OpenCLLIB::Read_imageui_mipmap_grad, "read_imageui_mipmap_gradient");
-  add(OpenCLLIB::Write_imagef_mipmap_lod, "write_imagef_mipmap_lod");
-  add(OpenCLLIB::Write_imagei_mipmap_lod, "write_imagei_mipmap_lod");
-  add(OpenCLLIB::Write_imageui_mipmap_lod, "write_imageui_mipmap_lod");
-  add(OpenCLLIB::Get_image_width, "get_image_width");
-  add(OpenCLLIB::Get_image_height, "get_image_height");
-  add(OpenCLLIB::Get_image_depth, "get_image_depth");
-  add(OpenCLLIB::Get_image_channel_data_type, "get_image_channel_data_type");
-  add(OpenCLLIB::Get_image_channel_order, "get_image_channel_order");
-  add(OpenCLLIB::Get_image_dim, "get_image_dim");
-  add(OpenCLLIB::Get_image_array_size, "get_image_array_size");
-  add(OpenCLLIB::Get_image_num_samples, "get_image_num_samples");
-  add(OpenCLLIB::Get_image_num_mip_levels, "get_image_num_mip_levels");
   add(OpenCLLIB::SAbs, "s_abs");
   add(OpenCLLIB::SAbs_diff, "s_abs_diff");
   add(OpenCLLIB::SAdd_sat, "s_add_sat");
@@ -287,20 +257,6 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::Operation, "DebugOperation");
 }
 SPIRV_DEF_NAMEMAP(SPIRVDebugExtOpKind, SPIRVDebugExtOpMap)
-
-inline bool isReadImage(SPIRVWord EntryPoint) {
-  return EntryPoint >= OpenCLLIB::Read_imagef &&
-         EntryPoint <= OpenCLLIB::Read_imageui;
-}
-
-inline bool isWriteImage(SPIRVWord EntryPoint) {
-  return EntryPoint >= OpenCLLIB::Write_imagef &&
-         EntryPoint <= OpenCLLIB::Write_imageui;
-}
-
-inline bool isReadOrWriteImage(SPIRVWord EntryPoint) {
-  return isReadImage(EntryPoint) || isWriteImage(EntryPoint);
-}
 
 } // namespace SPIRV
 

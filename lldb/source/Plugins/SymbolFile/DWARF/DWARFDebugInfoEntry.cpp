@@ -156,6 +156,7 @@ bool DWARFDebugInfoEntry::Extract(const DWARFDataExtractor &data,
 
           // signed or unsigned LEB 128 values
           case DW_FORM_addrx:
+          case DW_FORM_loclistx:
           case DW_FORM_rnglistx:
           case DW_FORM_sdata:
           case DW_FORM_udata:
@@ -350,8 +351,8 @@ bool DWARFDebugInfoEntry::GetDIENamesAndRanges(
                 *frame_base = DWARFExpression(module, data, cu);
                 if (lo_pc != LLDB_INVALID_ADDRESS) {
                   assert(lo_pc >= cu->GetBaseAddress());
-                  frame_base->SetLocationListSlide(lo_pc -
-                                                   cu->GetBaseAddress());
+                  frame_base->SetLocationListAddresses(cu->GetBaseAddress(),
+                                                       lo_pc);
                 } else {
                   set_frame_base_loclist_addr = true;
                 }
@@ -379,7 +380,7 @@ bool DWARFDebugInfoEntry::GetDIENamesAndRanges(
   if (set_frame_base_loclist_addr) {
     dw_addr_t lowest_range_pc = ranges.GetMinRangeBase(0);
     assert(lowest_range_pc >= cu->GetBaseAddress());
-    frame_base->SetLocationListSlide(lowest_range_pc - cu->GetBaseAddress());
+    frame_base->SetLocationListAddresses(cu->GetBaseAddress(), lowest_range_pc);
   }
 
   if (ranges.IsEmpty() || name == nullptr || mangled == nullptr) {
