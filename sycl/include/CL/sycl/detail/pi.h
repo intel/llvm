@@ -32,6 +32,7 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
+#include <CL/cl_usm_ext.h>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -929,6 +930,125 @@ pi_result piEnqueueMemUnmap(
   const pi_event * event_wait_list,
   pi_event *       event);
 
+///
+// USM
+///
+typedef enum {
+  PI_MEM_ALLOC_TYPE        = CL_MEM_ALLOC_TYPE_INTEL,
+  PI_MEM_ALLOC_BASE_PTR    = CL_MEM_ALLOC_BASE_PTR_INTEL,
+  PI_MEM_ALLOC_SIZE        = CL_MEM_ALLOC_SIZE_INTEL,
+  PI_MEM_ALLOC_INFO_DEVICE = CL_MEM_ALLOC_INFO_DEVICE_INTEL,
+  PI_MEM_ALLOC_INFO_TBD0   = CL_MEM_ALLOC_INFO_TBD0_INTEL,
+  PI_MEM_ALLOC_INFO_TBD1   = CL_MEM_ALLOC_INFO_TBD1_INTEL,
+} _pi_mem_info;
+
+typedef enum {
+  PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
+  PI_MEM_TYPE_HOST    = CL_MEM_TYPE_HOST_INTEL,
+  PI_MEM_TYPE_DEVICE  = CL_MEM_TYPE_DEVICE_INTEL,
+  PI_MEM_TYPE_SHARED  = CL_MEM_TYPE_SHARED_INTEL
+} _pi_usm_type;
+
+typedef enum : pi_bitfield  {
+  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
+} _pi_usm_mem_properties;
+
+typedef enum : pi_bitfield {
+  PI_USM_MIGRATION_TBD0 = (1 << 0)
+} _pi_usm_migration_flags;
+
+typedef enum {
+  PI_INDIRECT_HOST_ACCESS   = CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+  PI_INDIRECT_DEVICE_ACCESS = CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+  PI_INDIRECT_SHARED_ACCESS = CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+  PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
+} _pi_usm_kernel_exec_info;
+
+typedef _pi_mem_info             pi_mem_info;
+typedef _pi_usm_type             pi_usm_type;
+typedef _pi_usm_mem_properties   pi_usm_mem_properties;
+typedef _pi_usm_kernel_exec_info pi_usm_kernel_exec_info;
+typedef _pi_usm_migration_flags  pi_usm_migration_flags;
+
+pi_result piHostMemAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+pi_result piDeviceMemAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_device               device,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+pi_result piSharedMemAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_device               device,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+pi_result piMemFree(
+  pi_context context,
+  void *     ptr);
+
+pi_result piKernelSetArgMemPointer(
+  pi_kernel    kernel,
+  pi_uint32    arg_index,
+  size_t       arg_size,
+  const void * arg_value);
+
+pi_result piKernelSetIndirectAccess(
+  pi_kernel kernel,
+  pi_queue queue);
+
+pi_result piEnqueueMemset(
+  pi_queue         queue,
+  void *           ptr,
+  pi_int32         value,
+  size_t           count,
+  pi_uint32        num_events_in_waitlist,
+  const pi_event * events_waitlist,
+  pi_event *       event);
+
+pi_result piEnqueueMemcpy(
+  pi_queue         queue,
+  pi_bool          blocking,
+  void *           dst_ptr,
+  const void *     src_ptr,
+  size_t           size,
+  pi_uint32        num_events_in_waitlist,
+  const pi_event * events_waitlist,
+  pi_event *       event);
+
+pi_result piEnqueuePrefetch(
+  pi_queue               queue,
+  const void *           ptr,
+  size_t                 size,
+  pi_usm_migration_flags flags,
+  pi_uint32              num_events_in_waitlist,
+  const pi_event *       events_waitlist,
+  pi_event *             event);
+
+pi_result piEnqueueMemAdvise(
+  pi_queue     queue,
+  const void * ptr,
+  size_t       length,
+  int          advice,
+  pi_event *   event);
+
+pi_result piGetMemAllocInfo(
+  pi_context   context,
+  const void * ptr,
+  pi_mem_info  param_name,
+  size_t       param_value_size,
+  void *       param_value,
+  size_t *     param_value_size_ret);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

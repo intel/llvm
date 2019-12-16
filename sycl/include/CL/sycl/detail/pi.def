@@ -94,5 +94,17 @@ _PI_API(piEnqueueMemImageCopy)
 _PI_API(piEnqueueMemImageFill)
 _PI_API(piEnqueueMemBufferMap)
 _PI_API(piEnqueueMemUnmap)
+// USM
+_PI_API(piHostMemAlloc)
+_PI_API(piDeviceMemAlloc)
+_PI_API(piSharedMemAlloc)
+_PI_API(piMemFree)
+_PI_API(piKernelSetArgMemPointer)
+_PI_API(piKernelSetIndirectAccess)
+_PI_API(piEnqueueMemset)
+_PI_API(piEnqueueMemcpy)
+_PI_API(piEnqueuePrefetch)
+_PI_API(piEnqueueMemAdvise)
+_PI_API(piGetMemAllocInfo)
 
 #undef _PI_API
