@@ -25,32 +25,33 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
+  if (dev.get_info<info::device::usm_host_allocations>()) {
+    usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
-  std::vector<int, decltype(alloc)> vec(alloc);
-  vec.resize(N);
+    std::vector<int, decltype(alloc)> vec(alloc);
+    vec.resize(N);
 
-  for (int i = 0; i < N; i++) {
-    vec[i] = i;
-  }
+    for (int i = 0; i < N; i++) {
+      vec[i] = i;
+    }
 
-  int *res = &vec[0];
-  int *vals = &vec[0];
+    int *res = &vec[0];
+    int *vals = &vec[0];
 
-  auto e1 = q.submit([=](handler &cgh) {
-    cgh.single_task<class foo>([=]() {
-      for (int i = 1; i < N; i++) {
-        res[0] += vals[i];
-      }
+    auto e1 = q.submit([=](handler &cgh) {
+      cgh.single_task<class foo>([=]() {
+        for (int i = 1; i < N; i++) {
+          res[0] += vals[i];
+        }
+      });
     });
-  });
 
-  e1.wait();
+    e1.wait();
 
-  int answer = (N * (N - 1)) / 2;
+    int answer = (N * (N - 1)) / 2;
 
-  if (vec[0] != answer)
-    return -1;
-
+    if (vec[0] != answer)
+      return -1;
+  }
   return 0;
 }

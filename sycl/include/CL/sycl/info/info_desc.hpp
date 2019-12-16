@@ -122,7 +122,13 @@ enum class device : cl_device_info {
       CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   partition_type_property,
-  kernel_kernel_pipe_support
+  kernel_kernel_pipe_support,
+  // USM
+  usm_device_allocations            = PI_USM_DEVICE_SUPPORT,
+  usm_host_allocations              = PI_USM_HOST_SUPPORT,
+  usm_shared_allocations            = PI_USM_SINGLE_SHARED_SUPPORT,
+  usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
+  usm_system_allocator              = PI_USM_SYSTEM_SHARED_SUPPORT
 };
 
 enum class device_type : pi_uint64 {

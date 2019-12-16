@@ -325,6 +325,72 @@ get_device_info_host() = delete;
 
 cl_uint get_native_vector_width(size_t idx);
 
+// USM
+
+// Specialization for device usm query.
+template <>
+struct get_device_info<bool, info::device::usm_device_allocations> {
+  static bool get(RT::PiDevice dev) {
+    pi_usm_capabilities caps;
+    PI_CALL(piDeviceGetInfo)(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_device_allocations),
+        sizeof(pi_usm_capabilities), &caps, nullptr);
+    return (caps != 0);
+  }
+};
+
+// Specialization for host usm query.
+template <>
+struct get_device_info<bool, info::device::usm_host_allocations> {
+  static bool get(RT::PiDevice dev) {
+    pi_usm_capabilities caps;
+    PI_CALL(piDeviceGetInfo)(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_host_allocations),
+        sizeof(pi_usm_capabilities), &caps, nullptr);
+    return (caps != 0);
+  }
+};
+
+// Specialization for shared usm query.
+template <>
+struct get_device_info<bool, info::device::usm_shared_allocations> {
+  static bool get(RT::PiDevice dev) {
+    pi_usm_capabilities caps;
+    PI_CALL(piDeviceGetInfo)(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_shared_allocations),
+        sizeof(pi_usm_capabilities), &caps, nullptr);
+    return (caps != 0);
+  }
+};
+
+// Specialization for restricted usm query
+template <>
+struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
+  static bool get(RT::PiDevice dev) {
+    pi_usm_capabilities caps;
+    PI_CALL(piDeviceGetInfo)(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::usm_restricted_shared_allocations),
+        sizeof(pi_usm_capabilities), &caps, nullptr);
+    // Check that we don't support any cross device sharing
+    return (caps == 0);
+  }
+};
+
+// Specialization for system usm query
+template <>
+struct get_device_info<bool, info::device::usm_system_allocator> {
+  static bool get(RT::PiDevice dev) {
+    pi_usm_capabilities caps;
+    PI_CALL(piDeviceGetInfo)(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
+        sizeof(pi_usm_capabilities), &caps, nullptr);
+    // Check that we don't support any cross device sharing
+    return (caps != 0);
+  }
+};
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

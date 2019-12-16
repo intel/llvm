@@ -22,78 +22,82 @@ int main() {
   const int MAGIC_NUM = 42;
   const int SIZE = N * sizeof(int);
   queue q;
+  auto dev = q.get_device();
+  if (dev.get_info<info::device::usm_device_allocations>() &&
+      dev.get_info<info::device::usm_host_allocations>() &&
+      dev.get_info<info::device::usm_shared_allocations>()) {
 
-  ptr = (int *)malloc_device(SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
+    ptr = (int *)malloc_device(SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)malloc(SIZE, q, usm::alloc::device);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc_device(alignof(int), SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::device);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)malloc_shared(SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)malloc(SIZE, q, usm::alloc::shared);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc_shared(alignof(int), SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::shared);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)malloc_host(SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)malloc(SIZE, q, usm::alloc::host);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc_host(alignof(int), SIZE, q);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
+
+    ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::host);
+    if (ptr == nullptr) {
+      return -1;
+    }
+    free(ptr, q);
   }
-  free(ptr, q);
-
-  ptr = (int *)malloc(SIZE, q, usm::alloc::device);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc_device(alignof(int), SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::device);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)malloc_shared(SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)malloc(SIZE, q, usm::alloc::shared);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc_shared(alignof(int), SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::shared);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)malloc_host(SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)malloc(SIZE, q, usm::alloc::host);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc_host(alignof(int), SIZE, q);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
-  ptr = (int *)aligned_alloc(alignof(int), SIZE, q, usm::alloc::host);
-  if (ptr == nullptr) {
-    return -1;
-  }
-  free(ptr, q);
-
   return 0;
 }

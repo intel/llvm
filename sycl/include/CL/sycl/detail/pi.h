@@ -933,6 +933,21 @@ pi_result piEnqueueMemUnmap(
 // USM
 ///
 typedef enum {
+  PI_USM_HOST_SUPPORT          = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
+  PI_USM_DEVICE_SUPPORT        = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
+  PI_USM_SINGLE_SHARED_SUPPORT = CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_CROSS_SHARED_SUPPORT  = CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_SYSTEM_SHARED_SUPPORT = CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL
+} _pi_usm_capability_query;
+
+typedef enum : pi_bitfield {
+  PI_USM_ACCESS                   = CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL,
+  PI_USM_ATOMIC_ACCESS            = CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ACCESS        = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ATOMIC_ACCESS = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ATOMIC_ACCESS_INTEL
+} _pi_usm_capabilities;
+
+typedef enum {
   PI_MEM_ALLOC_TYPE        = CL_MEM_ALLOC_TYPE_INTEL,
   PI_MEM_ALLOC_BASE_PTR    = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE        = CL_MEM_ALLOC_SIZE_INTEL,
@@ -963,11 +978,13 @@ typedef enum {
   PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
 } _pi_usm_kernel_exec_info;
 
-typedef _pi_mem_info             pi_mem_info;
-typedef _pi_usm_type             pi_usm_type;
-typedef _pi_usm_mem_properties   pi_usm_mem_properties;
-typedef _pi_usm_kernel_exec_info pi_usm_kernel_exec_info;
-typedef _pi_usm_migration_flags  pi_usm_migration_flags;
+typedef _pi_usm_capability_query  pi_usm_capability_query;
+typedef _pi_usm_capabilities      pi_usm_capabilities;
+typedef _pi_mem_info              pi_mem_info;
+typedef _pi_usm_type              pi_usm_type;
+typedef _pi_usm_mem_properties    pi_usm_mem_properties;
+typedef _pi_usm_kernel_exec_info  pi_usm_kernel_exec_info;
+typedef _pi_usm_migration_flags   pi_usm_migration_flags;
 
 pi_result piHostMemAlloc(
   void **                 result_ptr,
