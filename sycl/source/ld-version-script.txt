@@ -1,0 +1,25 @@
+{
+  global:
+    /* Export everything from cl::sycl namespace */
+    _ZNK2cl4sycl*;  /* function */
+    _ZN2cl4sycl*;   /* function */
+    _ZTIN2cl4sycl*; /* typeinfo */
+    _ZTSN2cl4sycl*; /* typeinfo name */
+    _ZTVN2cl4sycl*; /* vtable */
+
+    /* Some functions are also in cl::__host_std, export them as well */
+    _ZN2cl10__host_std*;
+
+    /* Export SPIR-V built-ins for host device */
+    _Z23__spirv_GroupWaitEvents*;
+    _Z22__spirv_ControlBarrier*;
+    _Z21__spirv_MemoryBarrier*;
+    _Z20__spirv_ocl_prefetch*;
+
+    /* Export offload image hooks */
+    __tgt_register_lib;
+    __tgt_unregister_lib;
+
+  local:
+    *;
+};
