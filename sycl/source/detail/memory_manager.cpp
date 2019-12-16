@@ -477,12 +477,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(USMDispatch->enqueueMemcpy(SrcQueue->getHandleRef(),
-                                                 /* blocking */ false, DstMem,
-                                                 SrcMem, Len, DepEvents.size(),
-                                                 &DepEvents[0], &OutEvent));
+    PI_CALL(piEnqueueMemcpy)(SrcQueue->getHandleRef(), /* blocking */ false,
+                             DstMem, SrcMem, Len, DepEvents.size(),
+                             &DepEvents[0], &OutEvent);
   }
 }
 
@@ -494,11 +491,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(
-        USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern, Length,
-                                   DepEvents.size(), &DepEvents[0], &OutEvent));
+    PI_CALL(piEnqueueMemset)(Queue->getHandleRef(), Mem, Pattern, Length,
+                             DepEvents.size(), &DepEvents[0], &OutEvent);
   }
 }
 
@@ -510,11 +504,9 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     // TODO: Potentially implement prefetch on the host.
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem,
-                                                   Length, DepEvents.size(),
-                                                   &DepEvents[0], &OutEvent));
+    PI_CALL(piEnqueuePrefetch)(Queue->getHandleRef(), Mem, Length,
+                               PI_USM_MIGRATION_TBD0, DepEvents.size(),
+                               &DepEvents[0], &OutEvent);
   }
 }
 

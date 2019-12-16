@@ -117,10 +117,6 @@ public:
     return MCachedKernels;
   }
 
-  /// Gets USM dispatcher.
-  ///
-  /// @return a pointer to USM dispatcher.
-  std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -130,7 +126,6 @@ private:
   bool MHostContext;
   std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
-  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
 };
 
 } // namespace detail

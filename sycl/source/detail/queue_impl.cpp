@@ -66,11 +66,8 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
   }
 
   // non-Host device
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-      getSyclObjImpl(Context)->getUSMDispatch();
   RT::PiEvent Event = nullptr;
-
-  USMDispatch->memAdvise(getHandleRef(), Ptr, Length, Advice, &Event);
+  PI_CALL(piEnqueueMemAdvise)(getHandleRef(), Ptr, Length, Advice, &Event);
 
   return event(pi::cast<cl_event>(Event), Context);
 }

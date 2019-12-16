@@ -41,13 +41,12 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
     pi_context C = CtxImpl->getHandleRef();
     pi_result Error;
 
     switch (Kind) {
     case alloc::host: {
-      RetVal = Dispatch->hostMemAlloc(C, nullptr, Size, Alignment, &Error);
+      Error = PI_CALL_NOCHECK(piHostMemAlloc)(&RetVal, C, nullptr, Size, Alignment);
       break;
     }
     case alloc::device:
@@ -85,7 +84,6 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
     pi_context C = CtxImpl->getHandleRef();
     pi_result Error;
     pi_device Id;
@@ -93,14 +91,12 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      RetVal =
-          Dispatch->deviceMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
+      Error = PI_CALL_NOCHECK(piDeviceMemAlloc)(&RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      RetVal =
-          Dispatch->sharedMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
+      Error = PI_CALL_NOCHECK(piSharedMemAlloc)(&RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::host:
@@ -125,11 +121,8 @@ void free(void *Ptr, const context &Ctxt) {
     detail::OSUtil::alignedFree(Ptr);
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
     pi_context C = CtxImpl->getHandleRef();
-    pi_result Error = Dispatch->memFree(C, Ptr);
-
-    RT::checkPiResult(Error);
+    PI_CALL(piMemFree)(C, Ptr);
   }
 }
 
