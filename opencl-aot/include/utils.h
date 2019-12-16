@@ -48,9 +48,7 @@ inline std::string formatCLError(const std::string &Message, cl_int CLErr) {
          getOpenCLErrorNameByErrorCode(CLErr) + ")\n";
 }
 
-/*! \fn std::tuple<cl_platform_id, std::string, std::string, cl_int>
- * getOpenCLPlatform(DeviceType Type)
- * \brief Get OpenCL platform (Intel only) by OpenCL device type
+/*! \brief Get OpenCL platform (Intel only) by OpenCL device type
  * \param Type (DeviceType).
  * \return a tuple of OpenCL platform ID, OpenCL platform name, error message
  * and return code.
@@ -58,18 +56,16 @@ inline std::string formatCLError(const std::string &Message, cl_int CLErr) {
 std::tuple<cl_platform_id, std::string, std::string, cl_int>
 getOpenCLPlatform(DeviceType Type);
 
-/*! \fn std::tuple<cl_device_id, std::string, cl_int>
- * getOpenCLDevice(cl_platform_id PlatformId, DeviceType Type) \brief Get OpenCL
- * device (Intel only) for the OpenCL platform ID \param PlatformId
- * (cl_platform_id). \param Type (DeviceType). \return a tuple of OpenCL
- * platform ID, OpenCL platform name, error message and return code.
+/*! \brief Get OpenCL device (Intel only) for the OpenCL platform ID
+ * \param PlatformId (cl_platform_id).
+ * \param Type (DeviceType).
+ * \return a tuple of OpenCL platform ID, OpenCL platform name, error message
+ * and return code.
  */
 std::tuple<cl_device_id, std::string, cl_int>
 getOpenCLDevice(cl_platform_id PlatformId, DeviceType Type);
 
-/*! \fn std::tuple<std::string, std::string, cl_int>
- * getOpenCLDeviceInfo(cl_device_id &DeviceId, cl_device_info ParamName)
- * \brief Get information about an OpenCL device.
+/*! \brief Get information about an OpenCL device.
  * \param DeviceID (cl_device_id).
  * \param ParamName (cl_device_info).
  * \return a tuple of parameter value, error message and return code.
@@ -77,10 +73,7 @@ getOpenCLDevice(cl_platform_id PlatformId, DeviceType Type);
 std::tuple<std::string, std::string, cl_int>
 getOpenCLDeviceInfo(cl_device_id &DeviceId, cl_device_info ParamName);
 
-/*! \fn std::tuple<cl_program, std::string, cl_int>
- * createProgramWithIL(std::vector<char> IL, cl_context Context, cl_platform_id
- * PlatformId, cl_device_id DeviceId)
- * \brief Create OpenCL program from IL (SPIR-V, SPIR) and return it.
+/*! \brief Create OpenCL program from IL (SPIR-V, SPIR) and return it.
  * \param IL (std::vector<char>).
  * \param Context (cl_context).
  * \param PlatformId (cl_platform_id).
@@ -91,9 +84,7 @@ std::tuple<cl_program, std::string, cl_int>
 createProgramWithIL(std::vector<char> IL, cl_context Context,
                     cl_platform_id PlatformId, cl_device_id DeviceId);
 
-/*! \fn std::tuple<std::vector<char>, std::string, cl_int>
- * readBinaryFile(std::string FileName)
- * \brief Read binary file and return the vector of characters
+/*! \brief Read binary file and return the vector of characters
  * \param FileName (std::string).
  * \return a tuple of vector of characters (content of the file), error message
  * and return code.

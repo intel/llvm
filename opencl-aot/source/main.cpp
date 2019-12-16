@@ -61,10 +61,7 @@ using CLContextUPtr = std::unique_ptr<
                                             // same as cl_context, should
                                             // initialized with ContextDeleter
 
-/*! \fn std::tuple<std::vector<CLProgramUPtr>, std::string, cl_int>
- * generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
- * cl_platform_id PlatformId, cl_device_id DeviceId)
- * \brief Generate OpenCL program from OpenCL program binary (in ELF format) or
+/*! \brief Generate OpenCL program from OpenCL program binary (in ELF format) or
  * SPIR-V binary file
  * \param FileNames (const std::vector<std::string>).
  * \param PlatformId (cl_platform_id).
@@ -125,14 +122,14 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
   // step 3: find out type of each file
 
   for (auto &Value : FileNameToContentMap) {
-    auto &FileContent = std::get<CONTENT>(Value);
-    const auto &FileName = std::get<FNAME>(Value);
+    Content &FileContent = std::get<CONTENT>(Value);
     auto &FileType = std::get<FTYPE>(FileContent);
-    const auto &Data = std::get<DATA>(FileContent);
+    const auto &BinaryData = std::get<DATA>(FileContent);
+    const auto &FileName = std::get<FNAME>(Value);
 
-    if (isFileELF(Data)) {
+    if (isFileELF(BinaryData)) {
       FileType = ELF;
-    } else if (isFileSPIRV(Data)) {
+    } else if (isFileSPIRV(BinaryData)) {
       FileType = SPIRV;
     } else {
       FileType = UNKNOWN;
@@ -159,37 +156,37 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
   }
 
   for (const auto &Value : FileNameToContentMap) {
-    const auto &FileContent = std::get<CONTENT>(Value);
+    const Content &FileContent = std::get<CONTENT>(Value);
     const auto &FileType = std::get<FTYPE>(FileContent);
-    const auto &Data = std::get<DATA>(FileContent);
+    const auto &BinaryData = std::get<DATA>(FileContent);
     const auto &FileName = std::get<FNAME>(Value);
 
     cl_program Program(nullptr);
 
     cl_int BinaryStatus(CL_SUCCESS);
 
-    const size_t BinarySize = Data.size();
-    auto *BinaryContent = reinterpret_cast<const unsigned char *>(Data.data());
-
     switch (FileType) {
-    case ELF:
+    case ELF: {
+      const size_t BinarySize = BinaryData.size();
+      const auto *BinaryDataRaw =
+          reinterpret_cast<const unsigned char *>(BinaryData.data());
       Program = clCreateProgramWithBinary(
           ContextUPtr.get(), /* Number of devices = */ 1, &DeviceId,
-          &BinarySize, &BinaryContent, &BinaryStatus, &CLErr);
+          &BinarySize, &BinaryDataRaw, &BinaryStatus, &CLErr);
       break;
+    }
     case SPIRV: {
-      std::tie(Program, ErrorMessage, CLErr) =
-          createProgramWithIL(Data, ContextUPtr.get(), PlatformId, DeviceId);
+      std::tie(Program, ErrorMessage, CLErr) = createProgramWithIL(
+          BinaryData, ContextUPtr.get(), PlatformId, DeviceId);
       if (clFailed(CLErr)) {
         return std::make_tuple(std::vector<CLProgramUPtr>(), ErrorMessage,
                                CLErr);
       }
       break;
     }
-    default: {
+    default:
       assert(FileType != UNKNOWN &&
              "Unable to identify the format of input binary file");
-    }
     }
 
     if (clFailed(CLErr) || clFailed(BinaryStatus) || Program == nullptr) {
