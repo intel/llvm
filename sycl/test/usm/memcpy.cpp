@@ -44,10 +44,11 @@ int main() {
       assert(dest[i] == i * 2);
     }
 
-    // Copying to nullptr should throw.
-    q.submit(
-        [&](handler &cgh) { cgh.memcpy(nullptr, src, sizeof(float) * count); });
     try {
+      // Copying to nullptr should throw.
+      q.submit([&](handler &cgh) {
+        cgh.memcpy(nullptr, src, sizeof(float) * count);
+      });
       q.wait_and_throw();
       assert(false && "Expected error from copying to nullptr");
     } catch (runtime_error e) {
