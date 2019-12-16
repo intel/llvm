@@ -36,18 +36,17 @@ pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
   cl_int ret_err = clGetContextInfo(
       cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
 
-  std::vector<cl_device_id> devicesInCtx(deviceCount);
-
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    return cast<pi_result>(CL_INVALID_CONTEXT);
+    return PI_INVALID_CONTEXT;
   }
 
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
   ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
                              deviceCount * sizeof(cl_device_id),
                              devicesInCtx.data(), nullptr);
 
   if (ret_err != CL_SUCCESS) {
-    return cast<pi_result>(CL_INVALID_CONTEXT);
+    return PI_INVALID_CONTEXT;
   }
 
   cl_platform_id curPlatform;
@@ -55,13 +54,13 @@ pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
                             sizeof(cl_platform_id), &curPlatform, nullptr);
 
   if (ret_err != CL_SUCCESS) {
-     return cast<pi_result>(CL_INVALID_CONTEXT);
+     return PI_INVALID_CONTEXT;
   }
 
   T FuncPtr = (T) clGetExtensionFunctionAddressForPlatform(curPlatform,
                                                         func);
   if (!FuncPtr) {
-    return cast<pi_result>(CL_INVALID_VALUE);
+    return PI_INVALID_VALUE;
   }
 
   *fptr = FuncPtr;
@@ -576,25 +575,19 @@ pi_result OCL(piSharedMemAlloc)(void **result_ptr, pi_context context,
 
 pi_result OCL(piMemFree)(pi_context context, void *ptr) {
 
-  pi_result RetVal;
   clMemFreeINTEL_fn FuncPtr;
-  pi_result Err = getExtFuncFromContext<clMemFreeINTEL_fn>(
+  pi_result RetVal = getExtFuncFromContext<clMemFreeINTEL_fn>(
       context, "clMemFreeINTEL", &FuncPtr);
 
-  if (Err != PI_SUCCESS) {
-    RetVal = Err;
-  } else {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
-  }
+  if (RetVal != PI_SUCCESS)
+    return RetVal;
 
-  return RetVal;
+  return cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
 }
 
 pi_result OCL(piKernelSetArgMemPointer)(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
-
-  pi_result RetVal;
 
   // Have to look up the context from the kernel
   cl_context CLContext;
@@ -605,21 +598,17 @@ pi_result OCL(piKernelSetArgMemPointer)(pi_kernel kernel, pi_uint32 arg_index,
   }
 
   clSetKernelArgMemPointerINTEL_fn FuncPtr;
-  pi_result Err = getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+  pi_result RetVal = getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
       cast<pi_context>(CLContext), "clSetKernelArgMemPointerINTEL", &FuncPtr);
 
-  if (Err != PI_SUCCESS) {
-    RetVal = Err;
-  } else {
-    // OpenCL passes pointers by value not by reference
-    // This means we need to deref the arg to get the pointer value
-    auto PtrToPtr = reinterpret_cast<const intptr_t *>(arg_value);
-    auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
-    RetVal =
-        cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
-  }
+  if (RetVal != PI_SUCCESS)
+    return RetVal;
 
-  return RetVal;
+  // OpenCL passes pointers by value not by reference
+  // This means we need to deref the arg to get the pointer value
+  auto PtrToPtr = reinterpret_cast<const intptr_t *>(arg_value);
+  auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
+  return cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
 }
 
 pi_result OCL(piKernelSetIndirectAccess)(pi_kernel kernel, pi_queue queue) {
@@ -642,8 +631,6 @@ pi_result OCL(piEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
                                const pi_event *events_waitlist,
                                pi_event *event) {
 
-  pi_result RetVal = PI_INVALID_OPERATION;
-
   // Have to look up the context from the kernel
   cl_context CLContext;
   cl_int CLErr =
@@ -654,19 +641,15 @@ pi_result OCL(piEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
   }
 
   clEnqueueMemsetINTEL_fn FuncPtr;
-  pi_result Err = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
       cast<pi_context>(CLContext), "clEnqueueMemsetINTEL", &FuncPtr);
 
-  if (Err != PI_SUCCESS) {
-    RetVal = Err;
-  } else {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
-                                     count, num_events_in_waitlist,
-                                     cast<const cl_event *>(events_waitlist),
-                                     cast<cl_event *>(event)));
-  }
+  if (RetVal != PI_SUCCESS)
+    return RetVal;
 
-  return RetVal;
+  return cast<pi_result>(FuncPtr(
+      cast<cl_command_queue>(queue), ptr, value, count, num_events_in_waitlist,
+      cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
 }
 
 pi_result OCL(piEnqueueMemcpy)(pi_queue queue, pi_bool blocking, void *dst_ptr,
@@ -674,8 +657,6 @@ pi_result OCL(piEnqueueMemcpy)(pi_queue queue, pi_bool blocking, void *dst_ptr,
                                pi_uint32 num_events_in_waitlist,
                                const pi_event *events_waitlist,
                                pi_event *event) {
-
-  pi_result RetVal = PI_INVALID_OPERATION;
 
   // Have to look up the context from the kernel
   cl_context CLContext;
@@ -687,19 +668,16 @@ pi_result OCL(piEnqueueMemcpy)(pi_queue queue, pi_bool blocking, void *dst_ptr,
   }
 
   clEnqueueMemcpyINTEL_fn FuncPtr;
-  pi_result Err = getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
       cast<pi_context>(CLContext), "clEnqueueMemcpyINTEL", &FuncPtr);
 
-  if (Err != PI_SUCCESS) {
-    RetVal = Err;
-  } else {
-    RetVal = cast<pi_result>(
-        FuncPtr(cast<cl_command_queue>(queue), blocking, dst_ptr, src_ptr, size,
-                num_events_in_waitlist, cast<const cl_event *>(events_waitlist),
-                cast<cl_event *>(event)));
-  }
+  if (RetVal != PI_SUCCESS)
+    return RetVal;
 
-  return RetVal;
+  return cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), blocking,
+                                 dst_ptr, src_ptr, size, num_events_in_waitlist,
+                                 cast<const cl_event *>(events_waitlist),
+                                 cast<cl_event *>(event)));
 }
 
 pi_result OCL(piEnqueuePrefetch)(pi_queue queue, const void *ptr, size_t size,
@@ -708,10 +686,9 @@ pi_result OCL(piEnqueuePrefetch)(pi_queue queue, const void *ptr, size_t size,
                                  const pi_event *events_waitlist,
                                  pi_event *event) {
 
-  pi_result RetVal = cast<pi_result>(clEnqueueMarkerWithWaitList(
+  return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,
-      cast<const cl_event *>(events_waitlist),
-      cast<cl_event *>(event)));
+      cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
 
   /*
   // Use this once impls support it.
@@ -737,16 +714,12 @@ pi_result OCL(piEnqueuePrefetch)(pi_queue queue, const void *ptr, size_t size,
         reinterpret_cast<cl_event *>(event)));
   }
   */
-
-  return RetVal;
 }
 
 pi_result OCL(piEnqueueMemAdvise)(pi_queue queue, const void *ptr,
                                   size_t length, int advice, pi_event *event) {
 
-  pi_result RetVal = PI_INVALID_OPERATION;
-
-  RetVal = cast<pi_result>(
+  return cast<pi_result>(
       clEnqueueMarkerWithWaitList(cast<cl_command_queue>(queue), 0, nullptr,
                                   reinterpret_cast<cl_event *>(event)));
 
@@ -776,8 +749,6 @@ pi_result OCL(piEnqueueMemAdvise)(pi_queue queue, const void *ptr,
                                      reinterpret_cast<cl_event *>(event)));
   }
   */
-
-  return RetVal;
 }
 
 pi_result OCL(piGetMemAllocInfo)(pi_context context, const void *ptr,
@@ -785,21 +756,16 @@ pi_result OCL(piGetMemAllocInfo)(pi_context context, const void *ptr,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
 
-  pi_result RetVal = PI_INVALID_OPERATION;
-
   clGetMemAllocInfoINTEL_fn FuncPtr;
-  pi_result Err = getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
+  pi_result RetVal = getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
       context, "clGetMemAllocInfoINTEL", &FuncPtr);
 
-  if (Err != PI_SUCCESS) {
-    RetVal = Err;
-  } else {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
-                                     param_value_size, param_value,
-                                     param_value_size_ret));
-  }
+  if (RetVal != PI_SUCCESS)
+    return RetVal;
 
-  return RetVal;
+  return cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
+                                 param_value_size, param_value,
+                                 param_value_size_ret));
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
