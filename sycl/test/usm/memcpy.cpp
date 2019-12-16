@@ -44,7 +44,6 @@ int main() {
       assert(dest[i] == i * 2);
     }
 
-
     try {
       // Copying to nullptr should throw.
       q.submit([&](handler &cgh) {

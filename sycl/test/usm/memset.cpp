@@ -40,14 +40,15 @@ int main() {
       assert(src[i] == 0x2a2a2a2a);
     }
 
-  try {
-    // Filling to nullptr should throw.
-    q.submit([&](handler &cgh) {
-      cgh.memset(nullptr, 0, sizeof(uint32_t) * count);
-    });
-    q.wait_and_throw();
-    assert(false && "Expected error from writing to nullptr");
-  } catch (runtime_error e) {
+    try {
+      // Filling to nullptr should throw.
+      q.submit([&](handler &cgh) {
+        cgh.memset(nullptr, 0, sizeof(uint32_t) * count);
+      });
+      q.wait_and_throw();
+      assert(false && "Expected error from writing to nullptr");
+    } catch (runtime_error e) {
+    }
   }
   return 0;
 }
