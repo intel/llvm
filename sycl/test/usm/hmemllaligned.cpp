@@ -28,53 +28,56 @@ class foo;
 int main() {
   queue q;
   auto ctxt = q.get_context();
-  Node *h_head = nullptr;
-  Node *h_cur = nullptr;
+  auto dev = q.get_device();
 
-  h_head = (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
-  if (h_head == nullptr) {
-    return -1;
-  }
-  h_cur = h_head;
+  if (dev.get_info<info::device::usm_host_allocations>()) {
+    Node *h_head = nullptr;
+    Node *h_cur = nullptr;
 
-  for (int i = 0; i < numNodes; i++) {
-    h_cur->Num = i * 2;
-
-    if (i != (numNodes - 1)) {
-      h_cur->pNext =
-          (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
-      if (h_cur->pNext == nullptr) {
-        return -1;
-      }
-    } else {
-      h_cur->pNext = nullptr;
-    }
-
-    h_cur = h_cur->pNext;
-  }
-
-  auto e1 = q.submit([=](handler &cgh) {
-    cgh.single_task<class foo>([=]() {
-      Node *pHead = h_head;
-      while (pHead) {
-        pHead->Num = pHead->Num * 2 + 1;
-        pHead = pHead->pNext;
-      }
-    });
-  });
-
-  e1.wait();
-
-  h_cur = h_head;
-  for (int i = 0; i < numNodes; i++) {
-    const int want = i * 4 + 1;
-    if (h_cur->Num != want) {
+    h_head = (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
+    if (h_head == nullptr) {
       return -1;
     }
-    Node *old = h_cur;
-    h_cur = h_cur->pNext;
-    free(old, ctxt);
-  }
+    h_cur = h_head;
 
+    for (int i = 0; i < numNodes; i++) {
+      h_cur->Num = i * 2;
+
+      if (i != (numNodes - 1)) {
+        h_cur->pNext =
+            (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
+        if (h_cur->pNext == nullptr) {
+          return -1;
+        }
+      } else {
+        h_cur->pNext = nullptr;
+      }
+
+      h_cur = h_cur->pNext;
+    }
+
+    auto e1 = q.submit([=](handler &cgh) {
+      cgh.single_task<class foo>([=]() {
+        Node *pHead = h_head;
+        while (pHead) {
+          pHead->Num = pHead->Num * 2 + 1;
+          pHead = pHead->pNext;
+        }
+      });
+    });
+
+    e1.wait();
+
+    h_cur = h_head;
+    for (int i = 0; i < numNodes; i++) {
+      const int want = i * 4 + 1;
+      if (h_cur->Num != want) {
+        return -1;
+      }
+      Node *old = h_cur;
+      h_cur = h_cur->pNext;
+      free(old, ctxt);
+    }
+  }
   return 0;
 }

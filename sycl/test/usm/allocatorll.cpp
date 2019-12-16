@@ -30,54 +30,55 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<Node, usm::alloc::device> alloc(ctxt, dev);
+  if (dev.get_info<info::device::usm_device_allocations>()) {
+    usm_allocator<Node, usm::alloc::device> alloc(ctxt, dev);
 
-  Node *d_head = nullptr;
-  Node *d_cur = nullptr;
-  Node h_cur;
-  
-  d_head = alloc.allocate(1);
-  d_cur = d_head;
+    Node *d_head = nullptr;
+    Node *d_cur = nullptr;
+    Node h_cur;
 
-  for (int i = 0; i < numNodes; i++) {
-    h_cur.Num = i * 2;
+    d_head = alloc.allocate(1);
+    d_cur = d_head;
 
-    if (i != (numNodes - 1)) {
-      h_cur.pNext = alloc.allocate(1);
-    } else {
-      h_cur.pNext = nullptr;
-    }
+    for (int i = 0; i < numNodes; i++) {
+      h_cur.Num = i * 2;
 
-    event e0 = q.memcpy(d_cur, &h_cur, sizeof(Node));
-    e0.wait();
-
-    d_cur = h_cur.pNext;
-  }
-
-  auto e1 = q.submit([=](handler &cgh) {
-    cgh.single_task<class foo>([=]() {
-      Node *pHead = d_head;
-      while (pHead) {
-        pHead->Num = pHead->Num * 2 + 1;
-        pHead = pHead->pNext;
+      if (i != (numNodes - 1)) {
+        h_cur.pNext = alloc.allocate(1);
+      } else {
+        h_cur.pNext = nullptr;
       }
-    });
-  });
 
-  e1.wait();
+      event e0 = q.memcpy(d_cur, &h_cur, sizeof(Node));
+      e0.wait();
 
-  d_cur = d_head;
-  for (int i = 0; i < numNodes; i++) {
-    event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
-    c.wait();
-    alloc.deallocate(d_cur, 1);
-
-    const int want = i * 4 + 1;
-    if (h_cur.Num != want) {
-      return -1;
+      d_cur = h_cur.pNext;
     }
-    d_cur = h_cur.pNext;
-  }
 
+    auto e1 = q.submit([=](handler &cgh) {
+      cgh.single_task<class foo>([=]() {
+        Node *pHead = d_head;
+        while (pHead) {
+          pHead->Num = pHead->Num * 2 + 1;
+          pHead = pHead->pNext;
+        }
+      });
+    });
+
+    e1.wait();
+
+    d_cur = d_head;
+    for (int i = 0; i < numNodes; i++) {
+      event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
+      c.wait();
+      alloc.deallocate(d_cur, 1);
+
+      const int want = i * 4 + 1;
+      if (h_cur.Num != want) {
+        return -1;
+      }
+      d_cur = h_cur.pNext;
+    }
+  }
   return 0;
 }

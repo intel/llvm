@@ -20,25 +20,25 @@ int main() {
     for (auto &e : el)
       std::rethrow_exception(e);
   });
-  uint32_t *src = (uint32_t*)malloc_shared(sizeof(uint32_t) * count, q.get_device(),
-      q.get_context());
+  if (q.get_device().get_info<info::device::usm_shared_allocations>()) {
+    uint32_t *src = (uint32_t *)malloc_shared(sizeof(uint32_t) * count,
+                                              q.get_device(), q.get_context());
 
-  event init_copy = q.submit([&](handler &cgh) {
-    cgh.memset(src, 0x15, sizeof(uint32_t) * count);
-  });
+    event init_copy = q.submit(
+        [&](handler &cgh) { cgh.memset(src, 0x15, sizeof(uint32_t) * count); });
 
-  q.submit([&](handler &cgh) {
-    cgh.depends_on(init_copy);
-    cgh.single_task<class double_dest>([=]() {
+    q.submit([&](handler &cgh) {
+      cgh.depends_on(init_copy);
+      cgh.single_task<class double_dest>([=]() {
         for (int i = 0; i < count; i++)
           src[i] *= 2;
+      });
     });
-  });
-  q.wait_and_throw();
+    q.wait_and_throw();
 
-  for (int i = 0; i < count; i++) {
-    assert(src[i] == 0x2a2a2a2a);
-  }
+    for (int i = 0; i < count; i++) {
+      assert(src[i] == 0x2a2a2a2a);
+    }
 
   try {
     // Filling to nullptr should throw.
@@ -49,4 +49,5 @@ int main() {
     assert(false && "Expected error from writing to nullptr");
   } catch (runtime_error e) {
   }
+  return 0;
 }
