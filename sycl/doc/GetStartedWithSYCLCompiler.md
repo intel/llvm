@@ -72,7 +72,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
 $SYCL_HOME/llvm/llvm
 
-make -j`nproc` sycl-toolchain opencl-aot
+make -j`nproc` sycl-toolchain
 ```
 
 **Windows (64-bit)**
@@ -90,7 +90,7 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
 -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
 "%SYCL_HOME%\llvm\llvm"
 
-ninja sycl-toolchain opencl-aot
+ninja sycl-toolchain
 ```
 
 To use ahead-of-time compilation for the Intel&reg; processors, additionally build opencl-aot target:
