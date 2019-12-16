@@ -130,6 +130,18 @@ public:
     });
   }
 
+  // single_task version with a kernel represented as a lambda.
+  // Takes an event to specify a dependence.
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event single_task(event DepEvent, KernelType KernelFunc) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template single_task<KernelName, KernelType>(KernelFunc);
+    });
+  }
+
+  // single_task version with a kernel represented as a lambda.
+  // Takes a vector of events to specify dependences.
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(std::vector<event> DepEvents, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
@@ -149,6 +161,21 @@ public:
     });
   }
 
+  // parallel_for version with a kernel represented as a lambda + range that
+  // specifies global size only.  Takes an event to specify dependences
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(range<Dims> NumWorkItems, event DepEvent,
+                     KernelType KernelFunc) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+                                                              KernelFunc);
+    });
+  }
+
+  // parallel_for version with a kernel represented as a lambda + range that
+  // specifies global size only.  Takes a vector of events to specify dependences
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, std::vector<event> DepEvents,
@@ -172,6 +199,23 @@ public:
     });
   }
 
+  // parallel_for version with a kernel represented as a lambda + range and
+  // offset that specify global size and global offset correspondingly.
+  // Takes an event to specify dependences.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     event DepEvent, KernelType KernelFunc) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(
+          NumWorkItems, WorkItemOffset, KernelFunc);
+    });
+  }
+
+  // parallel_for version with a kernel represented as a lambda + range and
+  // offset that specify global size and global offset correspondingly.
+  // Takes a vector of events to specify dependences.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -194,6 +238,23 @@ public:
     });
   }
 
+  // parallel_for version with a kernel represented as a lambda + nd_range that
+  // specifies global, local sizes and offset.
+  // Takes an event to specify dependences.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     event DepEvent, KernelType KernelFunc) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
+                                                              KernelFunc);
+    });
+  }
+
+  // parallel_for version with a kernel represented as a lambda + nd_range that
+  // specifies global, local sizes and offset.
+  // Takes a vector of events to specify dependences.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,

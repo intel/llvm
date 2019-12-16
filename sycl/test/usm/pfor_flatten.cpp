@@ -36,7 +36,7 @@ int main() {
   });
 
 
-  auto e2 = q.parallel_for(R, {e1}, [=](id<1> ID) {
+  auto e2 = q.parallel_for(R, e1, [=](id<1> ID) {
     int i = ID[0];
     array[i] += 2;
   });
