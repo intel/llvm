@@ -1,4 +1,9 @@
 // REQUIRES: cpu,windows
+//
+// FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
+// Disable the test until the fix reaches SYCL test infrastructure.
+// XFAIL: *
+//
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %llvm_build_libs_dir/../bin/libsycl-msvc.o -o %t.out
 //
