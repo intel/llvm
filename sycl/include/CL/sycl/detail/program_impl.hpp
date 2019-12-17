@@ -100,14 +100,31 @@ public:
   /// @return a valid OpenCL cl_program instance.
   cl_program get() const;
 
+  /// @return a reference to a raw PI program handle. PI program is not retained
+  /// before return.
   RT::PiProgram &getHandleRef() { return Program; }
+  /// @return a constant reference to a raw PI program handle. PI program is not
+  /// retained before return.
   const RT::PiProgram &getHandleRef() const { return Program; }
 
   /// @return true if this SYCL program is a host program.
   bool is_host() const { return Context->is_host(); }
 
+  /// Compiles the SYCL kernel function into the encapsulated raw program.
+  ///
+  /// The kernel function is defined by its name. This member function
+  /// sets the state of this SYCL program to program_state::compiled.
+  /// If this program was not in the program_state::none state,
+  /// an invalid_object_error exception is thrown. If the compilation fails,
+  /// a compile_program_error SYCL exception is thrown. If any device that the
+  /// program is being compiled for returns false for the device information
+  /// query info::device::is_compiler_available, a feature_not_supported
+  /// exception is thrown.
+  ///
+  /// @param CompileOptions is a string of valid OpenCL compile options.
   void compile_with_kernel_type(string_class KernelName,
-                                string_class CompileOptions, OSModuleHandle M);
+                                string_class CompileOptions,
+                                OSModuleHandle Module);
 
   /// Compiles the OpenCL C kernel function defined by source string.
   ///
@@ -258,42 +275,79 @@ public:
   program_state get_state() const { return State; }
 
 private:
+  /// Checks feature support for specific devices.
+  ///
+  /// If there's at least one device that does not support this feature,
+  /// a feature_not_supported exception is thrown.
+  ///
+  /// @param Devices is a vector of SYCL devices.
   template <info::device param>
-  void check_device_feature_support(const vector_class<device> &devices) {
-    for (const auto &device : devices) {
-      if (!device.get_info<param>()) {
+  void check_device_feature_support(const vector_class<device> &Devices) {
+    for (const auto &Device : Devices) {
+      if (!Device.get_info<param>()) {
         throw feature_not_supported(
             "Online compilation is not supported by this device");
       }
     }
   }
 
-  void create_pi_program_with_kernel_name(OSModuleHandle M,
+  /// Creates a plugin interface kernel using its name.
+  ///
+  /// @param Module is an OS handle to user code module.
+  /// @param KernelName is a name of kernel to be created.
+  void create_pi_program_with_kernel_name(OSModuleHandle Module,
                                           const string_class &KernelName);
 
+  /// Creates an OpenCL program from OpenCL C source code.
+  ///
+  /// @param Source is a string containing OpenCL C source code.
   void create_cl_program_with_source(const string_class &Source);
 
+  /// Compiles underlying plugin interface program.
+  ///
+  /// @param Options is a string containing OpenCL compile options.
   void compile(const string_class &Options);
 
+  /// Builds underlying plugin interface program.
+  ///
+  /// @param Options is a string containing OpenCL build options.
   void build(const string_class &Options);
 
+  /// @return a vector of devices managed by the plugin.
   vector_class<RT::PiDevice> get_pi_devices() const;
 
+  /// @return true if caching is allowed for this program.
   bool is_cacheable() const { return IsProgramAndKernelCachingAllowed; }
 
+  /// @param Options is a string containing OpenCL C build options.
+  /// @return true if caching is allowed for this program and build options.
   static bool is_cacheable_with_options(const string_class &Options) {
     return Options.empty();
   }
 
+  /// @param KernelName is a string containing OpenCL kernel name.
+  /// @return true if underlying OpenCL program has kernel with specific name.
   bool has_cl_kernel(const string_class &KernelName) const;
 
+  /// @param KernelName is a string containing PI kernel name.
+  /// @return an instance of PI kernel with specific name. If kernel is
+  /// unavailable, an invalid_object_error exception is thrown.
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
 
+  /// @return a vector of sorted in ascending order SYCL devices.
   std::vector<device>
   sort_devices_by_cl_device_id(vector_class<device> Devices);
 
+  /// Throws an invalid_object_exception if state of this program is in the
+  /// specified state.
+  ///
+  /// @param State is a program state to match against.
   void throw_if_state_is(program_state State) const;
 
+  /// Throws an invalid_object_exception if state of this program is not in the
+  /// specified state.
+  ///
+  /// @param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
   RT::PiProgram Program = nullptr;
