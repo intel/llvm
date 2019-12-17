@@ -22,11 +22,13 @@ namespace detail {
 program_impl::program_impl(const context &Context)
     : program_impl(Context, Context.get_devices()) {}
 
-program_impl::program_impl(const context &Context, vector_class<device> DeviceList)
+program_impl::program_impl(const context &Context,
+                           vector_class<device> DeviceList)
     : MContext(Context), MDevices(DeviceList) {}
 
-program_impl::program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
-             string_class LinkOptions)
+program_impl::program_impl(
+    vector_class<std::shared_ptr<program_impl>> ProgramList,
+    string_class LinkOptions)
     : MState(program_state::linked), MLinkOptions(LinkOptions),
       MBuildOptions(LinkOptions) {
   // Verify arguments
@@ -78,11 +80,12 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
 
   // TODO handle the case when cl_program build is in progress
   cl_uint NumDevices;
-  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES,
-                               sizeof(cl_uint), &NumDevices, nullptr);
+  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint),
+                            &NumDevices, nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
   PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
-          sizeof(RT::PiDevice) * NumDevices, PiDevices.data(), nullptr);
+                            sizeof(RT::PiDevice) * NumDevices, PiDevices.data(),
+                            nullptr);
   vector_class<device> SyclContextDevices = MContext.get_devices();
 
   // Keep only the subset of the devices (associated with context) that
@@ -101,13 +104,14 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BINARY_TYPE,
-          sizeof(cl_program_binary_type), &BinaryType, nullptr);
+                                 sizeof(cl_program_binary_type), &BinaryType,
+                                 nullptr);
   size_t Size = 0;
-  PI_CALL(piProgramGetBuildInfo)(Program, Device,
-          CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
+  PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0,
+                                 nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  PI_CALL(piProgramGetBuildInfo)(Program, Device,
-          CL_PROGRAM_BUILD_OPTIONS, Size, OptionsVector.data(), nullptr);
+  PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS,
+                                 Size, OptionsVector.data(), nullptr);
   string_class Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
   case CL_PROGRAM_BINARY_TYPE_NONE:
@@ -161,7 +165,7 @@ void program_impl::compile_with_kernel_name(string_class KernelName,
 }
 
 void program_impl::compile_with_source(string_class KernelSource,
-                         string_class CompileOptions) {
+                                       string_class CompileOptions) {
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -192,7 +196,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
 }
 
 void program_impl::build_with_source(string_class KernelSource,
-                       string_class BuildOptions) {
+                                     string_class BuildOptions) {
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -217,7 +221,8 @@ void program_impl::link(string_class LinkOptions) {
   MState = program_state::linked;
 }
 
-bool program_impl::has_kernel(string_class KernelName, bool IsCreatedFromSource) const {
+bool program_impl::has_kernel(string_class KernelName,
+                              bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
     return !IsCreatedFromSource;
@@ -226,8 +231,8 @@ bool program_impl::has_kernel(string_class KernelName, bool IsCreatedFromSource)
 }
 
 kernel program_impl::get_kernel(string_class KernelName,
-                  std::shared_ptr<program_impl> PtrToSelf,
-                  bool IsCreatedFromSource) const {
+                                std::shared_ptr<program_impl> PtrToSelf,
+                                bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
     if (IsCreatedFromSource)
@@ -247,7 +252,8 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
   if (!is_host()) {
     vector_class<size_t> BinarySizes(MDevices.size());
     PI_CALL(piProgramGetInfo)(MProgram, CL_PROGRAM_BINARY_SIZES,
-            sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+                              sizeof(size_t) * BinarySizes.size(),
+                              BinarySizes.data(), nullptr);
 
     vector_class<char *> Pointers;
     for (size_t I = 0; I < BinarySizes.size(); ++I) {
@@ -255,7 +261,8 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
       Pointers.push_back(Result[I].data());
     }
     PI_CALL(piProgramGetInfo)(MProgram, CL_PROGRAM_BINARIES,
-            sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
+                              sizeof(char *) * Pointers.size(), Pointers.data(),
+                              nullptr);
   }
   return Result;
 }
@@ -370,8 +377,8 @@ void program_impl::throw_if_state_is_not(program_state State) const {
   }
 }
 
-void program_impl::create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                        const string_class &KernelName) {
+void program_impl::create_pi_program_with_kernel_name(
+    OSModuleHandle Module, const string_class &KernelName) {
   assert(!Program && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
   DeviceImage &Img = PM.getDeviceImage(Module, KernelName, get_context());

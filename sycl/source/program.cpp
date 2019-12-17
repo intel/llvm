@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/program.hpp>
 #include <CL/sycl/detail/program_impl.hpp>
+#include <CL/sycl/program.hpp>
 
 #include <vector>
 
@@ -35,12 +35,12 @@ cl_program program::get() const { return impl->get(); }
 bool program::is_host() const { return impl->is_host(); }
 
 void program::compile_with_source(string_class kernelSource,
-                        string_class compileOptions) {
+                                  string_class compileOptions) {
   impl->compile_with_source(kernelSource, compileOptions);
 }
 
 void program::build_with_source(string_class kernelSource,
-                        string_class buildOptions) {
+                                string_class buildOptions) {
   impl->build_with_source(kernelSource, buildOptions);
 }
 
@@ -62,7 +62,8 @@ bool program::has_kernel(string_class kernelName) const {
   return has_kernel(kernelName, /*IsCreatedFromSource*/ true);
 }
 
-bool program::has_kernel(string_class kernelName, bool IsCreatedFromSource) const {
+bool program::has_kernel(string_class kernelName,
+                         bool IsCreatedFromSource) const {
   return impl->has_kernel(kernelName, IsCreatedFromSource);
 }
 
@@ -70,7 +71,8 @@ kernel program::get_kernel(string_class kernelName) const {
   return get_kernel(kernelName, /*IsCreatedFromSource*/ true);
 }
 
-kernel program::get_kernel(string_class kernelName, bool IsCreatedFromSource) const {
+kernel program::get_kernel(string_class kernelName,
+                           bool IsCreatedFromSource) const {
   return impl->get_kernel(kernelName, impl, IsCreatedFromSource);
 }
 
@@ -80,7 +82,7 @@ program::get_info() const {
   return impl->get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type program::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/program_traits.def>
@@ -93,16 +95,22 @@ vector_class<vector_class<char>> program::get_binaries() const {
 
 context program::get_context() const { return impl->get_context(); }
 
-vector_class<device> program::get_devices() const { return impl->get_devices(); }
+vector_class<device> program::get_devices() const {
+  return impl->get_devices();
+}
 
 string_class program::get_compile_options() const {
   return impl->get_compile_options();
 }
 
-string_class program::get_link_options() const { return impl->get_link_options(); }
+string_class program::get_link_options() const {
+  return impl->get_link_options();
+}
 
-string_class program::get_build_options() const { return impl->get_build_options(); }
+string_class program::get_build_options() const {
+  return impl->get_build_options();
+}
 
 program_state program::get_state() const { return impl->get_state(); }
-}
-}
+} // namespace sycl
+} // namespace cl

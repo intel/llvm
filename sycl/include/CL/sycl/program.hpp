@@ -35,17 +35,18 @@ public:
 
   /// Constructs an instance of SYCL program.
   ///
-  /// The program will be created in the program_state::none state and associated
-  /// with the provided context and the SYCL devices that are associated with
-  /// the context.
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the SYCL devices that are
+  /// associated with the context.
   ///
   /// @param Context is an instance of SYCL context.
   explicit program(const context &Context);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
   ///
-  /// The program will be created in the program_state::none state and associated
-  /// with the provided context and the SYCL devices in the provided DeviceList.
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the SYCL devices in the provided
+  /// DeviceList.
   ///
   /// @param Context is an instance of SYCL context.
   /// @param DeviceList is a list of SYCL devices.
@@ -56,9 +57,9 @@ public:
   ///
   /// Each SYCL program in ProgramList must be in the program_state::compiled
   /// state and must be associated with the same SYCL context. Otherwise an
-  /// invalid_object_error SYCL exception will be thrown. A feature_not_supported
-  /// exception will be thrown if any device that the program is to be linked
-  /// for returns false for the device information query
+  /// invalid_object_error SYCL exception will be thrown. A
+  /// feature_not_supported exception will be thrown if any device that the
+  /// program is to be linked for returns false for the device information query
   /// info::device::is_linker_available.
   ///
   /// @param ProgramList is a list of SYCL program instances.
@@ -127,11 +128,11 @@ public:
   /// This member function sets the state of this SYCL program to
   /// program_state::compiled.
   /// If the program was not in the program_state::none state,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
-  /// a compile_program_error SYCL exception is thrown. If any device that the
-  /// program is being compiled for returns false for the device information
-  /// query info::device::is_compiler_available, a feature_not_supported
-  /// SYCL exception is thrown.
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being compiled for returns false for the device
+  /// information query info::device::is_compiler_available, a
+  /// feature_not_supported SYCL exception is thrown.
   ///
   /// @param KernelSource is a string containing OpenCL C kernel source code.
   /// @param CompileOptions is a string containing OpenCL compile options.
@@ -143,10 +144,10 @@ public:
   /// The SYCL kernel function is defined by the type KernelT.
   /// This member function sets the state of this SYCL program to
   /// program_state::linked. If the program was not in the program_state::none
-  /// state, an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being built for returns false for the device
-  /// information queries info::device::is_compiler_available or
+  /// state, an invalid_object_error SYCL exception is thrown. If the
+  /// compilation fails, a compile_program_error SYCL exception is thrown. If
+  /// any device that the program is being built for returns false for the
+  /// device information queries info::device::is_compiler_available or
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
   /// is thrown.
   ///
@@ -163,8 +164,8 @@ public:
   ///
   /// This member function sets the state of this SYCL program to
   /// program_state::linked. If this program was not in program_state::none,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
-  /// a compile_program_error SYCL exception is thrown. If any device
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
   /// that the program is being built for returns false for the device
   /// information queries info::device::is_compiler_available or
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
@@ -178,12 +179,12 @@ public:
   /// Links encapsulated raw program.
   ///
   /// This member function sets the state of this SYCL program to
-  /// program_state::linked. If the program was not in the program_state::compiled
-  /// state, an invalid_object_error SYCL exception is thrown. If linking fails,
-  /// a compile_program_error is thrown. If any device that the program is to be
-  /// linked for returns false for the device information query
-  /// info::device::is_linker_available, a feature_not_supported exception
-  /// is thrown.
+  /// program_state::linked. If the program was not in the
+  /// program_state::compiled state, an invalid_object_error SYCL exception is
+  /// thrown. If linking fails, a compile_program_error is thrown. If any device
+  /// that the program is to be linked for returns false for the device
+  /// information query info::device::is_linker_available, a
+  /// feature_not_supported exception is thrown.
   ///
   /// @param LinkOptions is a string containing OpenCL link options.
   void link(string_class LinkOptions = "");
@@ -195,7 +196,8 @@ public:
   ///
   /// @return true if the SYCL kernel is available.
   template <typename KernelT> bool has_kernel() const {
-    return has_kernel(detail::KernelInfo<KernelT>::getName(), /*IsCreatedFromSource*/ false);
+    return has_kernel(detail::KernelInfo<KernelT>::getName(),
+                      /*IsCreatedFromSource*/ false);
   }
 
   /// Checks if kernel is available for this program.
@@ -336,7 +338,6 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
 };
 } // namespace sycl
 } // namespace cl

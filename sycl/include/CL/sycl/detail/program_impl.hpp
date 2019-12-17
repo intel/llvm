@@ -37,17 +37,18 @@ public:
 
   /// Constructs an instance of program.
   ///
-  /// The program will be created in the program_state::none state and associated
-  /// with the provided context and the devices that are associated with
-  /// the context.
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the devices that are associated
+  /// with the context.
   ///
   /// @param Context is a pointer to SYCL context impl.
   explicit program_impl(ContextImplPtr Context);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
   ///
-  /// The program will be created in the program_state::none state and associated
-  /// with the provided context and the devices in the provided DeviceList.
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the devices in the provided
+  /// DeviceList.
   ///
   /// @param Context is a pointer to SYCL context impl.
   /// @param DeviceList is a list of SYCL devices.
@@ -58,9 +59,9 @@ public:
   ///
   /// Each program in ProgramList must be in the program_state::compiled
   /// state and must be associated with the same SYCL context. Otherwise an
-  /// invalid_object_error SYCL exception will be thrown. A feature_not_supported
-  /// exception will be thrown if any device that the program is to be linked
-  /// for returns false for the device information query
+  /// invalid_object_error SYCL exception will be thrown. A
+  /// feature_not_supported exception will be thrown if any device that the
+  /// program is to be linked for returns false for the device information query
   /// info::device::is_linker_available.
   /// Kernels caching for linked programs won't be allowed due to only compiled
   /// state of each and every program in the list and thus unknown state of
@@ -131,11 +132,11 @@ public:
   /// This member function sets the state of this SYCL program to
   /// program_state::compiled.
   /// If the program was not in the program_state::none state,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
-  /// a compile_program_error SYCL exception is thrown. If any device that the
-  /// program is being compiled for returns false for the device information
-  /// query info::device::is_compiler_available, a feature_not_supported
-  /// SYCL exception is thrown.
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being compiled for returns false for the device
+  /// information query info::device::is_compiler_available, a
+  /// feature_not_supported SYCL exception is thrown.
   ///
   /// @param KernelSource is a string containing OpenCL C kernel source code.
   /// @param CompileOptions is a string containing OpenCL compile options.
@@ -147,10 +148,10 @@ public:
   /// The SYCL kernel function is defined by the kernel name.
   /// This member function sets the state of this SYCL program to
   /// program_state::linked. If the program was not in the program_state::none
-  /// state, an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being built for returns false for the device
-  /// information queries info::device::is_compiler_available or
+  /// state, an invalid_object_error SYCL exception is thrown. If the
+  /// compilation fails, a compile_program_error SYCL exception is thrown. If
+  /// any device that the program is being built for returns false for the
+  /// device information queries info::device::is_compiler_available or
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
   /// is thrown.
   ///
@@ -163,8 +164,8 @@ public:
   ///
   /// This member function sets the state of this SYCL program to
   /// program_state::linked. If this program was not in program_state::none,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation fails,
-  /// a compile_program_error SYCL exception is thrown. If any device
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
   /// that the program is being built for returns false for the device
   /// information queries info::device::is_compiler_available or
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
@@ -178,12 +179,12 @@ public:
   /// Links encapsulated raw program.
   ///
   /// This member function sets the state of this SYCL program to
-  /// program_state::linked. If the program was not in the program_state::compiled
-  /// state, an invalid_object_error SYCL exception is thrown. If linking fails,
-  /// a compile_program_error is thrown. If any device that the program is to be
-  /// linked for returns false for the device information query
-  /// info::device::is_linker_available, a feature_not_supported exception
-  /// is thrown.
+  /// program_state::linked. If the program was not in the
+  /// program_state::compiled state, an invalid_object_error SYCL exception is
+  /// thrown. If linking fails, a compile_program_error is thrown. If any device
+  /// that the program is to be linked for returns false for the device
+  /// information query info::device::is_linker_available, a
+  /// feature_not_supported exception is thrown.
   ///
   /// @param LinkOptions is a string containing OpenCL link options.
   void link(string_class LinkOptions = "");
