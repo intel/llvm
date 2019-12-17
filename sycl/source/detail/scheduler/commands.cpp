@@ -910,8 +910,8 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
-        PI_CALL(piKernelSetArgMemPointer)(Kernel, Arg.MIndex, Arg.MSize,
-                                          Arg.MPtr);
+        PI_CALL(piextUSMKernelSetArgMemPointer)(Kernel, Arg.MIndex, Arg.MSize,
+                                                Arg.MPtr);
         break;
       }
       default:
@@ -925,7 +925,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    PI_CALL(piKernelSetIndirectAccess)(Kernel, MQueue->getHandleRef());
+    PI_CALL(piextUSMKernelSetIndirectAccess)(Kernel, MQueue->getHandleRef());
 
     // Remember this information before the range dimensions are reversed
     const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);

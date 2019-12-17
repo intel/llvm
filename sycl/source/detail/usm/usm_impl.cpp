@@ -46,7 +46,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 
     switch (Kind) {
     case alloc::host: {
-      Error = PI_CALL_NOCHECK(piHostMemAlloc)(&RetVal, C, nullptr, Size, Alignment);
+      Error = PI_CALL_NOCHECK(piextUSMHostAlloc)(&RetVal, C, nullptr, Size,
+                                                 Alignment);
       break;
     }
     case alloc::device:
@@ -91,12 +92,14 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piDeviceMemAlloc)(&RetVal, C, Id, nullptr, Size, Alignment);
+      Error = PI_CALL_NOCHECK(piextUSMDeviceAlloc)(&RetVal, C, Id, nullptr,
+                                                   Size, Alignment);
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piSharedMemAlloc)(&RetVal, C, Id, nullptr, Size, Alignment);
+      Error = PI_CALL_NOCHECK(piextUSMSharedAlloc)(&RetVal, C, Id, nullptr,
+                                                   Size, Alignment);
       break;
     }
     case alloc::host:
@@ -122,7 +125,7 @@ void free(void *Ptr, const context &Ctxt) {
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    PI_CALL(piMemFree)(C, Ptr);
+    PI_CALL(piextUSMFree)(C, Ptr);
   }
 }
 
