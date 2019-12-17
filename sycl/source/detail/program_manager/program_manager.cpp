@@ -194,7 +194,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   // Link a fallback implementation of device libraries if they are not
   // supported by a device compiler.
   // Pre-compiled programs are supposed to be already linked.
-  bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
+  const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
 
   std::vector<RT::PiDevice> Devices;
   getContextDevices(getRawSyclObjImpl(Context)->getHandleRef(), Devices);
@@ -431,7 +431,7 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
-void getDeviceLibPrograms(
+static void getDeviceLibPrograms(
     const RT::PiContext Context,
     const std::vector<RT::PiDevice> &Devices,
     std::map<std::string, RT::PiProgram> &CachedLibPrograms,
@@ -500,7 +500,7 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
     RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
         Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
     if (Error != PI_SUCCESS)
-      compile_program_error(getProgramBuildLog(Program.get()));
+      throw compile_program_error(getProgramBuildLog(Program.get()));
     return Program;
   }
 
@@ -512,7 +512,7 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
       Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
-      &LinkPrograms[0], nullptr, nullptr, &LinkedProg);
+      LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
