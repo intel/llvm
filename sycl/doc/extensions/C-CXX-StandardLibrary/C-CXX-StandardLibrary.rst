@@ -1,22 +1,18 @@
 C and C++ Standard libraries support
 ===================================
 
-This extension enables a set of functions from C and C++ standard
-libraries, and allows to use them in SYCL device code. Function
-declarations are taken from the standard headers (e.g. from <assert.h>
-or <complex>), and the corresponding header has to be explicitly
-included in user code.
+This extension enables a set of functions from the C and C++ standard
+libraries, and allows to use them in SYCL device code.
 
-List of supported functions from C standard library:
-  - assert macro (from assert.h)
+Function declarations are taken from the standard headers (e.g. from
+<assert.h> or <complex>), and the corresponding header has to be
+explicitly included in user code.
 
-NOTE: only the GNU glibc and Microsoft C libraries are currently
-supported.
+Implementation requires a special device library to be linked with a
+SYCL program. The library should match the C or C++ standard library
+used to compile the program:
 
-Device library is distributed with the compiler, and it has to be
-explicitly linked by a user.
-
-On Linux with GNU glibc:
+For example, on Linux with GNU glibc:
 .. code:
    clang++ -fsycl -c main.cpp -o main.o
    clang++ -fsycl main.o $(SYCL_INSTALL)/lib/libsycl-glibc.o -o a.out
@@ -25,6 +21,12 @@ or, in case of Windows:
 .. code:
    clang++ -fsycl -c main.cpp -o main.obj
    clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
+
+List of supported functions from C standard library:
+  - assert macro (from assert.h)
+
+NOTE: only the GNU glibc and Microsoft C libraries are currently
+supported.
 
 Example of usage
 ================
@@ -72,7 +74,7 @@ functions in LLVM IR after clang:
       call spir_func void @__assert_fail([...])
       unreachable
 
-C and C++ specifications do not define names and signatures of the
+The C and C++ specifications do not define names and signatures of the
 functions from libc implementation that are used for a particular
 function. For example, the `assert` macro:
 
@@ -82,7 +84,7 @@ function. For example, the `assert` macro:
 
 This makes it difficult to handle all possible cases in device
 compilers. In order to facilitate porting to new platforms, and to
-avoid imposing a lot of boilerplate code in *every* device compiler, a
+avoid imposing a lot of boilerplate code in *every* device compiler,
 wrapper libraries are provided with the SYCL compiler that "lower"
 libc implementation-specific functions into a stable set of functions,
 that can be later handled by a device compiler.

@@ -17,15 +17,15 @@ cl_intel_devicelib_cassert
 Semantic:
 the function is called when an assertion expression `expr` is false,
 and it indicates that a program does not execute as expected.
-The function should print a message containing the information provided
-the arguments. In addition to that, the function is free to terminate
-the current kernel invocation.
+The function should print a message containing the information
+provided in the arguments. In addition to that, the function is free
+to terminate the current kernel invocation.
 
 Arguments:
 
   - `expr` is a string representation of the assertion condition
   - `file` and `line` are the source code location of the assertion
-  - `func` (optional, may be NULL)  name of a function containing the assertion
+  - `func` (optional, may be NULL)  name of the function containing the assertion
   - `gidX` current work-item global id
   - `lidX` current work-item local id
 
