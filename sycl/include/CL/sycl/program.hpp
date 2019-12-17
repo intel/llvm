@@ -332,7 +332,7 @@ private:
                               string_class buildOptions,
                               detail::OSModuleHandle M);
 
-  std::shared_ptr<detail::program_impl> impl;
+  shared_ptr_class<detail::program_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -345,7 +345,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::program> {
   size_t operator()(const cl::sycl::program &prg) const {
-    return hash<std::shared_ptr<cl::sycl::detail::program_impl>>()(
+    return hash<shared_ptr_class<cl::sycl::detail::program_impl>>()(
         cl::sycl::detail::getSyclObjImpl(prg));
   }
 };
