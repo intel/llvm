@@ -30,11 +30,6 @@ class program_impl;
 enum class program_state { none, compiled, linked };
 
 class program {
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
 public:
   program() = delete;
 
@@ -91,9 +86,9 @@ public:
 
   program &operator=(program &&rhs) = default;
 
-  bool operator==(const program &rhs) const;
+  bool operator==(const program &rhs) const { return impl == rhs.impl; }
 
-  bool operator!=(const program &rhs) const;
+  bool operator!=(const program &rhs) const { return impl != rhs.impl; }
 
   /// Returns a valid cl_program instance.
   ///
@@ -123,7 +118,7 @@ public:
   void compile_with_kernel_type(string_class CompileOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
         detail::KernelInfo<KernelT>::getName());
-    compile_with_kernel_type(detail::KernelInfo<KernelT>::getName(),
+    compile_with_kernel_name(detail::KernelInfo<KernelT>::getName(),
                              CompileOptions, M);
   }
 
@@ -160,7 +155,7 @@ public:
   void build_with_kernel_type(string_class BuildOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
         detail::KernelInfo<KernelT>::getName());
-    build_with_kernel_type(detail::KernelInfo<KernelT>::getName(), BuildOptions,
+    build_with_kernel_name(detail::KernelInfo<KernelT>::getName(), BuildOptions,
                            M);
   }
 
@@ -322,7 +317,7 @@ private:
   /// @param KernelName is a stringified kernel name.
   /// @param CompileOptions is a string of valid OpenCL compile options.
   /// @param M is a valid OS handle to the user executable or library.
-  void compile_with_kernel_type(string_class KernelName,
+  void compile_with_kernel_name(string_class KernelName,
                                 string_class CompileOptions,
                                 detail::OSModuleHandle M);
 
@@ -331,11 +326,17 @@ private:
   /// @param KernelName is a stringified kernel name.
   /// @param CompileOptions is a string of valid OpenCL compile options.
   /// @param M is a valid OS handle to the user executable or library.
-  void build_with_kernel_type(string_class KernelName,
+  void build_with_kernel_name(string_class KernelName,
                               string_class buildOptions,
                               detail::OSModuleHandle M);
 
   std::shared_ptr<detail::program_impl> impl;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
 };
 } // namespace sycl
 } // namespace cl

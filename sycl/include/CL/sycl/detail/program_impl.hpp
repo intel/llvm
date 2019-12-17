@@ -102,13 +102,13 @@ public:
 
   /// @return a reference to a raw PI program handle. PI program is not retained
   /// before return.
-  RT::PiProgram &getHandleRef() { return Program; }
+  RT::PiProgram &getHandleRef() { return MProgram; }
   /// @return a constant reference to a raw PI program handle. PI program is not
   /// retained before return.
-  const RT::PiProgram &getHandleRef() const { return Program; }
+  const RT::PiProgram &getHandleRef() const { return MProgram; }
 
   /// @return true if this SYCL program is a host program.
-  bool is_host() const { return Context->is_host(); }
+  bool is_host() const { return MContext->is_host(); }
 
   /// Compiles the SYCL kernel function into the encapsulated raw program.
   ///
@@ -122,7 +122,7 @@ public:
   /// exception is thrown.
   ///
   /// @param CompileOptions is a string of valid OpenCL compile options.
-  void compile_with_kernel_type(string_class KernelName,
+  void compile_with_kernel_name(string_class KernelName,
                                 string_class CompileOptions,
                                 OSModuleHandle Module);
 
@@ -156,7 +156,7 @@ public:
   ///
   /// @param KernelName is a string containing SYCL kernel name.
   /// @param BuildOptions is a string containing OpenCL compile options.
-  void build_with_kernel_type(string_class KernelName,
+  void build_with_kernel_name(string_class KernelName,
                               string_class BuildOptions, OSModuleHandle M);
 
   /// Builds the OpenCL C kernel function defined by source code.
@@ -227,11 +227,11 @@ public:
   context get_context() const {
     if (is_host())
       return context();
-    return createSyclObjFromImpl<context>(Context);
+    return createSyclObjFromImpl<context>(MContext);
   }
 
   /// @return a vector of devices that are associated with this program.
-  vector_class<device> get_devices() const { return Devices; }
+  vector_class<device> get_devices() const { return MDevices; }
 
   /// Returns compile options that were provided when the encapsulated program
   /// was explicitly compiled.
@@ -243,7 +243,7 @@ public:
   /// in the explicit compile are returned.
   ///
   /// @return a string of valid OpenCL compile options.
-  string_class get_compile_options() const { return CompileOptions; }
+  string_class get_compile_options() const { return MCompileOptions; }
 
   /// Returns compile options that were provided to the most recent invocation
   /// of link member function.
@@ -259,7 +259,7 @@ public:
   /// are returned.
   ///
   /// @return a string of valid OpenCL compile options.
-  string_class get_link_options() const { return LinkOptions; }
+  string_class get_link_options() const { return MLinkOptions; }
 
   /// Returns the compile, link, or build options, from whichever of those
   /// operations was performed most recently on the encapsulated cl_program.
@@ -269,10 +269,10 @@ public:
   /// then an empty string is returned.
   ///
   /// @return a string of valid OpenCL build options.
-  string_class get_build_options() const { return BuildOptions; }
+  string_class get_build_options() const { return MBuildOptions; }
 
   /// @return the current state of this SYCL program.
-  program_state get_state() const { return State; }
+  program_state get_state() const { return MState; }
 
 private:
   /// Checks feature support for specific devices.
@@ -317,7 +317,7 @@ private:
   vector_class<RT::PiDevice> get_pi_devices() const;
 
   /// @return true if caching is allowed for this program.
-  bool is_cacheable() const { return IsProgramAndKernelCachingAllowed; }
+  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
   /// @param Options is a string containing OpenCL C build options.
   /// @return true if caching is allowed for this program and build options.
@@ -350,20 +350,20 @@ private:
   /// @param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
-  RT::PiProgram Program = nullptr;
-  program_state State = program_state::none;
-  ContextImplPtr Context;
-  bool IsLinkable = false;
-  vector_class<device> Devices;
-  string_class CompileOptions;
-  string_class LinkOptions;
-  string_class BuildOptions;
-  OSModuleHandle ProgramModuleHandle = OSUtil::ExeModuleHandle;
+  RT::PiProgram MProgram = nullptr;
+  program_state MState = program_state::none;
+  ContextImplPtr MContext;
+  bool MLinkable = false;
+  vector_class<device> MDevices;
+  string_class MCompileOptions;
+  string_class MLinkOptions;
+  string_class MBuildOptions;
+  OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
-  // Only allow kernel caching for programs constructed with context only (or
-  // device list and context) and built with build_with_kernel_type with
-  // default build options
-  bool IsProgramAndKernelCachingAllowed = false;
+  /// Only allow kernel caching for programs constructed with context only (or
+  /// device list and context) and built with build_with_kernel_type with
+  /// default build options
+  bool MProgramAndKernelCachingAllowed = false;
 };
 
 template <>

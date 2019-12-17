@@ -30,10 +30,6 @@ program::program(const context &context, cl_program clProgram)
            detail::getSyclObjImpl(context), detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
-bool program::operator==(const program &rhs) const { return impl == rhs.impl; }
-
-bool program::operator!=(const program &rhs) const { return !operator==(rhs); }
-
 cl_program program::get() const { return impl->get(); }
 
 bool program::is_host() const { return impl->is_host(); }
@@ -48,16 +44,16 @@ void program::build_with_source(string_class kernelSource,
   impl->build_with_source(kernelSource, buildOptions);
 }
 
-void program::compile_with_kernel_type(string_class KernelName,
+void program::compile_with_kernel_name(string_class KernelName,
                                        string_class compileOptions,
                                        detail::OSModuleHandle M) {
-  impl->compile_with_kernel_type(KernelName, compileOptions, M);
+  impl->compile_with_kernel_name(KernelName, compileOptions, M);
 }
 
-void program::build_with_kernel_type(string_class KernelName,
+void program::build_with_kernel_name(string_class KernelName,
                                      string_class buildOptions,
                                      detail::OSModuleHandle M) {
-  impl->build_with_kernel_type(KernelName, buildOptions, M);
+  impl->build_with_kernel_name(KernelName, buildOptions, M);
 }
 
 void program::link(string_class linkOptions) { impl->link(linkOptions); }
