@@ -1997,10 +1997,15 @@ def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "max_global_work_dim (IntelFPGA)";
   let Content = [{
-Applies to a device function/lambda function. Indicates the largest valid global
-work dimension that will be accepted when running the kernel on a device. Valid
-values are non-negative integers. A kernel with max_global_work_dim(0) must be
-invoked with a 'single_task'.
+Applies to a device function/lambda function or function call operator (of a
+function object). Indicates the largest valid global work dimension that will be
+accepted when running the kernel on a device. Valid values are integers in a
+range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
+'single_task' and if ``intelfpga::max_work_group_size`` or
+``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
+have arguments of (1, 1, 1).
+If ``intelfpga::max_global_work_dim`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 

@@ -2866,15 +2866,15 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
                                      uint32_t WGSize[3]) {
   bool Result = true;
-  auto checkZeroDim = [&S, &Attr](auto A, auto X, auto Y, auto Z,
+  auto checkZeroDim = [&S, &Attr](auto &A, size_t X, size_t Y, size_t Z,
                                   bool ReverseAttrs = false) -> bool {
     if (X != 1 || Y != 1 || Z != 1) {
+      auto Diag =
+          S.Diag(Attr.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one);
       if (ReverseAttrs)
-        S.Diag(Attr.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-            << Attr << A;
+        Diag << Attr << A;
       else
-        S.Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
-            << A << Attr;
+        Diag << A << Attr;
       return false;
     }
     return true;
