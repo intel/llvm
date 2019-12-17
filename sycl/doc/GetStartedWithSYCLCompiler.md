@@ -93,6 +93,13 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
 ninja sycl-toolchain
 ```
 
+To use ahead-of-time compilation for the Intel&reg; processors, additionally build opencl-aot target:
+  
+1. add ```opencl-aot``` to ```-DLLVM_EXTERNAL_PROJECTS``` and ```-DLLVM_ENABLE_PROJECTS``` variables above
+2. add ```opencl-aot``` to ```make``` (for Linux) or ```ninja``` (for Windows) commands above
+
+For more, see [opencl-aot documentation](../../opencl-aot/README.md).
+
 TODO: add instructions how to deploy built SYCL toolchain.
 
 ## Build SYCL toolchain with libc++ library

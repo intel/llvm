@@ -1738,7 +1738,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
           std::make_tuple(MakeSYCLDeviceTriple("spir64_fpga"), "aoc", "-help"));
     if (AV == "x86_64" || AV == "all")
       HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_x86_64"),
-                                         "ioc64", "-help"));
+                                         "opencl-aot", "--help"));
     if (HelpArgs.empty()) {
       C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
                          << A->getOption().getName() << AV;

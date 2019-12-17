@@ -41,5 +41,5 @@
 // SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help"
 // SYCL-HELP-FPGA: Emitting help information for aoc
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
-// SYCL-HELP-CPU: Emitting help information for ioc64
+// SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation

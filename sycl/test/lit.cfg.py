@@ -153,7 +153,7 @@ config.environment['PATH'] = path
 
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
-aot_tools = ["ioc64", "ocloc", "aoc"]
+aot_tools = ["opencl-aot", "ocloc", "aoc"]
 for aot_tool in aot_tools:
     if find_executable(aot_tool) != None:
         print("Found AOT device compiler " + aot_tool)

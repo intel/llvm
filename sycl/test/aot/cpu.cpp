@@ -1,10 +1,10 @@
-// REQUIRES: ioc64
+// REQUIRES: opencl-aot
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-//==----- cpu.cpp - AOT compilation for cpu devices using ioc64  -------------==//
+//==----- cpu.cpp - AOT compilation for cpu devices using opencl-aot  --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
