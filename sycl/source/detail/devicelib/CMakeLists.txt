@@ -1,6 +1,6 @@
 # Place device libraries near the libsycl.so library in a build
 # directory
-if (MSVC)
+if (WIN32)
     set(binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 else()
     set(binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
@@ -14,7 +14,7 @@ set(compile_opts
     # for CL/__spirv/spirv_vars.hpp
     -I${sycl_inc_dir})
 
-if (MSVC)
+if (WIN32)
     set(devicelib-obj-file ${binary_dir}/libsycl-msvc.o)
     add_custom_command(OUTPUT ${devicelib-obj-file}
                        COMMAND ${clang} -fsycl -c
@@ -54,7 +54,7 @@ endif()
 
 # Place device libraries near the libsycl.so library in an install
 # directory as well
-if (MSVC)
+if (WIN32)
     set(install_dest bin)
 else()
     set(install_dest lib)
