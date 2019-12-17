@@ -345,7 +345,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::program> {
   size_t operator()(const cl::sycl::program &prg) const {
-    return hash<shared_ptr_class<cl::sycl::detail::program_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::program_impl>>()(
         cl::sycl::detail::getSyclObjImpl(prg));
   }
 };
