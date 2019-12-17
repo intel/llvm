@@ -151,8 +151,7 @@ public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
   void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:
-    NDRDescT AdjustedRange;
-    bool Adjust = false;
+    NDRDescT AdjustedRange = NDRDesc;
 
     if (NDRDesc.GlobalSize[0] == 0 && NDRDesc.NumWorkGroups[0] != 0) {
       // This is a special case - NDRange information is not complete, only the
@@ -164,12 +163,13 @@ public:
       range<3> WGsize{1, 1, 1}; // no better alternative for serial host?
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
-      Adjust = true;
     }
-    const NDRDescT &R = Adjust ? AdjustedRange : NDRDesc;
+    if (AdjustedRange.LocalSize[0] == 0)
+      for (int I = 0; I < AdjustedRange.Dims; ++I)
+        AdjustedRange.LocalSize[I] = 1;
     if (HPI)
       HPI->start();
-    runOnHost(R);
+    runOnHost(AdjustedRange);
     if (HPI)
       HPI->end();
   }
