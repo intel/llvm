@@ -333,10 +333,11 @@ template <>
 struct get_device_info<bool, info::device::usm_device_allocations> {
   static bool get(RT::PiDevice dev) {
     pi_usm_capabilities caps;
-    PI_CALL(piDeviceGetInfo)(
+    pi_result Err = PI_CALL_NOCHECK(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_device_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (caps != 0);
+
+    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -345,10 +346,11 @@ template <>
 struct get_device_info<bool, info::device::usm_host_allocations> {
   static bool get(RT::PiDevice dev) {
     pi_usm_capabilities caps;
-    PI_CALL(piDeviceGetInfo)(
+    pi_result Err = PI_CALL_NOCHECK(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_host_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (caps & PI_USM_ACCESS);
+
+    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -357,10 +359,10 @@ template <>
 struct get_device_info<bool, info::device::usm_shared_allocations> {
   static bool get(RT::PiDevice dev) {
     pi_usm_capabilities caps;
-    PI_CALL(piDeviceGetInfo)(
+    pi_result Err = PI_CALL_NOCHECK(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_shared_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (caps & PI_USM_ACCESS);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -369,13 +371,15 @@ template <>
 struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
   static bool get(RT::PiDevice dev) {
     pi_usm_capabilities caps;
-    PI_CALL(piDeviceGetInfo)(
+    pi_result Err = PI_CALL_NOCHECK(piDeviceGetInfo)(
         dev,
         pi::cast<RT::PiDeviceInfo>(
             info::device::usm_restricted_shared_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
     // Check that we don't support any cross device sharing
-    return !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
+    return (Err != PI_SUCCESS)
+               ? false
+               : !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
   }
 };
 
@@ -384,11 +388,10 @@ template <>
 struct get_device_info<bool, info::device::usm_system_allocator> {
   static bool get(RT::PiDevice dev) {
     pi_usm_capabilities caps;
-    PI_CALL(piDeviceGetInfo)(
+    pi_result Err = PI_CALL_NOCHECK(piDeviceGetInfo)(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
         sizeof(pi_usm_capabilities), &caps, nullptr);
-    // Check that we don't support any cross device sharing
-    return (caps & PI_USM_ACCESS);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
