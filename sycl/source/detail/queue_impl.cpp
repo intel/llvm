@@ -67,7 +67,8 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
 
   // non-Host device
   RT::PiEvent Event = nullptr;
-  PI_CALL(piEnqueueMemAdvise)(getHandleRef(), Ptr, Length, Advice, &Event);
+  PI_CALL(piextUSMEnqueueMemAdvise)(getHandleRef(), Ptr, Length, Advice,
+                                    &Event);
 
   return event(pi::cast<cl_event>(Event), Context);
 }

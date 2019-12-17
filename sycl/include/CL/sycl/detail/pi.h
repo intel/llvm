@@ -986,22 +986,14 @@ typedef _pi_usm_mem_properties    pi_usm_mem_properties;
 typedef _pi_usm_kernel_exec_info  pi_usm_kernel_exec_info;
 typedef _pi_usm_migration_flags   pi_usm_migration_flags;
 
-pi_result piHostMemAlloc(
+pi_result piextUSMHostAlloc(
   void **                 result_ptr,
   pi_context              context,
   pi_usm_mem_properties * properties,
   size_t                  size,
   pi_uint32               alignment);
 
-pi_result piDeviceMemAlloc(
-  void **                 result_ptr,
-  pi_context              context,
-  pi_device               device,
-  pi_usm_mem_properties * properties,
-  size_t                  size,
-  pi_uint32               alignment);
-
-pi_result piSharedMemAlloc(
+pi_result piextUSMDeviceAlloc(
   void **                 result_ptr,
   pi_context              context,
   pi_device               device,
@@ -1009,21 +1001,29 @@ pi_result piSharedMemAlloc(
   size_t                  size,
   pi_uint32               alignment);
 
-pi_result piMemFree(
+pi_result piextUSMSharedAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_device               device,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+pi_result piextUSMFree(
   pi_context context,
   void *     ptr);
 
-pi_result piKernelSetArgMemPointer(
+pi_result piextUSMKernelSetArgMemPointer(
   pi_kernel    kernel,
   pi_uint32    arg_index,
   size_t       arg_size,
   const void * arg_value);
 
-pi_result piKernelSetIndirectAccess(
+pi_result piextUSMKernelSetIndirectAccess(
   pi_kernel kernel,
   pi_queue queue);
 
-pi_result piEnqueueMemset(
+pi_result piextUSMEnqueueMemset(
   pi_queue         queue,
   void *           ptr,
   pi_int32         value,
@@ -1032,7 +1032,7 @@ pi_result piEnqueueMemset(
   const pi_event * events_waitlist,
   pi_event *       event);
 
-pi_result piEnqueueMemcpy(
+pi_result piextUSMEnqueueMemcpy(
   pi_queue         queue,
   pi_bool          blocking,
   void *           dst_ptr,
@@ -1042,7 +1042,7 @@ pi_result piEnqueueMemcpy(
   const pi_event * events_waitlist,
   pi_event *       event);
 
-pi_result piEnqueuePrefetch(
+pi_result piextUSMEnqueuePrefetch(
   pi_queue               queue,
   const void *           ptr,
   size_t                 size,
@@ -1051,14 +1051,14 @@ pi_result piEnqueuePrefetch(
   const pi_event *       events_waitlist,
   pi_event *             event);
 
-pi_result piEnqueueMemAdvise(
+pi_result piextUSMEnqueueMemAdvise(
   pi_queue     queue,
   const void * ptr,
   size_t       length,
   int          advice,
   pi_event *   event);
 
-pi_result piGetMemAllocInfo(
+pi_result piextUSMGetMemAllocInfo(
   pi_context   context,
   const void * ptr,
   pi_mem_info  param_name,

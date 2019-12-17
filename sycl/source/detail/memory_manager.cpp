@@ -477,9 +477,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
   } else {
-    PI_CALL(piEnqueueMemcpy)(SrcQueue->getHandleRef(), /* blocking */ false,
-                             DstMem, SrcMem, Len, DepEvents.size(),
-                             &DepEvents[0], &OutEvent);
+    PI_CALL(piextUSMEnqueueMemcpy)(SrcQueue->getHandleRef(),
+                                   /* blocking */ false, DstMem, SrcMem, Len,
+                                   DepEvents.size(), &DepEvents[0], &OutEvent);
   }
 }
 
@@ -491,8 +491,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);
   } else {
-    PI_CALL(piEnqueueMemset)(Queue->getHandleRef(), Mem, Pattern, Length,
-                             DepEvents.size(), &DepEvents[0], &OutEvent);
+    PI_CALL(piextUSMEnqueueMemset)(Queue->getHandleRef(), Mem, Pattern, Length,
+                                   DepEvents.size(), &DepEvents[0], &OutEvent);
   }
 }
 
@@ -504,9 +504,9 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     // TODO: Potentially implement prefetch on the host.
   } else {
-    PI_CALL(piEnqueuePrefetch)(Queue->getHandleRef(), Mem, Length,
-                               PI_USM_MIGRATION_TBD0, DepEvents.size(),
-                               &DepEvents[0], &OutEvent);
+    PI_CALL(piextUSMEnqueuePrefetch)(Queue->getHandleRef(), Mem, Length,
+                                     PI_USM_MIGRATION_TBD0, DepEvents.size(),
+                                     &DepEvents[0], &OutEvent);
   }
 }
 

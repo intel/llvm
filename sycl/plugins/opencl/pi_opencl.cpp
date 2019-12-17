@@ -496,6 +496,7 @@ pi_result OCL(piEnqueueMemBufferMap)(
 // USM
 //
 
+// Allocates host memory accessible by the device.
 pi_result OCL(piHostMemAlloc)(void **result_ptr, pi_context context,
                               pi_usm_mem_properties *properties, size_t size,
                               pi_uint32 alignment) {
@@ -521,6 +522,7 @@ pi_result OCL(piHostMemAlloc)(void **result_ptr, pi_context context,
   return RetVal;
 }
 
+// Allocates device memory.
 pi_result OCL(piDeviceMemAlloc)(void **result_ptr, pi_context context,
                                 pi_device device,
                                 pi_usm_mem_properties *properties, size_t size,
@@ -547,6 +549,7 @@ pi_result OCL(piDeviceMemAlloc)(void **result_ptr, pi_context context,
   return RetVal;
 }
 
+// Allocates memory accessible on host and device.
 pi_result OCL(piSharedMemAlloc)(void **result_ptr, pi_context context,
                                 pi_device device,
                                 pi_usm_mem_properties *properties, size_t size,
@@ -585,9 +588,12 @@ pi_result OCL(piMemFree)(pi_context context, void *ptr) {
   return cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
 }
 
+// Sets up pointer arguments to CL kernels
 pi_result OCL(piKernelSetArgMemPointer)(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
+
+  // Size is unused in CL as pointer args are passed by value.
 
   // Have to look up the context from the kernel
   cl_context CLContext;
@@ -611,21 +617,50 @@ pi_result OCL(piKernelSetArgMemPointer)(pi_kernel kernel, pi_uint32 arg_index,
   return cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
 }
 
+// Enables indirect access of pointers in kernels.
+// Necessary to avoid telling CL about every pointer that might be used.
 pi_result OCL(piKernelSetIndirectAccess)(pi_kernel kernel, pi_queue queue) {
 
+  // We test that each alloc type is supported before we actually try to
+  // set KernelExecInfo.
   cl_bool TrueVal = CL_TRUE;
-  clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                      CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-                      sizeof(cl_bool), &TrueVal);
-  clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                      CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-                      sizeof(cl_bool), &TrueVal);
-  clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                      CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-                      sizeof(cl_bool), &TrueVal);
+  pi_result RetVal;
+  clHostMemAllocINTEL_fn HFunc;
+  clSharedMemAllocINTEL_fn SFunc;
+  clDeviceMemAllocINTEL_fn DFunc;
+  cl_context CLContext;
+  cl_int CLErr = clGetKernelInfo(cast<cl_kernel>(kernel), CL_KERNEL_CONTEXT,
+                                 sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  // This would be really good to cache
+  RetVal = getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+      cast<pi_context>(CLContext), "clHostMemAllocINTEL", &HFunc);
+  if (RetVal == PI_SUCCESS) {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
+  RetVal = getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+      cast<pi_context>(CLContext), "clDeviceMemAllocINTEL", &DFunc);
+  if (RetVal == PI_SUCCESS) {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
+  RetVal = getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+      cast<pi_context>(CLContext), "clSharedMemAllocINTEL", &SFunc);
+  if (RetVal == PI_SUCCESS) {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
   return PI_SUCCESS;
 }
 
+// USM memset API
 pi_result OCL(piEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
                                size_t count, pi_uint32 num_events_in_waitlist,
                                const pi_event *events_waitlist,
@@ -652,6 +687,7 @@ pi_result OCL(piEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
       cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
 }
 
+// USM routine to copy data between host and device
 pi_result OCL(piEnqueueMemcpy)(pi_queue queue, pi_bool blocking, void *dst_ptr,
                                const void *src_ptr, pi_int32 size,
                                pi_uint32 num_events_in_waitlist,
@@ -680,6 +716,7 @@ pi_result OCL(piEnqueueMemcpy)(pi_queue queue, pi_bool blocking, void *dst_ptr,
                                  cast<cl_event *>(event)));
 }
 
+// Hint to migrate memory to the device
 pi_result OCL(piEnqueuePrefetch)(pi_queue queue, const void *ptr, size_t size,
                                  pi_usm_migration_flags flags,
                                  pi_uint32 num_events_in_waitlist,
@@ -716,6 +753,7 @@ pi_result OCL(piEnqueuePrefetch)(pi_queue queue, const void *ptr, size_t size,
   */
 }
 
+// USM memadvise API to govern behavior of automatic migration mechanisms
 pi_result OCL(piEnqueueMemAdvise)(pi_queue queue, const void *ptr,
                                   size_t length, int advice, pi_event *event) {
 
@@ -751,6 +789,8 @@ pi_result OCL(piEnqueueMemAdvise)(pi_queue queue, const void *ptr,
   */
 }
 
+// API to query information about USM pointers including type and
+// device allocated against
 pi_result OCL(piGetMemAllocInfo)(pi_context context, const void *ptr,
                                  pi_mem_info param_name,
                                  size_t param_value_size, void *param_value,
@@ -863,17 +903,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemBufferMap, OCL(piEnqueueMemBufferMap))
   _PI_CL(piEnqueueMemUnmap, clEnqueueUnmapMemObject)
   // USM
-  _PI_CL(piHostMemAlloc, OCL(piHostMemAlloc))
-  _PI_CL(piDeviceMemAlloc, OCL(piDeviceMemAlloc))
-  _PI_CL(piSharedMemAlloc, OCL(piSharedMemAlloc))
-  _PI_CL(piMemFree, OCL(piMemFree))
-  _PI_CL(piKernelSetArgMemPointer, OCL(piKernelSetArgMemPointer))
-  _PI_CL(piKernelSetIndirectAccess, OCL(piKernelSetIndirectAccess))
-  _PI_CL(piEnqueueMemset, OCL(piEnqueueMemset))
-  _PI_CL(piEnqueueMemcpy, OCL(piEnqueueMemcpy))
-  _PI_CL(piEnqueuePrefetch, OCL(piEnqueuePrefetch))
-  _PI_CL(piEnqueueMemAdvise, OCL(piEnqueueMemAdvise))
-  _PI_CL(piGetMemAllocInfo, OCL(piGetMemAllocInfo))
+  _PI_CL(piextUSMHostAlloc, OCL(piHostMemAlloc))
+  _PI_CL(piextUSMDeviceAlloc, OCL(piDeviceMemAlloc))
+  _PI_CL(piextUSMSharedAlloc, OCL(piSharedMemAlloc))
+  _PI_CL(piextUSMFree, OCL(piMemFree))
+  _PI_CL(piextUSMKernelSetArgMemPointer, OCL(piKernelSetArgMemPointer))
+  _PI_CL(piextUSMKernelSetIndirectAccess, OCL(piKernelSetIndirectAccess))
+  _PI_CL(piextUSMEnqueueMemset, OCL(piEnqueueMemset))
+  _PI_CL(piextUSMEnqueueMemcpy, OCL(piEnqueueMemcpy))
+  _PI_CL(piextUSMEnqueuePrefetch, OCL(piEnqueuePrefetch))
+  _PI_CL(piextUSMEnqueueMemAdvise, OCL(piEnqueueMemAdvise))
+  _PI_CL(piextUSMGetMemAllocInfo, OCL(piGetMemAllocInfo))
 
 #undef _PI_CL
 
