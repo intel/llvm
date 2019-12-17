@@ -10416,7 +10416,9 @@ def err_sycl_restrict : Error<
   "|allocate storage"
   "|use inline assembly"
   "|call a dllimport function"
-  "|call a variadic function}0">;
+  "|call a variadic function"
+  "|call an unknown function w/o SYCL_EXTERNAL attribute"
+  "}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_used_here : Note<"used here">;

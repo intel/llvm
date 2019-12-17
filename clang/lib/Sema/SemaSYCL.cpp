@@ -27,6 +27,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <array>
+#include <unordered_set>
 
 using namespace clang;
 
@@ -260,11 +261,19 @@ public:
         SemaRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
+
+      // Disallow non-whitelisted methods with neither definition nor SYCL_EXTERNAL mark
+      if (!Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>() &&
+          !IsWhitelistedMethod(Callee)) {
+        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallDisallowedMethod;
+      }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
                !isa<CXXPseudoDestructorExpr>(e->getCallee()))
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
           << Sema::KernelCallFunctionPointer;
+
     return true;
   }
 
@@ -556,6 +565,17 @@ private:
     }
     return true;
   }
+
+  bool IsWhitelistedMethod(const FunctionDecl *FD) const {
+    static const std::unordered_set<std::string> WhiteList{
+#define WHITELISTED(n) #n
+#include "SYCLWhitelist.h"
+#undef WHITELISTED
+    };
+
+    return WhiteList.find(FD->getName()) != WhiteList.end();
+  }
+
   Sema &SemaRef;
 };
 

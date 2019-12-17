@@ -12276,7 +12276,8 @@ public:
     KernelAllocateStorage,
     KernelUseAssembly,
     KernelCallDllimportFunction,
-    KernelCallVariadicFunction
+    KernelCallVariadicFunction,
+    KernelCallDisallowedMethod
  };
   bool isKnownGoodSYCLDecl(const Decl *D);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
