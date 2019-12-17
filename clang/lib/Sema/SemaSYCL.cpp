@@ -573,7 +573,22 @@ private:
 #undef WHITELISTED
     };
 
-    return WhiteList.find(FD->getName()) != WhiteList.end();
+    MangleContext *MangleCtx = SemaRef.Context.createMangleContext();
+    std::string NameToLookup = "n / a";
+
+    if (!MangleCtx->shouldMangleDeclName(FD)) {
+      NameToLookup = FD->getName();
+    } else {
+      llvm::raw_string_ostream OS(NameToLookup);
+
+      MangleCtx->mangleName(FD, OS);
+
+      OS.flush();
+    }
+
+    delete MangleCtx;
+
+    return WhiteList.find(NameToLookup) != WhiteList.end();
   }
 
   Sema &SemaRef;
