@@ -187,7 +187,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
 
   context_impl *ContextImpl = getRawSyclObjImpl(Context);
   RT::PiContext PiContext = ContextImpl->getHandleRef();
-  const std::vector<device> Devices = ContextImpl->getDevices();
+  const std::vector<device> &Devices = ContextImpl->getDevices();
   std::vector<RT::PiDevice> PiDevices(Devices.size());
   std::transform(
       Devices.begin(), Devices.end(), PiDevices.begin(),
