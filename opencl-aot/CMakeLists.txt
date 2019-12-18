@@ -73,13 +73,42 @@ link_directories(${CMAKE_CURRENT_BINARY_DIR}/lib
         )
 file(GLOB TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 
-add_llvm_tool(opencl-aot ${TARGET_SOURCES})
+set(OPENCL_AOT_PROJECT_NAME opencl-aot)
 
-add_dependencies(opencl-aot opencl-headers opencl-icd)
+add_llvm_tool(${OPENCL_AOT_PROJECT_NAME} ${TARGET_SOURCES})
 
-target_link_libraries(opencl-aot PRIVATE OpenCL)
+add_dependencies(${OPENCL_AOT_PROJECT_NAME} opencl-headers opencl-icd)
 
-install(FILES ${CMAKE_BINARY_DIR}/bin/opencl-aot${CMAKE_EXECUTABLE_SUFFIX}
+target_link_libraries(${OPENCL_AOT_PROJECT_NAME} PRIVATE OpenCL)
+
+install(FILES ${CMAKE_BINARY_DIR}/bin/${OPENCL_AOT_PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
         DESTINATION bin
-        COMPONENT opencl-aot
+        COMPONENT ${OPENCL_AOT_PROJECT_NAME}
+        )
+
+# Use it as fake dependency in order to force another command(s) to execute.
+add_custom_command(OUTPUT __force_it
+        COMMAND "${CMAKE_COMMAND}" -E echo
+        )
+#Serialize installation to avoid missing components due to build race conditions
+set(__chain_dep __force_it)
+
+set(manifest_list)
+
+message( STATUS "Adding component ${OPENCL_AOT_PROJECT_NAME} to deploy")
+
+set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${OPENCL_AOT_PROJECT_NAME}.txt)
+add_custom_command(OUTPUT ${manifest_file}
+        COMMAND "${CMAKE_COMMAND}"
+        "-DCMAKE_INSTALL_COMPONENT=${OPENCL_AOT_PROJECT_NAME}"
+        -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+        DEPENDS  ${__chain_dep}
+        COMMENT "Deploying component ${OPENCL_AOT_PROJECT_NAME}"
+        USES_TERMINAL
+        )
+list(APPEND manifest_list ${manifest_file})
+set(__chain_dep ${manifest_file})
+
+add_custom_target(deploy-${OPENCL_AOT_PROJECT_NAME}
+        DEPENDS ${OPENCL_AOT_PROJECT_NAME} ${manifest_list}
         )
