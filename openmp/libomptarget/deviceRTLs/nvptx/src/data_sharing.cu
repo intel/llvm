@@ -9,7 +9,7 @@
 // This file contains the implementation of data sharing environments/
 //
 //===----------------------------------------------------------------------===//
-#include "omptarget-nvptx.h"
+#include "common/omptarget.h"
 #include "target_impl.h"
 #include <stdio.h>
 
@@ -97,7 +97,7 @@ EXTERN void *__kmpc_data_sharing_environment_begin(
 
   DSPRINT0(DSFLAG, "Entering __kmpc_data_sharing_environment_begin\n");
 
-  // If the runtime has been elided, used __shared__ memory for master-worker
+  // If the runtime has been elided, used shared memory for master-worker
   // data sharing.
   if (!IsOMPRuntimeInitialized)
     return (void *)&DataSharingState;
@@ -211,7 +211,7 @@ EXTERN void *__kmpc_data_sharing_environment_begin(
   }
 
   // FIXME: Need to see the impact of doing it here.
-  __threadfence_block();
+  __kmpc_impl_threadfence_block();
 
   DSPRINT0(DSFLAG, "Exiting __kmpc_data_sharing_environment_begin\n");
 
@@ -289,7 +289,7 @@ EXTERN void __kmpc_data_sharing_environment_end(
   }
 
   // FIXME: Need to see the impact of doing it here.
-  __threadfence_block();
+  __kmpc_impl_threadfence_block();
 
   DSPRINT0(DSFLAG, "Exiting __kmpc_data_sharing_environment_end\n");
   return;
@@ -300,7 +300,7 @@ __kmpc_get_data_sharing_environment_frame(int32_t SourceThreadID,
                                           int16_t IsOMPRuntimeInitialized) {
   DSPRINT0(DSFLAG, "Entering __kmpc_get_data_sharing_environment_frame\n");
 
-  // If the runtime has been elided, use __shared__ memory for master-worker
+  // If the runtime has been elided, use shared memory for master-worker
   // data sharing.  We're reusing the statically allocated data structure
   // that is used for standard data sharing.
   if (!IsOMPRuntimeInitialized)
@@ -357,7 +357,7 @@ EXTERN void __kmpc_data_sharing_init_stack_spmd() {
   if (GetThreadIdInBlock() == 0)
     data_sharing_init_stack_common();
 
-  __threadfence_block();
+  __kmpc_impl_threadfence_block();
 }
 
 INLINE static void* data_sharing_push_stack_common(size_t PushSize) {
@@ -474,7 +474,7 @@ EXTERN void *__kmpc_data_sharing_push_stack(size_t DataSize,
 EXTERN void __kmpc_data_sharing_pop_stack(void *FrameStart) {
   ASSERT0(LT_FUSSY, isRuntimeInitialized(), "Expected initialized runtime.");
 
-  __threadfence_block();
+  __kmpc_impl_threadfence_block();
 
   if (GetThreadIdInBlock() % WARPSIZE == 0) {
     unsigned WID = GetWarpId();
@@ -555,7 +555,7 @@ EXTERN void __kmpc_get_team_static_memory(int16_t isSPMDExecutionMode,
   ASSERT0(LT_FUSSY, GetThreadIdInBlock() == GetMasterThreadID(),
           "Must be called only in the target master thread.");
   *frame = omptarget_nvptx_simpleMemoryManager.Acquire(buf, size);
-  __threadfence();
+  __kmpc_impl_threadfence();
 }
 
 EXTERN void __kmpc_restore_team_static_memory(int16_t isSPMDExecutionMode,
@@ -569,7 +569,7 @@ EXTERN void __kmpc_restore_team_static_memory(int16_t isSPMDExecutionMode,
     }
     return;
   }
-  __threadfence();
+  __kmpc_impl_threadfence();
   ASSERT0(LT_FUSSY, GetThreadIdInBlock() == GetMasterThreadID(),
           "Must be called only in the target master thread.");
   omptarget_nvptx_simpleMemoryManager.Release();

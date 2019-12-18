@@ -2154,7 +2154,9 @@ bool llvm::writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts,
 
   legacy::PassManager PassMgr;
   addPassesForSPIRV(PassMgr);
-  if (hasLoopUnrollMetadata(M))
+  // Run loop simplify pass in order to avoid duplicate OpLoopMerge
+  // instruction. It can happen in case of continue operand in the loop.
+  if (hasLoopMetadata(M))
     PassMgr.add(createLoopSimplifyPass());
   PassMgr.add(createLLVMToSPIRV(BM.get()));
   PassMgr.run(*M);

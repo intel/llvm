@@ -24,6 +24,9 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
+using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
+
 // Set max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
 
@@ -31,25 +34,27 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
-  queue_impl(const device &SyclDevice, async_handler AsyncHandler,
+  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
              QueueOrder Order, const property_list &PropList)
-      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, Order,
-                   PropList){};
+      : queue_impl(Device,
+                   detail::getSyclObjImpl(
+                       context(createSyclObjFromImpl<device>(Device))),
+                   AsyncHandler, Order, PropList){};
 
-  queue_impl(const device &SyclDevice, const context &Context,
+  queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
              async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
-      : m_Device(SyclDevice), m_Context(Context), m_AsyncHandler(AsyncHandler),
-        m_PropList(PropList), m_HostQueue(m_Device.is_host()),
+      : m_Device(Device), m_Context(Context), m_AsyncHandler(AsyncHandler),
+        m_PropList(PropList), m_HostQueue(m_Device->is_host()),
         m_OpenCLInterop(!m_HostQueue) {
     if (!m_HostQueue) {
       m_CommandQueue = createQueue(Order);
     }
   }
 
-  queue_impl(cl_command_queue CLQueue, const context &SyclContext,
+  queue_impl(cl_command_queue CLQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
-      : m_Context(SyclContext), m_AsyncHandler(AsyncHandler),
+      : m_Context(Context), m_AsyncHandler(AsyncHandler),
         m_HostQueue(false), m_OpenCLInterop(true) {
 
     m_CommandQueue = pi::cast<RT::PiQueue>(CLQueue);
@@ -58,8 +63,7 @@ public:
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(piQueueGetInfo)(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
                             sizeof(Device), &Device, nullptr);
-    m_Device =
-        createSyclObjFromImpl<device>(std::make_shared<device_impl>(Device));
+    m_Device = std::make_shared<device_impl>(Device);
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(piQueueRetain)(m_CommandQueue);
@@ -81,13 +85,13 @@ public:
         "This instance of queue doesn't support OpenCL interoperability");
   }
 
-  context get_context() const { return m_Context; }
+  context get_context() const { return createSyclObjFromImpl<context>(m_Context); }
 
   ContextImplPtr get_context_impl() const {
-    return detail::getSyclObjImpl(m_Context);
+    return m_Context;
   }
 
-  device get_device() const { return m_Device; }
+  device get_device() const { return createSyclObjFromImpl<device>(m_Device); }
 
   bool is_host() const { return m_HostQueue; }
 
@@ -109,14 +113,7 @@ public:
   }
 
   template <typename T> event submit(T cgf, std::shared_ptr<queue_impl> self) {
-    try {
-      return submit_impl(cgf, self);
-    } catch (...) {
-      std::lock_guard<mutex_class> guard(m_Mutex);
-      m_Exceptions.PushBack(std::current_exception());
-      return event(
-          createSyclObjFromImpl<event>(std::make_shared<event_impl>(self)));
-    }
+    return submit_impl(std::move(cgf), std::move(self));
   }
 
   void wait() {
@@ -160,8 +157,8 @@ public:
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
     RT::PiQueue Queue;
-    RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
-    RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
+    RT::PiContext Context = m_Context->getHandleRef();
+    RT::PiDevice Device = m_Device->getHandleRef();
     RT::PiResult Error =
         PI_CALL_NOCHECK(piQueueCreate)(Context, Device, CreationFlags, &Queue);
 
@@ -248,8 +245,8 @@ private:
   // Protects all the fields that can be changed by class' methods
   mutex_class m_Mutex;
 
-  device m_Device;
-  const context m_Context;
+  DeviceImplPtr m_Device;
+  const ContextImplPtr m_Context;
   vector_class<event> m_Events;
   exception_list m_Exceptions;
   const async_handler m_AsyncHandler;

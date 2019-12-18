@@ -68,6 +68,7 @@ set(LLVM_TEST_DEPENDS
           llvm-elfabi
           llvm-exegesis
           llvm-extract
+          llvm-foreach
           llvm-isel-fuzzer
           llvm-ifs
           llvm-install-name-tool
@@ -107,6 +108,7 @@ set(LLVM_TEST_DEPENDS
           opt
           sancov
           sanstats
+          sycl-post-link
           verify-uselistorder
           yaml-bench
           yaml2obj

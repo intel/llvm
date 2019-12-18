@@ -107,6 +107,7 @@ bool DWARFFormValue::ExtractValue(const DWARFDataExtractor &data,
       m_value.value.uval = data.GetU64(offset_ptr);
       break;
     case DW_FORM_addrx:
+    case DW_FORM_loclistx:
     case DW_FORM_rnglistx:
     case DW_FORM_strx:
     case DW_FORM_udata:
@@ -305,6 +306,7 @@ bool DWARFFormValue::SkipValue(dw_form_t form,
 
     // signed or unsigned LEB 128 values
     case DW_FORM_addrx:
+    case DW_FORM_loclistx:
     case DW_FORM_rnglistx:
     case DW_FORM_sdata:
     case DW_FORM_udata:
@@ -333,7 +335,7 @@ void DWARFFormValue::Dump(Stream &s) const {
 
   switch (m_form) {
   case DW_FORM_addr:
-    s.Address(uvalue, sizeof(uint64_t));
+    DumpAddress(s.AsRawOstream(), uvalue, sizeof(uint64_t));
     break;
   case DW_FORM_flag:
   case DW_FORM_data1:
@@ -409,10 +411,11 @@ void DWARFFormValue::Dump(Stream &s) const {
     assert(m_unit); // Unit must be valid for DW_FORM_ref_addr objects or we
                     // will get this wrong
     if (m_unit->GetVersion() <= 2)
-      s.Address(uvalue, sizeof(uint64_t) * 2);
+      DumpAddress(s.AsRawOstream(), uvalue, sizeof(uint64_t) * 2);
     else
-      s.Address(uvalue, 4 * 2); // 4 for DWARF32, 8 for DWARF64, but we don't
-                                // support DWARF64 yet
+      DumpAddress(s.AsRawOstream(), uvalue,
+                  4 * 2); // 4 for DWARF32, 8 for DWARF64, but we don't
+                          // support DWARF64 yet
     break;
   }
   case DW_FORM_ref1:
@@ -698,6 +701,7 @@ bool DWARFFormValue::FormIsSupported(dw_form_t form) {
   switch (form) {
     case DW_FORM_addr:
     case DW_FORM_addrx:
+    case DW_FORM_loclistx:
     case DW_FORM_rnglistx:
     case DW_FORM_block2:
     case DW_FORM_block4:

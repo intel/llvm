@@ -20,6 +20,8 @@
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/Index/IndexSymbol.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace clang {
 namespace clangd {
@@ -240,12 +242,13 @@ void fillFunctionTypeAndParams(HoverInfo &HI, const Decl *D,
   // FIXME: handle variadics.
 }
 
-llvm::Optional<std::string> printExprValue(const Expr *E, const ASTContext &Ctx) {
+llvm::Optional<std::string> printExprValue(const Expr *E,
+                                           const ASTContext &Ctx) {
   Expr::EvalResult Constant;
   // Evaluating [[foo]]() as "&foo" isn't useful, and prevents us walking up
   // to the enclosing call.
   QualType T = E->getType();
-  if (T->isFunctionType() || T->isFunctionPointerType() ||
+  if (T.isNull() || T->isFunctionType() || T->isFunctionPointerType() ||
       T->isFunctionReferenceType())
     return llvm::None;
   // Attempt to evaluate. If expr is dependent, evaluation crashes!
@@ -298,7 +301,7 @@ HoverInfo getHoverContents(const Decl *D, const SymbolIndex *Index) {
     HI.Name = printName(Ctx, *ND);
   }
 
-  HI.Kind = indexSymbolKindToSymbolKind(index::getSymbolInfo(D).Kind);
+  HI.Kind = index::getSymbolInfo(D).Kind;
 
   // Fill in template params.
   if (const TemplateDecl *TD = D->getDescribedTemplate()) {
@@ -347,7 +350,7 @@ HoverInfo getHoverContents(QualType T, const Decl *D, ASTContext &ASTCtx,
   OS.flush();
 
   if (D) {
-    HI.Kind = indexSymbolKindToSymbolKind(index::getSymbolInfo(D).Kind);
+    HI.Kind = index::getSymbolInfo(D).Kind;
     enhanceFromIndex(HI, D, Index);
   }
   return HI;
@@ -358,8 +361,7 @@ HoverInfo getHoverContents(const DefinedMacro &Macro, ParsedAST &AST) {
   HoverInfo HI;
   SourceManager &SM = AST.getSourceManager();
   HI.Name = Macro.Name;
-  HI.Kind = indexSymbolKindToSymbolKind(
-      index::getSymbolInfoForMacro(*Macro.Info).Kind);
+  HI.Kind = index::SymbolKind::Macro;
   // FIXME: Populate documentation
   // FIXME: Pupulate parameters
 
@@ -434,7 +436,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
           tooling::applyAllReplacements(HI->Definition, Replacements))
     HI->Definition = *Formatted;
 
-  HI->SymRange = getTokenRange(AST.getASTContext().getSourceManager(),
+  HI->SymRange = getTokenRange(AST.getSourceManager(),
                                AST.getLangOpts(), SourceLocationBeg);
   return HI;
 }

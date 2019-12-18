@@ -3361,6 +3361,7 @@ More details can be found in the OpenCL C language Spec v2.0, Section 6.5.
 
 def OpenCLAddressSpaceGenericDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
+  let Heading = "__generic, generic, [[clang::opencl_generic]]";
   let Content = [{
 The generic address space attribute is only available with OpenCL v2.0 and later.
 It can be used with pointer types. Variables in global and local scope and
@@ -3373,6 +3374,7 @@ spaces.
 
 def OpenCLAddressSpaceConstantDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
+  let Heading = "__constant, constant, [[clang::opencl_constant]]";
   let Content = [{
 The constant address space attribute signals that an object is located in
 a constant (non-modifiable) memory region. It is available to all work items.
@@ -3384,6 +3386,7 @@ have an initializer.
 
 def OpenCLAddressSpaceGlobalDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
+  let Heading = "__global, global, [[clang::opencl_global]]";
   let Content = [{
 The global address space attribute specifies that an object is allocated in
 global memory, which is accessible by all work items. The content stored in this
@@ -3396,6 +3399,7 @@ scope) variables and static local variable as well.
 
 def OpenCLAddressSpaceLocalDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
+  let Heading = "__local, local, [[clang::opencl_local]]";
   let Content = [{
 The local address space specifies that an object is allocated in the local (work
 group) memory area, which is accessible to all work items in the same work
@@ -3408,6 +3412,7 @@ space are allowed. Local address space variables cannot have an initializer.
 
 def OpenCLAddressSpacePrivateDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
+  let Heading = "__private, private, [[clang::opencl_private]]";
   let Content = [{
 The private address space specifies that an object is allocated in the private
 (work item) memory. Other work items cannot access the same memory area and its
@@ -4391,10 +4396,25 @@ For more information see
 or `msvc documentation <https://docs.microsoft.com/pl-pl/cpp/cpp/selectany>`_.
 }]; }
 
+def WebAssemblyExportNameDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``__attribute__((export_name(<name>)))``
+attribute for the WebAssembly target. This attribute may be attached to a
+function declaration, where it modifies how the symbol is to be exported
+from the linked WebAssembly.
+
+WebAssembly functions are exported via string name. By default when a symbol
+is exported, the export name for C/C++ symbols are the same as their C/C++
+symbol names. This attribute can be used to override the default behavior, and
+request a specific string name be used instead.
+  }];
+}
+
 def WebAssemblyImportModuleDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-Clang supports the ``__attribute__((import_module(<module_name>)))`` 
+Clang supports the ``__attribute__((import_module(<module_name>)))``
 attribute for the WebAssembly target. This attribute may be attached to a
 function declaration, where it modifies how the symbol is to be imported
 within the WebAssembly linking environment.
@@ -4404,14 +4424,14 @@ name, which typically identifies a module from which to import, and a field
 name, which typically identifies a field from that module to import. By
 default, module names for C/C++ symbols are assigned automatically by the
 linker. This attribute can be used to override the default behavior, and
-reuqest a specific module name be used instead.
+request a specific module name be used instead.
   }];
 }
 
 def WebAssemblyImportNameDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-Clang supports the ``__attribute__((import_name(<name>)))`` 
+Clang supports the ``__attribute__((import_name(<name>)))``
 attribute for the WebAssembly target. This attribute may be attached to a
 function declaration, where it modifies how the symbol is to be imported
 within the WebAssembly linking environment.
@@ -4421,7 +4441,7 @@ name, which typically identifies a module from which to import, and a field
 name, which typically identifies a field from that module to import. By
 default, field names for C/C++ symbols are the same as their C/C++ symbol
 names. This attribute can be used to override the default behavior, and
-reuqest a specific field name be used instead.
+request a specific field name be used instead.
   }];
 }
 

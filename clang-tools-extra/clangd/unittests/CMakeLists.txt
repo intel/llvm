@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   support
+  AllTargetsInfos
   )
 
 get_filename_component(CLANGD_SOURCE_DIR
@@ -31,6 +32,7 @@ add_unittest(ClangdUnitTests ClangdTests
   CodeCompleteTests.cpp
   CodeCompletionStringsTests.cpp
   CollectMacrosTests.cpp
+  CompileCommandsTests.cpp
   ContextTests.cpp
   DexTests.cpp
   DiagnosticsTests.cpp

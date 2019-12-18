@@ -1754,7 +1754,10 @@ def note_ivar_decl : Note<"instance variable is declared here">;
 def note_bitfield_decl : Note<"bit-field is declared here">;
 def note_implicit_param_decl : Note<"%0 is an implicit parameter">;
 def note_member_synthesized_at : Note<
-  "in implicit %sub{select_special_member_kind}0 for %1 "
+  "in %select{implicit|defaulted}0 %sub{select_special_member_kind}1 for %2 "
+  "first required here">;
+def note_comparison_synthesized_at : Note<
+  "in defaulted %sub{select_defaulted_comparison_kind}0 for %1 "
   "first required here">;
 def err_missing_default_ctor : Error<
   "%select{constructor for %1 must explicitly initialize the|"
@@ -2594,6 +2597,26 @@ def err_non_constant_constraint_expression : Error<
   "expression">;
 def err_non_bool_atomic_constraint : Error<
   "atomic constraint must be of type 'bool' (found %0)">;
+def err_template_arg_list_constraints_not_satisfied : Error<
+  "constraints not satisfied for %select{class template|function template|variable template|alias template|"
+  "template template parameter|template}0 %1%2">;
+def note_constraints_not_satisfied : Note<
+  "constraints not satisfied">;
+def note_substituted_constraint_expr_is_ill_formed : Note<
+  "because substituted constraint expression is ill-formed%0">;
+def note_atomic_constraint_evaluated_to_false : Note<
+  "%select{and |because }0'%1' evaluated to false">;
+def note_concept_specialization_constraint_evaluated_to_false : Note<
+  "%select{and |because }0'%1' evaluated to false">;
+def note_single_arg_concept_specialization_constraint_evaluated_to_false : Note<
+  "%select{and |because }0%1 does not satisfy %2">;
+def note_atomic_constraint_evaluated_to_false_elaborated : Note<
+  "%select{and |because }0'%1' (%2 %3 %4) evaluated to false">;
+def err_could_not_normalize_ill_formed_constraint : Error<
+  "required expansion of concept specialization %0 failed, substituted "
+  "expression would be illegal">;
+def note_could_not_normalize_ill_formed_constraint_reason : Note<
+  "because: %0">;
 
 def err_template_different_requires_clause : Error<
   "requires clause differs in template redeclaration">;
@@ -3849,6 +3872,7 @@ def select_ovl_candidate_kind : TextSubstitution<
     "constructor (the implicit move constructor)|"
     "function (the implicit copy assignment operator)|"
     "function (the implicit move assignment operator)|"
+    "function (the implicit 'operator==' for this 'operator<=>)'|"
     "inherited constructor}0%select{| template| %2}1">;
 
 def note_ovl_candidate : Note<
@@ -3893,6 +3917,8 @@ def note_ovl_candidate_inconsistent_deduction_types : Note<
 def note_ovl_candidate_explicit_arg_mismatch_named : Note<
     "candidate template ignored: invalid explicitly-specified argument "
     "for template parameter %0">;
+def note_ovl_candidate_unsatisfied_constraints : Note<
+    "candidate template ignored: constraints not satisfied%0">;
 def note_ovl_candidate_explicit_arg_mismatch_unnamed : Note<
     "candidate template ignored: invalid explicitly-specified argument "
     "for %ordinal0 template parameter">;
@@ -4077,7 +4103,10 @@ def err_ovl_deleted_oper : Error<
   "overload resolution selected deleted operator '%0'">;
 def err_ovl_deleted_special_oper : Error<
   "object of type %0 cannot be %select{constructed|copied|moved|assigned|"
-  "assigned|destroyed}1 because its %sub{select_special_member_kind}1 is implicitly deleted">;
+  "assigned|destroyed}1 because its %sub{select_special_member_kind}1 is "
+  "implicitly deleted">;
+def err_ovl_deleted_comparison : Error<
+  "object of type %0 cannot be compared because its %1 is implicitly deleted">;
 def err_ovl_rewrite_equalequal_not_bool : Error<
   "return type %0 of selected 'operator==' function for rewritten "
   "'%1' comparison is not 'bool'">;
@@ -4585,6 +4614,14 @@ def note_template_default_arg_checking : Note<
   "while checking a default template argument used here">;
 def note_concept_specialization_here : Note<
   "while checking the satisfaction of concept '%0' requested here">;
+def note_checking_constraints_for_template_id_here : Note<
+  "while checking constraint satisfaction for template '%0' required here">;
+def note_checking_constraints_for_var_spec_id_here : Note<
+  "while checking constraint satisfaction for variable template "
+  "partial specialization '%0' required here">;
+def note_checking_constraints_for_class_spec_id_here : Note<
+  "while checking constraint satisfaction for class template partial "
+  "specialization '%0' required here">;
 def note_constraint_substitution_here : Note<
   "while substituting template arguments into constraint expression here">;
 def note_instantiation_contexts_suppressed : Note<
@@ -8154,7 +8191,7 @@ def err_incorrect_defaulted_consteval : Error<
   "cannot be consteval because implicit definition is not constexpr">;
 def warn_defaulted_method_deleted : Warning<
   "explicitly defaulted %sub{select_special_member_kind}0 is implicitly "
-  "deleted">, InGroup<DiagGroup<"defaulted-function-deleted">>;
+  "deleted">, InGroup<DefaultedFunctionDeleted>;
 def err_out_of_line_default_deletes : Error<
   "defaulting this %sub{select_special_member_kind}0 "
   "would delete it after its first declaration">;
@@ -8189,28 +8226,71 @@ def err_defaulted_comparison_out_of_class : Error<
   "definition">;
 def err_defaulted_comparison_param : Error<
   "invalid parameter type for defaulted %sub{select_defaulted_comparison_kind}0"
-  "%diff{; found $, expected $|}1,2">;
+  "; found %1, expected %2%select{| or %4}3">;
+def err_defaulted_comparison_param_mismatch : Error<
+  "parameters for defaulted %sub{select_defaulted_comparison_kind}0 "
+  "must have the same type%diff{ (found $ vs $)|}1,2">;
 def err_defaulted_comparison_non_const : Error<
   "defaulted member %sub{select_defaulted_comparison_kind}0 must be "
   "const-qualified">;
 def err_defaulted_comparison_return_type_not_bool : Error<
   "return type for defaulted %sub{select_defaulted_comparison_kind}0 "
   "must be 'bool', not %1">;
-def err_defaulted_comparison_reference_member : Error<
-  "cannot default %0 in class %1 with reference member">;
-def ext_defaulted_comparison_reference_member : ExtWarn<
-  "ISO C++2a does not allow defaulting %0 in class %1 with reference member">,
-  InGroup<DefaultedComparison>;
-def note_reference_member : Note<"reference member %0 declared here">;
-def err_defaulted_comparison_union : Error<
-  "cannot default %0 in %select{union-like class|union}1 %2">;
-def ext_defaulted_comparison_union : ExtWarn<
-  "ISO C++2a does not allow defaulting %0 in "
-  "%select{union-like class|union}1 %2">, InGroup<DefaultedComparison>;
-def ext_defaulted_comparison_empty_union : ExtWarn<
-  "ISO C++2a does not allow defaulting %0 in "
-  "%select{union-like class|union}1 %2 despite it having no variant members">,
-  InGroup<DefaultedComparison>;
+def err_defaulted_comparison_deduced_return_type_not_auto : Error<
+  "deduced return type for defaulted %sub{select_defaulted_comparison_kind}0 "
+  "must be 'auto', not %1">;
+def warn_defaulted_comparison_deleted : Warning<
+  "explicitly defaulted %sub{select_defaulted_comparison_kind}0 is implicitly "
+  "deleted">, InGroup<DefaultedFunctionDeleted>;
+def err_non_first_default_compare_deletes : Error<
+  "defaulting %select{this %sub{select_defaulted_comparison_kind}1|"
+  "the corresponding implicit 'operator==' for this defaulted 'operator<=>'}0 "
+  "would delete it after its first declaration">;
+def note_defaulted_comparison_union : Note<
+  "defaulted %0 is implicitly deleted because "
+  "%2 is a %select{union-like class|union}1 with variant members">;
+def note_defaulted_comparison_reference_member : Note<
+  "defaulted %0 is implicitly deleted because "
+  "class %1 has a reference member">;
+def note_defaulted_comparison_ambiguous : Note<
+  "defaulted %0 is implicitly deleted because implied %select{|'==' |'<' }1"
+  "comparison %select{|for member %3 |for base class %3 }2is ambiguous">;
+def note_defaulted_comparison_inaccessible : Note<
+  "defaulted %0 is implicitly deleted because it would invoke a "
+  "%select{private|protected}3 %4%select{ member of %6|"
+  " member of %6 to compare member %2| to compare base class %2}1">;
+def note_defaulted_comparison_calls_deleted : Note<
+  "defaulted %0 is implicitly deleted because it would invoke a deleted "
+  "comparison function%select{| for member %2| for base class %2}1">;
+def note_defaulted_comparison_no_viable_function : Note<
+  "defaulted %0 is implicitly deleted because there is no viable comparison "
+  "function%select{| for member %2| for base class %2}1">;
+def note_defaulted_comparison_no_viable_function_synthesized : Note<
+  "three-way comparison cannot be synthesized because there is no viable "
+  "function for %select{'=='|'<'}0 comparison">;
+def note_defaulted_comparison_not_rewritten_callee : Note<
+  "defaulted %0 is implicitly deleted because this non-rewritten comparison "
+  "function would be the best match for the comparison">;
+def note_defaulted_comparison_cannot_deduce : Note<
+  "return type of defaulted 'operator<=>' cannot be deduced because "
+  "return type %2 of three-way comparison for %select{|member|base class}0 %1 "
+  "is not a standard comparison category type">;
+def note_defaulted_comparison_cannot_deduce_callee : Note<
+  "selected 'operator<=>' for %select{|member|base class}0 %1 declared here">;
+def err_incorrect_defaulted_comparison_constexpr : Error<
+  "defaulted definition of %select{%sub{select_defaulted_comparison_kind}1|"
+  "three-way comparison operator}0 "
+  "cannot be declared %select{constexpr|consteval}2 because "
+  "%select{it|the corresponding implicit 'operator=='}0 "
+  "invokes a non-constexpr comparison function">;
+def note_defaulted_comparison_not_constexpr : Note<
+  "non-constexpr comparison function would be used to compare "
+  "%select{|member %1|base class %1}0">;
+def note_defaulted_comparison_not_constexpr_here : Note<
+  "non-constexpr comparison function declared here">;
+def note_in_declaration_of_implicit_equality_comparison : Note<
+  "while declaring the corresponding implicit 'operator==' "
+  "for this defaulted 'operator<=>'">;
 
 def ext_implicit_exception_spec_mismatch : ExtWarn<
   "function previously declared with an %select{explicit|implicit}0 exception "
@@ -9494,7 +9574,7 @@ def err_omp_wrong_if_directive_name_modifier : Error<
 def err_omp_no_more_if_clause : Error<
   "no more 'if' clause is allowed">;
 def err_omp_unnamed_if_clause : Error<
-  "expected %select{|one of}0 %1 directive name modifier%select{|s}0">;
+  "expected%select{| one of}0 %1 directive name modifier%select{|s}0">;
 def note_omp_previous_named_if_clause : Note<
   "previous clause with directive name modifier specified here">;
 def err_omp_ordered_directive_with_param : Error<
@@ -9578,8 +9658,8 @@ def err_omp_reduction_vla_unsupported : Error<
 def err_omp_linear_distribute_var_non_loop_iteration : Error<
   "only loop iteration variables are allowed in 'linear' clause in distribute directives">;
 def warn_omp_non_trivial_type_mapped : Warning<
-  "Non-trivial type %0 is mapped, only trivial types are guaranteed to be mapped correctly">,
-  InGroup<OpenMPTarget>;
+  "Type %0 is not trivially copyable and not guaranteed to be mapped correctly">,
+  InGroup<OpenMPMapping>;
 def err_omp_requires_clause_redeclaration : Error <
   "Only one %0 clause can appear on a requires directive in a single translation unit">;
 def note_omp_requires_previous_clause : Note <
@@ -9648,10 +9728,6 @@ def warn_omp_declare_variant_after_used : Warning<
 def warn_omp_declare_variant_after_emitted : Warning<
   "'#pragma omp declare variant' cannot be applied to the function that was defined already;"
   " the original function might be used">, InGroup<SourceUsesOpenMP>;
-def err_omp_declare_variant_noproto : Error<
-  "function with '#pragma omp declare variant' must have a prototype">;
-def note_omp_declare_variant_specified_here : Note<
-  "'#pragma omp declare variant' for function specified here">;
 def err_omp_declare_variant_doesnt_support : Error<
   "'#pragma omp declare variant' does not "
   "support %select{function templates|virtual functions|"

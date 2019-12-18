@@ -78,6 +78,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::FeatureSlowUAMem16,
       X86::FeaturePreferMaskRegisters,
       X86::FeatureInsertVZEROUPPER,
+      X86::FeatureUseGLMDivSqrtCosts,
 
       // Perf-tuning flags.
       X86::FeatureHasFastGather,
@@ -89,10 +90,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
 
       // CPU name enums. These just follow CPU string.
       X86::ProcIntelAtom,
-      X86::ProcIntelGLM,
-      X86::ProcIntelGLP,
       X86::ProcIntelSLM,
-      X86::ProcIntelTRM,
   };
 
 public:
@@ -127,7 +125,8 @@ public:
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
-      ArrayRef<const Value *> Args = ArrayRef<const Value *>());
+      ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
+      const Instruction *CxtI = nullptr);
   int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                        const Instruction *I = nullptr);
@@ -180,9 +179,9 @@ public:
 
   unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands);
 
-  int getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty);
-  int getIntImmCost(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                    Type *Ty);
+  int getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty);
+  int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
+                          Type *Ty);
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2);
   bool canMacroFuseCmp();

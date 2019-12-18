@@ -197,7 +197,6 @@ public:
   typename std::enable_if<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    size_t XYZ[3] = {0};
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)

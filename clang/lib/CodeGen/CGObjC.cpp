@@ -17,6 +17,7 @@
 #include "ConstantEmitter.h"
 #include "TargetInfo.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/Basic/Diagnostic.h"
@@ -981,7 +982,7 @@ void CodeGenFunction::GenerateObjCGetter(ObjCImplementationDecl *IMP,
 
   generateObjCGetterBody(IMP, PID, OMD, AtomicHelperFn);
 
-  FinishFunction();
+  FinishFunction(OMD->getEndLoc());
 }
 
 static bool hasTrivialGetExpr(const ObjCPropertyImplDecl *propImpl) {
@@ -1515,7 +1516,7 @@ void CodeGenFunction::GenerateObjCSetter(ObjCImplementationDecl *IMP,
 
   generateObjCSetterBody(IMP, PID, AtomicHelperFn);
 
-  FinishFunction();
+  FinishFunction(OMD->getEndLoc());
 }
 
 namespace {

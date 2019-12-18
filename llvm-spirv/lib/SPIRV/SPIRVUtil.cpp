@@ -1501,17 +1501,12 @@ llvm::Constant *getOCLNullClkEventPtr(Module *M) {
   return Constant::getNullValue(getOCLClkEventPtrType(M));
 }
 
-bool hasLoopUnrollMetadata(const Module *M) {
+bool hasLoopMetadata(const Module *M) {
   for (const Function &F : *M)
     for (const BasicBlock &BB : F) {
       const Instruction *Term = BB.getTerminator();
-      if (!Term)
-        continue;
-      if (const MDNode *MD = Term->getMetadata("llvm.loop"))
-        for (const MDOperand &MDOp : MD->operands())
-          if (getMDOperandAsString(dyn_cast<MDNode>(MDOp), 0)
-                  .find("llvm.loop.unroll.") == 0)
-            return true;
+      if (Term && Term->getMetadata("llvm.loop"))
+        return true;
     }
   return false;
 }
