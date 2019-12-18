@@ -274,19 +274,6 @@ static bool loadDeviceLib(const RT::PiContext &Context, const char *Name,
   return Prog != nullptr;
 }
 
-static std::string getDeviceExtensions(const RT::PiDevice &Dev) {
-  std::string DevExt;
-  size_t DevExtSize = 0;
-  PI_CALL(piDeviceGetInfo)(Dev, PI_DEVICE_INFO_EXTENSIONS,
-                           /*param_value_size=*/0,
-                           /*param_value=*/nullptr, &DevExtSize);
-  DevExt.resize(DevExtSize);
-  PI_CALL(piDeviceGetInfo)(Dev, PI_DEVICE_INFO_EXTENSIONS, DevExt.size(),
-                           &DevExt[0],
-                           /*param_value_size_ret=*/nullptr);
-  return DevExt;
-}
-
 static const char* getDeviceLibFilename(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
@@ -452,7 +439,8 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
   // Load a fallback library for an extension if at least one device does not
   // support it.
   for (RT::PiDevice Dev : Devices) {
-    std::string DevExtList = getDeviceExtensions(Dev);
+    std::string DevExtList =
+        get_device_info<std::string, info::device::extensions>::get(Dev);
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
       bool &FallbackIsLoaded = Pair.second;
