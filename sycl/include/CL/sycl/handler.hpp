@@ -175,6 +175,10 @@ class handler {
   bool MIsHost = false;
 
 private:
+  /// Constructs SYCL handler from queue.
+  ///
+  /// @param Queue is a SYCL queue.
+  /// @param IsHost indicates if this handler is created for SYCL host device.
   handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
       : MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
@@ -401,10 +405,13 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-  /// Registers requirement to the memory.
+  /// Requires access to the memory object associated with the placeholder
+  /// accessor.
   ///
   /// The command group has a requirement to gain access to the given memory
   /// object before executing.
+  ///
+  /// @param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
   void
@@ -520,7 +527,14 @@ public:
 
 #endif
 
-  // single_task version with a kernel represented as a lambda.
+  /// Defines and invokes a SYCL kernel function as a lambda function
+  /// or a named function object type.
+  ///
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
+  ///
+  /// @param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(KernelType KernelFunc) {
     throwIfActionIsCreated();
@@ -536,8 +550,17 @@ public:
 #endif
   }
 
-  // parallel_for version with a kernel represented as a lambda + range that
-  // specifies global size only.
+  /// Defines and invokes a SYCL kernel function for the specified range.
+  ///
+  /// The SYCL kernel function is defined as a lambda function or a named
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
+  ///
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
@@ -554,6 +577,7 @@ public:
   }
 
   // Similar to single_task, but passed lambda will be executed on host.
+  /// Invokes a function on host.
   template <typename FuncT> void run_on_host_intel(FuncT Func) {
     throwIfActionIsCreated();
     MNDRDesc.set(range<1>{1});
@@ -563,8 +587,19 @@ public:
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 
-  // parallel_for version with a kernel represented as a lambda + range and
-  // offset that specify global size and global offset correspondingly.
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offset.
+  ///
+  /// The SYCL kernel function is defined as a lambda function or a named
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
+  ///
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param WorkItemOffset is an offset to be applied to each work item index.
+  /// @param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -581,8 +616,18 @@ public:
 #endif
   }
 
-  // parallel_for version with a kernel represented as a lambda + nd_range that
-  // specifies global, local sizes and offset.
+  /// Defines and invokes a SYCL kernel function for the specified nd_range.
+  ///
+  /// The SYCL kernel function is defined as a lambda function or a named
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
+  ///
+  /// @param ExecutionRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// @param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
@@ -645,6 +690,13 @@ public:
   // parallel_for version with a kernel represented as a sycl::kernel + range
   // that specifies global size only. The kernel invocation method has no
   // functors and cannot be called on host.
+  /// Defines and invokes a SYCL kernel function for the specified range.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param WorkItemOffset is an offset to be applied to each work item index.
+  /// @param KernelFunc is a SYCL kernel function.
   template <int Dims>
   void parallel_for(range<Dims> NumWorkItems, kernel SyclKernel) {
     throwIfActionIsCreated();
@@ -655,23 +707,33 @@ public:
     extractArgsAndReqs();
   }
 
-  // parallel_for version with a kernel represented as a sycl::kernel + range
-  // and offset that specify global size and global offset correspondingly.
-  // The kernel invocation method has no functors and cannot be called on host.
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param WorkItemOffset is an offset to be applied to each work item index.
+  /// @param KernelFunc is a SYCL kernel function.
   template <int Dims>
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> workItemOffset,
+  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     kernel SyclKernel) {
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
     MSyclKernel = unique_ptr_class<kernel>(new kernel(std::move(SyclKernel)));
-    MNDRDesc.set(std::move(NumWorkItems), std::move(workItemOffset));
+    MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
   }
 
-  // parallel_for version with a kernel represented as a sycl::kernel + nd_range
-  // that specifies global, local sizes and offset. The kernel invocation
-  // method has no functors and cannot be called on host.
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// @param ExecutionRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// @param KernelFunc is a SYCL kernel function.
   template <int Dims>
   void parallel_for(nd_range<Dims> NDRange, kernel SyclKernel) {
     throwIfActionIsCreated();
