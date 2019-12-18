@@ -81,11 +81,6 @@ add_dependencies(${OPENCL_AOT_PROJECT_NAME} opencl-headers opencl-icd)
 
 target_link_libraries(${OPENCL_AOT_PROJECT_NAME} PRIVATE OpenCL)
 
-install(FILES ${CMAKE_BINARY_DIR}/bin/${OPENCL_AOT_PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
-        DESTINATION bin
-        COMPONENT ${OPENCL_AOT_PROJECT_NAME}
-        )
-
 # Use it as fake dependency in order to force another command(s) to execute.
 add_custom_command(OUTPUT __force_it
         COMMAND "${CMAKE_COMMAND}" -E echo
