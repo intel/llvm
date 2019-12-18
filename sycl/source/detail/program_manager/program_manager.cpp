@@ -282,7 +282,7 @@ static const char* getDeviceLibFilename(DeviceLibExt Extension) {
   throw compile_program_error("Unhandled (new?) device library extension");
 }
 
-const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
+static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
     return "cl_intel_devicelib_assert";
@@ -433,7 +433,7 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
   // particular program in order to allow us do a more fine-grained check here.
   // Require *all* possible devicelib extensions for now.
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
-      {cl_intel_devicelib_assert, false}
+      {cl_intel_devicelib_assert, /* is fallback loaded? */ false}
   };
 
   // Load a fallback library for an extension if at least one device does not
@@ -445,11 +445,11 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
       DeviceLibExt Ext = Pair.first;
       bool &FallbackIsLoaded = Pair.second;
 
-      const char* ExtStr = getDeviceLibExtensionStr(Ext);
-
       if (FallbackIsLoaded) {
         continue;
       }
+
+      const char* ExtStr = getDeviceLibExtensionStr(Ext);
 
       bool InhibitNativeImpl = false;
       if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {

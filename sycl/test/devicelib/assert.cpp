@@ -56,7 +56,7 @@
 //      the message can still be buffered by stdio. We turn the bufferization
 //      off explicitly.
 //
-// SYCL_DEVICELIB_LINK_FALLBACK=1 environment variable is used to force a mode
+// SYCL_DEVICELIB_INHIBIT_NATIVE=1 environment variable is used to force a mode
 // in SYCL Runtime, so it doesn't look into a device extensions list and always
 // link the fallback library.
 //

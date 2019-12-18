@@ -18,6 +18,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_DUMP_IMAGES | Any(*) | Dump device image binaries to file. Control has no effect if SYCL_USE_KERNEL_SPV is set. |
 | SYCL_PRINT_EXECUTION_GRAPH | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | SYCL_THROW_ON_BLOCK | Any(*) | Throw an exception on attempt to wait for a blocked command.  |
+| SYCL_DEVICELIB_INHIBIT_NATIVE | String of  device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
