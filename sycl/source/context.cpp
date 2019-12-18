@@ -70,5 +70,7 @@ vector_class<device> context::get_devices() const {
   return impl->get_info<info::context::devices>();
 }
 
+context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
+
 } // namespace sycl
 } // namespace cl

@@ -32,10 +32,12 @@ public:
   program() = delete;
 
   explicit program(const context &context)
-      : impl(std::make_shared<detail::program_impl>(context)) {}
+      : impl(std::make_shared<detail::program_impl>(
+            detail::getSyclObjImpl(context))) {}
 
   program(const context &context, vector_class<device> deviceList)
-      : impl(std::make_shared<detail::program_impl>(context, deviceList)) {}
+      : impl(std::make_shared<detail::program_impl>(
+            detail::getSyclObjImpl(context), deviceList)) {}
 
   program(vector_class<program> programList, string_class linkOptions = "") {
     std::vector<std::shared_ptr<detail::program_impl>> impls;
@@ -47,7 +49,8 @@ public:
 
   program(const context &context, cl_program clProgram)
       : impl(std::make_shared<detail::program_impl>(
-            context, detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+            detail::getSyclObjImpl(context),
+            detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
 
   program(const program &rhs) = default;
 
