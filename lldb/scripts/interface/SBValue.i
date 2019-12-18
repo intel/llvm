@@ -129,9 +129,6 @@ public:
     const char *
     GetObjectDescription ();
 
-    const char *
-    GetTypeValidatorResult ();
-
     lldb::SBValue
     GetDynamicValue (lldb::DynamicValueType use_dynamic);
 
@@ -443,6 +440,7 @@ public:
                        const SBExpressionOptions &options,
                        const char *name) const;
 
+#ifdef SWIGPYTHON
     %pythoncode %{
         def __get_dynamic__ (self):
             '''Helper function for the "SBValue.dynamic" property.'''
@@ -591,6 +589,7 @@ public:
 
             return
     %}
+#endif
 
 };
 

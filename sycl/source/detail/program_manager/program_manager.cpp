@@ -571,6 +571,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
            ++EntriesIt) {
         auto Result =
             KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
+        (void)Result;
         assert(Result.second && "Kernel sets are not disjoint");
       }
       m_DeviceImages[KSId].reset(new std::vector<DeviceImage *>({Img}));

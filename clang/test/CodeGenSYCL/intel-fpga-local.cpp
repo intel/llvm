@@ -23,9 +23,9 @@
 //CHECK: [[ANN21:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}{numbanks:8}{bank_bits:5,4,3}
 
 //CHECK: @llvm.global.annotations
-//CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5a_one to i8 addrspace(1)*)
+//CHECK-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5a_one to i8 addrspace(1)*) to i8*)
 //CHECK-SAME: [[ANN1]]{{.*}}i32 157
-//CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5b_two to i8 addrspace(1)*)
+//CHECK-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5b_two to i8 addrspace(1)*) to i8*)
 //CHECK-SAME: [[ANN16]]{{.*}}i32 161
 
 void foo() {

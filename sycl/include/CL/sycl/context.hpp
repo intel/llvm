@@ -122,6 +122,9 @@ public:
   vector_class<device> get_devices() const;
 
 private:
+  /// Constructs a SYCL context object from a valid context_impl instance.
+  context(shared_ptr_class<detail::context_impl> Impl);
+
   shared_ptr_class<detail::context_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -130,6 +133,9 @@ private:
   friend
       typename std::add_pointer<typename decltype(T::impl)::element_type>::type
       detail::getRawSyclObjImpl(const T &SyclObject);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 } // namespace sycl

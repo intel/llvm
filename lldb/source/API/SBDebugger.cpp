@@ -40,6 +40,7 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/DataFormatters/DataVisualization.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Initialization/SystemLifetimeManager.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -315,8 +316,9 @@ SBError SBDebugger::SetInputFile(SBFile file) {
 
   FileSP file_sp = file.m_opaque_sp;
 
-  static std::unique_ptr<repro::CommandLoader> loader =
-      repro::CommandLoader::Create(repro::Reproducer::Instance().GetLoader());
+  static std::unique_ptr<repro::MultiLoader<repro::CommandProvider>> loader =
+      repro::MultiLoader<repro::CommandProvider>::Create(
+          repro::Reproducer::Instance().GetLoader());
   if (loader) {
     llvm::Optional<std::string> nextfile = loader->GetNextFile();
     FILE *fh = nextfile ? FileSystem::Instance().Fopen(nextfile->c_str(), "r")
@@ -681,12 +683,8 @@ SBStructuredData SBDebugger::GetBuildConfiguration() {
   AddBoolConfigEntry(
       *config_up, "xml", XMLDocument::XMLEnabled(),
       "A boolean value that indicates if XML support is enabled in LLDB");
-  bool have_curses = true;
-#ifdef LLDB_DISABLE_CURSES
-  have_curses = false;
-#endif
   AddBoolConfigEntry(
-      *config_up, "curses", have_curses,
+      *config_up, "curses", LLDB_ENABLE_CURSES,
       "A boolean value that indicates if curses support is enabled in LLDB");
   AddLLVMTargets(*config_up);
 

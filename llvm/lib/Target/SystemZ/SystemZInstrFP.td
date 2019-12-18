@@ -467,16 +467,16 @@ let Uses = [FPC], mayRaiseFPException = 1 in {
 // f64 multiplication of two FP32 registers.
 let Uses = [FPC], mayRaiseFPException = 1 in
   def MDEBR : BinaryRRE<"mdebr", 0xB30C, null_frag, FP64, FP32>;
-def : Pat<(any_fmul (f64 (fpextend FP32:$src1)),
-                    (f64 (fpextend FP32:$src2))),
+def : Pat<(any_fmul (f64 (any_fpextend FP32:$src1)),
+                    (f64 (any_fpextend FP32:$src2))),
           (MDEBR (INSERT_SUBREG (f64 (IMPLICIT_DEF)),
                                 FP32:$src1, subreg_h32), FP32:$src2)>;
 
 // f64 multiplication of an FP32 register and an f32 memory.
 let Uses = [FPC], mayRaiseFPException = 1 in
   def MDEB : BinaryRXE<"mdeb", 0xED0C, null_frag, FP64, load, 4>;
-def : Pat<(any_fmul (f64 (fpextend FP32:$src1)),
-                    (f64 (extloadf32 bdxaddr12only:$addr))),
+def : Pat<(any_fmul (f64 (any_fpextend FP32:$src1)),
+                    (f64 (any_extloadf32 bdxaddr12only:$addr))),
           (MDEB (INSERT_SUBREG (f64 (IMPLICIT_DEF)), FP32:$src1, subreg_h32),
                 bdxaddr12only:$addr)>;
 
@@ -484,8 +484,8 @@ def : Pat<(any_fmul (f64 (fpextend FP32:$src1)),
 let Uses = [FPC], mayRaiseFPException = 1 in
   def MXDBR : BinaryRRE<"mxdbr", 0xB307, null_frag, FP128, FP64>;
 let Predicates = [FeatureNoVectorEnhancements1] in
-  def : Pat<(any_fmul (f128 (fpextend FP64:$src1)),
-                      (f128 (fpextend FP64:$src2))),
+  def : Pat<(any_fmul (f128 (any_fpextend FP64:$src1)),
+                      (f128 (any_fpextend FP64:$src2))),
             (MXDBR (INSERT_SUBREG (f128 (IMPLICIT_DEF)),
                                   FP64:$src1, subreg_h64), FP64:$src2)>;
 
@@ -493,8 +493,8 @@ let Predicates = [FeatureNoVectorEnhancements1] in
 let Uses = [FPC], mayRaiseFPException = 1 in
   def MXDB : BinaryRXE<"mxdb", 0xED07, null_frag, FP128, load, 8>;
 let Predicates = [FeatureNoVectorEnhancements1] in
-  def : Pat<(any_fmul (f128 (fpextend FP64:$src1)),
-                      (f128 (extloadf64 bdxaddr12only:$addr))),
+  def : Pat<(any_fmul (f128 (any_fpextend FP64:$src1)),
+                      (f128 (any_extloadf64 bdxaddr12only:$addr))),
             (MXDB (INSERT_SUBREG (f128 (IMPLICIT_DEF)), FP64:$src1, subreg_h64),
                   bdxaddr12only:$addr)>;
 
@@ -537,19 +537,19 @@ let Uses = [FPC], mayRaiseFPException = 1, Defs = [CC] in {
 //===----------------------------------------------------------------------===//
 
 let Uses = [FPC], mayRaiseFPException = 1, Defs = [CC], CCValues = 0xF in {
-  def CEBR : CompareRRE<"cebr", 0xB309, z_fcmp, FP32,  FP32>;
-  def CDBR : CompareRRE<"cdbr", 0xB319, z_fcmp, FP64,  FP64>;
-  def CXBR : CompareRRE<"cxbr", 0xB349, z_fcmp, FP128, FP128>;
+  def CEBR : CompareRRE<"cebr", 0xB309, z_any_fcmp, FP32,  FP32>;
+  def CDBR : CompareRRE<"cdbr", 0xB319, z_any_fcmp, FP64,  FP64>;
+  def CXBR : CompareRRE<"cxbr", 0xB349, z_any_fcmp, FP128, FP128>;
 
-  def CEB : CompareRXE<"ceb", 0xED09, z_fcmp, FP32, load, 4>;
-  def CDB : CompareRXE<"cdb", 0xED19, z_fcmp, FP64, load, 8>;
+  def CEB : CompareRXE<"ceb", 0xED09, z_any_fcmp, FP32, load, 4>;
+  def CDB : CompareRXE<"cdb", 0xED19, z_any_fcmp, FP64, load, 8>;
 
-  def KEBR : CompareRRE<"kebr", 0xB308, null_frag, FP32,  FP32>;
-  def KDBR : CompareRRE<"kdbr", 0xB318, null_frag, FP64,  FP64>;
-  def KXBR : CompareRRE<"kxbr", 0xB348, null_frag, FP128, FP128>;
+  def KEBR : CompareRRE<"kebr", 0xB308, z_strict_fcmps, FP32,  FP32>;
+  def KDBR : CompareRRE<"kdbr", 0xB318, z_strict_fcmps, FP64,  FP64>;
+  def KXBR : CompareRRE<"kxbr", 0xB348, z_strict_fcmps, FP128, FP128>;
 
-  def KEB : CompareRXE<"keb", 0xED08, null_frag, FP32, load, 4>;
-  def KDB : CompareRXE<"kdb", 0xED18, null_frag, FP64, load, 8>;
+  def KEB : CompareRXE<"keb", 0xED08, z_strict_fcmps, FP32, load, 4>;
+  def KDB : CompareRXE<"kdb", 0xED18, z_strict_fcmps, FP64, load, 8>;
 }
 
 // Test Data Class.

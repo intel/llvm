@@ -452,6 +452,10 @@ SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input, types::ID Type)
 
 void BackendCompileJobAction::anchor() {}
 
+BackendCompileJobAction::BackendCompileJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+    : JobAction(BackendCompileJobClass, Inputs, Type) {}
+
 BackendCompileJobAction::BackendCompileJobAction(Action *Input,
                                                  types::ID Type)
     : JobAction(BackendCompileJobClass, Input, Type) {}

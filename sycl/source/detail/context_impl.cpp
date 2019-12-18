@@ -29,7 +29,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
                            async_handler AsyncHandler)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
       MPlatform(), MPluginInterop(true), MHostContext(false) {
-  MPlatform = MDevices[0].get_platform();
+  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
@@ -38,7 +38,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
   PI_CALL(piContextCreate)(nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
                            nullptr, &MContext);
 
-  MUSMDispatch.reset(new usm::USMDispatcher(MPlatform.get(), DeviceIds));
+  MUSMDispatch.reset(new usm::USMDispatcher(MPlatform->get(), DeviceIds));
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
@@ -61,7 +61,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
         createSyclObjFromImpl<device>(std::make_shared<device_impl>(Dev)));
   }
   // TODO What if m_Devices if empty? m_Devices[0].get_platform()
-  MPlatform = platform(MDevices[0].get_platform());
+  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
   PI_CALL(piContextRetain)(MContext);
 }
@@ -108,7 +108,7 @@ cl_uint context_impl::get_info<info::context::reference_count>() const {
       this->getHandleRef());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  return MPlatform;
+  return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
 vector_class<cl::sycl::device>

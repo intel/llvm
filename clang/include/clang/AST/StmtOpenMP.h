@@ -366,8 +366,9 @@ class OMPParallelDirective : public OMPExecutableDirective {
   ///
   OMPParallelDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                        unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPParallelDirectiveClass, OMPD_parallel,
-                               StartLoc, EndLoc, NumClauses, 1),
+      : OMPExecutableDirective(this, OMPParallelDirectiveClass,
+                               llvm::omp::OMPD_parallel, StartLoc, EndLoc,
+                               NumClauses, 1),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -375,9 +376,9 @@ class OMPParallelDirective : public OMPExecutableDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPParallelDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPParallelDirectiveClass, OMPD_parallel,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1),
+      : OMPExecutableDirective(this, OMPParallelDirectiveClass,
+                               llvm::omp::OMPD_parallel, SourceLocation(),
+                               SourceLocation(), NumClauses, 1),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1201,8 +1202,8 @@ class OMPSimdDirective : public OMPLoopDirective {
   ///
   OMPSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                    unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPSimdDirectiveClass, OMPD_simd, StartLoc,
-                         EndLoc, CollapsedNum, NumClauses) {}
+      : OMPLoopDirective(this, OMPSimdDirectiveClass, llvm::omp::OMPD_simd,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -1210,7 +1211,7 @@ class OMPSimdDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPSimdDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPSimdDirectiveClass, OMPD_simd,
+      : OMPLoopDirective(this, OMPSimdDirectiveClass, llvm::omp::OMPD_simd,
                          SourceLocation(), SourceLocation(), CollapsedNum,
                          NumClauses) {}
 
@@ -1270,8 +1271,8 @@ class OMPForDirective : public OMPLoopDirective {
   ///
   OMPForDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                   unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPForDirectiveClass, OMPD_for, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses),
+      : OMPLoopDirective(this, OMPForDirectiveClass, llvm::omp::OMPD_for,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -1280,8 +1281,9 @@ class OMPForDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPForDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPForDirectiveClass, OMPD_for, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses),
+      : OMPLoopDirective(this, OMPForDirectiveClass, llvm::omp::OMPD_for,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1343,8 +1345,9 @@ class OMPForSimdDirective : public OMPLoopDirective {
   ///
   OMPForSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                       unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPForSimdDirectiveClass, OMPD_for_simd,
-                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
+      : OMPLoopDirective(this, OMPForSimdDirectiveClass,
+                         llvm::omp::OMPD_for_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -1352,9 +1355,9 @@ class OMPForSimdDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPForSimdDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPForSimdDirectiveClass, OMPD_for_simd,
-                         SourceLocation(), SourceLocation(), CollapsedNum,
-                         NumClauses) {}
+      : OMPLoopDirective(this, OMPForSimdDirectiveClass,
+                         llvm::omp::OMPD_for_simd, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -1411,8 +1414,9 @@ class OMPSectionsDirective : public OMPExecutableDirective {
   ///
   OMPSectionsDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                        unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPSectionsDirectiveClass, OMPD_sections,
-                               StartLoc, EndLoc, NumClauses, 1),
+      : OMPExecutableDirective(this, OMPSectionsDirectiveClass,
+                               llvm::omp::OMPD_sections, StartLoc, EndLoc,
+                               NumClauses, 1),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -1420,9 +1424,9 @@ class OMPSectionsDirective : public OMPExecutableDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPSectionsDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPSectionsDirectiveClass, OMPD_sections,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1),
+      : OMPExecutableDirective(this, OMPSectionsDirectiveClass,
+                               llvm::omp::OMPD_sections, SourceLocation(),
+                               SourceLocation(), NumClauses, 1),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1477,15 +1481,16 @@ class OMPSectionDirective : public OMPExecutableDirective {
   /// \param EndLoc Ending location of the directive.
   ///
   OMPSectionDirective(SourceLocation StartLoc, SourceLocation EndLoc)
-      : OMPExecutableDirective(this, OMPSectionDirectiveClass, OMPD_section,
-                               StartLoc, EndLoc, 0, 1),
+      : OMPExecutableDirective(this, OMPSectionDirectiveClass,
+                               llvm::omp::OMPD_section, StartLoc, EndLoc, 0, 1),
         HasCancel(false) {}
 
   /// Build an empty directive.
   ///
   explicit OMPSectionDirective()
-      : OMPExecutableDirective(this, OMPSectionDirectiveClass, OMPD_section,
-                               SourceLocation(), SourceLocation(), 0, 1),
+      : OMPExecutableDirective(this, OMPSectionDirectiveClass,
+                               llvm::omp::OMPD_section, SourceLocation(),
+                               SourceLocation(), 0, 1),
         HasCancel(false) {}
 
 public:
@@ -1537,17 +1542,18 @@ class OMPSingleDirective : public OMPExecutableDirective {
   ///
   OMPSingleDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                      unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPSingleDirectiveClass, OMPD_single,
-                               StartLoc, EndLoc, NumClauses, 1) {}
+      : OMPExecutableDirective(this, OMPSingleDirectiveClass,
+                               llvm::omp::OMPD_single, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPSingleDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPSingleDirectiveClass, OMPD_single,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1) {}
+      : OMPExecutableDirective(this, OMPSingleDirectiveClass,
+                               llvm::omp::OMPD_single, SourceLocation(),
+                               SourceLocation(), NumClauses, 1) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -1590,14 +1596,16 @@ class OMPMasterDirective : public OMPExecutableDirective {
   /// \param EndLoc Ending location of the directive.
   ///
   OMPMasterDirective(SourceLocation StartLoc, SourceLocation EndLoc)
-      : OMPExecutableDirective(this, OMPMasterDirectiveClass, OMPD_master,
-                               StartLoc, EndLoc, 0, 1) {}
+      : OMPExecutableDirective(this, OMPMasterDirectiveClass,
+                               llvm::omp::OMPD_master, StartLoc, EndLoc, 0, 1) {
+  }
 
   /// Build an empty directive.
   ///
   explicit OMPMasterDirective()
-      : OMPExecutableDirective(this, OMPMasterDirectiveClass, OMPD_master,
-                               SourceLocation(), SourceLocation(), 0, 1) {}
+      : OMPExecutableDirective(this, OMPMasterDirectiveClass,
+                               llvm::omp::OMPD_master, SourceLocation(),
+                               SourceLocation(), 0, 1) {}
 
 public:
   /// Creates directive.
@@ -1642,8 +1650,9 @@ class OMPCriticalDirective : public OMPExecutableDirective {
   ///
   OMPCriticalDirective(const DeclarationNameInfo &Name, SourceLocation StartLoc,
                        SourceLocation EndLoc, unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPCriticalDirectiveClass, OMPD_critical,
-                               StartLoc, EndLoc, NumClauses, 1),
+      : OMPExecutableDirective(this, OMPCriticalDirectiveClass,
+                               llvm::omp::OMPD_critical, StartLoc, EndLoc,
+                               NumClauses, 1),
         DirName(Name) {}
 
   /// Build an empty directive.
@@ -1651,9 +1660,9 @@ class OMPCriticalDirective : public OMPExecutableDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPCriticalDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPCriticalDirectiveClass, OMPD_critical,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1),
+      : OMPExecutableDirective(this, OMPCriticalDirectiveClass,
+                               llvm::omp::OMPD_critical, SourceLocation(),
+                               SourceLocation(), NumClauses, 1),
         DirName() {}
 
   /// Set name of the directive.
@@ -1718,8 +1727,9 @@ class OMPParallelForDirective : public OMPLoopDirective {
   ///
   OMPParallelForDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                           unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPParallelForDirectiveClass, OMPD_parallel_for,
-                         StartLoc, EndLoc, CollapsedNum, NumClauses),
+      : OMPLoopDirective(this, OMPParallelForDirectiveClass,
+                         llvm::omp::OMPD_parallel_for, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -1728,9 +1738,9 @@ class OMPParallelForDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPParallelForDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPParallelForDirectiveClass, OMPD_parallel_for,
-                         SourceLocation(), SourceLocation(), CollapsedNum,
-                         NumClauses),
+      : OMPLoopDirective(this, OMPParallelForDirectiveClass,
+                         llvm::omp::OMPD_parallel_for, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1795,8 +1805,8 @@ class OMPParallelForSimdDirective : public OMPLoopDirective {
   OMPParallelForSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                               unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelForSimdDirectiveClass,
-                         OMPD_parallel_for_simd, StartLoc, EndLoc, CollapsedNum,
-                         NumClauses) {}
+                         llvm::omp::OMPD_parallel_for_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -1806,7 +1816,7 @@ class OMPParallelForSimdDirective : public OMPLoopDirective {
   explicit OMPParallelForSimdDirective(unsigned CollapsedNum,
                                        unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelForSimdDirectiveClass,
-                         OMPD_parallel_for_simd, SourceLocation(),
+                         llvm::omp::OMPD_parallel_for_simd, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
@@ -1842,6 +1852,56 @@ public:
   }
 };
 
+/// This represents '#pragma omp parallel master' directive.
+///
+/// \code
+/// #pragma omp parallel master private(a,b)
+/// \endcode
+/// In this example directive '#pragma omp parallel master' has clauses
+/// 'private' with the variables 'a' and 'b'
+///
+class OMPParallelMasterDirective : public OMPExecutableDirective {
+  friend class ASTStmtReader;
+
+  OMPParallelMasterDirective(SourceLocation StartLoc, SourceLocation EndLoc,
+                             unsigned NumClauses)
+      : OMPExecutableDirective(this, OMPParallelMasterDirectiveClass,
+                               llvm::omp::OMPD_parallel_master, StartLoc,
+                               EndLoc, NumClauses, 1) {}
+
+  explicit OMPParallelMasterDirective(unsigned NumClauses)
+      : OMPExecutableDirective(this, OMPParallelMasterDirectiveClass,
+                               llvm::omp::OMPD_parallel_master,
+                               SourceLocation(), SourceLocation(), NumClauses,
+                               1) {}
+
+public:
+  /// Creates directive with a list of \a Clauses.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending Location of the directive.
+  /// \param Clauses List of clauses.
+  /// \param AssociatedStmt Statement, associated with the directive.
+  ///
+  static OMPParallelMasterDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         ArrayRef<OMPClause *> Clauses, Stmt *AssociatedStmt);
+
+  /// Creates an empty directive with the place for \a NumClauses
+  /// clauses.
+  ///
+  /// \param C AST context.
+  /// \param NumClauses Number of clauses.
+  ///
+  static OMPParallelMasterDirective *
+  CreateEmpty(const ASTContext &C, unsigned NumClauses, EmptyShell);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == OMPParallelMasterDirectiveClass;
+  }
+};
+
 /// This represents '#pragma omp parallel sections' directive.
 ///
 /// \code
@@ -1866,8 +1926,8 @@ class OMPParallelSectionsDirective : public OMPExecutableDirective {
   OMPParallelSectionsDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                                unsigned NumClauses)
       : OMPExecutableDirective(this, OMPParallelSectionsDirectiveClass,
-                               OMPD_parallel_sections, StartLoc, EndLoc,
-                               NumClauses, 1),
+                               llvm::omp::OMPD_parallel_sections, StartLoc,
+                               EndLoc, NumClauses, 1),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -1876,8 +1936,9 @@ class OMPParallelSectionsDirective : public OMPExecutableDirective {
   ///
   explicit OMPParallelSectionsDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPParallelSectionsDirectiveClass,
-                               OMPD_parallel_sections, SourceLocation(),
-                               SourceLocation(), NumClauses, 1),
+                               llvm::omp::OMPD_parallel_sections,
+                               SourceLocation(), SourceLocation(), NumClauses,
+                               1),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1935,8 +1996,9 @@ class OMPTaskDirective : public OMPExecutableDirective {
   ///
   OMPTaskDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                    unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTaskDirectiveClass, OMPD_task, StartLoc,
-                               EndLoc, NumClauses, 1),
+      : OMPExecutableDirective(this, OMPTaskDirectiveClass,
+                               llvm::omp::OMPD_task, StartLoc, EndLoc,
+                               NumClauses, 1),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -1944,9 +2006,9 @@ class OMPTaskDirective : public OMPExecutableDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTaskDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTaskDirectiveClass, OMPD_task,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1),
+      : OMPExecutableDirective(this, OMPTaskDirectiveClass,
+                               llvm::omp::OMPD_task, SourceLocation(),
+                               SourceLocation(), NumClauses, 1),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -1998,14 +2060,16 @@ class OMPTaskyieldDirective : public OMPExecutableDirective {
   /// \param EndLoc Ending location of the directive.
   ///
   OMPTaskyieldDirective(SourceLocation StartLoc, SourceLocation EndLoc)
-      : OMPExecutableDirective(this, OMPTaskyieldDirectiveClass, OMPD_taskyield,
-                               StartLoc, EndLoc, 0, 0) {}
+      : OMPExecutableDirective(this, OMPTaskyieldDirectiveClass,
+                               llvm::omp::OMPD_taskyield, StartLoc, EndLoc, 0,
+                               0) {}
 
   /// Build an empty directive.
   ///
   explicit OMPTaskyieldDirective()
-      : OMPExecutableDirective(this, OMPTaskyieldDirectiveClass, OMPD_taskyield,
-                               SourceLocation(), SourceLocation(), 0, 0) {}
+      : OMPExecutableDirective(this, OMPTaskyieldDirectiveClass,
+                               llvm::omp::OMPD_taskyield, SourceLocation(),
+                               SourceLocation(), 0, 0) {}
 
 public:
   /// Creates directive.
@@ -2042,14 +2106,16 @@ class OMPBarrierDirective : public OMPExecutableDirective {
   /// \param EndLoc Ending location of the directive.
   ///
   OMPBarrierDirective(SourceLocation StartLoc, SourceLocation EndLoc)
-      : OMPExecutableDirective(this, OMPBarrierDirectiveClass, OMPD_barrier,
-                               StartLoc, EndLoc, 0, 0) {}
+      : OMPExecutableDirective(this, OMPBarrierDirectiveClass,
+                               llvm::omp::OMPD_barrier, StartLoc, EndLoc, 0,
+                               0) {}
 
   /// Build an empty directive.
   ///
   explicit OMPBarrierDirective()
-      : OMPExecutableDirective(this, OMPBarrierDirectiveClass, OMPD_barrier,
-                               SourceLocation(), SourceLocation(), 0, 0) {}
+      : OMPExecutableDirective(this, OMPBarrierDirectiveClass,
+                               llvm::omp::OMPD_barrier, SourceLocation(),
+                               SourceLocation(), 0, 0) {}
 
 public:
   /// Creates directive.
@@ -2086,14 +2152,16 @@ class OMPTaskwaitDirective : public OMPExecutableDirective {
   /// \param EndLoc Ending location of the directive.
   ///
   OMPTaskwaitDirective(SourceLocation StartLoc, SourceLocation EndLoc)
-      : OMPExecutableDirective(this, OMPTaskwaitDirectiveClass, OMPD_taskwait,
-                               StartLoc, EndLoc, 0, 0) {}
+      : OMPExecutableDirective(this, OMPTaskwaitDirectiveClass,
+                               llvm::omp::OMPD_taskwait, StartLoc, EndLoc, 0,
+                               0) {}
 
   /// Build an empty directive.
   ///
   explicit OMPTaskwaitDirective()
-      : OMPExecutableDirective(this, OMPTaskwaitDirectiveClass, OMPD_taskwait,
-                               SourceLocation(), SourceLocation(), 0, 0) {}
+      : OMPExecutableDirective(this, OMPTaskwaitDirectiveClass,
+                               llvm::omp::OMPD_taskwait, SourceLocation(),
+                               SourceLocation(), 0, 0) {}
 
 public:
   /// Creates directive.
@@ -2132,16 +2200,17 @@ class OMPTaskgroupDirective : public OMPExecutableDirective {
   ///
   OMPTaskgroupDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                         unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTaskgroupDirectiveClass, OMPD_taskgroup,
-                               StartLoc, EndLoc, NumClauses, 2) {}
+      : OMPExecutableDirective(this, OMPTaskgroupDirectiveClass,
+                               llvm::omp::OMPD_taskgroup, StartLoc, EndLoc,
+                               NumClauses, 2) {}
 
   /// Build an empty directive.
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTaskgroupDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTaskgroupDirectiveClass, OMPD_taskgroup,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               2) {}
+      : OMPExecutableDirective(this, OMPTaskgroupDirectiveClass,
+                               llvm::omp::OMPD_taskgroup, SourceLocation(),
+                               SourceLocation(), NumClauses, 2) {}
 
   /// Sets the task_reduction return variable.
   void setReductionRef(Expr *RR) {
@@ -2205,17 +2274,18 @@ class OMPFlushDirective : public OMPExecutableDirective {
   ///
   OMPFlushDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                     unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPFlushDirectiveClass, OMPD_flush,
-                               StartLoc, EndLoc, NumClauses, 0) {}
+      : OMPExecutableDirective(this, OMPFlushDirectiveClass,
+                               llvm::omp::OMPD_flush, StartLoc, EndLoc,
+                               NumClauses, 0) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPFlushDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPFlushDirectiveClass, OMPD_flush,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               0) {}
+      : OMPExecutableDirective(this, OMPFlushDirectiveClass,
+                               llvm::omp::OMPD_flush, SourceLocation(),
+                               SourceLocation(), NumClauses, 0) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -2260,17 +2330,18 @@ class OMPOrderedDirective : public OMPExecutableDirective {
   ///
   OMPOrderedDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                       unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPOrderedDirectiveClass, OMPD_ordered,
-                               StartLoc, EndLoc, NumClauses, 1) {}
+      : OMPExecutableDirective(this, OMPOrderedDirectiveClass,
+                               llvm::omp::OMPD_ordered, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPOrderedDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPOrderedDirectiveClass, OMPD_ordered,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1) {}
+      : OMPExecutableDirective(this, OMPOrderedDirectiveClass,
+                               llvm::omp::OMPD_ordered, SourceLocation(),
+                               SourceLocation(), NumClauses, 1) {}
 
 public:
   /// Creates directive.
@@ -2335,8 +2406,9 @@ class OMPAtomicDirective : public OMPExecutableDirective {
   ///
   OMPAtomicDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                      unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPAtomicDirectiveClass, OMPD_atomic,
-                               StartLoc, EndLoc, NumClauses, 5),
+      : OMPExecutableDirective(this, OMPAtomicDirectiveClass,
+                               llvm::omp::OMPD_atomic, StartLoc, EndLoc,
+                               NumClauses, 5),
         IsXLHSInRHSPart(false), IsPostfixUpdate(false) {}
 
   /// Build an empty directive.
@@ -2344,9 +2416,9 @@ class OMPAtomicDirective : public OMPExecutableDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPAtomicDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPAtomicDirectiveClass, OMPD_atomic,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               5),
+      : OMPExecutableDirective(this, OMPAtomicDirectiveClass,
+                               llvm::omp::OMPD_atomic, SourceLocation(),
+                               SourceLocation(), NumClauses, 5),
         IsXLHSInRHSPart(false), IsPostfixUpdate(false) {}
 
   /// Set 'x' part of the associated expression/statement.
@@ -2449,17 +2521,18 @@ class OMPTargetDirective : public OMPExecutableDirective {
   ///
   OMPTargetDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                      unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTargetDirectiveClass, OMPD_target,
-                               StartLoc, EndLoc, NumClauses, 1) {}
+      : OMPExecutableDirective(this, OMPTargetDirectiveClass,
+                               llvm::omp::OMPD_target, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTargetDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTargetDirectiveClass, OMPD_target,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1) {}
+      : OMPExecutableDirective(this, OMPTargetDirectiveClass,
+                               llvm::omp::OMPD_target, SourceLocation(),
+                               SourceLocation(), NumClauses, 1) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -2508,8 +2581,8 @@ class OMPTargetDataDirective : public OMPExecutableDirective {
   OMPTargetDataDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                          unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetDataDirectiveClass,
-                               OMPD_target_data, StartLoc, EndLoc, NumClauses,
-                               1) {}
+                               llvm::omp::OMPD_target_data, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
@@ -2517,7 +2590,7 @@ class OMPTargetDataDirective : public OMPExecutableDirective {
   ///
   explicit OMPTargetDataDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetDataDirectiveClass,
-                               OMPD_target_data, SourceLocation(),
+                               llvm::omp::OMPD_target_data, SourceLocation(),
                                SourceLocation(), NumClauses, 1) {}
 
 public:
@@ -2566,8 +2639,8 @@ class OMPTargetEnterDataDirective : public OMPExecutableDirective {
   OMPTargetEnterDataDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                               unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetEnterDataDirectiveClass,
-                               OMPD_target_enter_data, StartLoc, EndLoc,
-                               NumClauses, /*NumChildren=*/1) {}
+                               llvm::omp::OMPD_target_enter_data, StartLoc,
+                               EndLoc, NumClauses, /*NumChildren=*/1) {}
 
   /// Build an empty directive.
   ///
@@ -2575,8 +2648,8 @@ class OMPTargetEnterDataDirective : public OMPExecutableDirective {
   ///
   explicit OMPTargetEnterDataDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetEnterDataDirectiveClass,
-                               OMPD_target_enter_data, SourceLocation(),
-                               SourceLocation(), NumClauses,
+                               llvm::omp::OMPD_target_enter_data,
+                               SourceLocation(), SourceLocation(), NumClauses,
                                /*NumChildren=*/1) {}
 
 public:
@@ -2625,8 +2698,8 @@ class OMPTargetExitDataDirective : public OMPExecutableDirective {
   OMPTargetExitDataDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                              unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetExitDataDirectiveClass,
-                               OMPD_target_exit_data, StartLoc, EndLoc,
-                               NumClauses, /*NumChildren=*/1) {}
+                               llvm::omp::OMPD_target_exit_data, StartLoc,
+                               EndLoc, NumClauses, /*NumChildren=*/1) {}
 
   /// Build an empty directive.
   ///
@@ -2634,8 +2707,8 @@ class OMPTargetExitDataDirective : public OMPExecutableDirective {
   ///
   explicit OMPTargetExitDataDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetExitDataDirectiveClass,
-                               OMPD_target_exit_data, SourceLocation(),
-                               SourceLocation(), NumClauses,
+                               llvm::omp::OMPD_target_exit_data,
+                               SourceLocation(), SourceLocation(), NumClauses,
                                /*NumChildren=*/1) {}
 
 public:
@@ -2683,8 +2756,8 @@ class OMPTargetParallelDirective : public OMPExecutableDirective {
   OMPTargetParallelDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                              unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetParallelDirectiveClass,
-                               OMPD_target_parallel, StartLoc, EndLoc,
-                               NumClauses, /*NumChildren=*/1) {}
+                               llvm::omp::OMPD_target_parallel, StartLoc,
+                               EndLoc, NumClauses, /*NumChildren=*/1) {}
 
   /// Build an empty directive.
   ///
@@ -2692,8 +2765,8 @@ class OMPTargetParallelDirective : public OMPExecutableDirective {
   ///
   explicit OMPTargetParallelDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetParallelDirectiveClass,
-                               OMPD_target_parallel, SourceLocation(),
-                               SourceLocation(), NumClauses,
+                               llvm::omp::OMPD_target_parallel,
+                               SourceLocation(), SourceLocation(), NumClauses,
                                /*NumChildren=*/1) {}
 
 public:
@@ -2748,7 +2821,7 @@ class OMPTargetParallelForDirective : public OMPLoopDirective {
   OMPTargetParallelForDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                                 unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetParallelForDirectiveClass,
-                         OMPD_target_parallel_for, StartLoc, EndLoc,
+                         llvm::omp::OMPD_target_parallel_for, StartLoc, EndLoc,
                          CollapsedNum, NumClauses),
         HasCancel(false) {}
 
@@ -2760,7 +2833,7 @@ class OMPTargetParallelForDirective : public OMPLoopDirective {
   explicit OMPTargetParallelForDirective(unsigned CollapsedNum,
                                          unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetParallelForDirectiveClass,
-                         OMPD_target_parallel_for, SourceLocation(),
+                         llvm::omp::OMPD_target_parallel_for, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses),
         HasCancel(false) {}
 
@@ -2822,17 +2895,18 @@ class OMPTeamsDirective : public OMPExecutableDirective {
   ///
   OMPTeamsDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                     unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTeamsDirectiveClass, OMPD_teams,
-                               StartLoc, EndLoc, NumClauses, 1) {}
+      : OMPExecutableDirective(this, OMPTeamsDirectiveClass,
+                               llvm::omp::OMPD_teams, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTeamsDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPTeamsDirectiveClass, OMPD_teams,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               1) {}
+      : OMPExecutableDirective(this, OMPTeamsDirectiveClass,
+                               llvm::omp::OMPD_teams, SourceLocation(),
+                               SourceLocation(), NumClauses, 1) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -2879,16 +2953,17 @@ class OMPCancellationPointDirective : public OMPExecutableDirective {
   ///
   OMPCancellationPointDirective(SourceLocation StartLoc, SourceLocation EndLoc)
       : OMPExecutableDirective(this, OMPCancellationPointDirectiveClass,
-                               OMPD_cancellation_point, StartLoc, EndLoc, 0, 0),
-        CancelRegion(OMPD_unknown) {}
+                               llvm::omp::OMPD_cancellation_point, StartLoc,
+                               EndLoc, 0, 0),
+        CancelRegion(llvm::omp::OMPD_unknown) {}
 
   /// Build an empty directive.
   ///
   explicit OMPCancellationPointDirective()
       : OMPExecutableDirective(this, OMPCancellationPointDirectiveClass,
-                               OMPD_cancellation_point, SourceLocation(),
-                               SourceLocation(), 0, 0),
-        CancelRegion(OMPD_unknown) {}
+                               llvm::omp::OMPD_cancellation_point,
+                               SourceLocation(), SourceLocation(), 0, 0),
+        CancelRegion(llvm::omp::OMPD_unknown) {}
 
   /// Set cancel region for current cancellation point.
   /// \param CR Cancellation region.
@@ -2938,18 +3013,19 @@ class OMPCancelDirective : public OMPExecutableDirective {
   ///
   OMPCancelDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                      unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPCancelDirectiveClass, OMPD_cancel,
-                               StartLoc, EndLoc, NumClauses, 0),
-        CancelRegion(OMPD_unknown) {}
+      : OMPExecutableDirective(this, OMPCancelDirectiveClass,
+                               llvm::omp::OMPD_cancel, StartLoc, EndLoc,
+                               NumClauses, 0),
+        CancelRegion(llvm::omp::OMPD_unknown) {}
 
   /// Build an empty directive.
   ///
   /// \param NumClauses Number of clauses.
   explicit OMPCancelDirective(unsigned NumClauses)
-      : OMPExecutableDirective(this, OMPCancelDirectiveClass, OMPD_cancel,
-                               SourceLocation(), SourceLocation(), NumClauses,
-                               0),
-        CancelRegion(OMPD_unknown) {}
+      : OMPExecutableDirective(this, OMPCancelDirectiveClass,
+                               llvm::omp::OMPD_cancel, SourceLocation(),
+                               SourceLocation(), NumClauses, 0),
+        CancelRegion(llvm::omp::OMPD_unknown) {}
 
   /// Set cancel region for current cancellation point.
   /// \param CR Cancellation region.
@@ -3003,8 +3079,9 @@ class OMPTaskLoopDirective : public OMPLoopDirective {
   ///
   OMPTaskLoopDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                        unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPTaskLoopDirectiveClass, OMPD_taskloop,
-                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
+      : OMPLoopDirective(this, OMPTaskLoopDirectiveClass,
+                         llvm::omp::OMPD_taskloop, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3012,9 +3089,9 @@ class OMPTaskLoopDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTaskLoopDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPTaskLoopDirectiveClass, OMPD_taskloop,
-                         SourceLocation(), SourceLocation(), CollapsedNum,
-                         NumClauses) {}
+      : OMPLoopDirective(this, OMPTaskLoopDirectiveClass,
+                         llvm::omp::OMPD_taskloop, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3069,8 +3146,8 @@ class OMPTaskLoopSimdDirective : public OMPLoopDirective {
   OMPTaskLoopSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                            unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTaskLoopSimdDirectiveClass,
-                         OMPD_taskloop_simd, StartLoc, EndLoc, CollapsedNum,
-                         NumClauses) {}
+                         llvm::omp::OMPD_taskloop_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3079,8 +3156,8 @@ class OMPTaskLoopSimdDirective : public OMPLoopDirective {
   ///
   explicit OMPTaskLoopSimdDirective(unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTaskLoopSimdDirectiveClass,
-                         OMPD_taskloop_simd, SourceLocation(), SourceLocation(),
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_taskloop_simd, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3136,8 +3213,8 @@ class OMPMasterTaskLoopDirective : public OMPLoopDirective {
   OMPMasterTaskLoopDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                              unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPMasterTaskLoopDirectiveClass,
-                         OMPD_master_taskloop, StartLoc, EndLoc, CollapsedNum,
-                         NumClauses) {}
+                         llvm::omp::OMPD_master_taskloop, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3147,7 +3224,7 @@ class OMPMasterTaskLoopDirective : public OMPLoopDirective {
   explicit OMPMasterTaskLoopDirective(unsigned CollapsedNum,
                                       unsigned NumClauses)
       : OMPLoopDirective(this, OMPMasterTaskLoopDirectiveClass,
-                         OMPD_master_taskloop, SourceLocation(),
+                         llvm::omp::OMPD_master_taskloop, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
@@ -3204,7 +3281,7 @@ class OMPMasterTaskLoopSimdDirective : public OMPLoopDirective {
   OMPMasterTaskLoopSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                                  unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPMasterTaskLoopSimdDirectiveClass,
-                         OMPD_master_taskloop_simd, StartLoc, EndLoc,
+                         llvm::omp::OMPD_master_taskloop_simd, StartLoc, EndLoc,
                          CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
@@ -3215,7 +3292,7 @@ class OMPMasterTaskLoopSimdDirective : public OMPLoopDirective {
   explicit OMPMasterTaskLoopSimdDirective(unsigned CollapsedNum,
                                           unsigned NumClauses)
       : OMPLoopDirective(this, OMPMasterTaskLoopSimdDirectiveClass,
-                         OMPD_master_taskloop_simd, SourceLocation(),
+                         llvm::omp::OMPD_master_taskloop_simd, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
@@ -3273,8 +3350,8 @@ class OMPParallelMasterTaskLoopDirective : public OMPLoopDirective {
                                      SourceLocation EndLoc,
                                      unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelMasterTaskLoopDirectiveClass,
-                         OMPD_parallel_master_taskloop, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_parallel_master_taskloop, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3284,8 +3361,9 @@ class OMPParallelMasterTaskLoopDirective : public OMPLoopDirective {
   explicit OMPParallelMasterTaskLoopDirective(unsigned CollapsedNum,
                                               unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelMasterTaskLoopDirectiveClass,
-                         OMPD_parallel_master_taskloop, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_parallel_master_taskloop,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3344,8 +3422,8 @@ class OMPParallelMasterTaskLoopSimdDirective : public OMPLoopDirective {
                                          unsigned CollapsedNum,
                                          unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelMasterTaskLoopSimdDirectiveClass,
-                         OMPD_parallel_master_taskloop_simd, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_parallel_master_taskloop_simd,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3355,8 +3433,9 @@ class OMPParallelMasterTaskLoopSimdDirective : public OMPLoopDirective {
   explicit OMPParallelMasterTaskLoopSimdDirective(unsigned CollapsedNum,
                                                   unsigned NumClauses)
       : OMPLoopDirective(this, OMPParallelMasterTaskLoopSimdDirectiveClass,
-                         OMPD_parallel_master_taskloop_simd, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_parallel_master_taskloop_simd,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \p Clauses.
@@ -3410,9 +3489,9 @@ class OMPDistributeDirective : public OMPLoopDirective {
   ///
   OMPDistributeDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                          unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPDistributeDirectiveClass, OMPD_distribute,
-                         StartLoc, EndLoc, CollapsedNum, NumClauses)
-        {}
+      : OMPLoopDirective(this, OMPDistributeDirectiveClass,
+                         llvm::omp::OMPD_distribute, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3420,10 +3499,9 @@ class OMPDistributeDirective : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPDistributeDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPDistributeDirectiveClass, OMPD_distribute,
-                         SourceLocation(), SourceLocation(), CollapsedNum,
-                         NumClauses)
-        {}
+      : OMPLoopDirective(this, OMPDistributeDirectiveClass,
+                         llvm::omp::OMPD_distribute, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3477,8 +3555,8 @@ class OMPTargetUpdateDirective : public OMPExecutableDirective {
   OMPTargetUpdateDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                            unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetUpdateDirectiveClass,
-                               OMPD_target_update, StartLoc, EndLoc, NumClauses,
-                               1) {}
+                               llvm::omp::OMPD_target_update, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
@@ -3486,7 +3564,7 @@ class OMPTargetUpdateDirective : public OMPExecutableDirective {
   ///
   explicit OMPTargetUpdateDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetUpdateDirectiveClass,
-                               OMPD_target_update, SourceLocation(),
+                               llvm::omp::OMPD_target_update, SourceLocation(),
                                SourceLocation(), NumClauses, 1) {}
 
 public:
@@ -3541,8 +3619,9 @@ class OMPDistributeParallelForDirective : public OMPLoopDirective {
                                     SourceLocation EndLoc,
                                     unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeParallelForDirectiveClass,
-                         OMPD_distribute_parallel_for, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses), HasCancel(false) {}
+                         llvm::omp::OMPD_distribute_parallel_for, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses),
+        HasCancel(false) {}
 
   /// Build an empty directive.
   ///
@@ -3552,8 +3631,9 @@ class OMPDistributeParallelForDirective : public OMPLoopDirective {
   explicit OMPDistributeParallelForDirective(unsigned CollapsedNum,
                                              unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeParallelForDirectiveClass,
-                         OMPD_distribute_parallel_for, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses),
+                         llvm::omp::OMPD_distribute_parallel_for,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -3620,7 +3700,7 @@ class OMPDistributeParallelForSimdDirective final : public OMPLoopDirective {
                                         unsigned CollapsedNum,
                                         unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeParallelForSimdDirectiveClass,
-                         OMPD_distribute_parallel_for_simd, StartLoc,
+                         llvm::omp::OMPD_distribute_parallel_for_simd, StartLoc,
                          EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
@@ -3631,7 +3711,7 @@ class OMPDistributeParallelForSimdDirective final : public OMPLoopDirective {
   explicit OMPDistributeParallelForSimdDirective(unsigned CollapsedNum,
                                                  unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeParallelForSimdDirectiveClass,
-                         OMPD_distribute_parallel_for_simd,
+                         llvm::omp::OMPD_distribute_parallel_for_simd,
                          SourceLocation(), SourceLocation(), CollapsedNum,
                          NumClauses) {}
 
@@ -3687,8 +3767,8 @@ class OMPDistributeSimdDirective final : public OMPLoopDirective {
   OMPDistributeSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                              unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeSimdDirectiveClass,
-                         OMPD_distribute_simd, StartLoc, EndLoc, CollapsedNum,
-                         NumClauses) {}
+                         llvm::omp::OMPD_distribute_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3698,7 +3778,7 @@ class OMPDistributeSimdDirective final : public OMPLoopDirective {
   explicit OMPDistributeSimdDirective(unsigned CollapsedNum,
                                       unsigned NumClauses)
       : OMPLoopDirective(this, OMPDistributeSimdDirectiveClass,
-                         OMPD_distribute_simd, SourceLocation(),
+                         llvm::omp::OMPD_distribute_simd, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
@@ -3752,11 +3832,12 @@ class OMPTargetParallelForSimdDirective final : public OMPLoopDirective {
   /// \param CollapsedNum Number of collapsed nested loops.
   /// \param NumClauses Number of clauses.
   ///
-  OMPTargetParallelForSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
-                                unsigned CollapsedNum, unsigned NumClauses)
+  OMPTargetParallelForSimdDirective(SourceLocation StartLoc,
+                                    SourceLocation EndLoc,
+                                    unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetParallelForSimdDirectiveClass,
-                         OMPD_target_parallel_for_simd, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_parallel_for_simd, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3766,8 +3847,9 @@ class OMPTargetParallelForSimdDirective final : public OMPLoopDirective {
   explicit OMPTargetParallelForSimdDirective(unsigned CollapsedNum,
                                              unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetParallelForSimdDirectiveClass,
-                         OMPD_target_parallel_for_simd, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_parallel_for_simd,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3823,8 +3905,8 @@ class OMPTargetSimdDirective final : public OMPLoopDirective {
   OMPTargetSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                          unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetSimdDirectiveClass,
-                         OMPD_target_simd, StartLoc, EndLoc, CollapsedNum,
-                         NumClauses) {}
+                         llvm::omp::OMPD_target_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3832,9 +3914,9 @@ class OMPTargetSimdDirective final : public OMPLoopDirective {
   /// \param NumClauses Number of clauses.
   ///
   explicit OMPTargetSimdDirective(unsigned CollapsedNum, unsigned NumClauses)
-      : OMPLoopDirective(this, OMPTargetSimdDirectiveClass, OMPD_target_simd,
-                         SourceLocation(),SourceLocation(), CollapsedNum,
-                         NumClauses) {}
+      : OMPLoopDirective(this, OMPTargetSimdDirectiveClass,
+                         llvm::omp::OMPD_target_simd, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -3889,7 +3971,7 @@ class OMPTeamsDistributeDirective final : public OMPLoopDirective {
   OMPTeamsDistributeDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                               unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeDirectiveClass,
-                         OMPD_teams_distribute, StartLoc, EndLoc,
+                         llvm::omp::OMPD_teams_distribute, StartLoc, EndLoc,
                          CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
@@ -3900,7 +3982,7 @@ class OMPTeamsDistributeDirective final : public OMPLoopDirective {
   explicit OMPTeamsDistributeDirective(unsigned CollapsedNum,
                                        unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeDirectiveClass,
-                         OMPD_teams_distribute, SourceLocation(),
+                         llvm::omp::OMPD_teams_distribute, SourceLocation(),
                          SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
@@ -3958,8 +4040,8 @@ class OMPTeamsDistributeSimdDirective final : public OMPLoopDirective {
                                   SourceLocation EndLoc, unsigned CollapsedNum,
                                   unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeSimdDirectiveClass,
-                         OMPD_teams_distribute_simd, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_teams_distribute_simd, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -3969,8 +4051,9 @@ class OMPTeamsDistributeSimdDirective final : public OMPLoopDirective {
   explicit OMPTeamsDistributeSimdDirective(unsigned CollapsedNum,
                                            unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeSimdDirectiveClass,
-                         OMPD_teams_distribute_simd, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_teams_distribute_simd,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -4030,8 +4113,8 @@ class OMPTeamsDistributeParallelForSimdDirective final
                                              unsigned CollapsedNum,
                                              unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeParallelForSimdDirectiveClass,
-                         OMPD_teams_distribute_parallel_for_simd, StartLoc,
-                         EndLoc, CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_teams_distribute_parallel_for_simd,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -4041,7 +4124,7 @@ class OMPTeamsDistributeParallelForSimdDirective final
   explicit OMPTeamsDistributeParallelForSimdDirective(unsigned CollapsedNum,
                                                       unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeParallelForSimdDirectiveClass,
-                         OMPD_teams_distribute_parallel_for_simd,
+                         llvm::omp::OMPD_teams_distribute_parallel_for_simd,
                          SourceLocation(), SourceLocation(), CollapsedNum,
                          NumClauses) {}
 
@@ -4102,8 +4185,9 @@ class OMPTeamsDistributeParallelForDirective final : public OMPLoopDirective {
                                          unsigned CollapsedNum,
                                          unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeParallelForDirectiveClass,
-                         OMPD_teams_distribute_parallel_for, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses), HasCancel(false) {}
+                         llvm::omp::OMPD_teams_distribute_parallel_for,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses),
+        HasCancel(false) {}
 
   /// Build an empty directive.
   ///
@@ -4113,8 +4197,9 @@ class OMPTeamsDistributeParallelForDirective final : public OMPLoopDirective {
   explicit OMPTeamsDistributeParallelForDirective(unsigned CollapsedNum,
                                                   unsigned NumClauses)
       : OMPLoopDirective(this, OMPTeamsDistributeParallelForDirectiveClass,
-                         OMPD_teams_distribute_parallel_for, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses),
+                         llvm::omp::OMPD_teams_distribute_parallel_for,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -4174,8 +4259,8 @@ class OMPTargetTeamsDirective final : public OMPExecutableDirective {
   OMPTargetTeamsDirective(SourceLocation StartLoc, SourceLocation EndLoc,
                           unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetTeamsDirectiveClass,
-                               OMPD_target_teams, StartLoc, EndLoc, NumClauses,
-                               1) {}
+                               llvm::omp::OMPD_target_teams, StartLoc, EndLoc,
+                               NumClauses, 1) {}
 
   /// Build an empty directive.
   ///
@@ -4183,7 +4268,7 @@ class OMPTargetTeamsDirective final : public OMPExecutableDirective {
   ///
   explicit OMPTargetTeamsDirective(unsigned NumClauses)
       : OMPExecutableDirective(this, OMPTargetTeamsDirectiveClass,
-                               OMPD_target_teams, SourceLocation(),
+                               llvm::omp::OMPD_target_teams, SourceLocation(),
                                SourceLocation(), NumClauses, 1) {}
 
 public:
@@ -4236,8 +4321,8 @@ class OMPTargetTeamsDistributeDirective final : public OMPLoopDirective {
                                     SourceLocation EndLoc,
                                     unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetTeamsDistributeDirectiveClass,
-                         OMPD_target_teams_distribute, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_teams_distribute, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -4247,8 +4332,9 @@ class OMPTargetTeamsDistributeDirective final : public OMPLoopDirective {
   explicit OMPTargetTeamsDistributeDirective(unsigned CollapsedNum,
                                              unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetTeamsDistributeDirectiveClass,
-                         OMPD_target_teams_distribute, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_teams_distribute,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -4309,8 +4395,8 @@ class OMPTargetTeamsDistributeParallelForDirective final
                                                unsigned NumClauses)
       : OMPLoopDirective(this,
                          OMPTargetTeamsDistributeParallelForDirectiveClass,
-                         OMPD_target_teams_distribute_parallel_for, StartLoc,
-                         EndLoc, CollapsedNum, NumClauses),
+                         llvm::omp::OMPD_target_teams_distribute_parallel_for,
+                         StartLoc, EndLoc, CollapsedNum, NumClauses),
         HasCancel(false) {}
 
   /// Build an empty directive.
@@ -4322,8 +4408,8 @@ class OMPTargetTeamsDistributeParallelForDirective final
                                                         unsigned NumClauses)
       : OMPLoopDirective(
             this, OMPTargetTeamsDistributeParallelForDirectiveClass,
-            OMPD_target_teams_distribute_parallel_for, SourceLocation(),
-            SourceLocation(), CollapsedNum, NumClauses),
+            llvm::omp::OMPD_target_teams_distribute_parallel_for,
+            SourceLocation(), SourceLocation(), CollapsedNum, NumClauses),
         HasCancel(false) {}
 
   /// Set cancel state.
@@ -4389,10 +4475,10 @@ class OMPTargetTeamsDistributeParallelForSimdDirective final
                                                    SourceLocation EndLoc,
                                                    unsigned CollapsedNum,
                                                    unsigned NumClauses)
-      : OMPLoopDirective(this,
-                         OMPTargetTeamsDistributeParallelForSimdDirectiveClass,
-                         OMPD_target_teams_distribute_parallel_for_simd,
-                         StartLoc, EndLoc, CollapsedNum, NumClauses) {}
+      : OMPLoopDirective(
+            this, OMPTargetTeamsDistributeParallelForSimdDirectiveClass,
+            llvm::omp::OMPD_target_teams_distribute_parallel_for_simd, StartLoc,
+            EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -4403,8 +4489,8 @@ class OMPTargetTeamsDistributeParallelForSimdDirective final
       unsigned CollapsedNum, unsigned NumClauses)
       : OMPLoopDirective(
             this, OMPTargetTeamsDistributeParallelForSimdDirectiveClass,
-            OMPD_target_teams_distribute_parallel_for_simd, SourceLocation(),
-            SourceLocation(), CollapsedNum, NumClauses) {}
+            llvm::omp::OMPD_target_teams_distribute_parallel_for_simd,
+            SourceLocation(), SourceLocation(), CollapsedNum, NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.
@@ -4462,8 +4548,8 @@ class OMPTargetTeamsDistributeSimdDirective final : public OMPLoopDirective {
                                         unsigned CollapsedNum,
                                         unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetTeamsDistributeSimdDirectiveClass,
-                         OMPD_target_teams_distribute_simd, StartLoc, EndLoc,
-                         CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_teams_distribute_simd, StartLoc,
+                         EndLoc, CollapsedNum, NumClauses) {}
 
   /// Build an empty directive.
   ///
@@ -4473,8 +4559,9 @@ class OMPTargetTeamsDistributeSimdDirective final : public OMPLoopDirective {
   explicit OMPTargetTeamsDistributeSimdDirective(unsigned CollapsedNum,
                                                  unsigned NumClauses)
       : OMPLoopDirective(this, OMPTargetTeamsDistributeSimdDirectiveClass,
-                         OMPD_target_teams_distribute_simd, SourceLocation(),
-                         SourceLocation(), CollapsedNum, NumClauses) {}
+                         llvm::omp::OMPD_target_teams_distribute_simd,
+                         SourceLocation(), SourceLocation(), CollapsedNum,
+                         NumClauses) {}
 
 public:
   /// Creates directive with a list of \a Clauses.

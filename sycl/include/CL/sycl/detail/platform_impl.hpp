@@ -14,7 +14,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-// 4.6.2 Platform class
 namespace cl {
 namespace sycl {
 
@@ -24,88 +23,100 @@ class device;
 
 namespace detail {
 
+// TODO: implement extension management for host device
+// TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  platform_impl() = default;
+  /// Constructs platform_impl for a SYCL host platform.
+  platform_impl() : MHostPlatform(true) {}
 
-  explicit platform_impl(const device_selector &);
+  /// Constructs platform_impl from a plug-in interoperability platform handle.
+  ///
+  /// @param Platform is a raw plug-in platform handle.
+  explicit platform_impl(RT::PiPlatform Platform) : MPlatform(Platform) {}
 
-  virtual bool has_extension(const string_class &extension_name) const = 0;
+  ~platform_impl() = default;
 
-  virtual vector_class<device>
-      get_devices(info::device_type = info::device_type::all) const = 0;
+  /// Checks if this platform supports extension.
+  ///
+  /// @param ExtensionName is a string containing extension name.
+  /// @return true if platform supports specified extension.
+  bool has_extension(const string_class &ExtensionName) const {
+    if (is_host())
+      return false;
 
+    string_class AllExtensionNames =
+        get_platform_info<string_class, info::platform::extensions>::get(
+            MPlatform);
+    return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+  }
+
+  /// Returns all SYCL devices associated with this platform.
+  ///
+  /// If this platform is a host platform and device type requested is either
+  /// info::device_type::all or info::device_type::host, resulting vector
+  /// contains only a single SYCL host device. If there are no devices that
+  /// match given device type, resulting vector is empty.
+  ///
+  /// @param DeviceType is a SYCL device type.
+  /// @return a vector of SYCL devices.
+  vector_class<device>
+  get_devices(info::device_type DeviceType = info::device_type::all) const;
+
+  /// Queries this SYCL platform for info.
+  ///
+  /// The return type depends on information being queried.
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
   get_info() const {
-    if (is_host()) {
+    if (is_host())
       return get_platform_info_host<param>();
-    }
+
     return get_platform_info<
         typename info::param_traits<info::platform, param>::return_type,
         param>::get(this->getHandleRef());
   }
 
-  virtual bool is_host() const = 0;
+  /// @return true if this SYCL platform is a host platform.
+  bool is_host() const { return MHostPlatform; };
 
-  virtual cl_platform_id get() const = 0;
+  /// @return an instance of OpenCL cl_platform_id.
+  cl_platform_id get() const {
+    if (is_host())
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
 
-  // Returns underlying native platform object.
-  virtual const RT::PiPlatform &getHandleRef() const = 0;
-
-  virtual ~platform_impl() = default;
-};
-
-// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
-class platform_impl_pi : public platform_impl {
-public:
-  platform_impl_pi(RT::PiPlatform a_platform) : m_platform(a_platform) {}
-
-  vector_class<device> get_devices(
-      info::device_type deviceType = info::device_type::all) const override;
-
-  bool has_extension(const string_class &extension_name) const override {
-    string_class all_extension_names =
-        get_platform_info<string_class, info::platform::extensions>::get(
-            m_platform);
-    return (all_extension_names.find(extension_name) != std::string::npos);
+    return pi::cast<cl_platform_id>(MPlatform);
   }
 
-  cl_platform_id get() const override { return pi::cast<cl_platform_id>(m_platform); }
+  /// Returns raw underlying plug-in platform handle.
+  ///
+  /// Unlike get() method, this method does not retain handler. It is caller
+  /// responsibility to make sure that platform stays alive while raw handle
+  /// is in use.
+  ///
+  /// @return a raw plug-in platform handle.
+  const RT::PiPlatform &getHandleRef() const {
+    if (is_host())
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
 
-  const RT::PiPlatform &getHandleRef() const override { return m_platform; }
+    return MPlatform;
+  }
 
-  bool is_host() const override { return false; }
-
+  /// Returns all available SYCL platforms in the system.
+  ///
+  /// By default the resulting vector always contains a single SYCL host
+  /// platform instance. There are means to override this behavior for testing
+  /// purposes. See environment variables guide for up-to-date instructions.
+  ///
+  /// @return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
 private:
-  RT::PiPlatform m_platform = 0;
-}; // class platform_opencl
-
-// TODO: implement extension management
-// TODO: implement parameters treatment
-// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
-class platform_impl_host : public platform_impl {
-public:
-  vector_class<device> get_devices(
-      info::device_type dev_type = info::device_type::all) const override;
-
-  bool has_extension(const string_class &extension_name) const override {
-    return false;
-  }
-
-  cl_platform_id get() const override {
-    throw invalid_object_error("This instance of platform is a host instance");
-  }
-  const RT::PiPlatform &getHandleRef() const override {
-    throw invalid_object_error("This instance of platform is a host instance");
-  }
-
-  bool is_host() const override { return true; }
-}; // class platform_host
-
-
+  bool MHostPlatform = false;
+  RT::PiPlatform MPlatform = 0;
+};
 } // namespace detail
 } // namespace sycl
 } // namespace cl

@@ -138,7 +138,7 @@ splitModule(Module &M,
             std::vector<std::unique_ptr<Module>> &ResModules) {
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
-    SetVector<GlobalValue *> GVs;
+    SetVector<const GlobalValue *> GVs;
     std::vector<llvm::Function *> Workqueue;
 
     for (auto &F : It.second) {
@@ -162,36 +162,18 @@ splitModule(Module &M,
     // It's not easy to trace global variable's uses inside needed functions
     // because global variable can be used inside a combination of operators, so
     // mark all global variables as needed and remove dead ones after
-    // extraction.
+    // cloning.
     for (auto &G : M.globals()) {
       GVs.insert(&G);
     }
 
-    // Clone the module, understand which globals we need to extract from the
-    // clone.
     ValueToValueMapTy VMap;
-    std::unique_ptr<Module> MClone = CloneModule(M, VMap);
-    std::vector<GlobalValue *> GVsInClone(GVs.size());
-    int I = 0;
-    for (GlobalValue *GV : GVs) {
-      GVsInClone[I] = cast<GlobalValue>(VMap[GV]);
-      ++I;
-    }
+    // Clone definitions only for needed globals. Others will be added as
+    // declarations and removed later.
+    std::unique_ptr<Module> MClone = CloneModule(
+        M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
     // TODO: Use the new PassManager instead?
-    legacy::PassManager Extract;
-
-    // Extract needed globals.
-    Extract.add(createGVExtractionPass(GVsInClone, /* deleteS */ false));
-    Extract.run(*MClone.get());
-
-    // Extactor pass sets external linkage to all globals. Return linkage back.
-    for (auto &G : MClone->globals()) {
-      if (G.getVisibility() == GlobalValue::HiddenVisibility) {
-        G.setLinkage(GlobalValue::InternalLinkage);
-      }
-    }
-
     legacy::PassManager Passes;
     // Do cleanup.
     Passes.add(createGlobalDCEPass());           // Delete unreachable globals.

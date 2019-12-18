@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "omptarget-nvptx.h"
+#include "common/omptarget.h"
 #include "target_impl.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +363,7 @@ public:
       __kmpc_barrier(loc, threadId);
       if (tid == 0) {
         omptarget_nvptx_threadPrivateContext->Cnt() = 0;
-        __threadfence_block();
+        __kmpc_impl_threadfence_block();
       }
       __kmpc_barrier(loc, threadId);
       PRINT(LD_LOOP,

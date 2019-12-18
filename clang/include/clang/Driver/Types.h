@@ -81,6 +81,9 @@ namespace types {
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
 
+  /// isFPGA - Is this FPGA input.
+  bool isFPGA(ID Id);
+
   /// isObjC - Is this an "ObjC" input (Obj-C and Obj-C++ sources and headers).
   bool isObjC(ID Id);
 

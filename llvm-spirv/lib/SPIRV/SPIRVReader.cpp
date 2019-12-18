@@ -1545,7 +1545,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
               NewDst = llvm::BitCastInst::CreatePointerCast(Dst, Int8PointerTy,
                                                             "", BB);
             }
-            CI = Builder.CreateMemSet(NewDst, Src, Size, Align, IsVolatile);
+            CI = Builder.CreateMemSet(NewDst, Src, Size, MaybeAlign(Align),
+                                      IsVolatile);
           }
         }
       }
@@ -1788,6 +1789,68 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
 
     return mapValue(BV, Res);
+  }
+
+  case OpTranspose: {
+    auto TR = static_cast<SPIRVTranspose *>(BV);
+    IRBuilder<> Builder(BB);
+    auto Matrix = transValue(TR->getMatrix(), F, BB);
+    unsigned ColNum = Matrix->getType()->getArrayNumElements();
+    VectorType *ColTy =
+        cast<VectorType>(cast<ArrayType>(Matrix->getType())->getElementType());
+    unsigned RowNum = ColTy->getVectorNumElements();
+
+    auto VTy = VectorType::get(ColTy->getElementType(), ColNum);
+    auto ResultTy = ArrayType::get(VTy, RowNum);
+    Value *V = UndefValue::get(ResultTy);
+
+    SmallVector<Value *, 16> MCache;
+    MCache.reserve(ColNum);
+    for (unsigned Idx = 0; Idx != ColNum; ++Idx)
+      MCache.push_back(Builder.CreateExtractValue(Matrix, Idx));
+
+    if (ColNum == RowNum) {
+      // Fastpath
+      switch (ColNum) {
+      case 2: {
+        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], {0, 2});
+        V = Builder.CreateInsertValue(V, V1, 0);
+        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], {1, 3});
+        V = Builder.CreateInsertValue(V, V2, 1);
+        return mapValue(BV, V);
+      }
+
+      case 4: {
+        for (unsigned Idx = 0; Idx < 4; ++Idx) {
+          Value *V1 =
+              Builder.CreateShuffleVector(MCache[0], MCache[1], {Idx, Idx + 4});
+          Value *V2 =
+              Builder.CreateShuffleVector(MCache[2], MCache[3], {Idx, Idx + 4});
+          Value *V3 = Builder.CreateShuffleVector(V1, V2, {0, 1, 2, 3});
+          V = Builder.CreateInsertValue(V, V3, Idx);
+        }
+        return mapValue(BV, V);
+      }
+
+      default:
+        break;
+      }
+    }
+
+    // Slowpath
+    for (unsigned Idx = 0; Idx != RowNum; ++Idx) {
+      Value *Vec = UndefValue::get(VTy);
+
+      for (unsigned Idx2 = 0; Idx2 != ColNum; ++Idx2) {
+        Value *S =
+            Builder.CreateExtractElement(MCache[Idx2], Builder.getInt32(Idx));
+        Vec = Builder.CreateInsertElement(Vec, S, Idx2);
+      }
+
+      V = Builder.CreateInsertValue(V, Vec, Idx);
+    }
+
+    return mapValue(BV, V);
   }
 
   case OpCopyObject: {

@@ -263,19 +263,6 @@ public:
 #endif
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(nd_range<dimensions> executionRange,
-                    KernelType kernelFunc) {}
-
-  template <int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(range<dimensions> numWorkItems, kernel syclKernel) {}
-
-  template <int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(nd_range<dimensions> ndRange, kernel syclKernel) {}
-
   template <typename KernelName = auto_name, typename KernelType>
   void single_task(KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
@@ -285,16 +272,6 @@ public:
     kernelFunc();
 #endif
   }
-
-  template <typename KernelName, typename KernelType, int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(range<dimensions> numWorkItems, kernel syclKernel,
-                    KernelType kernelFunc) {}
-
-  template <typename KernelName, typename KernelType, int dimensions>
-  ATTR_SYCL_KERNEL
-  void parallel_for(nd_range<dimensions> ndRange, kernel syclKernel,
-                    KernelType kernelFunc) {}
 };
 
 template <typename T, int dimensions = 1,

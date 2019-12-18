@@ -450,7 +450,67 @@ TEST(LocateSymbol, All) {
           +^+x;
         }
       )cpp",
-  };
+
+      R"cpp(// Declaration of explicit template specialization
+        template <typename T>
+        struct $decl[[Foo]] {};
+
+        template <>
+        struct Fo^o<int> {};
+      )cpp",
+
+      R"cpp(// Declaration of partial template specialization
+        template <typename T>
+        struct $decl[[Foo]] {};
+
+        template <typename T>
+        struct Fo^o<T*> {};
+      )cpp",
+
+      R"cpp(// Heuristic resolution of dependent method
+        template <typename T>
+        struct S {
+          void [[bar]]() {}
+        };
+
+        template <typename T>
+        void foo(S<T> arg) {
+          arg.ba^r();
+        }
+      )cpp",
+
+      R"cpp(// Heuristic resolution of dependent method via this->
+        template <typename T>
+        struct S {
+          void [[foo]]() {
+            this->fo^o();
+          }
+        };
+      )cpp",
+
+      R"cpp(// Heuristic resolution of dependent static method
+        template <typename T>
+        struct S {
+          static void [[bar]]() {}
+        };
+
+        template <typename T>
+        void foo() {
+          S<T>::ba^r();
+        }
+      )cpp",
+
+      R"cpp(// FIXME: Heuristic resolution of dependent method
+            // invoked via smart pointer
+        template <typename> struct S { void foo(); };
+        template <typename T> struct unique_ptr {
+          T* operator->();
+        };
+        template <typename T>
+        void test(unique_ptr<S<T>>& V) {
+          V->fo^o();
+        }
+      )cpp"};
   for (const char *Test : Tests) {
     Annotations T(Test);
     llvm::Optional<Range> WantDecl;
@@ -510,8 +570,27 @@ TEST(LocateSymbol, Ambiguous) {
       Foo abcde$10^("asdf");
       Foo foox2 = Foo$11^("asdf");
     }
+
+    template <typename T>
+    struct S {
+      void $NonstaticOverload1[[bar]](int);
+      void $NonstaticOverload2[[bar]](float);
+
+      static void $StaticOverload1[[baz]](int);
+      static void $StaticOverload2[[baz]](float);
+    };
+
+    template <typename T, typename U>
+    void dependent_call(S<T> s, U u) {
+      s.ba$12^r(u);
+      S<T>::ba$13^z(u);
+    }
   )cpp");
-  auto AST = TestTU::withCode(T.code()).build();
+  auto TU = TestTU::withCode(T.code());
+  // FIXME: Go-to-definition in a template requires disabling delayed template
+  // parsing.
+  TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
+  auto AST = TU.build();
   // Ordered assertions are deliberate: we expect a predictable order.
   EXPECT_THAT(locateSymbolAt(AST, T.point("1")), ElementsAre(Sym("str")));
   EXPECT_THAT(locateSymbolAt(AST, T.point("2")), ElementsAre(Sym("str")));
@@ -529,6 +608,15 @@ TEST(LocateSymbol, Ambiguous) {
               ElementsAre(Sym("Foo", T.range("ConstructorLoc"))));
   EXPECT_THAT(locateSymbolAt(AST, T.point("11")),
               ElementsAre(Sym("Foo", T.range("ConstructorLoc"))));
+  // These assertions are unordered because the order comes from
+  // CXXRecordDecl::lookupDependentName() which doesn't appear to provide
+  // an order guarantee.
+  EXPECT_THAT(locateSymbolAt(AST, T.point("12")),
+              UnorderedElementsAre(Sym("bar", T.range("NonstaticOverload1")),
+                                   Sym("bar", T.range("NonstaticOverload2"))));
+  EXPECT_THAT(locateSymbolAt(AST, T.point("13")),
+              UnorderedElementsAre(Sym("baz", T.range("StaticOverload1")),
+                                   Sym("baz", T.range("StaticOverload2"))));
 }
 
 TEST(LocateSymbol, TemplateTypedefs) {
@@ -796,6 +884,19 @@ TEST(FindReferences, WithinAST) {
         } // namespace ns
         int main() { [[^ns]]::Foo foo; }
       )cpp",
+
+      R"cpp(// Macros
+        #define TYPE(X) X
+        #define FOO Foo
+        #define CAT(X, Y) X##Y
+        class [[Fo^o]] {};
+        void test() {
+          TYPE([[Foo]]) foo;
+          [[FOO]] foo2;
+          TYPE(TYPE([[Foo]])) foo3;
+          [[CAT]](Fo, o) foo4;
+        }
+      )cpp",
   };
   for (const char *Test : Tests) {
     Annotations T(Test);
@@ -1018,6 +1119,27 @@ TEST(GetNonLocalDeclRefs, All) {
     EXPECT_THAT(Names, UnorderedElementsAreArray(C.ExpectedDecls))
         << File.code();
   }
+}
+
+TEST(DocumentLinks, All) {
+  Annotations MainCpp(R"cpp(
+      #include $foo[["foo.h"]]
+      int end_of_preamble = 0;
+      #include $bar[["bar.h"]]
+    )cpp");
+
+  TestTU TU;
+  TU.Code = MainCpp.code();
+  TU.AdditionalFiles = {{"foo.h", ""}, {"bar.h", ""}};
+  auto AST = TU.build();
+
+  EXPECT_THAT(
+      clangd::getDocumentLinks(AST),
+      ElementsAre(
+          DocumentLink({MainCpp.range("foo"),
+                        URIForFile::canonicalize(testPath("foo.h"), "")}),
+          DocumentLink({MainCpp.range("bar"),
+                        URIForFile::canonicalize(testPath("bar.h"), "")})));
 }
 
 } // namespace

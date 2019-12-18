@@ -1033,7 +1033,7 @@ public:
   // Thunk defines a symbol in this InputSection that can be used as target
   // of a relocation
   void addThunk(Thunk *t);
-  size_t getSize() const override { return size; }
+  size_t getSize() const override;
   void writeTo(uint8_t *buf) override;
   InputSection *getTargetInputSection() const;
   bool assignOffsets();
@@ -1062,14 +1062,16 @@ public:
 class PPC64LongBranchTargetSection final : public SyntheticSection {
 public:
   PPC64LongBranchTargetSection();
-  void addEntry(Symbol &sym);
+  uint64_t getEntryVA(const Symbol *sym, int64_t addend);
+  llvm::Optional<uint32_t> addEntry(const Symbol *sym, int64_t addend);
   size_t getSize() const override;
   void writeTo(uint8_t *buf) override;
   bool isNeeded() const override;
   void finalizeContents() override { finalized = true; }
 
 private:
-  std::vector<const Symbol *> entries;
+  std::vector<std::pair<const Symbol *, int64_t>> entries;
+  llvm::DenseMap<std::pair<const Symbol *, int64_t>, uint32_t> entry_index;
   bool finalized = false;
 };
 

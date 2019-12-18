@@ -389,6 +389,9 @@ public:
   virtual SPIRVInstruction *addMatrixTimesMatrixInst(SPIRVType *TheType,
                                                      SPIRVId M1, SPIRVId M2,
                                                      SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addTransposeInst(SPIRVType *TheType,
+                                             SPIRVId TheMatrix,
+                                             SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                          SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,

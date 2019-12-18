@@ -449,15 +449,15 @@ public:
   /// If the pointer isn't an i8*, it will be converted. If a TBAA tag is
   /// specified, it will be added to the instruction. Likewise with alias.scope
   /// and noalias tags.
-  CallInst *CreateMemSet(Value *Ptr, Value *Val, uint64_t Size, unsigned Align,
-                         bool isVolatile = false, MDNode *TBAATag = nullptr,
-                         MDNode *ScopeTag = nullptr,
+  CallInst *CreateMemSet(Value *Ptr, Value *Val, uint64_t Size,
+                         MaybeAlign Align, bool isVolatile = false,
+                         MDNode *TBAATag = nullptr, MDNode *ScopeTag = nullptr,
                          MDNode *NoAliasTag = nullptr) {
     return CreateMemSet(Ptr, Val, getInt64(Size), Align, isVolatile,
                         TBAATag, ScopeTag, NoAliasTag);
   }
 
-  CallInst *CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
+  CallInst *CreateMemSet(Value *Ptr, Value *Val, Value *Size, MaybeAlign Align,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *ScopeTag = nullptr,
                          MDNode *NoAliasTag = nullptr);
@@ -491,8 +491,21 @@ public:
   /// If the pointers aren't i8*, they will be converted.  If a TBAA tag is
   /// specified, it will be added to the instruction. Likewise with alias.scope
   /// and noalias tags.
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   CallInst *CreateMemCpy(Value *Dst, unsigned DstAlign, Value *Src,
                          unsigned SrcAlign, uint64_t Size,
+                         bool isVolatile = false, MDNode *TBAATag = nullptr,
+                         MDNode *TBAAStructTag = nullptr,
+                         MDNode *ScopeTag = nullptr,
+                         MDNode *NoAliasTag = nullptr) {
+    return CreateMemCpy(Dst, MaybeAlign(DstAlign), Src, MaybeAlign(SrcAlign),
+                        getInt64(Size), isVolatile, TBAATag, TBAAStructTag,
+                        ScopeTag, NoAliasTag);
+  }
+
+  CallInst *CreateMemCpy(Value *Dst, MaybeAlign DstAlign, Value *Src,
+                         MaybeAlign SrcAlign, uint64_t Size,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *TBAAStructTag = nullptr,
                          MDNode *ScopeTag = nullptr,
@@ -502,8 +515,16 @@ public:
                         NoAliasTag);
   }
 
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   CallInst *CreateMemCpy(Value *Dst, unsigned DstAlign, Value *Src,
                          unsigned SrcAlign, Value *Size,
+                         bool isVolatile = false, MDNode *TBAATag = nullptr,
+                         MDNode *TBAAStructTag = nullptr,
+                         MDNode *ScopeTag = nullptr,
+                         MDNode *NoAliasTag = nullptr);
+  CallInst *CreateMemCpy(Value *Dst, MaybeAlign DstAlign, Value *Src,
+                         MaybeAlign SrcAlign, Value *Size,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *TBAAStructTag = nullptr,
                          MDNode *ScopeTag = nullptr,
@@ -539,6 +560,8 @@ public:
   /// If the pointers aren't i8*, they will be converted.  If a TBAA tag is
   /// specified, it will be added to the instruction. Likewise with alias.scope
   /// and noalias tags.
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   CallInst *CreateMemMove(Value *Dst, unsigned DstAlign, Value *Src, unsigned SrcAlign,
                           uint64_t Size, bool isVolatile = false,
                           MDNode *TBAATag = nullptr, MDNode *ScopeTag = nullptr,
@@ -546,9 +569,27 @@ public:
     return CreateMemMove(Dst, DstAlign, Src, SrcAlign, getInt64(Size), isVolatile,
                          TBAATag, ScopeTag, NoAliasTag);
   }
-
-  CallInst *CreateMemMove(Value *Dst, unsigned DstAlign, Value *Src, unsigned SrcAlign,
-                          Value *Size, bool isVolatile = false, MDNode *TBAATag = nullptr,
+  CallInst *CreateMemMove(Value *Dst, MaybeAlign DstAlign, Value *Src,
+                          MaybeAlign SrcAlign, uint64_t Size,
+                          bool isVolatile = false, MDNode *TBAATag = nullptr,
+                          MDNode *ScopeTag = nullptr,
+                          MDNode *NoAliasTag = nullptr) {
+    return CreateMemMove(Dst, DstAlign, Src, SrcAlign, getInt64(Size),
+                         isVolatile, TBAATag, ScopeTag, NoAliasTag);
+  }
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
+  CallInst *CreateMemMove(Value *Dst, unsigned DstAlign, Value *Src,
+                          unsigned SrcAlign, Value *Size,
+                          bool isVolatile = false, MDNode *TBAATag = nullptr,
+                          MDNode *ScopeTag = nullptr,
+                          MDNode *NoAliasTag = nullptr) {
+    return CreateMemMove(Dst, MaybeAlign(DstAlign), Src, MaybeAlign(SrcAlign),
+                         Size, isVolatile, TBAATag, ScopeTag, NoAliasTag);
+  }
+  CallInst *CreateMemMove(Value *Dst, MaybeAlign DstAlign, Value *Src,
+                          MaybeAlign SrcAlign, Value *Size,
+                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                           MDNode *ScopeTag = nullptr,
                           MDNode *NoAliasTag = nullptr);
 
@@ -1615,22 +1656,40 @@ public:
   /// Provided to resolve 'CreateAlignedLoad(Ptr, Align, "...")'
   /// correctly, instead of converting the string to 'bool' for the isVolatile
   /// parameter.
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, unsigned Align,
                               const char *Name) {
+    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), Name);
+  }
+  LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
+                              const char *Name) {
     LoadInst *LI = CreateLoad(Ty, Ptr, Name);
-    LI->setAlignment(MaybeAlign(Align));
+    LI->setAlignment(Align);
     return LI;
   }
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, unsigned Align,
                               const Twine &Name = "") {
+    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), Name);
+  }
+  LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
+                              const Twine &Name = "") {
     LoadInst *LI = CreateLoad(Ty, Ptr, Name);
-    LI->setAlignment(MaybeAlign(Align));
+    LI->setAlignment(Align);
     return LI;
   }
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use the version that takes MaybeAlign instead of this one.
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, unsigned Align,
                               bool isVolatile, const Twine &Name = "") {
+    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), isVolatile, Name);
+  }
+  LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
+                              bool isVolatile, const Twine &Name = "") {
     LoadInst *LI = CreateLoad(Ty, Ptr, isVolatile, Name);
-    LI->setAlignment(MaybeAlign(Align));
+    LI->setAlignment(Align);
     return LI;
   }
 
@@ -1651,6 +1710,23 @@ public:
     return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
                              Align, isVolatile, Name);
   }
+  // Deprecated [opaque pointer types]
+  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align, const char *Name) {
+    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
+                             Align, Name);
+  }
+  // Deprecated [opaque pointer types]
+  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align,
+                              const Twine &Name = "") {
+    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
+                             Align, Name);
+  }
+  // Deprecated [opaque pointer types]
+  LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align, bool isVolatile,
+                              const Twine &Name = "") {
+    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
+                             Align, isVolatile, Name);
+  }
 
   StoreInst *CreateAlignedStore(Value *Val, Value *Ptr, unsigned Align,
                                 bool isVolatile = false) {
@@ -1658,7 +1734,10 @@ public:
     SI->setAlignment(MaybeAlign(Align));
     return SI;
   }
-
+  StoreInst *CreateAlignedStore(Value *Val, Value *Ptr, MaybeAlign Align,
+                                bool isVolatile = false) {
+    return CreateAlignedStore(Val, Ptr, Align ? Align->value() : 0, isVolatile);
+  }
   FenceInst *CreateFence(AtomicOrdering Ordering,
                          SyncScope::ID SSID = SyncScope::System,
                          const Twine &Name = "") {
@@ -2087,6 +2166,8 @@ public:
     case Intrinsic::experimental_constrained_fpext:
     case Intrinsic::experimental_constrained_fptoui:
     case Intrinsic::experimental_constrained_fptosi:
+    case Intrinsic::experimental_constrained_lround:
+    case Intrinsic::experimental_constrained_llround:
       C = CreateIntrinsic(ID, {DestTy, V->getType()}, {V, ExceptV}, nullptr,
                           Name);
       break;
@@ -2295,6 +2376,37 @@ public:
     return CreateCall(
         cast<FunctionType>(Callee->getType()->getPointerElementType()), Callee,
         Args, OpBundles, Name, FPMathTag);
+  }
+
+  // Deprecated [opaque pointer types]
+  CallInst *CreateConstrainedFPCall(
+      Value *Callee, ArrayRef<Value *> Args, const Twine &Name = "",
+      Optional<fp::RoundingMode> Rounding = None,
+      Optional<fp::ExceptionBehavior> Except = None) {
+    llvm::SmallVector<Value *, 6> UseArgs;
+
+    for (auto *OneArg : Args)
+      UseArgs.push_back(OneArg);
+    Function *F = cast<Function>(Callee);
+    switch (F->getIntrinsicID()) {
+    default:
+      UseArgs.push_back(getConstrainedFPRounding(Rounding));
+      break;
+    case Intrinsic::experimental_constrained_fpext:
+    case Intrinsic::experimental_constrained_fptoui:
+    case Intrinsic::experimental_constrained_fptosi:
+    case Intrinsic::experimental_constrained_lround:
+    case Intrinsic::experimental_constrained_llround:
+      // No rounding metadata for these intrinsics.
+      break;
+    }
+    UseArgs.push_back(getConstrainedFPExcept(Except));
+
+    CallInst *C = CreateCall(
+        cast<FunctionType>(Callee->getType()->getPointerElementType()), Callee,
+        UseArgs, Name);
+    setConstrainedFPCallAttr(C);
+    return C;
   }
 
   Value *CreateSelect(Value *C, Value *True, Value *False,

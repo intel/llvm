@@ -37,6 +37,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 
+using namespace llvm::omp;
+
 namespace clang {
 using namespace sema;
 
@@ -8044,6 +8046,17 @@ StmtResult TreeTransform<Derived>::TransformOMPParallelForSimdDirective(
     OMPParallelForSimdDirective *D) {
   DeclarationNameInfo DirName;
   getDerived().getSema().StartOpenMPDSABlock(OMPD_parallel_for_simd, DirName,
+                                             nullptr, D->getBeginLoc());
+  StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
+  getDerived().getSema().EndOpenMPDSABlock(Res.get());
+  return Res;
+}
+
+template <typename Derived>
+StmtResult TreeTransform<Derived>::TransformOMPParallelMasterDirective(
+    OMPParallelMasterDirective *D) {
+  DeclarationNameInfo DirName;
+  getDerived().getSema().StartOpenMPDSABlock(OMPD_parallel_master, DirName,
                                              nullptr, D->getBeginLoc());
   StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
   getDerived().getSema().EndOpenMPDSABlock(Res.get());

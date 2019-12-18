@@ -9,6 +9,7 @@
 #pragma once
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
@@ -61,7 +62,7 @@ template <info::device param> struct get_device_info<platform, param> {
     PI_CALL(piDeviceGetInfo)(dev, pi::cast<RT::PiDeviceInfo>(param),
                              sizeof(result), &result, nullptr);
     return createSyclObjFromImpl<platform>(
-        std::make_shared<platform_impl_pi>(result));
+        std::make_shared<platform_impl>(result));
   }
 };
 
