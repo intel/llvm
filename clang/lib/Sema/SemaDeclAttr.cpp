@@ -2860,9 +2860,9 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 // Values of reqd_work_group_size arguments shall be equal or less than values
 // coming from max_work_group_size.
-// In case of 'max_global_work_dim' attribute equals to 0 we shall ensure
-// that if max_work_group_size and reqd_work_group_size attributes exist,
-// then they are equal (1, 1, 1).
+// In case the value of 'max_global_work_dim' attribute equals to 0 we shall
+// ensure that if max_work_group_size and reqd_work_group_size attributes exist,
+// they hold equal values (1, 1, 1).
 static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
                                      uint32_t WGSize[3]) {
   bool Result = true;
