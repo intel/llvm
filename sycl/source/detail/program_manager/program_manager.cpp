@@ -88,17 +88,6 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
   return Program;
 }
 
-static void getContextDevices(const RT::PiContext &Context,
-                              std::vector<RT::PiDevice> &Devices) {
-  size_t NumDevices = 0;
-  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_NUM_DEVICES,
-                            sizeof(NumDevices), &NumDevices, nullptr);
-  Devices.resize(NumDevices);
-  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_DEVICES,
-                            sizeof(RT::PiDevice) * Devices.size(), &Devices[0],
-                            nullptr);
-}
-
 DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
                                             const string_class &KernelName,
                                             const context &Context) {
@@ -196,13 +185,17 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   // Pre-compiled programs are supposed to be already linked.
   const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
 
-  std::vector<RT::PiDevice> Devices;
-  getContextDevices(getRawSyclObjImpl(Context)->getHandleRef(), Devices);
+  context_impl *ContextImpl = getRawSyclObjImpl(Context);
+  RT::PiContext PiContext = ContextImpl->getHandleRef();
+  const std::vector<device> Devices = ContextImpl->getDevices();
+  std::vector<RT::PiDevice> PiDevices(Devices.size());
+  std::transform(
+      Devices.begin(), Devices.end(), PiDevices.begin(),
+      [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
 
-  ProgramPtr BuiltProgram = build(
-      std::move(ProgramManaged), getRawSyclObjImpl(Context)->getHandleRef(),
-      Img.BuildOptions, Devices,
-      getRawSyclObjImpl(Context)->getCachedLibPrograms(), LinkDeviceLibs);
+  ProgramPtr BuiltProgram =
+      build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
+            ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
   CachedPrograms[KSId] = BuiltProgram.get();
   return BuiltProgram.release();
 }

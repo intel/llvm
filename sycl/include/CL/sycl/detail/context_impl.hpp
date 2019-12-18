@@ -102,6 +102,12 @@ public:
   /// @return an instance of raw plug-in context handle.
   const RT::PiContext &getHandleRef() const;
 
+  /// Unlike `get_info<info::context::devices>', this function returns a
+  /// reference.
+  const vector_class<device> &getDevices() const {
+    return MDevices;
+  }
+
   /// Gets cached programs.
   ///
   /// @return a map of cached programs.
