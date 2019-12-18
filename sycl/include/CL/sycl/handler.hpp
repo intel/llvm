@@ -682,10 +682,6 @@ public:
     extractArgsAndReqs();
   }
 
-  // Note: the kernel invocation methods below are only planned to be added
-  // to the spec as of v1.2.1 rev. 3, despite already being present in SYCL
-  // conformance tests.
-
   // single_task version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise.
