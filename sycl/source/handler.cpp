@@ -21,11 +21,11 @@ namespace cl {
 namespace sycl {
 event handler::finalize() {
   sycl::event EventRet;
-  std::unique_ptr<detail::CG> CommandGroup;
+  unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
-    std::shared_ptr<detail::kernel_impl> KernelImpl = nullptr;
+    shared_ptr_class<detail::kernel_impl> KernelImpl = nullptr;
     if (MSyclKernel)
       KernelImpl = detail::getSyclObjImpl(*MSyclKernel);
     CommandGroup.reset(new detail::CGExecKernel(
