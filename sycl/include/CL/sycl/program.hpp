@@ -15,8 +15,6 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <memory>
-
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
@@ -296,7 +294,7 @@ public:
   program_state get_state() const;
 
 private:
-  program(std::shared_ptr<detail::program_impl> impl);
+  program(shared_ptr_class<detail::program_impl> impl);
 
   /// Template-free version of get_kernel.
   ///

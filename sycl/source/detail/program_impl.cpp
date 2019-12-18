@@ -27,7 +27,7 @@ program_impl::program_impl(const context &Context,
     : MContext(Context), MDevices(DeviceList) {}
 
 program_impl::program_impl(
-    vector_class<std::shared_ptr<program_impl>> ProgramList,
+    vector_class<shared_ptr_class<program_impl>> ProgramList,
     string_class LinkOptions)
     : MState(program_state::linked), MLinkOptions(LinkOptions),
       MBuildOptions(LinkOptions) {
@@ -37,7 +37,7 @@ program_impl::program_impl(
   }
   MContext = ProgramList[0]->MContext;
   MDevices = ProgramList[0]->MDevices;
-  std::vector<device> DevicesSorted;
+  vector_class<device> DevicesSorted;
   if (!is_host()) {
     DevicesSorted = sort_devices_by_cl_device_id(MDevices);
   }
@@ -49,7 +49,7 @@ program_impl::program_impl(
           "Not all programs are associated with the same context");
     }
     if (!is_host()) {
-      std::vector<device> PrgDevicesSorted =
+      vector_class<device> PrgDevicesSorted =
           sort_devices_by_cl_device_id(Prg->MDevices);
       if (PrgDevicesSorted != DevicesSorted) {
         throw invalid_object_error(
@@ -231,7 +231,7 @@ bool program_impl::has_kernel(string_class KernelName,
 }
 
 kernel program_impl::get_kernel(string_class KernelName,
-                                std::shared_ptr<program_impl> PtrToSelf,
+                                shared_ptr_class<program_impl> PtrToSelf,
                                 bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
@@ -355,7 +355,7 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   return Kernel;
 }
 
-std::vector<device>
+vector_class<device>
 program_impl::sort_devices_by_cl_device_id(vector_class<device> Devices) {
   std::sort(Devices.begin(), Devices.end(),
             [](const device &id1, const device &id2) {

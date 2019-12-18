@@ -69,7 +69,7 @@ public:
   ///
   /// @param ProgramList is a list of program_impl instances.
   /// @param LinkOptions is a string containing valid OpenCL link options.
-  program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
+  program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
                string_class LinkOptions = "");
 
   /// Constructs a program instance from plugin interface interoperability
@@ -204,7 +204,7 @@ public:
   ///
   /// @return a valid instance of SYCL kernel.
   kernel get_kernel(string_class KernelName,
-                    std::shared_ptr<program_impl> PtrToSelf,
+                    shared_ptr_class<program_impl> PtrToSelf,
                     bool IsCreatedFromSource) const;
 
   /// Queries this SYCL program for information.
@@ -336,7 +336,7 @@ private:
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
 
   /// @return a vector of sorted in ascending order SYCL devices.
-  std::vector<device>
+  vector_class<device>
   sort_devices_by_cl_device_id(vector_class<device> Devices);
 
   /// Throws an invalid_object_exception if state of this program is in the
