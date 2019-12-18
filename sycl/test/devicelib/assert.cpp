@@ -4,7 +4,7 @@
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves
-// in the usual way and terminate the program. On other devices it can print an
+// in the usual way and terminates the program. On other devices it can print an
 // error message and *continue* execution. Less capable devices can even ignore
 // an assert!
 //
