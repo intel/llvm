@@ -11930,7 +11930,6 @@ public:
     KernelCallFunctionPointer,
     KernelAllocateStorage,
     KernelUseAssembly,
-    KernelHavePolymorphicClass,
     KernelCallDllimportFunction,
     KernelCallVariadicFunction
  };

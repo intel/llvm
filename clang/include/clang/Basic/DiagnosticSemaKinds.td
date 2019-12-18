@@ -10228,7 +10228,6 @@ def err_sycl_restrict : Error<
   "|call through a function pointer"
   "|allocate storage"
   "|use inline assembly"
-  "|have a class with a virtual function table"
   "|call a dllimport function"
   "|call a variadic function}0">;
 def err_sycl_virtual_types : Error<
