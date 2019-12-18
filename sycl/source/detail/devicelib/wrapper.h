@@ -13,9 +13,10 @@
 #include <cstdint>
 
 SYCL_EXTERNAL
-extern "C" void __devicelib_assert_fail(const char *expr, const char *file,
-                                        int32_t line, const char *func,
-                                        size_t gid0, size_t gid1, size_t gid2,
-                                        size_t lid0, size_t lid1, size_t lid2);
+extern "C" void __devicelib_assert_fail(
+    const char *expr, const char *file,
+    int32_t line, const char *func,
+    uint64_t gid0, uint64_t gid1, uint64_t gid2,
+    uint64_t lid0, uint64_t lid1, uint64_t lid2);
 
 #endif // __SYCL_WRAPPERS_H__
