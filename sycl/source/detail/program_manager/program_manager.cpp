@@ -287,20 +287,31 @@ static std::string getDeviceExtensions(const RT::PiDevice &Dev) {
   return DevExt;
 }
 
-static RT::PiProgram
-loadDeviceLibFallback(const RT::PiContext &Context,
-                      const std::string &Extension,
-                      const std::vector<RT::PiDevice> &Devices,
-                      std::map<std::string, RT::PiProgram> &CachedLibPrograms) {
-
-  const char *LibFileName = nullptr;
-  if (Extension == "cl_intel_devicelib_assert") {
-    LibFileName = "libsycl-fallback-cassert.spv";
-  } else {
-    throw compile_program_error(std::string("Unknown device library: ") +
-                                Extension);
+static const char* getDeviceLibFilename(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "libsycl-fallback-cassert.spv";
   }
-  std::map<std::string, RT::PiProgram>::iterator LibProgIt;
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "cl_intel_devicelib_assert";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+static RT::PiProgram
+loadDeviceLibFallback(
+    const RT::PiContext &Context,
+    DeviceLibExt Extension,
+    const std::vector<RT::PiDevice> &Devices,
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+
+  const char *LibFileName = getDeviceLibFilename(Extension);
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
   bool NotExists = false;
   std::tie(LibProgIt, NotExists) =
       CachedLibPrograms.insert({Extension, nullptr});
@@ -427,15 +438,15 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 static std::vector<RT::PiProgram> getDeviceLibPrograms(
     const RT::PiContext Context,
     const std::vector<RT::PiDevice> &Devices,
-    std::map<std::string, RT::PiProgram> &CachedLibPrograms) {
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
 
   std::vector<RT::PiProgram> Programs;
 
   // TODO: SYCL compiler should generate a list of required extensions for a
   // particular program in order to allow us do a more fine-grained check here.
   // Require *all* possible devicelib extensions for now.
-  std::pair<const char *, bool> RequiredDeviceLibExt[] = {
-      {"cl_intel_devicelib_assert", false}
+  std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
+      {cl_intel_devicelib_assert, false}
   };
 
   // Load a fallback library for an extension if at least one device does not
@@ -443,8 +454,10 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
   for (RT::PiDevice Dev : Devices) {
     std::string DevExtList = getDeviceExtensions(Dev);
     for (auto &Pair : RequiredDeviceLibExt) {
-      const char *Ext = Pair.first;
+      DeviceLibExt Ext = Pair.first;
       bool &FallbackIsLoaded = Pair.second;
+
+      const char* ExtStr = getDeviceLibExtensionStr(Ext);
 
       if (FallbackIsLoaded) {
         continue;
@@ -452,10 +465,10 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
 
       bool InhibitNativeImpl = false;
       if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
-        InhibitNativeImpl = strstr(Env, Ext) != nullptr;
+        InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
       }
 
-      bool DeviceSupports = DevExtList.npos != DevExtList.find(Ext);
+      bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
       if (!DeviceSupports || InhibitNativeImpl) {
         Programs.push_back(
@@ -471,7 +484,7 @@ ProgramManager::ProgramPtr
 ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
                       const string_class &Options,
                       const std::vector<RT::PiDevice> &Devices,
-                      std::map<std::string, RT::PiProgram> &CachedLibPrograms,
+                      std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
                       bool LinkDeviceLibs) {
 
   if (DbgProgMgr > 0) {

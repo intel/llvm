@@ -41,6 +41,10 @@ using DeviceImage = pi_device_binary_struct;
 // be attempted to de-allocate.
 struct ImageDeleter;
 
+enum DeviceLibExt {
+  cl_intel_devicelib_assert = 0
+};
+
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
@@ -75,7 +79,7 @@ private:
   ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
                    const string_class &Options,
                    const std::vector<RT::PiDevice> &Devices,
-                   std::map<std::string, RT::PiProgram> &CachedLibPrograms,
+                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
                    bool LinkDeviceLibs = false);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
