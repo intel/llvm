@@ -27,7 +27,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <array>
-#include <unordered_set>
 
 using namespace clang;
 
@@ -567,13 +566,8 @@ private:
   }
 
   bool IsWhitelistedMethod(const FunctionDecl *FD) const {
-    static const std::unordered_set<std::string> WhiteList{
-#define WHITELISTED(n) #n
-#include "SYCLWhitelist.h"
-#undef WHITELISTED
-    };
-
-    MangleContext *MangleCtx = SemaRef.Context.createMangleContext();
+    std::unique_ptr<MangleContext> MangleCtx(
+          SemaRef.Context.createMangleContext());
     std::string NameToLookup = "n / a";
 
     if (!MangleCtx->shouldMangleDeclName(FD)) {
@@ -586,9 +580,12 @@ private:
       OS.flush();
     }
 
-    delete MangleCtx;
+    llvm::StringSwitch<bool> WhiteList(NameToLookup);
 
-    return WhiteList.find(NameToLookup) != WhiteList.end();
+    // type in a whitelist of methods allowed to call from kernel code, e.g.:
+    // WhiteList.Case("printf", true);
+
+    return WhiteList.Default(false);
   }
 
   Sema &SemaRef;
