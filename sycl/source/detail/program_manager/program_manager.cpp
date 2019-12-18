@@ -424,40 +424,47 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
-static void getDeviceLibPrograms(
+static std::vector<RT::PiProgram> getDeviceLibPrograms(
     const RT::PiContext Context,
     const std::vector<RT::PiDevice> &Devices,
-    std::map<std::string, RT::PiProgram> &CachedLibPrograms,
-    std::vector<RT::PiProgram> &Programs) {
+    std::map<std::string, RT::PiProgram> &CachedLibPrograms) {
+
+  std::vector<RT::PiProgram> Programs;
 
   // TODO: SYCL compiler should generate a list of required extensions for a
   // particular program in order to allow us do a more fine-grained check here.
   // Require *all* possible devicelib extensions for now.
-  const char* RequiredDeviceLibExt[] = {
-    "cl_intel_devicelib_assert"
+  std::pair<const char *, bool> RequiredDeviceLibExt[] = {
+      {"cl_intel_devicelib_assert", false}
   };
 
-  std::vector<std::string> DevExtensions(Devices.size());
-  for (size_t i = 0; i < Devices.size(); ++i) {
-    DevExtensions[i] = getDeviceExtensions(Devices[i]);
-  }
-  for (const char *Ext : RequiredDeviceLibExt) {
-    bool InhibitNativeImpl = false;
-    if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
-      InhibitNativeImpl = strstr(Env, Ext) != nullptr;
-    }
+  // Load a fallback library for an extension if at least one device does not
+  // support it.
+  for (RT::PiDevice Dev : Devices) {
+    std::string DevExtList = getDeviceExtensions(Dev);
+    for (auto &Pair : RequiredDeviceLibExt) {
+      const char *Ext = Pair.first;
+      bool &FallbackIsLoaded = Pair.second;
 
-    // Load a fallback library for an extension if at least one device does not
-    // support it.
-    for (const std::string &DevExtList : DevExtensions) {
+      if (FallbackIsLoaded) {
+        continue;
+      }
+
+      bool InhibitNativeImpl = false;
+      if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+        InhibitNativeImpl = strstr(Env, Ext) != nullptr;
+      }
+
       bool DeviceSupports = DevExtList.npos != DevExtList.find(Ext);
+
       if (!DeviceSupports || InhibitNativeImpl) {
         Programs.push_back(
             loadDeviceLibFallback(Context, Ext, Devices, CachedLibPrograms));
-        break;
+        FallbackIsLoaded = true;
       }
     }
   }
+  return Programs;
 }
 
 ProgramManager::ProgramPtr
@@ -486,7 +493,7 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
-    getDeviceLibPrograms(Context, Devices, CachedLibPrograms, LinkPrograms);
+    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
   }
 
   if (LinkPrograms.empty()) {
