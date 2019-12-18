@@ -11,10 +11,10 @@
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <map>
@@ -25,6 +25,7 @@ namespace sycl {
 // Forward declaration
 class device;
 namespace detail {
+using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
   /// Constructs a context_impl using a single SYCL devices.
@@ -121,7 +122,7 @@ private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
   RT::PiContext MContext;
-  platform MPlatform;
+  PlatformImplPtr MPlatform;
   bool MPluginInterop;
   bool MHostContext;
   std::map<KernelSetId, RT::PiProgram> MCachedPrograms;

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
@@ -26,6 +26,8 @@ class program;
 namespace detail {
 class program_impl;
 
+using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using ProgramImplPtr = std::shared_ptr<program_impl>;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
@@ -36,7 +38,7 @@ public:
   ///
   /// @param Kernel is a valid PiKernel instance
   /// @param SyclContext is a valid SYCL context
-  kernel_impl(RT::PiKernel Kernel, const context &SyclContext);
+  kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context);
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
   ///
@@ -50,16 +52,16 @@ public:
   /// @param ProgramImpl is a valid instance of program_impl
   /// @param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
-  kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
-              std::shared_ptr<program_impl> ProgramImpl,
+  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+              ProgramImplPtr ProgramImpl,
               bool IsCreatedFromSource);
 
   /// Constructs a SYCL kernel for host device
   ///
   /// @param SyclContext is a valid SYCL context
   /// @param ProgramImpl is a valid instance of program_impl
-  kernel_impl(const context &SyclContext,
-              std::shared_ptr<program_impl> ProgramImpl);
+  kernel_impl(ContextImplPtr Context,
+              ProgramImplPtr ProgramImpl);
 
   ~kernel_impl();
 
@@ -80,7 +82,7 @@ public:
   /// Check if the associated SYCL context is a SYCL host context.
   ///
   /// @return true if this SYCL kernel is a host kernel.
-  bool is_host() const { return MContext.is_host(); }
+  bool is_host() const { return MContext->is_host(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -138,8 +140,8 @@ public:
 
 private:
   RT::PiKernel MKernel;
-  context MContext;
-  std::shared_ptr<program_impl> MProgramImpl;
+  const ContextImplPtr MContext;
+  const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
 };
 

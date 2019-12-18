@@ -26,16 +26,16 @@ ordered_queue::ordered_queue(const context &syclContext,
 
   const device &syclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
   impl = std::make_shared<detail::queue_impl>(
-      syclDevice, syclContext, asyncHandler,
-      cl::sycl::detail::QueueOrder::Ordered, propList);
+      detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
+      asyncHandler, cl::sycl::detail::QueueOrder::Ordered, propList);
 }
 
 ordered_queue::ordered_queue(const device &syclDevice,
                              const async_handler &asyncHandler,
                              const property_list &propList) {
   impl = std::make_shared<detail::queue_impl>(
-      syclDevice, asyncHandler, cl::sycl::detail::QueueOrder::Ordered,
-      propList);
+      detail::getSyclObjImpl(syclDevice), asyncHandler,
+      cl::sycl::detail::QueueOrder::Ordered, propList);
 }
 
 ordered_queue::ordered_queue(cl_command_queue clQueue,
@@ -51,7 +51,8 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
         "Failed to build a sycl ordered queue from a cl OOO queue.");
 
   impl =
-      std::make_shared<detail::queue_impl>(clQueue, syclContext, asyncHandler);
+      std::make_shared<detail::queue_impl>(clQueue,
+          detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
 } // namespace sycl
