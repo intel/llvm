@@ -273,7 +273,7 @@ void program_impl::create_cl_program_with_il(OSModuleHandle M) {
 }
 
 void program_impl::create_cl_program_with_source(const string_class &Source) {
-  assert(!Program && "This program already has an encapsulated cl_program");
+  assert(!MProgram && "This program already has an encapsulated cl_program");
   const char *Src = Source.c_str();
   size_t Size = Source.size();
   PI_CALL(piclProgramCreateWithSource)(
@@ -379,7 +379,7 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 
 void program_impl::create_pi_program_with_kernel_name(
     OSModuleHandle Module, const string_class &KernelName) {
-  assert(!Program && "This program already has an encapsulated PI program");
+  assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
   DeviceImage &Img = PM.getDeviceImage(Module, KernelName, get_context());
   MProgram = PM.createPIProgram(Img, get_context());
