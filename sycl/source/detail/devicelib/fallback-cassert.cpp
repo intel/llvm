@@ -29,7 +29,9 @@ extern "C" void __devicelib_assert_fail(
   __spirv_ocl_printf(
       assert_fmt,
       file, (int32_t)line,
-      (func) ? func : "<unknown function>",
+      // WORKAROUND: IGC does not handle this well
+      // (func) ? func : "<unknown function>",
+      func,
       gid0, gid1, gid2,
       lid0, lid1, lid2,
       expr);

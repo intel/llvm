@@ -16,7 +16,7 @@
 //
 // RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 SYCL_DEVICE_TYPE=CPU %t.out >%t.stdout.fallback 2>%t.stderr.fallback
 // RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t.stdout.fallback
-// CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: <unknown function>: local id: [{{[0-3]}},0,0], global id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"` failed.
+// CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): local id: [{{[0-3]}},0,0], global id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"` failed.
 //
 // RUN: FileCheck %s --input-file %t.stdout.fallback --check-prefix=CHECK-FALLBACK
 // CHECK-FALLBACK: ---> piProgramLink
