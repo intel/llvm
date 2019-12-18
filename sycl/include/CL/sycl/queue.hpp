@@ -122,7 +122,9 @@ public:
     });
   }
 
-  // single_task version with a kernel represented as a lambda.
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(KernelType KernelFunc) {
     return submit([&](handler &CGH) {
@@ -130,8 +132,10 @@ public:
     });
   }
 
-  // single_task version with a kernel represented as a lambda.
-  // Takes an event to specify a dependence.
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
@@ -140,8 +144,10 @@ public:
     });
   }
 
-  // single_task version with a kernel represented as a lambda.
-  // Takes a vector of events to specify dependences.
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// @param DepEvents is a vector of events that specify the kernel dependences
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(std::vector<event> DepEvents, KernelType KernelFunc) {
     return submit([&](handler &CGH) {
@@ -150,8 +156,11 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range that
-  // specifies global size only.
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
@@ -161,8 +170,12 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range that
-  // specifies global size only.  Takes an event to specify dependences
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.  
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, event DepEvent,
@@ -174,8 +187,12 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range that
-  // specifies global size only.  Takes a vector of events to specify dependences
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, std::vector<event> DepEvents,
@@ -187,8 +204,12 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range and
-  // offset that specify global size and global offset correspondingly.
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param WorkItemOffset specifies the offset for each work item id
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -199,9 +220,13 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range and
-  // offset that specify global size and global offset correspondingly.
-  // Takes an event to specify dependences.
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param WorkItemOffset specifies the offset for each work item id
+  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -213,9 +238,13 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + range and
-  // offset that specify global size and global offset correspondingly.
-  // Takes a vector of events to specify dependences.
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// @param NumWorkItems is a range that specifies the work space of the kernel
+  /// @param WorkItemOffset specifies the offset for each work item id
+  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -227,8 +256,11 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + nd_range that
-  // specifies global, local sizes and offset.
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// @param ExecutionRange is a range that specifies the work space of the kernel
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
@@ -238,9 +270,12 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + nd_range that
-  // specifies global, local sizes and offset.
-  // Takes an event to specify dependences.
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// @param ExecutionRange is a range that specifies the work space of the kernel
+  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
@@ -252,9 +287,12 @@ public:
     });
   }
 
-  // parallel_for version with a kernel represented as a lambda + nd_range that
-  // specifies global, local sizes and offset.
-  // Takes a vector of events to specify dependences.
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// @param ExecutionRange is a range that specifies the work space of the kernel
+  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
