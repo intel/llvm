@@ -6842,27 +6842,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += CurDep->getOffloadingArch();
     }
   }
-
-  // When bundling for FPGA with -fsycl-link a specific triple is formulated
-  // to match the FPGA binary.  We are also guaranteed only the single device
-  // and host object inputs.
-  const ToolChain *TCCheck = &getToolChain();
-  if (TCArgs.hasArg(options::OPT_fsycl_link_EQ) &&
-      TCCheck->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    Triples = "-targets=";
-    llvm::Triple TT;
-    TT.setArchName(types::getTypeName(JA.getInputs()[0]->getType()));
-    TT.setVendorName("intel");
-    TT.setOS(llvm::Triple(TCCheck->getTriple()).getOS());
-    TT.setEnvironment(llvm::Triple::SYCLDevice);
-    Triples += "fpga-";
-    Triples += TT.normalize();
-    Triples += ",";
-    Triples += Action::GetOffloadKindName(Action::OFK_Host);
-    Triples += "-";
-    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    Triples += HostTC->getTriple().normalize();
-  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.

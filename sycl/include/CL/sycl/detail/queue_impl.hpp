@@ -229,6 +229,11 @@ public:
                size_t Count);
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
+  void reportAsyncException(std::exception_ptr E) {
+    std::lock_guard<mutex_class> guard(m_Mutex);
+    m_Exceptions.PushBack(E);
+  }
+
 private:
   template <typename T>
   event submit_impl(T cgf, std::shared_ptr<queue_impl> self) {

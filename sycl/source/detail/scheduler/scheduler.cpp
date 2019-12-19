@@ -81,10 +81,15 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   // buffer.
   if (!NewCmd)
     return nullptr;
-  EnqueueResultT Res;
-  bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-  if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
-    throw runtime_error("Enqueue process failed.");
+
+  try {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+    if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
+      throw runtime_error("Enqueue process failed.");
+  } catch (...) {
+    NewCmd->getQueue()->reportAsyncException(std::current_exception());
+  }
   return NewCmd->getEvent();
 }
 
