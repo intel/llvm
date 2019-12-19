@@ -2,7 +2,6 @@
 Test lldb-vscode setBreakpoints request
 """
 
-from __future__ import print_function
 
 import unittest2
 import vscode
@@ -17,7 +16,6 @@ class TestVSCode_step(lldbvscode_testcase.VSCodeTestCaseBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIfWindows
-    @no_debug_info_test
     def test_step(self):
         '''
             Tests the stepping in/out/over in threads.
