@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,14 @@ template <class To, class From> To cast(From value) {
 // USM helper function to get an extension function pointer
 template <typename T>
 pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
+  thread_local static std::map<pi_context, T> FuncPtrs;
+
+  // if cached, return cached FuncPtr
+  if (auto F = FuncPtrs[context]) {
+    *fptr = F;
+    return PI_SUCCESS;
+  }
+
   size_t deviceCount;
   cl_int ret_err = clGetContextInfo(
       cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
@@ -64,6 +73,8 @@ pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
   }
 
   *fptr = FuncPtr;
+  FuncPtrs[context] = FuncPtr;
+
   return cast<pi_result>(ret_err);
 }
 
@@ -511,16 +522,14 @@ pi_result OCL(piextUSMHostAlloc)(void **result_ptr, pi_context context,
   pi_result RetVal = PI_INVALID_OPERATION;
 
   // First we need to look up the function pointer
-  // It would be good if we could store it for future reuse
-  // Are statics ok?
-  clHostMemAllocINTEL_fn FuncPtr;
+  clHostMemAllocINTEL_fn FuncPtr = nullptr;
   RetVal = getExtFuncFromContext<clHostMemAllocINTEL_fn>(
       context, "clHostMemAllocINTEL", &FuncPtr);
 
-  if (RetVal == PI_SUCCESS) {
+  if (FuncPtr) {
     Ptr = FuncPtr(cast<cl_context>(context),
-                  cast<cl_mem_properties_intel *>(properties), size, alignment,
-                  cast<cl_int *>(&RetVal));
+            cast<cl_mem_properties_intel *>(properties), size, alignment,
+            cast<cl_int *>(&RetVal));
   }
 
   *result_ptr = Ptr;
@@ -545,13 +554,11 @@ pi_result OCL(piextUSMDeviceAlloc)(void **result_ptr, pi_context context,
   pi_result RetVal = PI_INVALID_OPERATION;
 
   // First we need to look up the function pointer
-  // It would be good if we could store it for future reuse
-  // Are statics ok?
-  clDeviceMemAllocINTEL_fn FuncPtr;
+  clDeviceMemAllocINTEL_fn FuncPtr = nullptr;
   RetVal = getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
       context, "clDeviceMemAllocINTEL", &FuncPtr);
 
-  if (RetVal == PI_SUCCESS) {
+  if (FuncPtr) {
     Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
                   cast<cl_mem_properties_intel *>(properties), size, alignment,
                   cast<cl_int *>(&RetVal));
@@ -579,13 +586,11 @@ pi_result OCL(piextUSMSharedAlloc)(void **result_ptr, pi_context context,
   pi_result RetVal = PI_INVALID_OPERATION;
 
   // First we need to look up the function pointer
-  // It would be good if we could store it for future reuse
-  // Are statics ok?
-  clSharedMemAllocINTEL_fn FuncPtr;
+  clSharedMemAllocINTEL_fn FuncPtr = nullptr;
   RetVal = getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
       context, "clSharedMemAllocINTEL", &FuncPtr);
 
-  if (RetVal == PI_SUCCESS) {
+  if (FuncPtr) {
     Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
                   cast<cl_mem_properties_intel *>(properties), size, alignment,
                   cast<cl_int *>(&RetVal));
@@ -602,14 +607,16 @@ pi_result OCL(piextUSMSharedAlloc)(void **result_ptr, pi_context context,
 /// @param ptr is the memory to be freed
 pi_result OCL(piextUSMFree)(pi_context context, void *ptr) {
 
-  clMemFreeINTEL_fn FuncPtr;
-  pi_result RetVal = getExtFuncFromContext<clMemFreeINTEL_fn>(
-      context, "clMemFreeINTEL", &FuncPtr);
+  clMemFreeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = PI_INVALID_OPERATION;
+  RetVal = getExtFuncFromContext<clMemFreeINTEL_fn>(context, "clMemFreeINTEL",
+                                                    &FuncPtr);
 
-  if (RetVal != PI_SUCCESS)
-    return RetVal;
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
+  }
 
-  return cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
+  return RetVal;
 }
 
 /// Sets up pointer arguments for CL kernels. An extra indirection
@@ -634,18 +641,19 @@ pi_result OCL(piextUSMKernelSetArgMemPointer)(pi_kernel kernel,
     return cast<pi_result>(CLErr);
   }
 
-  clSetKernelArgMemPointerINTEL_fn FuncPtr;
+  clSetKernelArgMemPointerINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
       cast<pi_context>(CLContext), "clSetKernelArgMemPointerINTEL", &FuncPtr);
 
-  if (RetVal != PI_SUCCESS)
-    return RetVal;
+  if (FuncPtr) {
+    // OpenCL passes pointers by value not by reference
+    // This means we need to deref the arg to get the pointer value
+    auto PtrToPtr = reinterpret_cast<const intptr_t *>(arg_value);
+    auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
+  }
 
-  // OpenCL passes pointers by value not by reference
-  // This means we need to deref the arg to get the pointer value
-  auto PtrToPtr = reinterpret_cast<const intptr_t *>(arg_value);
-  auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
-  return cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
+  return RetVal;
 }
 
 /// Enables indirect access of pointers in kernels.
@@ -657,10 +665,9 @@ pi_result OCL(piextUSMKernelSetIndirectAccess)(pi_kernel kernel) {
   // We test that each alloc type is supported before we actually try to
   // set KernelExecInfo.
   cl_bool TrueVal = CL_TRUE;
-  pi_result RetVal;
-  clHostMemAllocINTEL_fn HFunc;
-  clSharedMemAllocINTEL_fn SFunc;
-  clDeviceMemAllocINTEL_fn DFunc;
+  clHostMemAllocINTEL_fn HFunc = nullptr;
+  clSharedMemAllocINTEL_fn SFunc = nullptr;
+  clDeviceMemAllocINTEL_fn DFunc = nullptr;
   cl_context CLContext;
   cl_int CLErr = clGetKernelInfo(cast<cl_kernel>(kernel), CL_KERNEL_CONTEXT,
                                  sizeof(cl_context), &CLContext, nullptr);
@@ -668,24 +675,25 @@ pi_result OCL(piextUSMKernelSetIndirectAccess)(pi_kernel kernel) {
     return cast<pi_result>(CLErr);
   }
 
-  // This would be really good to cache
-  RetVal = getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), "clHostMemAllocINTEL", &HFunc);
-  if (RetVal == PI_SUCCESS) {
+  getExtFuncFromContext<clHostMemAllocINTEL_fn>(cast<pi_context>(CLContext),
+                                                "clHostMemAllocINTEL", &HFunc);
+  if (HFunc)  {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
   }
-  RetVal = getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+
+  getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
       cast<pi_context>(CLContext), "clDeviceMemAllocINTEL", &DFunc);
-  if (RetVal == PI_SUCCESS) {
+  if (DFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
   }
-  RetVal = getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+
+  getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
       cast<pi_context>(CLContext), "clSharedMemAllocINTEL", &SFunc);
-  if (RetVal == PI_SUCCESS) {
+  if (SFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
@@ -718,16 +726,18 @@ pi_result OCL(piextUSMEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemsetINTEL_fn FuncPtr;
+  clEnqueueMemsetINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
       cast<pi_context>(CLContext), "clEnqueueMemsetINTEL", &FuncPtr);
 
-  if (RetVal != PI_SUCCESS)
-    return RetVal;
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
+                                     count, num_events_in_waitlist,
+                                     cast<const cl_event *>(events_waitlist),
+                                     cast<cl_event *>(event)));
+  }
 
-  return cast<pi_result>(FuncPtr(
-      cast<cl_command_queue>(queue), ptr, value, count, num_events_in_waitlist,
-      cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  return RetVal;
 }
 
 /// USM Memcpy API
@@ -756,17 +766,18 @@ pi_result OCL(piextUSMEnqueueMemcpy)(pi_queue queue, pi_bool blocking,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemcpyINTEL_fn FuncPtr;
+  clEnqueueMemcpyINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
       cast<pi_context>(CLContext), "clEnqueueMemcpyINTEL", &FuncPtr);
 
-  if (RetVal != PI_SUCCESS)
-    return RetVal;
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(
+        FuncPtr(cast<cl_command_queue>(queue), blocking, dst_ptr, src_ptr, size,
+                num_events_in_waitlist, cast<const cl_event *>(events_waitlist),
+                cast<cl_event *>(event)));
+  }
 
-  return cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), blocking,
-                                 dst_ptr, src_ptr, size, num_events_in_waitlist,
-                                 cast<const cl_event *>(events_waitlist),
-                                 cast<cl_event *>(event)));
+  return RetVal;
 }
 
 /// Hint to migrate memory to the device
@@ -879,16 +890,17 @@ pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
 
-  clGetMemAllocInfoINTEL_fn FuncPtr;
+  clGetMemAllocInfoINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
       context, "clGetMemAllocInfoINTEL", &FuncPtr);
 
-  if (RetVal != PI_SUCCESS)
-    return RetVal;
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
+                                     param_value_size, param_value,
+                                     param_value_size_ret));
+  }
 
-  return cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
-                                 param_value_size, param_value,
-                                 param_value_size_ret));
+  return RetVal;
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
