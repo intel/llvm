@@ -157,7 +157,8 @@ public:
         (ParsedAttr == AT_ReqdWorkGroupSize && isCXX11Attribute()) ||
         (ParsedAttr == AT_IntelReqdSubGroupSize && isCXX11Attribute()) ||
         ParsedAttr == AT_SYCLIntelNumSimdWorkItems ||
-        ParsedAttr == AT_SYCLIntelMaxWorkGroupSize)
+        ParsedAttr == AT_SYCLIntelMaxWorkGroupSize ||
+        ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim)
       return true;
 
     return false;

@@ -473,6 +473,14 @@ public:
           FD->dropAttr<SYCLIntelMaxWorkGroupSizeAttr>();
         }
       }
+      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
+        }
+      }
 
       // TODO: vec_len_hint should be handled here
 
@@ -1373,6 +1381,7 @@ void Sema::MarkDevice(void) {
         }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
+        case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
           SYCLKernel->addAttr(A);
           break;

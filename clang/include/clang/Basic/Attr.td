@@ -1135,6 +1135,15 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","max_global_work_dim">];
+  let Args = [UnsignedArgument<"Number">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
