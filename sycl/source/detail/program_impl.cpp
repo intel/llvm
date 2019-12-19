@@ -69,14 +69,14 @@ program_impl::program_impl(
       Programs.push_back(Prg->MProgram);
     }
     PI_CALL_THROW(piProgramLink, compile_program_error)(
-        MContext->getHandleRef(), Devices.size(),
-        Devices.data(), LinkOptions.c_str(), Programs.size(), Programs.data(),
-        nullptr, nullptr, &MProgram);
+        MContext->getHandleRef(), Devices.size(), Devices.data(),
+        LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
+        &MProgram);
   }
 }
 
 program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
-  : MProgram(Program), MContext(Context), MLinkable(true) {
+    : MProgram(Program), MContext(Context), MLinkable(true) {
 
   // TODO handle the case when cl_program build is in progress
   cl_uint NumDevices;
@@ -86,7 +86,8 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
                             sizeof(RT::PiDevice) * NumDevices, PiDevices.data(),
                             nullptr);
-  vector_class<device> SyclContextDevices = MContext->get_info<info::context::devices>();
+  vector_class<device> SyclContextDevices =
+      MContext->get_info<info::context::devices>();
 
   // Keep only the subset of the devices (associated with context) that
   // were actually used to create the program.
@@ -212,9 +213,8 @@ void program_impl::link(string_class LinkOptions) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     PI_CALL_THROW(piProgramLink, compile_program_error)(
-        MContext->getHandleRef(), Devices.size(),
-        Devices.data(), LinkOptions.c_str(), 1, &MProgram, nullptr, nullptr,
-        &MProgram);
+        MContext->getHandleRef(), Devices.size(), Devices.data(),
+        LinkOptions.c_str(), 1, &MProgram, nullptr, nullptr, &MProgram);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
   }
@@ -271,9 +271,8 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   assert(!MProgram && "This program already has an encapsulated cl_program");
   const char *Src = Source.c_str();
   size_t Size = Source.size();
-  PI_CALL(piclProgramCreateWithSource)(
-      MContext->getHandleRef(), 1, &Src, &Size,
-      &MProgram);
+  PI_CALL(piclProgramCreateWithSource)(MContext->getHandleRef(), 1, &Src, &Size,
+                                       &MProgram);
 }
 
 void program_impl::compile(const string_class &Options) {

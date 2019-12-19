@@ -15,9 +15,11 @@ namespace cl {
 namespace sycl {
 
 program::program(const context &context)
-    : impl(std::make_shared<detail::program_impl>(detail::getSyclObjImpl(context))) {}
+    : impl(std::make_shared<detail::program_impl>(
+          detail::getSyclObjImpl(context))) {}
 program::program(const context &context, vector_class<device> deviceList)
-    : impl(std::make_shared<detail::program_impl>(detail::getSyclObjImpl(context), deviceList)) {}
+    : impl(std::make_shared<detail::program_impl>(
+          detail::getSyclObjImpl(context), deviceList)) {}
 program::program(vector_class<program> programList, string_class linkOptions) {
   std::vector<std::shared_ptr<detail::program_impl>> impls;
   for (auto &x : programList) {
@@ -27,7 +29,8 @@ program::program(vector_class<program> programList, string_class linkOptions) {
 }
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
-           detail::getSyclObjImpl(context), detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+          detail::getSyclObjImpl(context),
+          detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
