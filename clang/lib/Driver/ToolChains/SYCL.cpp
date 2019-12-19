@@ -438,17 +438,17 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
                                          const ArgList &Args,
                                          const char *LinkingOutput) const {
   ArgStringList CmdArgs;
-  CmdArgs.push_back(Args.MakeArgString(Twine("-ir=") + Output.getFilename()));
-  CmdArgs.push_back("-device=cpu");
+  CmdArgs.push_back(Args.MakeArgString(Twine("-o=") + Output.getFilename()));
+  CmdArgs.push_back("--device=cpu");
   InputInfoList ForeachInputs;
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist)
       ForeachInputs.push_back(II);
-    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + Filename));
+    CmdArgs.push_back(Args.MakeArgString(Filename));
   }
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("ioc64"));
+  SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
   if (!ForeachInputs.empty())

@@ -38,13 +38,23 @@ make llvm-spirv -j`nproc`
 
 ### Build with pre-built LLVM
 
-If you have a custom build(based on the latest version) of LLVM libraries you can link the translator against it. 
+If you have a custom build (based on the latest version) of LLVM libraries you
+can link the translator against it.
+
 ```
 git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 mkdir SPIRV-LLVM-Translator/build && cd SPIRV-LLVM-Translator/build
 cmake .. -DLLVM_DIR=<llvm_build_dir>/lib/cmake/llvm/
 make llvm-spirv -j`nproc`
 ```
+
+If the translator is used as part of another CMake project, you will need
+to define `LLVM_SPIRV_BUILD_EXTERNAL`:
+
+```
+cmake .. -DLLVM_DIR=<llvm_build_dir>/lib/cmake/llvm/ -DLLVM_SPIRV_BUILD_EXTERNAL=YES
+```
+
 Where `llvm_build_dir` is the LLVM build directory.
 
 ### LLVM in-tree build

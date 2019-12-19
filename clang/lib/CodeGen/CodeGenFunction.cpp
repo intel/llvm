@@ -2210,15 +2210,23 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   assert(D->hasAttr<AnnotateAttr>() && "no annotate attribute");
   llvm::Value *V = Addr.getPointer();
   llvm::Type *VTy = V->getType();
+
+  // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
+  // don't perform bitcasts if value is integer
+  if (VTy->getPointerElementType()->isIntegerTy()) {
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
+
+    for (const auto *I : D->specific_attrs<AnnotateAttr>())
+      V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation());
+
+    return Address(V, Addr.getAlignment());
+  }
+
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                     CGM.Int8PtrTy);
 
   for (const auto *I : D->specific_attrs<AnnotateAttr>()) {
-    // FIXME Always emit the cast inst so we can differentiate between
-    // annotation on the first field of a struct and annotation on the struct
-    // itself.
-    if (VTy != CGM.Int8PtrTy)
-      V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
+    V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
     V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation());
     V = Builder.CreateBitCast(V, VTy);
   }

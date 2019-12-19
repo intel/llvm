@@ -6,7 +6,7 @@
 //
 //===------------------------------------------------------------------------===//
 
-// REQUIRES: ioc64, ocloc, aoc
+// REQUIRES: opencl-aot, ocloc, aoc
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
@@ -21,7 +21,7 @@
 // RUN: %clangxx -fsycl %s -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
 // AOT-compile device binary images
-// RUN: ioc64 -cmd=build -binary=%t.spv -ir=%t_cpu.ir -device=cpu
+// RUN: opencl-aot %t.spv -o=%t_cpu.ir --device=cpu
 // RUN: ocloc -file %t.spv -spirv_input -output %t_gen.out -output_no_suffix -device cfl
 // RUN: aoc %t.spv -o %t_fpga.aocx -sycl -dep-files=%t.d
 

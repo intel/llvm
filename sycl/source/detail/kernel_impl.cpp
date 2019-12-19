@@ -19,31 +19,30 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext)
-    : kernel_impl(Kernel, SyclContext,
-                  std::make_shared<program_impl>(SyclContext, Kernel),
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
+    : kernel_impl(Kernel, Context,
+                  std::make_shared<program_impl>(Context, Kernel),
                   /*IsCreatedFromSource*/ true) {}
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
-                         std::shared_ptr<program_impl> ProgramImpl,
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+                         ProgramImplPtr ProgramImpl,
                          bool IsCreatedFromSource)
-    : MKernel(Kernel), MContext(SyclContext),
+    : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
       MCreatedFromSource(IsCreatedFromSource) {
 
   RT::PiContext Context = nullptr;
   PI_CALL(piKernelGetInfo)(MKernel, CL_KERNEL_CONTEXT, sizeof(Context),
                            &Context, nullptr);
-  auto ContextImpl = detail::getSyclObjImpl(SyclContext);
   if (ContextImpl->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel");
   PI_CALL(piKernelRetain)(MKernel);
 }
 
-kernel_impl::kernel_impl(const context &SyclContext,
-                         std::shared_ptr<program_impl> ProgramImpl)
-    : MContext(SyclContext), MProgramImpl(std::move(ProgramImpl)) {}
+kernel_impl::kernel_impl(ContextImplPtr Context,
+                         ProgramImplPtr ProgramImpl)
+    : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -65,7 +64,7 @@ kernel_impl::get_info() const {
 }
 
 template <> context kernel_impl::get_info<info::kernel::context>() const {
-  return MContext;
+  return createSyclObjFromImpl<context>(MContext);
 }
 
 template <> program kernel_impl::get_info<info::kernel::program>() const {
