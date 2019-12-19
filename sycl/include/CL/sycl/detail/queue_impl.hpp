@@ -19,6 +19,7 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <functional>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
@@ -98,8 +99,7 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  template <typename T>
-  event submit(T cgf, std::shared_ptr<queue_impl> self,
+  event submit(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self,
                std::shared_ptr<queue_impl> second_queue) {
     try {
       return submit_impl(cgf, self);
@@ -112,7 +112,7 @@ public:
     }
   }
 
-  template <typename T> event submit(T cgf, std::shared_ptr<queue_impl> self) {
+  event submit(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
     return submit_impl(std::move(cgf), std::move(self));
   }
 
@@ -235,8 +235,7 @@ public:
   }
 
 private:
-  template <typename T>
-  event submit_impl(T cgf, std::shared_ptr<queue_impl> self) {
+  event submit_impl(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
     handler Handler(std::move(self), m_HostQueue);
     cgf(Handler);
     event Event = Handler.finalize();
