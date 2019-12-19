@@ -60,14 +60,18 @@ CreateFunctionRefExpr(Sema &S, FunctionDecl *Fn, NamedDecl *FoundDecl,
   // being used.
   if (FoundDecl != Fn && S.DiagnoseUseOfDecl(Fn, Loc))
     return ExprError();
-  if (auto *FPT = Fn->getType()->getAs<FunctionProtoType>())
-    S.ResolveExceptionSpec(Loc, FPT);
   DeclRefExpr *DRE = new (S.Context)
       DeclRefExpr(S.Context, Fn, false, Fn->getType(), VK_LValue, Loc, LocInfo);
   if (HadMultipleCandidates)
     DRE->setHadMultipleCandidates(true);
 
   S.MarkDeclRefReferenced(DRE, Base);
+  if (auto *FPT = DRE->getType()->getAs<FunctionProtoType>()) {
+    if (isUnresolvedExceptionSpec(FPT->getExceptionSpecType())) {
+      S.ResolveExceptionSpec(Loc, FPT);
+      DRE->setType(Fn->getType());
+    }
+  }
   return S.ImpCastExprToType(DRE, S.Context.getPointerType(DRE->getType()),
                              CK_FunctionToPointerDecay);
 }
@@ -2929,8 +2933,12 @@ bool Sema::FunctionParamTypesAreEqual(const FunctionProtoType *OldType,
                                               N = NewType->param_type_begin(),
                                               E = OldType->param_type_end();
        O && (O != E); ++O, ++N) {
-    if (!Context.hasSameType(O->getUnqualifiedType(),
-                             N->getUnqualifiedType())) {
+    // Ignore address spaces in pointee type. This is to disallow overloading
+    // on __ptr32/__ptr64 address spaces.
+    QualType Old = Context.removePtrSizeAddrSpace(O->getUnqualifiedType());
+    QualType New = Context.removePtrSizeAddrSpace(N->getUnqualifiedType());
+
+    if (!Context.hasSameType(Old, New)) {
       if (ArgPos)
         *ArgPos = O - OldType->param_type_begin();
       return false;
@@ -13259,16 +13267,13 @@ ExprResult Sema::BuildSynthesizedThreeWayComparison(
   if (Eq.isInvalid())
     return ExprError();
 
-  ExprResult Less;
-  if (Info->isOrdered()) {
-    Less = CreateOverloadedBinOp(OpLoc, BO_LT, Fns, LHS, RHS, true, true,
-                                 DefaultedFn);
-    if (Less.isInvalid())
-      return ExprError();
-  }
+  ExprResult Less = CreateOverloadedBinOp(OpLoc, BO_LT, Fns, LHS, RHS, true,
+                                          true, DefaultedFn);
+  if (Less.isInvalid())
+    return ExprError();
 
   ExprResult Greater;
-  if (Info->isOrdered()) {
+  if (Info->isPartial()) {
     Greater = CreateOverloadedBinOp(OpLoc, BO_LT, Fns, RHS, LHS, true, true,
                                     DefaultedFn);
     if (Greater.isInvalid())
@@ -13287,17 +13292,7 @@ ExprResult Sema::BuildSynthesizedThreeWayComparison(
     {ExprResult(), ComparisonCategoryResult::Unordered},
   };
 
-  int I;
-  if (Info->isEquality()) {
-    Comparisons[1].Result = Info->isStrong()
-                                ? ComparisonCategoryResult::Nonequal
-                                : ComparisonCategoryResult::Nonequivalent;
-    I = 1;
-  } else if (!Info->isPartial()) {
-    I = 2;
-  } else {
-    I = 3;
-  }
+  int I = Info->isPartial() ? 3 : 2;
 
   // Combine the comparisons with suitable conditional expressions.
   ExprResult Result;
@@ -14441,13 +14436,6 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
                                        VK_RValue, OK_Ordinary,
                                        UnOp->getOperatorLoc(), false);
   }
-
-  // C++ [except.spec]p17:
-  //   An exception-specification is considered to be needed when:
-  //   - in an expression the function is the unique lookup result or the
-  //     selected member of a set of overloaded functions
-  if (auto *FPT = Fn->getType()->getAs<FunctionProtoType>())
-    ResolveExceptionSpec(E->getExprLoc(), FPT);
 
   if (UnresolvedLookupExpr *ULE = dyn_cast<UnresolvedLookupExpr>(E)) {
     // FIXME: avoid copy.

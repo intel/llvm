@@ -163,9 +163,11 @@ uint64_t Symbol::getGotPltOffset() const {
 }
 
 uint64_t Symbol::getPltVA() const {
-  PltSection *plt = isInIplt ? in.iplt : in.plt;
-  uint64_t outVA =
-      plt->getVA() + plt->headerSize + pltIndex * target->pltEntrySize;
+  uint64_t outVA = isInIplt
+                       ? in.iplt->getVA() + pltIndex * target->ipltEntrySize
+                       : in.plt->getVA() + in.plt->headerSize +
+                             pltIndex * target->pltEntrySize;
+
   // While linking microMIPS code PLT code are always microMIPS
   // code. Set the less-significant bit to track that fact.
   // See detailed comment in the `getSymVA` function.
@@ -620,7 +622,18 @@ void Symbol::resolveCommon(const CommonSymbol &other) {
     return;
 
   if (cmp > 0) {
-    replace(other);
+    if (auto *s = dyn_cast<SharedSymbol>(this)) {
+      // Increase st_size if the shared symbol has a larger st_size. The shared
+      // symbol may be created from common symbols. The fact that some object
+      // files were linked into a shared object first should not change the
+      // regular rule that picks the largest st_size.
+      uint64_t size = s->size;
+      replace(other);
+      if (size > cast<CommonSymbol>(this)->size)
+        cast<CommonSymbol>(this)->size = size;
+    } else {
+      replace(other);
+    }
     return;
   }
 
@@ -661,6 +674,12 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
 }
 
 void Symbol::resolveShared(const SharedSymbol &other) {
+  if (isCommon()) {
+    // See the comment in resolveCommon() above.
+    if (other.size > cast<CommonSymbol>(this)->size)
+      cast<CommonSymbol>(this)->size = other.size;
+    return;
+  }
   if (visibility == STV_DEFAULT && (isUndefined() || isLazy())) {
     // An undefined symbol with non default visibility must be satisfied
     // in the same DSO.

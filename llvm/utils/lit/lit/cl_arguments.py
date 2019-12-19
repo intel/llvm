@@ -17,7 +17,7 @@ def parse_args():
             help="Show version and exit",
             action="store_true")
     parser.add_argument("-j", "--threads", "--workers",
-            dest="numWorkers",
+            dest="workers",
             metavar="N",
             help="Number of workers used for testing",
             type=_positive_int,
@@ -106,7 +106,6 @@ def parse_args():
                  "0 means no time limit. [Default: 0]",
             type=_non_negative_int) # TODO(yln): --[no-]test-timeout, instead of 0 allowed
     execution_group.add_argument("--max-failures",
-            dest="maxFailures",
             help="Stop execution after the given number of failures.",
             type=_positive_int)
     execution_group.add_argument("--allow-empty-runs",
@@ -115,7 +114,6 @@ def parse_args():
 
     selection_group = parser.add_argument_group("Test Selection")
     selection_group.add_argument("--max-tests",
-            dest="max_tests",
             metavar="N",
             help="Maximum number of tests to run",
             type=_positive_int)

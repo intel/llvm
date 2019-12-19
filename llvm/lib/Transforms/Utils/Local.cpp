@@ -1676,9 +1676,8 @@ DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
   };
 
   // initializer-list helper for applying operators to the source DIExpression.
-  auto applyOps =
-      [&](std::initializer_list<uint64_t> Opcodes) -> DIExpression * {
-    SmallVector<uint64_t, 8> Ops(Opcodes);
+  auto applyOps = [&](ArrayRef<uint64_t> Opcodes) -> DIExpression * {
+    SmallVector<uint64_t, 8> Ops(Opcodes.begin(), Opcodes.end());
     return doSalvage(Ops);
   };
 
@@ -1686,8 +1685,21 @@ DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
     // No-op casts and zexts are irrelevant for debug info.
     if (CI->isNoopCast(DL) || isa<ZExtInst>(&I))
       return SrcDIExpr;
-    return nullptr;
-  } else if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
+
+    Type *Type = CI->getType();
+    // Casts other than Trunc or SExt to scalar types cannot be salvaged.
+    if (Type->isVectorTy() || (!isa<TruncInst>(&I) && !isa<SExtInst>(&I)))
+      return nullptr;
+
+    Value *FromValue = CI->getOperand(0);
+    unsigned FromTypeBitSize = FromValue->getType()->getScalarSizeInBits();
+    unsigned ToTypeBitSize = Type->getScalarSizeInBits();
+
+    return applyOps(DIExpression::getExtOps(FromTypeBitSize, ToTypeBitSize,
+                                            isa<SExtInst>(&I)));
+  }
+
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
     unsigned BitWidth =
         M.getDataLayout().getIndexSizeInBits(GEP->getPointerAddressSpace());
     // Rewrite a constant GEP into a DIExpression.
@@ -2579,7 +2591,7 @@ void llvm::copyRangeMetadata(const DataLayout &DL, const LoadInst &OldLI,
   if (!NewTy->isPointerTy())
     return;
 
-  unsigned BitWidth = DL.getIndexTypeSizeInBits(NewTy);
+  unsigned BitWidth = DL.getPointerTypeSizeInBits(NewTy);
   if (!getConstantRangeFromMetadata(*N).contains(APInt(BitWidth, 0))) {
     MDNode *NN = MDNode::get(OldLI.getContext(), None);
     NewLI.setMetadata(LLVMContext::MD_nonnull, NN);
