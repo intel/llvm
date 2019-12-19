@@ -99,6 +99,9 @@ int main() {
   kernel<class test_kernel8>(
       TRIFuncObjBad());
 
+  kernel<class test_kernel9>(
+      []() [[intelfpga::max_global_work_dim(4)]] {}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+
 #endif // TRIGGER_ERROR
 }
 #endif // __SYCL_DEVICE_ONLY__
