@@ -88,7 +88,10 @@ public:
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
-  program_impl(const context &Context, RT::PiKernel Kernel);
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param Kernel is a raw PI kernel handle.
+  program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
 
   ~program_impl();
 

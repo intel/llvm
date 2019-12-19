@@ -19,10 +19,10 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-program_impl::program_impl(const context &Context)
-    : program_impl(Context, Context.get_devices()) {}
+program_impl::program_impl(ContextImplPtr Context)
+    : program_impl(Context, Context->get_info<info::context::devices>()) {}
 
-program_impl::program_impl(const context &Context,
+program_impl::program_impl(ContextImplPtr Context,
                            vector_class<device> DeviceList)
     : MContext(Context), MDevices(DeviceList) {}
 
@@ -86,7 +86,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
                             sizeof(RT::PiDevice) * NumDevices, PiDevices.data(),
                             nullptr);
-  vector_class<device> SyclContextDevices = MContext.get_devices();
+  vector_class<device> SyclContextDevices = MContext->get_info<info::context::devices>();
 
   // Keep only the subset of the devices (associated with context) that
   // were actually used to create the program.
@@ -131,7 +131,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   PI_CALL(piProgramRetain)(Program);
 }
 
-program_impl::program_impl(ContextImplPtr &Context, RT::PiKernel Kernel)
+program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
     : program_impl(
           Context,
           ProgramManager::getInstance().getClProgramFromClKernel(Kernel)) {}
@@ -267,17 +267,12 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
   return Result;
 }
 
-void program_impl::create_cl_program_with_il(OSModuleHandle M) {
-  assert(!Program && "This program already has an encapsulated PI program");
-  Program = ProgramManager::getInstance().createOpenCLProgram(M, get_context());
-}
-
 void program_impl::create_cl_program_with_source(const string_class &Source) {
   assert(!MProgram && "This program already has an encapsulated cl_program");
   const char *Src = Source.c_str();
   size_t Size = Source.size();
   PI_CALL(piclProgramCreateWithSource)(
-      detail::getSyclObjImpl(MContext)->getHandleRef(), 1, &Src, &Size,
+      MContext->getHandleRef(), 1, &Src, &Size,
       &MProgram);
 }
 
