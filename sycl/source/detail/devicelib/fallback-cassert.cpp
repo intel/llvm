@@ -13,7 +13,7 @@ int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
-    "%s:%d: %s: local id: [%lu,%lu,%lu], global id: [%lu,%lu,%lu] "
+    "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
 
 SYCL_EXTERNAL

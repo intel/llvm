@@ -87,7 +87,7 @@
 // native modes (fallback prints to stdout, while native prints to stderr; we
 // already handled this difference in the RUN lines):
 //
-// CHECK-MESSAGE: {{.*}}assert.cpp:{{[0-9]+}}: auto simple_vadd(const std::array<int, 3UL> &, const std::array<int, 3UL> &, std::array<int, 3UL> &)::(anonymous class)::operator()(cl::sycl::handler &)::(anonymous class)::operator()(cl::sycl::id<1>) const: local id: [{{[0-3]}},0,0], global id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"` failed.
+// CHECK-MESSAGE: {{.*}}assert.cpp:{{[0-9]+}}: auto simple_vadd(const std::array<int, 3UL> &, const std::array<int, 3UL> &, std::array<int, 3UL> &)::(anonymous class)::operator()(cl::sycl::handler &)::(anonymous class)::operator()(cl::sycl::id<1>) const: global id: [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"` failed.
 //
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).

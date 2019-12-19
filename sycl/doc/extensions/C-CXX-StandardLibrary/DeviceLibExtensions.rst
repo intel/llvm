@@ -31,4 +31,4 @@ Arguments:
 
 Example of a message:
 .. code:
-   foo.cpp:42: void foo(int): local id: [0,0,0], global id: [0,0,0] Assertion `buf[wiID] == 0 && "Invalid value"` failed.
+   foo.cpp:42: void foo(int): global id: [0,0,0], local id: [0,0,0] Assertion `buf[wiID] == 0 && "Invalid value"` failed.
