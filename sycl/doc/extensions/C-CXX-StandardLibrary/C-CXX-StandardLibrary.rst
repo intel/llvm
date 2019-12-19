@@ -5,7 +5,7 @@ This extension enables a set of functions from the C and C++ standard
 libraries, and allows to use them in SYCL device code.
 
 Function declarations are taken from the standard headers (e.g. from
-<assert.h> or <complex>), and the corresponding header has to be
+<assert.h> or <cassert>), and the corresponding header has to be
 explicitly included in user code.
 
 Implementation requires a special device library to be linked with a
@@ -23,7 +23,7 @@ or, in case of Windows:
    clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
 
 List of supported functions from C standard library:
-  - assert macro (from assert.h)
+  - assert macro (from <assert.h> or <cassert>)
 
 NOTE: only the GNU glibc and Microsoft C libraries are currently
 supported.
