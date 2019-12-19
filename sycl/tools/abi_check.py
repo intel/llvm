@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import re
 
 
 def get_llvm_bin_path():
@@ -10,17 +11,32 @@ def get_llvm_bin_path():
   return ""
 
 
-def parse_objdump_output(output):
-  lines = output.decode().strip().split("\n")
-  lines = lines[4:]
-  table = list(map(lambda line: line.split(" ")[-1].strip(), lines))
-  return table
+def match_symbol(sym_binding, sym_type):
+  if sym_binding is None or sym_type is None:
+    return False
+  if not sym_type.group() == "Function":
+    return False
+  if not sym_binding.group() == "Global":
+    return False
+  return True
+
+
+def parse_readobj_output(output):
+  symbols = re.findall(r"Symbol \{[\n\s\w:\.\-\(\)]*\}", output.decode().strip())
+  parsed_symbols = []
+  for sym in symbols:
+    sym_binding = re.search(r"(?<=Binding:\s)[\w]+", sym)
+    sym_type = re.search(r"(?<=Type:\s)[\w]+", sym)
+    name = re.search(r"(?<=Name:\s)[\w]+", sym)
+    if match_symbol(sym_binding, sym_type):
+      parsed_symbols.append(name.group())
+  return parsed_symbols
 
 
 def dump_symbols(target_path, output):
   with open(output, "w") as out:
-    objdump_out = subprocess.check_output([get_llvm_bin_path()+"llvm-objdump", "-t", target_path])
-    symbols = parse_objdump_output(objdump_out)
+    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj", "-t", target_path])
+    symbols = parse_readobj_output(readobj_out)
     out.write("\n".join(symbols))
 
 
@@ -28,11 +44,11 @@ def check_symbols(ref_path, target_path):
   with open(ref_path, "r") as ref:
     ref_symbols = []
     for line in ref:
-      if not line.startswith('#'):
+      if not line.startswith('#') and line.strip():
         ref_symbols.append(line.strip())
 
-    objdump_out = subprocess.check_output([get_llvm_bin_path()+"llvm-objdump", "-t", target_path])
-    symbols = parse_objdump_output(objdump_out)
+    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj", "-t", target_path])
+    symbols = parse_readobj_output(readobj_out)
 
     missing_symbols = []
 

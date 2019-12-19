@@ -201,7 +201,7 @@ add_custom_target( sycl-toolchain
           llvm-spirv
           llvm-link
           llvm-objcopy
-          llvm-objdump
+          llvm-readobj
           opt
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."
