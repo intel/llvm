@@ -1560,7 +1560,7 @@ public:
   // Load to vec_t and then assign to swizzle.
   template <access::address_space Space>
   void load(size_t offset, multi_ptr<DataT, Space> ptr) {
-    vec_t Tmp;                                                                 \
+    vec_t Tmp;
     Tmp.template load(offset, ptr);
     *this = Tmp;
   }
