@@ -380,8 +380,10 @@ static void copyBetweenLocalAndShadow(AllocaInst *L, GlobalVariable *Shadow,
   Type *T = L->getAllocatedType();
 
   if (T->isAggregateType()) {
-    auto LocAlign = L->getAlignment();
-    auto ShdAlign = Shadow->getAlignment();
+    // TODO: we should use methods which directly retunr MaybeAlign once such
+    // are added to LLVM for AllocaInst and GlobalVariable
+    auto LocAlign = MaybeAlign(L->getAlignment());
+    auto ShdAlign = MaybeAlign(Shadow->getAlignment());
     Module &M = *L->getModule();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
