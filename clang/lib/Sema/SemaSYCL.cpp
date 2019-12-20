@@ -529,18 +529,6 @@ private:
       if (!CRD->hasDefinition())
         return true;
 
-      if (CRD->isPolymorphic()) {
-        // Exceptions aren't allowed in SYCL device code.
-        if (SemaRef.getLangOpts().SYCLIsDevice) {
-          SemaRef.SYCLDiagIfDeviceCode(CRD->getLocation(),
-                                       diag::err_sycl_restrict)
-              << Sema::KernelHavePolymorphicClass;
-          SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(),
-                                       diag::note_sycl_used_here);
-        }
-        return false;
-      }
-
       for (const auto &Field : CRD->fields()) {
         if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
                            Visited)) {

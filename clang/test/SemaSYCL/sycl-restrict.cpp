@@ -37,7 +37,6 @@ void restriction(int p) {
 
 void* operator new (std::size_t size, void* ptr) throw() { return ptr; };
 namespace Check_RTTI_Restriction {
-// expected-error@+1 13{{SYCL kernel cannot have a class with a virtual function table}}
 struct A {
   virtual ~A(){};
 };
@@ -70,8 +69,7 @@ bool isa_B(A *a) {
   auto y = new struct OverloadedNewDelete [5];
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
   (void)typeid(int);
-  // expected-error@+2 {{SYCL kernel cannot use rtti}}
-  // expected-note@+1 {{used here}}
+  // expected-error@+1 {{SYCL kernel cannot use rtti}}
   return dynamic_cast<B *>(a) != 0;
 }
 
@@ -81,7 +79,6 @@ __attribute__((sycl_kernel)) void kernel1(L l) {
 }
 }
 
-// expected-error@+1 {{SYCL kernel cannot have a class with a virtual function table}}
 typedef struct Base {
   virtual void f() const {}
 } b_type;
@@ -135,14 +132,11 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+3 {{SYCL kernel cannot use a global variable}}
-    // expected-error@+2 {{SYCL kernel cannot call a virtual function}}
-    // expected-note@+1 {{used here}}
+    // expected-error@+2 {{SYCL kernel cannot use a global variable}}
+    // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
     b.f();
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
-  // expected-note@+1 2{{used here}}
   Check_RTTI_Restriction::A *a;
-  // expected-note@+1 6{{used here}}
   Check_RTTI_Restriction::isa_B(a); });
 }
 
@@ -177,9 +171,7 @@ int use2 ( a_type ab, a_type *abp ) {
     AnotherNS::moar_globals;
   // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
-  // expected-note@+1 {{used here}}
   Check_RTTI_Restriction:: A *a;
-  // expected-note@+1 3{{used here}}
   Check_RTTI_Restriction:: isa_B(a);
   usage(&addInt);
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
