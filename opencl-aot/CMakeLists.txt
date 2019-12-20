@@ -26,7 +26,6 @@ if (NOT OpenCL_INCLUDE_DIRS)
             COMMENT "Downloading OpenCL headers."
             )
 else ()
-    message("Copying OpenCL headers...")
     add_custom_target(opencl-headers ALL
             DEPENDS ${OpenCL_INCLUDE_DIRS}
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${CMAKE_CURRENT_BINARY_DIR}/inc/CL
@@ -62,7 +61,6 @@ if (NOT OpenCL_LIBRARIES)
             BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
             )
 else ()
-    message("Copying OpenCL ICD Loader...")
     file(GLOB ICD_LOADER_SRC "${OpenCL_LIBRARIES}*")
     file(COPY ${ICD_LOADER_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     add_custom_target(opencl-icd DEPENDS ${OpenCL_LIBRARIES} COMMENT "Copying OpenCL ICD Loader ...")
