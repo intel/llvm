@@ -65,7 +65,7 @@ config.substitutions.append( ("%clangxx ", build_invocation(clang_ubsan_cxxflags
 config.substitutions.append( ("%gmlt ", " ".join(config.debug_info_flags) + " ") )
 
 # Default test suffixes.
-config.suffixes = ['.c', '.cpp']
+config.suffixes = ['.c', '.cpp', '.m']
 
 # Check that the host supports UndefinedBehaviorSanitizer tests
 if config.host_os not in ['Linux', 'Darwin', 'FreeBSD', 'Windows', 'NetBSD', 'SunOS', 'OpenBSD']:
@@ -78,3 +78,5 @@ config.excludes = ['Inputs']
 if ubsan_lit_test_mode in ['AddressSanitizer', 'MemorySanitizer', 'ThreadSanitizer']:
   if not config.parallelism_group:
     config.parallelism_group = 'shadow-memory'
+  if config.host_os == 'NetBSD':
+    config.substitutions.insert(0, ('%run', config.netbsd_noaslr_prefix))

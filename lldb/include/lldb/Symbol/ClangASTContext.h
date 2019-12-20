@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/ExternalASTMerger.h"
 #include "clang/AST/TemplateBase.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
@@ -145,16 +144,24 @@ public:
 
   static bool GetCompleteDecl(clang::ASTContext *ast, clang::Decl *decl);
 
-  void SetMetadataAsUserID(const void *object, lldb::user_id_t user_id);
+  void SetMetadataAsUserID(const clang::Decl *decl, lldb::user_id_t user_id);
+  void SetMetadataAsUserID(const clang::Type *type, lldb::user_id_t user_id);
 
-  void SetMetadata(const void *object, ClangASTMetadata &meta_data);
-
-  ClangASTMetadata *GetMetadata(const void *object) {
+  void SetMetadata(const clang::Decl *object, ClangASTMetadata &meta_data);
+  void SetMetadata(const clang::Type *object, ClangASTMetadata &meta_data);
+  ClangASTMetadata *GetMetadata(const clang::Decl *object) {
     return GetMetadata(getASTContext(), object);
   }
 
   static ClangASTMetadata *GetMetadata(clang::ASTContext *ast,
-                                       const void *object);
+                                       const clang::Decl *object);
+
+  ClangASTMetadata *GetMetadata(const clang::Type *object) {
+    return GetMetadata(getASTContext(), object);
+  }
+
+  static ClangASTMetadata *GetMetadata(clang::ASTContext *ast,
+                                       const clang::Type *object);
 
   // Basic Types
   CompilerType GetBuiltinTypeForEncodingAndBitSize(lldb::Encoding encoding,
@@ -256,8 +263,9 @@ public:
                                     bool omit_empty_base_classes);
 
   CompilerType CreateRecordType(clang::DeclContext *decl_ctx,
-                                lldb::AccessType access_type, const char *name,
-                                int kind, lldb::LanguageType language,
+                                lldb::AccessType access_type,
+                                llvm::StringRef name, int kind,
+                                lldb::LanguageType language,
                                 ClangASTMetadata *metadata = nullptr,
                                 bool exports_symbols = false);
 
@@ -315,8 +323,9 @@ public:
 
   static bool RecordHasFields(const clang::RecordDecl *record_decl);
 
-  CompilerType CreateObjCClass(const char *name, clang::DeclContext *decl_ctx,
-                               bool isForwardDecl, bool isInternal,
+  CompilerType CreateObjCClass(llvm::StringRef name,
+                               clang::DeclContext *decl_ctx, bool isForwardDecl,
+                               bool isInternal,
                                ClangASTMetadata *metadata = nullptr);
 
   bool SetTagTypeKind(clang::QualType type, int kind) const;
@@ -487,7 +496,7 @@ public:
   DeclContextGetAsNamespaceDecl(const CompilerDeclContext &dc);
 
   static ClangASTMetadata *DeclContextGetMetaData(const CompilerDeclContext &dc,
-                                                  const void *object);
+                                                  const clang::Decl *object);
 
   static clang::ASTContext *
   DeclContextGetClangASTContext(const CompilerDeclContext &dc);
@@ -837,7 +846,7 @@ public:
                         // (lldb::opaque_compiler_type_t type, "-[NString
                         // stringWithCString:]")
       const CompilerType &method_compiler_type, lldb::AccessType access,
-      bool is_artificial, bool is_variadic);
+      bool is_artificial, bool is_variadic, bool is_objc_direct_call);
 
   static bool SetHasExternalStorage(lldb::opaque_compiler_type_t type,
                                     bool has_extern);
@@ -957,10 +966,7 @@ public:
 
   clang::DeclarationName
   GetDeclarationName(const char *name, const CompilerType &function_clang_type);
-  
-  virtual const clang::ExternalASTMerger::OriginMap &GetOriginMap() {
-    return m_origins;
-  }
+
 protected:
   const clang::ClassTemplateSpecializationDecl *
   GetAsTemplateSpecialization(lldb::opaque_compiler_type_t type);
@@ -985,7 +991,6 @@ protected:
   CompleteTagDeclCallback m_callback_tag_decl = nullptr;
   CompleteObjCInterfaceDeclCallback m_callback_objc_decl = nullptr;
   void *m_callback_baton = nullptr;
-  clang::ExternalASTMerger::OriginMap m_origins;
   uint32_t m_pointer_byte_size = 0;
   bool m_ast_owned = false;
   /// The sema associated that is currently used to build this ASTContext.
@@ -1024,12 +1029,6 @@ public:
                                       const char *name) override;
 
   PersistentExpressionState *GetPersistentExpressionState() override;
-  
-  clang::ExternalASTMerger &GetMergerUnchecked();
-  
-  const clang::ExternalASTMerger::OriginMap &GetOriginMap() override {
-    return GetMergerUnchecked().GetOrigins();
-  }
 private:
   lldb::TargetWP m_target_wp;
   std::unique_ptr<PersistentExpressionState>

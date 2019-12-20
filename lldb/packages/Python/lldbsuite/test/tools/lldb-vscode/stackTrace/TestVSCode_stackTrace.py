@@ -2,7 +2,6 @@
 Test lldb-vscode setBreakpoints request
 """
 
-from __future__ import print_function
 
 import unittest2
 import vscode
@@ -53,7 +52,6 @@ class TestVSCode_stackTrace(lldbvscode_testcase.VSCodeTestCaseBase):
                                                      expected_line))
 
     @skipIfWindows
-    @no_debug_info_test
     def test_stackTrace(self):
         '''
             Tests the 'stackTrace' packet and all its variants.

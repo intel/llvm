@@ -67,7 +67,7 @@ FileRange syntax::Token::range(const SourceManager &SM,
   auto F = First.range(SM);
   auto L = Last.range(SM);
   assert(F.file() == L.file() && "tokens from different files");
-  assert(F.endOffset() <= L.beginOffset() && "wrong order of tokens");
+  assert(F == L || F.endOffset() <= L.beginOffset() && "wrong order of tokens");
   return FileRange(F.file(), F.beginOffset(), L.endOffset());
 }
 
@@ -133,6 +133,12 @@ llvm::ArrayRef<syntax::Token> TokenBuffer::expandedTokens(SourceRange R) const {
   if (Begin > End)
     return {};
   return {Begin, End};
+}
+
+CharSourceRange FileRange::toCharRange(const SourceManager &SM) const {
+  return CharSourceRange(
+      SourceRange(SM.getComposedLoc(File, Begin), SM.getComposedLoc(File, End)),
+      /*IsTokenRange=*/false);
 }
 
 std::pair<const syntax::Token *, const TokenBuffer::Mapping *>
@@ -254,7 +260,6 @@ syntax::spelledTokensTouching(SourceLocation Loc,
   assert(Loc.isFileID());
   llvm::ArrayRef<syntax::Token> All =
       Tokens.spelledTokens(Tokens.sourceManager().getFileID(Loc));
-  // Comparing SourceLocations is well-defined within a FileID.
   auto *Right = llvm::partition_point(
       All, [&](const syntax::Token &Tok) { return Tok.location() < Loc; });
   bool AcceptRight = Right != All.end() && Right->location() <= Loc;

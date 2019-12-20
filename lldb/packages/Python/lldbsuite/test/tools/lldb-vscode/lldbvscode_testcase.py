@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 from lldbsuite.test.lldbtest import *
 import os
@@ -6,6 +5,8 @@ import vscode
 
 
 class VSCodeTestCaseBase(TestBase):
+
+    NO_DEBUG_INFO_TESTCASE = True
 
     def create_debug_adaptor(self):
         '''Create the Visual Studio Code debug adaptor'''
