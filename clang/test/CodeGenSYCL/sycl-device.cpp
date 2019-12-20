@@ -3,6 +3,15 @@
 
 int bar(int b);
 
+class A {
+public:
+  // TODO: check for constructor/destructor as well
+
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv
+  __attribute__((sycl_device))
+  void foo() {}
+};
+
 // CHECK-DAG: define spir_func i32 @_Z3fooii
 __attribute__((sycl_device))
 int foo(int a, int b) { return a + bar(b); }

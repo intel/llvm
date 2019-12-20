@@ -2070,7 +2070,7 @@ This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other SYCL device functions. However, it cannot be applied
 to functions marked as 'static', functions declared within an anonymous
-namespace or class member functions.
+namespace or virtual/pure virtual class member functions.
 
 It also means that function should be available externally and
 cannot be optimized out due to reachability analysis or by any other

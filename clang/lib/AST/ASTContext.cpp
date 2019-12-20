@@ -10078,6 +10078,12 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
       }
     }
 
+    // Methods explcitly marked with 'sycl_device' attribute (via SYCL_EXTERNAL)
+    // must be emitted regardless of number of actual uses
+    if (LangOpts.SYCLIsDevice && isa<CXXMethodDecl>(D))
+      if (auto *A = D->getAttr<SYCLDeviceAttr>())
+        return !A->isImplicit();
+
     GVALinkage Linkage = GetGVALinkageForFunction(FD);
 
     // static, static inline, always_inline, and extern inline functions can

@@ -10293,7 +10293,7 @@ def err_intel_attribute_argument_is_not_in_range: Error<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "%select{static function or function in an anonymous namespace"
-            "|class member function}1">;
+            "|virtual or pure virtual class member function}1">;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "

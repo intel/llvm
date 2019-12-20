@@ -4488,9 +4488,9 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         << AL << 0 /* static function or anonymous namespace */;
     return;
   }
-  if (isa<CXXMethodDecl>(FD)) {
+  if (FD->isVirtualAsWritten() || FD->isPure()) {
     S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* class member function */;
+        << AL << 1 /* virtual or pure virtual class member function */;
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
@@ -4515,9 +4515,9 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
         << AL << 0 /* static function or anonymous namespace */;
     return;
   }
-  if (isa<CXXMethodDecl>(FD)) {
+  if (FD->isVirtualAsWritten() || FD->isPure()) {
     S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* class member function */;
+        << AL << 1 /* virtual or pure virtual class member function */;
     return;
   }
 
