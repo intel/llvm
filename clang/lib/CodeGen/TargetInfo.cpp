@@ -10040,6 +10040,12 @@ class SPIRTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   SPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<SPIRABIInfo>(CGT)) {}
+
+  LangAS getASTAllocaAddressSpace() const override {
+    return getLangASFromTargetAS(
+        getABIInfo().getDataLayout().getAllocaAddrSpace());
+  }
+
   unsigned getOpenCLKernelCallingConv() const override;
 
   LangAS getASTAllocaAddressSpace() const override {
