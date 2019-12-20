@@ -1113,12 +1113,35 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     // If this function returns a reference, take the address of the expression
     // rather than the value.
     RValue Result = EmitReferenceBindingToExpr(RV);
-    Builder.CreateStore(Result.getScalarVal(), ReturnValue);
+    llvm::Value *Val = Result.getScalarVal();
+    if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
+      auto *ExpectedPtrType =
+          cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
+      unsigned ValueAS = PtrTy->getAddressSpace();
+      unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+      if (ValueAS != ExpectedAS) {
+        Val = Builder.CreatePointerBitCastOrAddrSpaceCast(Val, ExpectedPtrType);
+      }
+    }
+    Builder.CreateStore(Val, ReturnValue);
   } else {
     switch (getEvaluationKind(RV->getType())) {
     case TEK_Scalar:
-      Builder.CreateStore(EmitScalarExpr(RV), ReturnValue);
+    {
+      llvm::Value *Val = EmitScalarExpr(RV);
+      if (auto *PtrTy = dyn_cast<llvm::PointerType>(Val->getType())) {
+        auto *ExpectedPtrType =
+            cast<llvm::PointerType>(ReturnValue.getType()->getElementType());
+        unsigned ValueAS = PtrTy->getAddressSpace();
+        unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+        if (ValueAS != ExpectedAS) {
+          Val =
+              Builder.CreatePointerBitCastOrAddrSpaceCast(Val, ExpectedPtrType);
+        }
+      }
+      Builder.CreateStore(Val, ReturnValue);
       break;
+    }
     case TEK_Complex:
       EmitComplexExprIntoLValue(RV, MakeAddrLValue(ReturnValue, RV->getType()),
                                 /*isInit*/ true);

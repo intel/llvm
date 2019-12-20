@@ -1089,10 +1089,8 @@ Address CodeGenFunction::EmitPointerWithAlignment(const Expr *E,
                                       CodeGenFunction::CFITCK_UnrelatedCast,
                                       CE->getBeginLoc());
         }
-        return CE->getCastKind() != CK_AddressSpaceConversion
-                   ? Builder.CreateBitCast(Addr, ConvertType(E->getType()))
-                   : Builder.CreateAddrSpaceCast(Addr,
-                                                 ConvertType(E->getType()));
+        return Builder.CreatePointerBitCastOrAddrSpaceCast(
+            Addr, ConvertType(E->getType()));
       }
       break;
 
@@ -1748,6 +1746,17 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
       (!isInit && LValueIsSuitableForInlineAtomic(AtomicLValue))) {
     EmitAtomicStore(RValue::get(Value), AtomicLValue, isInit);
     return;
+  }
+
+  if (auto *PtrTy = dyn_cast<llvm::PointerType>(Value->getType())) {
+    auto *ExpectedPtrType =
+        cast<llvm::PointerType>(Addr.getType()->getElementType());
+    unsigned ValueAS = PtrTy->getAddressSpace();
+    unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
+    if (ValueAS != ExpectedAS) {
+      Value =
+          Builder.CreatePointerBitCastOrAddrSpaceCast(Value, ExpectedPtrType);
+    }
   }
 
   llvm::StoreInst *Store = Builder.CreateStore(Value, Addr, Volatile);
@@ -4309,10 +4318,35 @@ EmitConditionalOperatorLValue(const AbstractConditionalOperator *expr) {
   EmitBlock(contBlock);
 
   if (lhs && rhs) {
-    llvm::PHINode *phi =
-        Builder.CreatePHI(lhs->getPointer(*this)->getType(), 2, "cond-lvalue");
-    phi->addIncoming(lhs->getPointer(*this), lhsBlock);
-    phi->addIncoming(rhs->getPointer(*this), rhsBlock);
+    llvm::Value *lhsPtr = lhs->getPointer(*this);
+    llvm::Value *rhsPtr = rhs->getPointer(*this);
+    if (rhsPtr->getType() != lhsPtr->getType()) {
+      if (!getLangOpts().SYCLIsDevice)
+        llvm_unreachable(
+            "Unable to find a common address space for two pointers.");
+
+      auto CastToAS = [](llvm::Value *V, llvm::BasicBlock *BB, unsigned AS) {
+        auto *Ty = cast<llvm::PointerType>(V->getType());
+        if (Ty->getAddressSpace() == AS)
+          return V;
+        llvm::IRBuilder<> Builder(BB->getTerminator());
+        auto *TyAS = llvm::PointerType::get(Ty->getElementType(), AS);
+        return Builder.CreatePointerBitCastOrAddrSpaceCast(V, TyAS);
+      };
+
+      // Language rules define if it is legal to cast from one address space
+      // to another, and which address space we should use as a "common
+      // denominator". In SYCL, generic address space overlaps with all other
+      // address spaces.
+      unsigned GenericAS =
+          getContext().getTargetAddressSpace(LangAS::opencl_generic);
+
+      lhsPtr = CastToAS(lhsPtr, lhsBlock, GenericAS);
+      rhsPtr = CastToAS(rhsPtr, rhsBlock, GenericAS);
+    }
+    llvm::PHINode *phi = Builder.CreatePHI(lhsPtr->getType(), 2, "cond-lvalue");
+    phi->addIncoming(lhsPtr, lhsBlock);
+    phi->addIncoming(rhsPtr, rhsBlock);
     Address result(phi, std::min(lhs->getAlignment(), rhs->getAlignment()));
     AlignmentSource alignSource =
       std::max(lhs->getBaseInfo().getAlignmentSource(),

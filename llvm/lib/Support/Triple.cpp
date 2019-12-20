@@ -238,6 +238,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Itanium: return "itanium";
   case Cygnus: return "cygnus";
   case CoreCLR: return "coreclr";
+  case SYCLDevice: return "sycldevice";
   case Simulator: return "simulator";
   case MacABI: return "macabi";
   }
@@ -541,6 +542,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("itanium", Triple::Itanium)
     .StartsWith("cygnus", Triple::Cygnus)
     .StartsWith("coreclr", Triple::CoreCLR)
+    .StartsWith("sycldevice", Triple::SYCLDevice)
     .StartsWith("simulator", Triple::Simulator)
     .StartsWith("macabi", Triple::MacABI)
     .Default(Triple::UnknownEnvironment);

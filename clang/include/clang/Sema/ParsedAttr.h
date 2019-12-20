@@ -534,6 +534,24 @@ public:
     }
   }
 
+  /// If this is an OpenCL addr space attribute returns its SYCL representation
+  /// in LangAS, otherwise returns default addr space.
+  LangAS asSYCLLangAS() const {
+    switch (getKind()) {
+    case ParsedAttr::AT_OpenCLConstantAddressSpace:
+      return LangAS::sycl_constant;
+    case ParsedAttr::AT_OpenCLGlobalAddressSpace:
+      return LangAS::sycl_global;
+    case ParsedAttr::AT_OpenCLLocalAddressSpace:
+      return LangAS::sycl_local;
+    case ParsedAttr::AT_OpenCLPrivateAddressSpace:
+      return LangAS::sycl_private;
+    case ParsedAttr::AT_OpenCLGenericAddressSpace:
+    default:
+      return LangAS::Default;
+    }
+  }
+
   AttributeCommonInfo::Kind getKind() const { return getParsedKind(); }
 };
 

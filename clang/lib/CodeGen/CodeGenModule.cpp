@@ -3750,6 +3750,12 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
+  if (LangOpts.SYCLIsDevice) {
+    if (!D || D->getType().getAddressSpace() == LangAS::Default) {
+      return LangAS::opencl_global;
+    }
+  }
+
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())
       return LangAS::cuda_constant;
@@ -3775,8 +3781,19 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
+
+  // If we keep a literal string in constant address space, the following code
+  // becomes illegal:
+  //
+  //   const char *getLiteral() n{
+  //     return "AB";
+  //   }
+  if (LangOpts.SYCLIsDevice)
+    return LangAS::opencl_private;
+
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
+
   return LangAS::Default;
 }
 

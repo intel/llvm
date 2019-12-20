@@ -31,6 +31,29 @@ static const unsigned SPIRAddrSpaceMap[] = {
     0, // cuda_device
     0, // cuda_constant
     0, // cuda_shared
+    1, // sycl_global
+    3, // sycl_local
+    2, // sycl_constant
+    0, // sycl_private
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
+};
+
+static const unsigned SYCLAddrSpaceMap[] = {
+    4, // Default
+    1, // opencl_global
+    3, // opencl_local
+    2, // opencl_constant
+    0, // opencl_private
+    4, // opencl_generic
+    0, // cuda_device
+    0, // cuda_constant
+    0, // cuda_shared
+    1, // sycl_global
+    3, // sycl_local
+    2, // sycl_constant
+    0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -40,14 +63,14 @@ class LLVM_LIBRARY_VISIBILITY SPIRTargetInfo : public TargetInfo {
 public:
   SPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
-    assert(getTriple().getOS() == llvm::Triple::UnknownOS &&
-           "SPIR target must use unknown OS");
-    assert(getTriple().getEnvironment() == llvm::Triple::UnknownEnvironment &&
-           "SPIR target must use unknown environment type");
     TLSSupported = false;
     VLASupported = false;
     LongWidth = LongAlign = 64;
-    AddrSpaceMap = &SPIRAddrSpaceMap;
+    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
+      AddrSpaceMap = &SYCLAddrSpaceMap;
+    } else {
+      AddrSpaceMap = &SPIRAddrSpaceMap;
+    }
     UseAddrSpaceMapMangling = true;
     HasLegalHalfType = true;
     HasFloat16 = true;
