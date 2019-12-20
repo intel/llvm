@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+if( (OpenCL_INCLUDE_DIR AND OpenCL_LIBRARY) )
+    find_package(OpenCL)
+endif()
+
 include(ExternalProject)
 
 if (NOT OpenCL_INCLUDE_DIRS)
@@ -22,6 +26,7 @@ if (NOT OpenCL_INCLUDE_DIRS)
             COMMENT "Downloading OpenCL headers."
             )
 else ()
+    message("Copying OpenCL headers...")
     add_custom_target(opencl-headers ALL
             DEPENDS ${OpenCL_INCLUDE_DIRS}
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${CMAKE_CURRENT_BINARY_DIR}/inc/CL
@@ -57,6 +62,7 @@ if (NOT OpenCL_LIBRARIES)
             BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
             )
 else ()
+    message("Copying OpenCL ICD Loader...")
     file(GLOB ICD_LOADER_SRC "${OpenCL_LIBRARIES}*")
     file(COPY ${ICD_LOADER_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     add_custom_target(opencl-icd DEPENDS ${OpenCL_LIBRARIES} COMMENT "Copying OpenCL ICD Loader ...")
@@ -66,10 +72,11 @@ set(LLVM_LINK_COMPONENTS
         ${LLVM_TARGETS_TO_BUILD}
         Support
         )
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/inc
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include
         )
 link_directories(${CMAKE_CURRENT_BINARY_DIR}/lib
+                 ${CMAKE_CURRENT_BINARY_DIR}
         )
 file(GLOB TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 
