@@ -473,6 +473,14 @@ public:
           FD->dropAttr<SYCLIntelMaxWorkGroupSizeAttr>();
         }
       }
+      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
+        }
+      }
 
       // TODO: vec_len_hint should be handled here
 
@@ -520,18 +528,6 @@ private:
       // clang crash.
       if (!CRD->hasDefinition())
         return true;
-
-      if (CRD->isPolymorphic()) {
-        // Exceptions aren't allowed in SYCL device code.
-        if (SemaRef.getLangOpts().SYCLIsDevice) {
-          SemaRef.SYCLDiagIfDeviceCode(CRD->getLocation(),
-                                       diag::err_sycl_restrict)
-              << Sema::KernelHavePolymorphicClass;
-          SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(),
-                                       diag::note_sycl_used_here);
-        }
-        return false;
-      }
 
       for (const auto &Field : CRD->fields()) {
         if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
@@ -1373,6 +1369,7 @@ void Sema::MarkDevice(void) {
         }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
+        case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
           SYCLKernel->addAttr(A);
           break;
