@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -triple spir64-unknown-linux-sycldevice -std=c++11 -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEVICE,CHECK-BOTH
+// RUN: %clang_cc1 -x c++ -triple spir64-unknown-unknown-sycldevice -std=c++11 -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEVICE,CHECK-BOTH
 // RUN: %clang_cc1 -x c++ -triple x86_64-unknown-linux-gnu -std=c++11 -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-HOST,CHECK-BOTH
 
 //CHECK-DEVICE: [[ANN1:@.str]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:4}
