@@ -211,10 +211,11 @@ enum DescriptionLevel {
 
 /// Script interpreter types.
 enum ScriptLanguage {
-  eScriptLanguageNone,
+  eScriptLanguageNone = 0,
   eScriptLanguagePython,
-  eScriptLanguageDefault = eScriptLanguagePython,
-  eScriptLanguageUnknown
+  eScriptLanguageLua,
+  eScriptLanguageUnknown,
+  eScriptLanguageDefault = eScriptLanguagePython
 };
 
 /// Register numbering types.

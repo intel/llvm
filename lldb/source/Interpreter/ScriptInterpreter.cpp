@@ -32,32 +32,27 @@ void ScriptInterpreter::CollectDataForBreakpointCommandCallback(
     CommandReturnObject &result) {
   result.SetStatus(eReturnStatusFailed);
   result.AppendError(
-      "ScriptInterpreter::GetScriptCommands(StringList &) is not implemented.");
+      "This script interpreter does not support breakpoint callbacks.");
 }
 
 void ScriptInterpreter::CollectDataForWatchpointCommandCallback(
     WatchpointOptions *bp_options, CommandReturnObject &result) {
   result.SetStatus(eReturnStatusFailed);
   result.AppendError(
-      "ScriptInterpreter::GetScriptCommands(StringList &) is not implemented.");
+      "This script interpreter does not support watchpoint callbacks.");
 }
 
 std::string ScriptInterpreter::LanguageToString(lldb::ScriptLanguage language) {
-  std::string return_value;
-
   switch (language) {
   case eScriptLanguageNone:
-    return_value = "None";
-    break;
+    return "None";
   case eScriptLanguagePython:
-    return_value = "Python";
-    break;
+    return "Python";
+  case eScriptLanguageLua:
+    return "Lua";
   case eScriptLanguageUnknown:
-    return_value = "Unknown";
-    break;
+    return "Unknown";
   }
-
-  return return_value;
 }
 
 lldb::ScriptLanguage
@@ -66,6 +61,8 @@ ScriptInterpreter::StringToLanguage(const llvm::StringRef &language) {
     return eScriptLanguageNone;
   if (language.equals_lower(LanguageToString(eScriptLanguagePython)))
     return eScriptLanguagePython;
+  if (language.equals_lower(LanguageToString(eScriptLanguageLua)))
+    return eScriptLanguageLua;
   return eScriptLanguageUnknown;
 }
 
@@ -82,13 +79,12 @@ Status ScriptInterpreter::SetBreakpointCommandCallback(
 }
 
 Status ScriptInterpreter::SetBreakpointCommandCallbackFunction(
-    std::vector<BreakpointOptions *> &bp_options_vec,
-    const char *function_name,
+    std::vector<BreakpointOptions *> &bp_options_vec, const char *function_name,
     StructuredData::ObjectSP extra_args_sp) {
   Status error;
   for (BreakpointOptions *bp_options : bp_options_vec) {
-    error = SetBreakpointCommandCallbackFunction(bp_options, function_name, 
-                                         extra_args_sp);
+    error = SetBreakpointCommandCallbackFunction(bp_options, function_name,
+                                                 extra_args_sp);
     if (!error.Success())
       return error;
   }

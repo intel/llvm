@@ -50,7 +50,9 @@ if (LLDB_ENABLE_PYTHON)
   file(TO_CMAKE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH} LLDB_PYTHON_DEFAULT_RELATIVE_PATH)
   set(LLDB_PYTHON_RELATIVE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH}
     CACHE STRING "Path where Python modules are installed, relative to install prefix")
+endif ()
 
+if (LLDB_ENABLE_PYTHON OR LLDB_ENABLE_LUA)
   add_subdirectory(scripts)
 endif ()
 

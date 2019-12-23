@@ -586,9 +586,9 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
   bool IsDefinition = Ops[FlagsIdx] & SPIRVDebug::FlagIsDefinition;
   MDNode *VarDecl = nullptr;
   if (IsDefinition) {
-    VarDecl = Builder.createGlobalVariableExpression(
-        Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, IsDefinition,
-        nullptr, StaticMemberDecl);
+    VarDecl = Builder.createGlobalVariableExpression(Parent, Name, LinkageName,
+                                                     File, LineNo, Ty, IsLocal,
+                                                     nullptr, StaticMemberDecl);
   } else {
     VarDecl = Builder.createTempGlobalVariableFwdDecl(
         Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, StaticMemberDecl);
