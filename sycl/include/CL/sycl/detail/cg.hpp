@@ -164,6 +164,8 @@ public:
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
     }
+    // If local size for host is not set explicitly, let's adjust it to 1,
+    // so nd_range_error for zero local size is not thrown.
     if (AdjustedRange.LocalSize[0] == 0)
       for (int I = 0; I < AdjustedRange.Dims; ++I)
         AdjustedRange.LocalSize[I] = 1;
