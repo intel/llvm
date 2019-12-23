@@ -93,7 +93,7 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   Counter++;
 
   std::fstream Stream(FileName, std::ios::out);
-  Stream << "strict digraph {" << std::endl;
+  Stream << "digraph {" << std::endl;
 
   std::set<Command *> Visited;
 
