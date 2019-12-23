@@ -9,6 +9,10 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 
+namespace cl {
+namespace sycl {
+namespace detail {
+
 const char *stringifyErrorCode(cl_int error) {
   switch (error) {
     case CL_INVALID_ACCELERATOR_INTEL:
@@ -212,10 +216,6 @@ const char *stringifyErrorCode(cl_int error) {
       return "Unknown OpenCL error code";
   }
 }
-
-namespace cl {
-namespace sycl {
-namespace detail {
 
 vector_class<string_class> split_string(const string_class &str,
                                         char delimeter) {
