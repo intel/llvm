@@ -380,7 +380,7 @@ static void copyBetweenLocalAndShadow(AllocaInst *L, GlobalVariable *Shadow,
   Type *T = L->getAllocatedType();
 
   if (T->isAggregateType()) {
-    // TODO: we should use methods which directly retunr MaybeAlign once such
+    // TODO: we should use methods which directly return MaybeAlign once such
     // are added to LLVM for AllocaInst and GlobalVariable
     auto LocAlign = MaybeAlign(L->getAlignment());
     auto ShdAlign = MaybeAlign(Shadow->getAlignment());
