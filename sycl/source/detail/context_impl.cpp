@@ -104,6 +104,8 @@ cl_uint context_impl::get_info<info::context::reference_count>() const {
       this->getHandleRef());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
+  if (is_host())
+    return platform();
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
