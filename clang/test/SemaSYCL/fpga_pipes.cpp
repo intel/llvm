@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 // no error expected
 using type1 = __attribute__((pipe("read_only"))) const int;
