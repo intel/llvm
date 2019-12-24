@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -disable-llvm-passes -triple spir64 -fsycl-is-device -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -emit-llvm -o - %s | FileCheck %s
 
 class Functor16 {
 public:

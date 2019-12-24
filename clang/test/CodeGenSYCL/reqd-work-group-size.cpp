@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm -o - %s | FileCheck %s
 
 class Functor32x16x16 {
 public:

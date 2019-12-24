@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I%S -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -I%S -fsycl-is-device \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes \
 // RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEVICE
 //

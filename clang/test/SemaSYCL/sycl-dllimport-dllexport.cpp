@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -fms-extensions \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fms-extensions \
 // RUN: -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device  -fsyntax-only \
 // RUN: -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s 
 // check random triple aux-triple with sycl-device
