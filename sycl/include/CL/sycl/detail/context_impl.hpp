@@ -9,6 +9,7 @@
 #pragma once
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/kernel_program_cache.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
@@ -110,21 +111,6 @@ public:
     return MDevices;
   }
 
-  /// Gets cached programs.
-  ///
-  /// @return a map of cached programs.
-  std::map<KernelSetId, RT::PiProgram> &getCachedPrograms() {
-    return MCachedPrograms;
-  }
-
-  /// Gets cached kernels.
-  ///
-  /// @return a map of cached kernels.
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
-  getCachedKernels() {
-    return MCachedKernels;
-  }
-
   /// Gets USM dispatcher.
   ///
   /// @return a pointer to USM dispatcher.
@@ -146,6 +132,8 @@ public:
     return MCachedLibPrograms;
   }
 
+  KernelProgramCache &getKernelProgramCache() const;
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -153,10 +141,9 @@ private:
   PlatformImplPtr MPlatform;
   bool MPluginInterop;
   bool MHostContext;
-  std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
   std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
+  mutable KernelProgramCache MKernelProgramCache;
 };
 
 } // namespace detail

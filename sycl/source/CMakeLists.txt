@@ -61,6 +61,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_info.cpp"
+    "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/platform_impl.cpp"
     "detail/platform_info.cpp"
