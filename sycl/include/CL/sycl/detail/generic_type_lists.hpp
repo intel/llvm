@@ -11,15 +11,20 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>
-#include <CL/sycl/half_type.hpp>
 
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions
 
-// Forward declaration
+// Forward declarations
 __SYCL_INLINE namespace cl {
 namespace sycl {
 template <typename T, int N> class vec;
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
 } // namespace sycl
 } // namespace cl
 
