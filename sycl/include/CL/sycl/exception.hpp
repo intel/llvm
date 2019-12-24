@@ -47,7 +47,7 @@ protected:
 
   exception(const string_class &Msg, const cl_int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : MMsg(Msg + " " + codeToString(CLErr)), MCLErr(CLErr),
+      : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
         MContext(Context) {}
 };
 

@@ -20,12 +20,18 @@
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
+namespace cl {
+namespace sycl {
+namespace detail {
+
 const char *stringifyErrorCode(cl_int error);
 
 static inline std::string codeToString(cl_int code){
   return std::string(std::to_string(code) + " (" +
          stringifyErrorCode(code) + ")");
 }
+
+}}} // namespace cl::sycl::detail
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -46,7 +52,8 @@ static inline std::string codeToString(cl_int code){
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+    std::cerr << OCL_ERROR_REPORT << cl::sycl::detail::codeToString(code)      \
+      << std::endl;                                                            \
   }                                                                            \
 }
 #endif
@@ -58,7 +65,7 @@ static inline std::string codeToString(cl_int code){
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
+    throw exc(OCL_ERROR_REPORT + cl::sycl::detail::codeToString(code), code);  \
   }                                                                            \
 }
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
