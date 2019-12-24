@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs  -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o %t.ll
+// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o %t.ll
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-1DRO
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-2DRO
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-3DRO

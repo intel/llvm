@@ -3,7 +3,7 @@
 // RUN: -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s 
 // check random triple aux-triple with sycl-device
 
-// RUN: %clang_cc1 -triple spir64-unknown-windows-sycldevice  -fsyntax-only \
+// RUN: %clang_cc1 -triple spir64-unknown-windows-sycldevice -fsyntax-only \
 // RUN: -fms-extensions -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s 
 // check without -aux-triple but sycl-device
 
