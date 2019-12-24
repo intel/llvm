@@ -320,13 +320,20 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
 
   AllocaCommandBase *SrcAllocaCmd = nullptr;
 
-  if (Record->MAllocaCommands.empty())
-    SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
-  else
-    SrcAllocaCmd = findAllocaForReq(Record, Req, Record->MCurContext);
+  AllocaCommandBase *HostAllocaCmd =
+      getOrCreateAllocaForReq(Record, Req, HostQueue);
 
-  if (!SrcAllocaCmd->getQueue()->is_host())
+  if (!sameCtx(HostAllocaCmd->getQueue()->get_context_impl(),
+               Record->MCurContext))
     insertMemoryMove(Record, Req, HostQueue);
+
+  //if (Record->MAllocaCommands.empty())
+    //SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
+  //else
+    //SrcAllocaCmd = findAllocaForReq(Record, Req, Record->MCurContext);
+
+  //if (!SrcAllocaCmd->getQueue()->is_host())
+    //insertMemoryMove(Record, Req, HostQueue);
 
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
