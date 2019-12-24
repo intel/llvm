@@ -143,3 +143,4 @@ install(TARGETS ${SYCL_RT_LIBS}
     ARCHIVE DESTINATION "lib" COMPONENT sycl
     LIBRARY DESTINATION "lib" COMPONENT sycl
     RUNTIME DESTINATION "bin" COMPONENT sycl)
+add_subdirectory(detail/devicelib)

@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
+#include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -103,6 +104,12 @@ public:
   /// @return an instance of raw plug-in context handle.
   const RT::PiContext &getHandleRef() const;
 
+  /// Unlike `get_info<info::context::devices>', this function returns a
+  /// reference.
+  const vector_class<device> &getDevices() const {
+    return MDevices;
+  }
+
   /// Gets cached programs.
   ///
   /// @return a map of cached programs.
@@ -122,6 +129,23 @@ public:
   ///
   /// @return a pointer to USM dispatcher.
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
+
+  /// In contrast to user programs, which are compiled from user code, library
+  /// programs come from the SYCL runtime. They are identified by the
+  /// corresponding extension:
+  ///
+  ///  cl_intel_devicelib_assert -> #<pi_program with assert functions>
+  ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
+  ///  etc.
+  ///
+  /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
+  /// more details.
+  ///
+  /// @returns a map with device library programs.
+  std::map<DeviceLibExt, RT::PiProgram> &getCachedLibPrograms() {
+    return MCachedLibPrograms;
+  }
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -132,6 +156,7 @@ private:
   std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
   std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
+  std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
 };
 
 } // namespace detail

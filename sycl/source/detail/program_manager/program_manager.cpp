@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -192,15 +193,27 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
 
   const DeviceImage &Img = getDeviceImage(M, KSId, Context);
   RT::PiProgram Prg = createPIProgram(Img, Context);
-  using PiProgramT = remove_pointer_t<RT::PiProgram>;
-  unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
+  ProgramPtr ProgramManaged(
       Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
 
-  build(ProgramManaged.get(), Img.BuildOptions, {});
-  RT::PiProgram Program = ProgramManaged.release();
-  CachedPrograms[KSId] = Program;
+  // Link a fallback implementation of device libraries if they are not
+  // supported by a device compiler.
+  // Pre-compiled programs are supposed to be already linked.
+  const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
 
-  return Program;
+  context_impl *ContextImpl = getRawSyclObjImpl(Context);
+  RT::PiContext PiContext = ContextImpl->getHandleRef();
+  const std::vector<device> &Devices = ContextImpl->getDevices();
+  std::vector<RT::PiDevice> PiDevices(Devices.size());
+  std::transform(
+      Devices.begin(), Devices.end(), PiDevices.begin(),
+      [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
+
+  ProgramPtr BuiltProgram =
+      build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
+            ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
+  CachedPrograms[KSId] = BuiltProgram.get();
+  return BuiltProgram.release();
 }
 
 RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
@@ -254,6 +267,83 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
            "':\n" + string_class(DeviceBuildInfo.data());
   }
   return Log;
+}
+
+static bool loadDeviceLib(const RT::PiContext &Context, const char *Name,
+                          RT::PiProgram &Prog) {
+  std::string LibSyclDir = OSUtil::getCurrentDSODir();
+  std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
+                     std::ifstream::in | std::ifstream::binary);
+  if (!File.good()) {
+    return false;
+  }
+
+  File.seekg(0, std::ios::end);
+  size_t FileSize = File.tellg();
+  File.seekg(0, std::ios::beg);
+  std::vector<char> FileContent(FileSize);
+  File.read(&FileContent[0], FileSize);
+  File.close();
+
+  Prog =
+      createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
+  return Prog != nullptr;
+}
+
+static const char* getDeviceLibFilename(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "libsycl-fallback-cassert.spv";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "cl_intel_devicelib_assert";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+static RT::PiProgram
+loadDeviceLibFallback(
+    const RT::PiContext &Context,
+    DeviceLibExt Extension,
+    const std::vector<RT::PiDevice> &Devices,
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+
+  const char *LibFileName = getDeviceLibFilename(Extension);
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
+  bool NotExists = false;
+  std::tie(LibProgIt, NotExists) =
+      CachedLibPrograms.insert({Extension, nullptr});
+  RT::PiProgram &LibProg = LibProgIt->second;
+
+  if (!NotExists) {
+    return LibProg;
+  }
+
+  if (!loadDeviceLib(Context, LibFileName, LibProg)) {
+    CachedLibPrograms.erase(LibProgIt);
+    throw compile_program_error(std::string("Failed to load ") + LibFileName);
+  }
+
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)(
+      LibProg,
+      // Assume that Devices contains all devices from Context.
+      Devices.size(), Devices.data(),
+      // Do not use compile options for library programs: it is not clear
+      // if user options (image options) are supposed to be applied to
+      // library program as well, and what actually happens to a SPIR-V
+      // program if we apply them.
+      "", 0, nullptr, nullptr, nullptr, nullptr);
+  if (Error != PI_SUCCESS) {
+    CachedLibPrograms.erase(LibProgIt);
+    throw compile_program_error(ProgramManager::getProgramBuildLog(LibProg));
+  }
+
+  return LibProg;
 }
 
 struct ImageDeleter {
@@ -348,12 +438,62 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
-void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
-                           std::vector<RT::PiDevice> Devices) {
+static std::vector<RT::PiProgram> getDeviceLibPrograms(
+    const RT::PiContext Context,
+    const std::vector<RT::PiDevice> &Devices,
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+
+  std::vector<RT::PiProgram> Programs;
+
+  // TODO: SYCL compiler should generate a list of required extensions for a
+  // particular program in order to allow us do a more fine-grained check here.
+  // Require *all* possible devicelib extensions for now.
+  std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
+      {cl_intel_devicelib_assert, /* is fallback loaded? */ false}
+  };
+
+  // Load a fallback library for an extension if at least one device does not
+  // support it.
+  for (RT::PiDevice Dev : Devices) {
+    std::string DevExtList =
+        get_device_info<std::string, info::device::extensions>::get(Dev);
+    for (auto &Pair : RequiredDeviceLibExt) {
+      DeviceLibExt Ext = Pair.first;
+      bool &FallbackIsLoaded = Pair.second;
+
+      if (FallbackIsLoaded) {
+        continue;
+      }
+
+      const char* ExtStr = getDeviceLibExtensionStr(Ext);
+
+      bool InhibitNativeImpl = false;
+      if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+        InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
+      }
+
+      bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
+
+      if (!DeviceSupports || InhibitNativeImpl) {
+        Programs.push_back(
+            loadDeviceLibFallback(Context, Ext, Devices, CachedLibPrograms));
+        FallbackIsLoaded = true;
+      }
+    }
+  }
+  return Programs;
+}
+
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
+                      const string_class &Options,
+                      const std::vector<RT::PiDevice> &Devices,
+                      std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                      bool LinkDeviceLibs) {
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << Program << ", " << Options
-              << ", ... " << Devices.size() << ")\n";
+    std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
+              << Options << ", ... " << Devices.size() << ")\n";
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
@@ -367,11 +507,42 @@ void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
 
   if (!Opts)
     Opts = Options.c_str();
-  if (PI_CALL_NOCHECK(piProgramBuild)(Program, Devices.size(), Devices.data(),
-                                      Opts, nullptr, nullptr) == PI_SUCCESS)
-    return;
 
-  throw compile_program_error(getProgramBuildLog(Program));
+  std::vector<RT::PiProgram> LinkPrograms;
+  if (LinkDeviceLibs) {
+    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
+  }
+
+  if (LinkPrograms.empty()) {
+    RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
+        Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
+    if (Error != PI_SUCCESS)
+      throw compile_program_error(getProgramBuildLog(Program.get()));
+    return Program;
+  }
+
+  // Include the main program and compile/link everything together
+  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(), Opts,
+                            0, nullptr, nullptr, nullptr, nullptr);
+  LinkPrograms.push_back(Program.get());
+
+  RT::PiProgram LinkedProg = nullptr;
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
+      Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
+      LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
+
+  // Link program call returns a new program object if all parameters are valid,
+  // or NULL otherwise. Release the original (user) program.
+  Program.reset(LinkedProg);
+  if (Error != PI_SUCCESS) {
+    if (LinkedProg) {
+      // A non-trivial error occurred during linkage: get a build log, release
+      // an incomplete (but valid) LinkedProg, and throw.
+      throw compile_program_error(getProgramBuildLog(LinkedProg));
+    }
+    pi::checkPiResult(Error);
+  }
+  return Program;
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
