@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice  -std=c++11 -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice  -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s
 void bar(int & Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
 void bar2(int & Data) {}

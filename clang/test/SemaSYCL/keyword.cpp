@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -std=c++11 %s
+// RUN: %clang_cc1 -verify -fsyntax-only %s
 //
 // expected-no-diagnostics 
 int foo(bool __pipe);

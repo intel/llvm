@@ -1,12 +1,12 @@
 // RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I%S -fsycl-is-device \
-// RUN:      -std=c++11 -fcxx-exceptions -fexceptions -disable-llvm-passes -x c++ \
+// RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes -x c++ \
 // RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEVICE
 //
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -I%S -std=c++11 \
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes -x c++ \
 // RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-LIN
 //
-// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -I%S -std=c++11 \
+// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes -x c++ \
 // RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-WIN
 

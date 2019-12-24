@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs -fsycl-is-device -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
 
 #include "sycl.hpp"
 

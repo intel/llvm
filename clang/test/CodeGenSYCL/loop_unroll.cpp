@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -triple spir64-unknown-linux-sycldevice -std=c++11 -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -x c++ -triple spir64-unknown-linux-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: br label %for.cond, !llvm.loop ![[COUNT:[0-9]+]]
 // CHECK: br label %while.cond, !llvm.loop ![[DISABLE:[0-9]+]]

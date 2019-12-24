@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -std=c++11 -I %S/Inputs  -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck --enable-var-scope %s
+// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs  -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck --enable-var-scope %s
 // CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
 // CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -triple spir64-unknown-linux-sycldevice -std=c++11 -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -x c++ -triple spir64-unknown-linux-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: [[STYPE:%.+]] = type { i16 }
 struct S {
