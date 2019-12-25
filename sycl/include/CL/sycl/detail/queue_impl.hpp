@@ -26,8 +26,8 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
+using ContextImplPtr = shared_ptr_class<detail::context_impl>;
+using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
 
 // Set max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
@@ -46,85 +46,85 @@ public:
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
              async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
-      : m_Device(Device), m_Context(Context), m_AsyncHandler(AsyncHandler),
-        m_PropList(PropList), m_HostQueue(m_Device->is_host()),
-        m_OpenCLInterop(!m_HostQueue) {
-    if (!m_HostQueue) {
-      m_CommandQueue = createQueue(Order);
+      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MOpenCLInterop(!MHostQueue) {
+    if (!MHostQueue) {
+      MCommandQueue = createQueue(Order);
     }
   }
 
   queue_impl(cl_command_queue CLQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
-      : m_Context(Context), m_AsyncHandler(AsyncHandler),
-        m_HostQueue(false), m_OpenCLInterop(true) {
+      : MContext(Context), MAsyncHandler(AsyncHandler),
+        MHostQueue(false), MOpenCLInterop(true) {
 
-    m_CommandQueue = pi::cast<RT::PiQueue>(CLQueue);
+    MCommandQueue = pi::cast<RT::PiQueue>(CLQueue);
 
     RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piQueueGetInfo)(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
+    PI_CALL(piQueueGetInfo)(MCommandQueue, PI_QUEUE_INFO_DEVICE,
                             sizeof(Device), &Device, nullptr);
-    m_Device = std::make_shared<device_impl>(Device);
+    MDevice = std::make_shared<device_impl>(Device);
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piQueueRetain)(m_CommandQueue);
+    PI_CALL(piQueueRetain)(MCommandQueue);
   }
 
   ~queue_impl() {
     throw_asynchronous();
-    if (m_OpenCLInterop) {
-      PI_CALL(piQueueRelease)(m_CommandQueue);
+    if (MOpenCLInterop) {
+      PI_CALL(piQueueRelease)(MCommandQueue);
     }
   }
 
   cl_command_queue get() {
-    if (m_OpenCLInterop) {
-      PI_CALL(piQueueRetain)(m_CommandQueue);
-      return pi::cast<cl_command_queue>(m_CommandQueue);
+    if (MOpenCLInterop) {
+      PI_CALL(piQueueRetain)(MCommandQueue);
+      return pi::cast<cl_command_queue>(MCommandQueue);
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability");
   }
 
-  context get_context() const { return createSyclObjFromImpl<context>(m_Context); }
+  context get_context() const { return createSyclObjFromImpl<context>(MContext); }
 
   ContextImplPtr get_context_impl() const {
-    return m_Context;
+    return MContext;
   }
 
-  device get_device() const { return createSyclObjFromImpl<device>(m_Device); }
+  device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 
-  bool is_host() const { return m_HostQueue; }
+  bool is_host() const { return MHostQueue; }
 
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  event submit(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self,
-               std::shared_ptr<queue_impl> second_queue) {
+  event submit(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self,
+               shared_ptr_class<queue_impl> second_queue) {
     try {
       return submit_impl(cgf, self);
     } catch (...) {
       {
-        std::lock_guard<mutex_class> guard(m_Mutex);
-        m_Exceptions.PushBack(std::current_exception());
+        std::lock_guard<mutex_class> guard(MMutex);
+        MExceptions.PushBack(std::current_exception());
       }
       return second_queue->submit(cgf, second_queue);
     }
   }
 
-  event submit(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
+  event submit(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self) {
     return submit_impl(std::move(cgf), std::move(self));
   }
 
   void wait() {
-    std::lock_guard<mutex_class> guard(m_Mutex);
-    for (auto &evnt : m_Events)
+    std::lock_guard<mutex_class> guard(MMutex);
+    for (auto &evnt : MEvents)
       evnt.wait();
-    m_Events.clear();
+    MEvents.clear();
   }
 
-  exception_list getExceptionList() const { return m_Exceptions; }
+  exception_list getExceptionList() const { return MExceptions; }
 
   void wait_and_throw() {
     wait();
@@ -132,19 +132,19 @@ public:
   }
 
   void throw_asynchronous() {
-    std::unique_lock<mutex_class> lock(m_Mutex);
+    std::unique_lock<mutex_class> lock(MMutex);
 
-    if (m_AsyncHandler && m_Exceptions.size()) {
+    if (MAsyncHandler && MExceptions.size()) {
       exception_list Exceptions;
 
-      std::swap(m_Exceptions, Exceptions);
+      std::swap(MExceptions, Exceptions);
 
       // Unlock the mutex before calling user-provided handler to avoid
       // potential deadlock if the same queue is somehow referenced in the
       // handler.
       lock.unlock();
 
-      m_AsyncHandler(std::move(Exceptions));
+      MAsyncHandler(std::move(Exceptions));
     }
   }
 
@@ -154,20 +154,20 @@ public:
     if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
-    if (m_PropList.has_property<property::queue::enable_profiling>()) {
+    if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
     RT::PiQueue Queue;
-    RT::PiContext Context = m_Context->getHandleRef();
-    RT::PiDevice Device = m_Device->getHandleRef();
+    RT::PiContext Context = MContext->getHandleRef();
+    RT::PiDevice Device = MDevice->getHandleRef();
     RT::PiResult Error =
         PI_CALL_NOCHECK(piQueueCreate)(Context, Device, CreationFlags, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
     // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (m_SupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
-      m_SupportOOO = false;
+    if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
+      MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
       RT::checkPiResult(Error);
@@ -178,38 +178,38 @@ public:
 
   // Warning. Returned reference will be invalid if queue_impl was destroyed.
   RT::PiQueue &getExclusiveQueueHandleRef() {
-    std::lock_guard<mutex_class> guard(m_Mutex);
+    std::lock_guard<mutex_class> guard(MMutex);
 
     // To achive parallelism for FPGA with in order execution model with
     // possibility of two kernels to share data with each other we shall
     // create a queue for every kernel enqueued.
-    if (m_Queues.size() < MaxNumQueues) {
-      m_Queues.push_back(createQueue(QueueOrder::Ordered));
-      return m_Queues.back();
+    if (MQueues.size() < MaxNumQueues) {
+      MQueues.push_back(createQueue(QueueOrder::Ordered));
+      return MQueues.back();
     }
 
     // If the limit of OpenCL queues is going to be exceeded - take the earliest
     // used queue, wait until it finished and then reuse it.
-    m_QueueNumber %= MaxNumQueues;
-    size_t FreeQueueNum = m_QueueNumber++;
+    MQueueNumber %= MaxNumQueues;
+    size_t FreeQueueNum = MQueueNumber++;
 
-    PI_CALL(piQueueFinish)(m_Queues[FreeQueueNum]);
-    return m_Queues[FreeQueueNum];
+    PI_CALL(piQueueFinish)(MQueues[FreeQueueNum]);
+    return MQueues[FreeQueueNum];
   }
 
   RT::PiQueue &getHandleRef() {
-    if (m_SupportOOO) {
-      return m_CommandQueue;
+    if (MSupportOOO) {
+      return MCommandQueue;
     }
 
     {
       // Reduce the scope since this mutex is also
       // locked inside of getExclusiveQueueHandleRef()
-      std::lock_guard<mutex_class> guard(m_Mutex);
+      std::lock_guard<mutex_class> guard(MMutex);
 
-      if (m_Queues.empty()) {
-        m_Queues.push_back(m_CommandQueue);
-        return m_CommandQueue;
+      if (MQueues.empty()) {
+        MQueues.push_back(MCommandQueue);
+        return MCommandQueue;
       }
     }
 
@@ -217,57 +217,57 @@ public:
   }
 
   template <typename propertyT> bool has_property() const {
-    return m_PropList.has_property<propertyT>();
+    return MPropList.has_property<propertyT>();
   }
 
   template <typename propertyT> propertyT get_property() const {
-    return m_PropList.get_property<propertyT>();
+    return MPropList.get_property<propertyT>();
   }
 
-  event memset(std::shared_ptr<queue_impl> Impl, void *Ptr, int Value,
+  event memset(shared_ptr_class<queue_impl> Impl, void *Ptr, int Value,
                size_t Count);
-  event memcpy(std::shared_ptr<queue_impl> Impl, void *Dest, const void *Src,
+  event memcpy(shared_ptr_class<queue_impl> Impl, void *Dest, const void *Src,
                size_t Count);
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
   void reportAsyncException(std::exception_ptr E) {
-    std::lock_guard<mutex_class> guard(m_Mutex);
-    m_Exceptions.PushBack(E);
+    std::lock_guard<mutex_class> guard(MMutex);
+    MExceptions.PushBack(E);
   }
 
 private:
-  event submit_impl(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
-    handler Handler(std::move(self), m_HostQueue);
+  event submit_impl(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self) {
+    handler Handler(std::move(self), MHostQueue);
     cgf(Handler);
     event Event = Handler.finalize();
     {
-      std::lock_guard<mutex_class> guard(m_Mutex);
-      m_Events.push_back(Event);
+      std::lock_guard<mutex_class> guard(MMutex);
+      MEvents.push_back(Event);
     }
     return Event;
   }
 
   // Protects all the fields that can be changed by class' methods
-  mutex_class m_Mutex;
+  mutex_class MMutex;
 
-  DeviceImplPtr m_Device;
-  const ContextImplPtr m_Context;
-  vector_class<event> m_Events;
-  exception_list m_Exceptions;
-  const async_handler m_AsyncHandler;
-  const property_list m_PropList;
+  DeviceImplPtr MDevice;
+  const ContextImplPtr MContext;
+  vector_class<event> MEvents;
+  exception_list MExceptions;
+  const async_handler MAsyncHandler;
+  const property_list MPropList;
 
-  RT::PiQueue m_CommandQueue = nullptr;
+  RT::PiQueue MCommandQueue = nullptr;
 
   // List of queues created for FPGA device from a single SYCL queue.
-  vector_class<RT::PiQueue> m_Queues;
+  vector_class<RT::PiQueue> MQueues;
   // Iterator through m_Queues.
-  size_t m_QueueNumber = 0;
+  size_t MQueueNumber = 0;
 
-  const bool m_HostQueue = false;
-  const bool m_OpenCLInterop = false;
+  const bool MHostQueue = false;
+  const bool MOpenCLInterop = false;
   // Assume OOO support by default.
-  bool m_SupportOOO = true;
+  bool MSupportOOO = true;
 };
 
 } // namespace detail
