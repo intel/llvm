@@ -633,43 +633,76 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
-  if (Record->MAllocaCommands.empty())
+  std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
+  if (AllocaCommands.empty())
     return;
 
-  std::queue<Command *> RemoveQueue;
+  std::queue<Command *> ToVisit;
   std::set<Command *> Visited;
+  // First, mark all allocas for deletion and their direct users for traversal
+  // Dependencies of the users will be cleaned up during traversal
+  for (Command *AllocaCmd : AllocaCommands) {
+    Visited.insert(AllocaCmd);
+    for (Command *UserCmd : AllocaCmd->MUsers)
+      ToVisit.push(UserCmd);
+    // These commands will be deleted later, clear users now to avoid
+    // updating them during edge removal
+    AllocaCmd->MUsers.clear();
+  }
 
-  // TODO: release commands need special handling here as they are not reachable
-  // from alloca commands
+  const std::set<Command *> AllocasToDelete{AllocaCommands.begin(),
+                                            AllocaCommands.end()};
+  std::vector<Command *> CmdsToDelete;
 
-  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
-    if (Visited.find(AllocaCmd) == Visited.end())
-      RemoveQueue.push(AllocaCmd);
-    // Use BFS to find and process all users of removal candidate
-    while (!RemoveQueue.empty()) {
-      Command *CandidateCommand = RemoveQueue.front();
-      RemoveQueue.pop();
+  // Traverse the graph using BFS
+  while (!ToVisit.empty()) {
+    Command *Cmd = ToVisit.front();
+    ToVisit.pop();
 
-      if (Visited.insert(CandidateCommand).second) {
-        for (Command *UserCmd : CandidateCommand->MUsers) {
-          // As candidate command is about to be freed, we need
-          // to remove it from dependency list of other commands.
-          auto NewEnd =
-              std::remove_if(UserCmd->MDeps.begin(), UserCmd->MDeps.end(),
-                             [CandidateCommand](const DepDesc &Dep) {
-                               return Dep.MDepCommand == CandidateCommand;
-                             });
-          UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
+    if (Visited.insert(Cmd).second) {
+      for (Command *UserCmd : Cmd->MUsers)
+        ToVisit.push(UserCmd);
 
-          // Commands that have no unsatisfied dependencies can be executed
-          // and are good candidates for clean up.
-          if (UserCmd->MDeps.empty())
-            RemoveQueue.push(UserCmd);
-        }
-        CandidateCommand->getEvent()->setCommand(nullptr);
-        delete CandidateCommand;
+      // Delete all dependencies on any allocations being removed
+      // Track which commands should have their users updated
+      std::set<Command *> UpdateCandidates; // At least 1 dep removed
+      std::set<Command *> UpdateTaboo;      // At least 1 dep left
+      auto NewEnd = std::remove_if(
+          Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
+            if (AllocasToDelete.find(Dep.MAllocaCmd) != AllocasToDelete.end()) {
+              UpdateCandidates.insert(Dep.MDepCommand);
+              return true;
+            }
+            UpdateTaboo.insert(Dep.MDepCommand);
+            return false;
+          });
+      Cmd->MDeps.erase(NewEnd, Cmd->MDeps.end());
+
+      // Update users of removed dependencies
+      for (Command *DepCmd : UpdateCandidates) {
+        if (UpdateTaboo.find(DepCmd) != UpdateTaboo.end())
+          continue;
+        std::vector<Command *> &DepUsers = DepCmd->MUsers;
+        DepUsers.erase(std::remove(DepUsers.begin(), DepUsers.end(), Cmd),
+                       DepUsers.end());
+      }
+
+      // If all dependencies have been removed this way, mark the command for
+      // deletion
+      if (Cmd->MDeps.empty()) {
+        CmdsToDelete.push_back(Cmd);
+        Cmd->MUsers.clear();
       }
     }
+  }
+
+  for (Command *Cmd : CmdsToDelete) {
+    Cmd->getEvent()->setCommand(nullptr);
+    delete Cmd;
+  }
+  for (Command *AllocaCmd : AllocasToDelete) {
+    AllocaCmd->getEvent()->setCommand(nullptr);
+    delete AllocaCmd;
   }
 }
 
