@@ -15,7 +15,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
 
-#include <memory>
 #include <utility>
 
 __SYCL_INLINE namespace cl {
@@ -159,7 +158,7 @@ public:
   /// specifies global size only.
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
-  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param DepEvent is an event that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -211,7 +210,7 @@ public:
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param WorkItemOffset specifies the offset for each work item id
-  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param DepEvent is an event that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -229,7 +228,7 @@ public:
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param WorkItemOffset specifies the offset for each work item id
-  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param DepEvents is a vector of events that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -261,7 +260,7 @@ public:
   /// specifies global, local sizes and offset.
   ///
   /// @param ExecutionRange is a range that specifies the work space of the kernel
-  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param DepEvent is an event that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -278,7 +277,7 @@ public:
   /// specifies global, local sizes and offset.
   ///
   /// @param ExecutionRange is a range that specifies the work space of the kernel
-  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param DepEvents is a vector of events that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -293,7 +292,7 @@ public:
   }
 
 private:
-  std::shared_ptr<detail::queue_impl> impl;
+  shared_ptr_class<detail::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
@@ -308,7 +307,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
+    return std::hash<cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(q));
   }
 };
