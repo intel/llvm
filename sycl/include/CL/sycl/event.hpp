@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>

@@ -8,8 +8,9 @@
 
 #pragma once
 
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/detail/function_class.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -23,6 +24,10 @@ namespace sycl {
 // Forward declaration
 class context;
 class device;
+namespace detail {
+class queue_impl;
+}
+
 class queue {
 public:
   explicit queue(const property_list &propList = {})

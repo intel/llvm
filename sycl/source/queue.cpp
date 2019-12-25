@@ -7,7 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/event.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
+#include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/detail/function_class.hpp>
 
 #include <algorithm>
 
