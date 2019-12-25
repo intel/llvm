@@ -73,5 +73,40 @@ event queue::memcpy(void* dest, const void* src, size_t count) {
 event queue::mem_advise(const void *ptr, size_t length, int advice) {
   return impl->mem_advise(ptr, length, advice);
 }
+
+event queue::submit_impl(detail::function_class<void(handler &)> CGH) {
+  return impl->submit(CGH, impl);
+}
+
+event queue::submit_impl(detail::function_class<void(handler &)> CGH,
+                         queue secondQueue) {
+  return impl->submit(CGH, impl, secondQueue.impl);
+}
+
+template <info::queue param>
+typename info::param_traits<info::queue, param>::return_type
+queue::get_info() const {
+  return impl->get_info<param>();
+}
+
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type queue::get_info<info::param_type::param>() const;
+
+#include <CL/sycl/info/queue_traits.def>
+
+#undef PARAM_TRAITS_SPEC
+
+template <typename propertyT> bool queue::has_property() const {
+  return impl->has_property<propertyT>();
+}
+
+template <typename propertyT> propertyT queue::get_property() const {
+  return impl->get_property<propertyT>();
+}
+
+template bool queue::has_property<property::queue::enable_profiling>() const;
+template property::queue::enable_profiling
+queue::get_property<property::queue::enable_profiling>() const;
+
 } // namespace sycl
 } // namespace cl

@@ -76,10 +76,7 @@ public:
   bool is_host() const;
 
   template <info::queue param>
-  typename info::param_traits<info::queue, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  typename info::param_traits<info::queue, param>::return_type get_info() const;
 
   template <typename T> event submit(T cgf) { return submit_impl(cgf); }
 
@@ -93,13 +90,9 @@ public:
 
   void throw_asynchronous();
 
-  template <typename propertyT> bool has_property() const {
-    return impl->has_property<propertyT>();
-  }
+  template <typename propertyT> bool has_property() const;
 
-  template <typename propertyT> propertyT get_property() const {
-    return impl->get_property<propertyT>();
-  }
+  template <typename propertyT> propertyT get_property() const;
 
   event memset(void* ptr, int value, size_t count);
 
@@ -304,12 +297,9 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
-  event submit_impl(detail::function_class<void(handler&)> CGH) {
-    return impl->submit(CGH, impl);
-  }
-  event submit_impl(detail::function_class<void(handler&)> CGH, queue secondQueue) {
-    return impl->submit(CGH, impl, secondQueue.impl);
-  }
+  event submit_impl(detail::function_class<void(handler &)> CGH);
+  event submit_impl(detail::function_class<void(handler &)> CGH,
+                    queue secondQueue);
 };
 
 } // namespace sycl
