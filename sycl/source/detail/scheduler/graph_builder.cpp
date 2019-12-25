@@ -318,22 +318,12 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
     printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
 
-  AllocaCommandBase *SrcAllocaCmd = nullptr;
-
-  AllocaCommandBase *HostAllocaCmd =
+  AllocaCommandBase *SrcAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, HostQueue);
 
-  if (!sameCtx(HostAllocaCmd->getQueue()->get_context_impl(),
+  if (!sameCtx(SrcAllocaCmd->getQueue()->get_context_impl(),
                Record->MCurContext))
     insertMemoryMove(Record, Req, HostQueue);
-
-  //if (Record->MAllocaCommands.empty())
-    //SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
-  //else
-    //SrcAllocaCmd = findAllocaForReq(Record, Req, Record->MCurContext);
-
-  //if (!SrcAllocaCmd->getQueue()->is_host())
-    //insertMemoryMove(Record, Req, HostQueue);
 
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
