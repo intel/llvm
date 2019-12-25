@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 
+#include "detail/config.hpp"
+
 #include <chrono>
 
 __SYCL_INLINE namespace cl {
@@ -100,6 +102,9 @@ void event_impl::wait(
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(std::move(Self));
+  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    detail::Scheduler::getInstance().cleanupFinishedCommands(
+        static_cast<Command *>(MCommand));
 }
 
 void event_impl::wait_and_throw(

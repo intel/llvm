@@ -2,6 +2,7 @@
 // RUN: %t.out
 #include <CL/sycl.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -70,7 +71,9 @@ int main() {
   FakeCommand *OldestLeaf = LeavesToAdd.front();
   FakeCommand *NewestLeaf = LeavesToAdd.back();
   assert(OldestLeaf->MUsers.size() == 1);
-  assert(OldestLeaf->MUsers[0] == NewestLeaf);
+  assert(OldestLeaf->MUsers.count(NewestLeaf));
   assert(NewestLeaf->MDeps.size() == 2);
-  assert(NewestLeaf->MDeps[1].MDepCommand == OldestLeaf);
+  assert(std::any_of(
+      NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
+      [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
 }
