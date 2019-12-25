@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <CL/sycl/detail/function_class.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -99,7 +100,7 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  event submit(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self,
+  event submit(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self,
                std::shared_ptr<queue_impl> second_queue) {
     try {
       return submit_impl(cgf, self);
@@ -112,7 +113,7 @@ public:
     }
   }
 
-  event submit(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
+  event submit(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
     return submit_impl(std::move(cgf), std::move(self));
   }
 
@@ -235,7 +236,7 @@ public:
   }
 
 private:
-  event submit_impl(std::function<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
+  event submit_impl(function_class<void(handler&)> cgf, std::shared_ptr<queue_impl> self) {
     handler Handler(std::move(self), m_HostQueue);
     cgf(Handler);
     event Event = Handler.finalize();
