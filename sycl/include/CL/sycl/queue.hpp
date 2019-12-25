@@ -47,10 +47,7 @@ public:
         const property_list &propList = {});
 
   queue(const context &syclContext, const device_selector &deviceSelector,
-        const property_list &propList = {})
-      : queue(syclContext, deviceSelector,
-              detail::getSyclObjImpl(syclContext)->get_async_handler(),
-              propList) {}
+        const property_list &propList = {});
 
   queue(const context &syclContext, const device_selector &deviceSelector,
         const async_handler &asyncHandler, const property_list &propList = {});
@@ -70,13 +67,13 @@ public:
 
   bool operator!=(const queue &rhs) const { return !(*this == rhs); }
 
-  cl_command_queue get() const { return impl->get(); }
+  cl_command_queue get() const;
 
-  context get_context() const { return impl->get_context(); }
+  context get_context() const;
 
-  device get_device() const { return impl->get_device(); }
+  device get_device() const;
 
-  bool is_host() const { return impl->is_host(); }
+  bool is_host() const;
 
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type
@@ -84,17 +81,17 @@ public:
     return impl->get_info<param>();
   }
 
-  template <typename T> event submit(T cgf) { return impl->submit(cgf, impl); }
+  template <typename T> event submit(T cgf) { return submit_impl(cgf); }
 
   template <typename T> event submit(T cgf, queue &secondaryQueue) {
-    return impl->submit(cgf, impl, secondaryQueue.impl);
+    return submit_impl(cgf, secondaryQueue);
   }
 
-  void wait() { impl->wait(); }
+  void wait();
 
-  void wait_and_throw() { impl->wait_and_throw(); }
+  void wait_and_throw();
 
-  void throw_asynchronous() { impl->throw_asynchronous(); }
+  void throw_asynchronous();
 
   template <typename propertyT> bool has_property() const {
     return impl->has_property<propertyT>();
@@ -104,21 +101,15 @@ public:
     return impl->get_property<propertyT>();
   }
 
-  event memset(void* Ptr, int Value, size_t Count) {
-    return impl->memset(impl, Ptr, Value, Count);
-  }
+  event memset(void* ptr, int value, size_t count);
 
-  event memcpy(void* Dest, const void* Src, size_t Count) {
-    return impl->memcpy(impl, Dest, Src, Count);
-  }
+  event memcpy(void* dest, const void* src, size_t count);
 
-  event mem_advise(const void *Ptr, size_t Length, int Advice) {
-    return impl->mem_advise(Ptr, Length, Advice);
-  }
+  event mem_advise(const void *ptr, size_t length, int advice);
 
-  event prefetch(const void* Ptr, size_t Count) {
-    return submit([=](handler &CGH) {
-        CGH.prefetch(Ptr, Count);
+  event prefetch(const void* ptr, size_t count) {
+    return submit([=](handler &cgh) {
+        cgh.prefetch(ptr, count);
     });
   }
 
@@ -172,7 +163,7 @@ public:
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.  
+  /// specifies global size only.
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param DepEvent is an event that specifies the kernel dependences 
@@ -192,7 +183,7 @@ public:
   /// specifies global size only.
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
-  /// @param DepEvents is a vector of events that specifies the kernel dependences 
+  /// @param DepEvents is a vector of events that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -312,6 +303,13 @@ private:
   std::shared_ptr<detail::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+
+  event submit_impl(detail::function_class<void(handler&)> CGH) {
+    return impl->submit(CGH, impl);
+  }
+  event submit_impl(detail::function_class<void(handler&)> CGH, queue secondQueue) {
+    return impl->submit(CGH, impl, secondQueue.impl);
+  }
 };
 
 } // namespace sycl

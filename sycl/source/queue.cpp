@@ -42,5 +42,36 @@ queue::queue(cl_command_queue clQueue, const context &syclContext,
           detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
+queue::queue(const context &syclContext, const device_selector &deviceSelector,
+      const property_list &propList)
+    : queue(syclContext, deviceSelector,
+            detail::getSyclObjImpl(syclContext)->get_async_handler(),
+            propList) {}
+
+cl_command_queue queue::get() const { return impl->get(); }
+
+context queue::get_context() const { return impl->get_context(); }
+
+device queue::get_device() const { return impl->get_device(); }
+
+bool queue::is_host() const { return impl->is_host(); }
+
+void queue::wait() { impl->wait(); }
+
+void queue::wait_and_throw() { impl->wait_and_throw(); }
+
+void queue::throw_asynchronous() { impl->throw_asynchronous(); }
+
+event queue::memset(void* ptr, int value, size_t count) {
+  return impl->memset(impl, ptr, value, count);
+}
+
+event queue::memcpy(void* dest, const void* src, size_t count) {
+  return impl->memcpy(impl, dest, src, count);
+}
+
+event queue::mem_advise(const void *ptr, size_t length, int advice) {
+  return impl->mem_advise(ptr, length, advice);
+}
 } // namespace sycl
 } // namespace cl
