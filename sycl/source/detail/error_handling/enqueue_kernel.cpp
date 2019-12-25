@@ -25,12 +25,13 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   size_t VerSize = 0;
-  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_VERSION, 0, nullptr, &VerSize);
+  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_VERSION, 0, nullptr,
+                           &VerSize);
   assert(VerSize >= 10 &&
          "Unexpected device version string"); // strlen("OpenCL X.Y")
   string_class VerStr(VerSize, '\0');
-  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_VERSION, VerSize, &VerStr.front(),
-                           nullptr);
+  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_VERSION, VerSize,
+                           &VerStr.front(), nullptr);
   const char *Ver = &VerStr[7]; // strlen("OpenCL ")
 
   size_t CompileWGSize[3] = {0};
@@ -69,7 +70,7 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
     // than the value specified by CL_DEVICE_MAX_WORK_GROUP_SIZE in
     // table 4.3
     size_t MaxWGSize = 0;
-    PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_MAX_WORK_GROUP_SIZE,
+    PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
                              sizeof(size_t), &MaxWGSize, nullptr);
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
