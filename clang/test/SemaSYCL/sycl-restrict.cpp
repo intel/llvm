@@ -59,12 +59,14 @@ struct OverloadedNewDelete {
 
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  // expected-note@+1 {{called by 'isa_B'}}
   if (f1 == f2) return false;
 
   Check_VLA_Restriction::restriction(7);
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   int i; int *p3 = new(&i) int; // no error on placement new
+  // expected-note@+1 {{called by 'isa_B'}}
   OverloadedNewDelete *x = new( struct OverloadedNewDelete );
   auto y = new struct OverloadedNewDelete [5];
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
@@ -75,6 +77,7 @@ bool isa_B(A *a) {
 
 template<typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
+  // expected-note@+1 3{{called by 'kernel1}}
   l();
 }
 }
@@ -102,6 +105,7 @@ using myFuncDef = int(int,int);
 
 void eh_ok(void)
 {
+  __float128 A;
   try {
     ;
   } catch (...) {
@@ -137,6 +141,7 @@ void usage(myFuncDef functionPtr) {
     b.f();
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
   Check_RTTI_Restriction::A *a;
+  // expected-note@+1 3{{called by 'operator()'}}
   Check_RTTI_Restriction::isa_B(a); });
 }
 

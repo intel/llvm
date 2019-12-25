@@ -12916,8 +12916,6 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
                             FnDecl->getType()->castAs<FunctionProtoType>()))
         return ExprError();
 
-      if (getLangOpts().SYCLIsDevice)
-        CheckSYCLCall(OpLoc, FnDecl);
       return MaybeBindToTemporary(TheCall);
     } else {
       // We matched a built-in operator. Convert the arguments, then
@@ -13270,8 +13268,6 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                   isa<CXXMethodDecl>(FnDecl), OpLoc, TheCall->getSourceRange(),
                   VariadicDoesNotApply);
 
-        if (getLangOpts().SYCLIsDevice)
-          CheckSYCLCall(OpLoc, FnDecl);
         ExprResult R = MaybeBindToTemporary(TheCall);
         if (R.isInvalid())
           return ExprError();
@@ -13633,8 +13629,6 @@ Sema::CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
                               Method->getType()->castAs<FunctionProtoType>()))
           return ExprError();
 
-        if (getLangOpts().SYCLIsDevice)
-          CheckSYCLCall(RLoc, FnDecl);
         return MaybeBindToTemporary(TheCall);
       } else {
         // We matched a built-in operator. Convert the arguments, then
