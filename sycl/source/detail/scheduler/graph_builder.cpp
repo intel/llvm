@@ -318,10 +318,10 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
     printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
 
-  AllocaCommandBase *SrcAllocaCmd =
+  AllocaCommandBase *HostAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, HostQueue);
 
-  if (!sameCtx(SrcAllocaCmd->getQueue()->get_context_impl(),
+  if (!sameCtx(HostAllocaCmd->getQueue()->get_context_impl(),
                Record->MCurContext))
     insertMemoryMove(Record, Req, HostQueue);
 
@@ -330,7 +330,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
   EmptyCmd->addDep(
-      DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), SrcAllocaCmd});
+      DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
   UpdateHostAccCmd->addUser(EmptyCmd);
 
   EmptyCmd->MIsBlockable = true;
