@@ -100,27 +100,27 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  event submit(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self,
-               shared_ptr_class<queue_impl> second_queue) {
+  event submit(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self,
+               shared_ptr_class<queue_impl> SecondQueue) {
     try {
-      return submit_impl(cgf, self);
+      return submit_impl(CGF, Self);
     } catch (...) {
       {
         std::lock_guard<mutex_class> guard(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return second_queue->submit(cgf, second_queue);
+      return SecondQueue->submit(CGF, SecondQueue);
     }
   }
 
-  event submit(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self) {
-    return submit_impl(cgf, std::move(self));
+  event submit(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self) {
+    return submit_impl(CGF, std::move(Self));
   }
 
   void wait() {
     std::lock_guard<mutex_class> guard(MMutex);
-    for (auto &evnt : MEvents)
-      evnt.wait();
+    for (auto &Event : MEvents)
+      Event.wait();
     MEvents.clear();
   }
 
@@ -230,15 +230,15 @@ public:
                size_t Count);
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
-  void reportAsyncException(std::exception_ptr E) {
+  void reportAsyncException(std::exception_ptr ExceptionPtr) {
     std::lock_guard<mutex_class> guard(MMutex);
-    MExceptions.PushBack(E);
+    MExceptions.PushBack(ExceptionPtr);
   }
 
 private:
-  event submit_impl(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self) {
-    handler Handler(std::move(self), MHostQueue);
-    cgf(Handler);
+  event submit_impl(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self) {
+    handler Handler(std::move(Self), MHostQueue);
+    CGF(Handler);
     event Event = Handler.finalize();
     {
       std::lock_guard<mutex_class> guard(MMutex);
