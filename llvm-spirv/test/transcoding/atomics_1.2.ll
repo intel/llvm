@@ -23,13 +23,13 @@ define spir_kernel void @test_atomic_global(i32 addrspace(1)* %dst) #0 !kernel_a
   %max_ig = tail call spir_func i32 @_Z10atomic_maxPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
   ; CHECK: _Z10atomic_maxPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
   %max_jg = tail call spir_func i32 @_Z10atomic_maxPU3AS1Vjj(i32 addrspace(1)* %dst, i32 0) #0
-  ; CHECK: _Z10atomic_maxPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
+  ; CHECK: _Z10atomic_maxPU3AS1Vjj(i32 addrspace(1)* %dst, i32 0) #0
 
   ; atomic_min
   %min_ig = tail call spir_func i32 @_Z10atomic_minPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
   ; CHECK: _Z10atomic_minPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
   %min_jg = tail call spir_func i32 @_Z10atomic_minPU3AS1Vjj(i32 addrspace(1)* %dst, i32 0) #0
-  ; CHECK: _Z10atomic_minPU3AS1Vii(i32 addrspace(1)* %dst, i32 0) #0
+  ; CHECK: _Z10atomic_minPU3AS1Vjj(i32 addrspace(1)* %dst, i32 0) #0
 
   ; atomic_add
   %add_ig = tail call spir_func i32 @_Z10atomic_addPU3AS1Vii(i32 addrspace(1)* %dst, i32 1) #0
@@ -89,13 +89,13 @@ define spir_kernel void @test_atomic_local(i32 addrspace(3)* %dst) #0 !kernel_ar
   %max_il = tail call spir_func i32 @_Z10atomic_maxPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
   ; CHECK: _Z10atomic_maxPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
   %max_jl = tail call spir_func i32 @_Z10atomic_maxPU3AS3jVj(i32 addrspace(3)* %dst, i32 0) #0
-  ; CHECK: _Z10atomic_maxPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
+  ; CHECK: _Z10atomic_maxPU3AS3Vjj(i32 addrspace(3)* %dst, i32 0) #0
 
   ; atomic_min
   %min_il = tail call spir_func i32 @_Z10atomic_minPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
   ; CHECK: _Z10atomic_minPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
   %min_jl = tail call spir_func i32 @_Z10atomic_minPU3AS3jVj(i32 addrspace(3)* %dst, i32 0) #0
-  ; CHECK: _Z10atomic_minPU3AS3Vii(i32 addrspace(3)* %dst, i32 0) #0
+  ; CHECK: _Z10atomic_minPU3AS3Vjj(i32 addrspace(3)* %dst, i32 0) #0
 
   ; atomic_add
   %add_il = tail call spir_func i32 @_Z10atomic_addPU3AS3Vii(i32 addrspace(3)* %dst, i32 1) #0

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/ClangASTContext.h"
@@ -21,15 +22,7 @@ using namespace lldb_private;
 
 class TestClangASTContext : public testing::Test {
 public:
-  static void SetUpTestCase() {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-  }
-
-  static void TearDownTestCase() {
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
 
   void SetUp() override {
     std::string triple = HostInfo::GetTargetTriple();
@@ -52,67 +45,66 @@ protected:
 };
 
 TEST_F(TestClangASTContext, TestGetBasicTypeFromEnum) {
-  clang::ASTContext *context = m_ast->getASTContext();
+  clang::ASTContext &context = m_ast->getASTContext();
 
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeBool), context->BoolTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeBool), context.BoolTy));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeChar), context->CharTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeChar16),
-                                   context->Char16Ty));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeChar32),
-                                   context->Char32Ty));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeDouble),
-                                   context->DoubleTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeDoubleComplex),
-                                   context->DoubleComplexTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeFloat),
-                                   context->FloatTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeFloatComplex),
-                                   context->FloatComplexTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeChar), context.CharTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeChar16),
+                                  context.Char16Ty));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeChar32),
+                                  context.Char32Ty));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeDouble),
+                                  context.DoubleTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeDoubleComplex),
+                                  context.DoubleComplexTy));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeHalf), context->HalfTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeFloat), context.FloatTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeFloatComplex),
+                                  context.FloatComplexTy));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeInt), context->IntTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeInt128),
-                                   context->Int128Ty));
+      context.hasSameType(GetBasicQualType(eBasicTypeHalf), context.HalfTy));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeLong), context->LongTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeLongDouble),
-                                   context->LongDoubleTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeInt), context.IntTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeInt128),
+                                  context.Int128Ty));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeLongDoubleComplex),
-                           context->LongDoubleComplexTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeLongLong),
-                                   context->LongLongTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeNullPtr),
-                                   context->NullPtrTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeObjCClass),
-                                   context->getObjCClassType()));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeObjCID),
-                                   context->getObjCIdType()));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeObjCSel),
-                                   context->getObjCSelType()));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeShort),
-                                   context->ShortTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeSignedChar),
-                                   context->SignedCharTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedChar),
-                                   context->UnsignedCharTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedInt),
-                                   context->UnsignedIntTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedInt128),
-                                   context->UnsignedInt128Ty));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedLong),
-                                   context->UnsignedLongTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedLongLong),
-                                   context->UnsignedLongLongTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeUnsignedShort),
-                                   context->UnsignedShortTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeLong), context.LongTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeLongDouble),
+                                  context.LongDoubleTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeLongDoubleComplex),
+                                  context.LongDoubleComplexTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeLongLong),
+                                  context.LongLongTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeNullPtr),
+                                  context.NullPtrTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeObjCClass),
+                                  context.getObjCClassType()));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeObjCID),
+                                  context.getObjCIdType()));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeObjCSel),
+                                  context.getObjCSelType()));
   EXPECT_TRUE(
-      context->hasSameType(GetBasicQualType(eBasicTypeVoid), context->VoidTy));
-  EXPECT_TRUE(context->hasSameType(GetBasicQualType(eBasicTypeWChar),
-                                   context->WCharTy));
+      context.hasSameType(GetBasicQualType(eBasicTypeShort), context.ShortTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeSignedChar),
+                                  context.SignedCharTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedChar),
+                                  context.UnsignedCharTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedInt),
+                                  context.UnsignedIntTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedInt128),
+                                  context.UnsignedInt128Ty));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedLong),
+                                  context.UnsignedLongTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedLongLong),
+                                  context.UnsignedLongLongTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeUnsignedShort),
+                                  context.UnsignedShortTy));
+  EXPECT_TRUE(
+      context.hasSameType(GetBasicQualType(eBasicTypeVoid), context.VoidTy));
+  EXPECT_TRUE(
+      context.hasSameType(GetBasicQualType(eBasicTypeWChar), context.WCharTy));
 }
 
 TEST_F(TestClangASTContext, TestGetBasicTypeFromName) {
@@ -168,7 +160,7 @@ TEST_F(TestClangASTContext, TestGetBasicTypeFromName) {
 
 void VerifyEncodingAndBitSize(ClangASTContext &clang_context,
                               lldb::Encoding encoding, unsigned int bit_size) {
-  clang::ASTContext *context = clang_context.getASTContext();
+  clang::ASTContext &context = clang_context.getASTContext();
 
   CompilerType type =
       clang_context.GetBuiltinTypeForEncodingAndBitSize(encoding, bit_size);
@@ -179,7 +171,7 @@ void VerifyEncodingAndBitSize(ClangASTContext &clang_context,
   if (qtype.isNull())
     return;
 
-  uint64_t actual_size = context->getTypeSize(qtype);
+  uint64_t actual_size = context.getTypeSize(qtype);
   EXPECT_EQ(bit_size, actual_size);
 
   const clang::Type *type_ptr = qtype.getTypePtr();
@@ -229,9 +221,9 @@ TEST_F(TestClangASTContext, TestBuiltinTypeForEncodingAndBitSize) {
 }
 
 TEST_F(TestClangASTContext, TestIsClangType) {
-  clang::ASTContext *context = m_ast->getASTContext();
+  clang::ASTContext &context = m_ast->getASTContext();
   lldb::opaque_compiler_type_t bool_ctype =
-      ClangASTContext::GetOpaqueCompilerType(context, lldb::eBasicTypeBool);
+      ClangASTContext::GetOpaqueCompilerType(&context, lldb::eBasicTypeBool);
   CompilerType bool_type(m_ast.get(), bool_ctype);
   CompilerType record_type = m_ast->CreateRecordType(
       nullptr, lldb::eAccessPublic, "FooRecord", clang::TTK_Struct,
@@ -392,11 +384,11 @@ TEST_F(TestClangASTContext, TestRecordHasFields) {
 TEST_F(TestClangASTContext, TemplateArguments) {
   ClangASTContext::TemplateParameterInfos infos;
   infos.names.push_back("T");
-  infos.args.push_back(TemplateArgument(m_ast->getASTContext()->IntTy));
+  infos.args.push_back(TemplateArgument(m_ast->getASTContext().IntTy));
   infos.names.push_back("I");
   llvm::APSInt arg(llvm::APInt(8, 47));
-  infos.args.push_back(TemplateArgument(*m_ast->getASTContext(), arg,
-                                        m_ast->getASTContext()->IntTy));
+  infos.args.push_back(TemplateArgument(m_ast->getASTContext(), arg,
+                                        m_ast->getASTContext().IntTy));
 
   // template<typename T, int I> struct foo;
   ClassTemplateDecl *decl = m_ast->CreateClassTemplateDecl(
@@ -415,17 +407,17 @@ TEST_F(TestClangASTContext, TemplateArguments) {
 
   // typedef foo<int, 47> foo_def;
   CompilerType typedef_type = m_ast->CreateTypedefType(
-      type, "foo_def",
-      CompilerDeclContext(m_ast.get(), m_ast->GetTranslationUnitDecl()));
+      type, "foo_def", m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()));
 
   CompilerType auto_type(
       m_ast.get(),
       m_ast->getASTContext()
-          ->getAutoType(ClangUtil::GetCanonicalQualType(typedef_type),
-                        clang::AutoTypeKeyword::Auto, false)
+          .getAutoType(ClangUtil::GetCanonicalQualType(typedef_type),
+                       clang::AutoTypeKeyword::Auto, false)
           .getAsOpaquePtr());
 
-  CompilerType int_type(m_ast.get(), m_ast->getASTContext()->IntTy.getAsOpaquePtr());
+  CompilerType int_type(m_ast.get(),
+                        m_ast->getASTContext().IntTy.getAsOpaquePtr());
   for (CompilerType t : {type, typedef_type, auto_type}) {
     SCOPED_TRACE(t.GetTypeName().AsCString());
 
@@ -454,27 +446,27 @@ static QualType makeConstInt(clang::ASTContext &ctxt) {
 }
 
 TEST_F(TestClangASTContext, TestGetTypeClassDeclType) {
-  clang::ASTContext &ctxt = *m_ast->getASTContext();
+  clang::ASTContext &ctxt = m_ast->getASTContext();
   auto *nullptr_expr = new (ctxt) CXXNullPtrLiteralExpr(ctxt.NullPtrTy, SourceLocation());
   QualType t = ctxt.getDecltypeType(nullptr_expr, makeConstInt(ctxt));
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestClangASTContext, TestGetTypeClassTypeOf) {
-  clang::ASTContext &ctxt = *m_ast->getASTContext();
+  clang::ASTContext &ctxt = m_ast->getASTContext();
   QualType t = ctxt.getTypeOfType(makeConstInt(ctxt));
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestClangASTContext, TestGetTypeClassTypeOfExpr) {
-  clang::ASTContext &ctxt = *m_ast->getASTContext();
+  clang::ASTContext &ctxt = m_ast->getASTContext();
   auto *nullptr_expr = new (ctxt) CXXNullPtrLiteralExpr(ctxt.NullPtrTy, SourceLocation());
   QualType t = ctxt.getTypeOfExprType(nullptr_expr);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestClangASTContext, TestGetTypeClassNested) {
-  clang::ASTContext &ctxt = *m_ast->getASTContext();
+  clang::ASTContext &ctxt = m_ast->getASTContext();
   QualType t_base = ctxt.getTypeOfType(makeConstInt(ctxt));
   QualType t = ctxt.getTypeOfType(t_base);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));

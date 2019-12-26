@@ -53,6 +53,9 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Constant, // sycl_constant
     Private,  // sycl_private
     Generic,  // sycl_generic
+    Generic,  // ptr32_sptr
+    Generic,  // ptr32_uptr
+    Generic   // ptr64
 };
 
 const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
@@ -70,6 +73,9 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Constant, // sycl_constant
     Private,  // sycl_private
     Generic,  // sycl_generic
+    Generic,  // ptr32_sptr
+    Generic,  // ptr32_uptr
+    Generic   // ptr64
 };
 } // namespace targets
 } // namespace clang

@@ -100,23 +100,7 @@ public:
     return llvm::dyn_cast<ClangASTContext>(&type_system_or_err.get());
   }
 
-  clang::ASTContext *getASTContext();
-
-  clang::Builtin::Context *getBuiltinContext();
-
-  clang::IdentifierTable *getIdentifierTable();
-
-  clang::LangOptions *getLanguageOptions();
-
-  clang::SelectorTable *getSelectorTable();
-
-  clang::FileManager *getFileManager();
-
-  clang::SourceManager *getSourceManager();
-
-  clang::DiagnosticsEngine *getDiagnosticsEngine();
-
-  clang::DiagnosticConsumer *getDiagnosticConsumer();
+  clang::ASTContext &getASTContext();
 
   clang::MangleContext *getMangleContext();
 
@@ -133,7 +117,7 @@ public:
       llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> &ast_source_up);
 
   bool GetCompleteDecl(clang::Decl *decl) {
-    return ClangASTContext::GetCompleteDecl(getASTContext(), decl);
+    return ClangASTContext::GetCompleteDecl(&getASTContext(), decl);
   }
 
   static void DumpDeclHiearchy(clang::Decl *decl);
@@ -150,14 +134,14 @@ public:
   void SetMetadata(const clang::Decl *object, ClangASTMetadata &meta_data);
   void SetMetadata(const clang::Type *object, ClangASTMetadata &meta_data);
   ClangASTMetadata *GetMetadata(const clang::Decl *object) {
-    return GetMetadata(getASTContext(), object);
+    return GetMetadata(&getASTContext(), object);
   }
 
   static ClangASTMetadata *GetMetadata(clang::ASTContext *ast,
                                        const clang::Decl *object);
 
   ClangASTMetadata *GetMetadata(const clang::Type *object) {
-    return GetMetadata(getASTContext(), object);
+    return GetMetadata(&getASTContext(), object);
   }
 
   static ClangASTMetadata *GetMetadata(clang::ASTContext *ast,
@@ -183,15 +167,9 @@ public:
 
   uint32_t GetPointerByteSize() override;
 
-  static clang::DeclContext *GetTranslationUnitDecl(clang::ASTContext *ast);
-
-  clang::DeclContext *GetTranslationUnitDecl() {
-    return GetTranslationUnitDecl(getASTContext());
+  clang::TranslationUnitDecl *GetTranslationUnitDecl() {
+    return getASTContext().getTranslationUnitDecl();
   }
-
-  static clang::Decl *CopyDecl(clang::ASTContext *dest_context,
-                               clang::ASTContext *source_context,
-                               clang::Decl *source_decl);
 
   static bool AreTypesSame(CompilerType type1, CompilerType type2,
                            bool ignore_qualifiers = false);
@@ -209,27 +187,23 @@ public:
     CompilerType compiler_type;
 
     if (type_name.GetLength()) {
-      clang::ASTContext *ast = getASTContext();
-      if (ast) {
-        if (!decl_context)
-          decl_context = ast->getTranslationUnitDecl();
+      clang::ASTContext &ast = getASTContext();
+      if (!decl_context)
+        decl_context = ast.getTranslationUnitDecl();
 
-        clang::IdentifierInfo &myIdent =
-            ast->Idents.get(type_name.GetCString());
-        clang::DeclarationName myName =
-            ast->DeclarationNames.getIdentifier(&myIdent);
+      clang::IdentifierInfo &myIdent = ast.Idents.get(type_name.GetCString());
+      clang::DeclarationName myName =
+          ast.DeclarationNames.getIdentifier(&myIdent);
 
-        clang::DeclContext::lookup_result result =
-            decl_context->lookup(myName);
+      clang::DeclContext::lookup_result result = decl_context->lookup(myName);
 
-        if (!result.empty()) {
-          clang::NamedDecl *named_decl = result[0];
-          if (const RecordDeclType *record_decl =
-                  llvm::dyn_cast<RecordDeclType>(named_decl))
-            compiler_type.SetCompilerType(
-                this, clang::QualType(record_decl->getTypeForDecl(), 0)
-                          .getAsOpaquePtr());
-        }
+      if (!result.empty()) {
+        clang::NamedDecl *named_decl = result[0];
+        if (const RecordDeclType *record_decl =
+                llvm::dyn_cast<RecordDeclType>(named_decl))
+          compiler_type.SetCompilerType(
+              this, clang::QualType(record_decl->getTypeForDecl(), 0)
+                        .getAsOpaquePtr());
       }
     }
 
@@ -371,14 +345,14 @@ public:
                                   const CompilerType *args, unsigned num_args,
                                   bool is_variadic, unsigned type_quals) {
     return ClangASTContext::CreateFunctionType(
-        getASTContext(), result_type, args, num_args, is_variadic, type_quals);
+        &getASTContext(), result_type, args, num_args, is_variadic, type_quals);
   }
 
   CompilerType CreateFunctionType(const CompilerType &result_type,
                                   const CompilerType *args, unsigned num_args,
                                   bool is_variadic, unsigned type_quals,
                                   clang::CallingConv cc) {
-    return ClangASTContext::CreateFunctionType(getASTContext(), result_type,
+    return ClangASTContext::CreateFunctionType(&getASTContext(), result_type,
                                                args, num_args, is_variadic,
                                                type_quals, cc);
   }
@@ -412,7 +386,7 @@ public:
                                             size_t bit_size, bool is_signed);
 
   CompilerType GetPointerSizedIntType(bool is_signed) {
-    return GetPointerSizedIntType(getASTContext(), is_signed);
+    return GetPointerSizedIntType(&getASTContext(), is_signed);
   }
 
   static CompilerType GetPointerSizedIntType(clang::ASTContext *ast,
@@ -428,14 +402,12 @@ public:
   PDBASTParser *GetPDBParser() override;
 
   // ClangASTContext callbacks for external source lookups.
-  static void CompleteTagDecl(void *baton, clang::TagDecl *);
+  void CompleteTagDecl(clang::TagDecl *);
 
-  static void CompleteObjCInterfaceDecl(void *baton,
-                                        clang::ObjCInterfaceDecl *);
+  void CompleteObjCInterfaceDecl(clang::ObjCInterfaceDecl *);
 
-  static bool LayoutRecordType(
-      void *baton, const clang::RecordDecl *record_decl, uint64_t &size,
-      uint64_t &alignment,
+  bool LayoutRecordType(
+      const clang::RecordDecl *record_decl, uint64_t &size, uint64_t &alignment,
       llvm::DenseMap<const clang::FieldDecl *, uint64_t> &field_offsets,
       llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits>
           &base_offsets,
@@ -460,11 +432,15 @@ public:
 
   // CompilerDeclContext override functions
 
+  /// Creates a CompilerDeclContext from the given DeclContext
+  /// with the current ClangASTContext instance as its typesystem.
+  /// The DeclContext has to come from the ASTContext of this
+  /// ClangASTContext.
+  CompilerDeclContext CreateDeclContext(clang::DeclContext *ctx);
+
   std::vector<CompilerDecl>
   DeclContextFindDeclByName(void *opaque_decl_ctx, ConstString name,
                             const bool ignore_using_decls) override;
-
-  bool DeclContextIsStructUnionOrClass(void *opaque_decl_ctx) override;
 
   ConstString DeclContextGetName(void *opaque_decl_ctx) override;
 
@@ -988,9 +964,6 @@ protected:
   std::unique_ptr<PDBASTParser> m_pdb_ast_parser_up;
   std::unique_ptr<ClangASTSource> m_scratch_ast_source_up;
   std::unique_ptr<clang::MangleContext> m_mangle_ctx_up;
-  CompleteTagDeclCallback m_callback_tag_decl = nullptr;
-  CompleteObjCInterfaceDeclCallback m_callback_objc_decl = nullptr;
-  void *m_callback_baton = nullptr;
   uint32_t m_pointer_byte_size = 0;
   bool m_ast_owned = false;
   /// The sema associated that is currently used to build this ASTContext.

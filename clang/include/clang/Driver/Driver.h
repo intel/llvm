@@ -646,6 +646,9 @@ bool isOptimizationLevelFast(const llvm::opt::ArgList &Args);
 /// \return True if the filename has a valid object file extension.
 bool isObjectFile(std::string FileName);
 
+/// \return True if the argument combination will end up generating remarks.
+bool willEmitRemarks(const llvm::opt::ArgList &Args);
+
 } // end namespace driver
 } // end namespace clang
 

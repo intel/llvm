@@ -1186,12 +1186,8 @@ Register AMDGPULegalizerInfo::getSegmentAperture(
   // private_segment_aperture_base_hi.
   uint32_t StructOffset = (AS == AMDGPUAS::LOCAL_ADDRESS) ? 0x40 : 0x44;
 
-  // FIXME: Don't use undef
-  Value *V = UndefValue::get(PointerType::get(
-                               Type::getInt8Ty(MF.getFunction().getContext()),
-                               AMDGPUAS::CONSTANT_ADDRESS));
-
-  MachinePointerInfo PtrInfo(V, StructOffset);
+  // TODO: can we be smarter about machine pointer info?
+  MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
   MachineMemOperand *MMO = MF.getMachineMemOperand(
     PtrInfo,
     MachineMemOperand::MOLoad |
@@ -2028,14 +2024,14 @@ bool AMDGPULegalizerInfo::legalizeFDIV32(MachineInstr &MI,
   auto DenominatorScaled =
     B.buildIntrinsic(Intrinsic::amdgcn_div_scale, {S32, S1}, false)
       .addUse(RHS)
-      .addUse(RHS)
       .addUse(LHS)
+      .addImm(1)
       .setMIFlags(Flags);
   auto NumeratorScaled =
     B.buildIntrinsic(Intrinsic::amdgcn_div_scale, {S32, S1}, false)
       .addUse(LHS)
       .addUse(RHS)
-      .addUse(LHS)
+      .addImm(0)
       .setMIFlags(Flags);
 
   auto ApproxRcp = B.buildIntrinsic(Intrinsic::amdgcn_rcp, {S32}, false)
@@ -2091,9 +2087,9 @@ bool AMDGPULegalizerInfo::legalizeFDIV64(MachineInstr &MI,
   auto One = B.buildFConstant(S64, 1.0);
 
   auto DivScale0 = B.buildIntrinsic(Intrinsic::amdgcn_div_scale, {S64, S1}, false)
-    .addUse(RHS)
-    .addUse(RHS)
     .addUse(LHS)
+    .addUse(RHS)
+    .addImm(1)
     .setMIFlags(Flags);
 
   auto NegDivScale0 = B.buildFNeg(S64, DivScale0.getReg(0), Flags);
@@ -2109,7 +2105,7 @@ bool AMDGPULegalizerInfo::legalizeFDIV64(MachineInstr &MI,
   auto DivScale1 = B.buildIntrinsic(Intrinsic::amdgcn_div_scale, {S64, S1}, false)
     .addUse(LHS)
     .addUse(RHS)
-    .addUse(LHS)
+    .addImm(0)
     .setMIFlags(Flags);
 
   auto Fma3 = B.buildFMA(S64, Fma1, Fma2, Fma1, Flags);

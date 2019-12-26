@@ -16,6 +16,7 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SMLoc.h"
 #include <cstdint>
@@ -41,6 +42,7 @@ public:
     FT_Dwarf,
     FT_DwarfFrame,
     FT_LEB,
+    FT_BoundaryAlign,
     FT_SymbolId,
     FT_CVInlineLines,
     FT_CVDefRange,
@@ -54,14 +56,13 @@ protected:
   bool HasInstructions;
 
 private:
-  /// LayoutOrder - The layout order of this fragment.
+  /// The layout order of this fragment.
   unsigned LayoutOrder;
 
   /// The data for the section this fragment is in.
   MCSection *Parent;
 
-  /// Atom - The atom this fragment is in, as represented by its defining
-  /// symbol.
+  /// The atom this fragment is in, as represented by its defining symbol.
   const MCSymbol *Atom;
 
   /// \name Assembler Backend Data
@@ -69,7 +70,7 @@ private:
   //
   // FIXME: This could all be kept private to the assembler implementation.
 
-  /// Offset - The offset of this fragment in its section. This is ~0 until
+  /// The offset of this fragment in its section. This is ~0 until
   /// initialized.
   uint64_t Offset;
 
@@ -132,8 +133,8 @@ protected:
                     MCSection *Sec)
       : MCFragment(FType, HasInstructions, Sec) {}
 
-  /// STI - The MCSubtargetInfo in effect when the instruction was encoded.
-  /// must be non-null for instructions.
+  /// The MCSubtargetInfo in effect when the instruction was encoded.
+  /// It must be non-null for instructions.
   const MCSubtargetInfo *STI = nullptr;
 
 public:
@@ -203,7 +204,7 @@ template<unsigned ContentsSize, unsigned FixupsSize>
 class MCEncodedFragmentWithFixups :
   public MCEncodedFragmentWithContents<ContentsSize> {
 
-  /// Fixups - The list of fixups in this fragment.
+  /// The list of fixups in this fragment.
   SmallVector<MCFixup, FixupsSize> Fixups;
 
 protected:
@@ -268,7 +269,7 @@ public:
 ///
 class MCRelaxableFragment : public MCEncodedFragmentWithFixups<8, 1> {
 
-  /// Inst - The instruction this is a fragment for.
+  /// The instruction this is a fragment for.
   MCInst Inst;
 
 public:
@@ -286,21 +287,21 @@ public:
 };
 
 class MCAlignFragment : public MCFragment {
-  /// Alignment - The alignment to ensure, in bytes.
+  /// The alignment to ensure, in bytes.
   unsigned Alignment;
 
-  /// EmitNops - Flag to indicate that (optimal) NOPs should be emitted instead
+  /// Flag to indicate that (optimal) NOPs should be emitted instead
   /// of using the provided value. The exact interpretation of this flag is
   /// target dependent.
   bool EmitNops : 1;
 
-  /// Value - Value to use for filling padding bytes.
+  /// Value to use for filling padding bytes.
   int64_t Value;
 
-  /// ValueSize - The size of the integer (in bytes) of \p Value.
+  /// The size of the integer (in bytes) of \p Value.
   unsigned ValueSize;
 
-  /// MaxBytesToEmit - The maximum number of bytes to emit; if the alignment
+  /// The maximum number of bytes to emit; if the alignment
   /// cannot be satisfied in this width then this fragment is ignored.
   unsigned MaxBytesToEmit;
 
@@ -390,10 +391,10 @@ public:
 };
 
 class MCLEBFragment : public MCFragment {
-  /// Value - The value this fragment should contain.
+  /// The value this fragment should contain.
   const MCExpr *Value;
 
-  /// IsSigned - True if this is a sleb128, false if uleb128.
+  /// True if this is a sleb128, false if uleb128.
   bool IsSigned;
 
   SmallString<8> Contents;
@@ -422,11 +423,11 @@ public:
 };
 
 class MCDwarfLineAddrFragment : public MCEncodedFragmentWithFixups<8, 1> {
-  /// LineDelta - the value of the difference between the two line numbers
+  /// The value of the difference between the two line numbers
   /// between two .loc dwarf directives.
   int64_t LineDelta;
 
-  /// AddrDelta - The expression for the difference of the two symbols that
+  /// The expression for the difference of the two symbols that
   /// make up the address delta between two .loc dwarf directives.
   const MCExpr *AddrDelta;
 
@@ -451,7 +452,7 @@ public:
 };
 
 class MCDwarfCallFrameFragment : public MCEncodedFragmentWithFixups<8, 1> {
-  /// AddrDelta - The expression for the difference of the two symbols that
+  /// The expression for the difference of the two symbols that
   /// make up the address delta between two .cfi_* dwarf directives.
   const MCExpr *AddrDelta;
 
@@ -563,6 +564,47 @@ public:
   }
 };
 
+/// Represents required padding such that a particular other set of fragments
+/// does not cross a particular power-of-two boundary. The other fragments must
+/// follow this one within the same section.
+class MCBoundaryAlignFragment : public MCFragment {
+private:
+  /// The size of the fragment.  The size is lazily set during relaxation, and
+  /// is not meaningful before that.
+  uint64_t Size = 0;
+  /// The alignment requirement of the branch to be aligned.
+  Align AlignBoundary;
+  /// Flag to indicate whether the branch is fused.  Use in determining the
+  /// region of fragments being aligned.
+  bool Fused : 1;
+  /// Flag to indicate whether NOPs should be emitted.
+  bool EmitNops : 1;
+
+public:
+  MCBoundaryAlignFragment(Align AlignBoundary, bool Fused = false,
+                          bool EmitNops = false, MCSection *Sec = nullptr)
+      : MCFragment(FT_BoundaryAlign, false, Sec), AlignBoundary(AlignBoundary),
+        Fused(Fused), EmitNops(EmitNops) {}
+
+  /// \name Accessors
+  /// @{
+  uint64_t getSize() const { return Size; }
+  void setSize(uint64_t Value) { Size = Value; }
+
+  Align getAlignment() const { return AlignBoundary; }
+
+  bool isFused() const { return Fused; }
+  void setFused(bool Value) { Fused = Value; }
+
+  bool canEmitNops() const { return EmitNops; }
+  void setEmitNops(bool Value) { EmitNops = Value; }
+  /// @}
+  //
+
+  static bool classof(const MCFragment *F) {
+    return F->getKind() == MCFragment::FT_BoundaryAlign;
+  }
+};
 } // end namespace llvm
 
 #endif // LLVM_MC_MCFRAGMENT_H

@@ -634,7 +634,6 @@ LLVMToSPIRVDbgTran::transDbgCompositeType(const DICompositeType *CT) {
 
   SPIRVEntry *Res =
       BM->addDebugInfo(SPIRVDebug::TypeComposite, getVoidTy(), Ops);
-  BM->replaceForward(Tmp, Res);
 
   // Translate template parameters.
   if (DITemplateParameterArray TP = CT->getTemplateParams()) {
@@ -646,6 +645,7 @@ LLVMToSPIRVDbgTran::transDbgCompositeType(const DICompositeType *CT) {
     }
     Res = BM->addDebugInfo(SPIRVDebug::TypeTemplate, getVoidTy(), Args);
   }
+  BM->replaceForward(Tmp, Res);
   MDMap[CT] = Res;
   return Res;
 }

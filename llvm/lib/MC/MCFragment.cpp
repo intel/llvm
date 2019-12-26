@@ -275,6 +275,9 @@ void MCFragment::destroy() {
     case FT_LEB:
       delete cast<MCLEBFragment>(this);
       return;
+    case FT_BoundaryAlign:
+      delete cast<MCBoundaryAlignFragment>(this);
+      return;
     case FT_SymbolId:
       delete cast<MCSymbolIdFragment>(this);
       return;
@@ -319,6 +322,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   case MCFragment::FT_Dwarf: OS << "MCDwarfFragment"; break;
   case MCFragment::FT_DwarfFrame: OS << "MCDwarfCallFrameFragment"; break;
   case MCFragment::FT_LEB:   OS << "MCLEBFragment"; break;
+  case MCFragment::FT_BoundaryAlign: OS<<"MCBoundaryAlignFragment"; break;
   case MCFragment::FT_SymbolId:    OS << "MCSymbolIdFragment"; break;
   case MCFragment::FT_CVInlineLines: OS << "MCCVInlineLineTableFragment"; break;
   case MCFragment::FT_CVDefRange: OS << "MCCVDefRangeTableFragment"; break;
@@ -327,13 +331,13 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 
   OS << "<MCFragment " << (const void *)this << " LayoutOrder:" << LayoutOrder
      << " Offset:" << Offset << " HasInstructions:" << hasInstructions();
-  if (const MCEncodedFragment *EF = dyn_cast<MCEncodedFragment>(this))
+  if (const auto *EF = dyn_cast<MCEncodedFragment>(this))
     OS << " BundlePadding:" << static_cast<unsigned>(EF->getBundlePadding());
   OS << ">";
 
   switch (getKind()) {
   case MCFragment::FT_Align: {
-    const MCAlignFragment *AF = cast<MCAlignFragment>(this);
+    const auto *AF = cast<MCAlignFragment>(this);
     if (AF->hasEmitNops())
       OS << " (emit nops)";
     OS << "\n       ";
@@ -343,7 +347,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_Data:  {
-    const MCDataFragment *DF = cast<MCDataFragment>(this);
+    const auto *DF = cast<MCDataFragment>(this);
     OS << "\n       ";
     OS << " Contents:[";
     const SmallVectorImpl<char> &Contents = DF->getContents();
@@ -366,7 +370,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_CompactEncodedInst: {
-    const MCCompactEncodedInstFragment *CEIF =
+    const auto *CEIF =
       cast<MCCompactEncodedInstFragment>(this);
     OS << "\n       ";
     OS << " Contents:[";
@@ -379,47 +383,60 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_Fill:  {
-    const MCFillFragment *FF = cast<MCFillFragment>(this);
+    const auto *FF = cast<MCFillFragment>(this);
     OS << " Value:" << static_cast<unsigned>(FF->getValue())
        << " ValueSize:" << static_cast<unsigned>(FF->getValueSize())
        << " NumValues:" << FF->getNumValues();
     break;
   }
   case MCFragment::FT_Relaxable:  {
-    const MCRelaxableFragment *F = cast<MCRelaxableFragment>(this);
+    const auto *F = cast<MCRelaxableFragment>(this);
     OS << "\n       ";
     OS << " Inst:";
     F->getInst().dump_pretty(OS);
     break;
   }
   case MCFragment::FT_Org:  {
-    const MCOrgFragment *OF = cast<MCOrgFragment>(this);
+    const auto *OF = cast<MCOrgFragment>(this);
     OS << "\n       ";
     OS << " Offset:" << OF->getOffset()
        << " Value:" << static_cast<unsigned>(OF->getValue());
     break;
   }
   case MCFragment::FT_Dwarf:  {
-    const MCDwarfLineAddrFragment *OF = cast<MCDwarfLineAddrFragment>(this);
+    const auto *OF = cast<MCDwarfLineAddrFragment>(this);
     OS << "\n       ";
     OS << " AddrDelta:" << OF->getAddrDelta()
        << " LineDelta:" << OF->getLineDelta();
     break;
   }
   case MCFragment::FT_DwarfFrame:  {
-    const MCDwarfCallFrameFragment *CF = cast<MCDwarfCallFrameFragment>(this);
+    const auto *CF = cast<MCDwarfCallFrameFragment>(this);
     OS << "\n       ";
     OS << " AddrDelta:" << CF->getAddrDelta();
     break;
   }
   case MCFragment::FT_LEB: {
-    const MCLEBFragment *LF = cast<MCLEBFragment>(this);
+    const auto *LF = cast<MCLEBFragment>(this);
     OS << "\n       ";
     OS << " Value:" << LF->getValue() << " Signed:" << LF->isSigned();
     break;
   }
+  case MCFragment::FT_BoundaryAlign: {
+    const auto *BF = cast<MCBoundaryAlignFragment>(this);
+    if (BF->canEmitNops())
+      OS << " (can emit nops to align";
+    if (BF->isFused())
+      OS << " fused branch)";
+    else
+      OS << " unfused branch)";
+    OS << "\n       ";
+    OS << " BoundarySize:" << BF->getAlignment().value()
+       << " Size:" << BF->getSize();
+    break;
+  }
   case MCFragment::FT_SymbolId: {
-    const MCSymbolIdFragment *F = cast<MCSymbolIdFragment>(this);
+    const auto *F = cast<MCSymbolIdFragment>(this);
     OS << "\n       ";
     OS << " Sym:" << F->getSymbol();
     break;

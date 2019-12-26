@@ -760,6 +760,8 @@ template <> inline void SPIRVMap<std::string, Op, OCL12Builtin>::init() {
   _SPIRV_OP(dec, AtomicIDecrement)
   _SPIRV_OP(min, AtomicSMin)
   _SPIRV_OP(max, AtomicSMax)
+  _SPIRV_OP(umin, AtomicUMin)
+  _SPIRV_OP(umax, AtomicUMax)
   _SPIRV_OP(and, AtomicAnd)
   _SPIRV_OP(or, AtomicOr)
   _SPIRV_OP(xor, AtomicXor)
