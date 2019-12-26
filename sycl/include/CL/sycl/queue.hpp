@@ -156,10 +156,11 @@ public:
   /// for execution on a secondary queue.
   ///
   /// @param CGF is a function object containing command group.
+  /// @param SecondaryQueue is a fallback SYCL queue.
   /// @return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  template <typename T> event submit(T cgf, queue &secondaryQueue) {
-    return submit_impl(cgf, secondaryQueue);
+  template <typename T> event submit(T CGF, queue &SecondaryQueue) {
+    return submit_impl(CGF, SecondaryQueue);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -207,6 +208,7 @@ public:
   /// @param Dest is a USM pointer to the destination memory.
   /// @param Src is a USM pointer to the source memory.
   /// @param Count is a number of bytes to copy.
+  /// @return an event representing copy operation.
   event memcpy(void* Dest, const void* Src, size_t Count);
 
   /// Provides additional information to the underlying runtime about how
@@ -215,6 +217,7 @@ public:
   /// @param Ptr is a USM pointer to the allocation.
   /// @param Length is a number of bytes in the allocation.
   /// @param Advice is a device-defined advice for the specified allocation.
+  /// @return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
   /// Provides hints to the runtime library that data should be made available

@@ -51,7 +51,7 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
         "Failed to build a sycl ordered queue from a cl OOO queue.");
 
   impl =
-      std::make_shared<detail::queue_impl>(clQueue,
+      std::make_shared<detail::queue_impl>(m_CommandQueue,
           detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
