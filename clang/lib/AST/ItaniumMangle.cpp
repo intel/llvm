@@ -2445,6 +2445,67 @@ static bool isTypeSubstitutable(Qualifiers Quals, const Type *Ty,
   return true;
 }
 
+namespace {
+struct DeclContextDesc {
+  Decl::Kind DeclKind;
+  StringRef Name;
+};
+} // namespace
+
+// For Scopes argument, the only supported Decl::Kind values are:
+// - Namespace
+// - CXXRecord
+// - ClassTemplateSpecialization
+static bool matchQualifiedTypeName(const QualType &Ty,
+                            ArrayRef<DeclContextDesc> Scopes) {
+  // The idea: check the declaration context chain starting from the type
+  // itself. At each step check the context is of expected kind
+  // (namespace) and name.
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+
+  if (!RecTy)
+    return false; // only classes/structs supported
+  const auto *Ctx = dyn_cast<DeclContext>(RecTy);
+
+  for (const auto &Scope : llvm::reverse(Scopes)) {
+    Decl::Kind DK = Ctx->getDeclKind();
+    StringRef Name = "";
+
+    if (DK != Scope.DeclKind)
+      return false;
+
+    switch (DK) {
+    case Decl::Kind::ClassTemplateSpecialization:
+      // ClassTemplateSpecializationDecl inherits from CXXRecordDecl
+    case Decl::Kind::CXXRecord:
+      Name = cast<CXXRecordDecl>(Ctx)->getName();
+      break;
+    case Decl::Kind::Namespace:
+      Name = cast<NamespaceDecl>(Ctx)->getName();
+      break;
+    default:
+      return false;
+    }
+    if (Name != Scope.Name)
+      return false;
+    Ctx = Ctx->getParent();
+  }
+  return Ctx->isTranslationUnit();
+}
+
+static bool isSYCLHostHalfType(const Type *Ty) {
+  // FIXME: this is not really portable, since the bunch of namespace below
+  // is not specified by the SYCL standard and highly depends on particular
+  // implementation
+  static const std::array<DeclContextDesc, 5> Scopes = {
+      DeclContextDesc{Decl::Kind::Namespace, "cl"},
+      DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+      DeclContextDesc{Decl::Kind::Namespace, "detail"},
+      DeclContextDesc{Decl::Kind::Namespace, "half_impl"},
+      DeclContextDesc{Decl::Kind::CXXRecord, "half"}};
+  return matchQualifiedTypeName(QualType(Ty, 0), Scopes);
+}
+
 void CXXNameMangler::mangleType(QualType T) {
   // If our type is instantiation-dependent but not dependent, we mangle
   // it as it was written in the source, removing any top-level sugar.
@@ -2504,6 +2565,11 @@ void CXXNameMangler::mangleType(QualType T) {
 
   bool isSubstitutable =
     isTypeSubstitutable(quals, ty, Context.getASTContext());
+  if (Context.isUniqueNameMangler() && isSYCLHostHalfType(ty)) {
+    // Set isSubstitutable to false for cl::sycl::detail::half_impl::half
+    // to achieve the same mangling for other components
+    isSubstitutable = false;
+  }
   if (isSubstitutable && mangleSubstitution(T))
     return;
 
@@ -2980,6 +3046,11 @@ void CXXNameMangler::mangleType(const RecordType *T) {
   mangleType(static_cast<const TagType*>(T));
 }
 void CXXNameMangler::mangleType(const TagType *T) {
+  if (Context.isUniqueNameMangler() && isSYCLHostHalfType(T)) {
+    // Mangle cl::sycl::detail::half_imple::half as _Float16
+    mangleType(Context.getASTContext().Float16Ty);
+    return;
+  }
   mangleName(T->getDecl());
 }
 
