@@ -206,7 +206,7 @@
   __MAKE_1V_2V_3P(Fun, 8, Ret, Arg1, Arg2, Arg3)                               \
   __MAKE_1V_2V_3P(Fun, 16, Ret, Arg1, Arg2, Arg3)
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace __host_std {
 namespace detail {
 

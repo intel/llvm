@@ -20,7 +20,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

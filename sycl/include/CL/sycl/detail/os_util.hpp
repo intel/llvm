@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
+
 #include <cstdint>
 #include <stdlib.h>
 #include <string>
@@ -54,7 +56,7 @@
 
 #endif
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

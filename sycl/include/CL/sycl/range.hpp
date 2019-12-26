@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <int dimensions> class id;
 template <int dimensions = 1> class range : public detail::array<dimensions> {

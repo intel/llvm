@@ -29,7 +29,7 @@ extern "C" void __tgt_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 class context;
 namespace detail {

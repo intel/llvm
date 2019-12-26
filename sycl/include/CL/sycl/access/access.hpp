@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-namespace cl {
+#include <CL/sycl/detail/defines.hpp>
+
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace access {
 

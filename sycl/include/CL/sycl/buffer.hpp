@@ -14,7 +14,7 @@
 
 // TODO: 4.3.4 Properties
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 class handler;
 class queue;

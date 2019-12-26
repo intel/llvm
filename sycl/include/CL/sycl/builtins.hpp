@@ -17,7 +17,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
@@ -27,7 +27,7 @@ namespace __sycl_std = __host_std;
 } // namespace sycl
 } // namespace cl
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)

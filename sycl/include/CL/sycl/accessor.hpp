@@ -143,7 +143,7 @@
 // accessor_common contains several helpers common for both accessor(1) and
 // accessor(3)
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 template <typename DataT, int Dimensions, access::mode AccessMode,

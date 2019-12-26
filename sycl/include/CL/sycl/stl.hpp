@@ -10,6 +10,8 @@
 
 // 4.5 C++ Standard library classes required for the interface
 
+#include <CL/sycl/detail/defines.hpp>
+
 #include <exception>
 #include <functional>
 #include <memory>
@@ -17,7 +19,7 @@
 #include <string>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
  template < class T, class Alloc = std::allocator<T> >

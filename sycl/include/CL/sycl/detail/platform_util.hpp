@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
 
 #ifdef _MSC_VER
@@ -15,7 +16,7 @@
 #define __builtin_expect(a, b) (a)
 #endif
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

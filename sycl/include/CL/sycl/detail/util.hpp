@@ -10,9 +10,11 @@
 
 #ifndef __SYCL_DEVICE_ONLY
 
+#include <CL/sycl/detail/defines.hpp>
+
 #include <mutex>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

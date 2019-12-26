@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <typename T, int N> class vec;
 namespace detail {
@@ -69,7 +69,7 @@ using half = cl::sycl::detail::half_impl::half;
   MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                                      \
   MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 using byte = std::uint8_t;
 using schar = signed char;

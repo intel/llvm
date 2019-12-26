@@ -10,7 +10,7 @@
 #include <CL/sycl/access/access.hpp>
 
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;

@@ -67,7 +67,7 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/

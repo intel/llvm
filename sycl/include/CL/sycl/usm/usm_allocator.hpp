@@ -17,7 +17,7 @@
 #include <cstdlib>
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
