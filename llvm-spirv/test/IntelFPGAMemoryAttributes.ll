@@ -10,6 +10,7 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; TODO: add a bunch of different tests for --spirv-ext option
+; TODO: rewrite test to use a separate function for each attribute
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
@@ -25,6 +26,7 @@
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MaxReplicatesINTEL 2
 ; CHECK-SPIRV: Decorate {{[0-9]+}} SimpleDualPortINTEL
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MergeINTEL "foo" "depth"
+; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 2 1 0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -42,7 +44,8 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM: [[STR8:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{merge:foo:depth}
 ; CHECK-LLVM: [[STR9:@[0-9_.]+]] = {{.*}}{max_replicates:2}
 ; CHECK-LLVM: [[STR10:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
-; CHECK-LLVM: [[STR11:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
+; CHECK-LLVM: [[STR11:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:8}{bank_bits:2,1,0}
+; CHECK-LLVM: [[STR12:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
 @.str = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:4}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [13 x i8] c"test_var.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [13 x i8] c"{register:1}\00", section "llvm.metadata"
@@ -54,7 +57,8 @@ target triple = "spir64-unknown-linux"
 @.str.8 = private unnamed_addr constant [34 x i8] c"{memory:DEFAULT}{merge:foo:depth}\00", section "llvm.metadata"
 @.str.9 = private unnamed_addr constant [19 x i8] c"{max_replicates:2}\00", section "llvm.metadata"
 @.str.10 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{simple_dual_port:1}\00", section "llvm.metadata"
-@.str.11 = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:2}\00", section "llvm.metadata"
+@.str.11 = private unnamed_addr constant [46 x i8] c"{memory:DEFAULT}{numbanks:8}{bank_bits:2,1,0}\00", section "llvm.metadata"
+@.str.12 = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:2}\00", section "llvm.metadata"
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -98,6 +102,7 @@ entry:
   %var_eight = alloca i32, align 4
   %var_nine = alloca i32, align 4
   %var_ten = alloca i32, align 4
+  %var_eleven = alloca i32, align 4
   %0 = bitcast i32* %var_one to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
   %var_one1 = bitcast i32* %var_one to i8*
@@ -146,25 +151,32 @@ entry:
   %var_ten10 = bitcast i32* %var_ten to i8*
   ; CHECK-LLVM: call void @llvm.var.annotation(i8* [[VAR10:%[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([37 x i8], [37 x i8]* [[STR10]], i32 0, i32 0), i8* undef, i32 undef)
   call void @llvm.var.annotation(i8* %var_ten10, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 11)
-  %9 = bitcast i32* %var_ten to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %9) #4
-  %10 = bitcast i32* %var_nine to i8*
+  %9 = bitcast i32* %var_eleven to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %9) #4
+  %var_eleven11 = bitcast i32* %var_eleven to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* [[VAR11:%[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([46 x i8], [46 x i8]* [[STR11]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %var_eleven11, i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 12)
+  %10 = bitcast i32* %var_eleven to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #4
-  %11 = bitcast i32* %var_eight to i8*
+  %11 = bitcast i32* %var_ten to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %11) #4
-  %12 = bitcast i32* %var_seven to i8*
+  %12 = bitcast i32* %var_nine to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #4
-  %13 = bitcast i32* %var_six to i8*
+  %13 = bitcast i32* %var_eight to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #4
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_five) #4
-  %14 = bitcast i32* %var_four to i8*
+  %14 = bitcast i32* %var_seven to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %14) #4
-  %15 = bitcast i32* %var_three to i8*
+  %15 = bitcast i32* %var_six to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %15) #4
-  %16 = bitcast i32* %var_two to i8*
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_five) #4
+  %16 = bitcast i32* %var_four to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %16) #4
-  %17 = bitcast i32* %var_one to i8*
+  %17 = bitcast i32* %var_three to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #4
+  %18 = bitcast i32* %var_two to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #4
+  %19 = bitcast i32* %var_one to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #4
   ret void
 }
 
@@ -174,8 +186,8 @@ define dso_local spir_func void @_Z3boov() #3 {
   %2 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
   call void @llvm.lifetime.start.p0i8(i64 44, i8* %2) #4
   %3 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR11:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([29 x i8], [29 x i8]* [[STR11]], i32 0, i32 0), i8* undef, i32 undef)
-  call void @llvm.var.annotation(i8* %3, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 35)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR12:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([29 x i8], [29 x i8]* [[STR12]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %3, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 35)
    %4 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
    call void @llvm.lifetime.end.p0i8(i64 44, i8* %4) #4
    ret void

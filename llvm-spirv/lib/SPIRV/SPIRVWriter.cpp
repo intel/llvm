@@ -1196,6 +1196,7 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
                 .Case("bankwidth", DecorationBankwidthINTEL)
                 .Case("max_private_copies", DecorationMaxPrivateCopiesINTEL)
                 .Case("max_replicates", DecorationMaxReplicatesINTEL)
+                .Case("bank_bits", DecorationBankBitsINTEL)
                 .Case("merge", DecorationMergeINTEL)
                 .Default(DecorationUserSemantic);
       if (Dec == DecorationUserSemantic)
@@ -1208,6 +1209,18 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
     AnnotatedCode = AnnotatedCode.drop_front(To + 1);
   }
   return Decorates;
+}
+
+std::vector<SPIRVWord> getBankBitsFromString(StringRef S) {
+  SmallVector<StringRef, 4> BitsString;
+  S.split(BitsString, ',');
+
+  std::vector<SPIRVWord> Bits(BitsString.size());
+  for (size_t J = 0; J < BitsString.size(); ++J)
+    if (BitsString[J].getAsInteger(10, Bits[J]))
+      return {};
+
+  return Bits;
 }
 
 void addIntelFPGADecorations(
@@ -1236,6 +1249,10 @@ void addIntelFPGADecorations(
       E->addDecorate(
           new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
     } break;
+    case DecorationBankBitsINTEL:
+      E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
+          E, getBankBitsFromString(I.second)));
+      break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
@@ -1286,6 +1303,10 @@ void addIntelFPGADecorationsForStructMember(
       E->addMemberDecorate(new SPIRVMemberDecorateMergeINTELAttr(
           E, MemberNumber, Name.str(), Direction.str()));
     } break;
+    case DecorationBankBitsINTEL:
+      E->addMemberDecorate(new SPIRVMemberDecorateBankBitsINTELAttr(
+          E, MemberNumber, getBankBitsFromString(I.second)));
+      break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
@@ -1881,6 +1902,16 @@ bool LLVMToSPIRV::transExecutionMode() {
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
       } break;
+      case spv::ExecutionModeMaxWorkgroupSizeINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X, Y, Z;
+          N.get(X).get(Y).get(Z);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+          BM->addCapability(CapabilityKernelAttributesINTEL);
+        }
+      } break;
       case spv::ExecutionModeVecTypeHint:
       case spv::ExecutionModeSubgroupSize:
       case spv::ExecutionModeSubgroupsPerWorkgroup: {
@@ -1888,6 +1919,26 @@ bool LLVMToSPIRV::transExecutionMode() {
         N.get(X);
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode), X)));
+      } break;
+      case spv::ExecutionModeNumSIMDWorkitemsINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X;
+          N.get(X);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X)));
+          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
+        }
+      } break;
+      case spv::ExecutionModeMaxWorkDimINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X;
+          N.get(X);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X)));
+          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
+        }
       } break;
       default:
         llvm_unreachable("invalid execution mode");

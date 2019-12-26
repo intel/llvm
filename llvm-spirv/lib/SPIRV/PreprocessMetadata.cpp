@@ -198,6 +198,39 @@ void PreprocessMetadata::visit(Module *M) {
           .add(getMDOperandAsInt(ReqdSubgroupSize, 0))
           .done();
     }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 max_work_group_size, i32 X,
+    //         i32 Y, i32 Z}
+    if (MDNode *MaxWorkgroupSizeINTEL =
+            Kernel.getMetadata(kSPIR2MD::MaxWGSize)) {
+      unsigned X, Y, Z;
+      decodeMDNode(MaxWorkgroupSizeINTEL, X, Y, Z);
+      EM.addOp()
+          .add(&Kernel)
+          .add(spv::ExecutionModeMaxWorkgroupSizeINTEL)
+          .add(X)
+          .add(Y)
+          .add(Z)
+          .done();
+    }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 max_global_work_dim, i32 dim}
+    if (MDNode *MaxWorkDimINTEL = Kernel.getMetadata(kSPIR2MD::MaxWGDim)) {
+      EM.addOp()
+          .add(&Kernel)
+          .add(spv::ExecutionModeMaxWorkDimINTEL)
+          .add(getMDOperandAsInt(MaxWorkDimINTEL, 0))
+          .done();
+    }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 num_simd_work_items, i32 num}
+    if (MDNode *NumSIMDWorkitemsINTEL = Kernel.getMetadata(kSPIR2MD::NumSIMD)) {
+      EM.addOp()
+          .add(&Kernel)
+          .add(spv::ExecutionModeNumSIMDWorkitemsINTEL)
+          .add(getMDOperandAsInt(NumSIMDWorkitemsINTEL, 0))
+          .done();
+    }
   }
 }
 
