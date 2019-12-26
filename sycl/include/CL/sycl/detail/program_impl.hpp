@@ -324,6 +324,8 @@ public:
   }
 
   context get_context() const {
+    if (is_host())
+      return context();
     return createSyclObjFromImpl<context>(Context);
   }
 

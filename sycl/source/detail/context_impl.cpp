@@ -83,12 +83,9 @@ context_impl::~context_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(piContextRelease)(MContext);
   }
-  // Release all programs and kernels created with this context
-  for (auto ProgIt : MCachedPrograms) {
-    RT::PiProgram ToBeDeleted = ProgIt.second;
-    for (auto KernIt : MCachedKernels[ToBeDeleted])
-      PI_CALL(piKernelRelease)(KernIt.second);
-    PI_CALL(piProgramRelease)(ToBeDeleted);
+  for (auto LibProg : MCachedLibPrograms) {
+    assert(LibProg.second && "Null program must not be kept in the cache");
+    PI_CALL(piProgramRelease)(LibProg.second);
   }
 }
 
@@ -104,6 +101,8 @@ cl_uint context_impl::get_info<info::context::reference_count>() const {
       this->getHandleRef());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
+  if (is_host())
+    return platform();
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
@@ -117,6 +116,10 @@ const RT::PiContext &context_impl::getHandleRef() const { return MContext; }
 
 std::shared_ptr<usm::USMDispatcher> context_impl::getUSMDispatch() const {
   return MUSMDispatch;
+}
+
+KernelProgramCache &context_impl::getKernelProgramCache() const {
+  return MKernelProgramCache;
 }
 
 } // namespace detail

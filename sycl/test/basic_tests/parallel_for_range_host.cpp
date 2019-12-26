@@ -94,5 +94,17 @@ int main() {
     return 1;
   } catch (nd_range_error) {
   }
+
+  // parallel_for, 30 global, 1(implicit) local -> pass.
+  try {
+    Q.submit([&](handler &CGH) {
+        CGH.parallel_for<class g>(range<1>(30),
+            [=](nd_item<1>) {});
+    });
+    Q.wait_and_throw();
+  } catch (nd_range_error) {
+    std::cerr << "Test case 'g' failed: exception has been thrown" << std::endl;
+    return 1;
+  }
   return 0;
 }

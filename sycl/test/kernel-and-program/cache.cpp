@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-//==------------- kernel_cache.cpp - SYCL kernel/program test --------------==//
+//==---------------- cache.cpp - SYCL kernel/program test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,16 @@
 
 #include <CL/sycl.hpp>
 
-namespace pi = cl::sycl::detail::pi;
 namespace RT = cl::sycl::RT;
+namespace detail = cl::sycl::detail;
+namespace pi = detail::pi;
+
+using ProgramCacheT = detail::KernelProgramCache::ProgramCacheT;
+using KernelCacheT = detail::KernelProgramCache::KernelCacheT;
 
 #define KERNEL_NAME_SRC "kernel_source"
-#define TEST_SOURCE "kernel void " KERNEL_NAME_SRC "(global int* a) " \
+#define TEST_SOURCE                                                            \
+  "kernel void " KERNEL_NAME_SRC "(global int* a) "                            \
   "{ a[get_global_id(0)] += 1; }\n"
 
 class Functor {
@@ -88,8 +93,7 @@ struct TestContext {
     return std::move(Prog);
   }
 
-  cl::sycl::program
-  getCompiledAndLinkedProgramWSource(
+  cl::sycl::program getCompiledAndLinkedProgramWSource(
       const cl::sycl::string_class &CompileOptions = "",
       const cl::sycl::string_class &LinkOptions = "") {
     cl::sycl::program Prog(Queue.get_context());
@@ -130,13 +134,15 @@ static void testProgramCachePositive() {
 
   auto Prog = TestCtx.getProgram();
 
-  auto *CLProg = cl::sycl::detail::getSyclObjImpl(Prog)->getHandleRef();
+  auto *CLProg = detail::getSyclObjImpl(Prog)->getHandleRef();
 
-  auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+  auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+  detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+  const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-  assert(Ctx->getCachedPrograms().size() == 1 &&
+  assert(CachedPrograms.size() == 1 &&
          "Expecting only a single element in program cache");
-  assert(Ctx->getCachedPrograms().begin()->second ==
+  assert(CachedPrograms.begin()->second.Ptr.load() ==
              pi::cast<pi_program>(CLProg) &&
          "Invalid data in programs cache");
 }
@@ -146,10 +152,11 @@ static void testProgramCacheNegativeCustomBuildOptions() {
 
   auto Prog = TestCtx.getProgram("-g");
 
-  auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+  auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+  detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+  const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-  assert(Ctx->getCachedPrograms().size() == 0 &&
-         "Expecting empty program cache");
+  assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
 }
 
 static void testProgramCacheNegativeCompileLinkCustomOpts() {
@@ -158,37 +165,42 @@ static void testProgramCacheNegativeCompileLinkCustomOpts() {
   {
     auto Prog = TestCtx.getCompiledAndLinkedProgram();
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
-    auto Prog = TestCtx.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
+    auto Prog =
+        TestCtx.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
     auto Prog = TestCtx.getCompiledAndLinkedProgram("", "-cl-no-signed-zeroes");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
     auto Prog = TestCtx.getCompiledAndLinkedProgram("-g", "");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 }
 
@@ -198,37 +210,43 @@ static void testProgramCacheNegativeCompileLinkSource() {
   {
     auto Prog = TestCtx.getCompiledAndLinkedProgramWSource();
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
-    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "-cl-no-signed-zeroes");
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource(
+        "-g", "-cl-no-signed-zeroes");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
-    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
+    auto Prog =
+        TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 
   {
     auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "");
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
 
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Expecting empty program cache");
+    assert(CachedPrograms.size() == 0 && "Expecting empty program cache");
   }
 }
 
@@ -239,20 +257,30 @@ static void testKernelCachePositive() {
   auto Kernel = TestCtx.getKernel(Prog);
 
   if (!TestCtx.Queue.is_host()) {
-    auto *CLProg = cl::sycl::detail::getSyclObjImpl(Prog)->getHandleRef();
-    auto *CLKernel = cl::sycl::detail::getSyclObjImpl(Kernel)->getHandleRef();
+    auto *CLProg = detail::getSyclObjImpl(Prog)->getHandleRef();
+    auto *CLKernel = detail::getSyclObjImpl(Kernel)->getHandleRef();
 
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+    const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
 
-    assert(Ctx->getCachedKernels().size() == 1 &&
+    assert(CachedKernels.size() == 1 &&
            "Expecting only a single element in kernels cache");
-    assert(Ctx->getCachedKernels().begin()->first ==
-               pi::cast<pi_program>(CLProg) &&
+
+    const auto &KernelsByNameIt = CachedKernels.begin();
+
+    assert(KernelsByNameIt->first == pi::cast<pi_program>(CLProg) &&
            "Invalid program key in kernels cache");
-    assert(Ctx->getCachedKernels().begin()->second.size() == 1 &&
+
+    const auto &KernelsByName = KernelsByNameIt->second;
+
+    assert(KernelsByName.size() == 1 &&
            "Expecting only a single kernel for the program");
-    assert(Ctx->getCachedKernels().begin()->second.begin()->second ==
-               pi::cast<pi_kernel>(CLKernel) &&
+
+    const auto &KernelWithBuildState = KernelsByName.begin()->second;
+
+    assert(KernelWithBuildState.Ptr.load() == pi::cast<pi_kernel>(CLKernel) &&
            "Invalid data in kernels cache");
   }
 }
@@ -268,10 +296,12 @@ void testKernelCacheNegativeLinkedProgram() {
   auto Kernel = TestCtx.getKernel(LinkedProg);
 
   if (!TestCtx.Queue.is_host()) {
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(LinkedProg.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(LinkedProg.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+    const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
 
-    assert(Ctx->getCachedKernels().size() == 0 &&
-           "Unexpected data in kernels cache");
+    assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
   }
 }
 
@@ -285,10 +315,12 @@ void testKernelCacheNegativeOCLProgram() {
   auto Kernel = TestCtx.getKernel(OclProg);
 
   if (!TestCtx.Queue.is_host()) {
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(OclProg.get_context());
+    auto *Ctx = detail::getRawSyclObjImpl(OclProg.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+    const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
 
-    assert(Ctx->getCachedKernels().size() == 0 &&
-           "Unexpected data in kernels cache");
+    assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
   }
 }
 
@@ -299,9 +331,12 @@ void testKernelCacheNegativeCustomBuildOptions() {
   auto Kernel = TestCtx.getKernel(Prog);
 
   if (!TestCtx.Queue.is_host()) {
-    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-    assert(Ctx->getCachedKernels().size() == 0 &&
-           "Unexpected data in kernels cache");
+    auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+    detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+    const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+    const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+    assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
   }
 }
 
@@ -313,21 +348,28 @@ void testKernelCacheNegativeCompileLink() {
     auto Kernel = TestCtx.getKernel(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
   {
     TestContext TestCtx1;
-    auto Prog = TestCtx1.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
+    auto Prog =
+        TestCtx1.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
     auto Kernel = TestCtx1.getKernel(Prog);
 
     if (!TestCtx1.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
@@ -336,9 +378,12 @@ void testKernelCacheNegativeCompileLink() {
     auto Kernel = TestCtx.getKernel(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
@@ -347,9 +392,12 @@ void testKernelCacheNegativeCompileLink() {
     auto Kernel = TestCtx.getKernel(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 }
@@ -362,20 +410,27 @@ void testKernelCacheNegativeCompileLinkSource() {
     auto Kernel = TestCtx.getKernelWSource(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
   {
-    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "-cl-no-signed-zeroes");
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource(
+        "-g", "-cl-no-signed-zeroes");
     auto Kernel = TestCtx.getKernelWSource(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
@@ -384,20 +439,27 @@ void testKernelCacheNegativeCompileLinkSource() {
     auto Kernel = TestCtx.getKernelWSource(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 
   {
-    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
+    auto Prog =
+        TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
     auto Kernel = TestCtx.getKernelWSource(Prog);
 
     if (!TestCtx.Queue.is_host()) {
-      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-      assert(Ctx->getCachedKernels().size() == 0 &&
-             "Unexpected data in kernels cache");
+      auto *Ctx = detail::getRawSyclObjImpl(Prog.get_context());
+      detail::KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+      const ProgramCacheT &CachedPrograms = Cache.acquireCachedPrograms().get();
+      const KernelCacheT &CachedKernels = Cache.acquireKernelsPerProgramCache().get();
+
+      assert(CachedKernels.size() == 0 && "Unexpected data in kernels cache");
     }
   }
 }
