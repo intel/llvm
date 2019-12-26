@@ -100,7 +100,7 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  event submit(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self,
+  event submit(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self,
                shared_ptr_class<queue_impl> second_queue) {
     try {
       return submit_impl(cgf, self);
@@ -113,8 +113,8 @@ public:
     }
   }
 
-  event submit(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self) {
-    return submit_impl(std::move(cgf), std::move(self));
+  event submit(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self) {
+    return submit_impl(cgf, std::move(self));
   }
 
   void wait() {
@@ -236,7 +236,7 @@ public:
   }
 
 private:
-  event submit_impl(function_class<void(handler&)> cgf, shared_ptr_class<queue_impl> self) {
+  event submit_impl(const function_class<void(handler&)> &cgf, shared_ptr_class<queue_impl> self) {
     handler Handler(std::move(self), MHostQueue);
     cgf(Handler);
     event Event = Handler.finalize();

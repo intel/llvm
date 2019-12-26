@@ -21,11 +21,12 @@ template <typename RetType, typename... Args>
 class function_class<RetType(Args...)> {
     public:
     template<typename Functor>
-    function_class(Functor Func) : MFuncHolder(std::make_shared<holder<Functor>>(Func)) {}
+    function_class(Functor Func)
+        : MFuncHolder(unique_ptr_class<holder<Functor>>(new holder<Functor>(Func))) {}
 
     template<typename Functor>
     function_class& operator=(const Functor &Func) {
-        MFuncHolder = std::make_shared<holder<Functor>>(Func);
+        MFuncHolder = unique_ptr_class<holder<Functor>>(new holder<Functor>(Func));
         return *this;
     }
 
@@ -52,7 +53,7 @@ class function_class<RetType(Args...)> {
             Functor MFunc;
     };
 
-    shared_ptr_class<holder_base> MFuncHolder;
+    unique_ptr_class<holder_base> MFuncHolder;
 };
 
 }
