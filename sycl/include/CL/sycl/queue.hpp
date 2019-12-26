@@ -30,34 +30,86 @@ class queue_impl;
 
 class queue {
 public:
-  explicit queue(const property_list &propList = {})
-      : queue(default_selector(), async_handler{}, propList) {}
+  /// Constructs a SYCL queue instance using the device returned by an instance
+  /// of default_selector.
+  ///
+  /// @param PropList is a list of properties for queue construction.
+  explicit queue(const property_list &PropList = {})
+      : queue(default_selector(), async_handler{}, PropList) {}
 
-  queue(const async_handler &asyncHandler, const property_list &propList = {})
-      : queue(default_selector(), asyncHandler, propList) {}
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// returned by an instance of default_selector.
+  ///
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const async_handler &AsyncHandler, const property_list &PropList = {})
+      : queue(default_selector(), AsyncHandler, PropList) {}
 
-  queue(const device_selector &deviceSelector,
-        const property_list &propList = {})
-      : queue(deviceSelector.select_device(), async_handler{}, propList) {}
+  /// Constructs a SYCL queue instance using the device returned by the
+  /// DeviceSelector provided.
+  ///
+  /// @param DeviceSelector is an instance of SYCL device selector.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const device_selector &DeviceSelector,
+        const property_list &PropList = {})
+      : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
 
-  queue(const device_selector &deviceSelector,
-        const async_handler &asyncHandler, const property_list &propList = {})
-      : queue(deviceSelector.select_device(), asyncHandler, propList) {}
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// returned by the DeviceSelector provided.
+  ///
+  /// @param DeviceSelector is an instance of SYCL device selector.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {})
+      : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
 
-  queue(const device &syclDevice, const property_list &propList = {})
-      : queue(syclDevice, async_handler{}, propList) {}
+  /// Constructs a SYCL queue instance using the device provided.
+  ///
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const device &SyclDevice, const property_list &PropList = {})
+      : queue(SyclDevice, async_handler{}, PropList) {}
 
-  queue(const device &syclDevice, const async_handler &asyncHandler,
-        const property_list &propList = {});
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// provided.
+  ///
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const device &SyclDevice, const async_handler &AsyncHandler,
+        const property_list &PropList = {});
 
-  queue(const context &syclContext, const device_selector &deviceSelector,
-        const property_list &propList = {});
+  /// Constructs a SYCL queue instance that is associated with the context
+  /// provided, using the device returned by the device selector.
+  ///
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param DeviceSelector is an instance of SYCL device selector.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const property_list &PropList = {});
 
-  queue(const context &syclContext, const device_selector &deviceSelector,
-        const async_handler &asyncHandler, const property_list &propList = {});
+  /// Constructs a SYCL queue instance with an asunc_handler that is associated
+  /// with the context provided, using the device returned by the device
+  /// selector.
+  ///
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param DeviceSelector is an instance of SYCL device selector.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {});
 
-  queue(cl_command_queue clQueue, const context &syclContext,
-        const async_handler &asyncHandler = {});
+  /// Constructs a SYCL queue with an optional async_handler from an OpenCL
+  /// cl_command_queue.
+  ///
+  /// The instance of cl_command_queue is retained on construction.
+  ///
+  /// @param ClQueue is a valid instance of OpenCL queue.
+  /// @param SyclContext is a valid SYCL context.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  queue(cl_command_queue ClQueue, const context &SyclContext,
+        const async_handler &AsyncHandler = {});
 
   queue(const queue &rhs) = default;
 
@@ -71,42 +123,109 @@ public:
 
   bool operator!=(const queue &rhs) const { return !(*this == rhs); }
 
+  /// @return a valid instance of OpenCL queue, which is retained before being
+  /// returned.
   cl_command_queue get() const;
 
+  /// @return an associated SYCL context.
   context get_context() const;
 
+  /// @return SYCL device this queue was constructed with.
   device get_device() const;
 
+  /// @return true if this queue is a SYCL host queue.
   bool is_host() const;
 
+  /// Queries SYCL queue for information.
+  ///
+  /// The return type depends on information being queried.
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  template <typename T> event submit(T cgf) { return submit_impl(cgf); }
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// @param CGF is a function object containing command group.
+  /// @return a SYCL event object for the submitted command group.
+  template <typename T> event submit(T CGF) { return submit_impl(CGF); }
 
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// On a kernel error, this command group function object is then scheduled
+  /// for execution on a secondary queue.
+  ///
+  /// @param CGF is a function object containing command group.
+  /// @return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
   template <typename T> event submit(T cgf, queue &secondaryQueue) {
     return submit_impl(cgf, secondaryQueue);
   }
 
+  /// Performs a blocking wait for the completion of all enqueued tasks in the
+  /// queue.
+  ///
+  /// Synchronous errors will be reported through SYCL exceptions.
   void wait();
 
+  /// Performs a blocking wait for the completion of all enqueued tasks in the
+  /// queue.
+  ///
+  /// Synchronous errors will be reported through SYCL exceptions. Asynchronous
+  /// errors will be passed to the async_handler passed to the queue on
+  /// construction. If no async_handler was provided then asynchronous
+  /// exceptions will be lost.
   void wait_and_throw();
 
+  /// Checks if any asynchronous errors have been produced by the queue and if
+  /// so reports them to the async_handler passed on the queue construction.
+  ///
+  /// If no async_handler was provided then asynchronous exceptions will be
+  /// lost.
   void throw_asynchronous();
 
-  template <typename propertyT> bool has_property() const;
+  /// @return true if the queue was constructed with property specified by
+  /// PropertyT.
+  template <typename PropertyT> bool has_property() const;
 
+  /// @return a copy of the property of type PropertyT that the queue was
+  /// constructed with. If the queue was not constructed with the PropertyT
+  /// property, an invalid_object_error SYCL exception.
   template <typename propertyT> propertyT get_property() const;
 
-  event memset(void* ptr, int value, size_t count);
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  ///
+  /// @param Ptr is a USM pointer to the memory to fill.
+  /// @param Value is a value to be set. Value is cast as an unsigned char.
+  /// @param Count is a number of bytes to fill.
+  /// @return an event representing fill operation.
+  event memset(void* Ptr, int Value, size_t Count);
 
-  event memcpy(void* dest, const void* src, size_t count);
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  ///
+  /// @param Dest is a USM pointer to the destination memory.
+  /// @param Src is a USM pointer to the source memory.
+  /// @param Count is a number of bytes to copy.
+  event memcpy(void* Dest, const void* Src, size_t Count);
 
-  event mem_advise(const void *ptr, size_t length, int advice);
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// @param Ptr is a USM pointer to the allocation.
+  /// @param Length is a number of bytes in the allocation.
+  /// @param Advice is a device-defined advice for the specified allocation.
+  event mem_advise(const void *Ptr, size_t Length, int Advice);
 
-  event prefetch(const void* ptr, size_t count) {
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// @param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// @param Count is a number of bytes to be prefetched.
+  event prefetch(const void* Ptr, size_t Count) {
     return submit([=](handler &cgh) {
-        cgh.prefetch(ptr, count);
+        cgh.prefetch(Ptr, Count);
     });
   }
 
@@ -122,7 +241,7 @@ public:
 
   /// single_task version with a kernel represented as a lambda.
   ///
-  /// @param DepEvent is an event that specifies the kernel dependences 
+  /// @param DepEvent is an event that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent, KernelType KernelFunc) {
@@ -301,7 +420,9 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
+  /// A template-free version of submit.
   event submit_impl(detail::function_class<void(handler &)> CGH);
+  /// A template-free version of submit.
   event submit_impl(detail::function_class<void(handler &)> CGH,
                     queue secondQueue);
 };
