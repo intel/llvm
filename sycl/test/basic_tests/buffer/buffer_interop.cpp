@@ -143,5 +143,42 @@ int main() {
     Error = clReleaseMemObject(OpenCLBuffer);
     CHECK_OCL_CODE(Error);
   }
+  // Check interop constructor event
+  {
+    // Checks that the cl_event is not deleted on memory object destruction
+    queue MyQueue;
+    cl_context OpenCLContext = MyQueue.get_context().get();
+
+    int Val;
+    cl_int Error = CL_SUCCESS;
+    cl_mem OpenCLBuffer =
+        clCreateBuffer(OpenCLContext, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &Val, &Error);
+    CHECK_OCL_CODE(Error);
+    cl_event OpenCLEvent = clCreateUserEvent(OpenCLContext, &Error);
+    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE(clSetUserEventStatus(OpenCLEvent, CL_COMPLETE));
+
+    {
+      event Event(OpenCLEvent, OpenCLContext);
+      buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context(), Event};
+
+      MyQueue.submit([&](handler &Cgh) {
+        auto Acc = Buffer.get_access<access::mode::write>(Cgh);
+        Cgh.single_task<class TestEvent>([=]() { Acc[0] = 42; });
+      });
+
+      auto Acc = Buffer.get_access<access::mode::read>();
+      if (42 != Acc[0]) {
+        assert(false);
+        Failed = true;
+      }
+    }
+
+    CHECK_OCL_CODE(clReleaseMemObject(OpenCLBuffer));
+    CHECK_OCL_CODE(clReleaseContext(OpenCLContext));
+    CHECK_OCL_CODE(clReleaseEvent(OpenCLEvent));
+  }
+
   return Failed;
 }
