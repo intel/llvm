@@ -138,48 +138,52 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
+  case Builtin::BIceil:
+  case Builtin::BI__builtin_ceil:
+  case Builtin::BIcopysign:
+  case Builtin::BI__builtin_copysign:
+  case Builtin::BIfabs:
+  case Builtin::BI__builtin_fabs:
+  case Builtin::BIfloor:
+  case Builtin::BI__builtin_floor:
+  case Builtin::BIfmax:
+  case Builtin::BI__builtin_fmax:
+  case Builtin::BIfmin:
+  case Builtin::BI__builtin_fmin:
+  case Builtin::BInearbyint:
+  case Builtin::BI__builtin_nearbyint:
+  case Builtin::BIrint:
+  case Builtin::BI__builtin_rint:
+  case Builtin::BIround:
+  case Builtin::BI__builtin_round:
+  case Builtin::BItrunc:
+  case Builtin::BI__builtin_trunc:
   case Builtin::BIceilf:
   case Builtin::BI__builtin_ceilf:
   case Builtin::BIcopysignf:
   case Builtin::BI__builtin_copysignf:
-  case Builtin::BIcosf:
-  case Builtin::BI__builtin_cosf:
-  case Builtin::BIexpf:
-  case Builtin::BI__builtin_expf:
-  case Builtin::BIexp2f:
-  case Builtin::BI__builtin_exp2f:
   case Builtin::BIfabsf:
   case Builtin::BI__builtin_fabsf:
   case Builtin::BIfloorf:
   case Builtin::BI__builtin_floorf:
-  case Builtin::BIfmaf:
-  case Builtin::BI__builtin_fmaf:
   case Builtin::BIfmaxf:
   case Builtin::BI__builtin_fmaxf:
   case Builtin::BIfminf:
   case Builtin::BI__builtin_fminf:
-  case Builtin::BIfmodf:
-  case Builtin::BI__builtin_fmodf:
-  case Builtin::BIlogf:
-  case Builtin::BI__builtin_logf:
-  case Builtin::BIlog10f:
-  case Builtin::BI__builtin_log10f:
-  case Builtin::BIlog2f:
-  case Builtin::BI__builtin_log2f:
-  case Builtin::BIpowf:
-  case Builtin::BI__builtin_powf:
+  case Builtin::BInearbyintf:
+  case Builtin::BI__builtin_nearbyintf:
   case Builtin::BIrintf:
   case Builtin::BI__builtin_rintf:
   case Builtin::BIroundf:
   case Builtin::BI__builtin_roundf:
-  case Builtin::BIsinf:
-  case Builtin::BI__builtin_sinf:
-  case Builtin::BIsqrtf:
-  case Builtin::BI__builtin_sqrtf:
   case Builtin::BItruncf:
   case Builtin::BI__builtin_truncf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
+  case Builtin::BI__builtin_fpclassify:
+  case Builtin::BI__builtin_isfinite:
+  case Builtin::BI__builtin_isinf:
+  case Builtin::BI__builtin_isnormal:
     return false;
   default:
     break;
