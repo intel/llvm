@@ -296,10 +296,10 @@ namespace llvm {
       VMTRUNC, VMTRUNCUS, VMTRUNCS,
 
       // Vector FP extend.
-      VFPEXT, VFPEXT_SAE, VFPEXTS, VFPEXTS_SAE,
+      VFPEXT, VFPEXT_SAE, VFPEXTS, VFPEXTS_SAE, STRICT_VFPEXT,
 
       // Vector FP round.
-      VFPROUND, VFPROUND_RND, VFPROUNDS, VFPROUNDS_RND,
+      VFPROUND, VFPROUND_RND, VFPROUNDS, VFPROUNDS_RND, STRICT_VFPROUND,
 
       // Masked version of above. Used for v2f64->v4f32.
       // SRC, PASSTHRU, MASK
@@ -325,6 +325,7 @@ namespace llvm {
 
       // Vector packed double/float comparison.
       CMPP,
+      STRICT_CMPP,
 
       // Vector integer comparisons.
       PCMPEQ, PCMPGT,
@@ -337,6 +338,7 @@ namespace llvm {
       /// Vector comparison generating mask bits for fp and
       /// integer signed and unsigned data types.
       CMPM,
+      STRICT_CMPM,
       // Vector comparison with SAE for FP values
       CMPM_SAE,
 
@@ -504,11 +506,13 @@ namespace llvm {
 
       // Vector float/double to signed/unsigned integer with truncation.
       CVTTP2SI, CVTTP2UI, CVTTP2SI_SAE, CVTTP2UI_SAE,
+      STRICT_CVTTP2SI, STRICT_CVTTP2UI,
       // Scalar float/double to signed/unsigned integer with truncation.
       CVTTS2SI, CVTTS2UI, CVTTS2SI_SAE, CVTTS2UI_SAE,
 
       // Vector signed/unsigned integer to float/double.
       CVTSI2P, CVTUI2P,
+      STRICT_CVTSI2P, STRICT_CVTUI2P,
 
       // Masked versions of above. Used for v2f64->v4f32.
       // SRC, PASSTHRU, MASK

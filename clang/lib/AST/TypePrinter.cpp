@@ -1799,7 +1799,7 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__local";
   case LangAS::opencl_private:
   case LangAS::sycl_private:
-    return "";
+    return "__private";
   case LangAS::opencl_constant:
   case LangAS::sycl_constant:
     return "__constant";

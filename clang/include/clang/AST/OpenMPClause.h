@@ -30,6 +30,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -945,7 +946,7 @@ class OMPProcBindClause : public OMPClause {
   SourceLocation LParenLoc;
 
   /// A kind of the 'proc_bind' clause.
-  OpenMPProcBindClauseKind Kind = OMPC_PROC_BIND_unknown;
+  llvm::omp::ProcBindKind Kind = llvm::omp::OMP_PROC_BIND_unknown;
 
   /// Start location of the kind in source code.
   SourceLocation KindKwLoc;
@@ -953,7 +954,7 @@ class OMPProcBindClause : public OMPClause {
   /// Set kind of the clause.
   ///
   /// \param K Kind of clause.
-  void setProcBindKind(OpenMPProcBindClauseKind K) { Kind = K; }
+  void setProcBindKind(llvm::omp::ProcBindKind K) { Kind = K; }
 
   /// Set clause kind location.
   ///
@@ -969,7 +970,7 @@ public:
   /// \param StartLoc Starting location of the clause.
   /// \param LParenLoc Location of '('.
   /// \param EndLoc Ending location of the clause.
-  OMPProcBindClause(OpenMPProcBindClauseKind A, SourceLocation ALoc,
+  OMPProcBindClause(llvm::omp::ProcBindKind A, SourceLocation ALoc,
                     SourceLocation StartLoc, SourceLocation LParenLoc,
                     SourceLocation EndLoc)
       : OMPClause(OMPC_proc_bind, StartLoc, EndLoc), LParenLoc(LParenLoc),
@@ -986,7 +987,7 @@ public:
   SourceLocation getLParenLoc() const { return LParenLoc; }
 
   /// Returns kind of the clause.
-  OpenMPProcBindClauseKind getProcBindKind() const { return Kind; }
+  llvm::omp::ProcBindKind getProcBindKind() const { return Kind; }
 
   /// Returns location of clause kind.
   SourceLocation getProcBindKindKwLoc() const { return KindKwLoc; }
@@ -2152,6 +2153,13 @@ class OMPLastprivateClause final
   friend OMPVarListClause;
   friend TrailingObjects;
 
+  /// Optional lastprivate kind, e.g. 'conditional', if specified by user.
+  OpenMPLastprivateModifier LPKind;
+  /// Optional location of the lasptrivate kind, if specified by user.
+  SourceLocation LPKindLoc;
+  /// Optional colon location, if specified by user.
+  SourceLocation ColonLoc;
+
   /// Build clause with number of variables \a N.
   ///
   /// \param StartLoc Starting location of the clause.
@@ -2159,10 +2167,13 @@ class OMPLastprivateClause final
   /// \param EndLoc Ending location of the clause.
   /// \param N Number of the variables in the clause.
   OMPLastprivateClause(SourceLocation StartLoc, SourceLocation LParenLoc,
-                       SourceLocation EndLoc, unsigned N)
+                       SourceLocation EndLoc, OpenMPLastprivateModifier LPKind,
+                       SourceLocation LPKindLoc, SourceLocation ColonLoc,
+                       unsigned N)
       : OMPVarListClause<OMPLastprivateClause>(OMPC_lastprivate, StartLoc,
                                                LParenLoc, EndLoc, N),
-        OMPClauseWithPostUpdate(this) {}
+        OMPClauseWithPostUpdate(this), LPKind(LPKind), LPKindLoc(LPKindLoc),
+        ColonLoc(ColonLoc) {}
 
   /// Build an empty clause.
   ///
@@ -2223,6 +2234,13 @@ class OMPLastprivateClause final
     return llvm::makeArrayRef(getDestinationExprs().end(), varlist_size());
   }
 
+  /// Sets lastprivate kind.
+  void setKind(OpenMPLastprivateModifier Kind) { LPKind = Kind; }
+  /// Sets location of the lastprivate kind.
+  void setKindLoc(SourceLocation Loc) { LPKindLoc = Loc; }
+  /// Sets colon symbol location.
+  void setColonLoc(SourceLocation Loc) { ColonLoc = Loc; }
+
 public:
   /// Creates clause with a list of variables \a VL.
   ///
@@ -2244,6 +2262,9 @@ public:
   /// \endcode
   /// Required for proper codegen of final assignment performed by the
   /// lastprivate clause.
+  /// \param LPKind Lastprivate kind, e.g. 'conditional'.
+  /// \param LPKindLoc Location of the lastprivate kind.
+  /// \param ColonLoc Location of the ':' symbol if lastprivate kind is used.
   /// \param PreInit Statement that must be executed before entering the OpenMP
   /// region with this clause.
   /// \param PostUpdate Expression that must be executed after exit from the
@@ -2252,13 +2273,21 @@ public:
   Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation LParenLoc,
          SourceLocation EndLoc, ArrayRef<Expr *> VL, ArrayRef<Expr *> SrcExprs,
          ArrayRef<Expr *> DstExprs, ArrayRef<Expr *> AssignmentOps,
-         Stmt *PreInit, Expr *PostUpdate);
+         OpenMPLastprivateModifier LPKind, SourceLocation LPKindLoc,
+         SourceLocation ColonLoc, Stmt *PreInit, Expr *PostUpdate);
 
   /// Creates an empty clause with the place for \a N variables.
   ///
   /// \param C AST context.
   /// \param N The number of variables.
   static OMPLastprivateClause *CreateEmpty(const ASTContext &C, unsigned N);
+
+  /// Lastprivate kind.
+  OpenMPLastprivateModifier getKind() const { return LPKind; }
+  /// Returns the location of the lastprivate kind.
+  SourceLocation getKindLoc() const { return LPKindLoc; }
+  /// Returns the location of the ':' symbol, if any.
+  SourceLocation getColonLoc() const { return ColonLoc; }
 
   using helper_expr_iterator = MutableArrayRef<Expr *>::iterator;
   using helper_expr_const_iterator = ArrayRef<const Expr *>::iterator;
