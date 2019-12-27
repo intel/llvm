@@ -11,7 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/os_util.hpp> // for DLL_LOCAL used in int. header
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

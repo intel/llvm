@@ -22,7 +22,7 @@
 #include <fstream>
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class program_state { none, compiled, linked };
@@ -324,6 +324,8 @@ public:
   }
 
   context get_context() const {
+    if (is_host())
+      return context();
     return createSyclObjFromImpl<context>(Context);
   }
 

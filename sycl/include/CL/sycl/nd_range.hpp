@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 template <int dimensions = 1> class nd_range {

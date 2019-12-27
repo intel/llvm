@@ -45,6 +45,7 @@
 #endif // __HAS_EXT_VECTOR_TYPE__
 
 #include <CL/sycl/aliases.hpp>
+#include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
@@ -60,7 +61,7 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
@@ -644,30 +645,38 @@ public:
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
-  // TODO: make templated address space to work.
-  // Somehow, access<> to multi_ptr<> conversion doesn't work w/o making
-  // address space explicitly specified.
-#ifdef __SYCL_LOADSTORE
-#error "Undefine __SYCL_LOADSTORE macro"
-#endif
-#define __SYCL_LOADSTORE(Space)                                                \
-  void load(size_t Offset, multi_ptr<const DataT, Space> Ptr) {                \
-    for (int I = 0; I < NumElements; I++) {                                    \
-      setValue(                                                                \
-          I, *multi_ptr<const DataT, Space>(Ptr + Offset * NumElements + I));  \
-    }                                                                          \
-  }                                                                            \
-  void store(size_t Offset, multi_ptr<DataT, Space> Ptr) const {               \
-    for (int I = 0; I < NumElements; I++) {                                    \
-      *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I) = getValue(I);  \
-    }                                                                          \
+  template <access::address_space Space>
+  void load(size_t Offset, multi_ptr<const DataT, Space> Ptr) {
+    for (int I = 0; I < NumElements; I++) {
+      setValue(I,
+               *multi_ptr<const DataT, Space>(Ptr + Offset * NumElements + I));
+    }
   }
-
-  __SYCL_LOADSTORE(access::address_space::global_space)
-  __SYCL_LOADSTORE(access::address_space::local_space)
-  __SYCL_LOADSTORE(access::address_space::constant_space)
-  __SYCL_LOADSTORE(access::address_space::private_space)
-#undef __SYCL_LOADSTORE
+  template <access::address_space Space>
+  void load(size_t Offset, multi_ptr<DataT, Space> Ptr) {
+    multi_ptr<const DataT, Space> ConstPtr(Ptr);
+    load(Offset, ConstPtr);
+  }
+  template <int Dimensions, access::mode Mode,
+            access::placeholder IsPlaceholder, access::target Target>
+  void load(size_t Offset,
+            accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+    multi_ptr<const DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
+    load(Offset, MultiPtr);
+  }
+  template <access::address_space Space>
+  void store(size_t Offset, multi_ptr<DataT, Space> Ptr) const {
+    for (int I = 0; I < NumElements; I++) {
+      *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I) = getValue(I);
+    }
+  }
+  template <int Dimensions, access::mode Mode,
+            access::placeholder IsPlaceholder, access::target Target>
+  void store(size_t Offset,
+             accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+    multi_ptr<DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
+    store(Offset, MultiPtr);
+  }
 
 #ifdef __SYCL_BINOP
 #error "Undefine __SYCL_BINOP macro"
@@ -1548,27 +1557,14 @@ public:
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
-  // TODO: make templated address space to work.
-  // Somehow, access<> to multi_ptr<> conversion doesn't work w/o making
-  // address space explicitly specified.
-  //
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
-#ifdef __SYCL_LOAD
-#error "Undefine __SYCL_LOAD macro"
-#endif
-#define __SYCL_LOAD(Space)                                                     \
-  void load(size_t offset, multi_ptr<DataT, Space> ptr) {                      \
-    vec_t Tmp;                                                                 \
-    Tmp.template load(offset, ptr);                                            \
-    *this = Tmp;                                                               \
+  template <access::address_space Space>
+  void load(size_t offset, multi_ptr<DataT, Space> ptr) {
+    vec_t Tmp;
+    Tmp.template load(offset, ptr);
+    *this = Tmp;
   }
-
-  __SYCL_LOAD(access::address_space::global_space)
-  __SYCL_LOAD(access::address_space::local_space)
-  __SYCL_LOAD(access::address_space::constant_space)
-  __SYCL_LOAD(access::address_space::private_space)
-#undef __SYCL_LOAD
 
   template <typename convertT, rounding_mode roundingMode>
   vec<convertT, sizeof...(Indexes)> convert() const {
@@ -1842,7 +1838,7 @@ using __half16_vec_t = half_vec<16>;
 
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on

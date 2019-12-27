@@ -10,11 +10,12 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <cstddef>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declaration

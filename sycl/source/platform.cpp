@@ -39,15 +39,7 @@ vector_class<device> platform::get_devices(info::device_type DeviceType) const {
 }
 
 vector_class<platform> platform::get_platforms() {
-
-  vector_class<platform> platforms = detail::platform_impl::get_platforms();
-
-  // Add host device platform if required
-  info::device_type forced_type = detail::get_forced_type();
-  if (detail::match_types(forced_type, info::device_type::host))
-    platforms.push_back(platform());
-
-  return platforms;
+  return detail::platform_impl::get_platforms();
 }
 
 template <info::platform param>

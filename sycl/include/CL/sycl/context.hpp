@@ -14,7 +14,7 @@
 #include <type_traits>
 // 4.6.2 Context class
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // Forward declarations
 class device;

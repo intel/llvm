@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
+
 // Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
 // Khronos ICD supports only latest OpenCL version
 #define CL_TARGET_OPENCL_VERSION 220
@@ -20,7 +22,7 @@
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -85,21 +87,7 @@ static inline std::string codeToString(cl_int code){
 #define CHECK_OCL_CODE_NO_EXC(X) REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
-#ifndef __has_attribute
-#define __has_attribute(x) 0
-#endif
-
-#if __has_attribute(always_inline)
-#define ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define ALWAYS_INLINE
-#endif
-
-#ifndef SYCL_EXTERNAL
-#define SYCL_EXTERNAL
-#endif
-
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -175,7 +163,7 @@ struct NDLoopIterateImpl {
   }
 };
 
-// spcialization for DIM=0 to terminate recursion
+// Specialization for DIM=0 to terminate recursion
 template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
 struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {

@@ -9,9 +9,11 @@
 #pragma once
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/kernel_program_cache.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
+#include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -20,7 +22,7 @@
 #include <map>
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // Forward declaration
 class device;
@@ -103,25 +105,35 @@ public:
   /// @return an instance of raw plug-in context handle.
   const RT::PiContext &getHandleRef() const;
 
-  /// Gets cached programs.
-  ///
-  /// @return a map of cached programs.
-  std::map<KernelSetId, RT::PiProgram> &getCachedPrograms() {
-    return MCachedPrograms;
-  }
-
-  /// Gets cached kernels.
-  ///
-  /// @return a map of cached kernels.
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
-  getCachedKernels() {
-    return MCachedKernels;
+  /// Unlike `get_info<info::context::devices>', this function returns a
+  /// reference.
+  const vector_class<device> &getDevices() const {
+    return MDevices;
   }
 
   /// Gets USM dispatcher.
   ///
   /// @return a pointer to USM dispatcher.
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
+
+  /// In contrast to user programs, which are compiled from user code, library
+  /// programs come from the SYCL runtime. They are identified by the
+  /// corresponding extension:
+  ///
+  ///  cl_intel_devicelib_assert -> #<pi_program with assert functions>
+  ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
+  ///  etc.
+  ///
+  /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
+  /// more details.
+  ///
+  /// @returns a map with device library programs.
+  std::map<DeviceLibExt, RT::PiProgram> &getCachedLibPrograms() {
+    return MCachedLibPrograms;
+  }
+
+  KernelProgramCache &getKernelProgramCache() const;
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -129,9 +141,9 @@ private:
   PlatformImplPtr MPlatform;
   bool MPluginInterop;
   bool MHostContext;
-  std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
   std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
+  std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
+  mutable KernelProgramCache MKernelProgramCache;
 };
 
 } // namespace detail

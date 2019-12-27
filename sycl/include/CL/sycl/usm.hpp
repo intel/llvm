@@ -13,7 +13,7 @@
 
 #include <cstddef>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 ///
 // Explicit USM

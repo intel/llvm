@@ -10,7 +10,7 @@
 
 // 4.6.1 Device selection class
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declarations

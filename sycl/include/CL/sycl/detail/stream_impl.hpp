@@ -15,7 +15,7 @@
 #include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 namespace detail {

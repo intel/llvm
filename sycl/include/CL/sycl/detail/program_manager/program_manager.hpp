@@ -29,7 +29,7 @@ extern "C" void __tgt_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 class context;
 namespace detail {
@@ -40,6 +40,10 @@ using DeviceImage = pi_device_binary_struct;
 // allocated by the runtime. Those Images which are part of binaries must not
 // be attempted to de-allocate.
 struct ImageDeleter;
+
+enum DeviceLibExt {
+  cl_intel_devicelib_assert = 0
+};
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
@@ -70,8 +74,13 @@ private:
 
   DeviceImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                               const context &Context);
-  void build(RT::PiProgram Program, const string_class &Options,
-             std::vector<RT::PiDevice> Devices);
+  using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
+                                      decltype(&::piProgramRelease)>;
+  ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
+                   const string_class &Options,
+                   const std::vector<RT::PiDevice> &Devices,
+                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                   bool LinkDeviceLibs = false);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special

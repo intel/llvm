@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/stream_impl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class stream_manipulator {

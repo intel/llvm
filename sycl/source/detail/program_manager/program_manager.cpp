@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -31,6 +32,8 @@ namespace sycl {
 namespace detail {
 
 static constexpr int DbgProgMgr = 0;
+
+enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
@@ -96,6 +99,96 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   KernelSetId KSId = getKernelSetId(M, KernelName);
   return getDeviceImage(M, KSId, Context);
+}
+
+template <typename ExceptionT, typename RetT>
+RetT *
+waitUntilBuilt(KernelProgramCache &Cache,
+               KernelProgramCache::EntityWithState<RetT> *WithBuildState) {
+  // any thread which will find nullptr in cache will wait until the pointer
+  // is not null anymore
+  Cache.waitUntilBuilt([WithBuildState]() {
+    int State = WithBuildState->State.load();
+
+    return State == BS_Done || State == BS_Failed;
+  });
+
+  RetT *Result = WithBuildState->Ptr.load();
+
+  if (!Result)
+    throw ExceptionT("The other thread tried to build the program/kernel but "
+                     "did not succeed.");
+
+  return Result;
+}
+
+/// Try to fetch entity (kernel or program) from cache. If there is no such
+/// entity try to build it. Throw any exception build process may throw.
+/// This method eliminates unwanted builds by employing atomic variable with
+/// build state and waiting until the entity is built in another thread.
+/// If the building thread has failed the awaiting thread will fail either.
+/// Exception thrown by build procedure are rethrown.
+///
+/// \tparam RetT type of entity to get
+/// \tparam ExceptionT type of exception to throw on awaiting thread if the
+///         building thread fails build step.
+/// \tparam KeyT key (in cache) to fetch built entity with
+/// \tparam AcquireFT type of function which will acquire the locked version of
+///         the cache. Accept reference to KernelProgramCache.
+/// \tparam GetCacheFT type of function which will fetch proper cache from
+///         locked version. Accepts reference to locked version of cache.
+/// \tparam BuildFT type of function which will build the entity if it is not in
+///         cache. Accepts nothing. Return pointer to built entity.
+template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
+          typename GetCacheFT, typename BuildFT>
+RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
+                 AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
+  bool InsertionTookPlace;
+  KernelProgramCache::EntityWithState<RetT> *WithState;
+
+  {
+    auto LockedCache = Acquire(KPCache);
+    auto &Cache = GetCache(LockedCache);
+    auto Inserted =
+        Cache.emplace(std::piecewise_construct, std::forward_as_tuple(CacheKey),
+                      std::forward_as_tuple(nullptr, BS_InProgress));
+
+    InsertionTookPlace = Inserted.second;
+    WithState = &Inserted.first->second;
+  }
+
+  // no insertion took place, thus some other thread has already inserted smth
+  // in the cache
+  if (!InsertionTookPlace) {
+    return waitUntilBuilt<ExceptionT>(KPCache, WithState);
+  }
+
+  // only the building thread will run this, and only once.
+  try {
+    RetT *Desired = Build();
+
+#ifndef NDEBUG
+    RetT *Expected = nullptr;
+
+    if (!WithState->Ptr.compare_exchange_strong(Expected, Desired))
+      // We've got a funny story here
+      assert(false && "We've build an entity that is already have been built.");
+#else
+    WithState->Ptr.store(Desired);
+#endif
+
+    WithState->State.store(BS_Done);
+
+    KPCache.notifyAllBuild();
+
+    return Desired;
+  } catch (...) {
+    WithState->State.store(BS_Failed);
+
+    KPCache.notifyAllBuild();
+
+    std::rethrow_exception(std::current_exception());
+  }
 }
 
 static bool isDeviceBinaryTypeSupported(const context &C,
@@ -183,24 +276,49 @@ RT::PiProgram
 ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
+
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<KernelSetId, RT::PiProgram> &CachedPrograms =
-      Ctx->getCachedPrograms();
-  auto It = CachedPrograms.find(KSId);
-  if (It != CachedPrograms.end())
-    return It->second;
 
-  const DeviceImage &Img = getDeviceImage(M, KSId, Context);
-  RT::PiProgram Prg = createPIProgram(Img, Context);
-  using PiProgramT = remove_pointer_t<RT::PiProgram>;
-  unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
-      Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
+  using PiProgramT = KernelProgramCache::PiProgramT;
+  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
-  build(ProgramManaged.get(), Img.BuildOptions, {});
-  RT::PiProgram Program = ProgramManaged.release();
-  CachedPrograms[KSId] = Program;
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  return Program;
+  auto AcquireF = [](KernelProgramCache &Cache) {
+    return Cache.acquireCachedPrograms();
+  };
+  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT& {
+    return LockedCache.get();
+  };
+  auto BuildF = [this, &M, &KSId, &Context] {
+    const DeviceImage &Img = getDeviceImage(M, KSId, Context);
+
+    RT::PiProgram Prg = createPIProgram(Img, Context);
+    ProgramPtr ProgramManaged(
+          Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
+
+    // Link a fallback implementation of device libraries if they are not
+    // supported by a device compiler.
+    // Pre-compiled programs are supposed to be already linked.
+    const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
+
+    context_impl *ContextImpl = getRawSyclObjImpl(Context);
+    RT::PiContext PiContext = ContextImpl->getHandleRef();
+    const std::vector<device> &Devices = ContextImpl->getDevices();
+    std::vector<RT::PiDevice> PiDevices(Devices.size());
+    std::transform(
+        Devices.begin(), Devices.end(), PiDevices.begin(),
+        [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
+
+    ProgramPtr BuiltProgram =
+        build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
+              ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
+
+    return BuiltProgram.release();
+  };
+
+  return getOrBuild<PiProgramT, compile_program_error>(Cache, KSId, AcquireF,
+                                                       GetF, BuildF);
 }
 
 RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
@@ -210,18 +328,34 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
+
   RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &CachedKernels =
-      Ctx->getCachedKernels();
-  std::map<string_class, RT::PiKernel> &KernelsCache = CachedKernels[Program];
-  RT::PiKernel &Kernel = KernelsCache[KernelName];
-  if (!Kernel) {
-    PI_CALL(piKernelCreate)(Program, KernelName.c_str(), &Kernel);
+
+  using PiKernelT = KernelProgramCache::PiKernelT;
+  using KernelCacheT = KernelProgramCache::KernelCacheT;
+  using KernelByNameT = KernelProgramCache::KernelByNameT;
+
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+
+  auto AcquireF = [] (KernelProgramCache &Cache) {
+    return Cache.acquireKernelsPerProgramCache();
+  };
+  auto GetF = [&Program] (const Locked<KernelCacheT> &LockedCache) -> KernelByNameT& {
+    return LockedCache.get()[Program];
+  };
+  auto BuildF = [this, &Program, &KernelName] {
+    PiKernelT *Result = nullptr;
+
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-  }
-  return Kernel;
+    PI_CALL(piKernelCreate)(Program, KernelName.c_str(), &Result);
+
+    return Result;
+  };
+
+  return getOrBuild<PiKernelT, invalid_object_error>(
+        Cache, KernelName, AcquireF, GetF, BuildF);
 }
 
 RT::PiProgram ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel) {
@@ -254,6 +388,83 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
            "':\n" + string_class(DeviceBuildInfo.data());
   }
   return Log;
+}
+
+static bool loadDeviceLib(const RT::PiContext &Context, const char *Name,
+                          RT::PiProgram &Prog) {
+  std::string LibSyclDir = OSUtil::getCurrentDSODir();
+  std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
+                     std::ifstream::in | std::ifstream::binary);
+  if (!File.good()) {
+    return false;
+  }
+
+  File.seekg(0, std::ios::end);
+  size_t FileSize = File.tellg();
+  File.seekg(0, std::ios::beg);
+  std::vector<char> FileContent(FileSize);
+  File.read(&FileContent[0], FileSize);
+  File.close();
+
+  Prog =
+      createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
+  return Prog != nullptr;
+}
+
+static const char* getDeviceLibFilename(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "libsycl-fallback-cassert.spv";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
+  switch (Extension) {
+  case cl_intel_devicelib_assert:
+    return "cl_intel_devicelib_assert";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension");
+}
+
+static RT::PiProgram
+loadDeviceLibFallback(
+    const RT::PiContext &Context,
+    DeviceLibExt Extension,
+    const std::vector<RT::PiDevice> &Devices,
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+
+  const char *LibFileName = getDeviceLibFilename(Extension);
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
+  bool NotExists = false;
+  std::tie(LibProgIt, NotExists) =
+      CachedLibPrograms.insert({Extension, nullptr});
+  RT::PiProgram &LibProg = LibProgIt->second;
+
+  if (!NotExists) {
+    return LibProg;
+  }
+
+  if (!loadDeviceLib(Context, LibFileName, LibProg)) {
+    CachedLibPrograms.erase(LibProgIt);
+    throw compile_program_error(std::string("Failed to load ") + LibFileName);
+  }
+
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)(
+      LibProg,
+      // Assume that Devices contains all devices from Context.
+      Devices.size(), Devices.data(),
+      // Do not use compile options for library programs: it is not clear
+      // if user options (image options) are supposed to be applied to
+      // library program as well, and what actually happens to a SPIR-V
+      // program if we apply them.
+      "", 0, nullptr, nullptr, nullptr, nullptr);
+  if (Error != PI_SUCCESS) {
+    CachedLibPrograms.erase(LibProgIt);
+    throw compile_program_error(ProgramManager::getProgramBuildLog(LibProg));
+  }
+
+  return LibProg;
 }
 
 struct ImageDeleter {
@@ -348,12 +559,62 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
-void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
-                           std::vector<RT::PiDevice> Devices) {
+static std::vector<RT::PiProgram> getDeviceLibPrograms(
+    const RT::PiContext Context,
+    const std::vector<RT::PiDevice> &Devices,
+    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+
+  std::vector<RT::PiProgram> Programs;
+
+  // TODO: SYCL compiler should generate a list of required extensions for a
+  // particular program in order to allow us do a more fine-grained check here.
+  // Require *all* possible devicelib extensions for now.
+  std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
+      {cl_intel_devicelib_assert, /* is fallback loaded? */ false}
+  };
+
+  // Load a fallback library for an extension if at least one device does not
+  // support it.
+  for (RT::PiDevice Dev : Devices) {
+    std::string DevExtList =
+        get_device_info<std::string, info::device::extensions>::get(Dev);
+    for (auto &Pair : RequiredDeviceLibExt) {
+      DeviceLibExt Ext = Pair.first;
+      bool &FallbackIsLoaded = Pair.second;
+
+      if (FallbackIsLoaded) {
+        continue;
+      }
+
+      const char* ExtStr = getDeviceLibExtensionStr(Ext);
+
+      bool InhibitNativeImpl = false;
+      if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+        InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
+      }
+
+      bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
+
+      if (!DeviceSupports || InhibitNativeImpl) {
+        Programs.push_back(
+            loadDeviceLibFallback(Context, Ext, Devices, CachedLibPrograms));
+        FallbackIsLoaded = true;
+      }
+    }
+  }
+  return Programs;
+}
+
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
+                      const string_class &Options,
+                      const std::vector<RT::PiDevice> &Devices,
+                      std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                      bool LinkDeviceLibs) {
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << Program << ", " << Options
-              << ", ... " << Devices.size() << ")\n";
+    std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
+              << Options << ", ... " << Devices.size() << ")\n";
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
@@ -367,11 +628,42 @@ void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
 
   if (!Opts)
     Opts = Options.c_str();
-  if (PI_CALL_NOCHECK(piProgramBuild)(Program, Devices.size(), Devices.data(),
-                                      Opts, nullptr, nullptr) == PI_SUCCESS)
-    return;
 
-  throw compile_program_error(getProgramBuildLog(Program));
+  std::vector<RT::PiProgram> LinkPrograms;
+  if (LinkDeviceLibs) {
+    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
+  }
+
+  if (LinkPrograms.empty()) {
+    RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
+        Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
+    if (Error != PI_SUCCESS)
+      throw compile_program_error(getProgramBuildLog(Program.get()));
+    return Program;
+  }
+
+  // Include the main program and compile/link everything together
+  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(), Opts,
+                            0, nullptr, nullptr, nullptr, nullptr);
+  LinkPrograms.push_back(Program.get());
+
+  RT::PiProgram LinkedProg = nullptr;
+  RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
+      Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
+      LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
+
+  // Link program call returns a new program object if all parameters are valid,
+  // or NULL otherwise. Release the original (user) program.
+  Program.reset(LinkedProg);
+  if (Error != PI_SUCCESS) {
+    if (LinkedProg) {
+      // A non-trivial error occurred during linkage: get a build log, release
+      // an incomplete (but valid) LinkedProg, and throw.
+      throw compile_program_error(getProgramBuildLog(LinkedProg));
+    }
+    pi::checkPiResult(Error);
+  }
+  return Program;
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {

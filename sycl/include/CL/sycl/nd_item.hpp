@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
@@ -21,7 +22,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 class Builder;

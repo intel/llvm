@@ -1522,7 +1522,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVCopyMemorySized *BC = static_cast<SPIRVCopyMemorySized *>(BV);
     CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
-    unsigned Align = BC->getAlignment();
+    MaybeAlign Align(BC->getAlignment());
     llvm::Value *Size = transValue(BC->getSize(), F, BB);
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
@@ -1545,8 +1545,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
               NewDst = llvm::BitCastInst::CreatePointerCast(Dst, Int8PointerTy,
                                                             "", BB);
             }
-            CI = Builder.CreateMemSet(NewDst, Src, Size, MaybeAlign(Align),
-                                      IsVolatile);
+            CI = Builder.CreateMemSet(NewDst, Src, Size, Align, IsVolatile);
           }
         }
       }
@@ -2808,6 +2807,13 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
       Out << ":" << Str;
     Out << '}';
   }
+  if (E->hasDecorate(DecorationBankBitsINTEL)) {
+    Out << "{bank_bits:";
+    auto Literals = E->getDecorationLiterals(DecorationBankBitsINTEL);
+    for (size_t I = 0; I < Literals.size() - 1; ++I)
+      Out << Literals[I] << ",";
+    Out << Literals.back() << '}';
+  }
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 }
@@ -2849,6 +2855,14 @@ void generateIntelFPGAAnnotationForStructMember(
       Out << ":" << Str;
     Out << '}';
   }
+  if (E->hasMemberDecorate(DecorationBankBitsINTEL, 0, MemberNumber)) {
+    Out << "{bank_bits:";
+    auto Literals =
+        E->getMemberDecorationLiterals(DecorationBankBitsINTEL, MemberNumber);
+    for (size_t I = 0; I < Literals.size() - 1; ++I)
+      Out << Literals[I] << ",";
+    Out << Literals.back() << '}';
+  }
 
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,
@@ -2880,14 +2894,18 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         if (!AnnotStr.empty()) {
           auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
-          auto AnnotationFn = llvm::Intrinsic::getDeclaration(
-              M, Intrinsic::ptr_annotation, Int8PtrTyPrivate);
-
           auto GEP = Builder.CreateConstInBoundsGEP2_32(AL->getAllocatedType(),
                                                         AL, 0, I);
 
+          Type *IntTy = GEP->getType()->getPointerElementType()->isIntegerTy()
+                            ? GEP->getType()
+                            : Int8PtrTyPrivate;
+
+          auto AnnotationFn = llvm::Intrinsic::getDeclaration(
+              M, Intrinsic::ptr_annotation, IntTy);
+
           llvm::Value *Args[] = {
-              Builder.CreateBitCast(GEP, Int8PtrTyPrivate, GEP->getName()),
+              Builder.CreateBitCast(GEP, IntTy, GEP->getName()),
               Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
               UndefInt32};
           Builder.CreateCall(AnnotationFn, Args);
@@ -3146,6 +3164,21 @@ bool SPIRVToLLVM::transKernelMetadata() {
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
       auto SizeMD = ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
+    }
+    // Generate metadata for max_work_group_size
+    if (auto EM = BF->getExecutionMode(ExecutionModeMaxWorkgroupSizeINTEL)) {
+      F->setMetadata(kSPIR2MD::MaxWGSize,
+                     getMDNodeStringIntVec(Context, EM->getLiterals()));
+    }
+    // Generate metadata for max_global_work_dim
+    if (auto EM = BF->getExecutionMode(ExecutionModeMaxWorkDimINTEL)) {
+      F->setMetadata(kSPIR2MD::MaxWGDim,
+                     getMDNodeStringIntVec(Context, EM->getLiterals()));
+    }
+    // Generate metadata for num_simd_work_items
+    if (auto EM = BF->getExecutionMode(ExecutionModeNumSIMDWorkitemsINTEL)) {
+      F->setMetadata(kSPIR2MD::NumSIMD,
+                     getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
   }
   return true;
