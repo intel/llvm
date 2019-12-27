@@ -194,10 +194,64 @@ void checkExceptions() {
   }
 }
 
+void copyBlock() {
+  using typename cl::sycl::access::mode;
+  using buffer = cl::sycl::buffer<int, 1>;
+
+  auto CopyF = [](buffer& Buffer, buffer& Block, size_t Idx, size_t BlockSize) {
+    auto Subbuf = buffer(Buffer, Idx * BlockSize, BlockSize);
+    auto *Src = Subbuf.get_access<mode::read>().get_pointer();
+    auto *Dst = Block.get_access<mode::write>().get_pointer();
+    std::copy(Src, Src + BlockSize, Dst);
+  };
+
+  try {
+    static const size_t N = 100;
+    static const size_t NBlock = 4;
+    static const size_t BlockSize = N / NBlock;
+
+    buffer Buffer(N);
+
+    // Init with data
+    {
+      auto *Acc = Buffer.get_access<mode::write>().get_pointer();
+
+      for (size_t Idx = 0; Idx < N; Idx++) {
+        Acc[Idx] = Idx;
+      }
+    }
+
+    std::vector<buffer> BlockBuffers;
+    BlockBuffers.reserve(NBlock);
+
+    // Copy block by block
+    for (size_t Idx = 0; Idx < NBlock; Idx++) {
+      auto InsertedIt = BlockBuffers.emplace(BlockBuffers.end(), BlockSize);
+      CopyF(Buffer, *InsertedIt, Idx, BlockSize);
+    }
+
+    // Validate copies
+    for (size_t Idx = 0; Idx < BlockBuffers.size(); ++Idx) {
+      buffer &BlockB = BlockBuffers[Idx];
+
+      auto *V = BlockB.get_access<mode::read>().get_pointer();
+
+      for (size_t Idx2 = 0; Idx2 < BlockSize; ++Idx2) {
+        assert(V[Idx2] == Idx2 + BlockSize * Idx &&
+               "Invalid data in block buffer");
+      }
+    }
+  }
+  catch (cl::sycl::exception& ex) {
+    assert(false && "Unexpected exception captured!");
+  }
+}
+
 int main() {
   cl::sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
   checkExceptions();
+  copyBlock();
   return 0;
 }
