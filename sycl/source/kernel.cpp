@@ -10,7 +10,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)

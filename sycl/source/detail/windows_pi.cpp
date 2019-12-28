@@ -1,8 +1,10 @@
+#include <CL/sycl/detail/defines.hpp>
+
 #include <windows.h>
 #include <winreg.h>
 #include <string>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace pi {

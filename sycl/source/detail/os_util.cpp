@@ -44,7 +44,7 @@
 
 #endif // SYCL_RT_OS
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

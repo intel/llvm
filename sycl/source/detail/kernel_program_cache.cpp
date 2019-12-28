@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/kernel_program_cache.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {

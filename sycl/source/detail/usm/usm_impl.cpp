@@ -15,7 +15,7 @@
 
 #include <cstdlib>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 using alloc = cl::sycl::usm::alloc;
