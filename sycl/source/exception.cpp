@@ -10,7 +10,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/exception.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }

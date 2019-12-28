@@ -1,7 +1,9 @@
+#include <CL/sycl/detail/defines.hpp>
+
 #include <dlfcn.h>
 #include <string>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace pi {

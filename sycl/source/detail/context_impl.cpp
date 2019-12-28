@@ -17,7 +17,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

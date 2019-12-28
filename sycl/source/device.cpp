@@ -12,7 +12,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {

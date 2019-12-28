@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/cg.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

@@ -14,7 +14,7 @@
 
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 namespace detail {

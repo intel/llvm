@@ -21,7 +21,7 @@
 
 // 4.6.2 Context class
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 context::context(const async_handler &AsyncHandler)
     : context(default_selector().select_device(), AsyncHandler) {}
