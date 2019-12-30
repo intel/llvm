@@ -10,7 +10,7 @@
 
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Symbol/ClangExternalASTSourceCommon.h"
+#include "lldb/Symbol/ClangASTMetadata.h"
 #include "lldb/Symbol/ClangUtil.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -18,12 +18,12 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclObjC.h"
-
+#include "clang/AST/ExternalASTSource.h"
 
 using namespace lldb_private;
 
 class lldb_private::AppleObjCExternalASTSource
-    : public ClangExternalASTSourceCommon {
+    : public clang::ExternalASTSource {
 public:
   AppleObjCExternalASTSource(AppleObjCDeclVendor &decl_vendor)
       : m_decl_vendor(decl_vendor) {}
@@ -182,7 +182,7 @@ AppleObjCDeclVendor::GetDeclForISA(ObjCLanguageRuntime::ObjCISA isa) {
 
   ClangASTMetadata meta_data;
   meta_data.SetISAPtr(isa);
-  m_external_source->SetMetadata(new_iface_decl, meta_data);
+  m_ast_ctx.SetMetadata(new_iface_decl, meta_data);
 
   new_iface_decl->setHasExternalVisibleStorage();
   new_iface_decl->setHasExternalLexicalStorage();
@@ -311,7 +311,8 @@ public:
   }
 
   clang::ObjCMethodDecl *
-  BuildMethod(clang::ObjCInterfaceDecl *interface_decl, const char *name,
+  BuildMethod(ClangASTContext &clang_ast_ctxt,
+              clang::ObjCInterfaceDecl *interface_decl, const char *name,
               bool instance,
               ObjCLanguageRuntime::EncodingToTypeSP type_realizer_sp) {
     if (!m_is_valid || m_type_vector.size() < 3)
@@ -360,8 +361,7 @@ public:
 
     clang::QualType ret_type =
         ClangUtil::GetQualType(type_realizer_sp->RealizeType(
-            interface_decl->getASTContext(), m_type_vector[0].c_str(),
-            for_expression));
+            clang_ast_ctxt, m_type_vector[0].c_str(), for_expression));
 
     if (ret_type.isNull())
       return nullptr;
@@ -378,7 +378,7 @@ public:
       const bool for_expression = true;
       clang::QualType arg_type =
           ClangUtil::GetQualType(type_realizer_sp->RealizeType(
-              ast_ctx, m_type_vector[ai].c_str(), for_expression));
+              clang_ast_ctxt, m_type_vector[ai].c_str(), for_expression));
 
       if (arg_type.isNull())
         return nullptr; // well, we just wasted a bunch of time.  Wish we could
@@ -413,7 +413,7 @@ bool AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl) {
   Log *log(GetLogIfAllCategoriesSet(
       LIBLLDB_LOG_EXPRESSIONS)); // FIXME - a more appropriate log channel?
 
-  ClangASTMetadata *metadata = m_external_source->GetMetadata(interface_decl);
+  ClangASTMetadata *metadata = m_ast_ctx.GetMetadata(interface_decl);
   ObjCLanguageRuntime::ObjCISA objc_isa = 0;
   if (metadata)
     objc_isa = metadata->GetISAPtr();
@@ -455,8 +455,8 @@ bool AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl) {
 
     ObjCRuntimeMethodType method_type(types);
 
-    clang::ObjCMethodDecl *method_decl =
-        method_type.BuildMethod(interface_decl, name, true, m_type_realizer_sp);
+    clang::ObjCMethodDecl *method_decl = method_type.BuildMethod(
+        m_ast_ctx, interface_decl, name, true, m_type_realizer_sp);
 
     LLDB_LOGF(log, "[  AOTV::FD] Instance method [%s] [%s]", name, types);
 
@@ -474,7 +474,7 @@ bool AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl) {
     ObjCRuntimeMethodType method_type(types);
 
     clang::ObjCMethodDecl *method_decl = method_type.BuildMethod(
-        interface_decl, name, false, m_type_realizer_sp);
+        m_ast_ctx, interface_decl, name, false, m_type_realizer_sp);
 
     LLDB_LOGF(log, "[  AOTV::FD] Class method [%s] [%s]", name, types);
 
@@ -577,8 +577,7 @@ AppleObjCDeclVendor::FindDecls(ConstString name, bool append,
               ast_ctx.getObjCInterfaceType(result_iface_decl);
 
           uint64_t isa_value = LLDB_INVALID_ADDRESS;
-          ClangASTMetadata *metadata =
-              m_external_source->GetMetadata(result_iface_decl);
+          ClangASTMetadata *metadata = m_ast_ctx.GetMetadata(result_iface_decl);
           if (metadata)
             isa_value = metadata->GetISAPtr();
 

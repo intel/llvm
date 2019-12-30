@@ -1,3 +1,6 @@
+// FIXME: PR44221
+// UNSUPPORTED: system-windows
+
 // Test that when a subframework is a symlink to another framework, we don't
 // add it as a submodule to the enclosing framework. We also need to make clang
 // to infer module for the enclosing framework. For this we don't have
