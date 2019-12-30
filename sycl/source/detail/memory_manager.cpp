@@ -89,6 +89,10 @@ void *MemoryManager::allocateInteropMemObject(
   // Return cl_mem as is if contexts match.
   if (TargetContext == InteropContext) {
     OutEventToWait = InteropEvent->getHandleRef();
+    // Retain the event since it will be released during alloca command
+    // destruction
+    if (nullptr != OutEventToWait)
+      PI_CALL(piEventRetain)(OutEventToWait);
     return UserPtr;
   }
   // Allocate new cl_mem and initialize from user provided one.
