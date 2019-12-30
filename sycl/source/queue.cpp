@@ -10,8 +10,8 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
+#include <CL/sycl/stl.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/function_class.hpp>
 
 #include <algorithm>
 
@@ -78,11 +78,11 @@ event queue::mem_advise(const void *ptr, size_t length, int advice) {
   return impl->mem_advise(ptr, length, advice);
 }
 
-event queue::submit_impl(detail::function_class<void(handler &)> CGH) {
+event queue::submit_impl(function_class<void(handler &)> CGH) {
   return impl->submit(CGH, impl);
 }
 
-event queue::submit_impl(detail::function_class<void(handler &)> CGH,
+event queue::submit_impl(function_class<void(handler &)> CGH,
                          queue secondQueue) {
   return impl->submit(CGH, impl, secondQueue.impl);
 }

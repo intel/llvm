@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/stl.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/function_class.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -424,9 +424,9 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// A template-free version of submit.
-  event submit_impl(detail::function_class<void(handler &)> CGH);
+  event submit_impl(function_class<void(handler &)> CGH);
   /// A template-free version of submit.
-  event submit_impl(detail::function_class<void(handler &)> CGH,
+  event submit_impl(function_class<void(handler &)> CGH,
                     queue secondQueue);
 };
 
