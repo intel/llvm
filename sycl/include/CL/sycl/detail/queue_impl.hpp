@@ -9,18 +9,17 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/stl.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
-#include <functional>
+#include <CL/sycl/stl.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/event_impl.hpp>
+#include <CL/sycl/detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {

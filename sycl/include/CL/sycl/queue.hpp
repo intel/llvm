@@ -8,13 +8,13 @@
 
 #pragma once
 
+#include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/property_list.hpp>
 
 #include <utility>
 
