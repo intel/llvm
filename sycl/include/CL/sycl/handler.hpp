@@ -385,6 +385,36 @@ private:
     }
   }
 
+  // Checks whether it is possible to copy the source shape to the destination
+  // shape(the shapes are described by the accessor ranges) by using
+  // copying by regions of memory and not copying element by element
+  // Shapes can be 1, 2 or 3 dimensional rectangles.
+  template <int Dims_Src, int Dims_Dst>
+  static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
+                                           const range<Dims_Dst> Dst) {
+    if (Dims_Src > Dims_Dst)
+      return false;
+    for (size_t I = 0; I < Dims_Src; ++I)
+      if (Src[I] > Dst[I])
+        return false;
+    return true;
+  }
+
+  constexpr static bool isConstOrGlobal(access::target AccessTarget) {
+    return AccessTarget == access::target::global_buffer ||
+           AccessTarget == access::target::constant_buffer;
+  }
+
+  constexpr static bool isImageOrImageArray(access::target AccessTarget) {
+    return AccessTarget == access::target::image ||
+           AccessTarget == access::target::image_array;
+  }
+
+  constexpr static bool
+  isValidTargetForExplicitOp(access::target AccessTarget) {
+    return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
+  }
+
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
@@ -883,20 +913,6 @@ public:
   }
 
   // Explicit copy operations API
-  constexpr static bool isConstOrGlobal(access::target AccessTarget) {
-    return AccessTarget == access::target::global_buffer ||
-           AccessTarget == access::target::constant_buffer;
-  }
-
-  constexpr static bool isImageOrImageArray(access::target AccessTarget) {
-    return AccessTarget == access::target::image ||
-           AccessTarget == access::target::image_array;
-  }
-
-  constexpr static bool
-  isValidTargetForExplicitOp(access::target AccessTarget) {
-    return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
-  }
 
   // copy memory pointed by accessor to host memory pointed by shared_ptr
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
@@ -1008,21 +1024,6 @@ public:
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
     MAccStorage.push_back(std::move(AccImpl));
-  }
-
-  // Checks whether it is possible to copy the source shape to the destination
-  // shape(the shapes are described by the accessor ranges) by using
-  // copying by regions of memory and not copying element by element
-  // Shapes can be 1, 2 or 3 dimensional rectangles.
-  template <int Dims_Src, int Dims_Dst>
-  static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
-                                           const range<Dims_Dst> Dst) {
-    if (Dims_Src > Dims_Dst)
-      return false;
-    for (size_t I = 0; I < Dims_Src; ++I)
-      if (Src[I] > Dst[I])
-        return false;
-    return true;
   }
 
   // copy memory pointed by accessor to the memory pointed by another accessor
