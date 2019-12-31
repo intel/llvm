@@ -620,6 +620,16 @@ public:
 #endif
   }
 
+  /// Hierarchical kernel invocation method of a kernel defined as a lambda
+  /// encoding the body of each work-group to launch.
+  ///
+  /// Lambda may contain multiple calls to parallel_for_work_item(...) methods
+  /// representing the execution on each work-item. Launches NumWorkGroups
+  /// work-groups of runtime-defined size.
+  ///
+  /// @param NumWorkGroups is a range describing the number of work-groups in
+  /// each dimension.
+  /// @param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
@@ -636,6 +646,18 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
+  /// Hierarchical kernel invocation method of a kernel defined as a lambda
+  /// encoding the body of each work-group to launch.
+  ///
+  /// Lambda may contain multiple calls to parallel_for_work_item(...) methods
+  /// representing the execution on each work-item. Launches NumWorkGroups
+  /// work-groups of WorkGroupSize size.
+  ///
+  /// @param NumWorkGroups is a range describing the number of work-groups in
+  /// each dimension.
+  /// @param WorkGroupSize is a range describing the size of work-groups in
+  /// each dimension.
+  /// @param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
@@ -653,8 +675,12 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  // single_task version with a kernel represented as a sycl::kernel.
-  // The kernel invocation method has no functors and cannot be called on host.
+  /// Invokes a SYCL kernel.
+  ///
+  /// Executes exactly once. The kernel invocation method has no functors and
+  /// cannot be called on host.
+  ///
+  /// @param SyclKernel is a SYCL kernel object.
   void single_task(kernel SyclKernel) {
     throwIfActionIsCreated();
     verifySyclKernelInvoc(SyclKernel);
@@ -664,12 +690,10 @@ public:
     extractArgsAndReqs();
   }
 
-  // parallel_for version with a kernel represented as a sycl::kernel + range
-  // that specifies global size only. The kernel invocation method has no
-  // functors and cannot be called on host.
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
-  /// The SYCL kernel function is defined as SYCL kernel object.
+  /// The SYCL kernel function is defined as SYCL kernel object. The kernel
+  /// invocation method has no functors and cannot be called on host.
   ///
   /// @param NumWorkItems is a range defining indexing space.
   /// @param WorkItemOffset is an offset to be applied to each work item index.
@@ -725,7 +749,7 @@ public:
   ///
   /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
-  /// @param KernelFunc is a lambda that is uesd if device, queue is bound to,
+  /// @param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel SyclKernel, KernelType KernelFunc) {
@@ -745,9 +769,13 @@ public:
 #endif
   }
 
-  // parallel_for version which takes two "kernels". One is a lambda which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. range argument specifies global size.
+  /// Defines and invokes a SYCL kernel function for the specified range.
+  ///
+  /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// (except for the host device).
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param KernelFunc is a lambda that is used if device, queue is bound to,
+  /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
@@ -768,9 +796,15 @@ public:
 #endif
   }
 
-  // parallel_for version which takes two "kernels". One is a lambda which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. range and id specify global size and offset.
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// (except for the host device).
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param WorkItemOffset is an offset to be applied to each work item index.
+  /// @param KernelFunc is a lambda that is used if device, queue is bound to,
+  /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
@@ -791,9 +825,15 @@ public:
 #endif
   }
 
-  // parallel_for version which takes two "kernels". One is a lambda which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. nd_range specifies global, local size and offset.
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// (except for the host device).
+  /// @param NumWorkItems is a range defining indexing space.
+  /// @param WorkItemOffset is an offset to be applied to each work item index.
+  /// @param KernelFunc is a lambda that is used if device, queue is bound to,
+  /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel SyclKernel, nd_range<Dims> NDRange,
@@ -814,12 +854,19 @@ public:
 #endif
   }
 
+  /// Hierarchical kernel invocation method of a kernel.
+  ///
   /// This version of \c parallel_for_work_group takes two parameters
   /// representing the same kernel. The first one - \c syclKernel - is a
   /// compiled form of the second one - \c kernelFunc, which is the source form
   /// of the kernel. The same source kernel can be compiled multiple times
   /// yielding multiple kernel class objects accessible via the \c program class
   /// interface.
+  ///
+  /// @param SyclKernel is a compiled SYCL kernel.
+  /// @param NumWorkGroups is a range describing the number of work-groups in
+  /// each dimension.
+  /// @param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
@@ -837,8 +884,21 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  /// Two-kernel version of the \c parallel_for_work_group with group and local
-  /// range.
+  /// Hierarchical kernel invocation method of a kernel.
+  ///
+  /// This version of \c parallel_for_work_group takes two parameters
+  /// representing the same kernel. The first one - \c syclKernel - is a
+  /// compiled form of the second one - \c kernelFunc, which is the source form
+  /// of the kernel. The same source kernel can be compiled multiple times
+  /// yielding multiple kernel class objects accessible via the \c program class
+  /// interface.
+  ///
+  /// @param SyclKernel is a compiled SYCL kernel.
+  /// @param NumWorkGroups is a range describing the number of work-groups in
+  /// each dimension.
+  /// @param WorkGroupSize is a range describing the size of work-groups in
+  /// each dimension.
+  /// @param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
@@ -859,7 +919,13 @@ public:
 
   // Explicit copy operations API
 
-  // copy memory pointed by accessor to host memory pointed by shared_ptr
+  /// Copies the contents of memory object accessed by Src into the memory
+  /// pointed by Dst.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// @param Src is a source SYCL accessor.
+  /// @param Dst is a smart pointer to destination memory.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -875,7 +941,13 @@ public:
     copy(Src, RawDstPtr);
   }
 
-  // copy memory pointer by shared_ptr to host memory pointed by accessor
+  /// Copies the contents of memory pointed by Src into the memory object
+  /// accessed by Dst.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// @param Src is a smart pointer to source memory.
+  /// @param Dst is a destination SYCL accessor.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -892,7 +964,13 @@ public:
     copy(RawSrcPtr, Dst);
   }
 
-  // copy memory pointed by accessor to host memory pointed by raw pointer
+  /// Copies the contents of memory object accessed by Src into the memory
+  /// pointed by Dst.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// @param Src is a source SYCL accessor.
+  /// @param Dst is a pointer to destination memory.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -931,7 +1009,13 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  // copy memory pointed by raw pointer to host memory pointed by accessor
+  /// Copies the contents of memory pointed by Src into the memory object
+  /// accessed by Dst.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// @param Src is a pointer to source memory.
+  /// @param Dst is a destination SYCL accessor.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -971,7 +1055,13 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  // copy memory pointed by accessor to the memory pointed by another accessor
+  /// Copies the contents of memory object accessed by Src to the memory
+  /// object accessed by Dst.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// @param Src is a source SYCL accessor.
+  /// @param Dst is a destination SYCL accessor.
   template <
       typename T_Src, int Dims_Src, access::mode AccessMode_Src,
       access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
@@ -1033,6 +1123,10 @@ public:
     MAccStorage.push_back(std::move(AccImplDst));
   }
 
+  /// Provides guarantees that the memory object accessed via Acc is updated
+  /// on the host after command group object execution is complete.
+  ///
+  /// @param Acc is a SYCL accessor that needs to be updated on host.
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1051,10 +1145,14 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  // Fill memory pointed by accessor with the pattern given.
-  // If the operation is submitted to queue associated with OpenCL device and
-  // accessor points to one dimensional memory object then use special type for
-  // filling. Otherwise fill using regular kernel.
+  /// Fills memory pointed by accessor with the pattern given.
+  ///
+  /// If the operation is submitted to queue associated with OpenCL device and
+  /// accessor points to one dimensional memory object then use special type for
+  /// filling. Otherwise fill using regular kernel.
+  ///
+  /// @param Dst is a destination SYCL accessor.
+  /// @param Pattern is a value to be used to fill the memory.
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1090,7 +1188,12 @@ public:
     }
   }
 
-  // Copy memory from the source to the destination.
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  ///
+  /// @param Dest is a USM pointer to the destination memory.
+  /// @param Src is a USM pointer to the source memory.
+  /// @param Count is a number of bytes to copy.
   void memcpy(void *Dest, const void *Src, size_t Count) {
     throwIfActionIsCreated();
     MSrcPtr = const_cast<void *>(Src);
@@ -1099,7 +1202,11 @@ public:
     MCGType = detail::CG::COPY_USM;
   }
 
-  // Fill the memory pointed to by the destination with the given bytes.
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  ///
+  /// @param Dest is a USM pointer to the memory to fill.
+  /// @param Value is a value to be set. Value is cast as an unsigned char.
+  /// @param Count is a number of bytes to fill.
   void memset(void *Dest, int Value, size_t Count) {
     throwIfActionIsCreated();
     MDstPtr = Dest;
@@ -1108,7 +1215,12 @@ public:
     MCGType = detail::CG::FILL_USM;
   }
 
-  // Prefetch the memory pointed to by the pointer.
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// @param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// @param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count) {
     throwIfActionIsCreated();
     MDstPtr = const_cast<void *>(Ptr);
