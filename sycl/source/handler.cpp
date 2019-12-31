@@ -8,13 +8,13 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <CL/sycl/event.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 namespace cl {
