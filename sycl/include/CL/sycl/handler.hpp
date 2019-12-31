@@ -344,10 +344,10 @@ private:
     }
   }
 
-  // Checks whether it is possible to copy the source shape to the destination
-  // shape(the shapes are described by the accessor ranges) by using
-  // copying by regions of memory and not copying element by element
-  // Shapes can be 1, 2 or 3 dimensional rectangles.
+  /// Checks whether it is possible to copy the source shape to the destination
+  /// shape(the shapes are described by the accessor ranges) by using
+  /// copying by regions of memory and not copying element by element
+  /// Shapes can be 1, 2 or 3 dimensional rectangles.
   template <int Dims_Src, int Dims_Dst>
   static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
                                            const range<Dims_Dst> Dst) {
