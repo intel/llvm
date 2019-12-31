@@ -9,6 +9,10 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/event_impl.hpp>
+#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -16,10 +20,6 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
@@ -77,15 +77,15 @@ public:
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler),
-        MHostQueue(false), MOpenCLInterop(true) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+        MOpenCLInterop(true) {
 
     MCommandQueue = pi::cast<RT::PiQueue>(PiQueue);
 
     RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piQueueGetInfo)(MCommandQueue, PI_QUEUE_INFO_DEVICE,
-                            sizeof(Device), &Device, nullptr);
+    PI_CALL(piQueueGetInfo)(MCommandQueue, PI_QUEUE_INFO_DEVICE, sizeof(Device),
+                            &Device, nullptr);
     MDevice = std::make_shared<device_impl>(Device);
 
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -110,12 +110,12 @@ public:
   }
 
   /// @return an associated SYCL context.
-  context get_context() const { return createSyclObjFromImpl<context>(MContext); }
+  context get_context() const {
+    return createSyclObjFromImpl<context>(MContext);
+  }
 
   /// @return a pointer to a context_impl.
-  ContextImplPtr get_context_impl() const {
-    return MContext;
-  }
+  ContextImplPtr get_context_impl() const { return MContext; }
 
   /// @return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -139,7 +139,8 @@ public:
   /// @param Self is a shared_ptr to this queue.
   /// @return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self,
+  event submit(const function_class<void(handler &)> &CGF,
+               shared_ptr_class<queue_impl> Self,
                shared_ptr_class<queue_impl> SecondQueue) {
     try {
       return submit_impl(CGF, Self);
@@ -158,7 +159,8 @@ public:
   /// @param CGF is a function object containing command group.
   /// @param Self is a shared_ptr to this queue.
   /// @return a SYCL event object for the submitted command group.
-  event submit(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self) {
+  event submit(const function_class<void(handler &)> &CGF,
+               shared_ptr_class<queue_impl> Self) {
     return submit_impl(CGF, std::move(Self));
   }
 
@@ -333,7 +335,8 @@ private:
   /// @param CGF is a function object containing command group.
   /// @param Self is a pointer to this queue.
   /// @return a SYCL event representing submitted command group.
-  event submit_impl(const function_class<void(handler&)> &CGF, shared_ptr_class<queue_impl> Self) {
+  event submit_impl(const function_class<void(handler &)> &CGF,
+                    shared_ptr_class<queue_impl> Self) {
     handler Handler(std::move(Self), MHostQueue);
     CGF(Handler);
     event Event = Handler.finalize();

@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
 
 #include <algorithm>
 
@@ -41,13 +41,13 @@ queue::queue(const device &syclDevice, const async_handler &asyncHandler,
 
 queue::queue(cl_command_queue clQueue, const context &syclContext,
              const async_handler &asyncHandler) {
-  impl =
-      std::make_shared<detail::queue_impl>(detail::pi::cast<detail::RT::PiQueue>(clQueue),
-          detail::getSyclObjImpl(syclContext), asyncHandler);
+  impl = std::make_shared<detail::queue_impl>(
+      detail::pi::cast<detail::RT::PiQueue>(clQueue),
+      detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
 queue::queue(const context &syclContext, const device_selector &deviceSelector,
-      const property_list &propList)
+             const property_list &propList)
     : queue(syclContext, deviceSelector,
             detail::getSyclObjImpl(syclContext)->get_async_handler(),
             propList) {}
@@ -66,11 +66,11 @@ void queue::wait_and_throw() { impl->wait_and_throw(); }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
-event queue::memset(void* ptr, int value, size_t count) {
+event queue::memset(void *ptr, int value, size_t count) {
   return impl->memset(impl, ptr, value, count);
 }
 
-event queue::memcpy(void* dest, const void* src, size_t count) {
+event queue::memcpy(void *dest, const void *src, size_t count) {
   return impl->memcpy(impl, dest, src, count);
 }
 

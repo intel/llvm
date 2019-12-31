@@ -8,13 +8,13 @@
 
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 
 #include <utility>
 
@@ -200,7 +200,7 @@ public:
   /// @param Value is a value to be set. Value is cast as an unsigned char.
   /// @param Count is a number of bytes to fill.
   /// @return an event representing fill operation.
-  event memset(void* Ptr, int Value, size_t Count);
+  event memset(void *Ptr, int Value, size_t Count);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -209,7 +209,7 @@ public:
   /// @param Src is a USM pointer to the source memory.
   /// @param Count is a number of bytes to copy.
   /// @return an event representing copy operation.
-  event memcpy(void* Dest, const void* Src, size_t Count);
+  event memcpy(void *Dest, const void *Src, size_t Count);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -227,9 +227,7 @@ public:
   /// @param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// @param Count is a number of bytes to be prefetched.
   event prefetch(const void* Ptr, size_t Count) {
-    return submit([=](handler &cgh) {
-        cgh.prefetch(Ptr, Count);
-    });
+    return submit([=](handler &cgh) { cgh.prefetch(Ptr, Count); });
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -302,7 +300,8 @@ public:
   /// specifies global size only.
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
-  /// @param DepEvents is a vector of events that specifies the kernel dependences
+  /// @param DepEvents is a vector of events that specifies the kernel
+  /// dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -355,7 +354,8 @@ public:
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param WorkItemOffset specifies the offset for each work item id
-  /// @param DepEvents is a vector of events that specifies the kernel dependences
+  /// @param DepEvents is a vector of events that specifies the kernel
+  /// dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -386,7 +386,8 @@ public:
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
-  /// @param ExecutionRange is a range that specifies the work space of the kernel
+  /// @param ExecutionRange is a range that specifies the work space of the
+  /// kernel
   /// @param DepEvent is an event that specifies the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -403,8 +404,10 @@ public:
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
-  /// @param ExecutionRange is a range that specifies the work space of the kernel
-  /// @param DepEvents is a vector of events that specifies the kernel dependences
+  /// @param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// @param DepEvents is a vector of events that specifies the kernel
+  /// dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -426,8 +429,7 @@ private:
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH);
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH,
-                    queue secondQueue);
+  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue);
 };
 
 } // namespace sycl
@@ -436,7 +438,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &q) const {
-    return std::hash<cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
+    return std::hash<
+        cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(q));
   }
 };
