@@ -71,17 +71,21 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind) {
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
-    if (!Alignment) {
-      // worst case default
-      Alignment = 128;
-    }
-
-    aligned_allocator<char> Alloc(Alignment);
-    try {
-      RetVal = Alloc.allocate(Size);
-    } catch (const std::bad_alloc &) {
-      // Conform with Specification behavior
+    if (Kind == alloc::unknown) {
       RetVal = nullptr;
+    } else {
+      if (!Alignment) {
+        // worst case default
+        Alignment = 128;
+      }
+
+      aligned_allocator<char> Alloc(Alignment);
+      try {
+        RetVal = Alloc.allocate(Size);
+      } catch (const std::bad_alloc &) {
+        // Conform with Specification behavior
+        RetVal = nullptr;
+      }
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);

@@ -56,7 +56,7 @@ public:
 
     pointer Result = reinterpret_cast<pointer>(
         detail::OSUtil::alignedAlloc(MAlignment, NumBytes));
-    if (!Result)
+    if (!Result || NumBytes == 0)
       throw std::bad_alloc();
     return Result;
   }
