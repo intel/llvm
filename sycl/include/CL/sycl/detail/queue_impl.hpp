@@ -35,8 +35,8 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
-  /// Constructs a SYCL queue with an async_handler and property_list provided
-  /// from a device.
+  /// Constructs a SYCL queue from a device using an async_handler and
+  /// property_list provided.
   ///
   /// @param Device is a pointer to device_impl.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
@@ -70,7 +70,7 @@ public:
     }
   }
 
-  /// Constructs a SYCL queue from plugin interface interoperability handle.
+  /// Constructs a SYCL queue from plugin interoperability handle.
   ///
   /// @param PiQueue is a raw PI queue handle.
   /// @param Context is a pointer to context_impl.
@@ -328,7 +328,7 @@ public:
   }
 
 private:
-  /// Performs actual command group submission to the queue.
+  /// Performs command group submission to the queue.
   ///
   /// @param CGF is a function object containing command group.
   /// @param Self is a pointer to this queue.
