@@ -576,8 +576,10 @@ public:
 #endif
   }
 
-  // Similar to single_task, but passed lambda will be executed on host.
-  /// Invokes a function on host.
+  /// Defines and invokes a SYCL kernel on host device.
+  ///
+  /// @param Func is a SYCL kernel function defined by lambda function or a
+  /// named function object type.
   template <typename FuncT> void run_on_host_intel(FuncT Func) {
     throwIfActionIsCreated();
     MNDRDesc.set(range<1>{1});
@@ -744,9 +746,12 @@ public:
     extractArgsAndReqs();
   }
 
-  // single_task version which takes two "kernels". One is a lambda which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise.
+  /// Defines and invokes a SYCL kernel function.
+  ///
+  /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// (except for the host device).
+  /// @param KernelFunc is a lambda that is uesd if device, queue is bound to,
+  /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel SyclKernel, KernelType KernelFunc) {
     throwIfActionIsCreated();
