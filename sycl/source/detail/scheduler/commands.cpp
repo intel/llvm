@@ -910,8 +910,8 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
-        PI_CALL(piextUSMKernelSetArgMemPointer)(Kernel, Arg.MIndex, Arg.MSize,
-                                                Arg.MPtr);
+        PI_CALL(piextKernelSetArgPointer)(Kernel, Arg.MIndex, Arg.MSize,
+                                          Arg.MPtr);
         break;
       }
       default:

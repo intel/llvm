@@ -987,6 +987,13 @@ typedef _pi_usm_mem_properties    pi_usm_mem_properties;
 typedef _pi_usm_kernel_exec_info  pi_usm_kernel_exec_info;
 typedef _pi_usm_migration_flags   pi_usm_migration_flags;
 
+/// Allocates host memory accessible by the device.
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
 pi_result piextUSMHostAlloc(
   void **                 result_ptr,
   pi_context              context,
@@ -994,6 +1001,14 @@ pi_result piextUSMHostAlloc(
   size_t                  size,
   pi_uint32               alignment);
 
+/// Allocates device memory
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param device is the device the memory will be allocated on
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
 pi_result piextUSMDeviceAlloc(
   void **                 result_ptr,
   pi_context              context,
@@ -1002,6 +1017,14 @@ pi_result piextUSMDeviceAlloc(
   size_t                  size,
   pi_uint32               alignment);
 
+/// Allocates memory accessible on both host and device
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param device is the device the memory will be allocated on
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
 pi_result piextUSMSharedAlloc(
   void **                 result_ptr,
   pi_context              context,
@@ -1010,20 +1033,45 @@ pi_result piextUSMSharedAlloc(
   size_t                  size,
   pi_uint32               alignment);
 
+/// Frees allocated USM memory
+///
+/// @param context is the pi_context of the allocation
+/// @param ptr is the memory to be freed
 pi_result piextUSMFree(
   pi_context context,
   void *     ptr);
 
-pi_result piextUSMKernelSetArgMemPointer(
+/// Sets up pointer arguments for CL kernels. An extra indirection
+/// is required due to CL argument conventions.
+///
+/// @param kernel is the kernel to be launched
+/// @param arg_index is the index of the kernel argument
+/// @param arg_size is the size in bytes of the argument (ignored in CL)
+/// @param arg_value is the pointer argument
+pi_result piextKernelSetArgPointer(
   pi_kernel    kernel,
   pi_uint32    arg_index,
   size_t       arg_size,
   const void * arg_value);
 
+/// Enables indirect access of pointers in kernels.
+/// Necessary to avoid telling CL about every pointer that might be used.
+///
+/// @param kernel is the kernel to be launched
 pi_result piextUSMKernelSetIndirectAccess(
   pi_kernel kernel,
   pi_queue queue);
 
+/// USM Memset API
+///
+/// @param queue is the queue to submit to
+/// @param ptr is the ptr to memset
+/// @param value is value to set.  It is interpreted as an 8-bit value and the upper
+///        24 bits are ignored
+/// @param count is the size in bytes to memset
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
 pi_result piextUSMEnqueueMemset(
   pi_queue         queue,
   void *           ptr,
@@ -1033,6 +1081,16 @@ pi_result piextUSMEnqueueMemset(
   const pi_event * events_waitlist,
   pi_event *       event);
 
+/// USM Memcpy API
+///
+/// @param queue is the queue to submit to
+/// @param blocking is whether this operation should block the host
+/// @param src_ptr is the data to be copied
+/// @param dst_ptr is the location the data will be copied
+/// @param size is number of bytes to copy
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
 pi_result piextUSMEnqueueMemcpy(
   pi_queue         queue,
   pi_bool          blocking,
@@ -1043,6 +1101,15 @@ pi_result piextUSMEnqueueMemcpy(
   const pi_event * events_waitlist,
   pi_event *       event);
 
+/// Hint to migrate memory to the device
+///
+/// @param queue is the queue to submit to
+/// @param ptr points to the memory to migrate
+/// @param size is the number of bytes to migrate
+/// @param flags is a bitfield used to specify memory migration options
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
 pi_result piextUSMEnqueuePrefetch(
   pi_queue               queue,
   const void *           ptr,
@@ -1052,6 +1119,14 @@ pi_result piextUSMEnqueuePrefetch(
   const pi_event *       events_waitlist,
   pi_event *             event);
 
+/// USM Memadvise API
+///
+/// @param queue is the queue to submit to
+/// @param ptr is the data to be advised
+/// @param length is the size in bytes of the meory to advise
+/// @param advice is device specific advice
+/// @param event is the event that represents this operation
+// USM memadvise API to govern behavior of automatic migration mechanisms
 pi_result piextUSMEnqueueMemAdvise(
   pi_queue     queue,
   const void * ptr,
@@ -1059,6 +1134,20 @@ pi_result piextUSMEnqueueMemAdvise(
   int          advice,
   pi_event *   event);
 
+/// API to query information about USM pointers including type and
+/// device allocated against
+/// Examples include:
+///   PI_MEM_ALLOC_TYPE
+///   PI_MEM_ALLOC_BASE_PTR
+///   PI_MEM_ALLOC_SIZE
+///   PI_MEM_ALLOC_DEVICE
+///
+/// @param context is the pi_context
+/// @param ptr is the pointer to query
+/// @param param_name is the type of query to perform
+/// @param param_value_size is the size of the result in bytes
+/// @param param_value is the result
+/// @param param_value_ret is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(
   pi_context   context,
   const void * ptr,

@@ -33,6 +33,8 @@ template <class To, class From> To cast(From value) {
 // USM helper function to get an extension function pointer
 template <typename T>
 pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
+  // TODO
+  // Potentially redo caching as PI interface changes.
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
@@ -626,10 +628,9 @@ pi_result OCL(piextUSMFree)(pi_context context, void *ptr) {
 /// @param arg_index is the index of the kernel argument
 /// @param arg_size is the size in bytes of the argument (ignored in CL)
 /// @param arg_value is the pointer argument
-pi_result OCL(piextUSMKernelSetArgMemPointer)(pi_kernel kernel,
-                                              pi_uint32 arg_index,
-                                              size_t arg_size,
-                                              const void *arg_value) {
+pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
+                                        size_t arg_size,
+                                        const void *arg_value) {
 
   // Size is unused in CL as pointer args are passed by value.
 
@@ -1002,7 +1003,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMDeviceAlloc, OCL(piextUSMDeviceAlloc))
   _PI_CL(piextUSMSharedAlloc, OCL(piextUSMSharedAlloc))
   _PI_CL(piextUSMFree, OCL(piextUSMFree))
-  _PI_CL(piextUSMKernelSetArgMemPointer, OCL(piextUSMKernelSetArgMemPointer))
+  _PI_CL(piextKernelSetArgPointer, OCL(piextKernelSetArgPointer))
   _PI_CL(piextUSMKernelSetIndirectAccess, OCL(piextUSMKernelSetIndirectAccess))
   _PI_CL(piextUSMEnqueueMemset, OCL(piextUSMEnqueueMemset))
   _PI_CL(piextUSMEnqueueMemcpy, OCL(piextUSMEnqueueMemcpy))
