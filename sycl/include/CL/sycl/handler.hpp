@@ -133,47 +133,6 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
 class handler {
-  shared_ptr_class<detail::queue_impl> MQueue;
-  /// The storage for the arguments passed.
-  /// We need to store a copy of values that are passed explicitly through
-  /// set_arg, require and so on, because we need them to be alive after
-  /// we exit the method they are passed in.
-  vector_class<vector_class<char>> MArgsStorage;
-  vector_class<detail::AccessorImplPtr> MAccStorage;
-  vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
-  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
-  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
-  /// The list of arguments for the kernel.
-  vector_class<detail::ArgDesc> MArgs;
-  /// The list of associated accessors with this handler.
-  /// These accessors were created with this handler as argument or
-  /// have become required for this handler via require method.
-  vector_class<detail::ArgDesc> MAssociatedAccesors;
-  /// The list of requirements to the memory objects for the scheduling.
-  vector_class<detail::Requirement *> MRequirements;
-  /// Struct that encodes global size, local size, ...
-  detail::NDRDescT MNDRDesc;
-  string_class MKernelName;
-  /// Storage for a sycl::kernel object.
-  unique_ptr_class<kernel> MSyclKernel;
-  /// Type of the command group, e.g. kernel, fill.
-  detail::CG::CGTYPE MCGType = detail::CG::NONE;
-  /// Pointer to the source host memory or accessor(depending on command type).
-  void *MSrcPtr = nullptr;
-  /// Pointer to the dest host memory or accessor(depends on command type).
-  void *MDstPtr = nullptr;
-  /// Length to copy or fill (for USM operations).
-  size_t MLength = 0;
-  /// Pattern that is used to fill memory object in case command type is fill.
-  vector_class<char> MPattern;
-  /// Storage for a lambda or function object.
-  unique_ptr_class<detail::HostKernelBase> MHostKernel;
-  detail::OSModuleHandle MOSModuleHandle;
-  /// The list of events that order this operation.
-  vector_class<detail::EventImplPtr> MEvents;
-
-  bool MIsHost = false;
-
 private:
   /// Constructs SYCL handler from queue.
   ///
@@ -414,20 +373,6 @@ private:
   isValidTargetForExplicitOp(access::target AccessTarget) {
     return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
   }
-
-  // Make queue_impl class friend to be able to call finalize method.
-  friend class detail::queue_impl;
-  // Make accessor class friend to keep the list of associated accessors.
-  template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  friend class accessor;
-
-  template <typename DataT, int Dimensions, access::mode AccessMode,
-            access::target AccessTarget, access::placeholder IsPlaceholder>
-  friend class detail::image_accessor;
-  // Make stream class friend to be able to keep the list of associated streams
-  friend class stream;
-  friend class detail::stream_impl;
 
 public:
   handler(const handler &) = delete;
@@ -1170,6 +1115,62 @@ public:
     MLength = Count;
     MCGType = detail::CG::PREFETCH_USM;
   }
+
+private:
+  shared_ptr_class<detail::queue_impl> MQueue;
+  /// The storage for the arguments passed.
+  /// We need to store a copy of values that are passed explicitly through
+  /// set_arg, require and so on, because we need them to be alive after
+  /// we exit the method they are passed in.
+  vector_class<vector_class<char>> MArgsStorage;
+  vector_class<detail::AccessorImplPtr> MAccStorage;
+  vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
+  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
+  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
+  /// The list of arguments for the kernel.
+  vector_class<detail::ArgDesc> MArgs;
+  /// The list of associated accessors with this handler.
+  /// These accessors were created with this handler as argument or
+  /// have become required for this handler via require method.
+  vector_class<detail::ArgDesc> MAssociatedAccesors;
+  /// The list of requirements to the memory objects for the scheduling.
+  vector_class<detail::Requirement *> MRequirements;
+  /// Struct that encodes global size, local size, ...
+  detail::NDRDescT MNDRDesc;
+  string_class MKernelName;
+  /// Storage for a sycl::kernel object.
+  unique_ptr_class<kernel> MSyclKernel;
+  /// Type of the command group, e.g. kernel, fill.
+  detail::CG::CGTYPE MCGType = detail::CG::NONE;
+  /// Pointer to the source host memory or accessor(depending on command type).
+  void *MSrcPtr = nullptr;
+  /// Pointer to the dest host memory or accessor(depends on command type).
+  void *MDstPtr = nullptr;
+  /// Length to copy or fill (for USM operations).
+  size_t MLength = 0;
+  /// Pattern that is used to fill memory object in case command type is fill.
+  vector_class<char> MPattern;
+  /// Storage for a lambda or function object.
+  unique_ptr_class<detail::HostKernelBase> MHostKernel;
+  detail::OSModuleHandle MOSModuleHandle;
+  /// The list of events that order this operation.
+  vector_class<detail::EventImplPtr> MEvents;
+
+  bool MIsHost = false;
+
+  // Make queue_impl class friend to be able to call finalize method.
+  friend class detail::queue_impl;
+  // Make accessor class friend to keep the list of associated accessors.
+  template <typename DataT, int Dims, access::mode AccMode,
+            access::target AccTarget, access::placeholder isPlaceholder>
+  friend class accessor;
+
+  template <typename DataT, int Dimensions, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  friend class detail::image_accessor;
+  // Make stream class friend to be able to keep the list of associated streams
+  friend class stream;
+  friend class detail::stream_impl;
 };
 } // namespace sycl
 } // namespace cl
