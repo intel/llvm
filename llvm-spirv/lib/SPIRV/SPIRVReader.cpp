@@ -1327,15 +1327,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   // Translation of non-instruction values
   switch (OC) {
-  case OpConstant: {
+  case OpConstant:
+  case OpSpecConstant: {
     SPIRVConstant *BConst = static_cast<SPIRVConstant *>(BV);
     SPIRVType *BT = BV->getType();
     Type *LT = transType(BT);
+    uint64_t ConstValue = BConst->getZExtIntValue();
+    SPIRVWord SpecId = 0;
+    if (OC == OpSpecConstant && BV->hasDecorate(DecorationSpecId, 0, &SpecId)) {
+      // Update the value with possibly provided external specialization.
+      if (BM->getSpecializationConstant(SpecId, ConstValue)) {
+        assert(
+            (BT->getBitWidth() == 64 ||
+             (ConstValue >> BT->getBitWidth()) == 0) &&
+            "Size of externally provided specialization constant value doesn't"
+            "fit into the specialization constant type");
+      }
+    }
     switch (BT->getOpCode()) {
     case OpTypeBool:
     case OpTypeInt:
       return mapValue(
-          BV, ConstantInt::get(LT, BConst->getZExtIntValue(),
+          BV, ConstantInt::get(LT, ConstValue,
                                static_cast<SPIRVTypeInt *>(BT)->isSigned()));
     case OpTypeFloat: {
       const llvm::fltSemantics *FS = nullptr;
@@ -1350,12 +1363,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         FS = &APFloat::IEEEdouble();
         break;
       default:
-        llvm_unreachable("invalid float type");
+        llvm_unreachable("invalid floating-point type");
       }
-      return mapValue(
-          BV, ConstantFP::get(*Context,
-                              APFloat(*FS, APInt(BT->getFloatBitWidth(),
-                                                 BConst->getZExtIntValue()))));
+      APFloat FPConstValue(*FS, APInt(BT->getFloatBitWidth(), ConstValue));
+      return mapValue(BV, ConstantFP::get(*Context, FPConstValue));
     }
     default:
       llvm_unreachable("Not implemented");
@@ -1369,12 +1380,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpConstantFalse:
     return mapValue(BV, ConstantInt::getFalse(*Context));
 
+  case OpSpecConstantTrue:
+  case OpSpecConstantFalse: {
+    bool IsTrue = OC == OpSpecConstantTrue;
+    SPIRVWord SpecId = 0;
+    if (BV->hasDecorate(DecorationSpecId, 0, &SpecId)) {
+      uint64_t ConstValue = 0;
+      if (BM->getSpecializationConstant(SpecId, ConstValue)) {
+        IsTrue = ConstValue;
+      }
+    }
+    return mapValue(BV, IsTrue ? ConstantInt::getTrue(*Context)
+                               : ConstantInt::getFalse(*Context));
+  }
+
   case OpConstantNull: {
     auto LT = transType(BV->getType());
     return mapValue(BV, Constant::getNullValue(LT));
   }
 
-  case OpConstantComposite: {
+  case OpConstantComposite:
+  case OpSpecConstantComposite: {
     auto BCC = static_cast<SPIRVConstantComposite *>(BV);
     std::vector<Constant *> CV;
     for (auto &I : BCC->getElements())
@@ -3621,4 +3647,49 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
     dumpLLVM(M, DbgTmpLLVMFileName);
 
   return true;
+}
+
+void llvm::getSpecConstInfo(std::istream &IS,
+                            std::vector<SpecConstInfoTy> &SpecConstInfo) {
+  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
+  BM->setAutoAddExtensions(false);
+  SPIRVDecoder D(IS, *BM);
+  SPIRVWord Magic;
+  D >> Magic;
+  if (!BM->getErrorLog().checkError(Magic == MagicNumber, SPIRVEC_InvalidModule,
+                                    "invalid magic number")) {
+    return;
+  }
+  // Skip the rest of the header
+  D.ignore(4);
+
+  // According to the logical layout of SPIRV module (p2.4 of the spec),
+  // all constant instructions must appear before function declarations.
+  while (D.OpCode != OpFunction && D.getWordCountAndOpCode()) {
+    switch (D.OpCode) {
+    case OpDecorate:
+      // The decoration is added to the module in scope of SPIRVDecorate::decode
+      D.getEntry();
+      break;
+    case OpTypeBool:
+    case OpTypeInt:
+    case OpTypeFloat:
+      BM->addEntry(D.getEntry());
+      break;
+    case OpSpecConstant:
+    case OpSpecConstantTrue:
+    case OpSpecConstantFalse: {
+      auto *C = BM->addConstant(static_cast<SPIRVValue *>(D.getEntry()));
+      SPIRVWord SpecConstIdLiteral = 0;
+      if (C->hasDecorate(DecorationSpecId, 0, &SpecConstIdLiteral)) {
+        SPIRVType *Ty = C->getType();
+        uint32_t SpecConstSize = Ty->isTypeBool() ? 1 : Ty->getBitWidth() / 8;
+        SpecConstInfo.emplace_back(SpecConstIdLiteral, SpecConstSize);
+      }
+      break;
+    }
+    default:
+      D.ignoreInstruction();
+    }
+  }
 }

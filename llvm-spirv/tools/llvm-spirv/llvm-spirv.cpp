@@ -133,6 +133,21 @@ static cl::opt<bool> ToBinary(
     cl::desc("Convert input SPIR-V in internal textual format to binary"));
 #endif
 
+static cl::opt<std::string> SpecConst(
+    "spec-const",
+    cl::desc("Translate SPIR-V to LLVM with constant specialization\n"
+             "All ids must be valid specialization constant ids for the input "
+             "SPIR-V module.\n"
+             "The list of valid ids is available via -spec-const-info option.\n"
+             "For duplicate ids the later one takes precedence.\n"
+             "Supported types are: i1, i8, i16, i32, i64, f16, f32, f64.\n"),
+    cl::value_desc("id1:type1:value1 id2:type2:value2 ..."));
+
+static cl::opt<bool> SpecConstInfo(
+    "spec-const-info",
+    cl::desc("Display id of constants available for specializaion and their "
+             "size in bytes"));
+
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
   if (Pos != std::string::npos)
@@ -357,6 +372,116 @@ static int parseSPVExtOption(
   return 0;
 }
 
+// Returns true on error.
+bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
+                       SPIRV::TranslatorOpts &Opts) {
+  std::ifstream IFS(InputFile, std::ios::binary);
+  std::vector<SpecConstInfoTy> SpecConstInfo;
+  getSpecConstInfo(IFS, SpecConstInfo);
+
+  SmallVector<StringRef, 8> Split;
+  SpecConstStr.split(Split, ' ', -1, false);
+  for (StringRef Option : Split) {
+    SmallVector<StringRef, 4> Params;
+    Option.split(Params, ':', 2);
+    if (Params.size() < 3) {
+      errs() << "Error: Invalid format of -" << SpecConst.ArgStr
+             << " option: \"" << Option << "\". Expected format: -"
+             << SpecConst.ArgStr << " \"<" << SpecConst.ValueStr << ">\"\n";
+      return true;
+    }
+    uint32_t SpecId;
+    if (Params[0].getAsInteger(10, SpecId)) {
+      errs() << "Error: Invalid id for '-" << SpecConst.ArgStr
+             << "' option! In \"" << Option << "\": \"" << Params[0]
+             << "\" must be a 32-bit unsigned integer\n";
+      return true;
+    }
+    auto It = std::find_if(
+        SpecConstInfo.begin(), SpecConstInfo.end(),
+        [=](SpecConstInfoTy Info) { return Info.first == SpecId; });
+    if (It == SpecConstInfo.end()) {
+      errs() << "Error: CL_INVALID_SPEC_ID. \"" << Option << "\": There is no "
+             << "specialization constant with id = " << SpecId
+             << " in the SPIR-V module.";
+      return true;
+    }
+    if (Params[1].consume_front("i")) {
+      unsigned Width = 0;
+      Params[1].getAsInteger(10, Width);
+      if (!isPowerOf2_32(Width) || Width > 64) {
+        errs() << "Error: Invalid type for '-" << SpecConst.ArgStr
+               << "' option! In \"" << Option << "\": \"i" << Params[1]
+               << "\" - is not allowed type. "
+               << "Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64\n";
+        return true;
+      }
+      size_t Size = Width < 8 ? 1 : Width / 8;
+      if (Size != It->second) {
+        errs() << "Error: CL_INVALID_VALUE. In \"" << Option << "\": Size of "
+               << "type i" << Width << " (" << Size << " bytes) "
+               << "does not match the size of the specialization constant "
+               << "in the module (" << It->second << " bytes)\n";
+        return true;
+      }
+      APInt Value;
+      bool Err = Params[2].getAsInteger(10, Value);
+      if (Err || Value.getNumWords() > 1 ||
+          (Width < 64 && Value.getZExtValue() >> Width)) {
+        errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
+               << "' option! In \"" << Option << "\": can't convert \""
+               << Params[2] << "\" to " << Width << "-bit integer number\n";
+        return true;
+      }
+      Opts.setSpecConst(SpecId, Value.getZExtValue());
+    } else if (Params[1].consume_front("f")) {
+      unsigned Width = 0;
+      Params[1].getAsInteger(10, Width);
+      const llvm::fltSemantics *FS = nullptr;
+      switch (Width) {
+      case 16:
+        FS = &APFloat::IEEEhalf();
+        break;
+      case 32:
+        FS = &APFloat::IEEEsingle();
+        break;
+      case 64:
+        FS = &APFloat::IEEEdouble();
+        break;
+      default:
+        errs() << "Error: Invalid type for '-" << SpecConst.ArgStr
+               << "' option! In \"" << Option << "\": \"f" << Params[1]
+               << "\" - is not allowed type. "
+               << "Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64\n";
+        return true;
+      }
+      APFloat Value(*FS);
+      Expected<APFloat::opStatus> StatusOrErr =
+          Value.convertFromString(Params[2], APFloat::rmNearestTiesToEven);
+      if (!StatusOrErr) {
+        return true;
+      }
+      // It's ok to have inexact conversion from decimal representation.
+      APFloat::opStatus Status = *StatusOrErr;
+      if (Status & ~APFloat::opInexact) {
+        errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
+               << "' option! In \"" << Option << "\": can't convert \""
+               << Params[2] << "\" to " << Width
+               << "-bit floating point number\n";
+        return true;
+      }
+      Opts.setSpecConst(SpecId, Value.bitcastToAPInt().getZExtValue());
+    } else {
+      errs() << "Error: Invalid type for '-" << SpecConst.ArgStr
+             << "' option! In \"" << Option << "\": \"" << Params[1]
+             << "\" - is not allowed type. "
+             << "Allowed types are: i1, i8, i16, i32, i64, f16, f32, f64\n";
+      return true;
+    }
+  }
+  return false;
+}
+
 int main(int Ac, char **Av) {
   EnablePrettyStackTrace();
   sys::PrintStackTraceOnErrorSignal(Av[0]);
@@ -379,6 +504,11 @@ int main(int Ac, char **Av) {
   SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus,
                              SPIRVGenKernelArgNameMD);
 
+  if (IsReverse && !SpecConst.empty()) {
+    if (parseSpecConstOpt(SpecConst, Opts))
+      return -1;
+  }
+
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {
     errs() << "Cannot use -to-text with -to-binary, -r, -s\n";
@@ -394,7 +524,7 @@ int main(int Ac, char **Av) {
     return convertSPIRV();
 #endif
 
-  if (!IsReverse && !IsRegularization)
+  if (!IsReverse && !IsRegularization && !SpecConstInfo)
     return convertLLVMToSPIRV(Opts);
 
   if (IsReverse && IsRegularization) {
@@ -407,5 +537,15 @@ int main(int Ac, char **Av) {
   if (IsRegularization)
     return regularizeLLVM();
 
+  if (SpecConstInfo) {
+    std::ifstream IFS(InputFile, std::ios::binary);
+    std::vector<SpecConstInfoTy> SpecConstInfo;
+    getSpecConstInfo(IFS, SpecConstInfo);
+    std::cout << "Number of scalar specialization constants in the module = "
+              << SpecConstInfo.size() << "\n";
+    for (auto &SpecConst : SpecConstInfo)
+      std::cout << "Spec const id = " << SpecConst.first
+                << ", size in bytes = " << SpecConst.second << "\n";
+  }
   return 0;
 }
