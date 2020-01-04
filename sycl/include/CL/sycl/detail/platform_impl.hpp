@@ -41,15 +41,7 @@ public:
   ///
   /// @param ExtensionName is a string containing extension name.
   /// @return true if platform supports specified extension.
-  bool has_extension(const string_class &ExtensionName) const {
-    if (is_host())
-      return false;
-
-    string_class AllExtensionNames =
-        get_platform_info<string_class, info::platform::extensions>::get(
-            MPlatform);
-    return (AllExtensionNames.find(ExtensionName) != std::string::npos);
-  }
+  bool has_extension(const string_class &ExtensionName) const;
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -68,26 +60,13 @@ public:
   /// The return type depends on information being queried.
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
-  get_info() const {
-    if (is_host())
-      return get_platform_info_host<param>();
-
-    return get_platform_info<
-        typename info::param_traits<info::platform, param>::return_type,
-        param>::get(this->getHandleRef());
-  }
+  get_info() const;
 
   /// @return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
   /// @return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const {
-    if (is_host())
-      throw invalid_object_error(
-          "This instance of platform is a host instance");
-
-    return pi::cast<cl_platform_id>(MPlatform);
-  }
+  cl_platform_id get() const;
 
   /// Returns raw underlying plug-in platform handle.
   ///
@@ -96,13 +75,7 @@ public:
   /// is in use.
   ///
   /// @return a raw plug-in platform handle.
-  const RT::PiPlatform &getHandleRef() const {
-    if (is_host())
-      throw invalid_object_error(
-          "This instance of platform is a host instance");
-
-    return MPlatform;
-  }
+  const RT::PiPlatform &getHandleRef() const;
 
   /// Returns all available SYCL platforms in the system.
   ///

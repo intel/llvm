@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
+#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 
@@ -227,6 +228,48 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   return Res;
 }
+
+bool platform_impl::has_extension(const string_class &ExtensionName) const {
+  if (is_host())
+    return false;
+
+  string_class AllExtensionNames =
+      get_platform_info<string_class, info::platform::extensions>::get(
+          MPlatform);
+  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+template <info::platform param>
+typename info::param_traits<info::platform, param>::return_type
+platform_impl::get_info() const {
+  if (is_host())
+    return get_platform_info_host<param>();
+
+  return get_platform_info<
+      typename info::param_traits<info::platform, param>::return_type,
+      param>::get(this->getHandleRef());
+}
+
+cl_platform_id platform_impl::get() const {
+  if (is_host())
+    throw invalid_object_error("This instance of platform is a host instance");
+
+  return pi::cast<cl_platform_id>(MPlatform);
+}
+
+const RT::PiPlatform &platform_impl::getHandleRef() const {
+  if (is_host())
+    throw invalid_object_error("This instance of platform is a host instance");
+
+  return MPlatform;
+}
+
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type platform_impl::get_info<info::param_type::param>() const;
+
+#include <CL/sycl/info/platform_traits.def>
+#undef PARAM_TRAITS_SPEC
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
