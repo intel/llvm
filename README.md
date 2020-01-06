@@ -21,3 +21,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ## SYCL Extension Proposal Documents
 
 See [sycl/doc/extensions](sycl/doc/extensions)
+
+## PR for CI testing, please don't merge and review.
