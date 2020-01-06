@@ -640,6 +640,14 @@ pi_result piProgramRelease(pi_program program);
 //
 // Kernel
 //
+
+typedef enum {
+  PI_USM_INDIRECT_ACCESS,
+  PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
+} _pi_kernel_exec_info;
+
+typedef _pi_kernel_exec_info      pi_kernel_exec_info;
+
 pi_result piKernelCreate(
   pi_program      program,
   const char *    kernel_name,
@@ -679,6 +687,29 @@ pi_result piKernelGetSubGroupInfo(
 pi_result piKernelRetain(pi_kernel    kernel);
 
 pi_result piKernelRelease(pi_kernel    kernel);
+
+/// Sets up pointer arguments for CL kernels. An extra indirection
+/// is required due to CL argument conventions.
+///
+/// @param kernel is the kernel to be launched
+/// @param arg_index is the index of the kernel argument
+/// @param arg_size is the size in bytes of the argument (ignored in CL)
+/// @param arg_value is the pointer argument
+pi_result piextKernelSetArgPointer(
+  pi_kernel    kernel,
+  pi_uint32    arg_index,
+  size_t       arg_size,
+  const void * arg_value);
+
+/// API to set attributes controlling kernel execution
+///
+/// @param kernel is the pi kernel to execute
+/// @param param_name is a pi_kernel_exec_info value that specifies the info
+///        passed to the kernel
+/// @param param_value_size is the size of the value in bytes
+/// @param param_value is a pointer to the value to set for the kernel
+pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
+                              size_t param_value_size, const void *param_value);
 
 //
 // Events
@@ -972,19 +1003,11 @@ typedef enum : pi_bitfield {
   PI_USM_MIGRATION_TBD0 = (1 << 0)
 } _pi_usm_migration_flags;
 
-typedef enum {
-  PI_INDIRECT_HOST_ACCESS   = CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-  PI_INDIRECT_DEVICE_ACCESS = CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-  PI_INDIRECT_SHARED_ACCESS = CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-  PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
-} _pi_usm_kernel_exec_info;
-
 typedef _pi_usm_capability_query  pi_usm_capability_query;
 typedef _pi_usm_capabilities      pi_usm_capabilities;
 typedef _pi_mem_info              pi_mem_info;
 typedef _pi_usm_type              pi_usm_type;
 typedef _pi_usm_mem_properties    pi_usm_mem_properties;
-typedef _pi_usm_kernel_exec_info  pi_usm_kernel_exec_info;
 typedef _pi_usm_migration_flags   pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.
@@ -1040,27 +1063,6 @@ pi_result piextUSMSharedAlloc(
 pi_result piextUSMFree(
   pi_context context,
   void *     ptr);
-
-/// Sets up pointer arguments for CL kernels. An extra indirection
-/// is required due to CL argument conventions.
-///
-/// @param kernel is the kernel to be launched
-/// @param arg_index is the index of the kernel argument
-/// @param arg_size is the size in bytes of the argument (ignored in CL)
-/// @param arg_value is the pointer argument
-pi_result piextKernelSetArgPointer(
-  pi_kernel    kernel,
-  pi_uint32    arg_index,
-  size_t       arg_size,
-  const void * arg_value);
-
-/// Enables indirect access of pointers in kernels.
-/// Necessary to avoid telling CL about every pointer that might be used.
-///
-/// @param kernel is the kernel to be launched
-pi_result piextUSMKernelSetIndirectAccess(
-  pi_kernel kernel,
-  pi_queue queue);
 
 /// USM Memset API
 ///
@@ -1134,13 +1136,13 @@ pi_result piextUSMEnqueueMemAdvise(
   int          advice,
   pi_event *   event);
 
-/// API to query information about USM pointers including type and
-/// device allocated against
-/// Examples include:
-///   PI_MEM_ALLOC_TYPE
-///   PI_MEM_ALLOC_BASE_PTR
-///   PI_MEM_ALLOC_SIZE
-///   PI_MEM_ALLOC_DEVICE
+/// API to query information about USM allocated pointers
+/// Valid Queries:
+///   PI_MEM_ALLOC_TYPE returns host/device/shared
+///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
+///                         the queried pointer fell inside an allocation
+///   PI_MEM_ALLOC_SIZE returns how big the allocation the queried pointer is
+///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
 ///
 /// @param context is the pi_context
 /// @param ptr is the pointer to query

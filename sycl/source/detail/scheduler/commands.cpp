@@ -925,7 +925,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    PI_CALL(piextUSMKernelSetIndirectAccess)(Kernel, MQueue->getHandleRef());
+    PI_CALL(piKernelSetExecInfo)(Kernel, PI_USM_INDIRECT_ACCESS,
+                                 sizeof(pi_bool), &PI_TRUE);
 
     // Remember this information before the range dimensions are reversed
     const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);

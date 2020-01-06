@@ -80,6 +80,50 @@ pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
   return cast<pi_result>(ret_err);
 }
 
+/// Enables indirect access of pointers in kernels.
+/// Necessary to avoid telling CL about every pointer that might be used.
+///
+/// @param kernel is the kernel to be launched
+pi_result USMSetIndirectAccess(pi_kernel kernel) {
+  // We test that each alloc type is supported before we actually try to
+  // set KernelExecInfo.
+  cl_bool TrueVal = CL_TRUE;
+  clHostMemAllocINTEL_fn HFunc = nullptr;
+  clSharedMemAllocINTEL_fn SFunc = nullptr;
+  clDeviceMemAllocINTEL_fn DFunc = nullptr;
+  cl_context CLContext;
+  cl_int CLErr = clGetKernelInfo(cast<cl_kernel>(kernel), CL_KERNEL_CONTEXT,
+                                 sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  getExtFuncFromContext<clHostMemAllocINTEL_fn>(cast<pi_context>(CLContext),
+                                                "clHostMemAllocINTEL", &HFunc);
+  if (HFunc)  {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
+
+  getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+      cast<pi_context>(CLContext), "clDeviceMemAllocINTEL", &DFunc);
+  if (DFunc) {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
+
+  getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+      cast<pi_context>(CLContext), "clSharedMemAllocINTEL", &SFunc);
+  if (SFunc) {
+    clSetKernelExecInfo(cast<cl_kernel>(kernel),
+                        CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+                        sizeof(cl_bool), &TrueVal);
+  }
+  return PI_SUCCESS;
+}
+
 extern "C" {
 
 // Convenience macro makes source code search easier
@@ -657,51 +701,6 @@ pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
   return RetVal;
 }
 
-/// Enables indirect access of pointers in kernels.
-/// Necessary to avoid telling CL about every pointer that might be used.
-///
-/// @param kernel is the kernel to be launched
-pi_result OCL(piextUSMKernelSetIndirectAccess)(pi_kernel kernel) {
-
-  // We test that each alloc type is supported before we actually try to
-  // set KernelExecInfo.
-  cl_bool TrueVal = CL_TRUE;
-  clHostMemAllocINTEL_fn HFunc = nullptr;
-  clSharedMemAllocINTEL_fn SFunc = nullptr;
-  clDeviceMemAllocINTEL_fn DFunc = nullptr;
-  cl_context CLContext;
-  cl_int CLErr = clGetKernelInfo(cast<cl_kernel>(kernel), CL_KERNEL_CONTEXT,
-                                 sizeof(cl_context), &CLContext, nullptr);
-  if (CLErr != CL_SUCCESS) {
-    return cast<pi_result>(CLErr);
-  }
-
-  getExtFuncFromContext<clHostMemAllocINTEL_fn>(cast<pi_context>(CLContext),
-                                                "clHostMemAllocINTEL", &HFunc);
-  if (HFunc)  {
-    clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                        CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-                        sizeof(cl_bool), &TrueVal);
-  }
-
-  getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), "clDeviceMemAllocINTEL", &DFunc);
-  if (DFunc) {
-    clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                        CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-                        sizeof(cl_bool), &TrueVal);
-  }
-
-  getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), "clSharedMemAllocINTEL", &SFunc);
-  if (SFunc) {
-    clSetKernelExecInfo(cast<cl_kernel>(kernel),
-                        CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-                        sizeof(cl_bool), &TrueVal);
-  }
-  return PI_SUCCESS;
-}
-
 /// USM Memset API
 ///
 /// @param queue is the queue to submit to
@@ -871,13 +870,13 @@ pi_result OCL(piextUSMEnqueueMemAdvise)(pi_queue queue, const void *ptr,
   */
 }
 
-/// API to query information about USM pointers including type and
-/// device allocated against
-/// Examples include:
-///   PI_MEM_ALLOC_TYPE
-///   PI_MEM_ALLOC_BASE_PTR
-///   PI_MEM_ALLOC_SIZE
-///   PI_MEM_ALLOC_DEVICE
+/// API to query information about USM allocated pointers
+/// Valid Queries:
+///   PI_MEM_ALLOC_TYPE returns host/device/shared
+///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
+///                         the queried pointer fell inside an allocation
+///   PI_MEM_ALLOC_SIZE returns how big the allocation the queried pointer is
+///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
 ///
 /// @param context is the pi_context
 /// @param ptr is the pointer to query
@@ -902,6 +901,26 @@ pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
   }
 
   return RetVal;
+}
+
+/// API to set attributes controlling kernel execution
+///
+/// @param kernel is the pi kernel to execute
+/// @param param_name is a pi_kernel_exec_info value that specifies the info
+///        passed to the kernel
+/// @param param_value_size is the size of the value in bytes
+/// @param param_value is a pointer to the value to set for the kernel
+pi_result OCL(piKernelSetExecInfo)(pi_kernel kernel,
+                                   pi_kernel_exec_info param_name,
+                                   size_t param_value_size,
+                                   const void *param_value) {
+  if (param_name == PI_USM_INDIRECT_ACCESS) {
+    return USMSetIndirectAccess(kernel);
+  }
+  else {
+    return cast<pi_result>(clSetKernelExecInfo(
+        cast<cl_kernel>(kernel), param_name, param_value_size, param_value));
+  }
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -967,6 +986,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
   _PI_CL(piKernelRetain, clRetainKernel)
   _PI_CL(piKernelRelease, clReleaseKernel)
+  _PI_CL(piKernelSetExecInfo, OCL(piKernelSetExecInfo))
+  _PI_CL(piextKernelSetArgPointer, OCL(piextKernelSetArgPointer))
   // Event
   _PI_CL(piEventCreate, OCL(piEventCreate))
   _PI_CL(piEventGetInfo, clGetEventInfo)
@@ -1003,8 +1024,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMDeviceAlloc, OCL(piextUSMDeviceAlloc))
   _PI_CL(piextUSMSharedAlloc, OCL(piextUSMSharedAlloc))
   _PI_CL(piextUSMFree, OCL(piextUSMFree))
-  _PI_CL(piextKernelSetArgPointer, OCL(piextKernelSetArgPointer))
-  _PI_CL(piextUSMKernelSetIndirectAccess, OCL(piextUSMKernelSetIndirectAccess))
   _PI_CL(piextUSMEnqueueMemset, OCL(piextUSMEnqueueMemset))
   _PI_CL(piextUSMEnqueueMemcpy, OCL(piextUSMEnqueueMemcpy))
   _PI_CL(piextUSMEnqueuePrefetch, OCL(piextUSMEnqueuePrefetch))
