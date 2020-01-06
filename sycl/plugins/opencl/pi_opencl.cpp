@@ -872,10 +872,12 @@ pi_result OCL(piextUSMEnqueueMemAdvise)(pi_queue queue, const void *ptr,
 
 /// API to query information about USM allocated pointers
 /// Valid Queries:
-///   PI_MEM_ALLOC_TYPE returns host/device/shared
+///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
 ///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
-///                         the queried pointer fell inside an allocation
-///   PI_MEM_ALLOC_SIZE returns how big the allocation the queried pointer is
+///                         the queried pointer fell inside an allocation.
+///                         Result must fit in void *
+///   PI_MEM_ALLOC_SIZE returns how big the queried pointer's
+///                     allocation is in bytes. Result is a size_t.
 ///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
 ///
 /// @param context is the pi_context

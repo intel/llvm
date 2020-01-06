@@ -1143,7 +1143,7 @@ pi_result piextUSMEnqueueMemAdvise(
 ///                         the queried pointer fell inside an allocation.
 ///                         Result must fit in void *
 ///   PI_MEM_ALLOC_SIZE returns how big the queried pointer's
-///                     allocation is in bytes
+///                     allocation is in bytes. Result is a size_t.
 ///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
 ///
 /// @param context is the pi_context
