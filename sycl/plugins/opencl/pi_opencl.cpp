@@ -84,7 +84,7 @@ pi_result getExtFuncFromContext(pi_context context, const char *func, T *fptr) {
 /// Necessary to avoid telling CL about every pointer that might be used.
 ///
 /// @param kernel is the kernel to be launched
-pi_result USMSetIndirectAccess(pi_kernel kernel) {
+static pi_result USMSetIndirectAccess(pi_kernel kernel) {
   // We test that each alloc type is supported before we actually try to
   // set KernelExecInfo.
   cl_bool TrueVal = CL_TRUE;
