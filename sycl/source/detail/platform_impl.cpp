@@ -250,20 +250,6 @@ platform_impl::get_info() const {
       param>::get(this->getHandleRef());
 }
 
-cl_platform_id platform_impl::get() const {
-  if (is_host())
-    throw invalid_object_error("This instance of platform is a host instance");
-
-  return pi::cast<cl_platform_id>(MPlatform);
-}
-
-const RT::PiPlatform &platform_impl::getHandleRef() const {
-  if (is_host())
-    throw invalid_object_error("This instance of platform is a host instance");
-
-  return MPlatform;
-}
-
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 

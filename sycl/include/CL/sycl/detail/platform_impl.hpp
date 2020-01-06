@@ -66,7 +66,13 @@ public:
   bool is_host() const { return MHostPlatform; };
 
   /// @return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const;
+  cl_platform_id get() const {
+    if (is_host())
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
+
+    return pi::cast<cl_platform_id>(MPlatform);
+  }
 
   /// Returns raw underlying plug-in platform handle.
   ///
@@ -75,7 +81,13 @@ public:
   /// is in use.
   ///
   /// @return a raw plug-in platform handle.
-  const RT::PiPlatform &getHandleRef() const;
+  const RT::PiPlatform &getHandleRef() const {
+    if (is_host())
+      throw invalid_object_error(
+          "This instance of platform is a host instance");
+
+    return MPlatform;
+  }
 
   /// Returns all available SYCL platforms in the system.
   ///
