@@ -711,7 +711,8 @@ pi_result piextKernelSetArgPointer(
 /// @param param_value_size is the size of the value in bytes
 /// @param param_value is a pointer to the value to set for the kernel
 ///
-/// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to PI_TRUE
+/// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to
+///    the pi_bool value PI_TRUE
 /// If param_name is PI_USM_PTRS, the value will be an array of ptrs
 pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
                               size_t param_value_size, const void *param_value);
