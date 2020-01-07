@@ -912,14 +912,17 @@ pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
 ///        passed to the kernel
 /// @param param_value_size is the size of the value in bytes
 /// @param param_value is a pointer to the value to set for the kernel
+///
+/// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to PI_TRUE
+/// If param_name is PI_USM_PTRS, the value will be an array of ptrs
 pi_result OCL(piKernelSetExecInfo)(pi_kernel kernel,
                                    pi_kernel_exec_info param_name,
                                    size_t param_value_size,
                                    const void *param_value) {
-  if (param_name == PI_USM_INDIRECT_ACCESS) {
+  if (param_name == PI_USM_INDIRECT_ACCESS &&
+      *(static_cast<const pi_bool *>(param_value)) == PI_TRUE) {
     return USMSetIndirectAccess(kernel);
-  }
-  else {
+  } else {
     return cast<pi_result>(clSetKernelExecInfo(
         cast<cl_kernel>(kernel), param_name, param_value_size, param_value));
   }

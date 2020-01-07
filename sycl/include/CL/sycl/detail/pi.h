@@ -642,7 +642,9 @@ pi_result piProgramRelease(pi_program program);
 //
 
 typedef enum {
+  /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
+  /// provides an explicit list of pointers that the kernel will access
   PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
 } _pi_kernel_exec_info;
 
@@ -708,6 +710,9 @@ pi_result piextKernelSetArgPointer(
 ///        passed to the kernel
 /// @param param_value_size is the size of the value in bytes
 /// @param param_value is a pointer to the value to set for the kernel
+///
+/// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to PI_TRUE
+/// If param_name is PI_USM_PTRS, the value will be an array of ptrs
 pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
                               size_t param_value_size, const void *param_value);
 
