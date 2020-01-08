@@ -12015,6 +12015,11 @@ private:
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
 
+  // Used to suppress diagnostics during kernel construction, since these were
+  // already emitted earlier. Diagnosing during Kernel emissions also skips the
+  // useful notes that shows where the kernel was called.
+  bool ConstructingOpenCLKernel = false;
+
 public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
   SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
@@ -12041,6 +12046,7 @@ public:
     KernelCallVariadicFunction
  };
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
+  bool isKnownGoodSYCLDecl(const Decl *D);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice(void);
   bool CheckSYCLCall(SourceLocation Loc, FunctionDecl *Callee);

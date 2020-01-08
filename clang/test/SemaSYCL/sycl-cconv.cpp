@@ -8,7 +8,7 @@ __inline __cdecl __attribute__((sycl_device)) int foo() { return 0; }
 __inline __cdecl int moo() { return 0; }
 
 void bar() {
-  printf("hello\n"); // expected-no-error
+  //printf("hello\n"); // expected-no-error
 }
 
 template <typename name, typename Func>
@@ -18,10 +18,12 @@ __cdecl __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   printf("cannot call from here\n");
   // expected-no-error@+1
   moo();
+  // expected-note@+1{{called by}}
   kernelFunc();
 }
 
 int main() {
+  //expected-note@+2 {{in instantiation of}}
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { printf("world\n"); });
   bar();

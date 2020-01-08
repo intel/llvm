@@ -14027,6 +14027,11 @@ Sema::BuildCallToObjectOfClassType(Scope *S, Expr *Obj,
 
   // If this is a variadic call, handle args passed through "...".
   if (Proto->isVariadic()) {
+    // Diagnose variadic calls in SYCL.
+    if (getLangOpts().SYCLIsDevice && !isUnevaluatedContext())
+      SYCLDiagIfDeviceCode(LParenLoc, diag::err_sycl_restrict)
+          << Sema::KernelCallVariadicFunction;
+
     // Promote the arguments (C99 6.5.2.2p7).
     for (unsigned i = NumParams, e = Args.size(); i < e; i++) {
       ExprResult Arg = DefaultVariadicArgumentPromotion(Args[i], VariadicMethod,

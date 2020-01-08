@@ -184,7 +184,7 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   return true;
 }
 
-static bool isKnownGoodDecl(const Decl *D) {
+bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
     const DeclContext *DC = FD->getDeclContext();
@@ -326,7 +326,7 @@ public:
 
   bool VisitDeclRefExpr(DeclRefExpr *E) {
     Decl* D = E->getDecl();
-    if (isKnownGoodDecl(D))
+    if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
 
     CheckSYCLType(E->getType(), E->getSourceRange());
@@ -369,18 +369,6 @@ public:
         }
       }
     }
-    return true;
-  }
-
-  bool VisitGCCAsmStmt(GCCAsmStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << Sema::KernelUseAssembly;
-    return true;
-  }
-
-  bool VisitMSAsmStmt(MSAsmStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << Sema::KernelUseAssembly;
     return true;
   }
 
@@ -549,9 +537,6 @@ private:
         }
       }
     } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-      if (FPTy->isVariadic() && SemaRef.getLangOpts().SYCLIsDevice)
-        SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_sycl_restrict)
-            << Sema::KernelCallVariadicFunction;
       for (const auto &ParamTy : FPTy->param_types())
         if (!CheckSYCLType(ParamTy, Loc, Visited))
           return false;
@@ -1308,8 +1293,10 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // in different translation units.
   OpenCLKernel->setImplicitlyInline(KernelCallerFunc->isInlined());
 
+  ConstructingOpenCLKernel = true;
   CompoundStmt *OpenCLKernelBody =
       CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
+  ConstructingOpenCLKernel = false;
   OpenCLKernel->setBody(OpenCLKernelBody);
   addSyclDeviceDecl(OpenCLKernel);
 }
@@ -1404,12 +1391,12 @@ static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
   if (!FD)
     return true; // Seen in LIT testing
 
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
-    return true;
-
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return false;
+
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+    return true;
 
   // Otherwise, the function is known-emitted if it's in our set of
   // known-emitted functions.
@@ -1420,18 +1407,20 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
                                                    unsigned DiagID) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-  DeviceDiagBuilder::Kind DiagKind = [this] {
-    if (isKnownEmitted(*this, dyn_cast<FunctionDecl>(CurContext)))
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(CurContext);
+  DeviceDiagBuilder::Kind DiagKind = [this, FD] {
+    if (ConstructingOpenCLKernel || (FD && FD->isDependentContext()))
+      return DeviceDiagBuilder::K_Nop;
+    else if (isKnownEmitted(*this, FD))
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
     return DeviceDiagBuilder::K_Deferred;
   }();
-  return DeviceDiagBuilder(DiagKind, Loc, DiagID,
-                           dyn_cast<FunctionDecl>(CurContext), *this);
+  return DeviceDiagBuilder(DiagKind, Loc, DiagID, FD, *this);
 }
 
 bool Sema::CheckSYCLCall(SourceLocation Loc, FunctionDecl *Callee) {
   assert(Callee && "Callee may not be null.");
-  FunctionDecl *Caller = getCurFunctionDecl();
+  FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
 
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
