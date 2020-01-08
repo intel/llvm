@@ -30,61 +30,61 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
-    Node *d_head = nullptr;
-    Node *d_cur = nullptr;
-    Node h_cur;
+  if (!dev.get_info<info::device::usm_device_allocations>())
+    return 0;
 
-    d_head =
-        (Node *)aligned_alloc_device(alignof(Node), sizeof(Node), dev, ctxt);
-    if (d_head == nullptr) {
-      return -1;
-    }
-    d_cur = d_head;
+  Node h_cur;
 
-    for (int i = 0; i < numNodes; i++) {
-      h_cur.Num = i * 2;
+  Node *d_head =
+      (Node *)aligned_alloc_device(alignof(Node), sizeof(Node), dev, ctxt);
+  if (d_head == nullptr) {
+    return -1;
+  }
+  Node *d_cur = d_head;
 
-      if (i != (numNodes - 1)) {
-        h_cur.pNext = (Node *)aligned_alloc_device(alignof(Node), sizeof(Node),
-                                                   dev, ctxt);
-        if (h_cur.pNext == nullptr) {
-          return -1;
-        }
-      } else {
-        h_cur.pNext = nullptr;
-      }
+  for (int i = 0; i < numNodes; i++) {
+    h_cur.Num = i * 2;
 
-      event e0 = q.memcpy(d_cur, &h_cur, sizeof(Node));
-      e0.wait();
-
-      d_cur = h_cur.pNext;
-    }
-
-    auto e1 = q.submit([=](handler &cgh) {
-      cgh.single_task<class foo>([=]() {
-        Node *pHead = d_head;
-        while (pHead) {
-          pHead->Num = pHead->Num * 2 + 1;
-          pHead = pHead->pNext;
-        }
-      });
-    });
-
-    e1.wait();
-
-    d_cur = d_head;
-    for (int i = 0; i < numNodes; i++) {
-      event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
-      c.wait();
-      free(d_cur, ctxt);
-
-      const int want = i * 4 + 1;
-      if (h_cur.Num != want) {
+    if (i != (numNodes - 1)) {
+      h_cur.pNext =
+          (Node *)aligned_alloc_device(alignof(Node), sizeof(Node), dev, ctxt);
+      if (h_cur.pNext == nullptr) {
         return -1;
       }
-      d_cur = h_cur.pNext;
+    } else {
+      h_cur.pNext = nullptr;
     }
+
+    event e0 = q.memcpy(d_cur, &h_cur, sizeof(Node));
+    e0.wait();
+
+    d_cur = h_cur.pNext;
   }
+
+  auto e1 = q.submit([=](handler &cgh) {
+    cgh.single_task<class foo>([=]() {
+      Node *pHead = d_head;
+      while (pHead) {
+        pHead->Num = pHead->Num * 2 + 1;
+        pHead = pHead->pNext;
+      }
+    });
+  });
+
+  e1.wait();
+
+  d_cur = d_head;
+  for (int i = 0; i < numNodes; i++) {
+    event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
+    c.wait();
+    free(d_cur, ctxt);
+
+    const int want = i * 4 + 1;
+    if (h_cur.Num != want) {
+      return -2;
+    }
+    d_cur = h_cur.pNext;
+  }
+
   return 0;
 }
