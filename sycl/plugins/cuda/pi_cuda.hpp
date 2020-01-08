@@ -289,7 +289,7 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const { return stream_; };
+  native_type get() const noexcept { return stream_; };
 
   _pi_context *get_context() const { return context_; };
 
@@ -517,7 +517,7 @@ struct _pi_program {
 
   pi_context get_context() const { return context_; };
 
-  native_type get() const { return module_; };
+  native_type get() const noexcept { return module_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

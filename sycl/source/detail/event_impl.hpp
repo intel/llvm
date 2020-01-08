@@ -29,6 +29,8 @@ using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
+  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_EVENT;
+
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
@@ -144,6 +146,11 @@ public:
   ///
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
+
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and

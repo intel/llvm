@@ -36,6 +36,8 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
+  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_QUEUE;
+
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
@@ -345,6 +347,11 @@ public:
     std::lock_guard<mutex_class> Guard(MMutex);
     MExceptions.PushBack(ExceptionPtr);
   }
+
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   /// Performs command group submission to the queue.

@@ -122,5 +122,7 @@ device::get_info() const {
 
 #undef PARAM_TRAITS_SPEC
 
+pi_native_handle device::getNative() const { return impl->getNative(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

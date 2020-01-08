@@ -29,6 +29,8 @@ namespace detail {
 using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
+  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_CONTEXT;
+
   /// Constructs a context_impl using a single SYCL devices.
   ///
   /// The constructed context_impl will use the AsyncHandler parameter to
@@ -142,6 +144,11 @@ public:
 
   /// Returns true if and only if context contains the given device.
   bool hasDevice(shared_ptr_class<detail::device_impl> Device) const;
+
+  /// Gets the native handle of the SYCL context.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   async_handler MAsyncHandler;

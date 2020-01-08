@@ -35,6 +35,8 @@ using device_interop_handle_t = _device_interop_handle_t *;
 // TODO: Make code thread-safe
 class device_impl {
 public:
+  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_DEVICE;
+
   /// Constructs a SYCL device instance as a host device.
   device_impl();
 
@@ -202,6 +204,11 @@ public:
   /// \return true if AffinityDomain is supported by device.
   bool
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
+
+  /// Gets the native handle of the SYCL device.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   explicit device_impl(device_interop_handle_t InteropDevice,

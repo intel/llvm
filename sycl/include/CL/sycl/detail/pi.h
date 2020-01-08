@@ -59,6 +59,16 @@ using pi_uint32 = uint32_t;
 using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
+using pi_native_handle = uintptr_t;
+
+enum pi_handle_type {
+  PI_NATIVE_HANDLE_CONTEXT,
+  PI_NATIVE_HANDLE_DEVICE,
+  PI_NATIVE_HANDLE_QUEUE,
+  PI_NATIVE_HANDLE_EVENT,
+  PI_NATIVE_HANDLE_MEM,
+  PI_NATIVE_HANDLE_PLATFORM
+};
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -1345,6 +1355,14 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                                   pi_mem_info param_name,
                                   size_t param_value_size, void *param_value,
                                   size_t *param_value_size_ret);
+
+/// Gets the native handle of a SYCL object.
+///
+/// \param handleType is a representation of the native handle.
+/// \param piObject is the PI object to get the native handle of.
+/// \param nativeHandle is the native handle of piObject.
+pi_result piGetNativeHandle(pi_handle_type handleType, void *piObject,
+                            pi_native_handle *nativeHandle);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

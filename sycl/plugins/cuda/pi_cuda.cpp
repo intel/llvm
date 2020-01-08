@@ -11,7 +11,7 @@
 ///
 /// \ingroup sycl_pi_cuda
 
-#include <CL/sycl/backend/cuda.hpp>
+#include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
 
@@ -3554,6 +3554,46 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+// Native interop
+
+pi_result cuda_piGetNativeHandle(pi_handle_type handleType, void *piObject,
+                                 pi_native_handle *nativeHandle) {
+  switch (handleType) {
+  case pi_handle_type::PI_NATIVE_HANDLE_CONTEXT: {
+    pi_context context = static_cast<pi_context>(piObject);
+    *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
+    return PI_SUCCESS;
+  }
+  case pi_handle_type::PI_NATIVE_HANDLE_DEVICE: {
+    pi_device device = static_cast<pi_device>(piObject);
+    *nativeHandle = static_cast<pi_native_handle>(device->get());
+    return PI_SUCCESS;
+  }
+  case pi_handle_type::PI_NATIVE_HANDLE_QUEUE: {
+    pi_queue queue = static_cast<pi_queue>(piObject);
+    *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get());
+    return PI_SUCCESS;
+  }
+  case pi_handle_type::PI_NATIVE_HANDLE_EVENT: {
+    pi_event event = static_cast<pi_event>(piObject);
+    if (event->is_user_event()) {
+      return PI_INVALID_EVENT;
+    }
+    *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
+    return PI_SUCCESS;
+  }
+  case pi_handle_type::PI_NATIVE_HANDLE_MEM: {
+    pi_mem mem = static_cast<pi_mem>(piObject);
+    *nativeHandle = static_cast<pi_native_handle>(mem->get());
+    return PI_SUCCESS;
+  }
+  default:
+    PI_HANDLE_UNKNOWN_PARAM_NAME(handleType);
+  }
+  cl::sycl::detail::pi::die("Native handle request not implemented");
+  return {};
+}
+
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -3673,6 +3713,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
+  // Interop
+  _PI_CL(piGetNativeHandle, cuda_piGetNativeHandle)
 
 #undef _PI_CL
 

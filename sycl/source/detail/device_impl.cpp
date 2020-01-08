@@ -214,6 +214,14 @@ vector_class<device> device_impl::create_sub_devices(
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+pi_native_handle device_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piGetNativeHandle>(PIHandleType, getHandleRef(),
+                                            &Handle);
+  return Handle;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
