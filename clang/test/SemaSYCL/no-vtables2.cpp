@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
 
 struct Base {
   virtual void f() const {}

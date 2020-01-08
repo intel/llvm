@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>

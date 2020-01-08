@@ -8,13 +8,12 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel.hpp>
+#include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <algorithm>
@@ -25,465 +24,350 @@
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
-enum class program_state { none, compiled, linked };
+// Forward declarations
+class kernel;
 
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-// Used to identify the module the user code, which included this header,
-// belongs to. Incurs some marginal inefficiency - there will be one copy
-// per '#include "program_impl.hpp"'
-static void *AddressInThisModule = &AddressInThisModule;
-
 class program_impl {
 public:
   program_impl() = delete;
 
-  explicit program_impl(ContextImplPtr Context)
-      : program_impl(Context, Context->get_info<info::context::devices>()) {}
+  /// Constructs an instance of program.
+  ///
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the devices that are associated
+  /// with the context.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  explicit program_impl(ContextImplPtr Context);
 
-  program_impl(ContextImplPtr Context, vector_class<device> DeviceList)
-      : Context(Context), Devices(DeviceList) {}
+  /// Constructs an instance of SYCL program for the provided DeviceList.
+  ///
+  /// The program will be created in the program_state::none state and
+  /// associated with the provided context and the devices in the provided
+  /// DeviceList.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param DeviceList is a list of SYCL devices.
+  program_impl(ContextImplPtr Context, vector_class<device> DeviceList);
 
-  // Kernels caching for linked programs won't be allowed due to only compiled
-  // state of each and every program in the list and thus unknown state of
-  // caching resolution
-  program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
-               string_class LinkOptions = "")
-      : State(program_state::linked), LinkOptions(LinkOptions),
-        BuildOptions(LinkOptions) {
-    // Verify arguments
-    if (ProgramList.empty()) {
-      throw runtime_error("Non-empty vector of programs expected");
-    }
-    Context = ProgramList[0]->Context;
-    Devices = ProgramList[0]->Devices;
-    std::vector<device> DevicesSorted;
-    if (!is_host()) {
-      DevicesSorted = sort_devices_by_cl_device_id(Devices);
-    }
-    check_device_feature_support<info::device::is_linker_available>(Devices);
-    for (const auto &Prg : ProgramList) {
-      Prg->throw_if_state_is_not(program_state::compiled);
-      if (Prg->Context != Context) {
-        throw invalid_object_error(
-            "Not all programs are associated with the same context");
-      }
-      if (!is_host()) {
-        std::vector<device> PrgDevicesSorted =
-            sort_devices_by_cl_device_id(Prg->Devices);
-        if (PrgDevicesSorted != DevicesSorted) {
-          throw invalid_object_error(
-              "Not all programs are associated with the same devices");
-        }
-      }
-    }
+  /// Constructs an instance of SYCL program by linking together each SYCL
+  /// program instance in ProgramList.
+  ///
+  /// Each program in ProgramList must be in the program_state::compiled
+  /// state and must be associated with the same SYCL context. Otherwise an
+  /// invalid_object_error SYCL exception will be thrown. A
+  /// feature_not_supported exception will be thrown if any device that the
+  /// program is to be linked for returns false for the device information query
+  /// info::device::is_linker_available.
+  /// Kernels caching for linked programs won't be allowed due to only compiled
+  /// state of each and every program in the list and thus unknown state of
+  /// caching resolution.
+  ///
+  /// @param ProgramList is a list of program_impl instances.
+  /// @param LinkOptions is a string containing valid OpenCL link options.
+  program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
+               string_class LinkOptions = "");
 
-    if (!is_host()) {
-      vector_class<RT::PiDevice> Devices(get_pi_devices());
-      vector_class<RT::PiProgram> Programs;
-      bool NonInterOpToLink = false;
-      for (const auto &Prg : ProgramList) {
-        if (!Prg->IsLinkable && NonInterOpToLink)
-          continue;
-        NonInterOpToLink |= !Prg->IsLinkable;
-        Programs.push_back(Prg->Program);
-      }
-      PI_CALL_THROW(piProgramLink, compile_program_error)(
-          Context->getHandleRef(), Devices.size(),
-          Devices.data(), LinkOptions.c_str(), Programs.size(), Programs.data(),
-          nullptr, nullptr, &Program);
-    }
-  }
+  /// Constructs a program instance from plugin interface interoperability
+  /// handle.
+  ///
+  /// The state of the constructed program can be either program_state::compiled
+  /// or program_state::linked, depending on the state of the ClProgram.
+  /// Otherwise an invalid_object_error SYCL exception is thrown.
+  ///
+  /// The instance of plugin interface program will be retained on construction.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param Program is an instance of plugin interface interoperability
+  /// program.
+  program_impl(ContextImplPtr Context, RT::PiProgram Program);
 
-  // Kernel caching for programs created by interoperability c-tor isn't allowed
-  program_impl(ContextImplPtr Context, RT::PiProgram Program)
-      : Program(Program), Context(Context), IsLinkable(true) {
+  /// Constructs a program instance from plugin interface interoperability
+  /// kernel.
+  ///
+  /// @param Context is a pointer to SYCL context impl.
+  /// @param Kernel is a raw PI kernel handle.
+  program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
 
-    // TODO handle the case when cl_program build is in progress
-    cl_uint NumDevices;
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint),
-                              &NumDevices, nullptr);
-    vector_class<RT::PiDevice> PiDevices(NumDevices);
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
-                              sizeof(RT::PiDevice) * NumDevices,
-                              PiDevices.data(), nullptr);
-    vector_class<device> SyclContextDevices =
-        Context->get_info<info::context::devices>();
+  ~program_impl();
 
-    // Keep only the subset of the devices (associated with context) that
-    // were actually used to create the program.
-    // This is possible when clCreateProgramWithBinary is used.
-    auto NewEnd = std::remove_if(
-        SyclContextDevices.begin(), SyclContextDevices.end(),
-        [&PiDevices](const sycl::device &Dev) {
-          return PiDevices.end() ==
-                 std::find(PiDevices.begin(), PiDevices.end(),
-                           detail::getSyclObjImpl(Dev)->getHandleRef());
-        });
-    SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
-    Devices = SyclContextDevices;
-    RT::PiDevice Device = getSyclObjImpl(Devices[0])->getHandleRef();
-    // TODO check build for each device instead
-    cl_program_binary_type BinaryType;
-    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BINARY_TYPE,
-                                   sizeof(cl_program_binary_type), &BinaryType,
-                                   nullptr);
-    size_t Size = 0;
-    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0,
-                                   nullptr, &Size);
-    std::vector<char> OptionsVector(Size);
-    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS,
-                                   Size, OptionsVector.data(), nullptr);
-    string_class Options(OptionsVector.begin(), OptionsVector.end());
-    switch (BinaryType) {
-    case CL_PROGRAM_BINARY_TYPE_NONE:
-      State = program_state::none;
-      break;
-    case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
-      State = program_state::compiled;
-      CompileOptions = Options;
-      BuildOptions = Options;
-      break;
-    case CL_PROGRAM_BINARY_TYPE_LIBRARY:
-    case CL_PROGRAM_BINARY_TYPE_EXECUTABLE:
-      State = program_state::linked;
-      LinkOptions = "";
-      BuildOptions = Options;
-    }
-    PI_CALL(piProgramRetain)(Program);
-  }
+  /// Returns a valid cl_program instance.
+  ///
+  /// The instance of cl_program will be retained before returning.
+  /// If the program is created for a SYCL host device, an invalid_object_error
+  /// exception is thrown.
+  ///
+  /// @return a valid OpenCL cl_program instance.
+  cl_program get() const;
 
-  program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
-      : program_impl(
-            Context,
-            ProgramManager::getInstance().getClProgramFromClKernel(Kernel)) {}
+  /// @return a reference to a raw PI program handle. PI program is not retained
+  /// before return.
+  RT::PiProgram &getHandleRef() { return MProgram; }
+  /// @return a constant reference to a raw PI program handle. PI program is not
+  /// retained before return.
+  const RT::PiProgram &getHandleRef() const { return MProgram; }
 
-  ~program_impl() {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    if (!is_host() && Program != nullptr) {
-      PI_CALL(piProgramRelease)(Program);
-    }
-  }
+  /// @return true if this SYCL program is a host program.
+  bool is_host() const { return MContext->is_host(); }
 
-  cl_program get() const {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      throw invalid_object_error("This instance of program is a host instance");
-    }
-    PI_CALL(piProgramRetain)(Program);
-    return pi::cast<cl_program>(Program);
-  }
+  /// Compiles the SYCL kernel function into the encapsulated raw program.
+  ///
+  /// The kernel function is defined by its name. This member function
+  /// sets the state of this SYCL program to program_state::compiled.
+  /// If this program was not in the program_state::none state,
+  /// an invalid_object_error exception is thrown. If the compilation fails,
+  /// a compile_program_error SYCL exception is thrown. If any device that the
+  /// program is being compiled for returns false for the device information
+  /// query info::device::is_compiler_available, a feature_not_supported
+  /// exception is thrown.
+  ///
+  /// @param CompileOptions is a string of valid OpenCL compile options.
+  void compile_with_kernel_name(string_class KernelName,
+                                string_class CompileOptions,
+                                OSModuleHandle Module);
 
-  RT::PiProgram &getHandleRef() { return Program; }
-  const RT::PiProgram &getHandleRef() const { return Program; }
-
-  bool is_host() const { return Context->is_host(); }
-
-  template <typename KernelT>
-  void compile_with_kernel_type(string_class CompileOptions = "") {
-    throw_if_state_is_not(program_state::none);
-    if (!is_host()) {
-      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
-      compile(CompileOptions);
-    }
-    State = program_state::compiled;
-  }
-
+  /// Compiles the OpenCL C kernel function defined by source string.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::compiled.
+  /// If the program was not in the program_state::none state,
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being compiled for returns false for the device
+  /// information query info::device::is_compiler_available, a
+  /// feature_not_supported SYCL exception is thrown.
+  ///
+  /// @param KernelSource is a string containing OpenCL C kernel source code.
+  /// @param CompileOptions is a string containing OpenCL compile options.
   void compile_with_source(string_class KernelSource,
-                           string_class CompileOptions = "") {
-    throw_if_state_is_not(program_state::none);
-    // TODO should it throw if it's host?
-    if (!is_host()) {
-      create_cl_program_with_source(KernelSource);
-      compile(CompileOptions);
-    }
-    State = program_state::compiled;
-  }
+                           string_class CompileOptions = "");
 
-  template <typename KernelT>
-  void build_with_kernel_type(string_class BuildOptions = "") {
-    throw_if_state_is_not(program_state::none);
-    if (!is_host()) {
-      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      // If there are no build options, program can be safely cached
-      if (is_cacheable_with_options(BuildOptions)) {
-        IsProgramAndKernelCachingAllowed = true;
-        Program = ProgramManager::getInstance().getBuiltPIProgram(
-            M, get_context(), KernelInfo<KernelT>::getName());
-        PI_CALL(piProgramRetain)(Program);
-      } else {
-        create_pi_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
-        build(BuildOptions);
-      }
-    }
-    State = program_state::linked;
-  }
+  /// Builds the SYCL kernel function into encapsulated raw program.
+  ///
+  /// The SYCL kernel function is defined by the kernel name.
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If the program was not in the program_state::none
+  /// state, an invalid_object_error SYCL exception is thrown. If the
+  /// compilation fails, a compile_program_error SYCL exception is thrown. If
+  /// any device that the program is being built for returns false for the
+  /// device information queries info::device::is_compiler_available or
+  /// info::device::is_linker_available, a feature_not_supported SYCL exception
+  /// is thrown.
+  ///
+  /// @param KernelName is a string containing SYCL kernel name.
+  /// @param BuildOptions is a string containing OpenCL compile options.
+  void build_with_kernel_name(string_class KernelName,
+                              string_class BuildOptions, OSModuleHandle M);
 
+  /// Builds the OpenCL C kernel function defined by source code.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If this program was not in program_state::none,
+  /// an invalid_object_error SYCL exception is thrown. If the compilation
+  /// fails, a compile_program_error SYCL exception is thrown. If any device
+  /// that the program is being built for returns false for the device
+  /// information queries info::device::is_compiler_available or
+  /// info::device::is_linker_available, a feature_not_supported SYCL exception
+  /// is thrown.
+  ///
+  /// @param KernelSource is a string containing OpenCL C kernel source code.
+  /// @param BuildOptions is a string containing OpenCL build options.
   void build_with_source(string_class KernelSource,
-                         string_class BuildOptions = "") {
-    throw_if_state_is_not(program_state::none);
-    // TODO should it throw if it's host?
-    if (!is_host()) {
-      create_cl_program_with_source(KernelSource);
-      build(BuildOptions);
-    }
-    State = program_state::linked;
-  }
+                         string_class BuildOptions = "");
 
-  void link(string_class LinkOptions = "") {
-    throw_if_state_is_not(program_state::compiled);
-    if (!is_host()) {
-      check_device_feature_support<info::device::is_linker_available>(Devices);
-      vector_class<RT::PiDevice> Devices(get_pi_devices());
-      PI_CALL_THROW(piProgramLink, compile_program_error)(
-          Context->getHandleRef(), Devices.size(),
-          Devices.data(), LinkOptions.c_str(), 1, &Program, nullptr, nullptr,
-          &Program);
-      this->LinkOptions = LinkOptions;
-      BuildOptions = LinkOptions;
-    }
-    State = program_state::linked;
-  }
+  /// Links encapsulated raw program.
+  ///
+  /// This member function sets the state of this SYCL program to
+  /// program_state::linked. If the program was not in the
+  /// program_state::compiled state, an invalid_object_error SYCL exception is
+  /// thrown. If linking fails, a compile_program_error is thrown. If any device
+  /// that the program is to be linked for returns false for the device
+  /// information query info::device::is_linker_available, a
+  /// feature_not_supported exception is thrown.
+  ///
+  /// @param LinkOptions is a string containing OpenCL link options.
+  void link(string_class LinkOptions = "");
 
-  template <typename KernelT>
-  bool has_kernel() const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      return true;
-    }
-    return has_cl_kernel(KernelInfo<KernelT>::getName());
-  }
-#endif
+  /// Checks if kernel is available for this program.
+  ///
+  /// The SYCL kernel is defined by kernel name. If the program state is
+  /// program_state::none an invalid_object_error SYCL exception is thrown.
+  ///
+  /// @return true if the SYCL kernel is available.
+  bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
 
-  bool has_kernel(string_class KernelName) const {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      return false;
-    }
-    return has_cl_kernel(KernelName);
-  }
-
-  template <typename KernelT>
-  kernel get_kernel(std::shared_ptr<program_impl> PtrToSelf) const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      return createSyclObjFromImpl<kernel>(
-          std::make_shared<kernel_impl>(Context, PtrToSelf));
-    }
-    return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
-        get_pi_kernel(KernelInfo<KernelT>::getName()), Context, PtrToSelf,
-        /*IsCreatedFromSource*/ false));
-  }
-#endif
-
+  /// Returns a SYCL kernel for the SYCL kernel function defined by kernel name.
+  ///
+  /// If program is in the program_state::none state or if the SYCL kernel
+  /// function is not available, an invalid_object_error exception is thrown.
+  ///
+  /// @return a valid instance of SYCL kernel.
   kernel get_kernel(string_class KernelName,
-                    std::shared_ptr<program_impl> PtrToSelf) const {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      throw invalid_object_error("This instance of program is a host instance");
-    }
-    return createSyclObjFromImpl<kernel>(
-        std::make_shared<kernel_impl>(get_pi_kernel(KernelName), Context,
-                                      PtrToSelf, /*IsCreatedFromSource*/ true));
-  }
+                    shared_ptr_class<program_impl> PtrToSelf,
+                    bool IsCreatedFromSource) const;
 
+  /// Queries this SYCL program for information.
+  ///
+  /// The return type depends on the information being queried.
   template <info::program param>
   typename info::param_traits<info::program, param>::return_type
   get_info() const;
 
-  vector_class<vector_class<char>> get_binaries() const {
-    throw_if_state_is(program_state::none);
-    vector_class<vector_class<char>> Result;
-    if (!is_host()) {
-      vector_class<size_t> BinarySizes(Devices.size());
-      PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARY_SIZES,
-                                sizeof(size_t) * BinarySizes.size(),
-                                BinarySizes.data(), nullptr);
+  /// Returns built program binaries.
+  ///
+  /// If this program is not in the program_state::compiled or
+  /// program_state::linked states, an invalid_object_error SYCL exception
+  /// is thrown.
+  ///
+  /// @return a vector of vectors representing the compiled binaries for each
+  /// associated SYCL device.
+  vector_class<vector_class<char>> get_binaries() const;
 
-      vector_class<char *> Pointers;
-      for (size_t I = 0; I < BinarySizes.size(); ++I) {
-        Result.emplace_back(BinarySizes[I]);
-        Pointers.push_back(Result[I].data());
-      }
-      PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARIES,
-                                sizeof(char *) * Pointers.size(),
-                                Pointers.data(), nullptr);
-    }
-    return Result;
-  }
-
+  /// @return the SYCL context that this program was constructed with.
   context get_context() const {
     if (is_host())
       return context();
-    return createSyclObjFromImpl<context>(Context);
+    return createSyclObjFromImpl<context>(MContext);
   }
 
-  vector_class<device> get_devices() const { return Devices; }
+  /// @return a vector of devices that are associated with this program.
+  vector_class<device> get_devices() const { return MDevices; }
 
-  string_class get_compile_options() const { return CompileOptions; }
+  /// Returns compile options that were provided when the encapsulated program
+  /// was explicitly compiled.
+  ///
+  /// If the program was built instead of explicitly compiled, if the program
+  /// has not yet been compiled, or if the program has been compiled for only
+  /// the host device, then an empty string is return, unless the underlying
+  /// cl_program was explicitly compiled, in which case the compile options used
+  /// in the explicit compile are returned.
+  ///
+  /// @return a string of valid OpenCL compile options.
+  string_class get_compile_options() const { return MCompileOptions; }
 
-  string_class get_link_options() const { return LinkOptions; }
+  /// Returns compile options that were provided to the most recent invocation
+  /// of link member function.
+  ///
+  /// If the program has not been explicitly linked using the aforementioned
+  /// function, constructed with an explicitly linking constructor, or if the
+  /// program has been linked for only the host device, then an empty string
+  /// is returned. If the program was constructed from cl_program, then an
+  /// empty string is returned unless the cl_program was explicitly linked,
+  /// in which case the link options used in that explicit link are returned.
+  /// If the program object was constructed using a constructor form that links
+  /// a vector of programs, then the link options passed to this constructor
+  /// are returned.
+  ///
+  /// @return a string of valid OpenCL compile options.
+  string_class get_link_options() const { return MLinkOptions; }
 
-  string_class get_build_options() const { return BuildOptions; }
+  /// Returns the compile, link, or build options, from whichever of those
+  /// operations was performed most recently on the encapsulated cl_program.
+  ///
+  /// If no compile, link, or build operations have been performed on this
+  /// program, or if the program includes the host device in its device list,
+  /// then an empty string is returned.
+  ///
+  /// @return a string of valid OpenCL build options.
+  string_class get_build_options() const { return MBuildOptions; }
 
-  program_state get_state() const { return State; }
+  /// @return the current state of this SYCL program.
+  program_state get_state() const { return MState; }
 
 private:
+  /// Checks feature support for specific devices.
+  ///
+  /// If there's at least one device that does not support this feature,
+  /// a feature_not_supported exception is thrown.
+  ///
+  /// @param Devices is a vector of SYCL devices.
   template <info::device param>
-  void check_device_feature_support(const vector_class<device> &devices) {
-    for (const auto &device : devices) {
-      if (!device.get_info<param>()) {
+  void check_device_feature_support(const vector_class<device> &Devices) {
+    for (const auto &Device : Devices) {
+      if (!Device.get_info<param>()) {
         throw feature_not_supported(
             "Online compilation is not supported by this device");
       }
     }
   }
 
-  void create_pi_program_with_kernel_name(OSModuleHandle M,
-                                          const string_class &KernelName) {
-    assert(!Program && "This program already has an encapsulated PI program");
-    ProgramManager &PM = ProgramManager::getInstance();
-    DeviceImage &Img = PM.getDeviceImage(M, KernelName, get_context());
-    Program = PM.createPIProgram(Img, get_context());
-  }
+  /// Creates a plugin interface kernel using its name.
+  ///
+  /// @param Module is an OS handle to user code module.
+  /// @param KernelName is a name of kernel to be created.
+  void create_pi_program_with_kernel_name(OSModuleHandle Module,
+                                          const string_class &KernelName);
 
-  void create_cl_program_with_source(const string_class &Source) {
-    assert(!Program && "This program already has an encapsulated cl_program");
-    const char *Src = Source.c_str();
-    size_t Size = Source.size();
-    PI_CALL(piclProgramCreateWithSource)(
-        Context->getHandleRef(), 1, &Src, &Size,
-        &Program);
-  }
+  /// Creates an OpenCL program from OpenCL C source code.
+  ///
+  /// @param Source is a string containing OpenCL C source code.
+  void create_cl_program_with_source(const string_class &Source);
 
-  void compile(const string_class &Options) {
-    check_device_feature_support<info::device::is_compiler_available>(Devices);
-    vector_class<RT::PiDevice> Devices(get_pi_devices());
-    RT::PiResult Err = PI_CALL_NOCHECK(piProgramCompile)(
-        Program, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
-        nullptr, nullptr, nullptr);
+  /// Compiles underlying plugin interface program.
+  ///
+  /// @param Options is a string containing OpenCL compile options.
+  void compile(const string_class &Options);
 
-    if (Err != PI_SUCCESS) {
-      throw compile_program_error("Program compilation error:\n" +
-                                  ProgramManager::getProgramBuildLog(Program));
-    }
-    CompileOptions = Options;
-    BuildOptions = Options;
-  }
+  /// Builds underlying plugin interface program.
+  ///
+  /// @param Options is a string containing OpenCL build options.
+  void build(const string_class &Options);
 
-  void build(const string_class &Options) {
-    check_device_feature_support<info::device::is_compiler_available>(Devices);
-    vector_class<RT::PiDevice> Devices(get_pi_devices());
-    RT::PiResult Err =
-        PI_CALL_NOCHECK(piProgramBuild)(Program, Devices.size(), Devices.data(),
-                                        Options.c_str(), nullptr, nullptr);
+  /// @return a vector of devices managed by the plugin.
+  vector_class<RT::PiDevice> get_pi_devices() const;
 
-    if (Err != PI_SUCCESS) {
-      throw compile_program_error("Program build error:\n" +
-                                  ProgramManager::getProgramBuildLog(Program));
-    }
-    BuildOptions = Options;
-  }
+  /// @return true if caching is allowed for this program.
+  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
-  vector_class<RT::PiDevice> get_pi_devices() const {
-    vector_class<RT::PiDevice> PiDevices;
-    for (const auto &Device : Devices) {
-      PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
-    }
-    return PiDevices;
-  }
-
-  bool is_cacheable() const { return IsProgramAndKernelCachingAllowed; }
-
+  /// @param Options is a string containing OpenCL C build options.
+  /// @return true if caching is allowed for this program and build options.
   static bool is_cacheable_with_options(const string_class &Options) {
     return Options.empty();
   }
 
-  bool has_cl_kernel(const string_class &KernelName) const {
-    size_t Size;
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
-                              &Size);
-    string_class ClResult(Size, ' ');
-    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, ClResult.size(),
-                              &ClResult[0], nullptr);
-    // Get rid of the null terminator
-    ClResult.pop_back();
-    vector_class<string_class> KernelNames(split_string(ClResult, ';'));
-    for (const auto &Name : KernelNames) {
-      if (Name == KernelName) {
-        return true;
-      }
-    }
-    return false;
-  }
+  /// @param KernelName is a string containing OpenCL kernel name.
+  /// @return true if underlying OpenCL program has kernel with specific name.
+  bool has_cl_kernel(const string_class &KernelName) const;
 
-  RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
-    RT::PiKernel Kernel;
+  /// @param KernelName is a string containing PI kernel name.
+  /// @return an instance of PI kernel with specific name. If kernel is
+  /// unavailable, an invalid_object_error exception is thrown.
+  RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
 
-    if (is_cacheable()) {
-      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
+  /// @return a vector of sorted in ascending order SYCL devices.
+  vector_class<device>
+  sort_devices_by_cl_device_id(vector_class<device> Devices);
 
-      Kernel = ProgramManager::getInstance().getOrCreateKernel(M, get_context(),
-                                                               KernelName);
-    } else {
-      RT::PiResult Err =
-          PI_CALL_NOCHECK(piKernelCreate)(Program, KernelName.c_str(), &Kernel);
-      if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
-        throw invalid_object_error(
-            "This instance of program does not contain the kernel requested");
-      }
-      RT::checkPiResult(Err);
-    }
+  /// Throws an invalid_object_exception if state of this program is in the
+  /// specified state.
+  ///
+  /// @param State is a program state to match against.
+  void throw_if_state_is(program_state State) const;
 
-    return Kernel;
-  }
+  /// Throws an invalid_object_exception if state of this program is not in the
+  /// specified state.
+  ///
+  /// @param State is a program state to match against.
+  void throw_if_state_is_not(program_state State) const;
 
-  std::vector<device>
-  sort_devices_by_cl_device_id(vector_class<device> Devices) {
-    std::sort(Devices.begin(), Devices.end(),
-              [](const device &id1, const device &id2) {
-                return (detail::getSyclObjImpl(id1)->getHandleRef() <
-                        detail::getSyclObjImpl(id2)->getHandleRef());
-              });
-    return Devices;
-  }
+  RT::PiProgram MProgram = nullptr;
+  program_state MState = program_state::none;
+  ContextImplPtr MContext;
+  bool MLinkable = false;
+  vector_class<device> MDevices;
+  string_class MCompileOptions;
+  string_class MLinkOptions;
+  string_class MBuildOptions;
+  OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
-  void throw_if_state_is(program_state State) const {
-    if (this->State == State) {
-      throw invalid_object_error("Invalid program state");
-    }
-  }
-
-  void throw_if_state_is_not(program_state State) const {
-    if (this->State != State) {
-      throw invalid_object_error("Invalid program state");
-    }
-  }
-
-  RT::PiProgram Program = nullptr;
-  program_state State = program_state::none;
-  ContextImplPtr Context;
-  bool IsLinkable = false;
-  vector_class<device> Devices;
-  string_class CompileOptions;
-  string_class LinkOptions;
-  string_class BuildOptions;
-
-  // Only allow kernel caching for programs constructed with context only (or
-  // device list and context) and built with build_with_kernel_type with
-  // default build options
-  bool IsProgramAndKernelCachingAllowed = false;
+  /// Only allow kernel caching for programs constructed with context only (or
+  /// device list and context) and built with build_with_kernel_type with
+  /// default build options
+  bool MProgramAndKernelCachingAllowed = false;
 };
 
 template <>

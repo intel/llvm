@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -fsyntax-only -x c++ %s
-// RUN: %clang_cc1 -verify -pedantic -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -fsyntax-only %s
+// RUN: %clang_cc1 -verify -pedantic -fsyntax-only %s
 
 class A {
 public:

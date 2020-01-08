@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -x c++ %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DEF -x c++ %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DECL -x c++ %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID1 -x c++ %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DEF %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DECL %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID1 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 %s
 
 #if defined(PRINTF_INVALID_DECL)
 extern "C" int __spirv_ocl_printf(const char *__format, ...);
