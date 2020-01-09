@@ -2491,7 +2491,8 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
       llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
           ->getPointerTo()
           ->getPointerTo();
-  VTableField = Builder.CreateBitCast(VTableField, VTablePtrTy->getPointerTo());
+  VTableField = Builder.CreateBitCast(VTableField, VTablePtrTy->getPointerTo(
+      VTableField.getType()->getAddressSpace()));
   VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);
 
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
