@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++11 -fsyntax-only -fsycl-is-device -verify %s
-// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify -x c++ %s
+// RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -verify %s
+// RUN: %clang_cc1 -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 // expected-warning@+7 {{'sycl_kernel' attribute ignored}}

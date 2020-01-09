@@ -8,6 +8,9 @@
 // This file includes some utilities that are used by image accessors on host
 // device
 //
+
+#pragma once
+
 #ifndef __SYCL_DEVICE_ONLY__
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>

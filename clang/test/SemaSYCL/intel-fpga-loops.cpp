@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -fsycl-is-device -std=c++11 -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {

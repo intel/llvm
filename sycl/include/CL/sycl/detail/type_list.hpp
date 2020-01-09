@@ -22,7 +22,7 @@ template <typename T> using head_t = typename T::head;
 template <typename T> using tail_t = typename T::tail;
 
 // type_list
-template <typename... T> class type_list;
+template <typename... T> struct type_list;
 
 using empty_type_list = type_list<>;
 

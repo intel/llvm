@@ -89,6 +89,10 @@ void *MemoryManager::allocateInteropMemObject(
   // Return cl_mem as is if contexts match.
   if (TargetContext == InteropContext) {
     OutEventToWait = InteropEvent->getHandleRef();
+    // Retain the event since it will be released during alloca command
+    // destruction
+    if (nullptr != OutEventToWait)
+      PI_CALL(piEventRetain)(OutEventToWait);
     return UserPtr;
   }
   // Allocate new cl_mem and initialize from user provided one.
@@ -477,12 +481,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(USMDispatch->enqueueMemcpy(SrcQueue->getHandleRef(),
-                                                 /* blocking */ false, DstMem,
-                                                 SrcMem, Len, DepEvents.size(),
-                                                 &DepEvents[0], &OutEvent));
+    PI_CALL(piextUSMEnqueueMemcpy)(SrcQueue->getHandleRef(),
+                                   /* blocking */ false, DstMem, SrcMem, Len,
+                                   DepEvents.size(), &DepEvents[0], &OutEvent);
   }
 }
 
@@ -494,11 +495,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(
-        USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern, Length,
-                                   DepEvents.size(), &DepEvents[0], &OutEvent));
+    PI_CALL(piextUSMEnqueueMemset)(Queue->getHandleRef(), Mem, Pattern, Length,
+                                   DepEvents.size(), &DepEvents[0], &OutEvent);
   }
 }
 
@@ -510,11 +508,9 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (Context.is_host()) {
     // TODO: Potentially implement prefetch on the host.
   } else {
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    RT::checkPiResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem,
-                                                   Length, DepEvents.size(),
-                                                   &DepEvents[0], &OutEvent));
+    PI_CALL(piextUSMEnqueuePrefetch)(Queue->getHandleRef(), Mem, Length,
+                                     PI_USM_MIGRATION_TBD0, DepEvents.size(),
+                                     &DepEvents[0], &OutEvent);
   }
 }
 

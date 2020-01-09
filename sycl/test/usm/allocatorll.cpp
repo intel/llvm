@@ -30,14 +30,14 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<Node, usm::alloc::device> alloc(ctxt, dev);
+  if (!dev.get_info<info::device::usm_device_allocations>())
+    return 0;
 
-  Node *d_head = nullptr;
-  Node *d_cur = nullptr;
+  usm_allocator<Node, usm::alloc::device> alloc(ctxt, dev);
   Node h_cur;
-  
-  d_head = alloc.allocate(1);
-  d_cur = d_head;
+
+  Node *d_head = alloc.allocate(1);
+  Node *d_cur = d_head;
 
   for (int i = 0; i < numNodes; i++) {
     h_cur.Num = i * 2;
@@ -74,7 +74,7 @@ int main() {
 
     const int want = i * 4 + 1;
     if (h_cur.Num != want) {
-      return -1;
+      return -2;
     }
     d_cur = h_cur.pNext;
   }

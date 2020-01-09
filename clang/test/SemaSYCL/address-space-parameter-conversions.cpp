@@ -1,4 +1,4 @@
-// RUN: %clang -cc1 -fsycl-is-device -verify -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
 void bar(int & Data) {}
 void bar2(int & Data) {}

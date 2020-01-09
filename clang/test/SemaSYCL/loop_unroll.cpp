@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -fsycl-is-device -std=c++11 -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 void foo() {
   // expected-error@+1 {{clang loop attributes must be applied to for, while, or do statements}}

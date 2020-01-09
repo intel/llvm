@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs -fsycl-is-device -fsycl-unnamed-lambda -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -I %S/Inputs -fsycl-is-device -fsycl-unnamed-lambda -ast-dump %s | FileCheck %s
 #include <sycl.hpp>
 
 int main() {

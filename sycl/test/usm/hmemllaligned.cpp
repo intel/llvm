@@ -28,14 +28,16 @@ class foo;
 int main() {
   queue q;
   auto ctxt = q.get_context();
-  Node *h_head = nullptr;
-  Node *h_cur = nullptr;
+  auto dev = q.get_device();
 
-  h_head = (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
+  if (!dev.get_info<info::device::usm_host_allocations>())
+    return 0;
+
+  Node *h_head = (Node *)aligned_alloc_host(alignof(Node), sizeof(Node), ctxt);
   if (h_head == nullptr) {
     return -1;
   }
-  h_cur = h_head;
+  Node *h_cur = h_head;
 
   for (int i = 0; i < numNodes; i++) {
     h_cur->Num = i * 2;
@@ -69,12 +71,12 @@ int main() {
   for (int i = 0; i < numNodes; i++) {
     const int want = i * 4 + 1;
     if (h_cur->Num != want) {
-      return -1;
+      return -2;
     }
     Node *old = h_cur;
     h_cur = h_cur->pNext;
     free(old, ctxt);
   }
-
+  
   return 0;
 }

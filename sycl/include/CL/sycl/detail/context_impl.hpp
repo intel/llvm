@@ -111,11 +111,6 @@ public:
     return MDevices;
   }
 
-  /// Gets USM dispatcher.
-  ///
-  /// @return a pointer to USM dispatcher.
-  std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
-
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
   /// corresponding extension:
@@ -141,7 +136,6 @@ private:
   PlatformImplPtr MPlatform;
   bool MPluginInterop;
   bool MHostContext;
-  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
 };

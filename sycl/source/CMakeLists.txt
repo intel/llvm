@@ -89,6 +89,7 @@ set(SYCL_SOURCES
     "half_type.cpp"
     "kernel.cpp"
     "platform.cpp"
+    "program.cpp"
     "queue.cpp"
     "ordered_queue.cpp"
     "sampler.cpp"

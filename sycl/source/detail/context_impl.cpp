@@ -37,8 +37,6 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
   PI_CALL(piContextCreate)(nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
                            nullptr, &MContext);
-
-  MUSMDispatch.reset(new usm::USMDispatcher(MPlatform->get(), DeviceIds));
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
@@ -113,10 +111,6 @@ context_impl::get_info<info::context::devices>() const {
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
 const RT::PiContext &context_impl::getHandleRef() const { return MContext; }
-
-std::shared_ptr<usm::USMDispatcher> context_impl::getUSMDispatch() const {
-  return MUSMDispatch;
-}
 
 KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;

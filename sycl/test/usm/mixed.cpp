@@ -17,9 +17,6 @@ using namespace cl::sycl;
 
 class foo;
 int main() {
-  int *darray = nullptr;
-  int *sarray = nullptr;
-  int *harray = nullptr;
   const int N = 4;
   const int MAGIC_NUM = 42;
 
@@ -27,17 +24,22 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  darray = (int *)malloc_device(N * sizeof(int), dev, ctxt);
+  if (!(dev.get_info<info::device::usm_device_allocations>() &&
+        dev.get_info<info::device::usm_shared_allocations>() &&
+        dev.get_info<info::device::usm_host_allocations>()))
+    return 0;
+  
+  int *darray = (int *)malloc_device(N * sizeof(int), dev, ctxt);
   if (darray == nullptr) {
     return -1;
   }
-  sarray = (int *)malloc_shared(N * sizeof(int), dev, ctxt);
+  int *sarray = (int *)malloc_shared(N * sizeof(int), dev, ctxt);
 
   if (sarray == nullptr) {
     return -1;
   }
 
-  harray = (int *)malloc_host(N * sizeof(int), ctxt);
+  int *harray = (int *)malloc_host(N * sizeof(int), ctxt);
   if (harray == nullptr) {
     return -1;
   }
@@ -61,7 +63,7 @@ int main() {
 
   for (int i = 0; i < N; i++) {
     if (sarray[i] != MAGIC_NUM) {
-      return -1;
+      return -2;
     }
   }
   free(darray, ctxt);
