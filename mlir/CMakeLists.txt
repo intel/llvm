@@ -17,6 +17,7 @@ function(add_mlir_dialect dialect dialect_doc_filename)
   mlir_tablegen(${dialect}.h.inc -gen-op-decls)
   mlir_tablegen(${dialect}.cpp.inc -gen-op-defs)
   add_public_tablegen_target(MLIR${dialect}IncGen)
+  add_dependencies(mlir-headers MLIR${dialect}IncGen)
 
   # Generate Dialect Documentation
   set(LLVM_TARGET_DEFINITIONS ${dialect_doc_filename}.td)
@@ -32,6 +33,10 @@ function(add_mlir_dialect dialect dialect_doc_filename)
   add_dependencies(mlir-doc ${dialect_doc_filename}DocGen)
 endfunction()
 
+# Installing the headers and docs needs to depend on generating any public
+# tablegen'd targets.
+add_custom_target(mlir-headers)
+set_target_properties(mlir-headers PROPERTIES FOLDER "Misc")
 add_custom_target(mlir-doc)
 
 # TODO: This is to handle the current static registration, but should be
@@ -44,7 +49,7 @@ function(whole_archive_link target)
     ENDFOREACH(LIB)
   elseif(MSVC)
     FOREACH(LIB ${ARGN})
-      string(CONCAT link_flags ${link_flags} "/WHOLEARCHIVE:${LIB} ")
+      string(CONCAT link_flags ${link_flags} "/WHOLEARCHIVE:${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/${LIB}.lib ")
     ENDFOREACH(LIB)
   else()
     set(link_flags "-L${CMAKE_BINARY_DIR}/lib -Wl,--whole-archive,")
@@ -84,8 +89,10 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     DESTINATION include
     COMPONENT mlir-headers
     FILES_MATCHING
+    PATTERN "*.def"
     PATTERN "*.h"
     PATTERN "*.inc"
+    PATTERN "*.td"
     PATTERN "LICENSE.TXT"
     )
 

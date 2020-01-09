@@ -3036,7 +3036,7 @@ static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!ParmType->isExtVectorType() && !ParmType->isFloatingType() &&
       (ParmType->isBooleanType() ||
        !ParmType->isIntegralType(S.getASTContext()))) {
-    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 3 << AL;
+    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 2 << AL;
     return;
   }
 
@@ -4705,12 +4705,10 @@ static void handleLifetimeCategoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     ParmType = S.GetTypeFromParser(AL.getTypeArg(), &DerefTypeLoc);
 
     unsigned SelectIdx = ~0U;
-    if (ParmType->isVoidType())
+    if (ParmType->isReferenceType())
       SelectIdx = 0;
-    else if (ParmType->isReferenceType())
-      SelectIdx = 1;
     else if (ParmType->isArrayType())
-      SelectIdx = 2;
+      SelectIdx = 1;
 
     if (SelectIdx != ~0U) {
       S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument)
@@ -5951,9 +5949,11 @@ UuidAttr *Sema::mergeUuidAttr(Decl *D, const AttributeCommonInfo &CI,
   if (const auto *UA = D->getAttr<UuidAttr>()) {
     if (UA->getGuid().equals_lower(Uuid))
       return nullptr;
-    Diag(UA->getLocation(), diag::err_mismatched_uuid);
-    Diag(CI.getLoc(), diag::note_previous_uuid);
-    D->dropAttr<UuidAttr>();
+    if (!UA->getGuid().empty()) {
+      Diag(UA->getLocation(), diag::err_mismatched_uuid);
+      Diag(CI.getLoc(), diag::note_previous_uuid);
+      D->dropAttr<UuidAttr>();
+    }
   }
 
   return ::new (Context) UuidAttr(Context, CI, Uuid);

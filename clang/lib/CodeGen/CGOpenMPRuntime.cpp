@@ -19,6 +19,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/OpenMPClause.h"
 #include "clang/AST/StmtOpenMP.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/BitmaskEnum.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -3043,10 +3044,15 @@ Address CGOpenMPRuntime::getAddrOfArtificialThreadPrivate(CodeGenFunction &CGF,
                                                           QualType VarType,
                                                           StringRef Name) {
   std::string Suffix = getName({"artificial", ""});
-  std::string CacheSuffix = getName({"cache", ""});
   llvm::Type *VarLVType = CGF.ConvertTypeForMem(VarType);
   llvm::Value *GAddr =
       getOrCreateInternalVariable(VarLVType, Twine(Name).concat(Suffix));
+  if (CGM.getLangOpts().OpenMP && CGM.getLangOpts().OpenMPUseTLS &&
+      CGM.getTarget().isTLSSupported()) {
+    cast<llvm::GlobalVariable>(GAddr)->setThreadLocal(/*Val=*/true);
+    return Address(GAddr, CGM.getContext().getTypeAlignInChars(VarType));
+  }
+  std::string CacheSuffix = getName({"cache", ""});
   llvm::Value *Args[] = {
       emitUpdateLocation(CGF, SourceLocation()),
       getThreadID(CGF, SourceLocation()),
@@ -3060,7 +3066,7 @@ Address CGOpenMPRuntime::getAddrOfArtificialThreadPrivate(CodeGenFunction &CGF,
           CGF.EmitRuntimeCall(
               createRuntimeFunction(OMPRTL__kmpc_threadprivate_cached), Args),
           VarLVType->getPointerTo(/*AddrSpace=*/0)),
-      CGM.getPointerAlign());
+      CGM.getContext().getTypeAlignInChars(VarType));
 }
 
 void CGOpenMPRuntime::emitIfClause(CodeGenFunction &CGF, const Expr *Cond,
@@ -9653,9 +9659,9 @@ bool CGOpenMPRuntime::emitTargetFunctions(GlobalDecl GD) {
   }
 
   const ValueDecl *VD = cast<ValueDecl>(GD.getDecl());
-  StringRef Name = CGM.getMangledName(GD);
   // Try to detect target regions in the function.
   if (const auto *FD = dyn_cast<FunctionDecl>(VD)) {
+    StringRef Name = CGM.getMangledName(GD);
     scanForTargetRegionsFunctions(FD->getBody(), Name);
     Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
         OMPDeclareTargetDeclAttr::getDeviceType(FD);
@@ -9666,7 +9672,7 @@ bool CGOpenMPRuntime::emitTargetFunctions(GlobalDecl GD) {
 
   // Do not to emit function if it is not marked as declare target.
   return !OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(VD) &&
-         AlreadyEmittedTargetFunctions.count(Name) == 0;
+         AlreadyEmittedTargetDecls.count(VD) == 0;
 }
 
 bool CGOpenMPRuntime::emitTargetGlobalVariable(GlobalDecl GD) {
@@ -9897,20 +9903,20 @@ bool CGOpenMPRuntime::markAsGlobalTarget(GlobalDecl GD) {
   if (!CGM.getLangOpts().OpenMPIsDevice || !ShouldMarkAsGlobal)
     return true;
 
-  StringRef Name = CGM.getMangledName(GD);
   const auto *D = cast<FunctionDecl>(GD.getDecl());
   // Do not to emit function if it is marked as declare target as it was already
   // emitted.
   if (OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(D)) {
-    if (D->hasBody() && AlreadyEmittedTargetFunctions.count(Name) == 0) {
-      if (auto *F = dyn_cast_or_null<llvm::Function>(CGM.GetGlobalValue(Name)))
+    if (D->hasBody() && AlreadyEmittedTargetDecls.count(D) == 0) {
+      if (auto *F = dyn_cast_or_null<llvm::Function>(
+              CGM.GetGlobalValue(CGM.getMangledName(GD))))
         return !F->isDeclaration();
       return false;
     }
     return true;
   }
 
-  return !AlreadyEmittedTargetFunctions.insert(Name).second;
+  return !AlreadyEmittedTargetDecls.insert(D).second;
 }
 
 llvm::Function *CGOpenMPRuntime::emitRequiresDirectiveRegFun() {
@@ -10823,8 +10829,7 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
         ExprLoc = VLENExpr->getExprLoc();
       }
       OMPDeclareSimdDeclAttr::BranchStateTy State = Attr->getBranchState();
-      if (CGM.getTriple().getArch() == llvm::Triple::x86 ||
-          CGM.getTriple().getArch() == llvm::Triple::x86_64) {
+      if (CGM.getTriple().isX86()) {
         emitX86DeclareSimdFunction(FD, Fn, VLENVal, ParamAttrs, State);
       } else if (CGM.getTriple().getArch() == llvm::Triple::aarch64) {
         unsigned VLEN = VLENVal.getExtValue();
@@ -11397,6 +11402,280 @@ bool CGOpenMPRuntime::isNontemporalDecl(const ValueDecl *VD) const {
   return llvm::any_of(
       CGM.getOpenMPRuntime().NontemporalDeclsStack,
       [VD](const NontemporalDeclsSet &Set) { return Set.count(VD) > 0; });
+}
+
+CGOpenMPRuntime::LastprivateConditionalRAII::LastprivateConditionalRAII(
+    CodeGenFunction &CGF, const OMPExecutableDirective &S, LValue IVLVal)
+    : CGM(CGF.CGM),
+      NeedToPush(llvm::any_of(S.getClausesOfKind<OMPLastprivateClause>(),
+                              [](const OMPLastprivateClause *C) {
+                                return C->getKind() ==
+                                       OMPC_LASTPRIVATE_conditional;
+                              })) {
+  assert(CGM.getLangOpts().OpenMP && "Not in OpenMP mode.");
+  if (!NeedToPush)
+    return;
+  LastprivateConditionalData &Data =
+      CGM.getOpenMPRuntime().LastprivateConditionalStack.emplace_back();
+  for (const auto *C : S.getClausesOfKind<OMPLastprivateClause>()) {
+    if (C->getKind() != OMPC_LASTPRIVATE_conditional)
+      continue;
+
+    for (const Expr *Ref : C->varlists()) {
+      Data.DeclToUniqeName.try_emplace(
+          cast<DeclRefExpr>(Ref->IgnoreParenImpCasts())->getDecl(),
+          generateUniqueName(CGM, "pl_cond", Ref));
+    }
+  }
+  Data.IVLVal = IVLVal;
+  // In simd only mode or for simd directives no need to generate threadprivate
+  // references for the loop iteration counter, we can use the original one
+  // since outlining cannot happen in simd regions.
+  if (CGF.getLangOpts().OpenMPSimd ||
+      isOpenMPSimdDirective(S.getDirectiveKind())) {
+    Data.UseOriginalIV = true;
+    return;
+  }
+  llvm::SmallString<16> Buffer;
+  llvm::raw_svector_ostream OS(Buffer);
+  PresumedLoc PLoc =
+      CGM.getContext().getSourceManager().getPresumedLoc(S.getBeginLoc());
+  assert(PLoc.isValid() && "Source location is expected to be always valid.");
+
+  llvm::sys::fs::UniqueID ID;
+  if (auto EC = llvm::sys::fs::getUniqueID(PLoc.getFilename(), ID))
+    CGM.getDiags().Report(diag::err_cannot_open_file)
+        << PLoc.getFilename() << EC.message();
+  OS << "$pl_cond_" << ID.getDevice() << "_" << ID.getFile() << "_"
+     << PLoc.getLine() << "_" << PLoc.getColumn() << "$iv";
+  Data.IVName = OS.str();
+}
+
+CGOpenMPRuntime::LastprivateConditionalRAII::~LastprivateConditionalRAII() {
+  if (!NeedToPush)
+    return;
+  CGM.getOpenMPRuntime().LastprivateConditionalStack.pop_back();
+}
+
+void CGOpenMPRuntime::initLastprivateConditionalCounter(
+    CodeGenFunction &CGF, const OMPExecutableDirective &S) {
+  if (CGM.getLangOpts().OpenMPSimd ||
+      !llvm::any_of(S.getClausesOfKind<OMPLastprivateClause>(),
+                    [](const OMPLastprivateClause *C) {
+                      return C->getKind() == OMPC_LASTPRIVATE_conditional;
+                    }))
+    return;
+  const CGOpenMPRuntime::LastprivateConditionalData &Data =
+      LastprivateConditionalStack.back();
+  if (Data.UseOriginalIV)
+    return;
+  // Global loop counter. Required to handle inner parallel-for regions.
+  // global_iv = iv;
+  Address GlobIVAddr = CGM.getOpenMPRuntime().getAddrOfArtificialThreadPrivate(
+      CGF, Data.IVLVal.getType(), Data.IVName);
+  LValue GlobIVLVal = CGF.MakeAddrLValue(GlobIVAddr, Data.IVLVal.getType());
+  llvm::Value *IVVal = CGF.EmitLoadOfScalar(Data.IVLVal, S.getBeginLoc());
+  CGF.EmitStoreOfScalar(IVVal, GlobIVLVal);
+}
+
+namespace {
+/// Checks if the lastprivate conditional variable is referenced in LHS.
+class LastprivateConditionalRefChecker final
+    : public ConstStmtVisitor<LastprivateConditionalRefChecker, bool> {
+  CodeGenFunction &CGF;
+  ArrayRef<CGOpenMPRuntime::LastprivateConditionalData> LPM;
+  const Expr *FoundE = nullptr;
+  const Decl *FoundD = nullptr;
+  StringRef UniqueDeclName;
+  LValue IVLVal;
+  StringRef IVName;
+  SourceLocation Loc;
+  bool UseOriginalIV = false;
+
+public:
+  bool VisitDeclRefExpr(const DeclRefExpr *E) {
+    for (const CGOpenMPRuntime::LastprivateConditionalData &D :
+         llvm::reverse(LPM)) {
+      auto It = D.DeclToUniqeName.find(E->getDecl());
+      if (It == D.DeclToUniqeName.end())
+        continue;
+      FoundE = E;
+      FoundD = E->getDecl()->getCanonicalDecl();
+      UniqueDeclName = It->getSecond();
+      IVLVal = D.IVLVal;
+      IVName = D.IVName;
+      UseOriginalIV = D.UseOriginalIV;
+      break;
+    }
+    return FoundE == E;
+  }
+  bool VisitMemberExpr(const MemberExpr *E) {
+    if (!CGF.IsWrappedCXXThis(E->getBase()))
+      return false;
+    for (const CGOpenMPRuntime::LastprivateConditionalData &D :
+         llvm::reverse(LPM)) {
+      auto It = D.DeclToUniqeName.find(E->getMemberDecl());
+      if (It == D.DeclToUniqeName.end())
+        continue;
+      FoundE = E;
+      FoundD = E->getMemberDecl()->getCanonicalDecl();
+      UniqueDeclName = It->getSecond();
+      IVLVal = D.IVLVal;
+      IVName = D.IVName;
+      UseOriginalIV = D.UseOriginalIV;
+      break;
+    }
+    return FoundE == E;
+  }
+  bool VisitStmt(const Stmt *S) {
+    for (const Stmt *Child : S->children()) {
+      if (!Child)
+        continue;
+      if (const auto *E = dyn_cast<Expr>(Child))
+        if (!E->isGLValue())
+          continue;
+      if (Visit(Child))
+        return true;
+    }
+    return false;
+  }
+  explicit LastprivateConditionalRefChecker(
+      CodeGenFunction &CGF,
+      ArrayRef<CGOpenMPRuntime::LastprivateConditionalData> LPM)
+      : CGF(CGF), LPM(LPM) {}
+  std::tuple<const Expr *, const Decl *, StringRef, LValue, StringRef, bool>
+  getFoundData() const {
+    return std::make_tuple(FoundE, FoundD, UniqueDeclName, IVLVal, IVName,
+                           UseOriginalIV);
+  }
+};
+} // namespace
+
+void CGOpenMPRuntime::checkAndEmitLastprivateConditional(CodeGenFunction &CGF,
+                                                         const Expr *LHS) {
+  if (CGF.getLangOpts().OpenMP < 50)
+    return;
+  LastprivateConditionalRefChecker Checker(CGF, LastprivateConditionalStack);
+  if (!Checker.Visit(LHS))
+    return;
+  const Expr *FoundE;
+  const Decl *FoundD;
+  StringRef UniqueDeclName;
+  LValue IVLVal;
+  StringRef IVName;
+  bool UseOriginalIV;
+  std::tie(FoundE, FoundD, UniqueDeclName, IVLVal, IVName, UseOriginalIV) =
+      Checker.getFoundData();
+
+  // Last updated loop counter for the lastprivate conditional var.
+  // int<xx> last_iv = 0;
+  llvm::Type *LLIVTy = CGF.ConvertTypeForMem(IVLVal.getType());
+  llvm::Constant *LastIV =
+      getOrCreateInternalVariable(LLIVTy, UniqueDeclName + "$iv");
+  cast<llvm::GlobalVariable>(LastIV)->setAlignment(
+      IVLVal.getAlignment().getAsAlign());
+  LValue LastIVLVal = CGF.MakeNaturalAlignAddrLValue(LastIV, IVLVal.getType());
+
+  // Private address of the lastprivate conditional in the current context.
+  // priv_a
+  LValue LVal = CGF.EmitLValue(FoundE);
+  // Last value of the lastprivate conditional.
+  // decltype(priv_a) last_a;
+  llvm::Constant *Last = getOrCreateInternalVariable(
+      LVal.getAddress(CGF).getElementType(), UniqueDeclName);
+  cast<llvm::GlobalVariable>(Last)->setAlignment(
+      LVal.getAlignment().getAsAlign());
+  LValue LastLVal =
+      CGF.MakeAddrLValue(Last, LVal.getType(), LVal.getAlignment());
+
+  // Global loop counter. Required to handle inner parallel-for regions.
+  // global_iv
+  if (!UseOriginalIV) {
+    Address IVAddr =
+        getAddrOfArtificialThreadPrivate(CGF, IVLVal.getType(), IVName);
+    IVLVal = CGF.MakeAddrLValue(IVAddr, IVLVal.getType());
+  }
+  llvm::Value *IVVal = CGF.EmitLoadOfScalar(IVLVal, FoundE->getExprLoc());
+
+  // #pragma omp critical(a)
+  // if (last_iv <= iv) {
+  //   last_iv = iv;
+  //   last_a = priv_a;
+  // }
+  auto &&CodeGen = [&LastIVLVal, &IVLVal, IVVal, &LVal, &LastLVal,
+                    FoundE](CodeGenFunction &CGF, PrePostActionTy &Action) {
+    Action.Enter(CGF);
+    llvm::Value *LastIVVal =
+        CGF.EmitLoadOfScalar(LastIVLVal, FoundE->getExprLoc());
+    // (last_iv <= global_iv) ? Check if the variable is updated and store new
+    // value in global var.
+    llvm::Value *CmpRes;
+    if (IVLVal.getType()->isSignedIntegerType()) {
+      CmpRes = CGF.Builder.CreateICmpSLE(LastIVVal, IVVal);
+    } else {
+      assert(IVLVal.getType()->isUnsignedIntegerType() &&
+             "Loop iteration variable must be integer.");
+      CmpRes = CGF.Builder.CreateICmpULE(LastIVVal, IVVal);
+    }
+    llvm::BasicBlock *ThenBB = CGF.createBasicBlock("lp_cond_then");
+    llvm::BasicBlock *ExitBB = CGF.createBasicBlock("lp_cond_exit");
+    CGF.Builder.CreateCondBr(CmpRes, ThenBB, ExitBB);
+    // {
+    CGF.EmitBlock(ThenBB);
+
+    //   last_iv = global_iv;
+    CGF.EmitStoreOfScalar(IVVal, LastIVLVal);
+
+    //   last_a = priv_a;
+    switch (CGF.getEvaluationKind(LVal.getType())) {
+    case TEK_Scalar: {
+      llvm::Value *PrivVal = CGF.EmitLoadOfScalar(LVal, FoundE->getExprLoc());
+      CGF.EmitStoreOfScalar(PrivVal, LastLVal);
+      break;
+    }
+    case TEK_Complex: {
+      CodeGenFunction::ComplexPairTy PrivVal =
+          CGF.EmitLoadOfComplex(LVal, FoundE->getExprLoc());
+      CGF.EmitStoreOfComplex(PrivVal, LastLVal, /*isInit=*/false);
+      break;
+    }
+    case TEK_Aggregate:
+      llvm_unreachable(
+          "Aggregates are not supported in lastprivate conditional.");
+    }
+    // }
+    CGF.EmitBranch(ExitBB);
+    // There is no need to emit line number for unconditional branch.
+    (void)ApplyDebugLocation::CreateEmpty(CGF);
+    CGF.EmitBlock(ExitBB, /*IsFinished=*/true);
+  };
+
+  if (CGM.getLangOpts().OpenMPSimd) {
+    // Do not emit as a critical region as no parallel region could be emitted.
+    RegionCodeGenTy ThenRCG(CodeGen);
+    ThenRCG(CGF);
+  } else {
+    emitCriticalRegion(CGF, UniqueDeclName, CodeGen, FoundE->getExprLoc());
+  }
+}
+
+void CGOpenMPRuntime::emitLastprivateConditionalFinalUpdate(
+    CodeGenFunction &CGF, LValue PrivLVal, const VarDecl *VD,
+    SourceLocation Loc) {
+  if (CGF.getLangOpts().OpenMP < 50)
+    return;
+  auto It = LastprivateConditionalStack.back().DeclToUniqeName.find(VD);
+  assert(It != LastprivateConditionalStack.back().DeclToUniqeName.end() &&
+         "Unknown lastprivate conditional variable.");
+  StringRef UniqueName = It->getSecond();
+  llvm::GlobalVariable *GV = CGM.getModule().getNamedGlobal(UniqueName);
+  // The variable was not updated in the region - exit.
+  if (!GV)
+    return;
+  LValue LPLVal = CGF.MakeAddrLValue(
+      GV, PrivLVal.getType().getNonReferenceType(), PrivLVal.getAlignment());
+  llvm::Value *Res = CGF.EmitLoadOfScalar(LPLVal, Loc);
+  CGF.EmitStoreOfScalar(Res, PrivLVal);
 }
 
 llvm::Function *CGOpenMPSIMDRuntime::emitParallelOutlinedFunction(

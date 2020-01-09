@@ -1612,6 +1612,124 @@ void foo()
       matches(VarDeclCode,
               traverse(ast_type_traits::TK_IgnoreImplicitCastsAndParentheses,
                        Matcher)));
+
+  EXPECT_TRUE(
+      matches(VarDeclCode, decl(traverse(ast_type_traits::TK_AsIs,
+                                         anyOf(cxxRecordDecl(), varDecl())))));
+
+  EXPECT_TRUE(matches(VarDeclCode,
+                      floatLiteral(traverse(ast_type_traits::TK_AsIs,
+                                            hasParent(implicitCastExpr())))));
+
+  EXPECT_TRUE(matches(
+      VarDeclCode,
+      floatLiteral(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                            hasParent(varDecl())))));
+
+  EXPECT_TRUE(
+      matches(VarDeclCode,
+              varDecl(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                               unless(parmVarDecl())))));
+
+  EXPECT_TRUE(notMatches(
+      VarDeclCode,
+      varDecl(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                       has(implicitCastExpr())))));
+
+  EXPECT_TRUE(matches(VarDeclCode, varDecl(traverse(ast_type_traits::TK_AsIs,
+                                                    has(implicitCastExpr())))));
+
+  EXPECT_TRUE(notMatches(
+      VarDeclCode,
+      varDecl(has(traverse(ast_type_traits::TK_AsIs, floatLiteral())))));
+
+  EXPECT_TRUE(matches(
+      VarDeclCode,
+      functionDecl(traverse(ast_type_traits::TK_AsIs, hasName("foo")))));
+
+  EXPECT_TRUE(matches(
+      VarDeclCode,
+      functionDecl(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                            hasName("foo")))));
+
+  EXPECT_TRUE(
+      matches(VarDeclCode, functionDecl(traverse(ast_type_traits::TK_AsIs,
+                                                 hasAnyName("foo", "bar")))));
+
+  EXPECT_TRUE(matches(
+      VarDeclCode,
+      functionDecl(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                            hasAnyName("foo", "bar")))));
+
+  EXPECT_TRUE(
+      matches(R"cpp(
+void foo(int a)
+{
+  int i = 3.0 + a;
+}
+void bar()
+{
+  foo(7.0);
+}
+)cpp",
+              callExpr(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                                hasArgument(0, floatLiteral())))));
+
+  EXPECT_TRUE(
+      matches(R"cpp(
+void foo(int a)
+{
+  int i = 3.0 + a;
+}
+void bar()
+{
+  foo(7.0);
+}
+)cpp",
+              callExpr(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                                hasAnyArgument(floatLiteral())))));
+
+  EXPECT_TRUE(
+      matches(VarDeclCode,
+              varDecl(traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                               hasType(builtinType())))));
+
+  EXPECT_TRUE(matches(
+      VarDeclCode,
+      functionDecl(hasName("foo"), traverse(ast_type_traits::TK_AsIs,
+                                            hasDescendant(floatLiteral())))));
+
+  EXPECT_TRUE(
+      matches(R"cpp(
+void foo()
+{
+  int i = (3);
+}
+)cpp",
+              traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                       varDecl(hasInitializer(integerLiteral(equals(3)))))));
+}
+
+template <typename MatcherT>
+bool matcherTemplateWithBinding(StringRef Code, const MatcherT &M) {
+  return matchAndVerifyResultTrue(
+      Code, M.bind("matchedStmt"),
+      std::make_unique<VerifyIdIsBoundTo<ReturnStmt>>("matchedStmt", 1));
+}
+
+TEST(Traversal, traverseWithBinding) {
+  // Some existing matcher code expects to take a matcher as a
+  // template arg and bind to it.  Verify that that works.
+
+  EXPECT_TRUE(matcherTemplateWithBinding(
+      R"cpp(
+int foo()
+{
+  return 42.0;
+}
+)cpp",
+      traverse(ast_type_traits::TK_AsIs,
+               returnStmt(has(implicitCastExpr(has(floatLiteral())))))));
 }
 
 TEST(Traversal, traverseMatcherNesting) {
@@ -1760,6 +1878,7 @@ void func13() {
 
 void func14() {
   [] <typename TemplateType> (TemplateType t, TemplateType u) { int e = t + u; };
+  float i = 42.0;
 }
 
 )cpp";
@@ -1849,6 +1968,11 @@ void func14() {
                      lambdaExpr(
                          forFunction(functionDecl(hasName("func14"))),
                          has(templateTypeParmDecl(hasName("TemplateType")))))));
+
+  EXPECT_TRUE(
+      matches(Code, traverse(ast_type_traits::TK_IgnoreUnlessSpelledInSource,
+                             functionDecl(hasName("func14"),
+                                          hasDescendant(floatLiteral())))));
 }
 
 TEST(IgnoringImpCasts, MatchesImpCasts) {

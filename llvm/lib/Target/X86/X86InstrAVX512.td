@@ -3932,6 +3932,17 @@ def : InstAlias<"vmovd\t{$src, $dst|$dst, $src}",
 def : InstAlias<"vmovd\t{$src, $dst|$dst, $src}",
                 (VMOVPQIto64Zrr GR64:$dst, VR128X:$src), 0>;
 
+// Conversions between masks and scalar fp.
+def : Pat<(v32i1 (bitconvert FR32X:$src)),
+          (KMOVDkr (VMOVSS2DIZrr FR32X:$src))>;
+def : Pat<(f32 (bitconvert VK32:$src)),
+          (VMOVDI2SSZrr (KMOVDrk VK32:$src))>;
+
+def : Pat<(v64i1 (bitconvert FR64X:$src)),
+          (KMOVQkr (VMOVSDto64Zrr FR64X:$src))>;
+def : Pat<(f64 (bitconvert VK64:$src)),
+          (VMOV64toSDZrr (KMOVQrk VK64:$src))>;
+
 //===----------------------------------------------------------------------===//
 // AVX-512  MOVSS, MOVSD
 //===----------------------------------------------------------------------===//
@@ -7598,7 +7609,7 @@ multiclass avx512_cvtps2pd<bits<8> opc, string OpcodeStr,
 // Truncate Double to Float
 multiclass avx512_cvtpd2ps<bits<8> opc, string OpcodeStr, X86SchedWriteWidths sched> {
   let Predicates = [HasAVX512] in {
-    defm Z : avx512_vcvt_fp<opc, OpcodeStr, v8f32x_info, v8f64_info, X86vfpround, sched.ZMM>,
+    defm Z : avx512_vcvt_fp<opc, OpcodeStr, v8f32x_info, v8f64_info, X86any_vfpround, sched.ZMM>,
              avx512_vcvt_fp_rc<opc, OpcodeStr, v8f32x_info, v8f64_info,
                                X86vfproundRnd, sched.ZMM>, EVEX_V512;
   }
@@ -7606,7 +7617,7 @@ multiclass avx512_cvtpd2ps<bits<8> opc, string OpcodeStr, X86SchedWriteWidths sc
     defm Z128 : avx512_vcvt_fp<opc, OpcodeStr, v4f32x_info, v2f64x_info,
                                null_frag, sched.XMM, "{1to2}", "{x}", f128mem, VK2WM>,
                                EVEX_V128;
-    defm Z256 : avx512_vcvt_fp<opc, OpcodeStr, v4f32x_info, v4f64x_info, X86vfpround,
+    defm Z256 : avx512_vcvt_fp<opc, OpcodeStr, v4f32x_info, v4f64x_info, X86any_vfpround,
                                sched.YMM, "{1to4}", "{y}">, EVEX_V256;
   }
 
@@ -9019,13 +9030,13 @@ multiclass avx512_rndscale_scalar<bits<8> opc, string OpcodeStr,
   }
 
   let Predicates = [HasAVX512] in {
-    def : Pat<(X86VRndScale _.FRC:$src1, timm:$src2),
+    def : Pat<(X86any_VRndScale _.FRC:$src1, timm:$src2),
               (_.EltVT (!cast<Instruction>(NAME##r) (_.EltVT (IMPLICIT_DEF)),
                _.FRC:$src1, timm:$src2))>;
   }
 
   let Predicates = [HasAVX512, OptForSize] in {
-    def : Pat<(X86VRndScale (_.ScalarLdFrag addr:$src1), timm:$src2),
+    def : Pat<(X86any_VRndScale (_.ScalarLdFrag addr:$src1), timm:$src2),
               (_.EltVT (!cast<Instruction>(NAME##m) (_.EltVT (IMPLICIT_DEF)),
                addr:$src1, timm:$src2))>;
   }
@@ -9621,7 +9632,7 @@ defm : AVX512_pmovx_patterns<"VPMOVSX", sext, sext_invec>;
 defm : AVX512_pmovx_patterns<"VPMOVZX", zext, zext_invec>;
 
 // Without BWI we can't do a trunc from v16i16 to v16i8. DAG combine can merge
-// ext+trunc aggresively making it impossible to legalize the DAG to this
+// ext+trunc aggressively making it impossible to legalize the DAG to this
 // pattern directly.
 let Predicates = [HasAVX512, NoBWI] in {
 def: Pat<(v16i8 (trunc (v16i16 VR256X:$src))),
@@ -10290,7 +10301,7 @@ defm VREDUCE   : avx512_common_unary_fp_sae_packed_imm_all<"vreduce", 0x56, 0x56
                               X86VReduce, X86VReduceSAE, SchedWriteFRnd, HasDQI>,
                               AVX512AIi8Base, EVEX;
 defm VRNDSCALE : avx512_common_unary_fp_sae_packed_imm_all<"vrndscale", 0x08, 0x09,
-                              X86VRndScale, X86VRndScaleSAE, SchedWriteFRnd, HasAVX512>,
+                              X86any_VRndScale, X86VRndScaleSAE, SchedWriteFRnd, HasAVX512>,
                               AVX512AIi8Base, EVEX;
 defm VGETMANT : avx512_common_unary_fp_sae_packed_imm_all<"vgetmant", 0x26, 0x26,
                               X86VGetMant, X86VGetMantSAE, SchedWriteFRnd, HasAVX512>,

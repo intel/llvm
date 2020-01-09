@@ -663,6 +663,8 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::SMULFIXSAT, VT, Expand);
     setOperationAction(ISD::UMULFIX, VT, Expand);
     setOperationAction(ISD::UMULFIXSAT, VT, Expand);
+    setOperationAction(ISD::SDIVFIX, VT, Expand);
+    setOperationAction(ISD::UDIVFIX, VT, Expand);
 
     // Overflow operations default to expand
     setOperationAction(ISD::SADDO, VT, Expand);
@@ -696,6 +698,7 @@ void TargetLoweringBase::initActions() {
     // These operations default to expand for vector types.
     if (VT.isVector()) {
       setOperationAction(ISD::FCOPYSIGN, VT, Expand);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
       setOperationAction(ISD::ANY_EXTEND_VECTOR_INREG, VT, Expand);
       setOperationAction(ISD::SIGN_EXTEND_VECTOR_INREG, VT, Expand);
       setOperationAction(ISD::ZERO_EXTEND_VECTOR_INREG, VT, Expand);
