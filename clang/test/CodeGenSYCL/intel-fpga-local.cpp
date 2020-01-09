@@ -56,7 +56,7 @@ struct foo_two {
   int f2 [[intelfpga::register]];
   int f3 [[intelfpga::memory]];
   int f4 [[intelfpga::bankwidth(4)]];
-  int f5 [[intelfpga::max_private_copies(8)]];
+  int f5 [[intelfpga::private_copies(8)]];
   int f6 [[intelfpga::singlepump]];
   int f7 [[intelfpga::doublepump]];
   int f8 [[intelfpga::merge("foo", "depth")]];
@@ -130,7 +130,7 @@ void baz() {
   // CHECK-DEVICE: %[[V_SEVEN:[0-9]+]] = bitcast{{.*}}v_seven
   // CHECK-DEVICE: %[[V_SEVEN1:v_seven[0-9]+]] = bitcast{{.*}}v_seven
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[V_SEVEN1]],{{.*}}[[ANN9]]
-  int v_seven [[intelfpga::max_private_copies(4)]];
+  int v_seven [[intelfpga::private_copies(4)]];
   // CHECK-DEVICE: %[[V_EIGHT:[0-9]+]] = bitcast{{.*}}v_eight
   // CHECK-DEVICE: %[[V_EIGHT1:v_eight[0-9]+]] = bitcast{{.*}}v_eight
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[V_EIGHT1]],{{.*}}[[ANN10]]

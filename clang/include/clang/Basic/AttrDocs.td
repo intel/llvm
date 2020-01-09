@@ -1876,9 +1876,9 @@ with N banks.
   }];
 }
 
-def IntelFPGAMaxPrivateCopiesAttrDocs : Documentation {
+def IntelFPGAPrivateCopiesAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "max_private_copies (IntelFPGA)";
+  let Heading = "private_copies (IntelFPGA)";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or

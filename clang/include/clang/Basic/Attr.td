@@ -1721,12 +1721,12 @@ def IntelFPGANumBanks : Attr {
   }];
 }
 
-def IntelFPGAMaxPrivateCopies : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_private_copies">];
+def IntelFPGAPrivateCopies : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","private_copies">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
-  let Documentation = [IntelFPGAMaxPrivateCopiesAttrDocs];
+  let Documentation = [IntelFPGAPrivateCopiesAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
       return 0;
