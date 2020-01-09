@@ -9,17 +9,20 @@ add_llvm_library(MLIRSPIRV
   SPIRVOps.cpp
   SPIRVLowering.cpp
   SPIRVTypes.cpp
+  TargetAndABI.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/SPIRV
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
   )
 
 add_dependencies(MLIRSPIRV
+  MLIRSPIRVAvailabilityIncGen
   MLIRSPIRVCanonicalizationIncGen
+  MLIRSPIRVEnumAvailabilityIncGen
   MLIRSPIRVEnumsIncGen
-  MLIRSPIRVLoweringStructGen
   MLIRSPIRVOpsIncGen
-  MLIRSPIRVOpUtilsGen)
+  MLIRSPIRVOpUtilsGen
+  MLIRSPIRVTargetAndABIIncGen)
 
 target_link_libraries(MLIRSPIRV
   MLIRIR

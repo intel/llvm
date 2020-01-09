@@ -225,7 +225,6 @@ public:
     llvm_unreachable("Invalid content kind");
   }
 
-  /// NOTE: The TargetMachine owns TLOF.
   explicit TargetLoweringBase(const TargetMachine &TM);
   TargetLoweringBase(const TargetLoweringBase &) = delete;
   TargetLoweringBase &operator=(const TargetLoweringBase &) = delete;
@@ -936,6 +935,8 @@ public:
     case ISD::SMULFIXSAT:
     case ISD::UMULFIX:
     case ISD::UMULFIXSAT:
+    case ISD::SDIVFIX:
+    case ISD::UDIVFIX:
       Supported = isSupportedFixedPointOperation(Op, VT, Scale);
       break;
     }
@@ -2957,7 +2958,6 @@ public:
   TargetLowering(const TargetLowering &) = delete;
   TargetLowering &operator=(const TargetLowering &) = delete;
 
-  /// NOTE: The TargetMachine owns TLOF.
   explicit TargetLowering(const TargetMachine &TM);
 
   bool isPositionIndependent() const;
@@ -3033,6 +3033,12 @@ public:
                            SDValue &NewRHS, ISD::CondCode &CCCode,
                            const SDLoc &DL, const SDValue OldLHS,
                            const SDValue OldRHS) const;
+
+  void softenSetCCOperands(SelectionDAG &DAG, EVT VT, SDValue &NewLHS,
+                           SDValue &NewRHS, ISD::CondCode &CCCode,
+                           const SDLoc &DL, const SDValue OldLHS,
+                           const SDValue OldRHS, SDValue &Chain,
+                           bool IsSignaling = false) const;
 
   /// Returns a pair of (return value, chain).
   /// It is an error to pass RTLIB::UNKNOWN_LIBCALL as \p LC.
@@ -3949,9 +3955,7 @@ public:
                                StringRef Constraint, MVT VT) const;
 
   virtual unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const {
-    if (ConstraintCode == "i")
-      return InlineAsm::Constraint_i;
-    else if (ConstraintCode == "m")
+    if (ConstraintCode == "m")
       return InlineAsm::Constraint_m;
     return InlineAsm::Constraint_Unknown;
   }
@@ -4138,12 +4142,13 @@ public:
 
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand
-  /// \returns MERGE_VALUEs of the scalar loads with their chains.
-  SDValue scalarizeVectorLoad(LoadSDNode *LD, SelectionDAG &DAG) const;
+  /// \returns BUILD_VECTOR and TokenFactor nodes.
+  std::pair<SDValue, SDValue> scalarizeVectorLoad(LoadSDNode *LD,
+                                                  SelectionDAG &DAG) const;
 
   // Turn a store of a vector type into stores of the individual elements.
   /// \param ST Store with a vector value type
-  /// \returns MERGE_VALUs of the individual store chains.
+  /// \returns TokenFactor of the individual store chains.
   SDValue scalarizeVectorStore(StoreSDNode *ST, SelectionDAG &DAG) const;
 
   /// Expands an unaligned load to 2 half-size loads for an integer, and
@@ -4180,6 +4185,14 @@ public:
   /// Method for building the DAG expansion of ISD::[U|S]MULFIX[SAT]. This
   /// method accepts integers as its arguments.
   SDValue expandFixedPointMul(SDNode *Node, SelectionDAG &DAG) const;
+
+  /// Method for building the DAG expansion of ISD::[US]DIVFIX. This
+  /// method accepts integers as its arguments.
+  /// Note: This method may fail if the division could not be performed
+  /// within the type. Clients must retry with a wider type if this happens.
+  SDValue expandFixedPointDiv(unsigned Opcode, const SDLoc &dl,
+                              SDValue LHS, SDValue RHS,
+                              unsigned Scale, SelectionDAG &DAG) const;
 
   /// Method for building the DAG expansion of ISD::U(ADD|SUB)O. Expansion
   /// always suceeds and populates the Result and Overflow arguments.

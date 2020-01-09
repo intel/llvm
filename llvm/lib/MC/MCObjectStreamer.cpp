@@ -29,7 +29,10 @@ MCObjectStreamer::MCObjectStreamer(MCContext &Context,
     : MCStreamer(Context),
       Assembler(std::make_unique<MCAssembler>(
           Context, std::move(TAB), std::move(Emitter), std::move(OW))),
-      EmitEHFrame(true), EmitDebugFrame(false) {}
+      EmitEHFrame(true), EmitDebugFrame(false) {
+  if (Assembler->getBackendPtr())
+    setAllowAutoPadding(Assembler->getBackend().allowAutoPadding());
+}
 
 MCObjectStreamer::~MCObjectStreamer() {}
 
@@ -569,12 +572,6 @@ void MCObjectStreamer::EmitBytes(StringRef Data) {
   MCDataFragment *DF = getOrCreateDataFragment();
   flushPendingLabels(DF, DF->getContents().size());
   DF->getContents().append(Data.begin(), Data.end());
-
-  // EmitBytes might not cover all possible ways we emit data (or could be used
-  // to emit executable code in some cases), but is the best method we have
-  // right now for checking this.
-  MCSection *Sec = getCurrentSectionOnly();
-  Sec->setHasData(true);
 }
 
 void MCObjectStreamer::EmitValueToAlignment(unsigned ByteAlignment,

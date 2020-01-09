@@ -255,7 +255,8 @@ TypeSP DWARFASTParserClang::ParseTypeFromClangModule(const SymbolContext &sc,
   return type_sp;
 }
 
-static void CompleteExternalTagDeclType(ClangASTImporter &ast_importer,
+static void CompleteExternalTagDeclType(ClangASTContext &ast,
+                                        ClangASTImporter &ast_importer,
                                         clang::DeclContext *decl_ctx,
                                         DWARFDIE die,
                                         const char *type_name_cstr) {
@@ -264,7 +265,7 @@ static void CompleteExternalTagDeclType(ClangASTImporter &ast_importer,
     return;
 
   // If this type was not imported from an external AST, there's nothing to do.
-  CompilerType type = ClangASTContext::GetTypeForDecl(tag_decl_ctx);
+  CompilerType type = ast.GetTypeForDecl(tag_decl_ctx);
   if (!type || !ast_importer.CanImport(type))
     return;
 
@@ -1594,7 +1595,7 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     // backing the Decl is complete before adding children to it. This is
     // not an issue in the non-gmodules case because the debug info will
     // always contain a full definition of parent types in that case.
-    CompleteExternalTagDeclType(GetClangASTImporter(), decl_ctx, die,
+    CompleteExternalTagDeclType(m_ast, GetClangASTImporter(), decl_ctx, die,
                                 attrs.name.GetCString());
 
     if (attrs.accessibility == eAccessNone && decl_ctx) {
@@ -2085,8 +2086,8 @@ bool DWARFASTParserClang::CompleteRecordType(const DWARFDIE &die,
           clang::TypeSourceInfo *type_source_info =
               base_class->getTypeSourceInfo();
           if (type_source_info) {
-            CompilerType base_class_type(
-                &m_ast, type_source_info->getType().getAsOpaquePtr());
+            CompilerType base_class_type =
+                m_ast.GetType(type_source_info->getType());
             if (!base_class_type.GetCompleteType()) {
               auto module = dwarf->GetObjectFile()->GetModule();
               module->ReportError(":: Class '%s' has a base class '%s' which "
@@ -2578,7 +2579,6 @@ void DWARFASTParserClang::ParseSingleMember(
     }
 
     if (prop_name) {
-      ConstString fixed_getter;
       ConstString fixed_setter;
 
       // Check if the property getter/setter were provided as full names.

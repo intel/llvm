@@ -1015,7 +1015,7 @@ public:
 
   /// Return the mask used by this recipe. Note that a full mask is represented
   /// by a nullptr.
-  VPValue *getMask() {
+  VPValue *getMask() const {
     // Mask is the last operand.
     return User ? User->getOperand(User->getNumOperands() - 1) : nullptr;
   }
@@ -1424,9 +1424,9 @@ public:
 private:
   /// Add to the given dominator tree the header block and every new basic block
   /// that was created between it and the latch block, inclusive.
-  static void updateDominatorTree(DominatorTree *DT,
+  static void updateDominatorTree(DominatorTree *DT, BasicBlock *LoopLatchBB,
                                   BasicBlock *LoopPreHeaderBB,
-                                  BasicBlock *LoopLatchBB);
+                                  BasicBlock *LoopExitBB);
 };
 
 /// VPlanPrinter prints a given VPlan to a given output stream. The printing is

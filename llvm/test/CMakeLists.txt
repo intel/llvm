@@ -1,12 +1,12 @@
 llvm_canonicalize_cmake_booleans(
   BUILD_SHARED_LIBS
   HAVE_LIBXAR
-  HAVE_LIBZ
   HAVE_OCAMLOPT
   HAVE_OCAML_OUNIT
   LLVM_ENABLE_DIA_SDK
   LLVM_ENABLE_FFI
   LLVM_ENABLE_THREADS
+  LLVM_ENABLE_ZLIB
   LLVM_INCLUDE_GO_TESTS
   LLVM_LIBXML2_ENABLED
   LLVM_LINK_LLVM_DYLIB
@@ -14,6 +14,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_USE_INTEL_JITEVENTS
   LLVM_BUILD_EXAMPLES
   LLVM_ENABLE_PLUGINS
+  LLVM_BYE_LINK_INTO_TOOLS
   )
 
 configure_lit_site_cfg(
@@ -138,6 +139,7 @@ endif()
 
 if(LLVM_BUILD_EXAMPLES)
   list(APPEND LLVM_TEST_DEPENDS
+    Bye
     Kaleidoscope-Ch3
     Kaleidoscope-Ch4
     Kaleidoscope-Ch5

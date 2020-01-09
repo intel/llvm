@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a the Linalg operations.
+// This file implements the Linalg operations.
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +23,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Support/Functional.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/STLExtras.h"
 #include "mlir/Transforms/FoldUtils.h"
@@ -61,6 +62,10 @@ static void printGenericOp(OpAsmPrinter &p, GenericOpType op) {
     p.printRegion(op.region());
   p.printOptionalAttrDict(op.getAttrs(), attrNames);
   p << ": " << op.getOperandTypes();
+
+  auto outputTensorTypes = op.getResultTypes();
+  if (!outputTensorTypes.empty())
+    p << " -> " << outputTensorTypes;
 }
 
 static void print(OpAsmPrinter &p, GenericOp op) { printGenericOp(p, op); }
@@ -92,6 +97,13 @@ static ParseResult parseGenericOp(OpAsmParser &parser, OperationState &result) {
   if (parser.parseOptionalAttrDict(result.attributes) ||
       parser.parseColonTypeList(operandTypes))
     return failure();
+  // Generic ops may specify that a subset of its outputs are tensors. Such
+  // outputs are specified in the result type.
+  SmallVector<Type, 8> tensorResultTypes;
+  if (parser.parseOptionalArrowTypeList(tensorResultTypes))
+    return failure();
+  if (!tensorResultTypes.empty())
+    result.addTypes(tensorResultTypes);
   return parser.resolveOperands(operandsInfo, operandTypes,
                                 parser.getCurrentLocation(), result.operands);
 }
@@ -103,13 +115,13 @@ template <> LogicalResult verifyBlockArgs(GenericOp op, Block &block) {
   auto nViews = op.getNumInputsAndOutputs();
   auto nInputViews = op.getNumInputs();
   if (block.getNumArguments() != nViews)
-    return op.emitError(
-        "op expected number of block arguments to match number of views");
+    return op.emitOpError(
+        "expected number of block arguments to match number of views");
 
   for (unsigned i = 0; i < nViews; ++i) {
-    auto viewType = op.getViewType(i);
+    auto viewType = op.getShapedType(i);
     if (viewType.getElementType() != block.getArgument(i)->getType())
-      return op.emitError("op expected block argument ")
+      return op.emitOpError("expected block argument ")
              << i << " of the same type as elemental type of "
              << ((i < nInputViews) ? "input " : "output ")
              << "view: " << viewType;
@@ -122,22 +134,22 @@ template <> LogicalResult verifyBlockArgs(IndexedGenericOp op, Block &block) {
   auto nLoops = op.getNumLoops();
   auto nViews = op.getNumInputsAndOutputs();
   if (block.getNumArguments() != nViews + nLoops)
-    return op.emitError(
-        "op expected number of block arguments to match number of views + "
+    return op.emitOpError(
+        "expected number of block arguments to match number of views + "
         "number of loops");
 
   for (unsigned i = 0; i < nLoops; ++i) {
     if (!block.getArgument(i)->getType().isIndex())
-      return op.emitError("op expected block argument ")
+      return op.emitOpError("expected block argument ")
              << i << " to be of IndexType";
   }
 
   for (unsigned i = 0; i < nViews; ++i) {
     unsigned memrefArgIndex = i + nLoops;
-    auto viewType = op.getViewType(i);
+    auto viewType = op.getShapedType(i);
     if (viewType.getElementType() !=
         block.getArgument(memrefArgIndex)->getType())
-      return op.emitError("op expected block argument ")
+      return op.emitOpError("expected block argument ")
              << memrefArgIndex << " of the same type as elemental type of "
              << ((i < nInputViews) ? "input " : "output ")
              << "view: " << viewType;
@@ -152,24 +164,24 @@ template <> LogicalResult verifyFuncArgs(GenericOp op, FunctionType funType) {
   auto nViews = op.getNumInputsAndOutputs();
   auto nInputViews = op.getNumInputs();
   if (funType.getNumInputs() != nViews)
-    return op.emitError("op expected fun arguments to match number of views");
+    return op.emitOpError("expected fun arguments to match number of views");
   if (funType.getNumResults() != op.getNumOutputs())
-    return op.emitError(
-        "op expected fun results to match number of output views");
+    return op.emitOpError(
+        "expected fun results to match number of output views");
 
   for (auto en : llvm::enumerate(op.indexing_maps())) {
     auto idx = en.index();
-    auto view = (idx < nInputViews) ? op.getInputViewType(idx)
-                                    : op.getOutputViewType(idx - nInputViews);
+    auto view = (idx < nInputViews) ? op.getInputShapedType(idx)
+                                    : op.getOutputShapedType(idx - nInputViews);
     if (funType.getInput(idx) != view.getElementType())
-      return op.emitError("op expected fun argument ")
+      return op.emitOpError("expected fun argument ")
              << idx << " of the same type as elemental type "
              << view.getElementType() << " of view " << idx;
 
     if (idx >= nInputViews) {
       auto resultIdx = idx - nInputViews;
       if (funType.getResult(resultIdx) != view.getElementType())
-        return op.emitError("op expected fun result ")
+        return op.emitOpError("expected fun result ")
                << resultIdx << " of the same type as elemental type "
                << view.getElementType() << " of view " << idx;
     }
@@ -184,30 +196,30 @@ LogicalResult verifyFuncArgs(IndexedGenericOp op, FunctionType funType) {
   auto nOutputs = op.getNumOutputs();
   auto nViews = op.getNumInputsAndOutputs();
   if (funType.getNumInputs() != nViews + nLoops)
-    return op.emitError(
-        "op expected fun arguments to match number of views + number of loops");
+    return op.emitOpError(
+        "expected fun arguments to match number of views + number of loops");
   if (funType.getNumResults() != nOutputs)
-    return op.emitError(
-        "op expected fun results to match number of output views");
+    return op.emitOpError(
+        "expected fun results to match number of output views");
   for (unsigned i = 0; i < nLoops; ++i) {
     if (!funType.getInput(i).isIndex())
-      return op.emitError("op expected fun argument ")
+      return op.emitOpError("expected fun argument ")
              << i << " to be of IndexType";
   }
   for (auto en : llvm::enumerate(op.indexing_maps())) {
     auto idx = en.index();
     auto funIdx = nLoops + idx;
-    auto view = (idx < nInputViews) ? op.getInputViewType(idx)
-                                    : op.getOutputViewType(idx - nInputViews);
+    auto view = (idx < nInputViews) ? op.getInputShapedType(idx)
+                                    : op.getOutputShapedType(idx - nInputViews);
     if (funType.getInput(funIdx) != view.getElementType())
-      return op.emitError("op expected fun argument ")
+      return op.emitOpError("expected fun argument ")
              << funIdx << " of the same type as elemental type "
              << view.getElementType() << " of view " << idx;
 
     if (idx >= nInputViews) {
       auto resultIdx = idx - nInputViews;
       if (funType.getResult(resultIdx) != view.getElementType())
-        return op.emitError("op expected fun result ")
+        return op.emitOpError("expected fun result ")
                << resultIdx << " of the same type as elemental type "
                << view.getElementType() << " of view " << idx;
     }
@@ -221,20 +233,20 @@ LogicalResult verifyGenericOp(GenericOpType op) {
   auto nLoops = op.getNumLoops();
   auto nViews = op.getNumInputsAndOutputs();
   if (nViews != llvm::size(op.views()))
-    return op.emitError("op expected exactly ") << nViews << " view operands";
+    return op.emitOpError("expected exactly ") << nViews << " view operands";
 
   auto &region = op.region();
   auto funOp = op.getFunction();
   auto funType = funOp ? funOp.getType() : FunctionType();
   if (!region.empty()) {
     if (region.getBlocks().size() != 1)
-      return op.emitError("op expected region with 1 block");
+      return op.emitOpError("expected region with 1 block");
     if (failed(verifyBlockArgs(op, region.getBlocks().front())))
       return failure();
   } else {
     if (!funOp || !funOp.getType())
-      return op.emitError(
-          "op expected fun attribute to refer to a defined symbol");
+      return op.emitOpError(
+          "expected fun attribute to refer to a defined symbol");
     if (failed(verifyFuncArgs(op, funType)))
       return failure();
   }
@@ -245,35 +257,51 @@ LogicalResult verifyGenericOp(GenericOpType op) {
     auto idx = en.index();
     auto m = en.value().template cast<AffineMapAttr>().getValue();
     indexingMaps.push_back(m); // Save reference to map for further checks.
-    auto view = (idx < nInputViews) ? op.getInputViewType(idx)
-                                    : op.getOutputViewType(idx - nInputViews);
+    auto view = (idx < nInputViews) ? op.getInputShapedType(idx)
+                                    : op.getOutputShapedType(idx - nInputViews);
 
     if (m.getNumSymbols() != 0)
-      return op.emitError("op expected indexing_map #")
+      return op.emitOpError("expected indexing_map #")
              << idx << " to have no symbols";
 
     if (m.getNumDims() != nLoops)
-      return op.emitError("op expected indexing_map #")
+      return op.emitOpError("expected indexing_map #")
              << idx << " to have " << nLoops
              << " dim(s) to match the number of loops";
 
     if (m.getNumResults() == 1 && view.getRank() == 0) {
       auto cst = m.getResult(0).template dyn_cast<AffineConstantExpr>();
       if (!cst || cst.getValue() != 0)
-        return op.emitError("op expected indexing_map #")
+        return op.emitOpError("expected indexing_map #")
                << idx << " to be 0 to match 0-D view: " << view;
     }
 
     if (m.getNumResults() != view.getRank())
-      return op.emitError("op expected indexing_map #")
+      return op.emitOpError("expected indexing_map #")
              << idx << " results to match view rank: " << view;
   }
 
   auto concatMap = concatAffineMaps(indexingMaps);
   auto aggregateMap = inversePermutation(concatMap);
   if (!aggregateMap)
-    return op.emitError("op expected the concatenation of maps in indexing_map "
-                        "to be invertible");
+    return op.emitOpError("expected the concatenation of maps in indexing_map "
+                          "to be invertible");
+
+  auto outputTensorTypes = op.getOutputTensorTypes();
+  if (outputTensorTypes.size() != op.getNumResults())
+    return op.emitOpError("expected #output tensor operands (")
+           << outputTensorTypes.size() << ") to match #results ("
+           << op.getNumResults() << ")";
+
+  unsigned index = 0;
+  for (auto it : llvm::zip(op.getResultTypes(), outputTensorTypes)) {
+    auto resTy = std::get<0>(it);
+    auto outOpTy = std::get<1>(it);
+    if (resTy != outOpTy)
+      return op.emitOpError("result #")
+             << index << " must be " << outOpTy << ", but got " << resTy;
+    ++index;
+  }
 
   return success();
 }
@@ -303,6 +331,206 @@ static ParseResult parseRangeOp(OpAsmParser &parser, OperationState &result) {
                  parser.parseColonType(type) ||
                  parser.resolveOperands(rangeInfo, indexTy, result.operands) ||
                  parser.addTypeToList(type, result.types));
+}
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
+
+/// Return true if the reassociation specification is valid, false otherwise.
+/// When false, the `invalidIndex` integer pointer is optionally filled with the
+/// index of the offending reassociation map.
+static bool isReassociationValid(ArrayRef<AffineMap> reassociation,
+                                 int *invalidIndex = nullptr) {
+  if (reassociation.empty())
+    return true;
+  unsigned nDims = reassociation[0].getNumDims();
+  unsigned nextExpectedDim = 0;
+  for (auto it : llvm::enumerate(reassociation)) {
+    auto m = it.value();
+    if (m.getNumDims() != nDims || m.getNumSymbols() != 0) {
+      if (invalidIndex)
+        *invalidIndex = it.index();
+      return false;
+    }
+    for (auto e : m.getResults()) {
+      auto d = e.dyn_cast<AffineDimExpr>();
+      if (!d || d.getPosition() != nextExpectedDim++) {
+        if (invalidIndex)
+          *invalidIndex = it.index();
+        return false;
+      }
+    }
+  }
+  if (nextExpectedDim != nDims) {
+    if (invalidIndex)
+      *invalidIndex = reassociation.size() - 1;
+    return false;
+  }
+  return true;
+}
+
+/// Detect whether memref dims [dim, dim + extent) can be reshaped without
+/// copies.
+static bool isReshapableDimBand(unsigned dim, unsigned extent,
+                                ArrayRef<int64_t> sizes,
+                                ArrayRef<AffineExpr> strides) {
+  assert(sizes.size() == strides.size() && "mismatched ranks");
+  // off by 1 indexing to avoid out of bounds
+  //                       V
+  for (auto idx = dim, e = dim + extent; idx + 1 < e; ++idx) {
+    // Only bands of static shapes are reshapable. This is due to the fact that
+    // there is no relation between dynamic sizes and dynamic strides: we do not
+    // have enough information to know whether a "-1" size corresponds to the
+    // proper symbol in the AffineExpr of a stride.
+    if (ShapedType::isDynamic(sizes[dim + 1]))
+      return false;
+    // TODO(ntv) Refine this by passing the proper nDims and nSymbols so we can
+    // simplify on the fly and catch more reshapable cases.
+    if (strides[idx] != strides[idx + 1] * sizes[idx + 1])
+      return false;
+  }
+  return true;
+}
+
+/// Compute the MemRefType obtained by applying the `reassociation` (which is
+/// expected to be valid) to `type`.
+/// If `type` is Contiguous MemRefType, this always produce a contiguous
+/// MemRefType.
+static MemRefType
+computeReshapeCollapsedType(MemRefType type,
+                            ArrayRef<AffineMap> reassociation) {
+  auto sizes = type.getShape();
+  AffineExpr offset;
+  SmallVector<AffineExpr, 4> strides;
+  auto status = getStridesAndOffset(type, strides, offset);
+  (void)status;
+  assert(succeeded(status) && "expected strided memref");
+
+  SmallVector<int64_t, 4> newSizes;
+  newSizes.reserve(reassociation.size());
+  SmallVector<AffineExpr, 4> newStrides;
+  newStrides.reserve(reassociation.size());
+
+  // Use the fact that reassociation is valid to simplify the logic: only use
+  // each map's rank.
+  assert(isReassociationValid(reassociation) && "invalid reassociation");
+  unsigned currentDim = 0;
+  for (AffineMap m : reassociation) {
+    unsigned dim = m.getNumResults();
+    int64_t size = 1;
+    AffineExpr stride = strides[currentDim + dim - 1];
+    if (!isReshapableDimBand(currentDim, dim, sizes, strides)) {
+      size = ShapedType::kDynamicSize;
+      stride = AffineExpr();
+    } else {
+      for (unsigned d = 0; d < dim; ++d)
+        size *= sizes[currentDim + d];
+    }
+    newSizes.push_back(size);
+    newStrides.push_back(stride);
+    currentDim += dim;
+  }
+
+  // Early-exit: if `type` is contiguous, the result must be contiguous.
+  if (canonicalizeStridedLayout(type).getAffineMaps().empty())
+    return MemRefType::get(newSizes, type.getElementType(), {});
+
+  // Convert back to int64_t because we don't have enough information to create
+  // new strided layouts from AffineExpr only. This corresponds to a case where
+  // copies may be necessary.
+  int64_t intOffset = ShapedType::kDynamicStrideOrOffset;
+  if (auto o = offset.dyn_cast<AffineConstantExpr>())
+    intOffset = o.getValue();
+  SmallVector<int64_t, 4> intStrides;
+  intStrides.reserve(strides.size());
+  for (auto stride : newStrides) {
+    if (auto cst = stride.dyn_cast_or_null<AffineConstantExpr>())
+      intStrides.push_back(cst.getValue());
+    else
+      intStrides.push_back(ShapedType::kDynamicStrideOrOffset);
+  }
+  auto layout =
+      makeStridedLinearLayoutMap(intStrides, intOffset, type.getContext());
+  return canonicalizeStridedLayout(
+      MemRefType::get(newSizes, type.getElementType(), {layout}));
+}
+
+/// Helper functions assert Attribute of the proper type in attr and returns the
+/// corresponding vector.
+/// TODO(rridle,ntv) this should be evolved into a generic
+/// `getRangeOfType<AffineMap>(ArrayAttr attrs)` that does not copy.
+static SmallVector<AffineMap, 4> getAffineMaps(ArrayAttr attrs) {
+  return functional::map(
+      [](Attribute a) { return a.cast<AffineMapAttr>().getValue(); }, attrs);
+}
+
+void mlir::linalg::ReshapeOp::build(Builder *b, OperationState &result,
+                                    Value view, ArrayAttr reassociation,
+                                    ArrayRef<NamedAttribute> attrs) {
+  auto maps = getAffineMaps(reassociation);
+  auto memRefType = view.getType().cast<MemRefType>();
+  auto resultType = computeReshapeCollapsedType(memRefType, maps);
+  build(b, result, resultType, view, attrs);
+  result.addAttribute(ReshapeOp::getReassociationAttrName(), reassociation);
+}
+
+static void print(OpAsmPrinter &p, ReshapeOp op) {
+  p << op.getOperationName() << " " << op.view() << " " << op.reassociation();
+  p.printOptionalAttrDict(op.getAttrs(),
+                          {ReshapeOp::getReassociationAttrName()});
+  p << " : " << op.getViewType() << " into " << op.getResult().getType();
+}
+
+static ParseResult parseReshapeOp(OpAsmParser &parser, OperationState &result) {
+  OpAsmParser::OperandType view;
+  ArrayAttr reassociation;
+  MemRefType type, resultType;
+  return failure(parser.parseOperand(view) ||
+                 parser.parseAttribute(reassociation,
+                                       ReshapeOp::getReassociationAttrName(),
+                                       result.attributes) ||
+                 parser.parseOptionalAttrDict(result.attributes) ||
+                 parser.parseColonType(type) ||
+                 parser.parseKeywordType("into", resultType) ||
+                 parser.resolveOperand(view, type, result.operands) ||
+                 parser.addTypeToList(resultType, result.types));
+}
+
+static LogicalResult verify(ReshapeOp op) {
+  MemRefType expandedType = op.getViewType();
+  MemRefType collapsedType = op.getResult().getType().cast<MemRefType>();
+  unsigned expandedRank = expandedType.getRank();
+  unsigned collapsedRank = collapsedType.getRank();
+  bool isCollapse = expandedRank > collapsedRank;
+  if (!isCollapse) {
+    std::swap(expandedRank, collapsedRank);
+    std::swap(expandedType, collapsedType);
+  }
+  if (expandedRank == 0 || collapsedRank == 0)
+    return op.emitOpError("expected non-zero memref ranks");
+  if (expandedRank == collapsedRank)
+    return op.emitOpError("expected to collapse or expand dims");
+
+  if (collapsedRank != op.reassociation().size())
+    return op.emitOpError("expected rank of the collapsed view(")
+           << collapsedRank << ") to be the number of reassociation maps("
+           << op.reassociation().size() << ")";
+  auto maps = getAffineMaps(op.reassociation());
+  for (auto it : llvm::enumerate(maps))
+    if (it.value().getNumDims() != expandedRank)
+      return op.emitOpError("expected reassociation map #")
+             << it.index() << " of same rank as expanded memref("
+             << expandedRank << "), but got " << it.value().getNumDims();
+  int invalidIdx = 0;
+  if (!isReassociationValid(maps, &invalidIdx))
+    return op.emitOpError("expected reassociation map #")
+           << invalidIdx << " to be valid and contiguous";
+  MemRefType expectedType = computeReshapeCollapsedType(expandedType, maps);
+  if (collapsedType != expectedType)
+    return op.emitOpError("expected collapsed type to be ")
+           << expectedType << ", but got " << collapsedType;
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -465,13 +693,13 @@ LogicalResult verifyYield(YieldOp op, GenericOpType genericOp) {
   // The operand number and types must match the view element types.
   auto nOutputViews = genericOp.getNumOutputs();
   if (op.getNumOperands() != nOutputViews)
-    return op.emitOpError("op expected ")
+    return op.emitOpError("expected ")
            << nOutputViews << " operand to match enclosing linalg.generic op";
 
   for (unsigned i = 0; i != nOutputViews; ++i) {
-    auto elementType = genericOp.getOutputViewType(i).getElementType();
+    auto elementType = genericOp.getOutputShapedType(i).getElementType();
     if (op.getOperand(i)->getType() != elementType)
-      return op.emitError("type of return operand ")
+      return op.emitOpError("type of return operand ")
              << i << " (" << op.getOperand(i)->getType()
              << ") doesn't match view element type (" << elementType << ")";
   }
@@ -481,7 +709,7 @@ LogicalResult verifyYield(YieldOp op, GenericOpType genericOp) {
 static LogicalResult verify(YieldOp op) {
   auto *parentOp = op.getParentOp();
   if (parentOp->getNumRegions() != 1 || parentOp->getRegion(0).empty())
-    return op.emitOpError("op expected single non-empty parent region");
+    return op.emitOpError("expected single non-empty parent region");
 
   auto genericOp = dyn_cast<GenericOp>(parentOp);
   if (genericOp)
@@ -536,7 +764,7 @@ static ParseResult parseLinalgStructuredOp(OpAsmParser &parser,
 }
 
 static LogicalResult verify(FillOp op) {
-  auto viewType = op.getOutputViewType(0);
+  auto viewType = op.getOutputShapedType(0);
   auto fillType = op.value()->getType();
   if (viewType.getElementType() != fillType)
     return op.emitOpError("expects fill type to match view elemental type");
@@ -544,8 +772,8 @@ static LogicalResult verify(FillOp op) {
 }
 
 static LogicalResult verify(CopyOp op) {
-  auto outputViewType = op.getOutputViewType(0);
-  auto inputViewType = op.getInputViewType(0);
+  auto outputViewType = op.getOutputShapedType(0);
+  auto inputViewType = op.getInputShapedType(0);
   if (inputViewType.getElementType() != outputViewType.getElementType())
     return op.emitOpError("expects views of the same type");
   if (inputViewType.getRank() != outputViewType.getRank())
@@ -675,8 +903,8 @@ SmallVector<AffineMap, 4> mlir::linalg::loopToOperandRangesMaps(Operation *op) {
     // I(input_perm(ivs)) -> O(output_perm(ivs))
     auto maybeInputMap = copyOp.inputPermutation();
     auto maybeOutputMap = copyOp.outputPermutation();
-    unsigned inputRank = copyOp.getInputViewType(0).getRank();
-    unsigned outputRank = copyOp.getOutputViewType(0).getRank();
+    unsigned inputRank = copyOp.getInputShapedType(0).getRank();
+    unsigned outputRank = copyOp.getOutputShapedType(0).getRank();
     return SmallVector<AffineMap, 4>{
         extractOrIdentityMap(maybeInputMap, inputRank, context),
         extractOrIdentityMap(maybeOutputMap, outputRank, context)};

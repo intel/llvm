@@ -1,5 +1,5 @@
 .section .debug_line,"",@progbits
-# Leading good section
+# Leading good section.
 .long   .Lunit1_end - .Lunit1_start # Length of Unit (DWARF-32 format)
 .Lunit1_start:
 .short  4               # DWARF version number
@@ -26,19 +26,19 @@
 .byte   0, 1, 1         # DW_LNE_end_sequence
 .Lunit1_end:
 
-# version 0
+# Version 0.
 .long   .Lunit_v0_end - .Lunit_v0_start # unit length
 .Lunit_v0_start:
 .short  0               # version
 .Lunit_v0_end:
 
-# version 1
+# Version 1.
 .long   .Lunit_v1_end - .Lunit_v1_start # unit length
 .Lunit_v1_start:
 .short  1               # version
 .Lunit_v1_end:
 
-# version 5 malformed line/include table
+# Version 5 malformed line/include table.
 .long   .Lunit_v5_end - .Lunit_v5_start # unit length
 .Lunit_v5_start:
 .short  5               # version
@@ -53,11 +53,14 @@
 .byte   14              # Line Range
 .byte   13              # Opcode Base
 .byte   0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1 # Standard Opcode Lengths
-.byte   0               # directory table (invalid)
+.byte   0               # directory table (invalid as no path component)
 .Lprologue_v5_end:
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0x8877665544332211
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Lunit_v5_end:
 
-# Short prologue
+# Short prologue.
 .long   .Lunit_short_prologue_end - .Lunit_short_prologue_start # unit length
 .Lunit_short_prologue_start:
 .short  4               # version
@@ -76,12 +79,15 @@
 .asciz "file1"          # File table
 .byte   0, 0, 0
 .asciz "file2"
-.byte   1, 0, 0
+.byte   1, 2, 3
 .byte   0
 .Lprologue_short_prologue_end:
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0x1122334455667788
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Lunit_short_prologue_end:
 
-# Over-long prologue
+# Over-long prologue.
 .long   .Lunit_long_prologue_end - .Lunit_long_prologue_start # unit length
 .Lunit_long_prologue_start:
 .short  4               # version
@@ -100,12 +106,15 @@
 .asciz "file1"          # File table
 .byte   0, 0, 0
 .asciz "file2"
-.byte   1, 0, 0
+.byte   1, 2, 3
 .byte   0
 .Lprologue_long_prologue_end:
+.byte   0, 9, 2        # DW_LNE_set_address
+.quad   0x1111222233334444
+.byte   0, 1, 1        # DW_LNE_end_sequence
 .Lunit_long_prologue_end:
 
-# Over-long extended opcode
+# Over-long extended opcode.
 .long   .Lunit_long_opcode_end - .Lunit_long_opcode_start # unit length
 .Lunit_long_opcode_start:
 .short  4               # version
@@ -127,15 +136,15 @@
 .byte   1, 0, 0
 .byte   0
 .Lprologue_long_opcode_end:
-.byte   0, 9, 2        # DW_LNE_set_address
+.byte   0, 9, 2         # DW_LNE_set_address
 .quad   0xabbadaba
-.byte   0, 2, 1         # DW_LNE_end_sequence (wrong length)
-.byte   0, 9, 2        # DW_LNE_set_address
+.byte   0, 2, 1         # DW_LNE_end_sequence (too long)
+.byte   0, 9, 2         # DW_LNE_set_address
 .quad   0xbabb1e45
-.byte   0, 1, 1         # DW_LNE_end_sequence (wrong length)
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Lunit_long_opcode_end:
 
-# No end of sequence
+# No end of sequence.
 .long   .Lunit_no_eos_end - .Lunit_no_eos_start # unit length
 .Lunit_no_eos_start:
 .short  4               # version
@@ -162,7 +171,7 @@
 .byte   1              # DW_LNS_copy
 .Lunit_no_eos_end:
 
-# Invalid prologue length
+# V5 very short prologue length.
 .long   .Linvalid_description_end0-.Linvalid_description_start0   # Length of Unit
 .Linvalid_description_start0:
 .short  5               # DWARF version number
@@ -193,15 +202,14 @@
 # File table entries
 .byte   1               # 1 file
 .asciz  "a.c"
-.byte   0
+.byte   1
 .Linvalid_description_header_end0:
-.byte   0,2,4,1         # DW_LNE_set_discriminator 1
-.byte   1               # DW_LNS_copy
-.byte   33              # address += 1, line += 1
-.byte   0,1,1           # DW_LNE_end_sequence
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0xbabb1ebabb1e
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Linvalid_description_end0:
 
-# Invalid file entry
+# V5 prologue ends during file table.
 .long   .Linvalid_file_end0-.Linvalid_file_start0   # Length of Unit
 .Linvalid_file_start0:
 .short  5               # DWARF version number
@@ -232,15 +240,14 @@
 # File table entries
 .byte   1               # 1 file
 .asciz  "a.c"
-.byte   0
+.byte   1
 .Linvalid_file_header_end0:
-.byte   0,2,4,1         # DW_LNE_set_discriminator 1
-.byte   1               # DW_LNS_copy
-.byte   33              # address += 1, line += 1
-.byte   0,1,1           # DW_LNE_end_sequence
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0xab4acadab4a
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Linvalid_file_end0:
 
-# Invalid directory entry
+# V5 prologue ends during directory table.
 .long   .Linvalid_dir_end0-.Linvalid_dir_start0   # Length of Unit
 .Linvalid_dir_start0:
 .short  5               # DWARF version number
@@ -271,21 +278,20 @@
 # File table entries
 .byte   1               # 1 file
 .asciz  "a.c"
-.byte   0
+.byte   1
 .Linvalid_dir_header_end0:
-.byte   0,2,4,1         # DW_LNE_set_discriminator 1
-.byte   1               # DW_LNS_copy
-.byte   33              # address += 1, line += 1
-.byte   0,1,1           # DW_LNE_end_sequence
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0x4444333322221111
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Linvalid_dir_end0:
 
-# Invalid MD5 hash
+# Invalid MD5 hash.
 .long   .Linvalid_md5_end0-.Linvalid_md5_start0   # Length of Unit
 .Linvalid_md5_start0:
 .short  5               # DWARF version number
 .byte   8               # Address Size
 .byte   0               # Segment Selector Size
-.long   .Linvalid_md5_header_end0-.Linvalid_md5_params0     # Length of Prologue (invalid)
+.long   .Linvalid_md5_header_end0-.Linvalid_md5_params0     # Length of Prologue
 .Linvalid_md5_params0:
 .byte   1               # Minimum Instruction Length
 .byte   1               # Maximum Operations per Instruction
@@ -302,7 +308,7 @@
 .byte   1               # 1 directory
 .asciz  "/tmp"
 # File table format
-.byte   3               # 2 elements per file entry
+.byte   3               # 3 elements per file entry
 .byte   1               # DW_LNCT_path
 .byte   0x08            # DW_FORM_string
 .byte   2               # DW_LNCT_directory_index
@@ -314,13 +320,12 @@
 .asciz  "a.c"
 .byte   0
 .Linvalid_md5_header_end0:
-.byte   0,2,4,1         # DW_LNE_set_discriminator 1
-.byte   1               # DW_LNS_copy
-.byte   33              # address += 1, line += 1
-.byte   0,1,1           # DW_LNE_end_sequence
+.byte   0, 9, 2         # DW_LNE_set_address
+.quad   0x1234123412341234
+.byte   0, 1, 1         # DW_LNE_end_sequence
 .Linvalid_md5_end0:
 
-# Trailing good section
+# Trailing good section.
 .long   .Lunit_good_end - .Lunit_good_start # Length of Unit (DWARF-32 format)
 .Lunit_good_start:
 .short  4               # DWARF version number
@@ -346,4 +351,3 @@
 .quad   0xcafebabe
 .byte   0, 1, 1         # DW_LNE_end_sequence
 .Lunit_good_end:
-

@@ -27,6 +27,7 @@ using llvm::raw_ostream;
 using llvm::Record;
 using llvm::RecordKeeper;
 using llvm::StringRef;
+using mlir::tblgen::FmtContext;
 using mlir::tblgen::StructAttr;
 
 static void
@@ -63,7 +64,7 @@ public:
   //   namespace::storage TblgenStruct::field1() const;
   const char *fieldInfo = R"(  {0} {1}() const;
 )";
-  for (const auto field : fields) {
+  for (auto field : fields) {
     auto name = field.getName();
     auto type = field.getType();
     auto storage = type.getStorageType();
@@ -163,16 +164,18 @@ bool {0}::classof(mlir::Attribute attr))";
   os << llvm::formatv(classofInfo, structName) << " {";
   os << llvm::formatv(classofInfoHeader, fields.size());
 
+  FmtContext fctx;
   const char *classofArgInfo = R"(
   auto {0} = derived.get("{0}");
-  if (!{0} || !{0}.isa<{1}>())
+  if (!{0} || !({1}))
     return false;
 )";
   for (auto field : fields) {
     auto name = field.getName();
     auto type = field.getType();
-    auto storage = type.getStorageType();
-    os << llvm::formatv(classofArgInfo, name, storage);
+    std::string condition =
+        tgfmt(type.getConditionTemplate(), &fctx.withSelf(name));
+    os << llvm::formatv(classofArgInfo, name, condition);
   }
 
   const char *classofEndInfo = R"(
