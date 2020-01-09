@@ -25,6 +25,9 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
+  if (!dev.get_info<info::device::usm_host_allocations>()) 
+    return 0;
+
   usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
   std::vector<int, decltype(alloc)> vec(alloc);

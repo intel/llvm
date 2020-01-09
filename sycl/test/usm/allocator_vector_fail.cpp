@@ -21,20 +21,23 @@ const int N = 8;
 
 class foo;
 int main() {
-  try {
-    queue q;
-    auto dev = q.get_device();
-    auto ctxt = q.get_context();
+  queue q;
+  auto dev = q.get_device();
+  auto ctxt = q.get_context();
 
-    usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
-    std::vector<int, decltype(alloc)> vec(alloc);
+  if (dev.get_info<info::device::usm_device_allocations>()) {
+    try {
+      usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
+      std::vector<int, decltype(alloc)> vec(alloc);
 
-    // This statement should throw an exception since
-    // device pointers may not be accessed on the host.
-    vec.assign(N, 42);
-  } catch (feature_not_supported) {
-    return 0;
+      // This statement should throw an exception since
+      // device pointers may not be accessed on the host.
+      vec.assign(N, 42);
+    } catch (feature_not_supported) {
+      return 0;
+    }
+
+    return -1;
   }
-
-  return -1;
+  return 0;
 }

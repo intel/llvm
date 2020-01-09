@@ -501,6 +501,27 @@ bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
   return false;
 }
 
+template <> bool get_device_info_host<info::device::usm_device_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_host_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_shared_allocations>() {
+  return true;
+}
+
+template <>
+bool get_device_info_host<info::device::usm_restricted_shared_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_system_allocator>() {
+  return true;
+}
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

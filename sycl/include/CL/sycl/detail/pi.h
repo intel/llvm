@@ -32,6 +32,7 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
+#include <CL/cl_usm_ext.h>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -639,6 +640,16 @@ pi_result piProgramRelease(pi_program program);
 //
 // Kernel
 //
+
+typedef enum {
+  /// indicates that the kernel might access data through USM ptrs
+  PI_USM_INDIRECT_ACCESS,
+  /// provides an explicit list of pointers that the kernel will access
+  PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
+} _pi_kernel_exec_info;
+
+typedef _pi_kernel_exec_info      pi_kernel_exec_info;
+
 pi_result piKernelCreate(
   pi_program      program,
   const char *    kernel_name,
@@ -678,6 +689,33 @@ pi_result piKernelGetSubGroupInfo(
 pi_result piKernelRetain(pi_kernel    kernel);
 
 pi_result piKernelRelease(pi_kernel    kernel);
+
+/// Sets up pointer arguments for CL kernels. An extra indirection
+/// is required due to CL argument conventions.
+///
+/// @param kernel is the kernel to be launched
+/// @param arg_index is the index of the kernel argument
+/// @param arg_size is the size in bytes of the argument (ignored in CL)
+/// @param arg_value is the pointer argument
+pi_result piextKernelSetArgPointer(
+  pi_kernel    kernel,
+  pi_uint32    arg_index,
+  size_t       arg_size,
+  const void * arg_value);
+
+/// API to set attributes controlling kernel execution
+///
+/// @param kernel is the pi kernel to execute
+/// @param param_name is a pi_kernel_exec_info value that specifies the info
+///        passed to the kernel
+/// @param param_value_size is the size of the value in bytes
+/// @param param_value is a pointer to the value to set for the kernel
+///
+/// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to
+///    the pi_bool value PI_TRUE
+/// If param_name is PI_USM_PTRS, the value will be an array of ptrs
+pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
+                              size_t param_value_size, const void *param_value);
 
 //
 // Events
@@ -929,6 +967,204 @@ pi_result piEnqueueMemUnmap(
   const pi_event * event_wait_list,
   pi_event *       event);
 
+///
+// USM
+///
+typedef enum {
+  PI_USM_HOST_SUPPORT          = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
+  PI_USM_DEVICE_SUPPORT        = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
+  PI_USM_SINGLE_SHARED_SUPPORT = CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_CROSS_SHARED_SUPPORT  = CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_SYSTEM_SHARED_SUPPORT = CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL
+} _pi_usm_capability_query;
+
+typedef enum : pi_bitfield {
+  PI_USM_ACCESS                   = CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL,
+  PI_USM_ATOMIC_ACCESS            = CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ACCESS        = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ATOMIC_ACCESS = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ATOMIC_ACCESS_INTEL
+} _pi_usm_capabilities;
+
+typedef enum {
+  PI_MEM_ALLOC_TYPE        = CL_MEM_ALLOC_TYPE_INTEL,
+  PI_MEM_ALLOC_BASE_PTR    = CL_MEM_ALLOC_BASE_PTR_INTEL,
+  PI_MEM_ALLOC_SIZE        = CL_MEM_ALLOC_SIZE_INTEL,
+  PI_MEM_ALLOC_DEVICE      = CL_MEM_ALLOC_DEVICE_INTEL,
+  PI_MEM_ALLOC_INFO_TBD0   = CL_MEM_ALLOC_INFO_TBD0_INTEL,
+  PI_MEM_ALLOC_INFO_TBD1   = CL_MEM_ALLOC_INFO_TBD1_INTEL,
+} _pi_mem_info;
+
+typedef enum {
+  PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
+  PI_MEM_TYPE_HOST    = CL_MEM_TYPE_HOST_INTEL,
+  PI_MEM_TYPE_DEVICE  = CL_MEM_TYPE_DEVICE_INTEL,
+  PI_MEM_TYPE_SHARED  = CL_MEM_TYPE_SHARED_INTEL
+} _pi_usm_type;
+
+typedef enum : pi_bitfield  {
+  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
+} _pi_usm_mem_properties;
+
+typedef enum : pi_bitfield {
+  PI_USM_MIGRATION_TBD0 = (1 << 0)
+} _pi_usm_migration_flags;
+
+typedef _pi_usm_capability_query  pi_usm_capability_query;
+typedef _pi_usm_capabilities      pi_usm_capabilities;
+typedef _pi_mem_info              pi_mem_info;
+typedef _pi_usm_type              pi_usm_type;
+typedef _pi_usm_mem_properties    pi_usm_mem_properties;
+typedef _pi_usm_migration_flags   pi_usm_migration_flags;
+
+/// Allocates host memory accessible by the device.
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
+pi_result piextUSMHostAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+/// Allocates device memory
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param device is the device the memory will be allocated on
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
+pi_result piextUSMDeviceAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_device               device,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+/// Allocates memory accessible on both host and device
+///
+/// @param result_ptr contains the allocated memory
+/// @param context is the pi_context
+/// @param device is the device the memory will be allocated on
+/// @param pi_usm_mem_properties are optional allocation properties
+/// @param size_t is the size of the allocation
+/// @param alignment is the desired alignment of the allocation
+pi_result piextUSMSharedAlloc(
+  void **                 result_ptr,
+  pi_context              context,
+  pi_device               device,
+  pi_usm_mem_properties * properties,
+  size_t                  size,
+  pi_uint32               alignment);
+
+/// Frees allocated USM memory
+///
+/// @param context is the pi_context of the allocation
+/// @param ptr is the memory to be freed
+pi_result piextUSMFree(
+  pi_context context,
+  void *     ptr);
+
+/// USM Memset API
+///
+/// @param queue is the queue to submit to
+/// @param ptr is the ptr to memset
+/// @param value is value to set.  It is interpreted as an 8-bit value and the upper
+///        24 bits are ignored
+/// @param count is the size in bytes to memset
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
+pi_result piextUSMEnqueueMemset(
+  pi_queue         queue,
+  void *           ptr,
+  pi_int32         value,
+  size_t           count,
+  pi_uint32        num_events_in_waitlist,
+  const pi_event * events_waitlist,
+  pi_event *       event);
+
+/// USM Memcpy API
+///
+/// @param queue is the queue to submit to
+/// @param blocking is whether this operation should block the host
+/// @param src_ptr is the data to be copied
+/// @param dst_ptr is the location the data will be copied
+/// @param size is number of bytes to copy
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
+pi_result piextUSMEnqueueMemcpy(
+  pi_queue         queue,
+  pi_bool          blocking,
+  void *           dst_ptr,
+  const void *     src_ptr,
+  size_t           size,
+  pi_uint32        num_events_in_waitlist,
+  const pi_event * events_waitlist,
+  pi_event *       event);
+
+/// Hint to migrate memory to the device
+///
+/// @param queue is the queue to submit to
+/// @param ptr points to the memory to migrate
+/// @param size is the number of bytes to migrate
+/// @param flags is a bitfield used to specify memory migration options
+/// @param num_events_in_waitlist is the number of events to wait on
+/// @param events_waitlist is an array of events to wait on
+/// @param event is the event that represents this operation
+pi_result piextUSMEnqueuePrefetch(
+  pi_queue               queue,
+  const void *           ptr,
+  size_t                 size,
+  pi_usm_migration_flags flags,
+  pi_uint32              num_events_in_waitlist,
+  const pi_event *       events_waitlist,
+  pi_event *             event);
+
+/// USM Memadvise API
+///
+/// @param queue is the queue to submit to
+/// @param ptr is the data to be advised
+/// @param length is the size in bytes of the meory to advise
+/// @param advice is device specific advice
+/// @param event is the event that represents this operation
+// USM memadvise API to govern behavior of automatic migration mechanisms
+pi_result piextUSMEnqueueMemAdvise(
+  pi_queue     queue,
+  const void * ptr,
+  size_t       length,
+  int          advice,
+  pi_event *   event);
+
+/// API to query information about USM allocated pointers
+/// Valid Queries:
+///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
+///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
+///                         the queried pointer fell inside an allocation.
+///                         Result must fit in void *
+///   PI_MEM_ALLOC_SIZE returns how big the queried pointer's
+///                     allocation is in bytes. Result is a size_t.
+///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
+///
+/// @param context is the pi_context
+/// @param ptr is the pointer to query
+/// @param param_name is the type of query to perform
+/// @param param_value_size is the size of the result in bytes
+/// @param param_value is the result
+/// @param param_value_ret is how many bytes were written
+pi_result piextUSMGetMemAllocInfo(
+  pi_context   context,
+  const void * ptr,
+  pi_mem_info  param_name,
+  size_t       param_value_size,
+  void *       param_value,
+  size_t *     param_value_size_ret);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

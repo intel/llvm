@@ -17,13 +17,17 @@ using namespace cl::sycl;
 
 class foo;
 int main() {
-  int *ptr = nullptr;
   const int N = 4;
   const int MAGIC_NUM = 42;
   const int SIZE = N * sizeof(int);
   queue q;
+  auto dev = q.get_device();
+  if (!(dev.get_info<info::device::usm_device_allocations>() &&
+        dev.get_info<info::device::usm_host_allocations>() &&
+        dev.get_info<info::device::usm_shared_allocations>()))
+    return 0;
 
-  ptr = (int *)malloc_device(SIZE, q);
+  int *ptr = (int *)malloc_device(SIZE, q);
   if (ptr == nullptr) {
     return -1;
   }

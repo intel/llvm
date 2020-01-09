@@ -910,13 +910,8 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
-        std::shared_ptr<usm::USMDispatcher> USMDispatch =
-            getSyclObjImpl(Context)->getUSMDispatch();
-        auto PtrToPtr = reinterpret_cast<intptr_t *>(Arg.MPtr);
-        auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
-        assert(USMDispatch != nullptr && "USM dispatcher is not available");
-        pi::cast<RT::PiResult>(
-            USMDispatch->setKernelArgMemPointer(Kernel, Arg.MIndex, DerefPtr));
+        PI_CALL(piextKernelSetArgPointer)(Kernel, Arg.MIndex, Arg.MSize,
+                                          Arg.MPtr);
         break;
       }
       default:
@@ -928,10 +923,10 @@ cl_int ExecCGCommand::enqueueImp() {
         NDRDesc, Kernel,
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef());
 
-    std::shared_ptr<usm::USMDispatcher> USMDispatch =
-        getSyclObjImpl(Context)->getUSMDispatch();
-    assert(USMDispatch != nullptr && "USM dispatcher is not available");
-    USMDispatch->setKernelIndirectAccess(Kernel, MQueue->getHandleRef());
+    // Some PI Plugins (like OpenCL) require this call to enable USM
+    // For others, PI will turn this into a NOP.
+    PI_CALL(piKernelSetExecInfo)(Kernel, PI_USM_INDIRECT_ACCESS,
+                                 sizeof(pi_bool), &PI_TRUE);
 
     // Remember this information before the range dimensions are reversed
     const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
