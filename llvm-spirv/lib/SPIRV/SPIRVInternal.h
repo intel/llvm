@@ -777,6 +777,9 @@ int getMDOperandAsInt(MDNode *N, unsigned I);
 /// Get metadata operand as string.
 std::string getMDOperandAsString(MDNode *N, unsigned I);
 
+/// Get metadata operand as another metadata node
+MDNode *getMDOperandAsMDNode(MDNode *N, unsigned I);
+
 /// Get metadata operand as type.
 Type *getMDOperandAsType(MDNode *N, unsigned I);
 
@@ -935,10 +938,6 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 // Check if the module contains llvm.loop.* metadata
 bool hasLoopMetadata(const Module *M);
 
-// If the branch instruction has !llvm.loop metadata, go through its operands
-// and find Loop Control mask and possible parameters.
-spv::LoopControlMask getLoopControl(const BranchInst *Branch,
-                                    std::vector<SPIRVWord> &Parameters);
 } // namespace SPIRV
 
 #endif // SPIRV_SPIRVINTERNAL_H
