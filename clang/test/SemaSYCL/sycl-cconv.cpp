@@ -8,7 +8,7 @@ __inline __cdecl __attribute__((sycl_device)) int foo() { return 0; }
 __inline __cdecl int moo() { return 0; }
 
 void bar() {
-  //printf("hello\n"); // expected-no-error
+  printf("hello\n"); // expected-no-error
 }
 
 template <typename name, typename Func>
