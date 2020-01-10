@@ -41,5 +41,18 @@ int main(int argc, char *argv[]) {
   p = malloc(-1, q, usm::alloc::unknown);
   assert(p == nullptr);
 
+  // Bad combos for aligned
+  p = aligned_alloc(1, 0, q, usm::alloc::host);
+  assert(p == nullptr);
+
+  p = aligned_alloc(1, 0, q, usm::alloc::device);
+  assert(p == nullptr);
+
+  p = aligned_alloc(1, 0, q, usm::alloc::shared);
+  assert(p == nullptr);
+
+  p = aligned_alloc(1, 0, q, usm::alloc::unknown);
+  assert(p == nullptr);
+
   return 0;
 }
