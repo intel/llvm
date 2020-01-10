@@ -197,23 +197,30 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
+  vector_class<device> Devices = C.get_devices();
+
+  // Program type is SPIR-V, so we need a device compiler to do JIT.
+  for (const device &D : Devices) {
+    if (!D.get_info<info::device::is_compiler_available>())
+      return false;
+  }
+
   // OpenCL 2.1 and greater require clCreateProgramWithIL
   if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
-  // Otherwise we need cl_khr_il_program extension to be present
-  // and we can call clCreateProgramWithILKHR using the extension
-  for (const device &D : C.get_devices()) {
+  for (const device &D : Devices) {
+    // We need cl_khr_il_program extension to be present
+    // and we can call clCreateProgramWithILKHR using the extension
     vector_class<string_class> Extensions =
         D.get_info<info::device::extensions>();
-    if (std::find(Extensions.begin(), Extensions.end(),
-                  string_class("cl_khr_il_program")) != Extensions.end())
-      return true;
+    if (Extensions.end() ==
+        std::find(Extensions.begin(), Extensions.end(), "cl_khr_il_program"))
+      return false;
   }
 
-  // This device binary type is not supported.
-  return false;
+  return true;
 }
 
 static const char *getFormatStr(RT::PiDeviceBinaryType Format) {
@@ -617,14 +624,6 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
               << Options << ", ... " << Devices.size() << ")\n";
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
-
-  for (const auto &DeviceId : Devices) {
-    if (!createSyclObjFromImpl<device>(std::make_shared<device_impl>(DeviceId))
-             .get_info<info::device::is_compiler_available>()) {
-      throw feature_not_supported(
-          "Online compilation is not supported by this device");
-    }
-  }
 
   if (!Opts)
     Opts = Options.c_str();
