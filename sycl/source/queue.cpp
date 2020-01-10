@@ -11,7 +11,7 @@
 
 #include <algorithm>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 queue::queue(const context &syclContext, const device_selector &deviceSelector,
              const async_handler &asyncHandler, const property_list &propList) {

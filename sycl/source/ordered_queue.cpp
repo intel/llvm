@@ -11,7 +11,7 @@
 
 #include <algorithm>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 ordered_queue::ordered_queue(const context &syclContext,
                              const device_selector &deviceSelector,

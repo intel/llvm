@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

@@ -16,7 +16,7 @@
 namespace s = cl::sycl;
 namespace d = s::detail;
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace __host_std {
 
 s::cl_float Dot(s::cl_float2, s::cl_float2);

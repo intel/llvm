@@ -16,7 +16,7 @@
 namespace s = cl::sycl;
 namespace d = s::detail;
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace __host_std {
 namespace {
 

@@ -13,7 +13,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}

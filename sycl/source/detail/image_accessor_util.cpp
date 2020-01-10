@@ -9,7 +9,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

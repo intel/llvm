@@ -19,7 +19,7 @@
 #include <memory>
 #include <unordered_set>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}

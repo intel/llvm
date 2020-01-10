@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/platform_util.hpp>
 #include <cstring>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

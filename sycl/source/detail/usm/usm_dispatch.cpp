@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {
