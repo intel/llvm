@@ -111,6 +111,14 @@ add_lldb_library(liblldb SHARED ${option_framework}
   ${option_install_prefix}
 )
 
+# lib/pythonX.Y/dist-packages/lldb/_lldb.so is a symlink to lib/liblldb.so,
+# which depends on lib/libLLVM*.so (BUILD_SHARED_LIBS) or lib/libLLVM-10git.so
+# (LLVM_LINK_LLVM_DYLIB). Add an additional rpath $ORIGIN/../../../../lib so
+# that _lldb.so can be loaded from Python.
+if(LLDB_ENABLE_PYTHON AND (BUILD_SHARED_LIBS OR LLVM_LINK_LLVM_DYLIB) AND UNIX AND NOT APPLE)
+  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}")
+endif()
+
 if (MSVC)
   set_source_files_properties(SBReproducer.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
@@ -172,9 +180,9 @@ endif()
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
   # Only MSVC has the ABI compatibility problem and avoids using FindPythonLibs,
-  # so only it needs to explicitly link against ${PYTHON_LIBRARY}
+  # so only it needs to explicitly link against ${PYTHON_LIBRARIES}
   if (MSVC AND LLDB_ENABLE_PYTHON)
-    target_link_libraries(liblldb PRIVATE ${PYTHON_LIBRARY})
+    target_link_libraries(liblldb PRIVATE ${PYTHON_LIBRARIES})
   endif()
 else()
   set_target_properties(liblldb

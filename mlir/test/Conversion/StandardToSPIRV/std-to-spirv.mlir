@@ -95,6 +95,87 @@ func @div_rem(%arg0 : i32, %arg1 : i32) {
 }
 
 //===----------------------------------------------------------------------===//
+// std bit ops
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @bitwise_scalar
+func @bitwise_scalar(%arg0 : i32, %arg1 : i32) {
+  // CHECK: spv.BitwiseAnd
+  %0 = and %arg0, %arg1 : i32
+  // CHECK: spv.BitwiseOr
+  %1 = or %arg0, %arg1 : i32
+  // CHECK: spv.BitwiseXor
+  %2 = xor %arg0, %arg1 : i32
+  return
+}
+
+// CHECK-LABEL: @bitwise_vector
+func @bitwise_vector(%arg0 : vector<4xi32>, %arg1 : vector<4xi32>) {
+  // CHECK: spv.BitwiseAnd
+  %0 = and %arg0, %arg1 : vector<4xi32>
+  // CHECK: spv.BitwiseOr
+  %1 = or %arg0, %arg1 : vector<4xi32>
+  // CHECK: spv.BitwiseXor
+  %2 = xor %arg0, %arg1 : vector<4xi32>
+  return
+}
+
+// CHECK-LABEL: @shift_scalar
+func @shift_scalar(%arg0 : i32, %arg1 : i32) {
+  // CHECK: spv.ShiftLeftLogical
+  %0 = shift_left %arg0, %arg1 : i32
+  // CHECK: spv.ShiftRightArithmetic
+  %1 = shift_right_signed %arg0, %arg1 : i32
+  // CHECK: spv.ShiftRightLogical
+  %2 = shift_right_unsigned %arg0, %arg1 : i32
+  return
+}
+
+// CHECK-LABEL: @shift_vector
+func @shift_vector(%arg0 : vector<4xi32>, %arg1 : vector<4xi32>) {
+  // CHECK: spv.ShiftLeftLogical
+  %0 = shift_left %arg0, %arg1 : vector<4xi32>
+  // CHECK: spv.ShiftRightArithmetic
+  %1 = shift_right_signed %arg0, %arg1 : vector<4xi32>
+  // CHECK: spv.ShiftRightLogical
+  %2 = shift_right_unsigned %arg0, %arg1 : vector<4xi32>
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// std.cmpf
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @cmpf
+func @cmpf(%arg0 : f32, %arg1 : f32) {
+  // CHECK: spv.FOrdEqual
+  %1 = cmpf "oeq", %arg0, %arg1 : f32
+  // CHECK: spv.FOrdGreaterThan
+  %2 = cmpf "ogt", %arg0, %arg1 : f32
+  // CHECK: spv.FOrdGreaterThanEqual
+  %3 = cmpf "oge", %arg0, %arg1 : f32
+  // CHECK: spv.FOrdLessThan
+  %4 = cmpf "olt", %arg0, %arg1 : f32
+  // CHECK: spv.FOrdLessThanEqual
+  %5 = cmpf "ole", %arg0, %arg1 : f32
+  // CHECK: spv.FOrdNotEqual
+  %6 = cmpf "one", %arg0, %arg1 : f32
+  // CHECK: spv.FUnordEqual
+  %7 = cmpf "ueq", %arg0, %arg1 : f32
+  // CHECK: spv.FUnordGreaterThan
+  %8 = cmpf "ugt", %arg0, %arg1 : f32
+  // CHECK: spv.FUnordGreaterThanEqual
+  %9 = cmpf "uge", %arg0, %arg1 : f32
+  // CHECK: spv.FUnordLessThan
+  %10 = cmpf "ult", %arg0, %arg1 : f32
+  // CHECK: FUnordLessThanEqual
+  %11 = cmpf "ule", %arg0, %arg1 : f32
+  // CHECK: spv.FUnordNotEqual
+  %12 = cmpf "une", %arg0, %arg1 : f32
+  return
+}
+
+//===----------------------------------------------------------------------===//
 // std.cmpi
 //===----------------------------------------------------------------------===//
 
@@ -112,6 +193,14 @@ func @cmpi(%arg0 : i32, %arg1 : i32) {
   %4 = cmpi "sgt", %arg0, %arg1 : i32
   // CHECK: spv.SGreaterThanEqual
   %5 = cmpi "sge", %arg0, %arg1 : i32
+  // CHECK: spv.ULessThan
+  %6 = cmpi "ult", %arg0, %arg1 : i32
+  // CHECK: spv.ULessThanEqual
+  %7 = cmpi "ule", %arg0, %arg1 : i32
+  // CHECK: spv.UGreaterThan
+  %8 = cmpi "ugt", %arg0, %arg1 : i32
+  // CHECK: spv.UGreaterThanEqual
+  %9 = cmpi "uge", %arg0, %arg1 : i32
   return
 }
 
@@ -135,6 +224,50 @@ func @constant() {
 }
 
 //===----------------------------------------------------------------------===//
+// std logical binary operations
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @logical_scalar
+func @logical_scalar(%arg0 : i1, %arg1 : i1) {
+  // CHECK: spv.LogicalAnd
+  %0 = and %arg0, %arg1 : i1
+  // CHECK: spv.LogicalOr
+  %1 = or %arg0, %arg1 : i1
+  return
+}
+
+// CHECK-LABEL: @logical_vector
+func @logical_vector(%arg0 : vector<4xi1>, %arg1 : vector<4xi1>) {
+  // CHECK: spv.LogicalAnd
+  %0 = and %arg0, %arg1 : vector<4xi1>
+  // CHECK: spv.LogicalOr
+  %1 = or %arg0, %arg1 : vector<4xi1>
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// std.fpext
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @fpext
+func @fpext(%arg0 : f32) {
+  // CHECK: spv.FConvert
+  %0 = std.fpext %arg0 : f32 to f64
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// std.fptrunc
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @fptrunc
+func @fptrunc(%arg0 : f64) {
+  // CHECK: spv.FConvert
+  %0 = std.fptrunc %arg0 : f64 to f32
+  return
+}
+
+//===----------------------------------------------------------------------===//
 // std.select
 //===----------------------------------------------------------------------===//
 
@@ -143,5 +276,16 @@ func @select(%arg0 : i32, %arg1 : i32) {
   %0 = cmpi "sle", %arg0, %arg1 : i32
   // CHECK: spv.Select
   %1 = select %0, %arg0, %arg1 : i32
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// std.sitofp
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @sitofp
+func @sitofp(%arg0 : i32) {
+  // CHECK: spv.ConvertSToF
+  %0 = std.sitofp %arg0 : i32 to f32
   return
 }

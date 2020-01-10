@@ -404,17 +404,7 @@ static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
   if (!absVal && !relE)
     return target->usesOnlyLowPageBits(type);
 
-  // Relative relocation to an absolute value. This is normally unrepresentable,
-  // but if the relocation refers to a weak undefined symbol, we allow it to
-  // resolve to the image base. This is a little strange, but it allows us to
-  // link function calls to such symbols. Normally such a call will be guarded
-  // with a comparison, which will load a zero from the GOT.
-  // Another special case is MIPS _gp_disp symbol which represents offset
-  // between start of a function and '_gp' value and defined as absolute just
-  // to simplify the code.
   assert(absVal && relE);
-  if (sym.isUndefWeak())
-    return true;
 
   // We set the final symbols values for linker script defined symbols later.
   // They always can be computed as a link time constant.
@@ -1619,7 +1609,7 @@ void ThunkCreator::mergeThunks(ArrayRef<OutputSection *> outputSections) {
         // those inserted in previous passes. Extract the Thunks created this
         // pass and order them in ascending outSecOff.
         std::vector<ThunkSection *> newThunks;
-        for (const std::pair<ThunkSection *, uint32_t> ts : isd->thunkSections)
+        for (std::pair<ThunkSection *, uint32_t> ts : isd->thunkSections)
           if (ts.second == pass)
             newThunks.push_back(ts.first);
         llvm::stable_sort(newThunks,

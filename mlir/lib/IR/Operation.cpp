@@ -64,47 +64,6 @@ OperationName OperationName::getFromOpaquePointer(void *pointer) {
 }
 
 //===----------------------------------------------------------------------===//
-// OpResult
-//===----------------------------------------------------------------------===//
-
-/// Return the result number of this result.
-unsigned OpResult::getResultNumber() const {
-  // Results are not stored in place, so we have to find it within the list.
-  auto resList = getOwner()->getOpResults();
-  return std::distance(resList.begin(), llvm::find(resList, *this));
-}
-
-//===----------------------------------------------------------------------===//
-// OpOperand
-//===----------------------------------------------------------------------===//
-
-OpOperand::OpOperand(Operation *owner, Value value)
-    : IROperand(owner, value.impl) {}
-
-/// Return the current value being used by this operand.
-Value OpOperand::get() { return (detail::ValueImpl *)IROperand::get(); }
-
-/// Set the current value being used by this operand.
-void OpOperand::set(Value newValue) { IROperand::set(newValue.impl); }
-
-/// Return which operand this is in the operand list.
-unsigned OpOperand::getOperandNumber() {
-  return this - &getOwner()->getOpOperands()[0];
-}
-
-//===----------------------------------------------------------------------===//
-// BlockOperand
-//===----------------------------------------------------------------------===//
-
-// TODO: This namespace is only required because of a bug in GCC<7.0.
-namespace mlir {
-/// Return which operand this is in the operand list.
-template <> unsigned BlockOperand::getOperandNumber() {
-  return this - &getOwner()->getBlockOperands()[0];
-}
-} // end namespace mlir
-
-//===----------------------------------------------------------------------===//
 // Operation
 //===----------------------------------------------------------------------===//
 
@@ -154,14 +113,17 @@ Operation *Operation::create(Location location, OperationName name,
                              bool resizableOperandList) {
   unsigned numSuccessors = successors.size();
 
+  // We only need to allocate additional memory for a subset of results.
+  unsigned numTrailingResults = OpResult::getNumTrailing(resultTypes.size());
+
   // Input operands are nullptr-separated for each successor, the null operands
   // aren't actually stored.
   unsigned numOperands = operands.size() - numSuccessors;
 
   // Compute the byte size for the operation and the operand storage.
-  auto byteSize = totalSizeToAlloc<OpResult, BlockOperand, unsigned, Region,
-                                   detail::OperandStorage>(
-      resultTypes.size(), numSuccessors, numSuccessors, numRegions,
+  auto byteSize = totalSizeToAlloc<detail::TrailingOpResult, BlockOperand,
+                                   Region, detail::OperandStorage>(
+      numTrailingResults, numSuccessors, numRegions,
       /*detail::OperandStorage*/ 1);
   byteSize += llvm::alignTo(detail::OperandStorage::additionalAllocSize(
                                 numOperands, resizableOperandList),
@@ -169,11 +131,22 @@ Operation *Operation::create(Location location, OperationName name,
   void *rawMem = malloc(byteSize);
 
   // Create the new Operation.
-  auto op = ::new (rawMem) Operation(location, name, resultTypes.size(),
-                                     numSuccessors, numRegions, attributes);
+  auto op = ::new (rawMem) Operation(location, name, resultTypes, numSuccessors,
+                                     numRegions, attributes);
 
   assert((numSuccessors == 0 || !op->isKnownNonTerminator()) &&
          "unexpected successors in a non-terminator operation");
+
+  // Initialize the trailing results.
+  if (LLVM_UNLIKELY(numTrailingResults > 0)) {
+    // We initialize the trailing results with their result number. This makes
+    // 'getResultNumber' checks much more efficient. The main purpose for these
+    // results is to give an anchor to the main operation anyways, so this is
+    // purely an optimization.
+    auto *trailingResultIt = op->getTrailingObjects<detail::TrailingOpResult>();
+    for (unsigned i = 0; i != numTrailingResults; ++i, ++trailingResultIt)
+      trailingResultIt->trailingResultNumber = i;
+  }
 
   // Initialize the regions.
   for (unsigned i = 0; i != numRegions; ++i)
@@ -182,11 +155,6 @@ Operation *Operation::create(Location location, OperationName name,
   // Initialize the results and operands.
   new (&op->getOperandStorage())
       detail::OperandStorage(numOperands, resizableOperandList);
-
-  auto instResults = op->getOpResults();
-  for (unsigned i = 0, e = resultTypes.size(); i != e; ++i)
-    new (&instResults[i]) OpResult(OpResult::create(resultTypes[i], op));
-
   auto opOperands = op->getOpOperands();
 
   // Initialize normal operands.
@@ -212,9 +180,7 @@ Operation *Operation::create(Location location, OperationName name,
   assert(!op->isKnownNonTerminator() &&
          "Unexpected nullptr in operand list when creating non-terminator.");
   auto instBlockOperands = op->getBlockOperands();
-  unsigned *succOperandCountIt = op->getTrailingObjects<unsigned>();
-  unsigned *succOperandCountE = succOperandCountIt + numSuccessors;
-  (void)succOperandCountE;
+  unsigned *succOperandCount = nullptr;
 
   for (; operandIt != operandE; ++operandIt) {
     // If we encounter a sentinel branch to the next operand update the count
@@ -222,22 +188,15 @@ Operation *Operation::create(Location location, OperationName name,
     if (!operands[operandIt]) {
       assert(currentSuccNum < numSuccessors);
 
-      // After the first iteration update the successor operand count
-      // variable.
-      if (currentSuccNum != 0) {
-        ++succOperandCountIt;
-        assert(succOperandCountIt != succOperandCountE &&
-               "More sentinel operands than successors.");
-      }
-
       new (&instBlockOperands[currentSuccNum])
           BlockOperand(op, successors[currentSuccNum]);
-      *succOperandCountIt = 0;
+      succOperandCount =
+          &instBlockOperands[currentSuccNum].numSuccessorOperands;
       ++currentSuccNum;
       continue;
     }
     new (&opOperands[nextOperand++]) OpOperand(op, operands[operandIt]);
-    ++(*succOperandCountIt);
+    ++(*succOperandCount);
   }
 
   // Verify that the amount of sentinel operands is equivalent to the number of
@@ -247,11 +206,20 @@ Operation *Operation::create(Location location, OperationName name,
   return op;
 }
 
-Operation::Operation(Location location, OperationName name, unsigned numResults,
-                     unsigned numSuccessors, unsigned numRegions,
-                     const NamedAttributeList &attributes)
-    : location(location), numResults(numResults), numSuccs(numSuccessors),
-      numRegions(numRegions), name(name), attrs(attributes) {}
+Operation::Operation(Location location, OperationName name,
+                     ArrayRef<Type> resultTypes, unsigned numSuccessors,
+                     unsigned numRegions, const NamedAttributeList &attributes)
+    : location(location), numSuccs(numSuccessors), numRegions(numRegions),
+      hasSingleResult(false), name(name), attrs(attributes) {
+  if (!resultTypes.empty()) {
+    // If there is a single result it is stored in-place, otherwise use a tuple.
+    hasSingleResult = resultTypes.size() == 1;
+    if (hasSingleResult)
+      resultType = resultTypes.front();
+    else
+      resultType = TupleType::get(resultTypes, location->getContext());
+  }
+}
 
 // Operations are deleted through the destroy() member because they are
 // allocated via malloc.
@@ -260,9 +228,6 @@ Operation::~Operation() {
 
   // Explicitly run the destructors for the operands and results.
   getOperandStorage().~OperandStorage();
-
-  for (auto &result : getOpResults())
-    result.destroy();
 
   // Explicitly run the destructors for the successors.
   for (auto &successor : getBlockOperands())
@@ -572,20 +537,18 @@ void Operation::dropAllReferences() {
 /// This drops all uses of any values defined by this operation or its nested
 /// regions, wherever they are located.
 void Operation::dropAllDefinedValueUses() {
-  for (auto &val : getOpResults())
-    val.dropAllUses();
+  dropAllUses();
 
   for (auto &region : getRegions())
     for (auto &block : region)
       block.dropAllDefinedValueUses();
 }
 
-/// Return true if there are no users of any results of this operation.
-bool Operation::use_empty() {
-  for (auto result : getResults())
-    if (!result->use_empty())
-      return false;
-  return true;
+/// Return the number of results held by this operation.
+unsigned Operation::getNumResults() {
+  if (!resultType)
+    return 0;
+  return hasSingleResult ? 1 : resultType.cast<TupleType>().size();
 }
 
 void Operation::setSuccessor(Block *block, unsigned index) {
@@ -607,10 +570,12 @@ unsigned Operation::getSuccessorOperandIndex(unsigned index) {
   // Count the number of operands for each of the successors after, and
   // including, the one at 'index'. This is based upon the assumption that all
   // non successor operands are placed at the beginning of the operand list.
-  auto *successorOpCountBegin = getTrailingObjects<unsigned>();
+  auto blockOperands = getBlockOperands().drop_front(index);
   unsigned postSuccessorOpCount =
-      std::accumulate(successorOpCountBegin + index,
-                      successorOpCountBegin + getNumSuccessors(), 0u);
+      std::accumulate(blockOperands.begin(), blockOperands.end(), 0u,
+                      [](unsigned cur, const BlockOperand &operand) {
+                        return cur + operand.numSuccessorOperands;
+                      });
   return getNumOperands() - postSuccessorOpCount;
 }
 
@@ -619,10 +584,10 @@ Operation::decomposeSuccessorOperandIndex(unsigned operandIndex) {
   assert(!isKnownNonTerminator() && "only terminators may have successors");
   assert(operandIndex < getNumOperands());
   unsigned currentOperandIndex = getNumOperands();
-  auto *successorOperandCounts = getTrailingObjects<unsigned>();
+  auto blockOperands = getBlockOperands();
   for (unsigned i = 0, e = getNumSuccessors(); i < e; i++) {
     unsigned successorIndex = e - i - 1;
-    currentOperandIndex -= successorOperandCounts[successorIndex];
+    currentOperandIndex -= blockOperands[successorIndex].numSuccessorOperands;
     if (currentOperandIndex <= operandIndex)
       return std::make_pair(successorIndex, operandIndex - currentOperandIndex);
   }
@@ -1180,51 +1145,4 @@ void impl::ensureRegionTerminator(
     return;
 
   block.push_back(buildTerminatorOp());
-}
-
-//===----------------------------------------------------------------------===//
-// UseIterator
-//===----------------------------------------------------------------------===//
-
-UseIterator::UseIterator(Operation *op, bool end)
-    : op(op), res(end ? op->result_end() : op->result_begin()) {
-  // Only initialize current use if there are results/can be uses.
-  if (op->getNumResults())
-    skipOverResultsWithNoUsers();
-}
-
-UseIterator &UseIterator::operator++() {
-  // We increment over uses, if we reach the last use then move to next
-  // result.
-  if (use != (*res)->use_end())
-    ++use;
-  if (use == (*res)->use_end()) {
-    ++res;
-    skipOverResultsWithNoUsers();
-  }
-  return *this;
-}
-
-bool UseIterator::operator==(const UseIterator &other) const {
-  if (op != other.op)
-    return false;
-  if (op->getNumResults() == 0)
-    return true;
-  return res == other.res && use == other.use;
-}
-
-bool UseIterator::operator!=(const UseIterator &other) const {
-  return !(*this == other);
-}
-
-void UseIterator::skipOverResultsWithNoUsers() {
-  while (res != op->result_end() && (*res)->use_empty())
-    ++res;
-
-  // If we are at the last result, then set use to first use of
-  // first result (sentinel value used for end).
-  if (res == op->result_end())
-    use = {};
-  else
-    use = (*res)->use_begin();
 }

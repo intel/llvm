@@ -375,6 +375,7 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::DEBUGTRAP, MVT::Other, Custom);
 
   if (Subtarget->has16BitInsts()) {
+    setOperationAction(ISD::FPOW, MVT::f16, Promote);
     setOperationAction(ISD::FLOG, MVT::f16, Custom);
     setOperationAction(ISD::FEXP, MVT::f16, Custom);
     setOperationAction(ISD::FLOG10, MVT::f16, Custom);
@@ -491,8 +492,6 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
     setOperationAction(ISD::FP_TO_SINT, MVT::i16, Promote);
     setOperationAction(ISD::FP_TO_UINT, MVT::i16, Promote);
-    setOperationAction(ISD::SINT_TO_FP, MVT::i16, Promote);
-    setOperationAction(ISD::UINT_TO_FP, MVT::i16, Promote);
 
     // F16 - Constant Actions.
     setOperationAction(ISD::ConstantFP, MVT::f16, Legal);
@@ -507,6 +506,10 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FP_ROUND, MVT::f16, Custom);
     setOperationAction(ISD::FCOS, MVT::f16, Promote);
     setOperationAction(ISD::FSIN, MVT::f16, Promote);
+
+    setOperationAction(ISD::SINT_TO_FP, MVT::i16, Custom);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i16, Custom);
+
     setOperationAction(ISD::FP_TO_SINT, MVT::f16, Promote);
     setOperationAction(ISD::FP_TO_UINT, MVT::f16, Promote);
     setOperationAction(ISD::SINT_TO_FP, MVT::f16, Promote);
@@ -2671,9 +2674,7 @@ bool SITargetLowering::mayBeEmittedAsTailCall(const CallInst *CI) const {
   const Function *ParentFn = CI->getParent()->getParent();
   if (AMDGPU::isEntryFunctionCC(ParentFn->getCallingConv()))
     return false;
-
-  auto Attr = ParentFn->getFnAttribute("disable-tail-calls");
-  return (Attr.getValueAsString() != "true");
+  return true;
 }
 
 // The wave scratch offset register is used as the global base pointer.
@@ -2792,10 +2793,9 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   MVT PtrVT = MVT::i32;
 
   // Walk the register/memloc assignments, inserting copies/loads.
-  for (unsigned i = 0, realArgIdx = 0, e = ArgLocs.size(); i != e;
-       ++i, ++realArgIdx) {
+  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
-    SDValue Arg = OutVals[realArgIdx];
+    SDValue Arg = OutVals[i];
 
     // Promote the value if needed.
     switch (VA.getLocInfo()) {
@@ -2835,7 +2835,7 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
       MaybeAlign Alignment;
 
       if (IsTailCall) {
-        ISD::ArgFlagsTy Flags = Outs[realArgIdx].Flags;
+        ISD::ArgFlagsTy Flags = Outs[i].Flags;
         unsigned OpSize = Flags.isByVal() ?
           Flags.getByValSize() : VA.getValVT().getStoreSize();
 
@@ -5953,22 +5953,6 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
       return DAG.getNode(AMDGPUISD::INTERP_P1LL_F16, DL, MVT::f32, Ops);
     }
   }
-  case Intrinsic::amdgcn_interp_p2_f16: {
-    SDValue ToM0 = DAG.getCopyToReg(DAG.getEntryNode(), DL, AMDGPU::M0,
-                                    Op.getOperand(6), SDValue());
-    SDValue Ops[] = {
-      Op.getOperand(2), // Src0
-      Op.getOperand(3), // Attrchan
-      Op.getOperand(4), // Attr
-      DAG.getTargetConstant(0, DL, MVT::i32), // $src0_modifiers
-      Op.getOperand(1), // Src2
-      DAG.getTargetConstant(0, DL, MVT::i32), // $src2_modifiers
-      Op.getOperand(5), // high
-      DAG.getTargetConstant(0, DL, MVT::i1), // $clamp
-      ToM0.getValue(1)
-    };
-    return DAG.getNode(AMDGPUISD::INTERP_P2_F16, DL, MVT::f16, Ops);
-  }
   case Intrinsic::amdgcn_sin:
     return DAG.getNode(AMDGPUISD::SIN_HW, DL, VT, Op.getOperand(1));
 
@@ -7489,8 +7473,11 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
     // resource descriptor, we can only make private accesses up to a certain
     // size.
     switch (Subtarget->getMaxPrivateElementSize()) {
-    case 4:
-      return scalarizeVectorLoad(Load, DAG);
+    case 4: {
+      SDValue Ops[2];
+      std::tie(Ops[0], Ops[1]) = scalarizeVectorLoad(Load, DAG);
+      return DAG.getMergeValues(Ops, DL);
+    }
     case 8:
       if (NumElements > 2)
         return SplitVectorLoad(Op, DAG);
@@ -11023,6 +11010,8 @@ SITargetLowering::getRegClassFor(MVT VT, bool isDivergent) const {
 }
 
 static bool hasCFUser(const Value *V, SmallPtrSet<const Value *, 16> &Visited) {
+  if (!isa<Instruction>(V))
+    return false;
   if (!Visited.insert(V).second)
     return false;
   bool Result = false;

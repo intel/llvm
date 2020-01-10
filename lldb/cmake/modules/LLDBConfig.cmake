@@ -25,6 +25,12 @@ if (LLVM_COMPILER_IS_GCC_COMPATIBLE AND NOT "${CMAKE_SYSTEM_NAME}" MATCHES "Darw
 endif()
 
 macro(add_optional_dependency variable description package found)
+  cmake_parse_arguments(ARG
+    ""
+    "VERSION"
+    ""
+    ${ARGN})
+
   set(${variable} "Auto" CACHE STRING "${description} On, Off or Auto (default)")
   string(TOUPPER "${${variable}}" ${variable})
 
@@ -36,29 +42,24 @@ macro(add_optional_dependency variable description package found)
     set(maybe_required REQUIRED)
   else()
     set(find_package FALSE)
-    set(${variable} FALSE PARENT_SCOPE)
+    set(${variable} FALSE)
   endif()
 
   if(${find_package})
-    find_package(${package} ${maybe_required})
+    find_package(${package} ${ARG_VERSION} ${maybe_required})
     set(${variable} "${${found}}")
   endif()
+
+  message(STATUS "${description}: ${${variable}}")
 endmacro()
 
-add_optional_dependency(LLDB_ENABLE_LIBEDIT "Enable editline support." LibEdit libedit_FOUND)
-add_optional_dependency(LLDB_ENABLE_CURSES "Enable curses support." CursesAndPanel CURSESANDPANEL_FOUND)
-add_optional_dependency(LLDB_ENABLE_LZMA "Enable LZMA compression support." LibLZMA LIBLZMA_FOUND)
-add_optional_dependency(LLDB_ENABLE_LUA "Enable Lua scripting support." Lua LUA_FOUND)
+add_optional_dependency(LLDB_ENABLE_LIBEDIT "Enable editline support in LLDB" LibEdit LibEdit_FOUND)
+add_optional_dependency(LLDB_ENABLE_CURSES "Enable curses support in LLDB" CursesAndPanel CURSESANDPANEL_FOUND)
+add_optional_dependency(LLDB_ENABLE_LZMA "Enable LZMA compression support in LLDB" LibLZMA LIBLZMA_FOUND)
+add_optional_dependency(LLDB_ENABLE_LUA "Enable Lua scripting support in LLDB" LuaAndSwig LUAANDSWIG_FOUND)
+add_optional_dependency(LLDB_ENABLE_PYTHON "Enable Python scripting support in LLDB" PythonInterpAndLibs PYTHONINTERPANDLIBS_FOUND)
+add_optional_dependency(LLDB_ENABLE_LIBXML2 "Enable Libxml 2 support in LLDB" LibXml2 LIBXML2_FOUND VERSION 2.8)
 
-set(default_enable_python ON)
-
-if(CMAKE_SYSTEM_NAME MATCHES "Android")
-  set(default_enable_python OFF)
-elseif(IOS)
-  set(default_enable_python OFF)
-endif()
-
-option(LLDB_ENABLE_PYTHON "Enable Python scripting integration." ${default_enable_python})
 option(LLDB_RELOCATABLE_PYTHON "Use the PYTHONHOME environment variable to locate Python." OFF)
 option(LLDB_USE_SYSTEM_SIX "Use six.py shipped with system and do not install a copy of it" OFF)
 option(LLDB_USE_ENTITLEMENTS "When codesigning, use entitlements if available" ON)
@@ -124,8 +125,8 @@ endif()
 # Check if we libedit capable of handling wide characters (built with
 # '--enable-widec').
 if (LLDB_ENABLE_LIBEDIT)
-  set(CMAKE_REQUIRED_LIBRARIES ${libedit_LIBRARIES})
-  set(CMAKE_REQUIRED_INCLUDES ${libedit_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${LibEdit_LIBRARIES})
+  set(CMAKE_REQUIRED_INCLUDES ${LibEdit_INCLUDE_DIRS})
   check_symbol_exists(el_winsertstr histedit.h LLDB_EDITLINE_USE_WCHAR)
   set(CMAKE_EXTRA_INCLUDE_FILES histedit.h)
   check_type_size(el_rfunc_t LLDB_EL_RFUNC_T_SIZE)
@@ -140,46 +141,11 @@ if (LLDB_ENABLE_LIBEDIT)
 endif()
 
 if (LLDB_ENABLE_PYTHON)
-  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
-    find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-    if(Python3_VERSION VERSION_LESS 3.5)
-      message(SEND_ERROR "Python 3.5 or newer is required (found: ${Python3_VERSION}")
-    endif()
-    set(PYTHON_LIBRARY ${Python3_LIBRARIES})
-    include_directories(${Python3_INCLUDE_DIRS})
-
-    if (NOT LLDB_RELOCATABLE_PYTHON)
-      get_filename_component(PYTHON_HOME "${Python3_EXECUTABLE}" DIRECTORY)
-      file(TO_CMAKE_PATH "${PYTHON_HOME}" LLDB_PYTHON_HOME)
-    endif()
-  else()
-    find_package(PythonInterp REQUIRED)
-    find_package(PythonLibs REQUIRED)
-
-    if (NOT CMAKE_CROSSCOMPILING)
-      string(REPLACE "." ";" pythonlibs_version_list ${PYTHONLIBS_VERSION_STRING})
-      list(GET pythonlibs_version_list 0 pythonlibs_major)
-      list(GET pythonlibs_version_list 1 pythonlibs_minor)
-
-      # Ignore the patch version. Some versions of macOS report a different patch
-      # version for the system provided interpreter and libraries.
-      if (NOT PYTHON_VERSION_MAJOR VERSION_EQUAL pythonlibs_major OR
-          NOT PYTHON_VERSION_MINOR VERSION_EQUAL pythonlibs_minor)
-        message(FATAL_ERROR "Found incompatible Python interpreter (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})"
-                            " and Python libraries (${pythonlibs_major}.${pythonlibs_minor})")
-      endif()
-    endif()
-
-    if (PYTHON_INCLUDE_DIR)
-      include_directories(${PYTHON_INCLUDE_DIR})
-    endif()
+  include_directories(${PYTHON_INCLUDE_DIRS})
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows" AND NOT LLDB_RELOCATABLE_PYTHON)
+    get_filename_component(PYTHON_HOME "${PYTHON_EXECUTABLE}" DIRECTORY)
+    file(TO_CMAKE_PATH "${PYTHON_HOME}" LLDB_PYTHON_HOME)
   endif()
-endif()
-
-if (NOT LLDB_ENABLE_PYTHON)
-  unset(PYTHON_INCLUDE_DIR)
-  unset(PYTHON_LIBRARY)
-  unset(PYTHON_EXECUTABLE)
 endif()
 
 if (LLVM_EXTERNAL_CLANG_SOURCE_DIR)
@@ -259,6 +225,11 @@ if (LLDB_ENABLE_LZMA)
   include_directories(${LIBLZMA_INCLUDE_DIRS})
 endif()
 
+if (LLDB_ENABLE_LIBXML2)
+  list(APPEND system_libs ${LIBXML2_LIBRARIES})
+  include_directories(${LIBXML2_INCLUDE_DIR})
+endif()
+
 include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -292,11 +263,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   endif()
 endif()
 
-if (NOT LIBXML2_FOUND)
-  find_package(LibXml2)
-endif()
-
-# Find libraries or frameworks that may be needed
+# Find Apple-specific libraries or frameworks that may be needed.
 if (APPLE)
   if(NOT IOS)
     find_library(CARBON_LIBRARY Carbon)
@@ -305,17 +272,12 @@ if (APPLE)
   find_library(FOUNDATION_LIBRARY Foundation)
   find_library(CORE_FOUNDATION_LIBRARY CoreFoundation)
   find_library(SECURITY_LIBRARY Security)
-  set(LLDB_ENABLE_LIBXML2 ON)
-  list(APPEND system_libs xml2
+  list(APPEND system_libs
        ${FOUNDATION_LIBRARY}
        ${CORE_FOUNDATION_LIBRARY}
        ${CORE_SERVICES_LIBRARY}
        ${SECURITY_LIBRARY}
        ${DEBUG_SYMBOLS_LIBRARY})
-  include_directories(${LIBXML2_INCLUDE_DIR})
-elseif(LIBXML2_FOUND AND LIBXML2_VERSION_STRING VERSION_GREATER 2.8)
-  set(LLDB_ENABLE_LIBXML2 ON)
-  list(APPEND system_libs ${LIBXML2_LIBRARIES})
   include_directories(${LIBXML2_INCLUDE_DIR})
 endif()
 

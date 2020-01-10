@@ -9,7 +9,7 @@ define internal i32 @callee(i1 %C, i32* %A) {
 ; CHECK-SAME: (i1 [[C:%.*]], i32* noalias nocapture nofree nonnull readonly dereferenceable(4) [[A:%.*]])
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[A_0:%.*]] = load i32, i32* null
-; CHECK-NEXT:    br i1 false, label [[T:%.*]], label [[F:%.*]]
+; CHECK-NEXT:    br label [[F:%.*]]
 ; CHECK:       T:
 ; CHECK-NEXT:    unreachable
 ; CHECK:       F:
@@ -34,7 +34,7 @@ F:
 
 define i32 @foo() {
 ; CHECK-LABEL: define {{[^@]+}}@foo()
-; CHECK-NEXT:    [[X:%.*]] = call i32 @callee(i1 false, i32* noalias nofree null)
+; CHECK-NEXT:    [[X:%.*]] = call i32 @callee(i1 false, i32* noalias nofree readonly null)
 ; CHECK-NEXT:    ret i32 [[X]]
 ;
   %X = call i32 @callee(i1 false, i32* null)             ; <i32> [#uses=1]

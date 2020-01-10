@@ -100,6 +100,7 @@ void PPCSubtarget::initializeEnvironment() {
   IsPPC6xx = false;
   IsE500 = false;
   FeatureMFTB = false;
+  AllowsUnalignedFPAccess = false;
   DeprecatedDST = false;
   HasLazyResolverStubs = false;
   HasICBT = false;
@@ -149,6 +150,9 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
       TargetTriple.isOSNetBSD() || TargetTriple.isOSOpenBSD() ||
       TargetTriple.isMusl())
     SecurePlt = true;
+
+  if (TargetTriple.getSubArch() == Triple::PPCSubArch_spe)
+    HasSPE = true;
 
   if (HasSPE && IsPPC64)
     report_fatal_error( "SPE is only supported for 32-bit targets.\n", false);

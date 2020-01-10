@@ -48,7 +48,7 @@ public:
   /// A finalize callback knows about all objects that need finalization, e.g.
   /// destruction, when the scope of the currently generated construct is left
   /// at the time, and location, the callback is invoked.
-  using FinalizeCallbackTy = std::function<void(InsertPointTy /* CodeGenIP */)>;
+  using FinalizeCallbackTy = std::function<void(InsertPointTy CodeGenIP)>;
 
   struct FinalizationInfo {
     /// The finalization callback provided by the last in-flight invocation of
@@ -88,9 +88,9 @@ public:
   /// \param ContinuationBB is the basic block target to leave the body.
   ///
   /// Note that all blocks pointed to by the arguments have terminators.
-  using BodyGenCallbackTy = function_ref<void(
-      InsertPointTy /* AllocaIP */, InsertPointTy /* CodeGenIP */,
-      BasicBlock & /* ContinuationBB */)>;
+  using BodyGenCallbackTy =
+      function_ref<void(InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
+                        BasicBlock &ContinuationBB)>;
 
   /// Callback type for variable privatization (think copy & default
   /// constructor).
@@ -106,8 +106,8 @@ public:
   /// \returns The new insertion point where code generation continues and
   ///          \p ReplVal the replacement of \p Val.
   using PrivatizeCallbackTy = function_ref<InsertPointTy(
-      InsertPointTy /* AllocaIP */, InsertPointTy /* CodeGenIP */,
-      Value & /* Val */, Value *& /* ReplVal */)>;
+      InsertPointTy AllocaIP, InsertPointTy CodeGenIP, Value &Val,
+      Value *&ReplVal)>;
 
   /// Description of a LLVM-IR insertion point (IP) and a debug/source location
   /// (filename, line, column, ...).
@@ -138,6 +138,17 @@ public:
   InsertPointTy CreateBarrier(const LocationDescription &Loc, omp::Directive DK,
                               bool ForceSimpleCall = false,
                               bool CheckCancelFlag = true);
+
+  /// Generator for '#omp cancel'
+  ///
+  /// \param Loc The location where the directive was encountered.
+  /// \param IfCondition The evaluated 'if' clause expression, if any.
+  /// \param CanceledDirective The kind of directive that is cancled.
+  ///
+  /// \returns The insertion point after the barrier.
+  InsertPointTy CreateCancel(const LocationDescription &Loc,
+                              Value *IfCondition,
+                              omp::Directive CanceledDirective);
 
   /// Generator for '#omp parallel'
   ///
@@ -182,6 +193,13 @@ private:
   /// Return an ident_t* encoding the source location \p SrcLocStr and \p Flags.
   Value *getOrCreateIdent(Constant *SrcLocStr,
                           omp::IdentFlag Flags = omp::IdentFlag(0));
+
+  /// Generate control flow and cleanup for cancellation.
+  ///
+  /// \param CancelFlag Flag indicating if the cancellation is performed.
+  /// \param CanceledDirective The kind of directive that is cancled.
+  void emitCancelationCheckImpl(Value *CancelFlag,
+                                omp::Directive CanceledDirective);
 
   /// Generate a barrier runtime call.
   ///

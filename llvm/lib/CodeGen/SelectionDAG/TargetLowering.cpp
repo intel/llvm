@@ -52,6 +52,10 @@ bool TargetLowering::isInTailCallPosition(SelectionDAG &DAG, SDNode *Node,
                                           SDValue &Chain) const {
   const Function &F = DAG.getMachineFunction().getFunction();
 
+  // First, check if tail calls have been disabled in this function.
+  if (F.getFnAttribute("disable-tail-calls").getValueAsString() == "true")
+    return false;
+
   // Conservatively require the attributes of the call to match those of
   // the return. Ignore NoAlias and NonNull because they don't affect the
   // call sequence.
@@ -281,6 +285,22 @@ void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
                                          ISD::CondCode &CCCode,
                                          const SDLoc &dl, const SDValue OldLHS,
                                          const SDValue OldRHS) const {
+  SDValue Chain;
+  return softenSetCCOperands(DAG, VT, NewLHS, NewRHS, CCCode, dl, OldLHS,
+                             OldRHS, Chain);
+}
+
+void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
+                                         SDValue &NewLHS, SDValue &NewRHS,
+                                         ISD::CondCode &CCCode,
+                                         const SDLoc &dl, const SDValue OldLHS,
+                                         const SDValue OldRHS,
+                                         SDValue &Chain,
+                                         bool IsSignaling) const {
+  // FIXME: Currently we cannot really respect all IEEE predicates due to libgcc
+  // not supporting it. We can update this code when libgcc provides such
+  // functions.
+
   assert((VT == MVT::f32 || VT == MVT::f64 || VT == MVT::f128 || VT == MVT::ppcf128)
          && "Unsupported setcc type!");
 
@@ -386,7 +406,8 @@ void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
   EVT OpsVT[2] = { OldLHS.getValueType(),
                    OldRHS.getValueType() };
   CallOptions.setTypeListBeforeSoften(OpsVT, RetVT, true);
-  NewLHS = makeLibCall(DAG, LC1, RetVT, Ops, CallOptions, dl).first;
+  auto Call = makeLibCall(DAG, LC1, RetVT, Ops, CallOptions, dl, Chain);
+  NewLHS = Call.first;
   NewRHS = DAG.getConstant(0, dl, RetVT);
 
   CCCode = getCmpLibcallCC(LC1);
@@ -395,16 +416,22 @@ void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
     CCCode = getSetCCInverse(CCCode, RetVT);
   }
 
-  if (LC2 != RTLIB::UNKNOWN_LIBCALL) {
+  if (LC2 == RTLIB::UNKNOWN_LIBCALL) {
+    // Update Chain.
+    Chain = Call.second;
+  } else {
     SDValue Tmp = DAG.getNode(
         ISD::SETCC, dl,
         getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), RetVT),
         NewLHS, NewRHS, DAG.getCondCode(CCCode));
-    NewLHS = makeLibCall(DAG, LC2, RetVT, Ops, CallOptions, dl).first;
+    auto Call2 = makeLibCall(DAG, LC2, RetVT, Ops, CallOptions, dl, Chain);
     NewLHS = DAG.getNode(
         ISD::SETCC, dl,
         getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), RetVT),
-        NewLHS, NewRHS, DAG.getCondCode(getCmpLibcallCC(LC2)));
+        Call2.first, NewRHS, DAG.getCondCode(getCmpLibcallCC(LC2)));
+    if (Chain)
+      Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, Call.second,
+                          Call2.second);
     NewLHS = DAG.getNode(ISD::OR, dl, Tmp.getValueType(), Tmp, NewLHS);
     NewRHS = SDValue();
   }
@@ -1257,7 +1284,7 @@ bool TargetLowering::SimplifyDemandedBits(
     // -1, we may be able to bypass the setcc.
     if (DemandedBits.isSignMask() &&
         Op0.getScalarValueSizeInBits() == BitWidth &&
-        getBooleanContents(VT) ==
+        getBooleanContents(Op0.getValueType()) ==
             BooleanContent::ZeroOrNegativeOneBooleanContent) {
       // If we're testing X < 0, then this compare isn't needed - just use X!
       // FIXME: We're limiting to integer types here, but this should also work
@@ -1769,15 +1796,11 @@ bool TargetLowering::SimplifyDemandedBits(
           // undesirable.
           break;
 
-        auto *ShAmt = dyn_cast<ConstantSDNode>(Src.getOperand(1));
-        if (!ShAmt || ShAmt->getAPIntValue().uge(BitWidth))
+        SDValue ShAmt = Src.getOperand(1);
+        auto *ShAmtC = dyn_cast<ConstantSDNode>(ShAmt);
+        if (!ShAmtC || ShAmtC->getAPIntValue().uge(BitWidth))
           break;
-
-        SDValue Shift = Src.getOperand(1);
-        uint64_t ShVal = ShAmt->getZExtValue();
-
-        if (TLO.LegalTypes())
-          Shift = TLO.DAG.getConstant(ShVal, dl, getShiftAmountTy(VT, DL));
+        uint64_t ShVal = ShAmtC->getZExtValue();
 
         APInt HighBits =
             APInt::getHighBitsSet(OperandBitWidth, OperandBitWidth - BitWidth);
@@ -1787,10 +1810,12 @@ bool TargetLowering::SimplifyDemandedBits(
         if (!(HighBits & DemandedBits)) {
           // None of the shifted in bits are needed.  Add a truncate of the
           // shift input, then shift it.
+          if (TLO.LegalTypes())
+            ShAmt = TLO.DAG.getConstant(ShVal, dl, getShiftAmountTy(VT, DL));
           SDValue NewTrunc =
               TLO.DAG.getNode(ISD::TRUNCATE, dl, VT, Src.getOperand(0));
           return TLO.CombineTo(
-              Op, TLO.DAG.getNode(ISD::SRL, dl, VT, NewTrunc, Shift));
+              Op, TLO.DAG.getNode(ISD::SRL, dl, VT, NewTrunc, ShAmt));
         }
         break;
       }
@@ -1833,6 +1858,17 @@ bool TargetLowering::SimplifyDemandedBits(
     if (SimplifyDemandedBits(Src, DemandedSrcBits, DemandedSrcElts, Known2, TLO,
                              Depth + 1))
       return true;
+
+    // Attempt to avoid multi-use ops if we don't need anything from them.
+    if (!DemandedSrcBits.isAllOnesValue() ||
+        !DemandedSrcElts.isAllOnesValue()) {
+      if (SDValue DemandedSrc = SimplifyMultipleUseDemandedBits(
+              Src, DemandedSrcBits, DemandedSrcElts, TLO.DAG, Depth + 1)) {
+        SDValue NewOp =
+            TLO.DAG.getNode(Op.getOpcode(), dl, VT, DemandedSrc, Idx);
+        return TLO.CombineTo(Op, NewOp);
+      }
+    }
 
     Known = Known2;
     if (BitWidth > EltBitWidth)
@@ -4500,6 +4536,12 @@ static void ChooseConstraint(TargetLowering::AsmOperandInfo &OpInfo,
     TargetLowering::ConstraintType CType =
       TLI.getConstraintType(OpInfo.Codes[i]);
 
+    // Indirect 'other' or 'immediate' constraints are not allowed.
+    if (OpInfo.isIndirect && !(CType == TargetLowering::C_Memory ||
+                               CType == TargetLowering::C_Register ||
+                               CType == TargetLowering::C_RegisterClass))
+      continue;
+
     // If this is an 'other' or 'immediate' constraint, see if the operand is
     // valid for it. For example, on X86 we might have an 'rI' constraint. If
     // the operand is an integer in the range [0..31] we want to use I (saving a
@@ -6048,6 +6090,8 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
   EVT DstVT = Node->getValueType(0);
   EVT SetCCVT =
       getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), SrcVT);
+  EVT DstSetCCVT =
+      getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), DstVT);
 
   // Only expand vector types if we have the appropriate vector bit operations.
   unsigned SIntOpcode = Node->isStrictFPOpcode() ? ISD::STRICT_FP_TO_SINT : 
@@ -6096,6 +6140,7 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
     // TODO: Should any fast-math-flags be set for the FSUB?
     SDValue FltOfs = DAG.getSelect(dl, SrcVT, Sel,
                                    DAG.getConstantFP(0.0, dl, SrcVT), Cst);
+    Sel = DAG.getBoolExtOrTrunc(Sel, dl, DstSetCCVT, DstVT);
     SDValue IntOfs = DAG.getSelect(dl, DstVT, Sel,
                                    DAG.getConstant(0, dl, DstVT),
                                    DAG.getConstant(SignMask, dl, DstVT));
@@ -6123,6 +6168,7 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
                                 DAG.getNode(ISD::FSUB, dl, SrcVT, Src, Cst));
     False = DAG.getNode(ISD::XOR, dl, DstVT, False,
                         DAG.getConstant(SignMask, dl, DstVT));
+    Sel = DAG.getBoolExtOrTrunc(Sel, dl, DstSetCCVT, DstVT);
     Result = DAG.getSelect(dl, DstVT, Sel, True, False);
   }
   return true;
@@ -6154,7 +6200,7 @@ bool TargetLowering::expandUINT_TO_FP(SDNode *Node, SDValue &Result,
       return false;
 
     // For unsigned conversions, convert them to signed conversions using the
-    // algorithm from the x86_64 __floatundidf in compiler_rt.
+    // algorithm from the x86_64 __floatundisf in compiler_rt.
 
     // TODO: This really should be implemented using a branch rather than a
     // select.  We happen to get lucky and machinesink does the right
@@ -6186,8 +6232,10 @@ bool TargetLowering::expandUINT_TO_FP(SDNode *Node, SDValue &Result,
       // incoming STRICT_UINT_TO_FP node; the STRICT_FADD node can
       // never raise any exception.
       SDNodeFlags Flags;
-      Flags.setFPExcept(Node->getFlags().hasFPExcept());
+      Flags.setNoFPExcept(Node->getFlags().hasNoFPExcept());
       Fast->setFlags(Flags);
+      Flags.setNoFPExcept(true);
+      Slow->setFlags(Flags);
     } else {
       SDValue SignCvt = DAG.getNode(ISD::SINT_TO_FP, dl, DstVT, Or);
       Slow = DAG.getNode(ISD::FADD, dl, DstVT, SignCvt, SignCvt);
@@ -6493,8 +6541,9 @@ bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
   return true;
 }
 
-SDValue TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
-                                            SelectionDAG &DAG) const {
+std::pair<SDValue, SDValue>
+TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
+                                    SelectionDAG &DAG) const {
   SDLoc SL(LD);
   SDValue Chain = LD->getChain();
   SDValue BasePTR = LD->getBasePtr();
@@ -6528,7 +6577,7 @@ SDValue TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
   SDValue NewChain = DAG.getNode(ISD::TokenFactor, SL, MVT::Other, LoadChains);
   SDValue Value = DAG.getBuildVector(LD->getValueType(0), SL, Vals);
 
-  return DAG.getMergeValues({Value, NewChain}, SL);
+  return std::make_pair(Value, NewChain);
 }
 
 SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
@@ -6622,10 +6671,7 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
       if (!isOperationLegalOrCustom(ISD::LOAD, intVT) &&
           LoadedVT.isVector()) {
         // Scalarize the load and let the individual components be handled.
-        SDValue Scalarized = scalarizeVectorLoad(LD, DAG);
-        if (Scalarized->getOpcode() == ISD::MERGE_VALUES)
-          return std::make_pair(Scalarized.getOperand(0), Scalarized.getOperand(1));
-        return std::make_pair(Scalarized.getValue(0), Scalarized.getValue(1));
+        return scalarizeVectorLoad(LD, DAG);
       }
 
       // Expand to a (misaligned) integer load of the same size,
@@ -7245,6 +7291,86 @@ TargetLowering::expandFixedPointMul(SDNode *Node, SelectionDAG &DAG) const {
                       dl, VT);
   Result = DAG.getSelectCC(dl, Hi, HighMask, SatMin, Result, ISD::SETLT);
   return Result;
+}
+
+SDValue
+TargetLowering::expandFixedPointDiv(unsigned Opcode, const SDLoc &dl,
+                                    SDValue LHS, SDValue RHS,
+                                    unsigned Scale, SelectionDAG &DAG) const {
+  assert((Opcode == ISD::SDIVFIX ||
+          Opcode == ISD::UDIVFIX) &&
+         "Expected a fixed point division opcode");
+
+  EVT VT = LHS.getValueType();
+  bool Signed = Opcode == ISD::SDIVFIX;
+  EVT BoolVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
+
+  // If there is enough room in the type to upscale the LHS or downscale the
+  // RHS before the division, we can perform it in this type without having to
+  // resize. For signed operations, the LHS headroom is the number of
+  // redundant sign bits, and for unsigned ones it is the number of zeroes.
+  // The headroom for the RHS is the number of trailing zeroes.
+  unsigned LHSLead = Signed ? DAG.ComputeNumSignBits(LHS) - 1
+                            : DAG.computeKnownBits(LHS).countMinLeadingZeros();
+  unsigned RHSTrail = DAG.computeKnownBits(RHS).countMinTrailingZeros();
+
+  if (LHSLead + RHSTrail < Scale)
+    return SDValue();
+
+  unsigned LHSShift = std::min(LHSLead, Scale);
+  unsigned RHSShift = Scale - LHSShift;
+
+  // At this point, we know that if we shift the LHS up by LHSShift and the
+  // RHS down by RHSShift, we can emit a regular division with a final scaling
+  // factor of Scale.
+
+  EVT ShiftTy = getShiftAmountTy(VT, DAG.getDataLayout());
+  if (LHSShift)
+    LHS = DAG.getNode(ISD::SHL, dl, VT, LHS,
+                      DAG.getConstant(LHSShift, dl, ShiftTy));
+  if (RHSShift)
+    RHS = DAG.getNode(Signed ? ISD::SRA : ISD::SRL, dl, VT, RHS,
+                      DAG.getConstant(RHSShift, dl, ShiftTy));
+
+  SDValue Quot;
+  if (Signed) {
+    // For signed operations, if the resulting quotient is negative and the
+    // remainder is nonzero, subtract 1 from the quotient to round towards
+    // negative infinity.
+    SDValue Rem;
+    // FIXME: Ideally we would always produce an SDIVREM here, but if the
+    // type isn't legal, SDIVREM cannot be expanded. There is no reason why
+    // we couldn't just form a libcall, but the type legalizer doesn't do it.
+    if (isTypeLegal(VT) &&
+        isOperationLegalOrCustom(ISD::SDIVREM, VT)) {
+      Quot = DAG.getNode(ISD::SDIVREM, dl,
+                         DAG.getVTList(VT, VT),
+                         LHS, RHS);
+      Rem = Quot.getValue(1);
+      Quot = Quot.getValue(0);
+    } else {
+      Quot = DAG.getNode(ISD::SDIV, dl, VT,
+                         LHS, RHS);
+      Rem = DAG.getNode(ISD::SREM, dl, VT,
+                        LHS, RHS);
+    }
+    SDValue Zero = DAG.getConstant(0, dl, VT);
+    SDValue RemNonZero = DAG.getSetCC(dl, BoolVT, Rem, Zero, ISD::SETNE);
+    SDValue LHSNeg = DAG.getSetCC(dl, BoolVT, LHS, Zero, ISD::SETLT);
+    SDValue RHSNeg = DAG.getSetCC(dl, BoolVT, RHS, Zero, ISD::SETLT);
+    SDValue QuotNeg = DAG.getNode(ISD::XOR, dl, BoolVT, LHSNeg, RHSNeg);
+    SDValue Sub1 = DAG.getNode(ISD::SUB, dl, VT, Quot,
+                               DAG.getConstant(1, dl, VT));
+    Quot = DAG.getSelect(dl, VT,
+                         DAG.getNode(ISD::AND, dl, BoolVT, RemNonZero, QuotNeg),
+                         Sub1, Quot);
+  } else
+    Quot = DAG.getNode(ISD::UDIV, dl, VT,
+                       LHS, RHS);
+
+  // TODO: Saturation.
+
+  return Quot;
 }
 
 void TargetLowering::expandUADDSUBO(

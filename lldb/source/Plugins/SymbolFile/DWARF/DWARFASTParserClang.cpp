@@ -255,7 +255,8 @@ TypeSP DWARFASTParserClang::ParseTypeFromClangModule(const SymbolContext &sc,
   return type_sp;
 }
 
-static void CompleteExternalTagDeclType(ClangASTImporter &ast_importer,
+static void CompleteExternalTagDeclType(ClangASTContext &ast,
+                                        ClangASTImporter &ast_importer,
                                         clang::DeclContext *decl_ctx,
                                         DWARFDIE die,
                                         const char *type_name_cstr) {
@@ -264,7 +265,7 @@ static void CompleteExternalTagDeclType(ClangASTImporter &ast_importer,
     return;
 
   // If this type was not imported from an external AST, there's nothing to do.
-  CompilerType type = ClangASTContext::GetTypeForDecl(tag_decl_ctx);
+  CompilerType type = ast.GetTypeForDecl(tag_decl_ctx);
   if (!type || !ast_importer.CanImport(type))
     return;
 
@@ -1594,7 +1595,7 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     // backing the Decl is complete before adding children to it. This is
     // not an issue in the non-gmodules case because the debug info will
     // always contain a full definition of parent types in that case.
-    CompleteExternalTagDeclType(GetClangASTImporter(), decl_ctx, die,
+    CompleteExternalTagDeclType(m_ast, GetClangASTImporter(), decl_ctx, die,
                                 attrs.name.GetCString());
 
     if (attrs.accessibility == eAccessNone && decl_ctx) {
@@ -2085,8 +2086,8 @@ bool DWARFASTParserClang::CompleteRecordType(const DWARFDIE &die,
           clang::TypeSourceInfo *type_source_info =
               base_class->getTypeSourceInfo();
           if (type_source_info) {
-            CompilerType base_class_type(
-                &m_ast, type_source_info->getType().getAsOpaquePtr());
+            CompilerType base_class_type =
+                m_ast.GetType(type_source_info->getType());
             if (!base_class_type.GetCompleteType()) {
               auto module = dwarf->GetObjectFile()->GetModule();
               module->ReportError(":: Class '%s' has a base class '%s' which "
@@ -2296,54 +2297,6 @@ size_t DWARFASTParserClang::ParseChildEnumerators(
   }
   return enumerators_added;
 }
-
-#if defined(LLDB_CONFIGURATION_DEBUG) || defined(LLDB_CONFIGURATION_RELEASE)
-
-class DIEStack {
-public:
-  void Push(const DWARFDIE &die) { m_dies.push_back(die); }
-
-  void LogDIEs(Log *log) {
-    StreamString log_strm;
-    const size_t n = m_dies.size();
-    log_strm.Printf("DIEStack[%" PRIu64 "]:\n", (uint64_t)n);
-    for (size_t i = 0; i < n; i++) {
-      std::string qualified_name;
-      const DWARFDIE &die = m_dies[i];
-      die.GetQualifiedName(qualified_name);
-      log_strm.Printf("[%" PRIu64 "] 0x%8.8x: %s name='%s'\n", (uint64_t)i,
-                      die.GetOffset(), die.GetTagAsCString(),
-                      qualified_name.c_str());
-    }
-    log->PutCString(log_strm.GetData());
-  }
-  void Pop() { m_dies.pop_back(); }
-
-  class ScopedPopper {
-  public:
-    ScopedPopper(DIEStack &die_stack)
-        : m_die_stack(die_stack), m_valid(false) {}
-
-    void Push(const DWARFDIE &die) {
-      m_valid = true;
-      m_die_stack.Push(die);
-    }
-
-    ~ScopedPopper() {
-      if (m_valid)
-        m_die_stack.Pop();
-    }
-
-  protected:
-    DIEStack &m_die_stack;
-    bool m_valid;
-  };
-
-protected:
-  typedef std::vector<DWARFDIE> Stack;
-  Stack m_dies;
-};
-#endif
 
 Function *DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
                                                       const DWARFDIE &die) {
@@ -2578,7 +2531,6 @@ void DWARFASTParserClang::ParseSingleMember(
     }
 
     if (prop_name) {
-      ConstString fixed_getter;
       ConstString fixed_setter;
 
       // Check if the property getter/setter were provided as full names.

@@ -236,8 +236,6 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case CODE16: return "code16";
   case EABI: return "eabi";
   case EABIHF: return "eabihf";
-  case ELFv1: return "elfv1";
-  case ELFv2: return "elfv2";
   case Android: return "android";
   case Musl: return "musl";
   case MuslEABI: return "musleabi";
@@ -401,7 +399,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     // FIXME: Do we need to support these?
     .Cases("i786", "i886", "i986", Triple::x86)
     .Cases("amd64", "x86_64", "x86_64h", Triple::x86_64)
-    .Cases("powerpc", "ppc", "ppc32", Triple::ppc)
+    .Cases("powerpc", "powerpcspe", "ppc", "ppc32", Triple::ppc)
     .Cases("powerpc64", "ppu", "ppc64", Triple::ppc64)
     .Cases("powerpc64le", "ppc64le", Triple::ppc64le)
     .Case("xscale", Triple::arm)
@@ -540,8 +538,6 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
   return StringSwitch<Triple::EnvironmentType>(EnvironmentName)
     .StartsWith("eabihf", Triple::EABIHF)
     .StartsWith("eabi", Triple::EABI)
-    .StartsWith("elfv1", Triple::ELFv1)
-    .StartsWith("elfv2", Triple::ELFv2)
     .StartsWith("gnuabin32", Triple::GNUABIN32)
     .StartsWith("gnuabi64", Triple::GNUABI64)
     .StartsWith("gnueabihf", Triple::GNUEABIHF)
@@ -591,6 +587,9 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
         return Triple::SPIRSubArch_x86_64;
     }
   }
+
+  if (SubArchName == "powerpcspe")
+    return Triple::PPCSubArch_spe;
 
   StringRef ARMSubArch = ARM::getCanonicalArchName(SubArchName);
 

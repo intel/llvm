@@ -16,13 +16,13 @@
 #include "target_impl.h"
 
 EXTERN double omp_get_wtick(void) {
-  double rc = __target_impl_get_wtick();
+  double rc = __kmpc_impl_get_wtick();
   PRINT(LD_IO, "omp_get_wtick() returns %g\n", rc);
   return rc;
 }
 
 EXTERN double omp_get_wtime(void) {
-  double rc = __target_impl_get_wtime();
+  double rc = __kmpc_impl_get_wtime();
   PRINT(LD_IO, "call omp_get_wtime() returns %g\n", rc);
   return rc;
 }
@@ -363,8 +363,8 @@ EXTERN int omp_test_lock(omp_lock_t *lock) {
   return rc;
 }
 
-// for xlf Fotran
-// Fotran, the return is LOGICAL type
+// for xlf Fortran
+// Fortran, the return is LOGICAL type
 
 #define FLOGICAL long
 EXTERN FLOGICAL __xlf_omp_is_initial_device_i8() {
