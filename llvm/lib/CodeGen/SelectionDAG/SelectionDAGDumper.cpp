@@ -312,6 +312,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::UMULFIX:                    return "umulfix";
   case ISD::UMULFIXSAT:                 return "umulfixsat";
 
+  case ISD::SDIVFIX:                    return "sdivfix";
+  case ISD::UDIVFIX:                    return "udivfix";
+
   // Conversion operators.
   case ISD::SIGN_EXTEND:                return "sign_extend";
   case ISD::ZERO_EXTEND:                return "zero_extend";
@@ -547,8 +550,8 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
   if (getFlags().hasVectorReduction())
     OS << " vector-reduction";
 
-  if (getFlags().hasFPExcept())
-    OS << " fpexcept";
+  if (getFlags().hasNoFPExcept())
+    OS << " nofpexcept";
 
   if (const MachineSDNode *MN = dyn_cast<MachineSDNode>(this)) {
     if (!MN->memoperands_empty()) {

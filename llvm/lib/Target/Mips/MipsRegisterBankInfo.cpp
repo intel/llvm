@@ -76,8 +76,9 @@ using namespace llvm;
 MipsRegisterBankInfo::MipsRegisterBankInfo(const TargetRegisterInfo &TRI)
     : MipsGenRegisterBankInfo() {}
 
-const RegisterBank &MipsRegisterBankInfo::getRegBankFromRegClass(
-    const TargetRegisterClass &RC) const {
+const RegisterBank &
+MipsRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                             LLT) const {
   using namespace Mips;
 
   switch (RC.getID()) {
@@ -451,6 +452,7 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_LSHR:
   case G_BRINDIRECT:
   case G_VASTART:
+  case G_BSWAP:
     OperandsMapping = &Mips::ValueMappings[Mips::GPRIdx];
     break;
   case G_ADD:

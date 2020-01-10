@@ -12,10 +12,10 @@
 # RUN: llvm-objdump -d -r %t | FileCheck %s
 # RUN: not ld.lld -shared %t1.o %t2.o -o %t 2>&1 | FileCheck --check-prefix=FAIL %s
 
-# FAIL: call lacks nop, can't restore toc
+# FAIL: call to def lacks nop, can't restore toc
 
 # Test to document the toc-restore behavior with -Bsymbolic option. Since
-# -Bsymbolic causes the call to bind to the internal defintion we know the
+# -Bsymbolic causes the call to bind to the internal definition we know the
 # caller and callee share the same TOC base. This means branching to the
 # local entry point of the callee, and no need for a nop to follow the call
 # (since there is no need to restore the TOC-pointer after the call).

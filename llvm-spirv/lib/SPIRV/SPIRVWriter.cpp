@@ -257,8 +257,17 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
   if (T->isIntegerTy(1))
     return mapType(T, BM->addBoolType());
 
-  if (T->isIntegerTy())
-    return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
+  if (T->isIntegerTy()) {
+    unsigned BitWidth = T->getIntegerBitWidth();
+    // SPIR-V 2.16.1. Universal Validation Rules: Scalar integer types can be
+    // parameterized only as 32 bit, plus any additional sizes enabled by
+    // capabilities.
+    if (BM->getErrorLog().checkError(
+            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
+            SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
+      return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
+    }
+  }
 
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
@@ -705,6 +714,156 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
                           BB);
 }
 
+/// This helper class encapsulates information extraction from
+/// "llvm.loop.parallel_access_indices" metadata hints. Initialize
+/// with a pointer to an MDNode with the following structure:
+/// !<Node> = !{!"llvm.loop.parallel_access_indices", !<Node>, !<Node>, ...}
+/// OR:
+/// !<Node> = !{!"llvm.loop.parallel_access_indices", !<Nodes...>, i32 <value>}
+///
+/// All of the MDNode-type operands mark the index groups for particular
+/// array variables. An optional i32 value indicates the safelen (safe
+/// number of iterations) for the optimization application to these
+/// array variables. If the safelen value is absent, an infinite
+/// number of iterations is implied.
+class LLVMParallelAccessIndices {
+public:
+  LLVMParallelAccessIndices(
+      MDNode *Node, LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap)
+      : Node(Node), IndexGroupArrayMap(IndexGroupArrayMap) {}
+
+  void initialize() {
+    assert(isValid() &&
+           "LLVMParallelAccessIndices initialized from an invalid MDNode");
+
+    unsigned NumOperands = Node->getNumOperands();
+    auto *SafeLenExpression = mdconst::dyn_extract_or_null<ConstantInt>(
+        Node->getOperand(NumOperands - 1));
+    // If no safelen value is specified and the last operand
+    // casts to an MDNode* rather than an int, 0 will be stored
+    SafeLen = SafeLenExpression ? SafeLenExpression->getZExtValue() : 0;
+
+    // Count MDNode operands that refer to index groups:
+    // - operand [0] is a string literal and should be ignored;
+    // - depending on whether a particular safelen is specified as the
+    //   last operand, we may or may not want to extract the latter
+    //   as an index group
+    unsigned NumIdxGroups = SafeLen ? NumOperands - 2 : NumOperands - 1;
+    for (unsigned I = 1; I <= NumIdxGroups; ++I) {
+      MDNode *IdxGroupNode = getMDOperandAsMDNode(Node, I);
+      assert(IdxGroupNode &&
+             "Invalid operand in the MDNode for LLVMParallelAccessIndices");
+      auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
+      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
+             "Absent entry for this index group node");
+      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+    }
+  }
+
+  bool isValid() {
+    bool IsNamedCorrectly = getMDOperandAsString(Node, 0) == ExpectedName;
+    return Node && IsNamedCorrectly;
+  }
+
+  unsigned getSafeLen() { return SafeLen; }
+  const std::vector<SPIRVId> &getArrayVariables() { return ArrayVariablesVec; }
+
+private:
+  MDNode *Node;
+  LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap;
+  const std::string ExpectedName = "llvm.loop.parallel_access_indices";
+  std::vector<SPIRVId> ArrayVariablesVec;
+  unsigned SafeLen;
+};
+
+/// Go through the operands !llvm.loop metadata attached to the branch
+/// instruction, fill the Loop Control mask and possible parameters for its
+/// fields.
+static spv::LoopControlMask
+getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
+               LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap) {
+  if (!Branch)
+    return spv::LoopControlMaskNone;
+  MDNode *LoopMD = Branch->getMetadata("llvm.loop");
+  if (!LoopMD)
+    return spv::LoopControlMaskNone;
+
+  size_t LoopControl = spv::LoopControlMaskNone;
+
+  // Unlike with most of the cases, some loop metadata specifications
+  // can occur multiple times - for these, all correspondent tokens
+  // need to be collected first, and only then added to SPIR-V loop
+  // parameters in a separate routine
+  std::vector<std::pair<SPIRVWord, SPIRVWord>> DependencyArrayParameters;
+
+  for (const MDOperand &MDOp : LoopMD->operands()) {
+    if (MDNode *Node = dyn_cast<MDNode>(MDOp)) {
+      std::string S = getMDOperandAsString(Node, 0);
+      // Set the loop control bits. Parameters are set in the order described
+      // in 3.23 SPIR-V Spec. rev. 1.4:
+      // Bits that are set can indicate whether an additional operand follows,
+      // as described by the table. If there are multiple following operands
+      // indicated, they are ordered: Those indicated by smaller-numbered bits
+      // appear first.
+      if (S == "llvm.loop.unroll.disable")
+        LoopControl |= spv::LoopControlDontUnrollMask;
+      else if (S == "llvm.loop.unroll.full" || S == "llvm.loop.unroll.enable")
+        LoopControl |= spv::LoopControlUnrollMask;
+      // PartialCount must not be used with the DontUnroll bit
+      else if (S == "llvm.loop.unroll.count" &&
+               !(LoopControl & LoopControlDontUnrollMask)) {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlPartialCountMask;
+      } else if (S == "llvm.loop.ivdep.enable")
+        LoopControl |= spv::LoopControlDependencyInfiniteMask;
+      else if (S == "llvm.loop.ivdep.safelen") {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlDependencyLengthMask;
+      } else if (S == "llvm.loop.ii.count") {
+        Parameters.push_back(InitiationIntervalINTEL);
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlExtendedControlsMask;
+      } else if (S == "llvm.loop.max_concurrency.count") {
+        Parameters.push_back(MaxConcurrencyINTEL);
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlExtendedControlsMask;
+      } else if (S == "llvm.loop.parallel_access_indices") {
+        // Intel FPGA IVDep loop attribute
+        LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
+        IVDep.initialize();
+        // Store IVDep-specific parameters into an intermediate
+        // container to address the case when there're multiple
+        // IVDep metadata nodes and this condition gets entered multiple
+        // times. The update of the main parameters vector & the loop control
+        // mask will be done later, in the main scope of the function
+        unsigned SafeLen = IVDep.getSafeLen();
+        for (auto &ArrayId : IVDep.getArrayVariables())
+          DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+      }
+    }
+  }
+
+  // If any loop control parameters were held back until fully collected,
+  // now is the time to move the information to the main parameters collection
+  if (!DependencyArrayParameters.empty()) {
+    Parameters.push_back(DependencyArrayINTEL);
+    // The first parameter states the number of <array, safelen> pairs to be
+    // listed
+    Parameters.push_back(DependencyArrayParameters.size());
+    for (auto &ArraySflnPair : DependencyArrayParameters) {
+      Parameters.push_back(ArraySflnPair.first);
+      Parameters.push_back(ArraySflnPair.second);
+    }
+    LoopControl |= spv::LoopControlExtendedControlsMask;
+  }
+
+  return static_cast<spv::LoopControlMask>(LoopControl);
+}
+
 /// An instruction may use an instruction from another BB which has not been
 /// translated. SPIRVForward should be created as place holder for these
 /// instructions and replaced later by the real instructions.
@@ -910,7 +1069,8 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     /// with true edge going to the header and the false edge going out of
     /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
     std::vector<SPIRVWord> Parameters;
-    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
+    spv::LoopControlMask LoopControl =
+        getLoopControl(Branch, Parameters, IndexGroupArrayMap);
 
     if (Branch->isUnconditional()) {
       // For "for" and "while" loops llvm.loop metadata is attached to
@@ -995,10 +1155,36 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     std::vector<SPIRVValue *> Indices;
     for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
       Indices.push_back(transValue(GEP->getOperand(I + 1), BB));
-    return mapValue(
-        V, BM->addPtrAccessChainInst(transType(GEP->getType()),
-                                     transValue(GEP->getPointerOperand(), BB),
-                                     Indices, BB, GEP->isInBounds()));
+    auto *TransPointerOperand = transValue(GEP->getPointerOperand(), BB);
+
+    // Certain array-related optimization hints can be expressed via
+    // LLVM metadata. For the purpose of linking this metadata with
+    // the accessed array variables, our GEP may have been marked into
+    // a so-called index group, an MDNode by itself.
+    if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
+      // When where we work with embedded loops, it's natural that
+      // the outer loop's hints apply to all code contained within.
+      // The inner loop's specific hints, however, should stay private
+      // to the inner loop's scope.
+      // Consequently, the following division of the index group metadata
+      // nodes emerges:
+      // 1) The metadata node has no operands. It will be directly referenced
+      //    from within the optimization hint metadata.
+      // 2) The metadata node has several operands. It serves to link an index
+      //    group specific to some embedded loop with other index groups that
+      //    mark the same array variable for the outer loop(s).
+      unsigned NumOperands = IndexGroup->getNumOperands();
+      if (NumOperands > 0)
+        // The index group for this particular "embedded loop depth" is always
+        // signalled by the last variable. We'll want to associate this loop's
+        // control parameters with this inner-loop-specific index group
+        IndexGroup = getMDOperandAsMDNode(IndexGroup, NumOperands - 1);
+      IndexGroupArrayMap[IndexGroup] = TransPointerOperand->getId();
+    }
+
+    return mapValue(V, BM->addPtrAccessChainInst(transType(GEP->getType()),
+                                                 TransPointerOperand, Indices,
+                                                 BB, GEP->isInBounds()));
   }
 
   if (auto Ext = dyn_cast<ExtractElementInst>(V)) {

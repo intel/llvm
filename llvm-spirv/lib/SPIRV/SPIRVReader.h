@@ -50,10 +50,10 @@
 namespace llvm {
 class Module;
 class Type;
-class Value;
 class Instruction;
 class CallInst;
 class BasicBlock;
+class Loop;
 class Function;
 class GlobalVariable;
 class LLVMContext;
@@ -255,7 +255,7 @@ private:
   Value *oclTransConstantPipeStorage(SPIRV::SPIRVConstantPipeStorage *BCPS);
   void setName(llvm::Value *V, SPIRVValue *BV);
   template <typename LoopInstType>
-  void setLLVMLoopMetadata(const LoopInstType *LM, Instruction *BI);
+  void setLLVMLoopMetadata(const LoopInstType *LM, const Loop *LoopObj);
   void transLLVMLoopMetadata(const Function *F);
   inline llvm::Metadata *getMetadataFromName(std::string Name);
   inline std::vector<llvm::Metadata *>

@@ -8,7 +8,7 @@
 ; ModuleID = 'llvm_loop_test.cpp'
 source_filename = "llvm_loop_test.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-unknown-sycldevice"
 
 $_ZTS12WhileOneTest = comdat any
 
@@ -32,7 +32,7 @@ entry:
 
 while.cond:                                       ; preds = %if.end, %entry
 ; CHECK-SPV:      {{[0-9]+}} Label [[WH_COND]]
-; CHECK-SPV-NEXT: {{[0-9]+}} LoopControlINTEL 4
+; CHECK-SPV-NEXT: {{[0-9]+}} LoopControlINTEL 1
 ; CHECK-SPV-NEXT: {{[0-9]+}} Branch
   br label %while.body
 
@@ -63,7 +63,7 @@ if.end:                                           ; preds = %if.else
   %inc = add nsw i32 %5, 1
   store i32 %inc, i32* %i, align 4, !tbaa !7
   br label %while.cond, !llvm.loop !9
-; CHECK-REV-LLVM: br label %while.cond, !llvm.loop ![[MD_IVDEP:[0-9]+]]
+; CHECK-REV-LLVM: br label %while.cond, !llvm.loop ![[MD_UNROLL:[0-9]+]]
 
 ; CHECK-REV-LLVM-NOT: br {{.*}}, !llvm.loop
 
@@ -106,7 +106,7 @@ attributes #2 = { nounwind }
 !7 = !{!8, !8, i64 0}
 !8 = !{!"int", !5, i64 0}
 !9 = distinct !{!9, !10}
-!10 = !{!"llvm.loop.ivdep.enable"}
+!10 = !{!"llvm.loop.unroll.enable"}
 
-; CHECK-REV-LLVM: ![[MD_IVDEP]] = distinct !{![[MD_IVDEP]], ![[MD_ivdep_enable:[0-9]+]]}
-; CHECK-REV-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
+; CHECK-REV-LLVM: ![[MD_UNROLL]] = distinct !{![[MD_UNROLL]], ![[MD_unroll_enable:[0-9]+]]}
+; CHECK-REV-LLVM: ![[MD_unroll_enable]] = !{!"llvm.loop.unroll.enable"}

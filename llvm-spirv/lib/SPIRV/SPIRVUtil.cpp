@@ -851,18 +851,21 @@ int getMDOperandAsInt(MDNode *N, unsigned I) {
   return mdconst::dyn_extract<ConstantInt>(N->getOperand(I))->getZExtValue();
 }
 
-std::string getMDOperandAsString(MDNode *N, unsigned I) {
+// Additional helper function to be reused by getMDOperandAs* helpers
+Metadata *getMDOperandOrNull(MDNode *N, unsigned I) {
   if (!N)
-    return "";
+    return nullptr;
+  return N->getOperand(I);
+}
 
-  Metadata *Op = N->getOperand(I);
-  if (!Op)
-    return "";
-
-  if (MDString *Str = dyn_cast<MDString>(Op)) {
+std::string getMDOperandAsString(MDNode *N, unsigned I) {
+  if (auto *Str = dyn_cast_or_null<MDString>(getMDOperandOrNull(N, I)))
     return Str->getString().str();
-  }
   return "";
+}
+
+MDNode *getMDOperandAsMDNode(MDNode *N, unsigned I) {
+  return dyn_cast_or_null<MDNode>(getMDOperandOrNull(N, I));
 }
 
 Type *getMDOperandAsType(MDNode *N, unsigned I) {
@@ -1509,59 +1512,6 @@ bool hasLoopMetadata(const Module *M) {
         return true;
     }
   return false;
-}
-
-spv::LoopControlMask getLoopControl(const BranchInst *Branch,
-                                    std::vector<SPIRVWord> &Parameters) {
-  if (!Branch)
-    return spv::LoopControlMaskNone;
-  MDNode *LoopMD = Branch->getMetadata("llvm.loop");
-  if (!LoopMD)
-    return spv::LoopControlMaskNone;
-
-  size_t LoopControl = spv::LoopControlMaskNone;
-  for (const MDOperand &MDOp : LoopMD->operands()) {
-    if (MDNode *Node = dyn_cast<MDNode>(MDOp)) {
-      std::string S = getMDOperandAsString(Node, 0);
-      // Set the loop control bits. Parameters are set in the order described
-      // in 3.23 SPIR-V Spec. rev. 1.4:
-      // Bits that are set can indicate whether an additional operand follows,
-      // as described by the table. If there are multiple following operands
-      // indicated, they are ordered: Those indicated by smaller-numbered bits
-      // appear first.
-      if (S == "llvm.loop.unroll.disable")
-        LoopControl |= spv::LoopControlDontUnrollMask;
-      else if (S == "llvm.loop.unroll.full" || S == "llvm.loop.unroll.enable")
-        LoopControl |= spv::LoopControlUnrollMask;
-      if (S == "llvm.loop.ivdep.enable")
-        LoopControl |= spv::LoopControlDependencyInfiniteMask;
-      if (S == "llvm.loop.ivdep.safelen") {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlDependencyLengthMask;
-      }
-      // PartialCount must not be used with the DontUnroll bit
-      if (S == "llvm.loop.unroll.count" &&
-          !(LoopControl & LoopControlDontUnrollMask)) {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlPartialCountMask;
-      }
-      if (S == "llvm.loop.ii.count") {
-        Parameters.push_back(InitiationIntervalINTEL);
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlExtendedControlsMask;
-      }
-      if (S == "llvm.loop.max_concurrency.count") {
-        Parameters.push_back(MaxConcurrencyINTEL);
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlExtendedControlsMask;
-      }
-    }
-  }
-  return static_cast<spv::LoopControlMask>(LoopControl);
 }
 
 } // namespace SPIRV

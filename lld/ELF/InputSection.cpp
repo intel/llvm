@@ -421,7 +421,7 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
       p->r_addend = getAddend<ELFT>(rel);
 
     // Output section VA is zero for -r, so r_offset is an offset within the
-    // section, but for --emit-relocs it is an virtual address.
+    // section, but for --emit-relocs it is a virtual address.
     p->r_offset = sec->getVA(rel.r_offset);
     p->setSymbolAndType(in.symTab->getSymbolIndex(&sym), type,
                         config->isMips64EL);
@@ -636,6 +636,7 @@ static int64_t getTlsTpOffset(const Symbol &s) {
     return s.getVA(0) + (tls->p_vaddr & (tls->p_align - 1));
 
     // Variant 2.
+  case EM_HEXAGON:
   case EM_386:
   case EM_X86_64:
     return s.getVA(0) - tls->p_memsz -
@@ -971,8 +972,16 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
 
       // Patch a nop (0x60000000) to a ld.
       if (rel.sym->needsTocRestore) {
-        if (bufLoc + 8 > bufEnd || read32(bufLoc + 4) != 0x60000000) {
-          error(getErrorLocation(bufLoc) + "call lacks nop, can't restore toc");
+        // gcc/gfortran 5.4, 6.3 and earlier versions do not add nop for
+        // recursive calls even if the function is preemptible. This is not
+        // wrong in the common case where the function is not preempted at
+        // runtime. Just ignore.
+        if ((bufLoc + 8 > bufEnd || read32(bufLoc + 4) != 0x60000000) &&
+            rel.sym->file != file) {
+          // Use substr(6) to remove the "__plt_" prefix.
+          errorOrWarn(getErrorLocation(bufLoc) + "call to " +
+                      lld::toString(*rel.sym).substr(6) +
+                      " lacks nop, can't restore toc");
           break;
         }
         write32(bufLoc + 4, 0xe8410018); // ld %r2, 24(%r1)

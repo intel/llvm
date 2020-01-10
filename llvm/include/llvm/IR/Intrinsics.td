@@ -582,12 +582,6 @@ def int_maximum : Intrinsic<[llvm_anyfloat_ty],
   [IntrNoMem, IntrSpeculatable, IntrWillReturn, Commutative]
 >;
 
-// NOTE: these are internal interfaces.
-def int_setjmp     : Intrinsic<[llvm_i32_ty],  [llvm_ptr_ty]>;
-def int_longjmp    : Intrinsic<[], [llvm_ptr_ty, llvm_i32_ty], [IntrNoReturn]>;
-def int_sigsetjmp  : Intrinsic<[llvm_i32_ty] , [llvm_ptr_ty, llvm_i32_ty]>;
-def int_siglongjmp : Intrinsic<[], [llvm_ptr_ty, llvm_i32_ty], [IntrNoReturn]>;
-
 // Internal interface for object size checking
 def int_objectsize : Intrinsic<[llvm_anyint_ty],
                                [llvm_anyptr_ty, llvm_i1_ty,
@@ -935,6 +929,14 @@ def int_smul_fix : Intrinsic<[llvm_anyint_ty],
 def int_umul_fix : Intrinsic<[llvm_anyint_ty],
                              [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i32_ty],
                              [IntrNoMem, IntrSpeculatable, IntrWillReturn, Commutative, ImmArg<2>]>;
+
+def int_sdiv_fix : Intrinsic<[llvm_anyint_ty],
+                             [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i32_ty],
+                             [IntrNoMem, ImmArg<2>]>;
+
+def int_udiv_fix : Intrinsic<[llvm_anyint_ty],
+                             [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i32_ty],
+                             [IntrNoMem, ImmArg<2>]>;
 
 //===------------------- Fixed Point Saturation Arithmetic Intrinsics ----------------===//
 //

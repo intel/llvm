@@ -26,9 +26,7 @@ AppleObjCTypeEncodingParser::AppleObjCTypeEncodingParser(
     m_scratch_ast_ctx_up.reset(new ClangASTContext(runtime.GetProcess()
                                                        ->GetTarget()
                                                        .GetArchitecture()
-                                                       .GetTriple()
-                                                       .str()
-                                                       .c_str()));
+                                                       .GetTriple()));
 }
 
 std::string AppleObjCTypeEncodingParser::ReadStructName(StringLexer &type) {
@@ -137,8 +135,7 @@ clang::QualType AppleObjCTypeEncodingParser::BuildAggregate(
         element.name = elem_name.GetString();
       }
       ClangASTContext::AddFieldToRecordType(
-          union_type, element.name.c_str(),
-          CompilerType(&ast_ctx, element.type.getAsOpaquePtr()),
+          union_type, element.name.c_str(), ast_ctx.GetType(element.type),
           lldb::eAccessPublic, element.bitfield);
       ++count;
     }
@@ -362,7 +359,7 @@ CompilerType AppleObjCTypeEncodingParser::RealizeType(ClangASTContext &ast_ctx,
   if (name && name[0]) {
     StringLexer lexer(name);
     clang::QualType qual_type = BuildType(ast_ctx, lexer, for_expression);
-    return CompilerType(&ast_ctx, qual_type.getAsOpaquePtr());
+    return ast_ctx.GetType(qual_type);
   }
   return CompilerType();
 }

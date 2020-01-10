@@ -821,8 +821,7 @@ static llvm::Value *EmitBitTestIntrinsic(CodeGenFunction &CGF,
 
   // X86 has special BT, BTC, BTR, and BTS instructions that handle the array
   // indexing operation internally. Use them if possible.
-  llvm::Triple::ArchType Arch = CGF.getTarget().getTriple().getArch();
-  if (Arch == llvm::Triple::x86 || Arch == llvm::Triple::x86_64)
+  if (CGF.getTarget().getTriple().isX86())
     return EmitX86BitTestIntrinsic(CGF, BT, E, BitBase, BitPos);
 
   // Otherwise, use generic code to load one byte and test the bit. Use all but
@@ -1938,16 +1937,14 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_conj:
   case Builtin::BI__builtin_conjf:
-  case Builtin::BI__builtin_conjl: {
+  case Builtin::BI__builtin_conjl:
+  case Builtin::BIconj:
+  case Builtin::BIconjf:
+  case Builtin::BIconjl: {
     ComplexPairTy ComplexVal = EmitComplexExpr(E->getArg(0));
     Value *Real = ComplexVal.first;
     Value *Imag = ComplexVal.second;
-    Value *Zero =
-      Imag->getType()->isFPOrFPVectorTy()
-        ? llvm::ConstantFP::getZeroValueForNegation(Imag->getType())
-        : llvm::Constant::getNullValue(Imag->getType());
-
-    Imag = Builder.CreateFSub(Zero, Imag, "sub");
+    Imag = Builder.CreateFNeg(Imag, "neg");
     return RValue::getComplex(std::make_pair(Real, Imag));
   }
   case Builtin::BI__builtin_creal:
@@ -13298,9 +13295,8 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     Value *Z = EmitScalarExpr(E->getArg(2));
-    Value *Zero = llvm::ConstantFP::getZeroValueForNegation(ResultType);
     Function *F = CGM.getIntrinsic(Intrinsic::fma, ResultType);
-    return Builder.CreateCall(F, {X, Y, Builder.CreateFSub(Zero, Z, "sub")});
+    return Builder.CreateCall(F, {X, Y, Builder.CreateFNeg(Z, "neg")});
   }
   case SystemZ::BI__builtin_s390_vfnmasb:
   case SystemZ::BI__builtin_s390_vfnmadb: {
@@ -13308,9 +13304,8 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     Value *Z = EmitScalarExpr(E->getArg(2));
-    Value *Zero = llvm::ConstantFP::getZeroValueForNegation(ResultType);
     Function *F = CGM.getIntrinsic(Intrinsic::fma, ResultType);
-    return Builder.CreateFSub(Zero, Builder.CreateCall(F, {X, Y, Z}), "sub");
+    return Builder.CreateFNeg(Builder.CreateCall(F, {X, Y, Z}), "neg");
   }
   case SystemZ::BI__builtin_s390_vfnmssb:
   case SystemZ::BI__builtin_s390_vfnmsdb: {
@@ -13318,10 +13313,9 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     Value *Z = EmitScalarExpr(E->getArg(2));
-    Value *Zero = llvm::ConstantFP::getZeroValueForNegation(ResultType);
     Function *F = CGM.getIntrinsic(Intrinsic::fma, ResultType);
-    Value *NegZ = Builder.CreateFSub(Zero, Z, "sub");
-    return Builder.CreateFSub(Zero, Builder.CreateCall(F, {X, Y, NegZ}));
+    Value *NegZ = Builder.CreateFNeg(Z, "neg");
+    return Builder.CreateFNeg(Builder.CreateCall(F, {X, Y, NegZ}));
   }
   case SystemZ::BI__builtin_s390_vflpsb:
   case SystemZ::BI__builtin_s390_vflpdb: {
@@ -13334,9 +13328,8 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
   case SystemZ::BI__builtin_s390_vflndb: {
     llvm::Type *ResultType = ConvertType(E->getType());
     Value *X = EmitScalarExpr(E->getArg(0));
-    Value *Zero = llvm::ConstantFP::getZeroValueForNegation(ResultType);
     Function *F = CGM.getIntrinsic(Intrinsic::fabs, ResultType);
-    return Builder.CreateFSub(Zero, Builder.CreateCall(F, X), "sub");
+    return Builder.CreateFNeg(Builder.CreateCall(F, X), "neg");
   }
   case SystemZ::BI__builtin_s390_vfisb:
   case SystemZ::BI__builtin_s390_vfidb: {

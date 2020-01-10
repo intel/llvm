@@ -127,7 +127,7 @@ TEST_F(ObjCLocalizeStringLiteralTest, Test) {
   ExtraArgs.push_back("-x");
   ExtraArgs.push_back("objective-c");
 
-  // Ensure the the action can be initiated in the string literal.
+  // Ensure the action can be initiated in the string literal.
   EXPECT_AVAILABLE(R"(id x = ^[[@[[^"^t^est^"]]]];)");
 
   // Ensure that the action can't be initiated in other places.
@@ -270,7 +270,7 @@ TEST_F(ExtractVariableTest, Test) {
         a = [[a + 1]];
       // lambda
       auto lamb = [&[[a]], &[[b]]](int r = [[1]]) {return 1;}
-      // assigment
+      // assignment
       xyz([[a = 5]]);
       xyz([[a *= 5]]);
       // Variable DeclRefExpr

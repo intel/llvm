@@ -534,7 +534,7 @@ bool InlineSpiller::canGuaranteeAssignmentAfterRemat(unsigned VReg,
   //   may have more remats than physregs, we're guaranteed to fail to assign
   //   one.
   // At the moment, we only handle this for STATEPOINTs since they're the only
-  // psuedo op where we've seen this.  If we start seeing other instructions
+  // pseudo op where we've seen this.  If we start seeing other instructions
   // with the same problem, we need to revisit this.
   return (MI.getOpcode() != TargetOpcode::STATEPOINT);
 }
@@ -1427,7 +1427,7 @@ void HoistSpillHelper::runHoistSpills(
   }
   // For spills in SpillsToKeep with LiveReg set (i.e., not original spill),
   // save them to SpillsToIns.
-  for (const auto Ent : SpillsToKeep) {
+  for (const auto &Ent : SpillsToKeep) {
     if (Ent.second)
       SpillsToIns[Ent.first->getBlock()] = Ent.second;
   }
@@ -1486,7 +1486,7 @@ void HoistSpillHelper::hoistAllSpills() {
 
     LLVM_DEBUG({
       dbgs() << "Finally inserted spills in BB: ";
-      for (const auto Ispill : SpillsToIns)
+      for (const auto &Ispill : SpillsToIns)
         dbgs() << Ispill.first->getNumber() << " ";
       dbgs() << "\nFinally removed spills in BB: ";
       for (const auto Rspill : SpillsToRm)
@@ -1501,7 +1501,7 @@ void HoistSpillHelper::hoistAllSpills() {
                                      StackIntvl.getValNumInfo(0));
 
     // Insert hoisted spills.
-    for (auto const Insert : SpillsToIns) {
+    for (auto const &Insert : SpillsToIns) {
       MachineBasicBlock *BB = Insert.first;
       unsigned LiveReg = Insert.second;
       MachineBasicBlock::iterator MI = IPA.getLastInsertPointIter(OrigLI, *BB);

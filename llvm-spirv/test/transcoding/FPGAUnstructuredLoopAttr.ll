@@ -17,13 +17,13 @@
 ; CHECK-SPIRV: 2 Label [[ENTRY_1]]
 ; CHECK-SPIRV: 2 Branch [[FOR]]
 ; CHECK-SPIRV: 2 Label [[FOR]]
-; CHECK-SPIRV: 3 LoopControlINTEL 8 2
+; CHECK-SPIRV: 4 LoopControlINTEL 2147483648 5890 2
 ; CHECK-SPIRV: 2 Branch [[FOR]]
 ; CHECK-SPIRV: 5 Function 2 [[BOO]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 2 Label [[ENTRY_2]]
 ; CHECK-SPIRV: 2 Branch [[WHILE]]
 ; CHECK-SPIRV: 2 Label [[WHILE]]
-; CHECK-SPIRV: 2 LoopControlINTEL 4
+; CHECK-SPIRV: 4 LoopControlINTEL 2147483648 5889 2
 ; CHECK-SPIRV: 2 Branch [[WHILE]]
 
 ; ModuleID = 'infinite.cl'
@@ -64,11 +64,11 @@ attributes #0 = { nounwind }
 !1 = !{i32 1, i32 2}
 !2 = !{!"clang version 9.0.0"}
 !3 = distinct !{!3, !4}
-!4 = !{!"llvm.loop.ivdep.safelen", i32 2}
+!4 = !{!"llvm.loop.max_concurrency.count", i32 2}
 !5 = distinct !{!5, !6}
-!6 = !{!"llvm.loop.ivdep.enable"}
+!6 = !{!"llvm.loop.ii.count", i32 2}
 
 ; CHECK-LLVM: ![[MD_1]] = distinct !{![[MD_1]], ![[LOOP_MD_1:[0-9]+]]}
-; CHECK-LLVM: ![[LOOP_MD_1]] = !{!"llvm.loop.ivdep.safelen", i32 2}
+; CHECK-LLVM: ![[LOOP_MD_1]] = !{!"llvm.loop.max_concurrency.count", i32 2}
 ; CHECK-LLVM: ![[MD_2]] = distinct !{![[MD_2]], ![[LOOP_MD_2:[0-9]+]]}
-; CHECK-LLVM: ![[LOOP_MD_2]] = !{!"llvm.loop.ivdep.enable"}
+; CHECK-LLVM: ![[LOOP_MD_2]] = !{!"llvm.loop.ii.count", i32 2}

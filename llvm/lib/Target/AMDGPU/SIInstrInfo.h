@@ -692,6 +692,10 @@ public:
 
   bool isInlineConstant(const APInt &Imm) const;
 
+  bool isInlineConstant(const APFloat &Imm) const {
+    return isInlineConstant(Imm.bitcastToAPInt());
+  }
+
   bool isInlineConstant(const MachineOperand &MO, uint8_t OperandType) const;
 
   bool isInlineConstant(const MachineOperand &MO,
@@ -977,7 +981,7 @@ public:
   MachineInstr *createPHISourceCopy(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator InsPt,
                                     const DebugLoc &DL, Register Src,
-                                    Register SrcSubReg,
+                                    unsigned SrcSubReg,
                                     Register Dst) const override;
 
   bool isWave32() const;
