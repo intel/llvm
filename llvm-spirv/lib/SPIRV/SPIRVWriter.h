@@ -116,6 +116,7 @@ public:
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
+  typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;
 
 private:
   Module *M;
@@ -123,6 +124,7 @@ private:
   SPIRVModule *BM;
   LLVMToSPIRVTypeMap TypeMap;
   LLVMToSPIRVValueMap ValueMap;
+  LLVMToSPIRVMetadataMap IndexGroupArrayMap;
   SPIRVWord SrcLang;
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
