@@ -1,4 +1,4 @@
-// REQUIRES: ocloc
+// REQUIRES: ocloc, gpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl" %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
