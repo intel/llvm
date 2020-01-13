@@ -28,17 +28,25 @@ int main(int argc, char *argv[]) {
   // Bad size, host
   p = malloc(-1, q, usm::alloc::host);
   assert(p == nullptr);
-
-  // Bad size, device
   p = malloc(-1, q, usm::alloc::device);
   assert(p == nullptr);
-
-  // Bad size, shared
   p = malloc(-1, q, usm::alloc::shared);
   assert(p == nullptr);
-
-  // Bad size, unknown
   p = malloc(-1, q, usm::alloc::unknown);
+  assert(p == nullptr);
+
+  // Bad size, auto aligned
+  p = aligned_alloc(0, -1, q,  usm::alloc::host);
+  assert(p == nullptr);
+  p = aligned_alloc(0, -1, q,  usm::alloc::device);
+  assert(p == nullptr);
+  p = aligned_alloc(0, -1, q,  usm::alloc::shared);
+  assert(p == nullptr);
+  p = aligned_alloc(0, -1, q,  usm::alloc::unknown);
+  assert(p == nullptr);
+
+  // Allocs of 0 undefined, but bad type
+  p = aligned_alloc(4, 0, q,  usm::alloc::unknown);
   assert(p == nullptr);
 
   return 0;
