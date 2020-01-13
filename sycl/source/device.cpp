@@ -46,10 +46,8 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));
         if (!host_device.empty())
-          devices.insert(devices.end(), host_device.begin(),
-                         host_device.end());
-      }
-      else {
+          devices.insert(devices.end(), host_device.begin(), host_device.end());
+      } else {
         vector_class<device> found_devices(plt.get_devices(deviceType));
         if (!found_devices.empty())
           devices.insert(devices.end(), found_devices.begin(),

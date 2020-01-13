@@ -16,7 +16,6 @@
 
 using namespace cl::sycl;
 
-class foo;
 int main() {
   device(host_selector{});
   

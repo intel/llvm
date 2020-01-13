@@ -16,27 +16,17 @@
 
 using namespace cl::sycl;
 
-class foo;
 int main() {
-  queue q;
-  auto dev = q.get_device();
-  auto dev_platform = dev.get_platform();
+  auto plats = platform::get_platforms();
+  bool found_host = false;
 
-  if (!dev_platform.is_host()) {
-    auto plats = platform::get_platforms();
-    bool found_host = false;
-
-    // Look for a host platform
-    for (const auto &plat : plats)  {
-      if (plat.is_host()) {
-        found_host = true;
-      }
+  // Look for a host platform
+  for (const auto &plat : plats)  {
+    if (plat.is_host()) {
+      found_host = true;
     }
-    // Fail if we didn't find a host platform
-    if (!found_host)
-      return 1;
   }
 
-  // Found a host platform, all is well
-  return 0;
+  // Fail if we didn't find a host platform
+  return (!found_host);
 }
