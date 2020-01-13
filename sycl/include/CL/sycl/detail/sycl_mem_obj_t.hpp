@@ -165,11 +165,14 @@ public:
 
   template <typename Destination>
   EnableIfOutputPointerT<Destination> set_final_data(Destination FinalData) {
-    MUploadDataFunctor = [this, FinalData]() {
-      EventImplPtr Event = updateHostMemory(FinalData);
-      if (Event)
-        Event->wait(Event);
-    };
+    if (!FinalData)
+      MUploadDataFunctor = nullptr;
+    else
+      MUploadDataFunctor = [this, FinalData]() {
+        EventImplPtr Event = updateHostMemory(FinalData);
+        if (Event)
+          Event->wait(Event);
+      };
   }
 
   template <typename Destination>

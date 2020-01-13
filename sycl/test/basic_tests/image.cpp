@@ -73,6 +73,32 @@ int main() {
     });
   }
 
+  // image wioth write accessor to it in kernel
+  {
+    int NX = 1024;
+    int NY = 1024;
+
+    sycl::image<2> Img(sycl::image_channel_order::rgba,
+                       sycl::image_channel_type::fp32,
+                       sycl::range<2>(NX, NY));
+    //img.set_final_data();
+
+    sycl::queue Q;
+    Q.submit([&](sycl::handler &CGH) {
+        auto ImgAcc = Img.get_access<sycl::float4, sycl::access::mode::write>(
+              CGH);
+
+        sycl::nd_range<2> Rng(sycl::range<2>(NX, NY), sycl::range<2>(16, 16));
+
+        CGH.parallel_for<class sample>(Rng, [=](sycl::nd_item<2> Item) {
+            sycl::id<2> Idx = Item.get_global_id();
+            sycl::float4 C(0.5f, 0.5f, 0.2f, 1.0f);
+            ImgAcc.write(sycl::int2(Idx[0], Idx[1]), C);
+        });
+
+    }).wait_and_throw();
+  }
+
   std::cout << "Success" << std::endl;
   return 0;
 }
