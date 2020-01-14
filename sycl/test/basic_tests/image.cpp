@@ -73,7 +73,7 @@ int main() {
     });
   }
 
-  // image wioth write accessor to it in kernel
+  // image with write accessor to it in kernel
   {
     int NX = 32;
     int NY = 32;
