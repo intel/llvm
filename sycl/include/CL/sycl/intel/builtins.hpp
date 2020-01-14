@@ -18,7 +18,7 @@ extern int __spirv_ocl_printf(const CONSTANT_AS char *__format, ...);
 #define CONSTANT_AS
 #endif
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace intel {
 namespace experimental {
