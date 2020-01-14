@@ -10324,6 +10324,8 @@ def err_sycl_x_y_z_arguments_must_be_one : Error<
   "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
 def err_intel_attribute_argument_is_not_in_range: Error<
    "The value of %0 attribute must be in range from 0 to 3">;
+def warn_boolean_attribute_argument_is_not_valid: Warning<
+   "The value of %0 attribute should be 0 or 1. Adjusted to 1">;
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "%select{static function or function in an anonymous namespace"
