@@ -231,5 +231,70 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind);
 }
 
+// Pointer queries
+/// Query the allocation type from a USM pointer
+/// Returns alloc::host for all pointers in a host context.
+///
+/// @param ptr is the USM pointer to query
+/// @param ctxt is the sycl context the ptr was allocated in
+alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  // Everything on a host device is just system malloc so call it host
+  if (Ctxt.is_host())
+    return alloc::host;
+
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context C = CtxImpl->getHandleRef();
+  pi_usm_type AllocTy;
+
+  // query type using PI function
+  PI_CALL(piextUSMGetMemAllocInfo)(C, Ptr, PI_MEM_ALLOC_TYPE,
+                                   sizeof(pi_usm_type), &AllocTy, nullptr);
+
+  alloc ResultAlloc = alloc::unknown;
+  if (AllocTy == PI_MEM_TYPE_HOST) {
+    ResultAlloc = alloc::host;
+  }
+  else if (AllocTy == PI_MEM_TYPE_DEVICE) {
+    ResultAlloc = alloc::device;
+  }
+  else if (AllocTy == PI_MEM_TYPE_SHARED) {
+    ResultAlloc = alloc::shared;
+  }
+
+  return ResultAlloc;
+}
+
+/// Queries the device against which the pointer was allocated
+///
+/// @param ptr is the USM pointer to query
+/// @param ctxt is the sycl context the ptr was allocated in
+device get_pointer_device(const void *Ptr, const context &Ctxt) {
+  // Just return the host device in the host context
+  if (Ctxt.is_host())
+    return Ctxt.get_devices()[0];
+
+  // Check if ptr is a host allocation
+  if (get_pointer_type(Ptr, Ctxt) == alloc::host)
+    return device::get_devices(info::device_type::host)[0];
+
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context C = CtxImpl->getHandleRef();
+  pi_device DeviceId;
+
+  // query device using PI function
+  PI_CALL(piextUSMGetMemAllocInfo)(C, Ptr, PI_MEM_ALLOC_DEVICE,
+                                   sizeof(pi_device), &DeviceId, nullptr);
+
+  auto Devs = Ctxt.get_devices();
+
+  for (auto D : Devs) {
+    // Try to find the real sycl device used in the context
+    if (detail::pi::cast<pi_device>(D.get()) == DeviceId)
+      return D;
+  }
+
+  throw runtime_error("Cannot find device associated with USM allocation!");
+}
+
 } // namespace sycl
 } // namespace cl
