@@ -143,6 +143,7 @@ class handler {
   // we exit the method they are passed in.
   std::vector<std::vector<char>> MArgsStorage;
   std::vector<detail::AccessorImplPtr> MAccStorage;
+  std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   // The list of arguments for the kernel.
@@ -221,6 +222,10 @@ private:
           detail::AccessorBaseHost *AccBase =
               static_cast<detail::AccessorBaseHost *>(Ptr);
           Ptr = detail::getSyclObjImpl(*AccBase).get();
+        } else if (AccTarget == access::target::local) {
+          detail::LocalAccessorBaseHost *LocalAccBase =
+              static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+          Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
         }
       }
       processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource);
@@ -292,20 +297,17 @@ private:
         break;
       }
       case access::target::local: {
-        detail::LocalAccessorBaseHost *LAcc =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        detail::LocalAccessorImplHost *LAcc =
+            static_cast<detail::LocalAccessorImplHost *>(Ptr);
         // Stream implementation creates local accessor with size per work item
         // in work group. Number of work items is not available during stream
         // construction, that is why size of the accessor is updated here using
         // information about number of work items in the work group.
-        if (detail::getSyclObjImpl(*LAcc)->PerWI) {
-          auto LocalAccImpl = detail::getSyclObjImpl(*LAcc);
-          LocalAccImpl->resize(MNDRDesc.LocalSize.size(),
-                               MNDRDesc.GlobalSize.size());
-        }
-        range<3> &Size = LAcc->getSize();
-        const int Dims = LAcc->getNumOfDims();
-        int SizeInBytes = LAcc->getElementSize();
+        if (LAcc->PerWI)
+          LAcc->resize(MNDRDesc.LocalSize.size(), MNDRDesc.GlobalSize.size());
+        range<3> &Size = LAcc->MSize;
+        const int Dims = LAcc->MDims;
+        int SizeInBytes = LAcc->MElemSize;
         for (int I = 0; I < Dims; ++I)
           SizeInBytes *= Size[I];
         MArgs.emplace_back(kind_std_layout, nullptr, SizeInBytes,
@@ -480,7 +482,11 @@ private:
                              IsPlaceholder> &&Arg) {
     detail::LocalAccessorBaseHost *LocalAccBase =
         (detail::LocalAccessorBaseHost *)&Arg;
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, LocalAccBase,
+    detail::LocalAccessorImplPtr LocalAccImpl =
+        detail::getSyclObjImpl(*LocalAccBase);
+    detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
+    MLocalAccStorage.push_back(std::move(LocalAccImpl));
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
                        static_cast<int>(access::target::local), ArgIndex);
   }
 
