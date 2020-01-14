@@ -232,11 +232,12 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
 
   AllocaCommandBase *AllocaCmdSrc =
       findAllocaForReq(Record, Req, Record->MCurContext);
-  if (IsSuitableSubReq(Req) && !AllocaCmdSrc) {
+  if (!AllocaCmdSrc && IsSuitableSubReq(Req)) {
     auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
       bool Res = sameCtx(AllocaCmd->getQueue()->get_context_impl(),
                          Record->MCurContext) &&
-                 AllocaCmd->getRequirement()->MSYCLMemObj == Req->MSYCLMemObj;
+                 AllocaCmd->getRequirement()->MSYCLMemObj == Req->MSYCLMemObj &&
+                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
     };
     const auto It =
@@ -251,9 +252,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdSrc =
           static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
-    else if (AllocaCmdSrc->getSYCLMemObj() == Req->MSYCLMemObj)
-      AllocaCmdSrc = static_cast<AllocaCommand *>(AllocaCmdSrc);
-    else
+    else if (AllocaCmdSrc->getSYCLMemObj() != Req->MSYCLMemObj)
       assert(!"Inappropriate alloca command.");
   }
 
