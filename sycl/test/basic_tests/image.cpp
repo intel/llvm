@@ -75,13 +75,12 @@ int main() {
 
   // image wioth write accessor to it in kernel
   {
-    int NX = 1024;
-    int NY = 1024;
+    int NX = 32;
+    int NY = 32;
 
     sycl::image<2> Img(sycl::image_channel_order::rgba,
                        sycl::image_channel_type::fp32,
                        sycl::range<2>(NX, NY));
-    //img.set_final_data();
 
     sycl::queue Q;
     Q.submit([&](sycl::handler &CGH) {
