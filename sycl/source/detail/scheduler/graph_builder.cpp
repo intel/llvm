@@ -233,10 +233,13 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
   AllocaCommandBase *AllocaCmdSrc =
       findAllocaForReq(Record, Req, Record->MCurContext);
   if (!AllocaCmdSrc && IsSuitableSubReq(Req)) {
+    // Since no alloca command for the sub buffer requirement was found in the
+    // current context, need to find a parent alloca command for it (it must be
+    // there)
     auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
       bool Res = sameCtx(AllocaCmd->getQueue()->get_context_impl(),
                          Record->MCurContext) &&
-                 AllocaCmd->getRequirement()->MSYCLMemObj == Req->MSYCLMemObj &&
+                 // Looking for a parent buffer alloca command
                  AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
     };

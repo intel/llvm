@@ -249,9 +249,7 @@ void copyBlock() {
 
 void checkMultipleContexts() {
   constexpr int N = 64;
-  int a[N];
-  for (int i = 0; i < N; i++)
-    a[i] = 0;
+  int a[N] = {0};
   {
     sycl::queue queue1;
     sycl::queue queue2;
