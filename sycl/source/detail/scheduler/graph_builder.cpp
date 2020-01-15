@@ -232,6 +232,22 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
 
   AllocaCommandBase *AllocaCmdSrc =
       findAllocaForReq(Record, Req, Record->MCurContext);
+  if (!AllocaCmdSrc && IsSuitableSubReq(Req)) {
+    // Since no alloca command for the sub buffer requirement was found in the
+    // current context, need to find a parent alloca command for it (it must be
+    // there)
+    auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
+      bool Res = sameCtx(AllocaCmd->getQueue()->get_context_impl(),
+                         Record->MCurContext) &&
+                 // Looking for a parent buffer alloca command
+                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
+      return Res;
+    };
+    const auto It =
+        std::find_if(Record->MAllocaCommands.begin(),
+                     Record->MAllocaCommands.end(), IsSuitableAlloca);
+    AllocaCmdSrc = (Record->MAllocaCommands.end() != It) ? *It : nullptr;
+  }
   if (!AllocaCmdSrc)
     throw runtime_error("Cannot find buffer allocation");
   // Get parent allocation of sub buffer to perform full copy of whole buffer
@@ -239,9 +255,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdSrc =
           static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
-    else
-      assert(
-          !"Inappropriate alloca command. AllocaSubBufCommand was expected.");
+    else if (AllocaCmdSrc->getSYCLMemObj() != Req->MSYCLMemObj)
+      assert(!"Inappropriate alloca command.");
   }
 
   Command *NewCmd = nullptr;
