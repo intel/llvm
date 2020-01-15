@@ -143,6 +143,9 @@ void usage(myFuncDef functionPtr) {
   Check_RTTI_Restriction::A *a;
   // expected-note@+1 3{{called by 'operator()'}}
   Check_RTTI_Restriction::isa_B(a); });
+
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  __float128 A;
 }
 
 namespace ns {
