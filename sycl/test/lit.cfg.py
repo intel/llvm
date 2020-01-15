@@ -83,6 +83,7 @@ if "opencl-aot" in config.llvm_enable_projects:
     if 'PATH' in os.environ:
         print("Adding path to opencl-aot tool to PATH")
         os.environ['PATH'] = os.path.pathsep.join((os.getenv('PATH'), config.llvm_build_bins_dir))
+    config.available_features.add("opencl-aot")
 
 get_device_count_by_type_path = os.path.join(config.llvm_binary_dir,
     "bin", "get_device_count_by_type")
@@ -160,7 +161,7 @@ config.environment['PATH'] = path
 
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
-aot_tools = ["opencl-aot", "ocloc", "aoc"]
+aot_tools = ["ocloc", "aoc"]
 for aot_tool in aot_tools:
     if find_executable(aot_tool) is not None:
         print("Found AOT device compiler " + aot_tool)
