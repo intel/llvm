@@ -2107,6 +2107,9 @@ pi_result cuda_piKernelGetInfo(
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      kernel->get_program());
     }
+    case PI_KERNEL_INFO_ATTRIBUTES: {
+      return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    }
     default: {
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
