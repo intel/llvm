@@ -275,7 +275,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host)
-    return device::get_devices(info::device_type::host)[0];
+    return device();
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context C = CtxImpl->getHandleRef();
