@@ -2166,6 +2166,15 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      static_cast<size_t>(warpSize));
     }
+    case PI_KERNEL_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
     default:
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
