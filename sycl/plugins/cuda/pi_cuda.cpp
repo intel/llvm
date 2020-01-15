@@ -2157,6 +2157,15 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
+    case PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
     default:
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
