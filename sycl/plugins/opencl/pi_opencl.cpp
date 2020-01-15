@@ -31,16 +31,16 @@ template <class To, class From> To cast(From value) {
 }
 
 // Names of USM functions that are queried from OpenCL
-const char clHostMemAllocName[] = "clHostMemAllocINTEL";
-const char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
-const char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-const char clMemFreeName[] = "clMemFreeINTEL";
-const char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-const char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
-const char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-const char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-const char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
-const char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+constexpr char clHostMemAllocName[] = "clHostMemAllocINTEL";
+constexpr char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
+constexpr char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
+constexpr char clMemFreeName[] = "clMemFreeINTEL";
+constexpr char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
+constexpr char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+constexpr char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+constexpr char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
+constexpr char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
+constexpr char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
