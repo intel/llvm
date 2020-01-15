@@ -150,6 +150,7 @@ if getDeviceCount("accelerator"):
     print("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
     acc_check_substitute = "| FileCheck %s"
+    config.available_features.add('accelerator')
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 

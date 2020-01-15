@@ -10,7 +10,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -41,15 +40,7 @@ public:
   ///
   /// @param ExtensionName is a string containing extension name.
   /// @return true if platform supports specified extension.
-  bool has_extension(const string_class &ExtensionName) const {
-    if (is_host())
-      return false;
-
-    string_class AllExtensionNames =
-        get_platform_info<string_class, info::platform::extensions>::get(
-            MPlatform);
-    return (AllExtensionNames.find(ExtensionName) != std::string::npos);
-  }
+  bool has_extension(const string_class &ExtensionName) const;
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -68,14 +59,7 @@ public:
   /// The return type depends on information being queried.
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
-  get_info() const {
-    if (is_host())
-      return get_platform_info_host<param>();
-
-    return get_platform_info<
-        typename info::param_traits<info::platform, param>::return_type,
-        param>::get(this->getHandleRef());
-  }
+  get_info() const;
 
   /// @return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };

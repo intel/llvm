@@ -1,4 +1,4 @@
-// REQUIRES: aoc
+// REQUIRES: aoc, accelerator
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out

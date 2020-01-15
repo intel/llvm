@@ -160,6 +160,8 @@ public:
   }
 };
 
+using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
+
 class LocalAccessorBaseHost {
 public:
   LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize) {
