@@ -42,6 +42,7 @@
 #include "ARMBaseRegisterInfo.h"
 #include "ARMBasicBlockInfo.h"
 #include "ARMSubtarget.h"
+#include "Thumb2InstrInfo.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -137,28 +138,13 @@ namespace {
       MF = ML->getHeader()->getParent();
     }
 
-    bool RecordVPTBlocks(MachineInstr *MI);
-
     // If this is an MVE instruction, check that we know how to use tail
-    // predication with it.
+    // predication with it. Record VPT blocks and return whether the
+    // instruction is valid for tail predication.
+    bool ValidateMVEInst(MachineInstr *MI);
+
     void AnalyseMVEInst(MachineInstr *MI) {
-      if (CannotTailPredicate)
-        return;
-
-      if (!RecordVPTBlocks(MI)) {
-        CannotTailPredicate = true;
-        return;
-      }
-
-      const MCInstrDesc &MCID = MI->getDesc();
-      uint64_t Flags = MCID.TSFlags;
-      if ((Flags & ARMII::DomainMask) != ARMII::DomainMVE)
-        return;
-
-      if ((Flags & ARMII::ValidForTailPredication) == 0) {
-        LLVM_DEBUG(dbgs() << "ARM Loops: Can't tail predicate: " << *MI);
-        CannotTailPredicate = true;
-      }
+      CannotTailPredicate = !ValidateMVEInst(MI);
     }
 
     bool IsTailPredicationLegal() const {
@@ -338,16 +324,19 @@ static bool IsSafeToMove(MachineInstr *From, MachineInstr *To, ReachingDefAnalys
 }
 
 bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
-		                            ReachingDefAnalysis *RDA,
-		                            MachineLoopInfo *MLI) {
+    ReachingDefAnalysis *RDA, MachineLoopInfo *MLI) {
+  assert(VCTP && "VCTP instruction expected but is not set");
   // All predication within the loop should be based on vctp. If the block
   // isn't predicated on entry, check whether the vctp is within the block
   // and that all other instructions are then predicated on it.
   for (auto &Block : VPTBlocks) {
     if (Block.IsPredicatedOn(VCTP))
       continue;
-    if (!Block.HasNonUniformPredicate() || !isVCTP(Block.getDivergent()->MI))
+    if (!Block.HasNonUniformPredicate() || !isVCTP(Block.getDivergent()->MI)) {
+      LLVM_DEBUG(dbgs() << "ARM Loops: Found unsupported diverging predicate: "
+                 << *Block.getDivergent()->MI);
       return false;
+    }
     SmallVectorImpl<PredicatedMI> &Insts = Block.getInsts();
     for (auto &PredMI : Insts) {
       if (PredMI.Predicates.count(VCTP) || isVCTP(PredMI.MI))
@@ -390,8 +379,11 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
         InsertPt->removeFromParent();
         InsertBB->insertAfter(MachineBasicBlock::iterator(ElemDef), InsertPt);
         LLVM_DEBUG(dbgs() << "ARM Loops: Moved start past: " << *ElemDef);
-      } else
+      } else {
+        LLVM_DEBUG(dbgs() << "ARM Loops: Unable to move element count to loop "
+                   << "start instruction.\n");
         return false;
+      }
     }
   }
 
@@ -413,13 +405,17 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
 
   // First, find the block that looks like the preheader.
   MachineBasicBlock *MBB = MLI->findLoopPreheader(ML, true);
-  if (!MBB)
+  if (!MBB) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Didn't find preheader.\n");
     return false;
+  }
 
   // Then search backwards for a def, until we get to InsertBB.
   while (MBB != InsertBB) {
-    if (CannotProvideElements(MBB, NumElements))
+    if (CannotProvideElements(MBB, NumElements)) {
+      LLVM_DEBUG(dbgs() << "ARM Loops: Unable to provide element count.\n");
       return false;
+    }
     MBB = *MBB->pred_begin();
   }
 
@@ -471,7 +467,9 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
     LLVM_DEBUG(dbgs() << "ARM Loops: Start insertion point: " << *InsertPt);
 
   if (!IsTailPredicationLegal()) {
-    LLVM_DEBUG(dbgs() << "ARM Loops: Tail-predication is not valid.\n");
+    LLVM_DEBUG(if (!VCTP)
+                 dbgs() << "ARM Loops: Didn't find a VCTP instruction.\n";
+               dbgs() << "ARM Loops: Tail-predication is not valid.\n");
     return;
   }
 
@@ -482,7 +480,10 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
              dbgs() << "ARM Loops: Couldn't validate tail predicate.\n");
 }
 
-bool LowOverheadLoop::RecordVPTBlocks(MachineInstr* MI) {
+bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
+  if (CannotTailPredicate)
+    return false;
+
   // Only support a single vctp.
   if (isVCTP(MI) && VCTP)
     return false;
@@ -492,30 +493,25 @@ bool LowOverheadLoop::RecordVPTBlocks(MachineInstr* MI) {
     VPTBlocks.emplace_back(MI, CurrentPredicate);
     CurrentBlock = &VPTBlocks.back();
     return true;
-  }
-
-  if (isVCTP(MI))
+  } else if (isVCTP(MI))
     VCTP = MI;
+  else if (MI->getOpcode() == ARM::MVE_VPSEL ||
+           MI->getOpcode() == ARM::MVE_VPNOT)
+    return false;
 
-  unsigned VPROpNum = MI->getNumOperands() - 1;
+  // TODO: Allow VPSEL and VPNOT, we currently cannot because:
+  // 1) It will use the VPR as a predicate operand, but doesn't have to be
+  //    instead a VPT block, which means we can assert while building up
+  //    the VPT block because we don't find another VPST to being a new
+  //    one.
+  // 2) VPSEL still requires a VPR operand even after tail predicating,
+  //    which means we can't remove it unless there is another
+  //    instruction, such as vcmp, that can provide the VPR def.
+
   bool IsUse = false;
-  if (MI->getOperand(VPROpNum).isReg() &&
-      MI->getOperand(VPROpNum).getReg() == ARM::VPR &&
-      MI->getOperand(VPROpNum).isUse()) {
-    // If this instruction is predicated by VPR, it will be its last
-    // operand.  Also check that it's only 'Then' predicated.
-    if (!MI->getOperand(VPROpNum-1).isImm() ||
-        MI->getOperand(VPROpNum-1).getImm() != ARMVCC::Then) {
-      LLVM_DEBUG(dbgs() << "ARM Loops: Found unhandled predicate on: "
-                 << *MI);
-      return false;
-    }
-    CurrentBlock->addInst(MI, CurrentPredicate);
-    IsUse = true;
-  }
-
   bool IsDef = false;
-  for (unsigned i = 0; i < MI->getNumOperands() - 1; ++i) {
+  const MCInstrDesc &MCID = MI->getDesc();
+  for (int i = MI->getNumOperands() - 1; i >= 0; --i) {
     const MachineOperand &MO = MI->getOperand(i);
     if (!MO.isReg() || MO.getReg() != ARM::VPR)
       continue;
@@ -523,6 +519,9 @@ bool LowOverheadLoop::RecordVPTBlocks(MachineInstr* MI) {
     if (MO.isDef()) {
       CurrentPredicate.insert(MI);
       IsDef = true;
+    } else if (ARM::isVpred(MCID.OpInfo[i].OperandType)) {
+      CurrentBlock->addInst(MI, CurrentPredicate);
+      IsUse = true;
     } else {
       LLVM_DEBUG(dbgs() << "ARM Loops: Found instruction using vpr: " << *MI);
       return false;
@@ -534,6 +533,18 @@ bool LowOverheadLoop::RecordVPTBlocks(MachineInstr* MI) {
   // conversion.
   if (IsDef && !IsUse && VCTP && !isVCTP(MI)) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Found disjoint vpr def: " << *MI);
+    return false;
+  }
+
+  uint64_t Flags = MCID.TSFlags;
+  if ((Flags & ARMII::DomainMask) != ARMII::DomainMVE)
+    return true;
+
+  // If we find an instruction that has been marked as not valid for tail
+  // predication, only allow the instruction if it's contained within a valid
+  // VPT block.
+  if ((Flags & ARMII::ValidForTailPredication) == 0 && !IsUse) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Can't tail predicate: " << *MI);
     return false;
   }
 
@@ -656,8 +667,10 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
   }
 
   LLVM_DEBUG(LoLoop.dump());
-  if (!LoLoop.FoundAllComponents())
+  if (!LoLoop.FoundAllComponents()) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Didn't find loop start, update, end\n");
     return false;
+  }
 
   LoLoop.CheckLegality(BBUtils.get(), RDA, MLI);
   Expand(LoLoop);
@@ -817,17 +830,19 @@ void ARMLowOverheadLoops::RemoveLoopUpdate(LowOverheadLoop &LoLoop) {
   LLVM_DEBUG(dbgs() << "ARM Loops: Trying to remove loop update stmt\n");
 
   if (LoLoop.ML->getNumBlocks() != 1) {
-    LLVM_DEBUG(dbgs() << "ARM Loops: single block loop expected\n");
+    LLVM_DEBUG(dbgs() << "ARM Loops: Single block loop expected\n");
     return;
   }
 
-  LLVM_DEBUG(dbgs() << "ARM Loops: Analyzing MO: ";
+  LLVM_DEBUG(dbgs() << "ARM Loops: Analyzing elemcount in operand: ";
              LoLoop.VCTP->getOperand(1).dump());
 
   // Find the definition we are interested in removing, if there is one.
   MachineInstr *Def = RDA->getReachingMIDef(LastInstrInBlock, ElemCount);
-  if (!Def)
+  if (!Def) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Can't find a def, nothing to do.\n");
     return;
+  }
 
   // Bail if we define CPSR and it is not dead
   if (!Def->registerDefIsDead(ARM::CPSR, TRI)) {
@@ -858,17 +873,23 @@ void ARMLowOverheadLoops::RemoveLoopUpdate(LowOverheadLoop &LoLoop) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Removing loop update instruction: ";
                Def->dump());
     Def->eraseFromParent();
+    return;
   }
+
+  LLVM_DEBUG(dbgs() << "ARM Loops: Can't remove loop update, it's used by:\n";
+             for (auto U : Uses) U->dump());
 }
 
 void ARMLowOverheadLoops::ConvertVPTBlocks(LowOverheadLoop &LoLoop) {
   auto RemovePredicate = [](MachineInstr *MI) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Removing predicate from: " << *MI);
-    unsigned OpNum = MI->getNumOperands() - 1;
-    assert(MI->getOperand(OpNum-1).getImm() == ARMVCC::Then &&
-           "Expected Then predicate!");
-    MI->getOperand(OpNum-1).setImm(ARMVCC::None);
-    MI->getOperand(OpNum).setReg(0);
+    if (int PIdx = llvm::findFirstVPTPredOperandIdx(*MI)) {
+      assert(MI->getOperand(PIdx).getImm() == ARMVCC::Then &&
+             "Expected Then predicate!");
+      MI->getOperand(PIdx).setImm(ARMVCC::None);
+      MI->getOperand(PIdx+1).setReg(0);
+    } else
+      llvm_unreachable("trying to unpredicate a non-predicated instruction");
   };
 
   // There are a few scenarios which we have to fix up:

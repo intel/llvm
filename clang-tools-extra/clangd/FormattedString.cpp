@@ -164,6 +164,19 @@ std::string indentLines(llvm::StringRef Input) {
   }
   return IndentedR;
 }
+
+class Heading : public Paragraph {
+public:
+  Heading(size_t Level) : Level(Level) {}
+  void renderMarkdown(llvm::raw_ostream &OS) const override {
+    OS << std::string(Level, '#') << ' ';
+    Paragraph::renderMarkdown(OS);
+  }
+
+private:
+  size_t Level;
+};
+
 } // namespace
 
 std::string Block::asMarkdown() const {
@@ -196,7 +209,8 @@ void Paragraph::renderMarkdown(llvm::raw_ostream &OS) const {
   }
   // Paragraphs are translated into markdown lines, not markdown paragraphs.
   // Therefore it only has a single linebreak afterwards.
-  OS << '\n';
+  // VSCode requires two spaces at the end of line to start a new one.
+  OS << "  \n";
 }
 
 void Paragraph::renderPlainText(llvm::raw_ostream &OS) const {
@@ -276,6 +290,12 @@ std::string Document::asPlainText() const {
 BulletList &Document::addBulletList() {
   Children.emplace_back(std::make_unique<BulletList>());
   return *static_cast<BulletList *>(Children.back().get());
+}
+
+Paragraph &Document::addHeading(size_t Level) {
+  assert(Level > 0);
+  Children.emplace_back(std::make_unique<Heading>(Level));
+  return *static_cast<Paragraph *>(Children.back().get());
 }
 } // namespace markup
 } // namespace clangd

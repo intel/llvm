@@ -109,7 +109,7 @@ static ParseResult parseGenericOp(OpAsmParser &parser, OperationState &result) {
 }
 
 template <typename GenericOpType>
-LogicalResult verifyBlockArgs(GenericOpType op, Block &block);
+static LogicalResult verifyBlockArgs(GenericOpType op, Block &block);
 
 template <> LogicalResult verifyBlockArgs(GenericOp op, Block &block) {
   auto nViews = op.getNumInputsAndOutputs();
@@ -120,7 +120,7 @@ template <> LogicalResult verifyBlockArgs(GenericOp op, Block &block) {
 
   for (unsigned i = 0; i < nViews; ++i) {
     auto viewType = op.getShapedType(i);
-    if (viewType.getElementType() != block.getArgument(i)->getType())
+    if (viewType.getElementType() != block.getArgument(i).getType())
       return op.emitOpError("expected block argument ")
              << i << " of the same type as elemental type of "
              << ((i < nInputViews) ? "input " : "output ")
@@ -139,7 +139,7 @@ template <> LogicalResult verifyBlockArgs(IndexedGenericOp op, Block &block) {
         "number of loops");
 
   for (unsigned i = 0; i < nLoops; ++i) {
-    if (!block.getArgument(i)->getType().isIndex())
+    if (!block.getArgument(i).getType().isIndex())
       return op.emitOpError("expected block argument ")
              << i << " to be of IndexType";
   }
@@ -148,7 +148,7 @@ template <> LogicalResult verifyBlockArgs(IndexedGenericOp op, Block &block) {
     unsigned memrefArgIndex = i + nLoops;
     auto viewType = op.getShapedType(i);
     if (viewType.getElementType() !=
-        block.getArgument(memrefArgIndex)->getType())
+        block.getArgument(memrefArgIndex).getType())
       return op.emitOpError("expected block argument ")
              << memrefArgIndex << " of the same type as elemental type of "
              << ((i < nInputViews) ? "input " : "output ")
@@ -158,7 +158,7 @@ template <> LogicalResult verifyBlockArgs(IndexedGenericOp op, Block &block) {
 }
 
 template <typename GenericOpType>
-LogicalResult verifyFuncArgs(GenericOpType op, FunctionType funType);
+static LogicalResult verifyFuncArgs(GenericOpType op, FunctionType funType);
 
 template <> LogicalResult verifyFuncArgs(GenericOp op, FunctionType funType) {
   auto nViews = op.getNumInputsAndOutputs();
@@ -228,7 +228,7 @@ LogicalResult verifyFuncArgs(IndexedGenericOp op, FunctionType funType) {
 }
 
 template <typename GenericOpType>
-LogicalResult verifyGenericOp(GenericOpType op) {
+static LogicalResult verifyGenericOp(GenericOpType op) {
   auto nInputViews = op.getNumInputs();
   auto nLoops = op.getNumLoops();
   auto nViews = op.getNumInputsAndOutputs();
@@ -314,10 +314,10 @@ static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, RangeOp op) {
-  p << op.getOperationName() << " " << *op.min() << ":" << *op.max() << ":"
-    << *op.step();
+  p << op.getOperationName() << " " << op.min() << ":" << op.max() << ":"
+    << op.step();
   p.printOptionalAttrDict(op.getAttrs());
-  p << " : " << op.getResult()->getType();
+  p << " : " << op.getResult().getType();
 }
 
 static ParseResult parseRangeOp(OpAsmParser &parser, OperationState &result) {
@@ -465,14 +465,52 @@ static SmallVector<AffineMap, 4> getAffineMaps(ArrayAttr attrs) {
       [](Attribute a) { return a.cast<AffineMapAttr>().getValue(); }, attrs);
 }
 
-void mlir::linalg::ReshapeOp::build(Builder *b, OperationState &result,
-                                    Value view, ArrayAttr reassociation,
-                                    ArrayRef<NamedAttribute> attrs) {
-  auto maps = getAffineMaps(reassociation);
+template <typename AffineExprTy>
+unsigned getMaxPosOfType(ArrayRef<ArrayRef<AffineExpr>> exprArrays) {
+  unsigned pos = 0;
+  for (auto exprs : exprArrays) {
+    for (auto expr : exprs) {
+      expr.walk([&pos](AffineExpr e) {
+        if (auto d = e.dyn_cast<AffineExprTy>())
+          pos = std::max(pos, d.getPosition());
+      });
+    }
+  }
+  return pos;
+}
+
+static SmallVector<AffineMap, 4>
+getSymbolLessAffineMaps(ArrayRef<ArrayRef<AffineExpr>> reassociation) {
+  unsigned maxDim = getMaxPosOfType<AffineDimExpr>(reassociation);
+  assert(getMaxPosOfType<AffineSymbolExpr>(reassociation) == 0 &&
+         "Expected symbol-less expressions");
+  SmallVector<AffineMap, 4> maps;
+  maps.reserve(reassociation.size());
+  for (auto exprs : reassociation)
+    maps.push_back(AffineMap::get(maxDim + 1, 0, exprs));
+  return maps;
+}
+
+void mlir::linalg::ReshapeOp::build(
+    Builder *b, OperationState &result, Value view,
+    ArrayRef<ArrayRef<AffineExpr>> reassociation,
+    ArrayRef<NamedAttribute> attrs) {
+  auto maps = getSymbolLessAffineMaps(reassociation);
   auto memRefType = view.getType().cast<MemRefType>();
   auto resultType = computeReshapeCollapsedType(memRefType, maps);
   build(b, result, resultType, view, attrs);
-  result.addAttribute(ReshapeOp::getReassociationAttrName(), reassociation);
+  result.addAttribute(ReshapeOp::getReassociationAttrName(),
+                      b->getAffineMapArrayAttr(maps));
+}
+
+void mlir::linalg::ReshapeOp::build(
+    Builder *b, OperationState &result, Type resultType, Value view,
+    ArrayRef<ArrayRef<AffineExpr>> reassociation,
+    ArrayRef<NamedAttribute> attrs) {
+  auto maps = getSymbolLessAffineMaps(reassociation);
+  build(b, result, resultType, view, attrs);
+  result.addAttribute(ReshapeOp::getReassociationAttrName(),
+                      b->getAffineMapArrayAttr(maps));
 }
 
 static void print(OpAsmPrinter &p, ReshapeOp op) {
@@ -541,7 +579,7 @@ void mlir::linalg::SliceOp::build(Builder *b, OperationState &result,
   result.addOperands(base);
   result.addOperands(indexings);
 
-  auto memRefType = base->getType().cast<MemRefType>();
+  auto memRefType = base.getType().cast<MemRefType>();
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   auto res = getStridesAndOffset(memRefType, strides, offset);
@@ -560,7 +598,7 @@ void mlir::linalg::SliceOp::build(Builder *b, OperationState &result,
 
 static void print(OpAsmPrinter &p, SliceOp op) {
   auto indexings = op.indexings();
-  p << SliceOp::getOperationName() << " " << *op.view() << "[" << indexings
+  p << SliceOp::getOperationName() << " " << op.view() << "[" << indexings
     << "] ";
   p.printOptionalAttrDict(op.getAttrs());
   p << " : " << op.getBaseViewType();
@@ -599,7 +637,7 @@ static LogicalResult verify(SliceOp op) {
            << rank << " indexings, got " << llvm::size(op.indexings());
   unsigned index = 0;
   for (auto indexing : op.indexings()) {
-    if (indexing->getType().isa<IndexType>())
+    if (indexing.getType().isa<IndexType>())
       --rank;
     ++index;
   }
@@ -618,7 +656,7 @@ void mlir::linalg::TransposeOp::build(Builder *b, OperationState &result,
   auto permutationMap = permutation.getValue();
   assert(permutationMap);
 
-  auto memRefType = view->getType().cast<MemRefType>();
+  auto memRefType = view.getType().cast<MemRefType>();
   auto rank = memRefType.getRank();
   auto originalSizes = memRefType.getShape();
   // Compute permuted sizes.
@@ -644,25 +682,27 @@ void mlir::linalg::TransposeOp::build(Builder *b, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, TransposeOp op) {
-  p << op.getOperationName() << " " << *op.view() << " " << op.permutation();
+  p << op.getOperationName() << " " << op.view() << " " << op.permutation();
   p.printOptionalAttrDict(op.getAttrs(),
                           {TransposeOp::getPermutationAttrName()});
-  p << " : " << op.view()->getType();
+  p << " : " << op.view().getType();
 }
 
 static ParseResult parseTransposeOp(OpAsmParser &parser,
                                     OperationState &result) {
   OpAsmParser::OperandType view;
-  AffineMapAttr permutation;
+  AffineMap permutation;
   MemRefType type;
-  return failure(parser.parseOperand(view) ||
-                 parser.parseAttribute(permutation,
-                                       TransposeOp::getPermutationAttrName(),
-                                       result.attributes) ||
-                 parser.parseOptionalAttrDict(result.attributes) ||
-                 parser.parseColonType(type) ||
-                 parser.resolveOperand(view, type, result.operands) ||
-                 parser.addTypeToList(type, result.types));
+  if (parser.parseOperand(view) || parser.parseAffineMap(permutation) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(type) ||
+      parser.resolveOperand(view, type, result.operands) ||
+      parser.addTypeToList(type, result.types))
+    return failure();
+
+  result.addAttribute(TransposeOp::getPermutationAttrName(),
+                      AffineMapAttr::get(permutation));
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -689,7 +729,7 @@ static ParseResult parseYieldOp(OpAsmParser &parser, OperationState &result) {
 }
 
 template <typename GenericOpType>
-LogicalResult verifyYield(YieldOp op, GenericOpType genericOp) {
+static LogicalResult verifyYield(YieldOp op, GenericOpType genericOp) {
   // The operand number and types must match the view element types.
   auto nOutputViews = genericOp.getNumOutputs();
   if (op.getNumOperands() != nOutputViews)
@@ -698,9 +738,9 @@ LogicalResult verifyYield(YieldOp op, GenericOpType genericOp) {
 
   for (unsigned i = 0; i != nOutputViews; ++i) {
     auto elementType = genericOp.getOutputShapedType(i).getElementType();
-    if (op.getOperand(i)->getType() != elementType)
+    if (op.getOperand(i).getType() != elementType)
       return op.emitOpError("type of return operand ")
-             << i << " (" << op.getOperand(i)->getType()
+             << i << " (" << op.getOperand(i).getType()
              << ") doesn't match view element type (" << elementType << ")";
   }
   return success();
@@ -765,7 +805,7 @@ static ParseResult parseLinalgStructuredOp(OpAsmParser &parser,
 
 static LogicalResult verify(FillOp op) {
   auto viewType = op.getOutputShapedType(0);
-  auto fillType = op.value()->getType();
+  auto fillType = op.value().getType();
   if (viewType.getElementType() != fillType)
     return op.emitOpError("expects fill type to match view elemental type");
   return success();
@@ -816,9 +856,9 @@ verifyStrideOrDilation(ConvOp op, ArrayRef<Attribute> attrs, bool isStride) {
 }
 
 static LogicalResult verify(ConvOp op) {
-  auto oType = op.output()->getType().cast<MemRefType>();
-  auto fType = op.filter()->getType().cast<MemRefType>();
-  auto iType = op.input()->getType().cast<MemRefType>();
+  auto oType = op.output().getType().cast<MemRefType>();
+  auto fType = op.filter().getType().cast<MemRefType>();
+  auto iType = op.input().getType().cast<MemRefType>();
   if (oType.getElementType() != iType.getElementType() ||
       oType.getElementType() != fType.getElementType())
     return op.emitOpError("expects memref elemental types to match");

@@ -104,7 +104,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
     // Replace the values directly with the return operands.
     assert(valuesToRepl.size() == 1 &&
            "spv.ReturnValue expected to only handle one result");
-    valuesToRepl.front()->replaceAllUsesWith(retValOp.value());
+    valuesToRepl.front().replaceAllUsesWith(retValOp.value());
   }
 };
 } // namespace
@@ -375,6 +375,7 @@ Optional<uint64_t> parseAndVerify<uint64_t>(SPIRVDialect const &dialect,
   return parseAndVerifyInteger<uint64_t>(dialect, parser);
 }
 
+namespace {
 // Functor object to parse a comma separated list of specs. The function
 // parseAndVerify does the actual parsing and verification of individual
 // elements. This is a functor since parsing the last element of the list
@@ -407,6 +408,7 @@ template <typename ParseType> struct parseCommaSeparatedList<ParseType> {
     return llvm::None;
   }
 };
+} // namespace
 
 // dim ::= `1D` | `2D` | `3D` | `Cube` | <and other SPIR-V Dim specifiers...>
 //

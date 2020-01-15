@@ -45,7 +45,7 @@ static void injectGpuIndexOperations(Location loc, Region &body) {
   // Replace the leading 12 function args with the respective thread/block index
   // operations. Iterate backwards since args are erased and indices change.
   for (int i = 11; i >= 0; --i) {
-    firstBlock.getArgument(i)->replaceAllUsesWith(indexOps[i]);
+    firstBlock.getArgument(i).replaceAllUsesWith(indexOps[i]);
     firstBlock.eraseArgument(i);
   }
 }
@@ -66,7 +66,7 @@ static gpu::LaunchFuncOp inlineBeneficiaryOps(gpu::GPUFuncOp kernelFunc,
     map.map(launch.getKernelOperand(i), kernelFunc.getArgument(i));
   }
   for (int i = launch.getNumKernelOperands() - 1; i >= 0; --i) {
-    auto operandOp = launch.getKernelOperand(i)->getDefiningOp();
+    auto operandOp = launch.getKernelOperand(i).getDefiningOp();
     if (!operandOp || !isInliningBeneficiary(operandOp)) {
       newLaunchArgs.push_back(launch.getKernelOperand(i));
       continue;
@@ -77,7 +77,7 @@ static gpu::LaunchFuncOp inlineBeneficiaryOps(gpu::GPUFuncOp kernelFunc,
       continue;
     }
     auto clone = kernelBuilder.clone(*operandOp, map);
-    firstBlock.getArgument(i)->replaceAllUsesWith(clone->getResult(0));
+    firstBlock.getArgument(i).replaceAllUsesWith(clone->getResult(0));
     firstBlock.eraseArgument(i);
   }
   if (newLaunchArgs.size() == launch.getNumKernelOperands())
@@ -88,7 +88,7 @@ static gpu::LaunchFuncOp inlineBeneficiaryOps(gpu::GPUFuncOp kernelFunc,
   SmallVector<Type, 8> newArgumentTypes;
   newArgumentTypes.reserve(firstBlock.getNumArguments());
   for (auto value : firstBlock.getArguments()) {
-    newArgumentTypes.push_back(value->getType());
+    newArgumentTypes.push_back(value.getType());
   }
   kernelFunc.setType(LaunchBuilder.getFunctionType(newArgumentTypes, {}));
   auto newLaunch = LaunchBuilder.create<gpu::LaunchFuncOp>(
@@ -140,8 +140,8 @@ namespace {
 /// inside a nested module. It also creates an external function of the same
 /// name in the parent module.
 ///
-/// The kernel modules are intended to be compiled to a cubin blob independently
-/// in a separate pass. The external functions can then be annotated with the
+/// The gpu.modules are intended to be compiled to a cubin blob independently in
+/// a separate pass. The external functions can then be annotated with the
 /// symbol of the cubin accessor function.
 class GpuKernelOutliningPass : public ModulePass<GpuKernelOutliningPass> {
 public:
@@ -174,15 +174,19 @@ public:
   }
 
 private:
-  // Returns a module containing kernelFunc and all callees (recursive).
-  ModuleOp createKernelModule(gpu::GPUFuncOp kernelFunc,
-                              const SymbolTable &parentSymbolTable) {
+  // Returns a gpu.module containing kernelFunc and all callees (recursive).
+  gpu::GPUModuleOp createKernelModule(gpu::GPUFuncOp kernelFunc,
+                                      const SymbolTable &parentSymbolTable) {
+    // TODO: This code cannot use an OpBuilder because it must be inserted into
+    // a SymbolTable by the caller. SymbolTable needs to be refactored to
+    // prevent manual building of Ops with symbols in code using SymbolTables
+    // and then this needs to use the OpBuilder.
     auto context = getModule().getContext();
     Builder builder(context);
-    auto kernelModule =
-        ModuleOp::create(builder.getUnknownLoc(), kernelFunc.getName());
-    kernelModule.setAttr(gpu::GPUDialect::getKernelModuleAttrName(),
-                         builder.getUnitAttr());
+    OperationState state(kernelFunc.getLoc(),
+                         gpu::GPUModuleOp::getOperationName());
+    gpu::GPUModuleOp::build(&builder, state, kernelFunc.getName());
+    auto kernelModule = cast<gpu::GPUModuleOp>(Operation::create(state));
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);
 

@@ -121,7 +121,7 @@ TEST(Document, Separators) {
   D.addCodeBlock("test");
   D.addParagraph().appendText("bar");
 
-  const char ExpectedMarkdown[] = R"md(foo
+  const char ExpectedMarkdown[] = R"md(foo  
 ```cpp
 test
 ```
@@ -141,8 +141,17 @@ TEST(Document, Spacer) {
   D.addParagraph().appendText("foo");
   D.addSpacer();
   D.addParagraph().appendText("bar");
-  EXPECT_EQ(D.asMarkdown(), "foo\n\nbar");
+  EXPECT_EQ(D.asMarkdown(), "foo  \n\nbar");
   EXPECT_EQ(D.asPlainText(), "foo\n\nbar");
+}
+
+TEST(Document, Heading) {
+  Document D;
+  D.addHeading(1).appendText("foo");
+  D.addHeading(2).appendText("bar");
+  D.addParagraph().appendText("baz");
+  EXPECT_EQ(D.asMarkdown(), "# foo  \n## bar  \nbaz");
+  EXPECT_EQ(D.asPlainText(), "foo\nbar\nbaz");
 }
 
 TEST(CodeBlock, Render) {
@@ -194,10 +203,10 @@ TEST(BulletList, Render) {
   EXPECT_EQ(L.asPlainText(), "- foo");
 
   L.addItem().addParagraph().appendText("bar");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
-- bar)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
-- bar)pt");
+  llvm::StringRef Expected = R"md(- foo
+- bar)md";
+  EXPECT_EQ(L.asMarkdown(), Expected);
+  EXPECT_EQ(L.asPlainText(), Expected);
 
   // Nested list, with a single item.
   Document &D = L.addItem();
@@ -215,40 +224,44 @@ TEST(BulletList, Render) {
   Document &DeepDoc = InnerList.addItem();
   DeepDoc.addParagraph().appendText("baz");
   DeepDoc.addParagraph().appendText("baz");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
+  StringRef ExpectedMarkdown = R"md(- foo
+- bar
+- foo  
+  baz  
+  - foo  
+    - baz  
+      baz)md";
+  EXPECT_EQ(L.asMarkdown(), ExpectedMarkdown);
+  StringRef ExpectedPlainText = R"pt(- foo
 - bar
 - foo
   baz
   - foo
     - baz
-      baz)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
-- bar
-- foo
-  baz
-  - foo
-    - baz
-      baz)pt");
+      baz)pt";
+  EXPECT_EQ(L.asPlainText(), ExpectedPlainText);
 
   // Termination
   Inner.addParagraph().appendText("after");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
+  ExpectedMarkdown = R"md(- foo
 - bar
-- foo
-  baz
-  - foo
-    - baz
+- foo  
+  baz  
+  - foo  
+    - baz  
       baz
     
-    after)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
+    after)md";
+  EXPECT_EQ(L.asMarkdown(), ExpectedMarkdown);
+  ExpectedPlainText = R"pt(- foo
 - bar
 - foo
   baz
   - foo
     - baz
       baz
-    after)pt");
+    after)pt";
+  EXPECT_EQ(L.asPlainText(), ExpectedPlainText);
 }
 
 } // namespace

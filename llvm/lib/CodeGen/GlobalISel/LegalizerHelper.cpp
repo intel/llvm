@@ -2317,6 +2317,8 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     return lowerBswap(MI);
   case G_BITREVERSE:
     return lowerBitreverse(MI);
+  case G_READ_REGISTER:
+    return lowerReadRegister(MI);
   }
 }
 
@@ -4200,10 +4202,7 @@ LegalizerHelper::lowerShuffleVector(MachineInstr &MI) {
   LLT DstTy = MRI.getType(DstReg);
   LLT IdxTy = LLT::scalar(32);
 
-  const Constant *ShufMask = MI.getOperand(3).getShuffleMask();
-
-  SmallVector<int, 32> Mask;
-  ShuffleVectorInst::getShuffleMask(ShufMask, Mask);
+  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
 
   if (DstTy.isScalar()) {
     if (Src0Ty.isVector())
@@ -4466,6 +4465,25 @@ LegalizerHelper::lowerBitreverse(MachineInstr &MI) {
   // -> [(val & 0xAAAAAAAA) >> 1] & [(val << 1) & 0xAAAAAAAA]
   SwapN(1, Dst, MIRBuilder, Swap2, APInt::getSplat(Size, APInt(8, 0xAA)));
 
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerReadRegister(MachineInstr &MI) {
+  Register Dst = MI.getOperand(0).getReg();
+  const LLT Ty = MRI.getType(Dst);
+  const MDString *RegStr = cast<MDString>(
+    cast<MDNode>(MI.getOperand(1).getMetadata())->getOperand(0));
+
+  MachineFunction &MF = MIRBuilder.getMF();
+  const TargetSubtargetInfo &STI = MF.getSubtarget();
+  const TargetLowering *TLI = STI.getTargetLowering();
+  Register Reg = TLI->getRegisterByName(RegStr->getString().data(), Ty, MF);
+  if (!Reg.isValid())
+    return UnableToLegalize;
+
+  MIRBuilder.buildCopy(Dst, Reg);
   MI.eraseFromParent();
   return Legalized;
 }

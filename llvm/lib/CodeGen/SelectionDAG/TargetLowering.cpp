@@ -344,25 +344,18 @@ void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
           (VT == MVT::f64) ? RTLIB::OGT_F64 :
           (VT == MVT::f128) ? RTLIB::OGT_F128 : RTLIB::OGT_PPCF128;
     break;
+  case ISD::SETO:
+    ShouldInvertCC = true;
+    LLVM_FALLTHROUGH;
   case ISD::SETUO:
     LC1 = (VT == MVT::f32) ? RTLIB::UO_F32 :
           (VT == MVT::f64) ? RTLIB::UO_F64 :
           (VT == MVT::f128) ? RTLIB::UO_F128 : RTLIB::UO_PPCF128;
     break;
-  case ISD::SETO:
-    LC1 = (VT == MVT::f32) ? RTLIB::O_F32 :
-          (VT == MVT::f64) ? RTLIB::O_F64 :
-          (VT == MVT::f128) ? RTLIB::O_F128 : RTLIB::O_PPCF128;
-    break;
   case ISD::SETONE:
-    // SETONE = SETOLT | SETOGT
-    LC1 = (VT == MVT::f32) ? RTLIB::OLT_F32 :
-          (VT == MVT::f64) ? RTLIB::OLT_F64 :
-          (VT == MVT::f128) ? RTLIB::OLT_F128 : RTLIB::OLT_PPCF128;
-    LC2 = (VT == MVT::f32) ? RTLIB::OGT_F32 :
-          (VT == MVT::f64) ? RTLIB::OGT_F64 :
-          (VT == MVT::f128) ? RTLIB::OGT_F128 : RTLIB::OGT_PPCF128;
-    break;
+    // SETONE = O && UNE
+    ShouldInvertCC = true;
+    LLVM_FALLTHROUGH;
   case ISD::SETUEQ:
     LC1 = (VT == MVT::f32) ? RTLIB::UO_F32 :
           (VT == MVT::f64) ? RTLIB::UO_F64 :
@@ -420,19 +413,19 @@ void TargetLowering::softenSetCCOperands(SelectionDAG &DAG, EVT VT,
     // Update Chain.
     Chain = Call.second;
   } else {
-    SDValue Tmp = DAG.getNode(
-        ISD::SETCC, dl,
-        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), RetVT),
-        NewLHS, NewRHS, DAG.getCondCode(CCCode));
+    EVT SetCCVT =
+        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), RetVT);
+    SDValue Tmp = DAG.getSetCC(dl, SetCCVT, NewLHS, NewRHS, CCCode);
     auto Call2 = makeLibCall(DAG, LC2, RetVT, Ops, CallOptions, dl, Chain);
-    NewLHS = DAG.getNode(
-        ISD::SETCC, dl,
-        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), RetVT),
-        Call2.first, NewRHS, DAG.getCondCode(getCmpLibcallCC(LC2)));
+    CCCode = getCmpLibcallCC(LC2);
+    if (ShouldInvertCC)
+      CCCode = getSetCCInverse(CCCode, RetVT);
+    NewLHS = DAG.getSetCC(dl, SetCCVT, Call2.first, NewRHS, CCCode);
     if (Chain)
       Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, Call.second,
                           Call2.second);
-    NewLHS = DAG.getNode(ISD::OR, dl, Tmp.getValueType(), Tmp, NewLHS);
+    NewLHS = DAG.getNode(ShouldInvertCC ? ISD::AND : ISD::OR, dl,
+                         Tmp.getValueType(), Tmp, NewLHS);
     NewRHS = SDValue();
   }
 }
@@ -724,6 +717,27 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
       return Op.getOperand(0);
     if (DemandedBits.isSubsetOf(LHSKnown.Zero))
       return Op.getOperand(1);
+    break;
+  }
+  case ISD::SETCC: {
+    SDValue Op0 = Op.getOperand(0);
+    SDValue Op1 = Op.getOperand(1);
+    ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
+    // If (1) we only need the sign-bit, (2) the setcc operands are the same
+    // width as the setcc result, and (3) the result of a setcc conforms to 0 or
+    // -1, we may be able to bypass the setcc.
+    if (DemandedBits.isSignMask() &&
+        Op0.getScalarValueSizeInBits() == DemandedBits.getBitWidth() &&
+        getBooleanContents(Op0.getValueType()) ==
+            BooleanContent::ZeroOrNegativeOneBooleanContent) {
+      // If we're testing X < 0, then this compare isn't needed - just use X!
+      // FIXME: We're limiting to integer types here, but this should also work
+      // if we don't care about FP signed-zero. The use of SETLT with FP means
+      // that we don't care about NaNs.
+      if (CC == ISD::SETLT && Op1.getValueType().isInteger() &&
+          (isNullConstant(Op1) || ISD::isBuildVectorAllZeros(Op1.getNode())))
+        return Op0;
+    }
     break;
   }
   case ISD::SIGN_EXTEND_INREG: {
@@ -6120,11 +6134,13 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
   SDValue Cst = DAG.getConstantFP(APF, dl, SrcVT);
   SDValue Sel;
 
-  if (Node->isStrictFPOpcode())
+  if (Node->isStrictFPOpcode()) {
     Sel = DAG.getSetCC(dl, SetCCVT, Src, Cst, ISD::SETLT,
                        Node->getOperand(0), /*IsSignaling*/ true);
-  else
+    Chain = Sel.getValue(1);
+  } else {
     Sel = DAG.getSetCC(dl, SetCCVT, Src, Cst, ISD::SETLT);
+  }
 
   bool Strict = Node->isStrictFPOpcode() ||
                 shouldUseStrictFP_TO_INT(SrcVT, DstVT, /*IsSigned*/ false);
@@ -6147,7 +6163,7 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
     SDValue SInt;
     if (Node->isStrictFPOpcode()) {
       SDValue Val = DAG.getNode(ISD::STRICT_FSUB, dl, { SrcVT, MVT::Other }, 
-                                { Node->getOperand(0), Src, FltOfs });
+                                { Chain, Src, FltOfs });
       SInt = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl, { DstVT, MVT::Other }, 
                          { Val.getValue(1), Val });
       Chain = SInt.getValue(1);

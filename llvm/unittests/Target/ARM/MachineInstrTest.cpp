@@ -149,6 +149,24 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VFMA_qr_Sf32:
     case MVE_VFMA_qr_f16:
     case MVE_VFMA_qr_f32:
+    case MVE_VMAXAs16:
+    case MVE_VMAXAs32:
+    case MVE_VMAXAs8:
+    case MVE_VMAXs16:
+    case MVE_VMAXs32:
+    case MVE_VMAXs8:
+    case MVE_VMAXu16:
+    case MVE_VMAXu32:
+    case MVE_VMAXu8:
+    case MVE_VMINAs16:
+    case MVE_VMINAs32:
+    case MVE_VMINAs8:
+    case MVE_VMINs16:
+    case MVE_VMINs32:
+    case MVE_VMINs8:
+    case MVE_VMINu16:
+    case MVE_VMINu32:
+    case MVE_VMINu8:
     case MVE_VMLAS_qr_s16:
     case MVE_VMLAS_qr_s32:
     case MVE_VMLAS_qr_s8:
@@ -284,8 +302,6 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VORRIZ24v4i32:
     case MVE_VORRIZ8v4i32:
     case MVE_VORRIZ8v8i16:
-    case MVE_VPNOT:
-    case MVE_VPSEL:
     case MVE_VPST:	
     case MVE_VQABSs16:
     case MVE_VQABSs32:
