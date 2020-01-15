@@ -23,31 +23,41 @@ int main(int argc, char *argv[]) {
 
   // Good size, bad type
   auto p = malloc(8, q, usm::alloc::unknown);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 1;
 
   // Bad size, host
   p = malloc(-1, q, usm::alloc::host);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 2;
   p = malloc(-1, q, usm::alloc::device);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 3;
   p = malloc(-1, q, usm::alloc::shared);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 4;
   p = malloc(-1, q, usm::alloc::unknown);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 5;
 
   // Bad size, auto aligned
   p = aligned_alloc(0, -1, q,  usm::alloc::host);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 6;
   p = aligned_alloc(0, -1, q,  usm::alloc::device);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 7;
   p = aligned_alloc(0, -1, q,  usm::alloc::shared);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 8;
   p = aligned_alloc(0, -1, q,  usm::alloc::unknown);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 9;
 
   // Allocs of 0 undefined, but bad type
   p = aligned_alloc(4, 0, q,  usm::alloc::unknown);
-  assert(p == nullptr);
+  if (p != nullptr)
+    return 10;
 
   return 0;
 }
