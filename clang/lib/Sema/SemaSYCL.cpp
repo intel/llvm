@@ -261,9 +261,8 @@ public:
             << Name << "SYCL device";
       }
 
-      // Disallow non-whitelisted methods with neither definition nor SYCL_EXTERNAL mark
-      if (!Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>() &&
-          !IsWhitelistedMethod(Callee)) {
+      // Disallow methods with neither definition nor SYCL_EXTERNAL mark
+      if (!Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>()) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallDisallowedMethod;
       }
@@ -563,29 +562,6 @@ private:
       return CheckSYCLType(FTy->getReturnType(), Loc, Visited);
     }
     return true;
-  }
-
-  bool IsWhitelistedMethod(const FunctionDecl *FD) const {
-    std::unique_ptr<MangleContext> MangleCtx(
-          SemaRef.Context.createMangleContext());
-    std::string NameToLookup = "n / a";
-
-    if (!MangleCtx->shouldMangleDeclName(FD)) {
-      NameToLookup = FD->getName();
-    } else {
-      llvm::raw_string_ostream OS(NameToLookup);
-
-      MangleCtx->mangleName(FD, OS);
-
-      OS.flush();
-    }
-
-    llvm::StringSwitch<bool> WhiteList(NameToLookup);
-
-    // type in a whitelist of methods allowed to call from kernel code, e.g.:
-    // WhiteList.Case("printf", true);
-
-    return WhiteList.Default(false);
   }
 
   Sema &SemaRef;
