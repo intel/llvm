@@ -1391,10 +1391,6 @@ static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
   if (!FD)
     return true; // Seen in LIT testing
 
-  // Templates are emitted when they're instantiated.
-  if (FD->isDependentContext())
-    return false;
-
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return true;
 
@@ -1409,7 +1405,7 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
-    if (ConstructingOpenCLKernel || (FD && FD->isDependentContext()))
+    if (ConstructingOpenCLKernel)
       return DeviceDiagBuilder::K_Nop;
     else if (isKnownEmitted(*this, FD))
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
