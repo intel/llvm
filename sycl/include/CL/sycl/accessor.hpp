@@ -693,9 +693,9 @@ class accessor :
 
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using RefType = typename std::conditional<
-      AS == access::address_space::constant_space,
-      const DataT &, DataT &>::type;
+  using RefType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT &, DataT &>::type;
   using PtrType =
       typename std::conditional<AS == access::address_space::constant_space,
                                 const DataT *, DataT *>::type;

@@ -1,6 +1,6 @@
 # Overview
 
-This file describes macroses that are having effect on SYCL compiler and run-time.
+This file describes macros that have effect on SYCL compiler and run-time.
 
 ### RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR
 

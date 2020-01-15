@@ -86,9 +86,7 @@ public:
   using ReturnRef =
       typename std::conditional<Space == access::address_space::constant_space,
                                 const ElementType &, ElementType &>::type;
-  using ReturnConstRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const ElementType &, ElementType &>::type;
+  using ReturnConstRef = ReturnRef;
 #else
   using ReturnPtr = ElementType *;
   using ReturnRef = ElementType &;
@@ -581,8 +579,8 @@ template <typename ElementType, access::address_space Space,
 multi_ptr<ElementType, Space> make_ptr(const ElementType *pointer) {
   return multi_ptr<ElementType, Space>(pointer);
 }
-#endif
-#endif
+#endif // RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR
+#endif // // __SYCL_DEVICE_ONLY__
 
 template <typename ElementType, access::address_space Space>
 bool operator==(const multi_ptr<ElementType, Space> &lhs,

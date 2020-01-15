@@ -112,7 +112,7 @@ struct PtrValueType<ElementType, access::address_space::constant_space> {
   // instead of constant to avoid incorrect address space casts in the produced
   // device code.
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using type = const __OPENCL_GLOBAL_AS ElementType;
+  using type = const __OPENCL_GLOBAL_AS__ ElementType;
 #else
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 #endif
