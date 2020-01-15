@@ -16,7 +16,7 @@ void kernel3(void) {
 using myFuncDef = int(int,int);
 
 void usage3(myFuncDef functionPtr) {
-  // expected-error@+1 1{{SYCL kernel cannot allocate storage}}
+  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   kernel3();
 }
