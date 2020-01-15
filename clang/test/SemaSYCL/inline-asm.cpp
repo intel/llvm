@@ -21,11 +21,13 @@ void bar() {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+  // expected-note@+1 {{called by 'kernel_single_task<fake_kernel, (lambda}}
   kernelFunc();
 }
 
 int main() {
   foo();
+  // expected-note@+1 {{called by 'operator()'}}
   kernel_single_task<class fake_kernel>([]() { bar(); });
   return 0;
 }

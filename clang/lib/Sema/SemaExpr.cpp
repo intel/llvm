@@ -5404,6 +5404,12 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
 
     // Otherwise do argument promotion, (C99 6.5.2.2p7).
     } else {
+      // Diagnose variadic calls in SYCL.
+      if (getLangOpts().SYCLIsDevice && !isUnevaluatedContext() &&
+          !isKnownGoodSYCLDecl(FDecl))
+        SYCLDiagIfDeviceCode(CallLoc, diag::err_sycl_restrict)
+            << Sema::KernelCallVariadicFunction;
+
       for (Expr *A : Args.slice(ArgIx)) {
         ExprResult Arg = DefaultVariadicArgumentPromotion(A, CallType, FDecl);
         Invalid |= Arg.isInvalid();
