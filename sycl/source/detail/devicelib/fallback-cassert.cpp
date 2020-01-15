@@ -9,6 +9,7 @@
 #include "wrapper.h"
 
 // __attribute((format(...))) enables compiler checks for a format string.
+SYCL_EXTERNAL
 int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
 
