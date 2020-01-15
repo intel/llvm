@@ -1285,6 +1285,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   FunctionDecl *OpenCLKernel =
       CreateOpenCLKernelDeclaration(getASTContext(), Name, ParamDescs);
 
+  ContextRAII FuncContext(*this, OpenCLKernel);
+
   // Let's copy source location of a functor/lambda to emit nicer diagnostics
   OpenCLKernel->setLocation(LE->getLocation());
 
