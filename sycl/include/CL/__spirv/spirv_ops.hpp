@@ -261,6 +261,12 @@ extern SYCL_EXTERNAL WPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_write(
 extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
+
+// __attribute((format(...))) enables compiler checks for a format string.
+SYCL_EXTERNAL
+int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
