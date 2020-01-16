@@ -41,10 +41,18 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
     for (const auto &plt : platform::get_platforms()) {
-      vector_class<device> found_devices(plt.get_devices(deviceType));
-      if (!found_devices.empty())
-        devices.insert(devices.end(), found_devices.begin(),
-                       found_devices.end());
+      // Host device must always be available.
+      if (plt.is_host()) {
+        vector_class<device> host_device(
+            plt.get_devices(info::device_type::host));
+        if (!host_device.empty())
+          devices.insert(devices.end(), host_device.begin(), host_device.end());
+      } else {
+        vector_class<device> found_devices(plt.get_devices(deviceType));
+        if (!found_devices.empty())
+          devices.insert(devices.end(), found_devices.begin(),
+                         found_devices.end());
+      }
     }
   }
   return devices;

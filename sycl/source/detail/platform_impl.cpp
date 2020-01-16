@@ -41,8 +41,8 @@ vector_class<platform> platform_impl::get_platforms() {
     }
   }
 
-  if (ForcedType == info::device_type::host || ForcedType == info::device_type::all)
-    Platforms.emplace_back(platform());
+  // The host platform should always be available.
+  Platforms.emplace_back(platform());
 
   return Platforms;
 }

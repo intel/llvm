@@ -124,6 +124,7 @@ void eh_not_ok(void)
 
 void usage(myFuncDef functionPtr) {
 
+  // expected-note@+1 {{called by 'usage'}}
   eh_not_ok();
 
 #if ALLOW_FP
@@ -169,7 +170,6 @@ int use2 ( a_type ab, a_type *abp ) {
   return ns::glob +
   // expected-error@+1 {{SYCL kernel cannot use a global variable}}
     AnotherNS::moar_globals;
-  // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
   Check_RTTI_Restriction:: A *a;
   Check_RTTI_Restriction:: isa_B(a);
@@ -180,15 +180,16 @@ int use2 ( a_type ab, a_type *abp ) {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+  // expected-note@+1 {{called by 'kernel_single_task}}
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 {{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 
 int main() {
   a_type ab;
+  // expected-note@+1 {{called by 'operator()'}}
   kernel_single_task<class fake_kernel>([]() { usage(  &addInt ); });
   return 0;
 }
