@@ -21,20 +21,20 @@ int main() {
       []() [[intelfpga::uses_global_work_offset(0)]]{});
 
   // CHECK: SYCLIntelUsesGlobalWorkOffsetAttr{{.*}}Enabled
-  // expected-warning@+2{{attribute should be 0 or 1. Adjusted to 1}}
+  // expected-warning@+2{{'uses_global_work_offset' attribute should be 0 or 1. Adjusted to 1}}
   kernel<class test_kernel3>(
       []() [[intelfpga::uses_global_work_offset(42)]]{});
 
-  // expected-error@+2{{attribute requires a non-negative integral compile time constant expression}}
+  // expected-error@+2{{'uses_global_work_offset' attribute requires a non-negative integral compile time constant expression}}
   kernel<class test_kernel4>(
       []() [[intelfpga::uses_global_work_offset(-1)]]{});
 
-  // expected-error@+2{{attribute requires parameter 0 to be an integer constant}}
+  // expected-error@+2{{'uses_global_work_offset' attribute requires parameter 0 to be an integer constant}}
   kernel<class test_kernel5>(
       []() [[intelfpga::uses_global_work_offset("foo")]]{});
 
   kernel<class test_kernel6>([]() {
-    // expected-error@+1{{attribute only applies to functions}}
+    // expected-error@+1{{'uses_global_work_offset' attribute only applies to functions}}
     [[intelfpga::uses_global_work_offset(1)]] int a;
   });
 
