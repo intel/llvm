@@ -30,17 +30,28 @@ template <class To, class From> To cast(From value) {
   return (To)(value);
 }
 
+// Older versions of GCC don't like "const" here
+#if defined(__GNUC__) && (__GNUC__ < 7 || (__GNU__C == 7 && __GNUC_MINOR__ < 2))
+#define CONSTFIX constexpr
+#else
+#define CONSTFIX const
+#endif
+
 // Names of USM functions that are queried from OpenCL
-constexpr char clHostMemAllocName[] = "clHostMemAllocINTEL";
-constexpr char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
-constexpr char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-constexpr char clMemFreeName[] = "clMemFreeINTEL";
-constexpr char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-constexpr char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
-constexpr char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-constexpr char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-constexpr char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
-constexpr char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
+CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
+CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
+CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
+CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
+CONSTFIX char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
+CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+
+#undef CONSTFIX
+
+
 
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>

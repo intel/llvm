@@ -247,11 +247,37 @@ void copyBlock() {
   }
 }
 
+void checkMultipleContexts() {
+  constexpr int N = 64;
+  int a[N] = {0};
+  {
+    sycl::queue queue1;
+    sycl::queue queue2;
+    sycl::buffer<int, 1> buf(a, sycl::range<1>(N));
+    sycl::buffer<int, 1> subbuf1(buf, sycl::id<1>(0), sycl::range<1>(N / 2));
+    sycl::buffer<int, 1> subbuf2(buf, sycl::id<1>(N / 2),
+                                 sycl::range<1>(N / 2));
+    queue1.submit([&](sycl::handler &cgh) {
+      auto bufacc = subbuf1.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<class sub_buffer_1>(
+          sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 1; });
+    });
+
+    queue2.submit([&](sycl::handler &cgh) {
+      auto bufacc = subbuf2.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<class sub_buffer_2>(
+          sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 2; });
+    });
+  }
+  assert(a[N / 2 - 1] == 1 && a[N / 2] == 2 && "Sub buffer data loss");
+}
+
 int main() {
   cl::sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
   checkExceptions();
   copyBlock();
+  checkMultipleContexts();
   return 0;
 }
