@@ -32,30 +32,24 @@ template <class To, class From> To cast(From value) {
 
 // Older versions of GCC don't like "const" here
 #if defined(__GNUC__) && (__GNUC__ < 7 || (__GNU__C == 7 && __GNUC_MINOR__ < 2))
-// Names of USM functions that are queried from OpenCL
-constexpr char clHostMemAllocName[] = "clHostMemAllocINTEL";
-constexpr char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
-constexpr char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-constexpr char clMemFreeName[] = "clMemFreeINTEL";
-constexpr char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-constexpr char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
-constexpr char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-constexpr char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-constexpr char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
-constexpr char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+#define CONSTFIX constexpr
 #else
-// Names of USM functions that are queried from OpenCL
-const char clHostMemAllocName[] = "clHostMemAllocINTEL";
-const char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
-const char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-const char clMemFreeName[] = "clMemFreeINTEL";
-const char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-const char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
-const char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-const char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-const char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
-const char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+#define CONSTFIX const
 #endif
+
+// Names of USM functions that are queried from OpenCL
+CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
+CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
+CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
+CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
+CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
+CONSTFIX char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
+CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+
+#undef CONSTFIX
 
 
 
