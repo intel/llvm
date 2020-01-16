@@ -3285,6 +3285,10 @@ bool SPIRVToLLVM::transKernelMetadata() {
       F->setMetadata(kSPIR2MD::MaxWGSize,
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
+    // Generate metadata for no_global_work_offset
+    if (auto EM = BF->getExecutionMode(ExecutionModeNoGlobalOffsetINTEL)) {
+      F->setMetadata(kSPIR2MD::NoGlobalOffset, MDNode::get(*Context, {}));
+    }
     // Generate metadata for max_global_work_dim
     if (auto EM = BF->getExecutionMode(ExecutionModeMaxWorkDimINTEL)) {
       F->setMetadata(kSPIR2MD::MaxWGDim,
