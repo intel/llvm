@@ -15,6 +15,7 @@
 // This test verifies that things fail in the proper way when they should.
 
 #include <CL/sycl.hpp>
+#include <iostream>
 
 using namespace cl::sycl;
 
@@ -28,34 +29,43 @@ int main(int argc, char *argv[]) {
 
   // Bad size, host
   p = malloc(-1, q, usm::alloc::host);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 2;
   p = malloc(-1, q, usm::alloc::device);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 3;
   p = malloc(-1, q, usm::alloc::shared);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 4;
   p = malloc(-1, q, usm::alloc::unknown);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 5;
 
   // Bad size, auto aligned
   p = aligned_alloc(0, -1, q,  usm::alloc::host);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 6;
   p = aligned_alloc(0, -1, q,  usm::alloc::device);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 7;
   p = aligned_alloc(0, -1, q,  usm::alloc::shared);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 8;
   p = aligned_alloc(0, -1, q,  usm::alloc::unknown);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 9;
 
   // Allocs of 0 undefined, but bad type
   p = aligned_alloc(4, 0, q,  usm::alloc::unknown);
+  std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 10;
 
