@@ -155,7 +155,7 @@ targets like SPIR-V).
 #### Enable SYCL offload
 
 To enable compilation following single-source multiple compiler-passes (SMCP)
-technique which described in the SYCL specification, a special option
+technique which is described in the SYCL specification, a special option
 must be passed to the clang driver:
 
 `-fsycl`
