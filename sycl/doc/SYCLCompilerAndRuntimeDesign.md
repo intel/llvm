@@ -154,22 +154,26 @@ targets like SPIR-V).
 
 #### Enable SYCL offload
 
-To enable compilation following the SYCL specification, a special option
+To enable compilation following single-source multiple compiler-passes (SMCP)
+technique which described in the SYCL specification, a special option
 must be passed to the clang driver:
 
 `-fsycl`
 
 With this option specified, the driver will invoke the host SYCL compiler and a
 number of device compilers for targets specified in the `-fsycl-targets`
-option.  If this option is not specified, then single SPIR-V target is assumed,
-and single device compiler for this target is invoked.
+option.  If `-fsycl-targets` is not specified, then single SPIR-V target is
+assumed, and single device compiler for this target is invoked.
 
 In the driver, the following bools are defined to determine the compilation
 mode in SYCL:
 
-* IsSYCL : True if the user has passed `-fsycl-device-only` to the compilation
-* IsSYCLOffloadDevice: True if calling clang to set up a device compilation
-* IsSYCLHost: True if setting up a call to clang to do a host compilation
+* IsSYCL : True if the user has passed `-fsycl` to the compilation
+* IsSYCLOffloadDevice: True if setting up a call to clang to do a device
+compilation and user has passed `-fsycl` option to the compilation
+* IsSYCLDevice : True if the user has passed `-fsycl-device-only` option to the
+driver. Also true when IsSYCLOffloadDevice is true
+
 
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
