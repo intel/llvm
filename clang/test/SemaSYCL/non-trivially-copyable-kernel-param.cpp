@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -std=c++11 %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-new-kernel-param-requirements -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with non-trivially copyable type as SYCL kernel parameter.

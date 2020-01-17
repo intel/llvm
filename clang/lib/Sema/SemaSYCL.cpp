@@ -1033,15 +1033,25 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy)) {
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
     } else if (ArgTy->isStructureOrClassType()) {
-      // TODO: Make stream class trivially copyable and remove the check on
-      // stream class.
-      if (!ArgTy.isTriviallyCopyableType(Context) &&
-          !Util::isSyclStreamType(ArgTy)) {
-        Context.getDiagnostics().Report(
-            Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
-            << ArgTy;
-        AllArgsAreValid = false;
-        continue;
+      if (Context.getLangOpts().SYCLNewKernelParamReq) {
+        // TODO: Make stream class trivially copyable and remove the check on
+        // stream class.
+        if (!ArgTy.isTriviallyCopyableType(Context) &&
+            !Util::isSyclStreamType(ArgTy)) {
+          Context.getDiagnostics().Report(
+              Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
+              << ArgTy;
+          AllArgsAreValid = false;
+          continue;
+        }
+      } else {
+        if (!ArgTy->isStandardLayoutType()) {
+          Context.getDiagnostics().Report(Fld->getLocation(),
+                                          diag::err_sycl_non_std_layout_type)
+              << ArgTy;
+          AllArgsAreValid = false;
+          continue;
+        }
       }
 
       CreateAndAddPrmDsc(Fld, ArgTy);

@@ -3992,6 +3992,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   } else if (IsSYCL) {
     // Ensure the default version in SYCL mode is 1.2.1
     CmdArgs.push_back("-sycl-std=1.2.1");
+    CmdArgs.push_back("-fsycl-new-kernel-param-requirements");
   }
 
   if (IsOpenMPDevice) {
