@@ -165,16 +165,6 @@ number of device compilers for targets specified in the `-fsycl-targets`
 option.  If `-fsycl-targets` is not specified, then single SPIR-V target is
 assumed, and single device compiler for this target is invoked.
 
-In the driver, the following bools are defined to determine the compilation
-mode in SYCL:
-
-* IsSYCL : True if the user has passed `-fsycl` to the compilation
-* IsSYCLOffloadDevice: True if setting up a call to clang to do a device
-compilation and user has passed `-fsycl` option to the compilation
-* IsSYCLDevice : True if the user has passed `-fsycl-device-only` option to the
-driver. Also true when IsSYCLOffloadDevice is true
-
-
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
 The default value for this option is `1.2.1`.
