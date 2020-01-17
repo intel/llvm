@@ -4458,6 +4458,12 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
 
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
+
+  // Diagnose variadic calls in SYCL.
+  if (FD && FD ->isVariadic() && getLangOpts().SYCLIsDevice &&
+      !isUnevaluatedContext() && !isKnownGoodSYCLDecl(FD))
+    SYCLDiagIfDeviceCode(Loc, diag::err_sycl_restrict)
+        << Sema::KernelCallVariadicFunction;
 }
 
 /// CheckConstructorCall - Check a constructor call for correctness and safety
