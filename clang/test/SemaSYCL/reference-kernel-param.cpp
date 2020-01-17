@@ -3,7 +3,7 @@
 // This test checks if compiler reports compilation error on an attempt to pass
 // a reference as SYCL kernel parameter.
 
-template <typename name, typename Func>
+template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
