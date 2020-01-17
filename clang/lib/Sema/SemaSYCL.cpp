@@ -215,6 +215,7 @@ public:
 
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
+
       // Remember that all SYCL kernel functions have deferred
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
@@ -262,7 +263,9 @@ public:
       }
 
       // Disallow methods with neither definition nor SYCL_EXTERNAL mark
-      if (!Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>()) {
+      // Only validate really called methods
+      if (SYCLCG.getNode(Callee) &&
+          !Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>()) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallDisallowedMethod;
       }
@@ -296,6 +299,12 @@ public:
       }
     }
     return true;
+  }
+
+  // By-pass static assert internals as everything inside it won't be found in
+  // callgraph. Thus we don't want to mark it with SYCLDeviceAttr
+  bool VisitStaticAssertDecl(StaticAssertDecl *D) {
+    return false;
   }
 
   bool VisitCXXTypeidExpr(CXXTypeidExpr *E) {
