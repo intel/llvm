@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 
@@ -19,9 +20,23 @@
 #ifdef __SYCL_DEVICE_ONLY__
 #define __FUNC_PREFIX_OCL  __spirv_ocl_
 #define __FUNC_PREFIX_CORE  __spirv_
+#define EXTERN_IT1(Ret, prefix, call, Arg1)
+#define EXTERN_IT2(Ret, prefix, call, Arg1, Arg2)
+#define EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
+#define TPARAMS1(Ret, A1) <Ret, A1>
+#define TPARAMS2(Ret, A1, A2) <Ret, A1, A2>
+#define TPARAMS3(Ret, A1, A2, A3) <Ret, A1, A2, A3>
 #else
 #define __FUNC_PREFIX_OCL
 #define __FUNC_PREFIX_CORE
+#define EXTERN_IT1(Ret, prefix, call, Arg1) extern Ret PPCAT(prefix, call)(Arg1)
+#define EXTERN_IT2(Ret, prefix, call, Arg1, Arg2)                              \
+  extern Ret PPCAT(prefix, call)(Arg1, Arg2)
+#define EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)                        \
+  extern Ret PPCAT(prefix, call)(Arg1, Arg2, Arg3)
+#define TPARAMS1(Ret, A1)
+#define TPARAMS2(Ret, A1, A2)
+#define TPARAMS3(Ret, A1, A2, A3)
 #endif
 
 #define PPCAT_NX(A, B) A ## B
@@ -32,13 +47,60 @@
   inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    EXTERN_IT1(Ret, prefix, call, Arg1);                                       \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Ret  ret  = PPCAT(prefix, call)TPARAMS1(Ret, Arg1)(arg1);                  \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
+  }
+
+#define MAKE_CALL_ARG2(call, prefix)                                           \
+  template <typename R, typename T1, typename T2>                              \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
+    EXTERN_IT2(Ret, prefix, call, Arg1, Arg2);                                 \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
+    Ret  ret  = PPCAT(prefix, call)TPARAMS2(Ret, Arg1, Arg2)(arg1, arg2);      \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
+  }
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define MAKE_CALL_ARG1_TPL(call, prefix)                                       \
+  template <typename R, typename T1>                                           \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Ret  ret  = PPCAT(prefix, call)<Ret, Arg1>(arg1);                          \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
+  }
+
+#define MAKE_CALL_ARG2_TPL(call, prefix)                                       \
+  template <typename R, typename T1, typename T2>                              \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
+    Ret  ret  = PPCAT(prefix, call)<Ret, Arg1, Arg2>(arg1, arg2);              \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
+  }
+#else // if !__SYCL_DEVICE_ONLY__
+#define MAKE_CALL_ARG1_TPL(call, prefix)                                       \
+  template <typename R, typename T1>                                           \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     extern Ret PPCAT(prefix, call)(Arg1);                                      \
     Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
     Ret  ret  = PPCAT(prefix, call)(arg1);                                     \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
-#define MAKE_CALL_ARG2(call, prefix)                                           \
+#define MAKE_CALL_ARG2_TPL(call, prefix)                                       \
   template <typename R, typename T1, typename T2>                              \
   inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
@@ -50,6 +112,7 @@
     Ret  ret  = PPCAT(prefix, call)(arg1, arg2);                               \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
+#endif // __SYCL_DEVICE_ONLY__
 
 #define MAKE_CALL_ARG3(call, prefix)                                           \
   template <typename R, typename T1, typename T2, typename T3>                 \
@@ -58,11 +121,12 @@
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
     using Arg3 = cl::sycl::detail::ConvertToOpenCLType_t<T3>;                  \
-    extern Ret PPCAT(prefix, call)(Arg1, Arg2, Arg3);                          \
+    EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3);                           \
     Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
     Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
     Arg3 arg3 = cl::sycl::detail::convertDataToType<T3, Arg3>(t3);             \
-    Ret  ret  = PPCAT(prefix, call)(arg1, arg2, arg3);                         \
+    Ret  ret  = PPCAT(prefix, call)TPARAMS3(Ret, Arg1, Arg2, Arg3)(            \
+      arg1, arg2, arg3);                                                       \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
@@ -223,7 +287,7 @@ MAKE_CALL_ARG1(fast_length, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG1(fast_normalize, __FUNC_PREFIX_OCL)
 /* --------------- 4.13.7 Relational functions. -----------------------------*/
 MAKE_CALL_ARG2(FOrdEqual, __FUNC_PREFIX_CORE)            // isequal
-MAKE_CALL_ARG2(FUnordNotEqual, __FUNC_PREFIX_CORE)       // isnotequal
+MAKE_CALL_ARG2_TPL(FUnordNotEqual, __FUNC_PREFIX_CORE)   // isnotequal
 MAKE_CALL_ARG2(FOrdGreaterThan, __FUNC_PREFIX_CORE)      // isgreater
 MAKE_CALL_ARG2(FOrdGreaterThanEqual, __FUNC_PREFIX_CORE) // isgreaterequal
 MAKE_CALL_ARG2(FOrdLessThan, __FUNC_PREFIX_CORE)         // isless
@@ -236,7 +300,7 @@ MAKE_CALL_ARG1(IsNormal, __FUNC_PREFIX_CORE)             // isnormal
 MAKE_CALL_ARG2(Ordered, __FUNC_PREFIX_CORE)              // isordered
 MAKE_CALL_ARG2(Unordered, __FUNC_PREFIX_CORE)            // isunordered
 MAKE_CALL_ARG1(SignBitSet, __FUNC_PREFIX_CORE)           // signbit
-MAKE_CALL_ARG1(Any, __FUNC_PREFIX_CORE)                  // any
+MAKE_CALL_ARG1_TPL(Any, __FUNC_PREFIX_CORE)              // any
 MAKE_CALL_ARG1(All, __FUNC_PREFIX_CORE)                  // all
 MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select

@@ -15,6 +15,15 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+template <typename ReTTT, typename ImageT>
+extern SYCL_EXTERNAL ReTTT __spirv_ImageQueryFormat(ImageT);
+
+template <typename ReTTT, typename ImageT>
+extern SYCL_EXTERNAL ReTTT __spirv_ImageQueryOrder(ImageT);
+
+template <typename ReTTT, typename ImageT>
+extern SYCL_EXTERNAL ReTTT __spirv_ImageQuerySize(ImageT);
+
 template <typename ImageT, typename CoordT, typename ValT>
 extern SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
 
@@ -266,6 +275,258 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
 SYCL_EXTERNAL
 int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
+
+#define COMPARISON(Order, Cmp)                                                 \
+  template <typename ReTTT, typename T1, typename T2>                          \
+  extern SYCL_EXTERNAL                                                         \
+  ReTTT __spirv_F##Order##Cmp(T1, T2);
+
+#define ALL_COMPARISON(Order)                                                  \
+  COMPARISON(Order, Equal)                                                     \
+  COMPARISON(Order, NotEqual)                                                  \
+  COMPARISON(Order, LessThan)                                                  \
+  COMPARISON(Order, GreaterThan)                                               \
+  COMPARISON(Order, LessThanEqual)                                             \
+  COMPARISON(Order, GreaterThanEqual)
+
+ALL_COMPARISON(Unord)
+ALL_COMPARISON(Ord)
+
+#undef COMPARISON
+#undef ALL_COMPARISON
+
+#define COMPARISON(Cmp)                                                        \
+  template <typename ReTTT, typename T1, typename T2>                          \
+  extern SYCL_EXTERNAL                                                         \
+  ReTTT __spirv_##Cmp(T1, T2);
+
+COMPARISON(IEqual)
+COMPARISON(INotEqual)
+
+COMPARISON(ULessThan)
+COMPARISON(UGreaterThanEqual)
+COMPARISON(ULessThanEqual)
+COMPARISON(UGreaterThan)
+
+COMPARISON(SLessThan)
+COMPARISON(SGreaterThanEqual)
+COMPARISON(SLessThanEqual)
+COMPARISON(SGreaterThan)
+
+COMPARISON(LessOrGreater)
+
+#undef COMPARISON
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_Any(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_All(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_IsFinite(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_IsInf(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_IsNan(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_IsNormal(T1);
+
+template <typename ReTTT, typename T1>
+extern SYCL_EXTERNAL
+ReTTT __spirv_SignBitSet(T1);
+
+template <typename ReTTT, typename T1, typename T2>
+extern SYCL_EXTERNAL
+ReTTT __spirv_Ordered(T1, T2);
+
+template <typename ReTTT, typename T1, typename T2>
+extern SYCL_EXTERNAL
+ReTTT __spirv_Unordered(T1, T2);
+
+template <typename ReTTT, typename T1, typename T2>
+extern SYCL_EXTERNAL
+ReTTT __spirv_Dot(T1, T2);
+
+template <typename ReTTT, typename T1, typename T2>
+extern SYCL_EXTERNAL
+ReTTT __spirv_FMul(T1, T2);
+
+#define DECLARE_OCL1(name)                                                     \
+  template <typename ReTTT, typename T1>                                       \
+  extern SYCL_EXTERNAL                                                         \
+  ReTTT __spirv_ocl_##name(T1);
+
+#define DECLARE_OCL2(name)                                                     \
+  template <typename ReTTT, typename T1, typename T2>                          \
+  extern SYCL_EXTERNAL                                                         \
+  ReTTT __spirv_ocl_##name(T1, T2);
+
+#define DECLARE_OCL3(name)                                                     \
+  template <typename ReTTT, typename T1, typename T2, typename T3>             \
+  extern SYCL_EXTERNAL                                                         \
+  ReTTT __spirv_ocl_##name(T1, T2, T3);
+
+DECLARE_OCL1(acos)
+DECLARE_OCL1(acosh)
+DECLARE_OCL1(acospi)
+DECLARE_OCL1(asin)
+DECLARE_OCL1(asinh)
+DECLARE_OCL1(asinpi)
+DECLARE_OCL1(atan)
+DECLARE_OCL2(atan2)
+DECLARE_OCL1(atanh)
+DECLARE_OCL1(atanpi)
+DECLARE_OCL2(atan2pi)
+DECLARE_OCL1(cbrt)
+DECLARE_OCL1(ceil)
+DECLARE_OCL2(copysign)
+DECLARE_OCL1(cos)
+DECLARE_OCL1(cosh)
+DECLARE_OCL1(cospi)
+DECLARE_OCL1(erfc)
+DECLARE_OCL1(erf)
+DECLARE_OCL1(exp)
+DECLARE_OCL1(exp2)
+DECLARE_OCL1(exp10)
+DECLARE_OCL1(expm1)
+DECLARE_OCL1(fabs)
+DECLARE_OCL2(fdim)
+DECLARE_OCL1(floor)
+DECLARE_OCL3(fma)
+DECLARE_OCL2(fmax)
+DECLARE_OCL2(fmin)
+DECLARE_OCL2(fmod)
+DECLARE_OCL2(fract)
+DECLARE_OCL2(frexp)
+DECLARE_OCL2(hypot)
+DECLARE_OCL1(ilogb)
+DECLARE_OCL2(ldexp)
+DECLARE_OCL1(lgamma)
+DECLARE_OCL2(lgamma_r)
+DECLARE_OCL1(log)
+DECLARE_OCL1(log2)
+DECLARE_OCL1(log10)
+DECLARE_OCL1(log1p)
+DECLARE_OCL1(logb)
+DECLARE_OCL3(mad)
+DECLARE_OCL2(maxmag)
+DECLARE_OCL2(minmag)
+DECLARE_OCL2(modf)
+DECLARE_OCL1(nan)
+DECLARE_OCL2(nextafter)
+DECLARE_OCL2(pow)
+DECLARE_OCL2(pown)
+DECLARE_OCL2(powr)
+DECLARE_OCL2(remainder)
+DECLARE_OCL3(remquo)
+DECLARE_OCL1(rint)
+DECLARE_OCL2(rootn)
+DECLARE_OCL1(round)
+DECLARE_OCL1(rsqrt)
+DECLARE_OCL1(sin)
+DECLARE_OCL2(sincos)
+DECLARE_OCL1(sinh)
+DECLARE_OCL1(sinpi)
+DECLARE_OCL1(sqrt)
+DECLARE_OCL1(tan)
+DECLARE_OCL1(tanh)
+DECLARE_OCL1(tanpi)
+DECLARE_OCL1(tgamma)
+DECLARE_OCL1(trunc)
+DECLARE_OCL1(native_cos)
+DECLARE_OCL2(native_divide)
+DECLARE_OCL1(native_exp)
+DECLARE_OCL1(native_exp2)
+DECLARE_OCL1(native_exp10)
+DECLARE_OCL1(native_log)
+DECLARE_OCL1(native_log2)
+DECLARE_OCL1(native_log10)
+DECLARE_OCL2(native_powr)
+DECLARE_OCL1(native_recip)
+DECLARE_OCL1(native_rsqrt)
+DECLARE_OCL1(native_sin)
+DECLARE_OCL1(native_sqrt)
+DECLARE_OCL1(native_tan)
+DECLARE_OCL1(half_cos)
+DECLARE_OCL2(half_divide)
+DECLARE_OCL1(half_exp)
+DECLARE_OCL1(half_exp2)
+DECLARE_OCL1(half_exp10)
+DECLARE_OCL1(half_log)
+DECLARE_OCL1(half_log2)
+DECLARE_OCL1(half_log10)
+DECLARE_OCL2(half_powr)
+DECLARE_OCL1(half_recip)
+DECLARE_OCL1(half_rsqrt)
+DECLARE_OCL1(half_sin)
+DECLARE_OCL1(half_sqrt)
+DECLARE_OCL1(half_tan)
+DECLARE_OCL1(s_abs)
+DECLARE_OCL1(u_abs)
+DECLARE_OCL2(s_abs_diff)
+DECLARE_OCL2(u_abs_diff)
+DECLARE_OCL2(s_add_sat)
+DECLARE_OCL2(u_add_sat)
+DECLARE_OCL2(s_hadd)
+DECLARE_OCL2(u_hadd)
+DECLARE_OCL2(s_rhadd)
+DECLARE_OCL2(u_rhadd)
+DECLARE_OCL3(s_clamp)
+DECLARE_OCL3(u_clamp)
+DECLARE_OCL1(clz)
+DECLARE_OCL1(ctz)
+DECLARE_OCL3(s_mad_hi)
+DECLARE_OCL3(u_mad_hi)
+DECLARE_OCL3(u_mad_sat)
+DECLARE_OCL3(s_mad_sat)
+DECLARE_OCL2(s_max)
+DECLARE_OCL2(u_max)
+DECLARE_OCL2(s_min)
+DECLARE_OCL2(u_min)
+DECLARE_OCL2(s_mul_hi)
+DECLARE_OCL2(u_mul_hi)
+DECLARE_OCL2(rotate)
+DECLARE_OCL2(s_sub_sat)
+DECLARE_OCL2(u_sub_sat)
+DECLARE_OCL2(u_upsample)
+DECLARE_OCL2(s_upsample)
+DECLARE_OCL1(popcount)
+DECLARE_OCL3(s_mad24)
+DECLARE_OCL3(u_mad24)
+DECLARE_OCL2(s_mul24)
+DECLARE_OCL2(u_mul24)
+DECLARE_OCL3(fclamp)
+DECLARE_OCL1(degrees)
+DECLARE_OCL2(fmax_common)
+DECLARE_OCL2(fmin_common)
+DECLARE_OCL3(mix)
+DECLARE_OCL1(radians)
+DECLARE_OCL2(step)
+DECLARE_OCL3(smoothstep)
+DECLARE_OCL1(sign)
+DECLARE_OCL2(cross)
+DECLARE_OCL2(distance)
+DECLARE_OCL1(length)
+DECLARE_OCL1(normalize)
+DECLARE_OCL2(fast_distance)
+DECLARE_OCL1(fast_length)
+DECLARE_OCL1(fast_normalize)
+DECLARE_OCL3(bitselect)
+DECLARE_OCL3(select) // select
+
+#undef DECLARE_OCL1
+#undef DECLARE_OCL2
+#undef DECLARE_OCL3
 
 #else // if !__SYCL_DEVICE_ONLY__
 
