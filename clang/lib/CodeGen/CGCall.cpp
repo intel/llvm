@@ -4101,10 +4101,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           V = Builder.CreateZExt(V, ArgInfo.getCoerceToType());
 
         if (FirstIRArg < IRFuncTy->getNumParams()) {
-          const auto *LHSPtrTy =
-              dyn_cast_or_null<llvm::PointerType>(V->getType());
-          const auto *RHSPtrTy = dyn_cast_or_null<llvm::PointerType>(
-              IRFuncTy->getParamType(FirstIRArg));
+          const auto *LHSPtrTy = dyn_cast<llvm::PointerType>(V->getType());
+          const auto *RHSPtrTy =
+              dyn_cast<llvm::PointerType>(IRFuncTy->getParamType(FirstIRArg));
           if (LHSPtrTy && RHSPtrTy &&
               LHSPtrTy->getAddressSpace() != RHSPtrTy->getAddressSpace())
             V = Builder.CreateAddrSpaceCast(V,
