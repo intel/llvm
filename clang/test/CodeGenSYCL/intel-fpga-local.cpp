@@ -5,7 +5,7 @@
 // CHECK-DEVICE: [[ANN2:@.str.[0-9]*]] = {{.*}}{register:1}
 // CHECK-DEVICE: [[ANN3:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}
 // CHECK-DEVICE: [[ANN4:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{bankwidth:4}
-// CHECK-DEVICE: [[ANN5:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{max_private_copies:8}
+// CHECK-DEVICE: [[ANN5:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{private_copies:8}
 // CHECK-DEVICE: [[ANN10:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{pump:1}
 // CHECK-DEVICE: [[ANN11:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{pump:2}
 // CHECK-DEVICE: [[ANN12:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{merge:foo:depth}
@@ -15,7 +15,7 @@
 // CHECK-DEVICE: [[ANN6:@.str.[0-9]*]] = {{.*}}{memory:BLOCK_RAM}{sizeinfo:4}
 // CHECK-DEVICE: [[ANN7:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}
 // CHECK-DEVICE: [[ANN8:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{bankwidth:8}
-// CHECK-DEVICE: [[ANN9:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{max_private_copies:4}
+// CHECK-DEVICE: [[ANN9:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{private_copies:4}
 // CHECK-BOTH: [[ANN16:@.str[.0-9]*]] = {{.*}}foobar
 // CHECK-DEVICE: [[ANN17:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4,500}
 // CHECK-DEVICE: [[ANN18:@.str.[0-9]*]] = {{.*}}{memory:BLOCK_RAM}{sizeinfo:4,10,2}
@@ -56,7 +56,7 @@ struct foo_two {
   int f2 [[intelfpga::register]];
   int f3 [[intelfpga::memory]];
   int f4 [[intelfpga::bankwidth(4)]];
-  int f5 [[intelfpga::max_private_copies(8)]];
+  int f5 [[intelfpga::private_copies(8)]];
   int f6 [[intelfpga::singlepump]];
   int f7 [[intelfpga::doublepump]];
   int f8 [[intelfpga::merge("foo", "depth")]];
@@ -130,7 +130,7 @@ void baz() {
   // CHECK-DEVICE: %[[V_SEVEN:[0-9]+]] = bitcast{{.*}}v_seven
   // CHECK-DEVICE: %[[V_SEVEN1:v_seven[0-9]+]] = bitcast{{.*}}v_seven
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[V_SEVEN1]],{{.*}}[[ANN9]]
-  int v_seven [[intelfpga::max_private_copies(4)]];
+  int v_seven [[intelfpga::private_copies(4)]];
   // CHECK-DEVICE: %[[V_EIGHT:[0-9]+]] = bitcast{{.*}}v_eight
   // CHECK-DEVICE: %[[V_EIGHT1:v_eight[0-9]+]] = bitcast{{.*}}v_eight
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[V_EIGHT1]],{{.*}}[[ANN10]]
