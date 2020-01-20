@@ -20,7 +20,7 @@ extern "C" const __attribute__((opencl_constant)) size_t_vec __spirv_BuiltInWork
 extern "C" const __attribute__((opencl_constant)) size_t_vec __spirv_BuiltInGlobalOffset;
 
 #define DEFINE_INT_ID_TO_XYZ_CONVERTER(POSTFIX)                                \
-  template <int ID> static size_t get##POSTFIX();                              \
+  template <int ID> static inline size_t get##POSTFIX();                       \
   template <> size_t get##POSTFIX<0>() { return __spirv_BuiltIn##POSTFIX.x; }  \
   template <> size_t get##POSTFIX<1>() { return __spirv_BuiltIn##POSTFIX.y; }  \
   template <> size_t get##POSTFIX<2>() { return __spirv_BuiltIn##POSTFIX.z; }
