@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-new-kernel-param-requirements -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // non-standard layout struct object as SYCL kernel parameter.
