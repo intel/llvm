@@ -59,7 +59,6 @@ struct OverloadedNewDelete {
 
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
-  // expected-note@+1 {{called by 'isa_B'}}
   if (f1 == f2) return false;
 
   Check_VLA_Restriction::restriction(7);
@@ -77,7 +76,6 @@ bool isa_B(A *a) {
 
 template<typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
-  // expected-note@+1 3{{called by 'kernel1}}
   l();
 }
 }
@@ -141,7 +139,6 @@ void usage(myFuncDef functionPtr) {
     b.f();
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
   Check_RTTI_Restriction::A *a;
-  // expected-note@+1 3{{called by 'operator()'}}
   Check_RTTI_Restriction::isa_B(a); });
 
   // expected-error@+1 {{__float128 is not supported on this target}}
@@ -180,9 +177,12 @@ int use2 ( a_type ab, a_type *abp ) {
   // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
   Check_RTTI_Restriction:: A *a;
+  // expected-note@+1 2{{called by 'use2'}}
   Check_RTTI_Restriction:: isa_B(a);
+  // expected-note@+1 {{called by 'use2'}}
   usage(&addInt);
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  // expected-note@+1 {{called by 'use2'}}
   if (f1 == f2) return false;
 }
 
@@ -191,7 +191,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 {{called by 'kernel_single_task'}}
+  // expected-note@+1 5{{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 

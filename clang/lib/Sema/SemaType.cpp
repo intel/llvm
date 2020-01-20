@@ -1500,7 +1500,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       Result = Context.DoubleTy;
     break;
   case DeclSpec::TST_float128:
-    if (S.getLangOpts().SYCLIsDevice)
+    if (!S.Context.getTargetInfo().hasFloat128Type() &&
+        S.getLangOpts().SYCLIsDevice)
       S.SYCLDiagIfDeviceCode(DS.getTypeSpecTypeLoc(),
                              diag::err_type_unsupported)
           << "__float128";

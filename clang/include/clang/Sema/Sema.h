@@ -12096,10 +12096,11 @@ public:
   ///
   /// Example usage:
   ///
-  /// Asm is not allowed in SYCL device code.
+  /// Variables with thread storage duration are not allowed to be used in SYCL
+  /// device code
   /// if (getLangOpts().SYCLIsDevice)
-  ///   SYCLDiagIfDeviceCode(AsmLoc, diag::err_sycl_restrict)
-  ///       << KernelUseAssembly;
+  ///   SYCLDiagIfDeviceCode(Loc, diag::err_thread_unsupported);
+  ///  // Otherwise, continue parsing as normal.
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
 
   /// Checks if Callee function is a device function and emits
