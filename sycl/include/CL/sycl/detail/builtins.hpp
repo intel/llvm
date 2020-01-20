@@ -66,54 +66,6 @@
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define MAKE_CALL_ARG1_TPL(call, prefix)                                       \
-  template <typename R, typename T1>                                           \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
-    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
-    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
-    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
-    Ret  ret  = PPCAT(prefix, call)<Ret, Arg1>(arg1);                          \
-    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
-  }
-
-#define MAKE_CALL_ARG2_TPL(call, prefix)                                       \
-  template <typename R, typename T1, typename T2>                              \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
-    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
-    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
-    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
-    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
-    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
-    Ret  ret  = PPCAT(prefix, call)<Ret, Arg1, Arg2>(arg1, arg2);              \
-    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
-  }
-#else // if !__SYCL_DEVICE_ONLY__
-#define MAKE_CALL_ARG1_TPL(call, prefix)                                       \
-  template <typename R, typename T1>                                           \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
-    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
-    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
-    extern Ret PPCAT(prefix, call)(Arg1);                                      \
-    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
-    Ret  ret  = PPCAT(prefix, call)(arg1);                                     \
-    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
-  }
-
-#define MAKE_CALL_ARG2_TPL(call, prefix)                                       \
-  template <typename R, typename T1, typename T2>                              \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
-    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
-    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
-    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
-    extern Ret PPCAT(prefix, call)(Arg1, Arg2);                                \
-    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
-    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
-    Ret  ret  = PPCAT(prefix, call)(arg1, arg2);                               \
-    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
 #define MAKE_CALL_ARG3(call, prefix)                                           \
   template <typename R, typename T1, typename T2, typename T3>                 \
   inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC {        \
@@ -287,7 +239,7 @@ MAKE_CALL_ARG1(fast_length, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG1(fast_normalize, __FUNC_PREFIX_OCL)
 /* --------------- 4.13.7 Relational functions. -----------------------------*/
 MAKE_CALL_ARG2(FOrdEqual, __FUNC_PREFIX_CORE)            // isequal
-MAKE_CALL_ARG2_TPL(FUnordNotEqual, __FUNC_PREFIX_CORE)   // isnotequal
+MAKE_CALL_ARG2(FUnordNotEqual, __FUNC_PREFIX_CORE)       // isnotequal
 MAKE_CALL_ARG2(FOrdGreaterThan, __FUNC_PREFIX_CORE)      // isgreater
 MAKE_CALL_ARG2(FOrdGreaterThanEqual, __FUNC_PREFIX_CORE) // isgreaterequal
 MAKE_CALL_ARG2(FOrdLessThan, __FUNC_PREFIX_CORE)         // isless
@@ -300,7 +252,7 @@ MAKE_CALL_ARG1(IsNormal, __FUNC_PREFIX_CORE)             // isnormal
 MAKE_CALL_ARG2(Ordered, __FUNC_PREFIX_CORE)              // isordered
 MAKE_CALL_ARG2(Unordered, __FUNC_PREFIX_CORE)            // isunordered
 MAKE_CALL_ARG1(SignBitSet, __FUNC_PREFIX_CORE)           // signbit
-MAKE_CALL_ARG1_TPL(Any, __FUNC_PREFIX_CORE)              // any
+MAKE_CALL_ARG1(Any, __FUNC_PREFIX_CORE)                  // any
 MAKE_CALL_ARG1(All, __FUNC_PREFIX_CORE)                  // all
 MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
@@ -317,3 +269,9 @@ MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #undef PPCAT
 #undef __FUNC_PREFIX_OCL
 #undef __FUNC_PREFIX_CORE
+#undef TPARAMS1
+#undef TPARAMS2
+#undef TPARAMS3
+#undef EXTERN_IT1
+#undef EXTERN_IT2
+#undef EXTERN_IT3
