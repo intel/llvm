@@ -215,7 +215,6 @@ public:
 
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
-
       // Remember that all SYCL kernel functions have deferred
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
@@ -263,7 +262,7 @@ public:
       }
 
       // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-      // Only validate really called methods
+      // Only validate really called functions
       if (SYCLCG.getNode(Callee) &&
           !Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
@@ -274,7 +273,6 @@ public:
                !isa<CXXPseudoDestructorExpr>(e->getCallee()))
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
           << Sema::KernelCallFunctionPointer;
-
     return true;
   }
 

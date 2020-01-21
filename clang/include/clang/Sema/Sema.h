@@ -12280,7 +12280,6 @@ public:
     KernelCallUndefinedFunction
   };
 
-  DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
   bool isKnownGoodSYCLDecl(const Decl *D);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice(void);
