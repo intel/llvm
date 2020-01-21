@@ -1178,3 +1178,71 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   delete DAL;
   return nullptr;
 }
+
+void ToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Handle -Xsycl-target and -Xs flags.
+  for (auto *A : Args) {
+    // When parsing the target args, the -Xs<opt> type option applies to all
+    // target compilations is not associated with a specific triple.  The
+    // option can be used in 3 different ways:
+    //   -Xs -DFOO -Xs -DBAR
+    //   -Xs "-DFOO -DBAR"
+    //   -XsDFOO -XsDBAR
+    // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+    if (A->getOption().matches(options::OPT_Xs)) {
+      // Take the arg and create an option out of it.
+      CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
+      A->claim();
+      continue;
+    }
+    if (A->getOption().matches(options::OPT_Xs_separate)) {
+      StringRef ArgString(A->getValue());
+      // Do a simple parse of the args to pass back
+      SmallVector<StringRef, 16> TargetArgs;
+      // TODO: Improve parsing, as this only handles arguments separated by
+      // spaces.
+      ArgString.split(TargetArgs, ' ', -1, false);
+      for (const auto &TA : TargetArgs)
+        CmdArgs.push_back(Args.MakeArgString(TA));
+      A->claim();
+      continue;
+    }
+    bool XSYCLTargetNoTriple;
+    XSYCLTargetNoTriple = A->getOption().matches(options::OPT_Xsycl_backend);
+    if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+      // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
+      if (A->getValue() != getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!XSYCLTargetNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -Xsycl-target-backend.
+      continue;
+
+    // Add the argument from -Xsycl-target-backend.
+    StringRef ArgString;
+    if (XSYCLTargetNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+
+    // Do a simple parse of the args to pass back
+    SmallVector<StringRef, 16> TargetArgs;
+    // TODO: Improve parsing, as this only handles arguments separated by
+    // spaces.
+    ArgString.split(TargetArgs, ' ', -1, false);
+    for (const auto &TA : TargetArgs)
+      CmdArgs.push_back(Args.MakeArgString(TA));
+    A->claim();
+  }
+}

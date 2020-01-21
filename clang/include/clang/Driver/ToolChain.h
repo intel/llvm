@@ -306,6 +306,10 @@ public:
       SmallVectorImpl<llvm::opt::Arg *> &AllocatedArgs,
       Action::OffloadKind DeviceOffloadKind) const;
 
+  /// Gather command line arguments for backend compilation call
+  void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CmdArgs) const;
+
   /// Choose a tool to use to handle the action \p JA.
   ///
   /// This can be overridden when a particular ToolChain needs to use

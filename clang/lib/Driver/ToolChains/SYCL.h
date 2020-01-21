@@ -20,10 +20,6 @@ class Command;
 namespace tools {
 namespace SYCL {
 
-// Gather command line arguments for backend compilation call
-void TranslateSYCLTargetArgs(Compilation &C,
-              const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
-
 // Gather command line arguments for device specific link
 void TranslateSYCLLinkerArgs(Compilation &C,
               const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
