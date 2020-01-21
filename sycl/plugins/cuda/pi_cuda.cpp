@@ -1935,14 +1935,65 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
   return {};
 }
 
-pi_result cuda_piProgramLink( // TODO: change interface to return error code
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_programs,
-    const pi_program *input_programs,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data,
-    pi_program *ret_program) {
-  cl::sycl::detail::pi::die("cuda_piProgramLink not implemented");
-  return {};
+pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
+                             const pi_device *device_list, const char *options,
+                             pi_uint32 num_input_programs,
+                             const pi_program *input_programs,
+                             void (*pfn_notify)(pi_program program,
+                                                void *user_data),
+                             void *user_data, pi_program *ret_program) {
+
+  assert(ret_program != nullptr);
+  assert(num_devices == 1 || num_devices == 0);
+  assert(device_list != nullptr || num_devices == 0);
+  assert(pfn_notify == nullptr);
+  assert(user_data == nullptr);
+  pi_result retError = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+
+    CUlinkState state;
+    std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
+
+    // TODO: Linker options
+    retError = PI_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &state));
+    try {
+      for (size_t i = 0; i < num_input_programs; ++i) {
+        pi_program program = input_programs[i];
+        retError = PI_CHECK_ERROR(cuLinkAddData(
+            state, CU_JIT_INPUT_PTX, const_cast<char *>(program->source_),
+            program->sourceLength_, nullptr, 0, nullptr, nullptr));
+      }
+      void *cubin = nullptr;
+      size_t cubinSize = 0;
+      retError = PI_CHECK_ERROR(cuLinkComplete(state, &cubin, &cubinSize));
+
+      retError = retProgram->create_from_source(
+          static_cast<const char *>(cubin), cubinSize);
+
+      if (retError != PI_SUCCESS) {
+        return retError;
+      }
+
+      retError = retProgram->build_program(options);
+
+      if (retError != PI_SUCCESS) {
+        return retError;
+      }
+    } catch (...) {
+      // Upon error attempt cleanup
+      PI_CHECK_ERROR(cuLinkDestroy(state));
+      throw;
+    }
+
+    retError = PI_CHECK_ERROR(cuLinkDestroy(state));
+    *ret_program = retProgram.release();
+
+  } catch (pi_result err) {
+    retError = err;
+  }
+  return retError;
 }
 
 pi_result cuda_piProgramCompile(
@@ -1950,8 +2001,23 @@ pi_result cuda_piProgramCompile(
     const char *options, pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-  cl::sycl::detail::pi::die("cuda_piProgramCompile not implemented");
-  return {};
+  assert(program != nullptr);
+  assert(num_devices == 1 || num_devices == 0);
+  assert(device_list != nullptr || num_devices == 0);
+  assert(pfn_notify == nullptr);
+  assert(user_data == nullptr);
+  assert(num_input_headers == 0);
+  pi_result retError = PI_SUCCESS;
+
+  try {
+    ScopedContext active(program->get_context());
+
+    program->build_program(options);
+
+  } catch (pi_result err) {
+    retError = err;
+  }
+  return retError;
 }
 
 pi_result cuda_piProgramGetBuildInfo(pi_program program, pi_device device,
