@@ -80,7 +80,7 @@ commit automatically with `git commit -s`.
 
 - Create a pull request for your changes following [Creating a pull request
 instructions](https://help.github.com/articles/creating-a-pull-request/)
-- When the pull request is created signed-off check is done
+- When the pull request is created, a signed-off check is done
   - **check_pr** - verifies that the signed-off mark is added to each commit
   message
 - Once the pull request is approved by an Intel representative, build and
@@ -94,6 +94,6 @@ functional testing are done
 Project maintainers merge pull requests using one of the following options:
 - [Rebase and merge] The preferable choice for PRs containing a single commit
 - [Squash and merge] Used when there are multiple commits in the PR
-  - Squashing is done make sure that the project is buildable on any commit
+  - Squashing is done to make sure that the project is buildable on any commit
 - [Create a merge commit] Used for LLVM pull-down PRs to preserve hashes of the
 commits pulled from the LLVM community repository
