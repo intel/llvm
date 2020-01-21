@@ -262,12 +262,12 @@ public:
             << Name << "SYCL device";
       }
 
-      // Disallow methods with neither definition nor SYCL_EXTERNAL mark
+      // Disallow functions with neither definition nor SYCL_EXTERNAL mark
       // Only validate really called methods
       if (SYCLCG.getNode(Callee) &&
-          !Callee->getDefinition() && !Callee->hasAttr<SYCLDeviceAttr>()) {
+          !Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelCallDisallowedMethod;
+            << Sema::KernelCallUndefinedFunction;
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
@@ -299,12 +299,6 @@ public:
       }
     }
     return true;
-  }
-
-  // By-pass static assert internals as everything inside it won't be found in
-  // callgraph. Thus we don't want to mark it with SYCLDeviceAttr
-  bool VisitStaticAssertDecl(StaticAssertDecl *D) {
-    return false;
   }
 
   bool VisitCXXTypeidExpr(CXXTypeidExpr *E) {
