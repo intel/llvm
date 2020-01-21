@@ -77,7 +77,8 @@ private:
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
-                   const string_class &Options,
+                   const string_class &CompileOptions,
+                   const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,
                    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
                    bool LinkDeviceLibs = false);
