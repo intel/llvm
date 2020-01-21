@@ -243,22 +243,27 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
     return alloc::host;
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  pi_context C = CtxImpl->getHandleRef();
+  pi_context PICtx = CtxImpl->getHandleRef();
   pi_usm_type AllocTy;
 
   // query type using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(C, Ptr, PI_MEM_ALLOC_TYPE,
+  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_TYPE,
                                    sizeof(pi_usm_type), &AllocTy, nullptr);
 
-  alloc ResultAlloc = alloc::unknown;
-  if (AllocTy == PI_MEM_TYPE_HOST) {
+  alloc ResultAlloc;
+  switch (AllocTy) {
+  case PI_MEM_TYPE_HOST:
     ResultAlloc = alloc::host;
-  }
-  else if (AllocTy == PI_MEM_TYPE_DEVICE) {
+    break;
+  case PI_MEM_TYPE_DEVICE:
     ResultAlloc = alloc::device;
-  }
-  else if (AllocTy == PI_MEM_TYPE_SHARED) {
+    break;
+  case PI_MEM_TYPE_SHARED:
     ResultAlloc = alloc::shared;
+    break;
+  default:
+    ResultAlloc = alloc::unknown;
+    break;
   }
 
   return ResultAlloc;
@@ -273,21 +278,26 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   if (Ctxt.is_host())
     return Ctxt.get_devices()[0];
 
-  // Check if ptr is a host allocation
-  if (get_pointer_type(Ptr, Ctxt) == alloc::host)
-    return device();
-
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  pi_context C = CtxImpl->getHandleRef();
+
+  // Check if ptr is a host allocation
+  if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
+    auto Devs = CtxImpl->getDevices();
+    if (Devs.size() == 0)
+      throw runtime_error("No devices in passed context!");
+
+    // Just return the first device in the context
+    return Devs[0];
+  }
+
+  pi_context PICtx = CtxImpl->getHandleRef();
   pi_device DeviceId;
 
   // query device using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(C, Ptr, PI_MEM_ALLOC_DEVICE,
+  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_DEVICE,
                                    sizeof(pi_device), &DeviceId, nullptr);
 
-  auto Devs = Ctxt.get_devices();
-
-  for (auto D : Devs) {
+  for (const auto D : CtxImpl->getDevices()) {
     // Try to find the real sycl device used in the context
     if (detail::pi::cast<pi_device>(D.get()) == DeviceId)
       return D;

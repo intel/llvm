@@ -86,7 +86,10 @@ int main() {
     return 10;
   }
   D = get_pointer_device(array, ctxt);
-  if (!D.is_host()) {
+  auto Devs = ctxt.get_devices();
+  auto result = std::find(Devs.begin(), Devs.end(), D);
+  if (result == Devs.end()) {
+    // Returned device was not in queried context
     return 11;
   }
   free(array, ctxt);
