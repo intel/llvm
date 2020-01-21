@@ -1033,7 +1033,7 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy)) {
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
     } else if (ArgTy->isStructureOrClassType()) {
-      if (Context.getLangOpts().SYCLEnableStdLayoutReq) {
+      if (Context.getLangOpts().SYCLStdLayoutKernelParams) {
         if (!ArgTy->isStandardLayoutType()) {
           Context.getDiagnostics().Report(Fld->getLocation(),
                                           diag::err_sycl_non_std_layout_type)

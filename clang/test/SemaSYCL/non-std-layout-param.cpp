@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-std-layout-requirement -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-std-layout-kernel-params -verify -fsyntax-only %s
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass

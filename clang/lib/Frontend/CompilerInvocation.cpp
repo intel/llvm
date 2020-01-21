@@ -3130,8 +3130,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.SYCLIsHost   = Args.hasArg(options::OPT_fsycl_is_host);
   Opts.SYCLAllowFuncPtr = Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                                   options::OPT_fno_sycl_allow_func_ptr, false);
-  Opts.SYCLEnableStdLayoutReq =
-      Args.hasArg(options::OPT_fsycl_std_layout_requirement);
+  Opts.SYCLStdLayoutKernelParams =
+      Args.hasArg(options::OPT_fsycl_std_layout_kernel_params);
   Opts.SYCLUnnamedLambda = Args.hasArg(options::OPT_fsycl_unnamed_lambda);
 
   // Set CUDA mode for OpenMP target NVPTX if specified in options
