@@ -233,7 +233,7 @@ LANGOPT(GPUMaxThreadsPerBlock, 32, 256, "default max threads per block for kerne
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
-LANGOPT(SYCLNewKernelParamReq, 1, 0, "Enable trivially copyable requirement instead of standard layout requirement for SYCL kernel parameters")
+LANGOPT(SYCLEnableStdLayoutReq, 1, 0, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")

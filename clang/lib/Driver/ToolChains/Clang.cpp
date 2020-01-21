@@ -3989,10 +3989,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
     A->render(Args, CmdArgs);
+    CmdArgs.push_back("-fsycl-std-layout-requirement");
   } else if (IsSYCL) {
     // Ensure the default version in SYCL mode is 1.2.1
     CmdArgs.push_back("-sycl-std=1.2.1");
-    CmdArgs.push_back("-fsycl-new-kernel-param-requirements");
   }
 
   if (IsOpenMPDevice) {
