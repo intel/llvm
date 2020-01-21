@@ -271,10 +271,8 @@ extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-// __attribute((format(...))) enables compiler checks for a format string.
 SYCL_EXTERNAL
-int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...)
-    __attribute__((format(printf, 1, 2)));
+int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...);
 
 #define COMPARISON(Order, Cmp)                                                 \
   template <typename ReTTT, typename T1, typename T2>                          \
