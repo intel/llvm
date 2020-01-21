@@ -1403,7 +1403,7 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
     if (ConstructingOpenCLKernel || !FD)
       return DeviceDiagBuilder::K_Nop;
-    if (FD && isKnownEmitted(*this, FD))
+    if (isKnownEmitted(*this, FD))
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
     return DeviceDiagBuilder::K_Deferred;
   }();

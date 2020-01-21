@@ -12100,7 +12100,6 @@ public:
   /// device code
   /// if (getLangOpts().SYCLIsDevice)
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_thread_unsupported);
-  ///  // Otherwise, continue parsing as normal.
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
 
   /// Checks if Callee function is a device function and emits
