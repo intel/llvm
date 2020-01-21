@@ -5166,6 +5166,26 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
+static void handleUsesGlobalWorkOffsetAttr(Sema &S, Decl *D,
+                                           const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
+  checkForDuplicateAttribute<SYCLIntelUsesGlobalWorkOffsetAttr>(S, D, Attr);
+
+  uint32_t Enabled;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, Enabled, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+  if (Enabled > 1)
+    S.Diag(Attr.getLoc(), diag::warn_boolean_attribute_argument_is_not_valid)
+        << Attr;
+
+  D->addAttr(::new (S.Context)
+                 SYCLIntelUsesGlobalWorkOffsetAttr(S.Context, Attr, Enabled));
+}
+
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
 /// One but not both can be specified
 /// Both are incompatible with the __register__ attribute.
@@ -7599,6 +7619,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleMaxGlobalWorkDimAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelUsesGlobalWorkOffset:
+    handleUsesGlobalWorkOffsetAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
     break;
@@ -8080,6 +8103,10 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelUsesGlobalWorkOffsetAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {
