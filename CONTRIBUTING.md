@@ -80,13 +80,11 @@ commit automatically with `git commit -s`.
 
 - Create a pull request for your changes following [Creating a pull request
 instructions](https://help.github.com/articles/creating-a-pull-request/)
-- When the pull request is created, a signed-off check is done
-  - **check_pr** - verifies that the signed-off mark is added to each commit
-  message
-- Once the pull request is approved by an Intel representative, build and
-functional testing are done
-- Approval is reset once the PR branch is updated
-  - New approval and checks rerun are required
+- CI will run signed-off check as soon as PR is created, see **check_pr** CI
+check for results
+- CI will run build and functional testing check as soon as PR is approved by
+Intel representative
+  - New approval is needed if PR was updated (e.g. during code review)
 - Once PR is approved and all checks pass, the pull request is ready for merge
 
 ### Merge
