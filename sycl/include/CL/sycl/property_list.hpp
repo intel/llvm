@@ -39,6 +39,8 @@ class context_bound;
 
 namespace queue {
 class enable_profiling;
+class in_order;
+class out_of_order;
 } // namespace queue
 
 namespace detail {
@@ -57,6 +59,8 @@ enum PropKind {
 
   // Queue properties
   QueueEnableProfiling,
+  InOrder,
+  OutOfOrder,
 
   PropKindSize
 };
@@ -110,6 +114,8 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 
 // Queue
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
+RegisterProp(PropKind::InOrder, queue::in_order);
+RegisterProp(PropKind::OutOfOrder, queue::out_of_order);
 
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
@@ -172,6 +178,10 @@ public:
 namespace queue {
 class enable_profiling
     : public detail::Prop<detail::PropKind::QueueEnableProfiling> {};
+
+class in_order : public detail::Prop<detail::PropKind::InOrder> {};
+
+class out_of_order : public detail::Prop<detail::PropKind::OutOfOrder> {};
 } // namespace queue
 
 } // namespace property
