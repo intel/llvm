@@ -3,6 +3,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
+// UNSUPPORTED: windows
+
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
