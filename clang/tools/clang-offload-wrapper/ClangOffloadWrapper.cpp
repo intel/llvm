@@ -155,17 +155,6 @@ static cl::opt<bool> EmitRegFuncs("emit-reg-funcs", cl::NotHidden,
                                   cl::desc("Emit [un-]registration functions"),
                                   cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<std::string>
-    RegFuncName("reg-func-name", cl::Optional, cl::init("__tgt_register_lib"),
-                cl::desc("Offload descriptor registration function name"),
-                cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
-
-static cl::opt<std::string>
-    UnregFuncName("unreg-func-name", cl::Optional,
-                  cl::init("__tgt_unregister_lib"),
-                  cl::desc("Offload descriptor un-registration function name"),
-                  cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
-
 static cl::opt<std::string> DescriptorName(
     "desc-name", cl::Optional, cl::init("descriptor"),
     cl::desc(
@@ -769,7 +758,8 @@ private:
     // Get RegFuncName function declaration.
     auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
                                         /*isVarArg*/ false);
-    FunctionCallee RegFuncC = M.getOrInsertFunction(RegFuncName, RegFuncTy);
+    FunctionCallee RegFuncC =
+        M.getOrInsertFunction("__tgt_register_lib", RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
@@ -792,7 +782,7 @@ private:
     auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
                                           /*isVarArg*/ false);
     FunctionCallee UnRegFuncC =
-        M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
+        M.getOrInsertFunction("__tgt_unregister_lib", UnRegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
