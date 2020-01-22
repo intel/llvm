@@ -8,13 +8,13 @@
 template <int A>
 void ii() {
   int a[10];
-  // CHECK: ![[MD_II]] = distinct !{![[MD_II]], ![[MD_ii:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_ii]] = !{!"llvm.loop.ii.count", i32 4}
+  // CHECK: ![[MD_II]] = distinct !{![[MD_II]], ![[MD_ii_count:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_ii_count]] = !{!"llvm.loop.ii.count", i32 4}
   [[intelfpga::ii(A)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MD_ii_2:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_ii_2]] = !{!"llvm.loop.ii.count", i32 8}
+  // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MD_ii_count_2:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_ii_count_2]] = !{!"llvm.loop.ii.count", i32 8}
   [[intelfpga::ii(8)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
