@@ -149,7 +149,7 @@ public:
   /// @param DepEvents is a vector of events that specify the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(const std::vector<event> &DepEvents,
+  event single_task(const vector_class<event> &DepEvents,
                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -197,7 +197,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems,
-                     const std::vector<event> &DepEvents,
+                     const vector_class<event> &DepEvents,
                      KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -250,7 +250,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     const std::vector<event> &DepEvents,
+                     const vector_class<event> &DepEvents,
                      KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -299,7 +299,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     const std::vector<event> &DepEvents,
+                     const vector_class<event> &DepEvents,
                      KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
