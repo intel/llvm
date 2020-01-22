@@ -565,7 +565,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
 void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "EMPTY NODE"
          << "\\n";
 
@@ -583,7 +583,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "MEMCPY HOST ON " << deviceToString(MQueue->get_device()) << "\\n";
 
   Stream << "\"];" << std::endl;
@@ -600,7 +600,7 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "EXEC CG ON " << deviceToString(MQueue->get_device()) << "\\n";
 
   switch (MCommandGroup->getType()) {
