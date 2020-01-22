@@ -19,9 +19,8 @@ namespace detail {
 QueueOrder getQueueOrder(const property_list &propList) {
   if (propList.has_property<property::queue::in_order>()) {
     return QueueOrder::Ordered;
-  } else {
-    return QueueOrder::OOO;
   }
+  return QueueOrder::OOO;
 }
 
 } // namespace detail
