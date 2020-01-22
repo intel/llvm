@@ -11,6 +11,7 @@
 
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -39,6 +40,10 @@ struct CrashReportInfo {
 /// Command - An executable path/name and argument vector to
 /// execute.
 class Command {
+public:
+  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+
+private:
   /// Source - The action which caused the creation of this job.
   const Action &Source;
 
@@ -47,6 +52,10 @@ class Command {
 
   /// The executable to run.
   const char *Executable;
+
+  /// The container for custom driver-set diagnostic messages that are
+  /// produced upon particular error codes returned by the command
+  ErrorCodeDiagMapTy ErrorCodeDiagMap;
 
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
@@ -99,6 +108,15 @@ public:
 
   virtual int Execute(ArrayRef<Optional<StringRef>> Redirects,
                       std::string *ErrMsg, bool *ExecutionFailed) const;
+
+  /// Store a custom driver diagnostic message upon a particular error code
+  /// returned by the command
+  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
+
+  /// Get the custom driver diagnostic message for a particular error code
+  /// if such was stored. Returns an empty string if no diagnostic message
+  /// was found for the given error code.
+  StringRef getDiagForErrorCode(int ErrorCode) const;
 
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }

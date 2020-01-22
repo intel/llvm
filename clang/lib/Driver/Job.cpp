@@ -173,6 +173,17 @@ void Command::buildArgvForResponseFile(
   }
 }
 
+void Command::addDiagForErrorCode(int ErrorCode, StringRef CustomDiag) {
+  ErrorCodeDiagMap[ErrorCode] = CustomDiag.str();
+}
+
+StringRef Command::getDiagForErrorCode(int ErrorCode) const {
+  auto ErrorCodeDiagIt = ErrorCodeDiagMap.find(ErrorCode);
+  if (ErrorCodeDiagIt != ErrorCodeDiagMap.end())
+    return ErrorCodeDiagIt->second;
+  return StringRef();
+}
+
 /// Rewrite relative include-like flag paths to absolute ones.
 static void
 rewriteIncludes(const llvm::ArrayRef<const char *> &Args, size_t Idx,

@@ -7431,18 +7431,29 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
   // we need to exit.  The expected output is the input as this is just an
   // intermediate check with no functional change.
   ArgStringList CheckArgs;
-  for (auto I : Inputs) {
-    CheckArgs.push_back(I.getFilename());
-  }
+  assert(Inputs.size() == 1 && "Unexpected number of inputs to the tool");
+  const InputInfo &InputFile = Inputs.front();
+  CheckArgs.push_back(InputFile.getFilename());
 
   // Add output file, which is just a copy of the input to better fit in the
   // toolchain flow.
   CheckArgs.push_back("-o");
   CheckArgs.push_back(Output.getFilename());
-
-  C.addCommand(std::make_unique<Command>(JA, *this,
+  auto Cmd = std::make_unique<Command>(
+      JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CheckArgs, None));
+      CheckArgs, None);
+
+  if (getToolChain().getTriple().getSubArch() ==
+      llvm::Triple::SPIRSubArch_fpga) {
+    const char *Msg = TCArgs.MakeArgString(
+        Twine("The FPGA image does not include all device kernels from ") +
+        Twine(InputFile.getBaseInput()) +
+        Twine(". Please re-generate the image"));
+    Cmd->addDiagForErrorCode(/*ErrorCode*/ 1, Msg);
+  }
+
+  C.addCommand(std::move(Cmd));
 }
 
 void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
