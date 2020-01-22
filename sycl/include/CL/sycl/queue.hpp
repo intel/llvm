@@ -308,6 +308,10 @@ public:
     });
   }
 
+  /// Returns whether the queue is in order or OoO
+  ///
+  /// Equivalent to has_property<property::queue::in_order>()
+  bool is_in_order() { return impl->is_in_order(); }
 private:
   std::shared_ptr<detail::queue_impl> impl;
   template <class Obj>

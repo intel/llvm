@@ -18,43 +18,46 @@
 #include <memory>
 #include <utility>
 
+#ifdef __has_cpp_attribute
+  #if __has_cpp_attribute(deprecated)
+    #define __SYCL_DEPRECATED__ [[deprecated("Replaced by in_order queue property")]]
+  #endif
+#endif
+#ifndef __SYCL_DEPRECATED__
+  #define __SYCL_DEPRECATED__
+#endif
+
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declaration
 class context;
 class device;
-class ordered_queue {
+
+class __SYCL_DEPRECATED__ ordered_queue {
 public:
-  [[deprecated("Replaced by the in_order property in queue")]]
   explicit ordered_queue(const property_list &propList = {})
       : ordered_queue(default_selector(), async_handler{}, propList) {}
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const async_handler &asyncHandler,
                 const property_list &propList = {})
       : ordered_queue(default_selector(), asyncHandler, propList) {}
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const device_selector &deviceSelector,
                 const property_list &propList = {})
       : ordered_queue(deviceSelector.select_device(), async_handler{},
                       propList) {}
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const device_selector &deviceSelector,
                 const async_handler &asyncHandler,
                 const property_list &propList = {})
       : ordered_queue(deviceSelector.select_device(), asyncHandler, propList) {}
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const device &syclDevice, const property_list &propList = {})
       : ordered_queue(syclDevice, async_handler{}, propList) {}
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const device &syclDevice, const async_handler &asyncHandler,
                 const property_list &propList = {});
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const context &syclContext,
                 const device_selector &deviceSelector,
                 const property_list &propList = {})
@@ -62,20 +65,16 @@ public:
                       detail::getSyclObjImpl(syclContext)->get_async_handler(),
                       propList) {}
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const context &syclContext,
                 const device_selector &deviceSelector,
                 const async_handler &asyncHandler,
                 const property_list &propList = {});
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(cl_command_queue cl_Queue, const context &syclContext,
                 const async_handler &asyncHandler = {});
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(const ordered_queue &rhs) = default;
 
-  [[deprecated("Replaced by the in_order property in queue")]]
   ordered_queue(ordered_queue &&rhs) = default;
 
   ordered_queue &operator=(const ordered_queue &rhs) = default;
@@ -180,6 +179,8 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
+
+#undef __SYCL_DEPRECATED__
 
 } // namespace sycl
 } // namespace cl

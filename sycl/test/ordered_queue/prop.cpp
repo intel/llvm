@@ -23,22 +23,22 @@ bool getQueueOrder(cl_command_queue cq) {
   cl_int iRet = clGetCommandQueueInfo(
       cq, CL_QUEUE_PROPERTIES, sizeof(reportedProps), &reportedProps, nullptr);
   assert(CL_SUCCESS == iRet && "Failed to obtain queue info from ocl device");
-  return (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ? true
-                                                                  : false;
+  return (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ? false
+                                                                  : true;
 }
 
 int main() {
-  queue q{property::queue::out_of_order()};
+  queue q{property::queue::in_order()};
   auto dev = q.get_device();
   
   cl_command_queue cq = q.get(); 
   bool expected_result = dev.is_host() ? true : getQueueOrder(cq);
-  if (!expected_result) {
-    std::cout << "Resulting queue order is in order but expected order is OOO"
-              << std::endl;
-
+  if (!expected_result)
     return -1;
-  }
+
+  expected_result = dev.is_host() ? true : q.is_in_order();
+  if (!expected_result)
+    return -2;
 
   return 0;
 }

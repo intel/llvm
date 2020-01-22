@@ -150,6 +150,7 @@ public:
   RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
+    m_QueueOrder = Order;
     if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
@@ -234,6 +235,8 @@ public:
     m_Exceptions.PushBack(E);
   }
 
+  /// Returns whether the queue is in-order or OoO
+  bool is_in_order() { return m_QueueOrder == Ordered; }
 private:
   template <typename T>
   event submit_impl(T cgf, std::shared_ptr<queue_impl> self) {
@@ -268,6 +271,7 @@ private:
   const bool m_OpenCLInterop = false;
   // Assume OOO support by default.
   bool m_SupportOOO = true;
+  QueueOrder m_QueueOrder = OOO;
 };
 
 } // namespace detail
