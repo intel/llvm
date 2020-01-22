@@ -5963,35 +5963,14 @@ static bool BuildAddressSpaceIndex(Sema &S, LangAS &ASIdx,
     llvm::APSInt max(addrSpace.getBitWidth());
     max =
         Qualifiers::MaxAddressSpace - (unsigned)LangAS::FirstTargetAddressSpace;
-
     if (addrSpace > max) {
       S.Diag(AttrLoc, diag::err_attribute_address_space_too_high)
           << (unsigned)max.getZExtValue() << AddrSpace->getSourceRange();
       return false;
     }
 
-    if (S.LangOpts.SYCLIsDevice && (addrSpace >= 4)) {
-      S.Diag(AttrLoc, diag::err_sycl_attribute_address_space_invalid)
-          << AddrSpace->getSourceRange();
-      return false;
-    }
-
-    ASIdx = getLangASFromTargetAS(
-                             static_cast<unsigned>(addrSpace.getZExtValue()));
-
-    if (S.LangOpts.SYCLIsDevice) {
-      ASIdx =
-          [](unsigned AS) {
-            switch (AS) {
-            case 0: return LangAS::sycl_private;
-            case 1: return LangAS::sycl_global;
-            case 2: return LangAS::sycl_constant;
-            case 3: return LangAS::sycl_local;
-            case 4: default: llvm_unreachable("Invalid SYCL AS");
-            }
-          }(static_cast<unsigned>(ASIdx) -
-            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
-    }
+    ASIdx =
+        getLangASFromTargetAS(static_cast<unsigned>(addrSpace.getZExtValue()));
     return true;
   }
 
@@ -6117,8 +6096,7 @@ static void HandleAddressSpaceTypeAttribute(QualType &Type,
       Attr.setInvalid();
   } else {
     // The keyword-based type attributes imply which address space to use.
-    ASIdx = S.getLangOpts().SYCLIsDevice ? 
-                Attr.asSYCLLangAS() : Attr.asOpenCLLangAS();
+    ASIdx = Attr.asOpenCLLangAS();
     if (ASIdx == LangAS::Default)
       llvm_unreachable("Invalid address space");
 

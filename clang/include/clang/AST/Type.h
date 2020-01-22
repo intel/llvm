@@ -486,15 +486,12 @@ public:
   /// Returns true if the address space in these qualifiers is equal to or
   /// a superset of the address space in the argument qualifiers.
   bool isAddressSpaceSupersetOf(Qualifiers other) const {
-
-    return
-        isAddressSpaceSupersetOf(getAddressSpace(), other.getAddressSpace()) ||
-        (!hasAddressSpace() &&
-         (other.getAddressSpace() == LangAS::sycl_private ||
-          other.getAddressSpace() == LangAS::sycl_local ||
-          other.getAddressSpace() == LangAS::sycl_global ||
-          other.getAddressSpace() == LangAS::sycl_constant ||
-          other.getAddressSpace() == LangAS::sycl_generic));
+    return isAddressSpaceSupersetOf(getAddressSpace(),
+                                    other.getAddressSpace()) ||
+           (!hasAddressSpace() &&
+            (other.getAddressSpace() == LangAS::opencl_private ||
+             other.getAddressSpace() == LangAS::opencl_local ||
+             other.getAddressSpace() == LangAS::opencl_global));
   }
 
   /// Determines if these qualifiers compatibly include another set.

@@ -10292,8 +10292,6 @@ def err_builtin_launder_invalid_arg : Error<
   "'__builtin_launder' is not allowed">;
 
 // SYCL-specific diagnostics
-def err_sycl_attribute_address_space_invalid : Error<
-  "address space is outside the valid range of values">;
 def err_sycl_kernel_name_class_not_top_level : Error<
  "kernel name class and its template argument classes' declarations can only "
  "nest in a namespace: %0">;
