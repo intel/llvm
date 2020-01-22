@@ -9,7 +9,7 @@ void foo(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
 void foo2(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR2:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
-void foo(__attribute__((address_space(3))) int * Data) {}
+void foo(__attribute__((opencl_local)) int * Data) {}
 // CHECK-DAG: define spir_func void [[LOC_PTR:@[a-zA-Z0-9_]+]](i32 addrspace(3)* %
 
 template<typename T>
@@ -18,12 +18,11 @@ void tmpl(T t){}
 
 void usages() {
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca i32 addrspace(1)*
-  __attribute__((address_space(1))) int *GLOB;
+  __attribute__((opencl_global)) int *GLOB;
   // CHECK-DAG: [[LOC:%[a-zA-Z0-9]+]] = alloca i32 addrspace(3)*
   __attribute__((opencl_local)) int *LOC;
   // CHECK-DAG: [[NoAS:%[a-zA-Z0-9]+]] = alloca i32 addrspace(4)*
   int *NoAS;
-
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9]+]] = alloca i32*
   __attribute__((opencl_private)) int *PRIV;
 
@@ -94,57 +93,23 @@ void usages() {
 // CHECK-DAG: define linkonce_odr spir_func void [[GEN_TMPL]](i32 addrspace(4)* %
 
 void usages2() {
-  __attribute__((address_space(0))) int *PRIV_NUM;
-  // CHECK-DAG: [[PRIV_NUM:%[a-zA-Z0-9_]+]] = alloca i32*
-  __attribute__((address_space(0))) int *PRIV_NUM2;
-  // CHECK-DAG: [[PRIV_NUM2:%[a-zA-Z0-9_]+]] = alloca i32*
   __attribute__((opencl_private)) int *PRIV;
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9_]+]] = alloca i32*
-  __attribute__((address_space(1))) int *GLOB_NUM;
-  // CHECK-DAG: [[GLOB_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
   __attribute__((opencl_global)) int *GLOB;
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
-  __attribute__((address_space(2))) int *CONST_NUM;
-  // CHECK-DAG: [[CONST_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
   __attribute__((opencl_constant)) int *CONST;
   // CHECK-DAG: [[CONST:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
-  __attribute__((address_space(3))) int *LOCAL_NUM;
-  // CHECK-DAG: [[LOCAL_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
   __attribute__((opencl_local)) int *LOCAL;
   // CHECK-DAG: [[LOCAL:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
 
-  bar(*PRIV_NUM);
-  // CHECK-DAG: [[PRIV_NUM_LOAD:%[a-zA-Z0-9]+]] = load i32*, i32** [[PRIV_NUM]]
-  // CHECK-DAG: [[PRIV_NUM_ASCAST:%[a-zA-Z0-9]+]] = addrspacecast i32* [[PRIV_NUM_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[PRIV_NUM_ASCAST]])
-  bar(*PRIV_NUM2);
-  // CHECK-DAG: [[PRIV_NUM2_LOAD:%[a-zA-Z0-9]+]] = load i32*, i32** [[PRIV_NUM2]]
-  // CHECK-DAG: [[PRIV_NUM2_ASCAST:%[a-zA-Z0-9]+]] = addrspacecast i32* [[PRIV_NUM2_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[PRIV_NUM2_ASCAST]])
   bar(*PRIV);
   // CHECK-DAG: [[PRIV_LOAD:%[a-zA-Z0-9]+]] = load i32*, i32** [[PRIV]]
   // CHECK-DAG: [[PRIV_ASCAST:%[a-zA-Z0-9]+]] = addrspacecast i32* [[PRIV_LOAD]] to i32 addrspace(4)*
   // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[PRIV_ASCAST]])
-  bar(*GLOB_NUM);
-  // CHECK-DAG: [[GLOB_NUM_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB_NUM]]
-  // CHECK-DAG: [[GLOB_NUM_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_NUM_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOB_NUM_CAST]])
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
   // CHECK-DAG: [[GLOB_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD]] to i32 addrspace(4)*
   // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOB_CAST]])
-  bar(*CONST_NUM);
-  // CHECK-DAG: [[CONST_NUM_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(2)*, i32 addrspace(2)** [[CONST_NUM]]
-  // CHECK-DAG: [[CONST_NUM_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(2)* [[CONST_NUM_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[CONST_NUM_CAST]])
-  bar(*CONST);
-  // CHECK-DAG: [[CONST_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(2)*, i32 addrspace(2)** [[CONST]]
-  // CHECK-DAG: [[CONST_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(2)* [[CONST_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[CONST_CAST]])
-  bar2(*LOCAL_NUM);
-  // CHECK-DAG: [[LOCAL_NUM_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOCAL_NUM]]
-  // CHECK-DAG: [[LOCAL_NUM_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(3)* [[LOCAL_NUM_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[LOCAL_NUM_CAST]])
   bar2(*LOCAL);
   // CHECK-DAG: [[LOCAL_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOCAL]]
   // CHECK-DAG: [[LOCAL_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(3)* [[LOCAL_LOAD]] to i32 addrspace(4)*
