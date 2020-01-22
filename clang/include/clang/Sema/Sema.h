@@ -12083,6 +12083,30 @@ public:
     ConstructorDestructor,
     BuiltinFunction
   };
+
+  /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
+  /// context is "used as device code".
+  ///
+  /// - If CurLexicalContext is a kernel function or it is known that the
+  ///   function will be emitted for the device, emits the diagnostics
+  ///   immediately.
+  /// - If CurLexicalContext is a function and we are compiling
+  ///   for the device, but we don't know that this function will be codegen'ed
+  ///   for devive yet, creates a diagnostic which is emitted if and when we
+  ///   realize that the function will be codegen'ed.
+  ///
+  /// Example usage:
+  ///
+  /// Variables with thread storage duration are not allowed to be used in SYCL
+  /// device code
+  /// if (getLangOpts().SYCLIsDevice)
+  ///   SYCLDiagIfDeviceCode(Loc, diag::err_thread_unsupported);
+  DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
+
+  /// Checks if Callee function is a device function and emits
+  /// diagnostics if it is known that it is a device function, adds this
+  /// function to the DeviceCallGraph otherwise.
+  void checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 };
 
 /// RAII object that enters a new expression evaluation context.
