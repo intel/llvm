@@ -92,10 +92,11 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 
 void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
-  EventImplPtr Event = *(static_cast<EventImplPtr *>(data));
-  RT::PiEvent &EventHandle = Event->getHandleRef();
-  auto Plugin = Event->getPlugin();
+  EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
+  RT::PiEvent &EventHandle = (*Event)->getHandleRef();
+  auto Plugin = (*Event)->getPlugin();
   Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, CL_COMPLETE);
+  delete (Event);
 }
 
 // Method prepares PI event's from list sycl::event's
@@ -115,13 +116,6 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
     }
     ContextImplPtr EventContext = Event->getContextImpl();
     auto Plugin = Event->getPlugin();
-    /*
-        auto EventCompletionClbkLambda = [&Plugin](RT::PiEvent a, pi_int32 b,
-                                                   void *data) {
-          // TODO: Handle return values. Store errors to async handler.
-          Plugin.call<PiApiKind::piEventSetStatus>(
-              pi::cast<RT::PiEvent>(data), CL_COMPLETE);
-        };*/
     // If contexts don't match - connect them using user event
     if (EventContext != Context && !Context->is_host()) {
 
@@ -130,9 +124,11 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                             &GlueEventHandle);
+      EventImplPtr *GlueEventCopy =
+          new EventImplPtr(GlueEvent); // To increase the reference count by 1.
       Plugin.call<PiApiKind::piEventSetCallback>(
           Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
-          /*data=*/&GlueEvent);
+          /*void *data=*/(GlueEventCopy));
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
       continue;
