@@ -47,11 +47,13 @@ int main() {
         array[i]++;
       });
 
-  q.single_task({e3}, [=]() {
+  auto e4 = q.single_task({e3}, [=]() {
     for (int i = 0; i < N; i++) {
       array[i]++;
     }
   });
+
+  q.single_task(e4, [=]() { array[0] = array[0]; });
 
   q.wait();
   
