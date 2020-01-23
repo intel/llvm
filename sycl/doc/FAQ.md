@@ -11,16 +11,16 @@
 ## Developing with SYCL
 
 ### Q: What do I need to start developing with SYCL?
-**A:** To get full SYCL experience you need a SYCL-capable compiler. Intel SYCL
+**A:** To get the full SYCL experience you need a SYCL-capable compiler. Intel SYCL
 compiler provides you with both host and device side compilation. Another requirement
 for device code offloading to accelerators is a compatible OpenCL runtime.
-Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you set up proper
-environment. To learn more about SYCL compiler usage, please refer
+Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you set up a proper
+environment. To learn more about using the SYCL compiler, please refer
 to [User Manual](SYCLCompilerUserManual.md). If using a special compiler is not
 an option for you and you don't need to offload code to accelerators, you can
-exploit SYCL's host device feature. This way gives you ability to use any C++11
-compiler. You will need to link your application with SYCL Runtime library and
-provide path to SYCL headers directory. Please, refer to you compiler manual
+exploit SYCL's host device feature. This gives you the ability to use any C++11
+compiler. You will need to link your application with the SYCL Runtime library and
+provide a path to the SYCL headers directory. Please, refer to your compiler manual
 to learn about specific build options.
 
 ### Q: How are SYCL compilation phases different from those of a usual C++ compiler? Can I customize this flow for my applications?
@@ -32,8 +32,8 @@ understanding of the above-described steps may allow you to customize your compi
 As an example, you could:
 1. preprocess your host code with another C++-capable compiler;
 2. turn to SYCL compiler for generating the integration header and compiling the device code for the needed target(s);
-3. use your preferred host compiler from 1) to compile your preprocessed host code and the integration header into a host object;
-4. link the host object and the device image(s) into the final executable.
+3. use your preferred host compiler from 1) to compile your preprocessed host code and the integration header into a host object file;
+4. link the host object file and the device image(s) into the final executable.
 
 To learn more about the concepts behind this flow, and the internals of SYCL compiler as such,
 we welcome you to study our [SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
@@ -42,9 +42,9 @@ document.
 
 ## Using applications built with SYCL
 
-### Q: What happens if I run my application on machine without OpenCL?
+### Q: What happens if I run my application on a machine without OpenCL?
 **A:** If you use the default SYCL device selector (or any other selector that
-allows host device), then fallback to host device will take place. Otherwise,
+allows host device), then a fallback to the host device will take place. Otherwise,
 an exception will be thrown.
 
 
@@ -64,8 +64,8 @@ Windows:
 
 **A:** The SYCL Runtime library is required to run SYCL-enabled applications. While
 compiler driver is able to find the library and link against it, your operating
-system may struggle. Make sure that the location of the SYCL runtime library is listed in
-`LD_LIBRARY_PATH` (for Linux) or `LIB` (for Windows) environment variables.
+system may struggle. Make sure that the location of the SYCL Runtime library is listed in
+the correct environment variable: `LD_LIBRARY_PATH` (for Linux) or `LIB` (for Windows).
 
 ### Q: SYCL fails to compile device code that uses STD functions.
 Example error message:
@@ -124,7 +124,7 @@ target for kernel execution. Since the device code is also compiled for the host
 and no JIT is required, you can easily use any classic C++ debugging tools of your
 choice for the host device code.
 
-Furthermore, developers can extend capabilities of SYCL Runtime and compiler to
+Furthermore, developers can extend capabilities of the SYCL Runtime to
 non-OpenCL devices by writing correspondent plugins. To learn more, please check out
 our [Plugin Interface Guide](SYCLPluginInterface.md).
 
