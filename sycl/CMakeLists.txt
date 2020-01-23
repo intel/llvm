@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 
+
 project(sycl-solution)
 # Requirements
 set(CMAKE_CXX_STANDARD 11)
