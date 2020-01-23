@@ -1,0 +1,19 @@
+= SYCL Proposals: Queue Shortcuts
+James Brodman <james.brodman@intel.com>
+v0.1
+:source-highlighter: pygments
+:icons: font
+== Introduction
+This document presents an addition proposed for a future version of the SYCL Specification.  The goal of this proposal is to reduce the complexity and verbosity of using SYCL for programmers.
+
+== Queue Simplifications
+Tasks are submitted to queues for exeuction in SYCL.  This is normally done by invoking the `submit` method and passing a lambda that specifies the operation to perform and its dependences.  A task's dependences have traditionally been specified through the creation of `accessor` objects that tell the SYCL runtime how data in a `buffer` is used.  However, new proposals for data management in SYCL, such as Unified Shared Memory, provide alternatives to the buffer and accessor model.  The USM proposal specifies dependences between kernels using `event` objects.  The Queue Properties proposal specifies how to create a `queue` that has in-order semantics where each operation is performed after the previous operation has finished.
+
+It makes sense, in a SYCL with those proposals, to provide programmers with shortcuts to eliminate unnecessary extra code.  When using in-order queues, for example, the lambda passed to `submit` does nothing except invoke `parallel_for` or `single_task`.  This proposal suggests adding the kernel specification methods directly to the `queue` class.  These additional methods take two flavors.  The first handles the "empty lambda" case.  The second handles the USM dependence case by adding methods that take an `event` or vector of `events` that specify the dependences that must be satisfied before the kernel executes.  Both flavors could be implemented in a header file by specifying the `submit` lambda for the programmer.
+
+.Queue Shortcuts
+[source,cpp]
+----
+include::queue.hpp[]
+----
+
