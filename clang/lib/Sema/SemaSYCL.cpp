@@ -972,7 +972,6 @@ static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
 // Returns true if all arguments are successfully built.
 static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
                         SmallVectorImpl<ParamDesc> &ParamDescs) {
-  const LambdaCapture *Cpt = KernelObj->captures_begin();
   auto CreateAndAddPrmDsc = [&](const FieldDecl *Fld, const QualType &ArgType) {
     // Create a parameter descriptor and append it to the result
     ParamDescs.push_back(makeParamDesc(Fld, ArgType));
@@ -1036,26 +1035,35 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     QualType ArgTy = Fld->getType();
     if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy)) {
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
-    } else if (!ArgTy->isStandardLayoutType()) {
-      // SYCL v1.2.1 s4.8.10 p5:
-      // C++ non-standard layout values must not be passed as arguments to a
-      // kernel that is compiled for a device.
-      const auto &DiagLocation =
-          Cpt ? Cpt->getLocation() : cast<DeclaratorDecl>(Fld)->getLocation();
-
-      Context.getDiagnostics().Report(DiagLocation,
-                                      diag::err_sycl_non_std_layout_type);
-
-      // Set the flag and continue processing so we can emit error for each
-      // invalid argument.
-      AllArgsAreValid = false;
     } else if (ArgTy->isStructureOrClassType()) {
-      assert(ArgTy->isStandardLayoutType());
+      if (Context.getLangOpts().SYCLStdLayoutKernelParams) {
+        if (!ArgTy->isStandardLayoutType()) {
+          Context.getDiagnostics().Report(Fld->getLocation(),
+                                          diag::err_sycl_non_std_layout_type)
+              << ArgTy;
+          AllArgsAreValid = false;
+          continue;
+        }
+      }
+      // TODO: Make stream class trivially copyable and remove the check on
+      // stream class.
+      if (!ArgTy.isTriviallyCopyableType(Context) &&
+          !Util::isSyclStreamType(ArgTy)) {
+        Context.getDiagnostics().Report(
+            Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
+            << ArgTy;
+        AllArgsAreValid = false;
+        continue;
+      }
 
       CreateAndAddPrmDsc(Fld, ArgTy);
 
       // Create descriptors for each accessor field in the class or struct
       createParamDescForWrappedAccessors(Fld, ArgTy);
+    } else if (ArgTy->isReferenceType()) {
+      Context.getDiagnostics().Report(
+          Fld->getLocation(), diag::err_bad_kernel_param_type) << ArgTy;
+      AllArgsAreValid = false;
     } else if (ArgTy->isPointerType()) {
       // Pointer Arguments need to be in the global address space
       QualType PointeeTy = ArgTy->getPointeeType();
@@ -1071,10 +1079,6 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     } else {
       llvm_unreachable("Unsupported kernel parameter type");
     }
-
-    // Update capture iterator as we process arguments
-    if (Cpt && Cpt != KernelObj->captures_end())
-      ++Cpt;
   }
 
   return AllArgsAreValid;

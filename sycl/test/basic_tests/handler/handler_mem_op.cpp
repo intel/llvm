@@ -19,7 +19,7 @@
 using namespace cl::sycl;
 
 template <typename T> struct point {
-  point(const point &rhs) : x(rhs.x), y(rhs.y) {}
+  point(const point &rhs) = default;
   point(T x, T y) : x(x), y(y) {}
   point(T v) : x(v), y(v) {}
   point() : x(0), y(0) {}

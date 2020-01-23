@@ -2199,8 +2199,9 @@ static bool mustSkipTailPadding(TargetCXXABI ABI, const CXXRecordDecl *RD) {
   llvm_unreachable("bad tail-padding use kind");
 }
 
-static bool isMsLayout(const ASTContext &Context) {
-  return Context.getTargetInfo().getCXXABI().isMicrosoft();
+static bool isMsLayout(const ASTContext &Context, bool CheckAuxABI = false) {
+  return (CheckAuxABI) ? Context.getAuxTargetInfo()->getCXXABI().isMicrosoft()
+                       : Context.getTargetInfo().getCXXABI().isMicrosoft();
 }
 
 // This section contains an implementation of struct layout that is, up to the
@@ -3025,6 +3026,9 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
   // as soon as we begin to parse the definition.  That definition is
   // not a complete definition (which is what isDefinition() tests)
   // until we *finish* parsing the definition.
+  bool CheckAuxABI = false;
+  if (getLangOpts().SYCLIsDevice && (getAuxTargetInfo() != nullptr))
+    CheckAuxABI = true;
 
   if (D->hasExternalLexicalStorage() && !D->getDefinition())
     getExternalSource()->CompleteType(const_cast<RecordDecl*>(D));
@@ -3042,7 +3046,7 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
 
   const ASTRecordLayout *NewEntry = nullptr;
 
-  if (isMsLayout(*this)) {
+  if (isMsLayout(*this, CheckAuxABI)) {
     MicrosoftRecordLayoutBuilder Builder(*this);
     if (const auto *RD = dyn_cast<CXXRecordDecl>(D)) {
       Builder.cxxLayout(RD);
