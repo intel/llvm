@@ -13,12 +13,12 @@
 ### Q: What do I need to start developing with SYCL?
 **A:** To get the full SYCL experience you need a SYCL-capable compiler. Intel SYCL
 compiler provides you with both host and device side compilation. Another requirement
-for device code offloading to accelerators is a compatible OpenCL runtime.
+for code offloading to specialized devices is a compatible OpenCL runtime.
 Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you set up a proper
 environment. To learn more about using the SYCL compiler, please refer
 to [User Manual](SYCLCompilerUserManual.md). If using a special compiler is not
-an option for you and you don't need to offload code to accelerators, you can
-exploit SYCL's host device feature. This gives you the ability to use any C++11
+an option for you and/or you would like to experiment without offloading code to non-host
+devices, you can exploit SYCL's host device feature. This gives you the ability to use any C++11
 compiler. You will need to link your application with the SYCL Runtime library and
 provide a path to the SYCL headers directory. Please, refer to your compiler manual
 to learn about specific build options.
@@ -113,7 +113,7 @@ The full list of SYCL math built-ins is provided in section 4.13.3 of the specif
 
 ### Q: What devices are supported by Intel SYCL compiler?
 **A:** By design, SYCL is closely connected to OpenCL, which is used to offload
-code to accelerators. Intel SYCL compiler currently makes use of SPIR-V,
+code to specialized devices. Intel SYCL compiler currently makes use of SPIR-V,
 a portable intermediate representation format. It is a core feature of
 OpenCL 2.1, so any device, capable of OpenCL 2.1, should be supported.
 Otherwise, your OpenCL device must support `cl_khr_il_program` extension.
