@@ -562,7 +562,6 @@ template <int FirstSize, typename... Args> class is_same_vector_size_impl;
 
 template <int FirstSize, typename T, typename... Args>
 class is_same_vector_size_impl<FirstSize, T, Args...> {
-private:
   using CurrentT = detail::remove_pointer_t<T>;
   static constexpr int Size = vector_size<CurrentT>::value;
   static constexpr bool IsSizeEqual = (Size == FirstSize);
