@@ -165,7 +165,7 @@ private:
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs);
 
-  /// Extracts and prepares kernel arguments that were set via set_arg(s).
+  /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -185,7 +185,7 @@ private:
     return lambdaName == kernelName;
   }
 
-  /// Constructs CG object of specific type, pass it to Scheduler and
+  /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
   /// It's expected that the method is the latest method executed before
   /// object destruction.
@@ -502,8 +502,7 @@ public:
     setArgsHelper(0, std::move(Args)...);
   }
 
-  /// Defines and invokes a SYCL kernel function as a lambda function
-  /// or a named function object type.
+  /// Defines and invokes a SYCL kernel function as a function object type.
   ///
   /// If it is a named function object and the function object type is
   /// globally visible, there is no need for the developer to provide

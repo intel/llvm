@@ -17,7 +17,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 event handler::finalize() {
   sycl::event EventRet;
