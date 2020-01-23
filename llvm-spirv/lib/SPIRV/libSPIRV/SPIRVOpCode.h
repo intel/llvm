@@ -168,6 +168,11 @@ inline bool isTypeOpCode(Op OpCode) {
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL;
 }
 
+inline bool isSpecConstantOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp;
+}
+
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||

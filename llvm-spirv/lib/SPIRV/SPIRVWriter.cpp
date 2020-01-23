@@ -1749,9 +1749,12 @@ SPIRVValue *LLVMToSPIRV::transDirectCallInst(CallInst *CI,
     return oclTransSpvcCastSampler(CI, BB);
 
   if (oclIsBuiltin(MangledName, &DemangledName) ||
-      isDecoratedSPIRVFunc(F, &DemangledName))
+      isDecoratedSPIRVFunc(F, &DemangledName)) {
+    if (auto BV = transBuiltinToConstant(DemangledName, CI))
+      return BV;
     if (auto BV = transBuiltinToInst(DemangledName, MangledName, CI, BB))
       return BV;
+  }
 
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
@@ -2040,6 +2043,28 @@ void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(
     return;
   if (FT->getParamType(1)->isIntegerTy())
     ChangedType[1] = getSamplerType(F->getParent());
+}
+
+SPIRVValue *
+LLVMToSPIRV::transBuiltinToConstant(const std::string &DemangledName,
+                                    CallInst *CI) {
+  Op OC = getSPIRVFuncOC(DemangledName);
+  if(!isSpecConstantOpCode(OC))
+    return nullptr;
+  Type *Ty = CI->getArgOperand(1)->getType();
+  assert(Ty == CI->getType() && "Type mismatch!");
+  Value *V = CI->getArgOperand(1);
+  uint64_t Val = 0;
+  if(Ty->isIntegerTy())
+    Val = cast<ConstantInt>(V)->getZExtValue();
+  else if(Ty->isFloatingPointTy())
+    Val = cast<ConstantFP>(V)->getValueAPF().bitcastToAPInt().getZExtValue();
+  else
+    return nullptr;
+  SPIRVValue *SC = BM->addSpecConstant(transType(Ty), Val);
+  uint64_t SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+  SC->addDecorate(DecorationSpecId, SpecId);
+  return  SC;
 }
 
 SPIRVInstruction *

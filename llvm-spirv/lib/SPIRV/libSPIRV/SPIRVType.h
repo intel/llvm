@@ -191,7 +191,7 @@ public:
     SPIRVCapVec CV;
     if (isTypeFloat(16)) {
       CV.push_back(CapabilityFloat16Buffer);
-      auto Extensions = getModule()->getExtension();
+      auto Extensions = getModule()->getSourceExtension();
       if (std::any_of(Extensions.begin(), Extensions.end(),
                       [](const std::string &I) { return I == "cl_khr_fp16"; }))
         CV.push_back(CapabilityFloat16);

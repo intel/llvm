@@ -161,6 +161,8 @@ private:
                                SmallVectorImpl<std::string> *Dec = nullptr);
   bool oclIsKernel(Function *F);
   bool transOCLKernelMetadata();
+  SPIRVValue *transBuiltinToConstant(const std::string &DemangledName,
+                                     CallInst *CI);
   SPIRVInstruction *transBuiltinToInst(const std::string &DemangledName,
                                        const std::string &MangledName,
                                        CallInst *CI, SPIRVBasicBlock *BB);
