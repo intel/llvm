@@ -8,7 +8,6 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/usm_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/queue.hpp>
@@ -19,6 +18,11 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
+
+// Forward declarations.
+void *aligned_alloc(size_t alignment, size_t size, const device &dev,
+                    const context &ctxt, usm::alloc kind);
+void free(void *ptr, const context &ctxt);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
@@ -107,35 +111,26 @@ public:
         "Device pointers do not support address on host");
   }
 
-  // Allocate memory
-  template <
-      usm::alloc AllocT = AllocKind,
-      typename std::enable_if<AllocT == usm::alloc::host, int>::type = 0>
+  /// Allocates memory.
+  ///
+  /// @param Size is a count of elements to allocate memory for.
   pointer allocate(size_t Size) {
-    auto Result = reinterpret_cast<pointer>(detail::usm::alignedAllocHost(
-        getAlignment(), Size * sizeof(value_type), mContext, AllocKind));
-    if (!Result) {
-      throw memory_allocation_error();
-    }
-    return Result;
-  }
 
-  template <usm::alloc AllocT = AllocKind,
-            typename std::enable_if<AllocT != usm::alloc::host, int>::type = 0>
-  pointer allocate(size_t Size) {
     auto Result = reinterpret_cast<pointer>(
-        detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
-                                  mContext, mDevice, AllocKind));
+        aligned_alloc(getAlignment(), Size * sizeof(value_type),
+                                 mDevice, mContext, AllocKind));
     if (!Result) {
       throw memory_allocation_error();
     }
     return Result;
   }
 
-  // Deallocate memory
-  void deallocate(pointer Ptr, size_t size) {
+  /// Deallocates memory.
+  ///
+  /// @param Ptr is a pointer to memory being deallocated.
+  void deallocate(pointer Ptr, size_t Size) {
     if (Ptr) {
-      detail::usm::free(Ptr, mContext);
+      free(Ptr, mContext);
     }
   }
 
