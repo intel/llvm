@@ -1327,9 +1327,14 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
   // The tag definition will take care of these.
   if (!Policy.IncludeTagDefinition)
   {
-    OS << TypeWithKeyword::getKeywordName(T->getKeyword());
-    if (T->getKeyword() != ETK_None)
-      OS << " ";
+    // When removing aliases don't print keywords to avoid having things
+    // like 'typename int'
+    if (!Policy.SuppressTypedefs)
+    {
+       OS << TypeWithKeyword::getKeywordName(T->getKeyword());
+       if (T->getKeyword() != ETK_None)
+         OS << " ";
+    }
     NestedNameSpecifier *Qualifier = T->getQualifier();
     if (Qualifier && !(Policy.SuppressTypedefs &&
                        T->getNamedType()->getTypeClass() == Type::Typedef))
