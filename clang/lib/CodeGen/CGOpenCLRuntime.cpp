@@ -70,10 +70,16 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
 }
 
 llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T) {
-  if (T->isReadOnly())
+  switch (T->getPipeMode()) {
+  case OPM_read:
     return getPipeType(T, "opencl.pipe_ro_t", PipeROTy);
-  else
+  case OPM_write:
     return getPipeType(T, "opencl.pipe_wo_t", PipeWOTy);
+  case OPM_storage:
+    return getPipeType(T, "opencl.pipe_storage_t", PipeStorageTy);
+  default:
+    llvm_unreachable("Unexpected opencl pipe type!");
+  }
 }
 
 llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T, StringRef Name,

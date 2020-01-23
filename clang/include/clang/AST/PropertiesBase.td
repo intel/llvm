@@ -111,6 +111,7 @@ def Identifier : RefPropertyType<"IdentifierInfo"> { let ConstWhenWriting = 1; }
 def NestedNameSpecifier : PropertyType<"NestedNameSpecifier *">;
 def NestedNameSpecifierKind :
   EnumPropertyType<"NestedNameSpecifier::SpecifierKind">;
+def OCLPipeMode : EnumPropertyType;
 def OverloadedOperatorKind : EnumPropertyType;
 def Qualifiers : PropertyType;
 def QualType : DefaultValuePropertyType;

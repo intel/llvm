@@ -1125,7 +1125,7 @@ private:
 
   QualType getTypeDeclTypeSlow(const TypeDecl *Decl) const;
 
-  QualType getPipeType(QualType T, bool ReadOnly) const;
+  QualType getPipeType(QualType T, OCLPipeMode Mode) const;
 
 public:
   /// Return the uniqued reference to the type for an address space
@@ -1272,6 +1272,9 @@ public:
 
   /// Return a write_only pipe type for the specified type.
   QualType getWritePipeType(QualType T) const;
+
+  /// Return a pipe storage type for the specified type.
+  QualType getStoragePipeType(QualType T) const;
 
   /// Gets the struct used to keep track of the extended descriptor for
   /// pointer to blocks.

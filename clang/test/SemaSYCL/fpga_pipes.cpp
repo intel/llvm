@@ -14,3 +14,6 @@ using type4 = __attribute__((pipe(0))) const int;
 
 // expected-error@+1{{'pipe' attribute takes one argument}}
 using type5 = __attribute__((pipe)) const int;
+
+// no error expected
+using type6 = __attribute__((pipe("storage"))) const int;

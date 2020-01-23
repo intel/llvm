@@ -3812,8 +3812,20 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       BaseName = "__get_pipe_num_packets";
     else
       BaseName = "__get_pipe_max_packets";
-    std::string Name = std::string(BaseName) +
-                       std::string(PipeTy->isReadOnly() ? "_ro" : "_wo");
+
+    const char *Postfix;
+    switch (PipeTy->getPipeMode()) {
+    case OPM_read:
+      Postfix = "_ro";
+      break;
+    case OPM_write:
+      Postfix = "_wo";
+      break;
+    default:
+      llvm_unreachable("Wrong pipe type");
+    }
+
+    std::string Name = std::string(BaseName) + std::string(Postfix);
 
     // Building the generic function prototype.
     Value *Arg0 = EmitScalarExpr(E->getArg(0));

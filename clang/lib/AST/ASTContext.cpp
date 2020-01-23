@@ -3961,9 +3961,9 @@ QualType ASTContext::getFunctionTypeInternal(
   return QualType(FTP, 0);
 }
 
-QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {
+QualType ASTContext::getPipeType(QualType T, OCLPipeMode Mode) const {
   llvm::FoldingSetNodeID ID;
-  PipeType::Profile(ID, T, ReadOnly);
+  PipeType::Profile(ID, T, Mode);
 
   void *InsertPos = nullptr;
   if (PipeType *PT = PipeTypes.FindNodeOrInsertPos(ID, InsertPos))
@@ -3973,14 +3973,14 @@ QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {
   // either, so fill in the canonical type field.
   QualType Canonical;
   if (!T.isCanonical()) {
-    Canonical = getPipeType(getCanonicalType(T), ReadOnly);
+    Canonical = getPipeType(getCanonicalType(T), Mode);
 
     // Get the new insert position for the node we care about.
     PipeType *NewIP = PipeTypes.FindNodeOrInsertPos(ID, InsertPos);
     assert(!NewIP && "Shouldn't be in the map!");
     (void)NewIP;
   }
-  auto *New = new (*this, TypeAlignment) PipeType(T, Canonical, ReadOnly);
+  auto *New = new (*this, TypeAlignment) PipeType(T, Canonical, Mode);
   Types.push_back(New);
   PipeTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -3993,11 +3993,15 @@ QualType ASTContext::adjustStringLiteralBaseType(QualType Ty) const {
 }
 
 QualType ASTContext::getReadPipeType(QualType T) const {
-  return getPipeType(T, true);
+  return getPipeType(T, OPM_read);
 }
 
 QualType ASTContext::getWritePipeType(QualType T) const {
-  return getPipeType(T, false);
+  return getPipeType(T, OPM_write);
+}
+
+QualType ASTContext::getStoragePipeType(QualType T) const {
+  return getPipeType(T, OPM_storage);
 }
 
 #ifndef NDEBUG

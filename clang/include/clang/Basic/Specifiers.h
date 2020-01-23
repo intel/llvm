@@ -56,6 +56,13 @@ namespace clang {
     TSP_pipe
   };
 
+  // Specifies pipe modes: read/write/storage
+  enum OCLPipeMode {
+    OPM_read,
+    OPM_write,
+    OPM_storage
+  };
+
   /// Specifies the kind of type.
   enum TypeSpecifierType {
     TST_unspecified,

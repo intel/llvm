@@ -1168,7 +1168,7 @@ public:
 
   /// Build a new pipe type given its value type.
   QualType RebuildPipeType(QualType ValueType, SourceLocation KWLoc,
-                           bool isReadPipe);
+                           OCLPipeMode Mode);
 
   /// Build a new template name given a nested name specifier, a flag
   /// indicating whether the "template" keyword was provided, and the template
@@ -5982,8 +5982,8 @@ QualType TreeTransform<Derived>::TransformPipeType(TypeLocBuilder &TLB,
   QualType Result = TL.getType();
   if (getDerived().AlwaysRebuild() || ValueType != TL.getValueLoc().getType()) {
     const PipeType *PT = Result->castAs<PipeType>();
-    bool isReadPipe = PT->isReadOnly();
-    Result = getDerived().RebuildPipeType(ValueType, TL.getKWLoc(), isReadPipe);
+    OCLPipeMode Mode = PT->getPipeMode();
+    Result = getDerived().RebuildPipeType(ValueType, TL.getKWLoc(), Mode);
     if (Result.isNull())
       return QualType();
   }
@@ -13208,9 +13208,12 @@ QualType TreeTransform<Derived>::RebuildAtomicType(QualType ValueType,
 template<typename Derived>
 QualType TreeTransform<Derived>::RebuildPipeType(QualType ValueType,
                                                  SourceLocation KWLoc,
-                                                 bool isReadPipe) {
-  return isReadPipe ? SemaRef.BuildReadPipeType(ValueType, KWLoc)
-                    : SemaRef.BuildWritePipeType(ValueType, KWLoc);
+                                                 OCLPipeMode Mode) {
+  if (Mode == OPM_read)
+    return SemaRef.BuildReadPipeType(ValueType, KWLoc);
+  if (Mode == OPM_write)
+    return SemaRef.BuildWritePipeType(ValueType, KWLoc);
+  return SemaRef.BuildStoragePipeType(ValueType, KWLoc);
 }
 
 template<typename Derived>

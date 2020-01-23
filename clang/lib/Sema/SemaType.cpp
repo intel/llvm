@@ -2128,6 +2128,18 @@ QualType Sema::BuildWritePipeType(QualType T, SourceLocation Loc) {
   return Context.getWritePipeType(T);
 }
 
+/// Build a Storage Pipe type.
+///
+/// \param T The type to which we'll be building a Pipe.
+///
+/// \param Loc We do not use it for now.
+///
+/// \returns A suitable pipe type, if there are no errors. Otherwise, returns a
+/// NULL type.
+QualType Sema::BuildStoragePipeType(QualType T, SourceLocation Loc) {
+  return Context.getStoragePipeType(T);
+}
+
 /// Check whether the specified array size makes the array type a VLA.  If so,
 /// return true, if not, return the size of the array in SizeVal.
 static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
@@ -6157,25 +6169,25 @@ static void HandleSYCLFPGAPipeAttribute(QualType &Type, const ParsedAttr &Attr,
     Attr.setInvalid();
     return;
   }
-
-  bool isReadOnlyPipe;
-  if (Str == "write_only")
-    isReadOnlyPipe = false;
-  else if (Str == "read_only")
-    isReadOnlyPipe = true;
-  else {
+  SYCLFPGAPipeAttr *PipeAttr;
+  QualType EquivType;
+  // Apply pipe qualifiers just to the equivalent type, as the expression is not
+  // value dependent (not templated).
+  if (Str == "write_only") {
+    PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
+    EquivType = S.BuildWritePipeType(Type, Attr.getLoc());
+  } else if (Str == "read_only") {
+    PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
+    EquivType = S.BuildReadPipeType(Type, Attr.getLoc());
+  } else if (Str == "storage") {
+    PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
+    EquivType = S.BuildStoragePipeType(Type, Attr.getLoc());
+  } else {
     S.Diag(Attr.getLoc(), diag::err_pipe_attribute_arg_not_allowed) << Str;
     Attr.setInvalid();
     return;
   }
 
-  auto *PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
-
-  // Apply pipe qualifiers just to the equivalent type, as the expression is not
-  // value dependent (not templated).
-  QualType EquivType = isReadOnlyPipe
-                           ? S.BuildReadPipeType(Type, Attr.getLoc())
-                           : S.BuildWritePipeType(Type, Attr.getLoc());
   if (EquivType.isNull()) {
     Attr.setInvalid();
     return;

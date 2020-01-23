@@ -37,6 +37,7 @@ protected:
   CodeGenModule &CGM;
   llvm::Type *PipeROTy;
   llvm::Type *PipeWOTy;
+  llvm::Type *PipeStorageTy;
   llvm::PointerType *SamplerTy;
 
   /// Structure for enqueued block information.

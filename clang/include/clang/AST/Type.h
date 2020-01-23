@@ -6125,41 +6125,42 @@ public:
   }
 };
 
-/// PipeType - OpenCL20.
+/// PipeType - OpenCL20 and Pipe Storage Type - OpenCL22/SYCL.
 class PipeType : public Type, public llvm::FoldingSetNode {
   friend class ASTContext; // ASTContext creates these.
 
   QualType ElementType;
-  bool isRead;
+  OCLPipeMode Mode;
 
-  PipeType(QualType elemType, QualType CanonicalPtr, bool isRead)
+  PipeType(QualType elemType, QualType CanonicalPtr, OCLPipeMode pipeMode)
       : Type(Pipe, CanonicalPtr, elemType->isDependentType(),
              elemType->isInstantiationDependentType(),
              elemType->isVariablyModifiedType(),
              elemType->containsUnexpandedParameterPack()),
-        ElementType(elemType), isRead(isRead) {}
+        ElementType(elemType), Mode(pipeMode) {}
 
 public:
   QualType getElementType() const { return ElementType; }
+
+  OCLPipeMode getPipeMode() const { return Mode; }
 
   bool isSugared() const { return false; }
 
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getElementType(), isReadOnly());
+    Profile(ID, getElementType(), getPipeMode());
   }
 
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType T, bool isRead) {
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType T,
+                      OCLPipeMode Mode) {
     ID.AddPointer(T.getAsOpaquePtr());
-    ID.AddBoolean(isRead);
+    ID.AddInteger(Mode);
   }
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == Pipe;
   }
-
-  bool isReadOnly() const { return isRead; }
 };
 
 /// A qualifier set is used to build a set of qualifiers.

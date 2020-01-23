@@ -958,7 +958,7 @@ public:
 
   void VisitPipeType(const PipeType *T) {
     AddQualType(T->getElementType());
-    Hash.AddBoolean(T->isReadOnly());
+    ID.AddInteger(T->getPipeMode());
     VisitType(T);
   }
 

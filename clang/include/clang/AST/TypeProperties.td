@@ -805,11 +805,11 @@ let Class = PipeType in {
   def : Property<"elementType", QualType> {
     let Read = [{ node->getElementType() }];
   }
-  def : Property<"isReadOnly", Bool> {
-    let Read = [{ node->isReadOnly() }];
+  def : Property<"Mode", OCLPipeMode> {
+    let Read = [{ node->getPipeMode() }];
   }
 
   def : Creator<[{
-    return ctx.getPipeType(elementType, isReadOnly);
+    return ctx.getPipeType(elementType, Mode);
   }]>;
 }

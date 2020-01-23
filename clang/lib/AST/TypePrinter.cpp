@@ -1101,10 +1101,19 @@ void TypePrinter::printAtomicAfter(const AtomicType *T, raw_ostream &OS) {}
 void TypePrinter::printPipeBefore(const PipeType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
 
-  if (T->isReadOnly())
+  switch (T->getPipeMode()) {
+  case OPM_read:
     OS << "read_only ";
-  else
+    break;
+  case OPM_write:
     OS << "write_only ";
+    break;
+  case OPM_storage:
+    OS << "storage ";
+    break;
+  default:
+    llvm_unreachable("Unexpected opencl pipe type!");
+  }
   OS << "pipe ";
   print(T->getElementType(), OS, StringRef());
   spaceBeforePlaceHolder(OS);
