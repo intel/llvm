@@ -558,10 +558,10 @@ template <typename T> static constexpr T quiet_NaN() {
 }
 
 // is_same_vector_size
-template <int FirstSize, typename... Args> struct is_same_vector_size_impl;
+template <int FirstSize, typename... Args> class is_same_vector_size_impl;
 
 template <int FirstSize, typename T, typename... Args>
-struct is_same_vector_size_impl<FirstSize, T, Args...> {
+class is_same_vector_size_impl<FirstSize, T, Args...> {
 private:
   using CurrentT = detail::remove_pointer_t<T>;
   static constexpr int Size = vector_size<CurrentT>::value;
@@ -574,7 +574,7 @@ public:
 };
 
 template <int FirstSize>
-struct is_same_vector_size_impl<FirstSize> : std::true_type {};
+class is_same_vector_size_impl<FirstSize> : public std::true_type {};
 
 template <typename T, typename... Args> class is_same_vector_size {
   using CurrentT = remove_pointer_t<T>;
