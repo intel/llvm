@@ -8,7 +8,8 @@ public:
   event single_task(event DepEvent, KernelType KernelFunc);
 
   template <typename KernelName, typename KernelType>
-  event single_task(std::vector<event> DepEvents, KernelType KernelFunc);
+  event single_task(const vector_class<event> &DepEvents,
+                    KernelType KernelFunc);
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc);
@@ -18,7 +19,8 @@ public:
                      KernelType KernelFunc);
 
   template <typename KernelName, typename KernelType, int Dims>
-  event parallel_for(range<Dims> NumWorkItems, std::vector<event> DepEvents,
+  event parallel_for(range<Dims> NumWorkItems,
+                     const vector_class<event> &DepEvents,
                      KernelType KernelFunc);
 
   template <typename KernelName, typename KernelType, int Dims>
@@ -31,7 +33,8 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     std::vector<event> DepEvents, KernelType KernelFunc);
+                     const vector_class<event> &DepEvents,
+                     KernelType KernelFunc);
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc);
@@ -42,5 +45,6 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     std::vector<event> DepEvents, KernelType KernelFunc);
+                     const vector_class<event> &DepEvents,
+                     KernelType KernelFunc);
 };
