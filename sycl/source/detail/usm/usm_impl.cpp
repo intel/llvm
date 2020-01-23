@@ -297,9 +297,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_DEVICE,
                                    sizeof(pi_device), &DeviceId, nullptr);
 
-  for (const auto D : CtxImpl->getDevices()) {
-    // Try to find the real sycl device used in the context
-    if (detail::pi::cast<pi_device>(D.get()) == DeviceId)
+  for (const device &Dev : CtxImpl->getDevices()) {
+    // Try to find the vreal sycl device used in the context
+    if (detail::getSyclObjImpl(Dev)->getHandleRef()) == DeviceId)
       return D;
   }
 
