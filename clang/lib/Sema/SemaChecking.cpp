@@ -1532,7 +1532,17 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
           << "SYCL device";
       return ExprError();
     }
-    if (CheckIntelFPGABuiltinFunctionCall(BuiltinID, TheCall))
+    if (CheckIntelFPGARegBuiltinFunctionCall(BuiltinID, TheCall))
+      return ExprError();
+    break;
+  case Builtin::BI__builtin_intel_fpga_mem:
+    if (!Context.getLangOpts().SYCLIsDevice) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
+          << "__builtin_intel_fpga_mem"
+          << "SYCL device";
+      return ExprError();
+    }
+    if (CheckIntelFPGAMemBuiltinFunctionCall(TheCall))
       return ExprError();
     break;
   }
@@ -4156,8 +4166,8 @@ static bool checkIntelFPGARegArgument(Sema &S, QualType ArgType,
   return false;
 }
 
-bool Sema::CheckIntelFPGABuiltinFunctionCall(unsigned BuiltinID,
-                                             CallExpr *TheCall) {
+bool Sema::CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID,
+                                                CallExpr *TheCall) {
   switch (BuiltinID) {
   case Builtin::BI__builtin_intel_fpga_reg: {
     if (checkArgCount(*this, TheCall, 1))
@@ -4183,6 +4193,51 @@ bool Sema::CheckIntelFPGABuiltinFunctionCall(unsigned BuiltinID,
   default:
     return true;
   }
+}
+
+bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
+  // Make sure we have exactly 3 arguments
+  if (checkArgCount(*this, TheCall, 3))
+    return true;
+
+  Expr *PointerArg = TheCall->getArg(0);
+  QualType PointerArgType = PointerArg->getType();
+
+  // Make sure that the first argument is a pointer
+  if (!isa<PointerType>(PointerArgType))
+    return Diag(PointerArg->getBeginLoc(),
+                diag::err_intel_fpga_mem_arg_mismatch)
+           << 0;
+
+  // Make sure that the pointer points to a legal type
+  // We use the same argument checks used for __builtin_intel_fpga_reg
+  QualType PointeeType = PointerArgType->getPointeeType();
+  SourceLocation Loc;
+  if (checkIntelFPGARegArgument(*this, PointeeType, Loc)) {
+    Diag(TheCall->getBeginLoc(), diag::err_intel_fpga_mem_limitations)
+        << (PointeeType->isRecordType() ? 1 : 0) << PointerArgType
+        << TheCall->getSourceRange();
+    if (PointeeType->isRecordType())
+      Diag(Loc, diag::illegal_type_declared_here);
+    return true;
+  }
+
+  // Second argument must be a constant integer
+  llvm::APSInt Result;
+  if (SemaBuiltinConstantArg(TheCall, 1, Result))
+    return true;
+
+  // Third argument (CacheSize) must be a non-negative constant integer
+  if (SemaBuiltinConstantArg(TheCall, 2, Result))
+    return true;
+  if (Result < 0)
+    return Diag(TheCall->getArg(2)->getBeginLoc(),
+        diag::err_intel_fpga_mem_arg_mismatch) << 1;
+
+  // Set the return type to be the same as the type of the first argument
+  // (pointer argument)
+  TheCall->setType(PointerArgType);
+  return false;
 }
 
 /// Given a FunctionDecl's FormatAttr, attempts to populate the FomatStringInfo

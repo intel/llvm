@@ -4223,6 +4223,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   // SYCL
   case Builtin::BI__builtin_intel_fpga_reg:
     return EmitIntelFPGARegBuiltin(E, ReturnValue);
+  case Builtin::BI__builtin_intel_fpga_mem:
+    return EmitIntelFPGAMemBuiltin(E);
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit
@@ -14891,4 +14893,33 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
   }
 
   return RValue::get(AnnotatedV);
+}
+
+RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
+  // Arguments
+  const Expr *PtrArg = E->getArg(0);
+  Value *PtrVal = EmitScalarExpr(PtrArg);
+
+  // Create the pointer annotation
+  Function *F =
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, PtrVal->getType());
+  SmallString<256> AnnotStr;
+  llvm::raw_svector_ostream Out(AnnotStr);
+
+  llvm::APSInt Params;
+  bool IsConst = E->getArg(1)->isIntegerConstantExpr(Params, getContext());
+  assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
+  Out << "{params:" << Params.toString(10) << "}";
+
+  llvm::APSInt CacheSize;
+  IsConst = E->getArg(2)->isIntegerConstantExpr(CacheSize, getContext());
+  assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
+  Out << "{cache-size:" << CacheSize.toString(10) << "}";
+
+  llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
+
+  cast<CallBase>(Ann)->addAttribute(llvm::AttributeList::FunctionIndex,
+                                    llvm::Attribute::ReadNone);
+
+  return RValue::get(Ann);
 }

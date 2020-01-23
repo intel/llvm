@@ -143,6 +143,15 @@ def err_bankbits_numbanks_conflicting : Error<
   "the number of bank_bits must be equal to ceil(log2(numbanks))">;
 def err_bankbits_non_consecutive : Error<
   "bank_bits must be consecutive">;
+def err_intel_fpga_mem_limitations
+    : Error<
+          "illegal %select{pointer argument of type %1 |field in type pointed "
+          "to by pointer argument}0 to __builtin_intel_fpga_mem. Only pointers "
+          "to a first class lvalue or to an rvalue are allowed">;
+def err_intel_fpga_mem_arg_mismatch
+    : Error<"builtin parameter must be %select{"
+            "a pointer"
+            "|a non-negative integer constant}0">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

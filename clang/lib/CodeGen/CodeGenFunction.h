@@ -3790,7 +3790,9 @@ public:
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
-  RValue EmitIntelFPGARegBuiltin(const CallExpr *E, ReturnValueSlot ReturnValue);
+  RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
+                                 ReturnValueSlot ReturnValue);
+  RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
 private:
   enum class MSVCIntrin;
