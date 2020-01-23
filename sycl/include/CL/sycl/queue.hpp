@@ -227,7 +227,7 @@ public:
   /// @param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// @param Count is a number of bytes to be prefetched.
   event prefetch(const void* Ptr, size_t Count) {
-    return submit([=](handler &cgh) { cgh.prefetch(Ptr, Count); });
+    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
   /// single_task version with a kernel represented as a lambda.

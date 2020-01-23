@@ -123,7 +123,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   MemObject->MRecord.reset(new MemObjRecord{/*MAllocaCommands*/ {},
                                             /*MReadLeaves*/ {},
                                             /*MWriteLeaves*/ {},
-                                            Queue->get_context_impl(),
+                                            Queue->getContextImpl(),
                                             /*MMemModified*/ false});
 
   MMemObjs.push_back(MemObject);
@@ -162,7 +162,7 @@ void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue) {
   AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Queue->get_context_impl());
+      findAllocaForReq(Record, Req, Queue->getContextImpl());
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
       new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
@@ -171,7 +171,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
   const Requirement *StoredReq = UpdateCommand->getRequirement();
 
   std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Queue->get_context_impl());
+      findDepsForReq(Record, Req, Queue->getContextImpl());
   for (Command *Dep : Deps) {
     UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
@@ -218,7 +218,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     throw runtime_error("Out of host memory");
 
   std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Queue->get_context_impl());
+      findDepsForReq(Record, Req, Queue->getContextImpl());
   Deps.insert(AllocaCmdDst);
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
@@ -237,7 +237,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
-      bool Res = sameCtx(AllocaCmd->getQueue()->get_context_impl(),
+      bool Res = sameCtx(AllocaCmd->getQueue()->getContextImpl(),
                          Record->MCurContext) &&
                  // Looking for a parent buffer alloca command
                  AllocaCmd->getType() == Command::CommandType::ALLOCA;
@@ -279,7 +279,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
   }
   UpdateLeaves(Deps, Record, access::mode::read_write);
   AddNodeToLeaves(Record, NewCmd, access::mode::read_write);
-  Record->MCurContext = Queue->get_context_impl();
+  Record->MCurContext = Queue->getContextImpl();
   return NewCmd;
 }
 
@@ -298,7 +298,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
     return nullptr;
 
   std::set<Command *> Deps =
-      findDepsForReq(Record, Req, HostQueue->get_context_impl());
+      findDepsForReq(Record, Req, HostQueue->getContextImpl());
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
@@ -336,7 +336,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
   AllocaCommandBase *HostAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, HostQueue);
 
-  if (!sameCtx(HostAllocaCmd->getQueue()->get_context_impl(),
+  if (!sameCtx(HostAllocaCmd->getQueue()->getContextImpl(),
                Record->MCurContext))
     insertMemoryMove(Record, Req, HostQueue);
 
@@ -418,7 +418,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
       // Going through copying memory between contexts is not supported.
       if (Dep.MDepCommand)
         CanBypassDep &=
-            sameCtx(Context, Dep.MDepCommand->getQueue()->get_context_impl());
+            sameCtx(Context, Dep.MDepCommand->getQueue()->getContextImpl());
 
       if (!CanBypassDep) {
         RetDeps.insert(DepCmd);
@@ -441,7 +441,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, Requirement *Req, const ContextImplPtr &Context) {
   auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
-    bool Res = sameCtx(AllocaCmd->getQueue()->get_context_impl(), Context);
+    bool Res = sameCtx(AllocaCmd->getQueue()->getContextImpl(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
@@ -462,7 +462,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
 
   AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Queue->get_context_impl());
+      findAllocaForReq(Record, Req, Queue->getContextImpl());
 
   if (!AllocaCmd) {
     if (IsSuitableSubReq(Req)) {
@@ -477,7 +477,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
-      UpdateLeaves(findDepsForReq(Record, Req, Queue->get_context_impl()),
+      UpdateLeaves(findDepsForReq(Record, Req, Queue->getContextImpl()),
                    Record, access::mode::read_write);
     } else {
 
@@ -530,7 +530,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           AllocaCmd->MIsActive = false;
         } else {
           LinkedAllocaCmd->MIsActive = false;
-          Record->MCurContext = Queue->get_context_impl();
+          Record->MCurContext = Queue->getContextImpl();
         }
       }
     }
@@ -576,7 +576,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (!sameCtx(Queue->get_context_impl(), Record->MCurContext)) {
+    if (!sameCtx(Queue->getContextImpl(), Record->MCurContext)) {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
       if (!Queue->is_host() && !Record->MCurContext->is_host())
@@ -585,7 +585,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       insertMemoryMove(Record, Req, Queue);
     }
     std::set<Command *> Deps =
-        findDepsForReq(Record, Req, Queue->get_context_impl());
+        findDepsForReq(Record, Req, Queue->getContextImpl());
 
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});

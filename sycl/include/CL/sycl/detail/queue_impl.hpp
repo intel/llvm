@@ -115,7 +115,7 @@ public:
   }
 
   /// @return a pointer to a context_impl.
-  ContextImplPtr get_context_impl() const { return MContext; }
+  ContextImplPtr getContextImpl() const { return MContext; }
 
   /// @return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -146,7 +146,7 @@ public:
       return submit_impl(CGF, Self);
     } catch (...) {
       {
-        std::lock_guard<mutex_class> guard(MMutex);
+        std::lock_guard<mutex_class> Guard(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
       return SecondQueue->submit(CGF, SecondQueue);
@@ -169,7 +169,7 @@ public:
   ///
   /// Synchronous errors will be reported through SYCL exceptions.
   void wait() {
-    std::lock_guard<mutex_class> guard(MMutex);
+    std::lock_guard<mutex_class> Guard(MMutex);
     for (auto &Event : MEvents)
       Event.wait();
     MEvents.clear();
@@ -242,7 +242,7 @@ public:
   /// @return a raw PI handle for a free queue. The returned handle is not
   /// retained. It is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getExclusiveQueueHandleRef() {
-    std::lock_guard<mutex_class> guard(MMutex);
+    std::lock_guard<mutex_class> Guard(MMutex);
 
     // To achieve parallelism for FPGA with in order execution model with
     // possibility of two kernels to share data with each other we shall
@@ -271,7 +271,7 @@ public:
     {
       // Reduce the scope since this mutex is also
       // locked inside of getExclusiveQueueHandleRef()
-      std::lock_guard<mutex_class> guard(MMutex);
+      std::lock_guard<mutex_class> Guard(MMutex);
 
       if (MQueues.empty()) {
         MQueues.push_back(MCommandQueue);
@@ -325,7 +325,7 @@ public:
   ///
   /// @param ExceptionPtr is a pointer to exception to be put.
   void reportAsyncException(std::exception_ptr ExceptionPtr) {
-    std::lock_guard<mutex_class> guard(MMutex);
+    std::lock_guard<mutex_class> Guard(MMutex);
     MExceptions.PushBack(ExceptionPtr);
   }
 
@@ -341,7 +341,7 @@ private:
     CGF(Handler);
     event Event = Handler.finalize();
     {
-      std::lock_guard<mutex_class> guard(MMutex);
+      std::lock_guard<mutex_class> Guard(MMutex);
       MEvents.push_back(Event);
     }
     return Event;
