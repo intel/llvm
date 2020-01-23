@@ -49,7 +49,7 @@ RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
 
-const plugin_impl &event_impl::getPlugin() const {
+const plugin &event_impl::getPlugin() const {
   return MContext->getPlugin();
 }
 

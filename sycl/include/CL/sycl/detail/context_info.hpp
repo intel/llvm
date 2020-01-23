@@ -20,7 +20,7 @@ template <info::context param> struct get_context_info {
   using RetType =
       typename info::param_traits<info::context, param>::return_type;
 
-  static RetType get(RT::PiContext ctx, const plugin_impl &Plugin) {
+  static RetType get(RT::PiContext ctx, const plugin &Plugin) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piContextGetInfo>(ctx,

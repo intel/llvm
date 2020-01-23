@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 
 #include <cstdarg>
 #include <cstring>
@@ -52,7 +52,7 @@ bool useBackend(Backend TheBackend) {
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects as the
-std::shared_ptr<plugin_impl> GlobalPlugin;
+std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
 // TODO: Change the function appropriately when there are multiple plugins.
@@ -99,8 +99,8 @@ bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 // TODO: Currently only accepting OpenCL plugins. Edit it to identify and load
 // other kinds of plugins, do the required changes in the findPlugins,
 // loadPlugin and bindPlugin functions.
-vector_class<plugin_impl> initialize() {
-  vector_class<plugin_impl> Plugins;
+vector_class<plugin> initialize() {
+  vector_class<plugin> Plugins;
 
   if (!useBackend(SYCL_BE_PI_OPENCL)) {
     die("Unknown SYCL_BE");
@@ -126,9 +126,9 @@ vector_class<plugin_impl> initialize() {
       std::cerr << "Failed to bind PI APIs to the plugin: " << PluginNames[I]
                 << std::endl;
     }
-    Plugins.push_back(plugin_impl(PluginInformation));
+    Plugins.push_back(plugin(PluginInformation));
   }
-  GlobalPlugin = std::make_shared<plugin_impl>(
+  GlobalPlugin = std::make_shared<plugin>(
       PluginInformation); // Correct the logic for this.
   return Plugins;
 }

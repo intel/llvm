@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
@@ -71,8 +71,35 @@ public:
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
+<<<<<<< HEAD
               const size_t SizeInBytes, event AvailableEvent,
               unique_ptr_class<SYCLMemObjAllocator> Allocator);
+=======
+              const size_t SizeInBytes, event AvailableEvent)
+      : MAllocator(), MProps(),
+        MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
+        MInteropContext(detail::getSyclObjImpl(SyclContext)),
+        MInteropMemObject(MemObject), MOpenCLInterop(true),
+        MHostPtrReadOnly(false), MNeedWriteBack(true),
+        MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
+        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {
+    if (MInteropContext->is_host())
+      throw cl::sycl::invalid_parameter_error(
+          "Creation of interoperability memory object using host context is "
+          "not allowed");
+
+    RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
+    RT::PiContext Context = nullptr;
+    const plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
+                                         &Context, nullptr);
+
+    if (MInteropContext->getHandleRef() != Context)
+      throw cl::sycl::invalid_parameter_error(
+          "Input context must be the same as the context of cl_mem");
+    Plugin.call<PiApiKind::piMemRetain>(Mem);
+  }
+>>>>>>> [SYCL][PI] Renamed plugin_impl to plugin class.
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
@@ -82,7 +109,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const plugin_impl &getPlugin() const { return MInteropContext->getPlugin(); }
+  const plugin &getPlugin() const { return MInteropContext->getPlugin(); }
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     size_t AllocatorValueSize = MAllocator->getValueSize();
@@ -174,7 +201,26 @@ public:
   // the memory object is allowed. This method is executed from child's
   // destructor. This cannot be done in SYCLMemObjT's destructor as child's
   // members must be alive.
+<<<<<<< HEAD
   void updateHostMemory();
+=======
+  void updateHostMemory() {
+    if ((MUploadDataFunctor != nullptr) && MNeedWriteBack)
+      MUploadDataFunctor();
+
+    // If we're attached to a memory record, process the deletion of the memory
+    // record. We may get detached before we do this.
+    if (MRecord)
+      Scheduler::getInstance().removeMemoryObject(this);
+    releaseHostMem(MShadowCopy);
+
+    if (MOpenCLInterop) {
+      const plugin &Plugin = getPlugin();
+      Plugin.call<PiApiKind::piMemRelease>(
+          pi::cast<RT::PiMem>(MInteropMemObject));
+    }
+  }
+>>>>>>> [SYCL][PI] Renamed plugin_impl to plugin class.
 
   bool useHostPtr() {
     return has_property<property::buffer::use_host_ptr>() ||

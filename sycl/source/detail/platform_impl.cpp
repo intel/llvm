@@ -22,7 +22,7 @@ namespace detail {
 
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
-  vector_class<plugin_impl> Plugins = RT::initialize();
+  vector_class<plugin> Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -143,7 +143,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
 
 static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
                             RT::PiPlatform PiPlatform,
-                            const plugin_impl &Plugin) {
+                            const plugin &Plugin) {
   const std::vector<DevDescT> WhiteList(getWhiteListDesc());
   if (WhiteList.empty())
     return;

@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 
 __SYCL_INLINE namespace cl {
@@ -377,7 +377,7 @@ pi_result USMDispatcher::enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
                                          pi_uint32 NumEventsInWaitList,
                                          const pi_event *EventWaitList,
                                          pi_event *Event,
-                                         const plugin_impl &Plugin) {
+                                         const plugin &Plugin) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {

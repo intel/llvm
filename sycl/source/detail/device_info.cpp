@@ -26,7 +26,7 @@ namespace detail {
 // Specialization for parent device
 template <>
 device get_device_info<device, info::device::parent_device>::get(
-    RT::PiDevice dev, const plugin_impl &Plugin) {
+    RT::PiDevice dev, const plugin &Plugin) {
 
   typename sycl_to_pi<device>::type result;
   Plugin.call<PiApiKind::piDeviceGetInfo>(

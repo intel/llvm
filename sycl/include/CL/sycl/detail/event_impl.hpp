@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -20,7 +20,7 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 class context;
 namespace detail {
-class plugin_impl;
+class plugin;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
@@ -139,7 +139,7 @@ public:
 
   // @return the Plugin associated with the context of this event.
   // Should be called when this is not a Host Event.
-  const plugin_impl &getPlugin() const;
+  const plugin &getPlugin() const;
 
   /// Associate event with the context.
   ///

@@ -1,4 +1,4 @@
-//==--------------------- plugin_impl.hpp - SYCL platform-------------------==//
+//==--------------------- plugin.hpp - SYCL platform-------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,15 +15,15 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
-class plugin_impl {
+class plugin {
 public:
-  plugin_impl() = delete;
+  plugin() = delete;
 
-  plugin_impl(RT::PiPlugin Plugin) : MPlugin(Plugin) {
+  plugin(RT::PiPlugin Plugin) : MPlugin(Plugin) {
     MPiEnableTrace = (std::getenv("SYCL_PI_TRACE") != nullptr);
   }
 
-  ~plugin_impl() = default;
+  ~plugin() = default;
 
   // Utility function to check return from PI calls.
   // Throws if pi_result is not a PI_SUCCESS.
@@ -69,7 +69,7 @@ public:
 private:
   bool MPiEnableTrace;
 
-}; // class plugin_impl
+}; // class plugin
 } // namespace detail
 } // namespace sycl
 } // namespace cl

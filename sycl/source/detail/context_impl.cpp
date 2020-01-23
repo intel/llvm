@@ -44,7 +44,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
-                           const plugin_impl &Plugin)
+                           const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
       MPluginInterop(true), MHostContext(false) {
 

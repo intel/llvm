@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -18,7 +18,7 @@ using namespace cl::sycl;
 class PlatformTest : public ::testing::Test {
 protected:
   std::vector<pi_platform> _platforms;
-  std::vector<detail::plugin_impl> Plugins;
+  std::vector<detail::plugin> Plugins;
   PlatformTest() : _platforms{} { Plugins = detail::pi::initialize(); };
 
   ~PlatformTest() override = default;

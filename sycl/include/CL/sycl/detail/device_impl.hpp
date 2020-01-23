@@ -37,7 +37,7 @@ public:
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(RT::PiDevice Device, const plugin_impl &Plugin);
+  explicit device_impl(RT::PiDevice Device, const plugin &Plugin);
 
   ~device_impl();
 
@@ -106,7 +106,7 @@ public:
   platform get_platform() const;
 
   /// @return the associated plugin with this device.
-  const plugin_impl &getPlugin() const { return MPlatform->getPlugin(); }
+  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// Check SYCL extension support by device
   ///
@@ -185,7 +185,7 @@ public:
 
 private:
   explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
-                       const plugin_impl &Plugin);
+                       const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;

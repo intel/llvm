@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
@@ -121,7 +121,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const plugin_impl &getPlugin() const { return MContext->getPlugin(); }
+  const plugin &getPlugin() const { return MContext->getPlugin(); }
 
   ContextImplPtr getContextImplPtr() const { return MContext; }
 

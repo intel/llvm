@@ -22,11 +22,11 @@ device_impl::device_impl()
 device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
     : device_impl(Device, Platform, Platform->getPlugin()) {}
 
-device_impl::device_impl(RT::PiDevice Device, const plugin_impl &Plugin)
+device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
     : device_impl(Device, nullptr, Plugin) {}
 
 device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
-                         const plugin_impl &Plugin)
+                         const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(

@@ -25,7 +25,7 @@ enum class PiApiKind {
 #define _PI_API(api) api,
 #include <CL/sycl/detail/pi.def>
 };
-class plugin_impl;
+class plugin;
 namespace pi {
 
 #ifdef SYCL_RT_OS_WINDOWS
@@ -90,10 +90,10 @@ template <class To, class From> To cast(From value);
 // Holds the PluginInformation for the plugin that is bound.
 // Currently a global varaible is used to store OpenCL plugin information to be
 // used with SYCL Interoperability Constructors.
-extern std::shared_ptr<plugin_impl> GlobalPlugin;
+extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-vector_class<plugin_impl> initialize();
+vector_class<plugin> initialize();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};

@@ -13,7 +13,7 @@
 #include "error_handling.hpp"
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
@@ -25,7 +25,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
-  const plugin_impl &Plugin = DeviceImpl.getPlugin();
+  const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
 
   size_t VerSize = 0;

@@ -20,7 +20,7 @@ template <info::event_profiling Param> struct get_event_profiling_info {
   using RetType =
       typename info::param_traits<info::event_profiling, Param>::return_type;
 
-  static RetType get(RT::PiEvent Event, const plugin_impl &Plugin) {
+  static RetType get(RT::PiEvent Event, const plugin &Plugin) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piEventGetProfilingInfo>(
@@ -32,7 +32,7 @@ template <info::event_profiling Param> struct get_event_profiling_info {
 template <info::event Param> struct get_event_info {
   using RetType = typename info::param_traits<info::event, Param>::return_type;
 
-  static RetType get(RT::PiEvent Event, const plugin_impl &Plugin) {
+  static RetType get(RT::PiEvent Event, const plugin &Plugin) {
     RetType Result = (RetType)0;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piEventGetInfo>(Event, cl_profiling_info(Param),

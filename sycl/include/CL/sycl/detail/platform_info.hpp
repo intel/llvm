@@ -10,7 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 __SYCL_INLINE namespace cl {
@@ -22,7 +22,7 @@ template <typename T, info::platform param> struct get_platform_info {};
 
 template <info::platform param>
 struct get_platform_info<string_class, param> {
-  static string_class get(RT::PiPlatform plt, const plugin_impl &Plugin) {
+  static string_class get(RT::PiPlatform plt, const plugin &Plugin) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piPlatformGetInfo>(
@@ -43,7 +43,7 @@ template <>
 struct get_platform_info<vector_class<string_class>,
                          info::platform::extensions> {
   static vector_class<string_class> get(RT::PiPlatform plt,
-                                        const plugin_impl &Plugin) {
+                                        const plugin &Plugin) {
     string_class result =
         get_platform_info<string_class, info::platform::extensions>::get(
             plt, Plugin);
