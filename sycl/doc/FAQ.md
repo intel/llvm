@@ -24,14 +24,8 @@ provide path to SYCL headers directory. Please, refer to you compiler manual
 to learn about specific build options.
 
 ### Q: How are SYCL compilation phases different from those of a usual C++ compiler? Can I customize this flow for my applications?
-**A:** Due to the fact that both host and device code need to be compiled and linked into the final binary, the following steps are
-added to the usual C++ compiler flow:
-1. Device code needs to be compiled separately to produce a separate device image. The toolchains invoked may slightly differ depending on whether
-you wish to compile the device kernels "ahead-of-time", or let the device code be JIT-compiled in runtime. Here, the greatest difference
-would be a device-specific BE compiler getting invoked in ahead-of-time compilation mode.
-2. To link host/device objects successfully, a so-called integration header needs to be generated. In nature, it is a usual C++ header file
-that makes use of OpenCL API. It is automatically produced by SYCL compiler after device code analysis. SYCL compiler mixes the integration
-header into the preprocessed host code, and only then compiles all relevant files into a host object (.o) file.
+**A:** Due to the fact that both host and device code need to be compiled and linked into the final binary, the compilation steps sequence
+is more complicated compared to the usual C++ flow.
 
 In general, we encourage our users to rely on SYCL Compiler for handling all of the compilation phases "under the hood". However, thorough
 understanding of the above-described steps may allow you to customize your compilation by invoking different phases manually.
@@ -39,10 +33,10 @@ As an example, you could:
 1. preprocess your host code with another C++-capable compiler;
 2. turn to SYCL compiler for generating the integration header and compiling the device code for the needed target(s);
 3. use your preferred host compiler from 1) to compile your preprocessed host code and the integration header into a host object;
-4. use your preferred linker to link the host object and the device image(s) into the final executable.
+4. link the host object and the device image(s) into the final executable.
 
-To learn more about the concepts mentioned, and the internals of SYCL compiler as such, we welcome you to study our
-[SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
+To learn more about the concepts behind this flow, and the internals of SYCL compiler as such,
+we welcome you to study our [SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
 document.
 
 
