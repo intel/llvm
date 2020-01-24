@@ -120,11 +120,9 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   if (nullptr != Record)
     return Record;
 
-  MemObject->MRecord.reset(new MemObjRecord{/*MAllocaCommands*/ {},
-                                            /*MReadLeaves*/ {},
-                                            /*MWriteLeaves*/ {},
-                                            Queue->getContextImplPtr(),
-                                            /*MMemModified*/ false});
+  const size_t LeafLimit = 8;
+  MemObject->MRecord.reset(
+      new MemObjRecord{Queue->getContextImplPtr(), LeafLimit});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -153,10 +151,21 @@ void Scheduler::GraphBuilder::UpdateLeaves(const std::set<Command *> &Cmds,
 void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
-  if (AccessMode == access::mode::read)
-    Record->MReadLeaves.push_back(Cmd);
-  else
-    Record->MWriteLeaves.push_back(Cmd);
+  CircularBuffer<Command *> &Leaves{AccessMode == access::mode::read
+                                        ? Record->MReadLeaves
+                                        : Record->MWriteLeaves};
+  if (Leaves.full()) {
+    Command *OldLeaf = Leaves.front();
+    if (OldLeaf == Cmd)
+      return;
+    // Add the old leaf as a dependency for the new one by duplicating one of
+    // the requirements for the current record
+    DepDesc Dep = findDepForRecord(Cmd, Record);
+    Dep.MDepCommand = OldLeaf;
+    Cmd->addDep(Dep);
+    OldLeaf->addUser(Cmd);
+  }
+  Leaves.push_back(Cmd);
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
@@ -389,9 +398,8 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
   std::set<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
-  std::vector<Command *> ToAnalyze;
-
-  ToAnalyze = Record->MWriteLeaves;
+  std::vector<Command *> ToAnalyze{Record->MWriteLeaves.begin(),
+                                   Record->MWriteLeaves.end()};
 
   if (!ReadOnlyReq)
     ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeaves.begin(),
@@ -434,6 +442,19 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
     ToAnalyze.insert(ToAnalyze.end(), NewAnalyze.begin(), NewAnalyze.end());
   }
   return RetDeps;
+}
+
+// A helper function for finding a command dependency on a specific memory
+// object
+DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
+                                                  MemObjRecord *Record) {
+  for (const DepDesc &DD : Cmd->MDeps) {
+    if (getMemObjRecord(DD.MDepRequirement->MSYCLMemObj) == Record) {
+      return DD;
+    }
+  }
+  assert(false && "No dependency found for a leaf of the record");
+  return {nullptr, nullptr, nullptr};
 }
 
 // The function searches for the alloca command matching context and

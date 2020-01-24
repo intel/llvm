@@ -146,7 +146,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Req->MBlockedCmd->MCanEnqueue = true;
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
-  auto EnqueueLeaves = [](std::vector<Command *> &Leaves) {
+  auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
