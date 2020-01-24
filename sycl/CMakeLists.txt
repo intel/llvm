@@ -188,15 +188,12 @@ add_custom_target( sycl-toolchain
           clang-offload-wrapper
           clang-offload-bundler
           llc
-          llvm-as
           llvm-ar
-          llvm-dis
           llvm-foreach
           llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
-          opt
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."
 )
@@ -230,15 +227,12 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-wrapper
      clang-offload-bundler
      llc
-     llvm-as
      llvm-ar
-     llvm-dis
      llvm-foreach
      llvm-no-spir-kernel
      llvm-spirv
      llvm-link
      llvm-objcopy
-     opt
      sycl-post-link
      clang-resource-headers
      opencl-headers
