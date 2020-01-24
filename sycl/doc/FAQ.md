@@ -11,32 +11,38 @@
 ## Developing with SYCL
 
 ### Q: What do I need to start developing with SYCL?
-**A:** To get the full SYCL experience you need a SYCL-capable compiler. Intel SYCL
-compiler provides you with both host and device side compilation. Another requirement
-for code offloading to specialized devices is a compatible OpenCL runtime.
-Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you set up a proper
-environment. To learn more about using the SYCL compiler, please refer
-to [User Manual](SYCLCompilerUserManual.md). If using a special compiler is not
-an option for you and/or you would like to experiment without offloading code to non-host
-devices, you can exploit SYCL's host device feature. This gives you the ability to use any C++11
-compiler. You will need to link your application with the SYCL Runtime library and
-provide a path to the SYCL headers directory. Please, refer to your compiler manual
-to learn about specific build options.
+**A:** To get the full SYCL experience you need a SYCL-capable compiler. Intel
+SYCL compiler provides you with both host and device side compilation. Another
+requirement for code offloading to specialized devices is a compatible OpenCL
+runtime. Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you
+set up a proper environment. To learn more about using the SYCL compiler, please
+refer to [User Manual](SYCLCompilerUserManual.md). If using a special compiler
+is not an option for you and/or you would like to experiment without offloading
+code to non-host devices, you can exploit SYCL's host device feature. This gives
+you the ability to use any C++11 compiler. You will need to link your
+application with the SYCL Runtime library and provide a path to the SYCL headers
+directory. Please, refer to your compiler manual to learn about specific build
+options.
 
 ### Q: How are SYCL compilation phases different from those of a usual C++ compiler? Can I customize this flow for my applications?
-**A:** Due to the fact that both host and device code need to be compiled and linked into the final binary, the compilation steps sequence
-is more complicated compared to the usual C++ flow.
+**A:** Due to the fact that both host and device code need to be compiled and
+linked into the final binary, the compilation steps sequence is more complicated
+compared to the usual C++ flow.
 
-In general, we encourage our users to rely on SYCL Compiler for handling all of the compilation phases "under the hood". However, thorough
-understanding of the above-described steps may allow you to customize your compilation by invoking different phases manually.
-As an example, you could:
+In general, we encourage our users to rely on SYCL Compiler for handling all of
+the compilation phases "under the hood". However, thorough understanding of the
+above-described steps may allow you to customize your compilation by invoking
+different phases manually. As an example, you could:
 1. preprocess your host code with another C++-capable compiler;
-2. turn to SYCL compiler for generating the integration header and compiling the device code for the needed target(s);
-3. use your preferred host compiler from 1) to compile your preprocessed host code and the integration header into a host object file;
+2. turn to SYCL compiler for generating the integration header and compiling the
+device code for the needed target(s);
+3. use your preferred host compiler from 1) to compile your preprocessed host
+code and the integration header into a host object file;
 4. link the host object file and the device image(s) into the final executable.
 
-To learn more about the concepts behind this flow, and the internals of SYCL compiler as such,
-we welcome you to study our [SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
+To learn more about the concepts behind this flow, and the internals of SYCL
+compiler as such, we welcome you to study our
+[SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
 document.
 
 
@@ -44,8 +50,8 @@ document.
 
 ### Q: What happens if I run my application on a machine without OpenCL?
 **A:** If you use the default SYCL device selector (or any other selector that
-allows host device), then a fallback to the host device will take place. Otherwise,
-an exception will be thrown.
+allows host device), then a fallback to the host device will take place.
+Otherwise, an exception will be thrown.
 
 
 ## Common issues
@@ -62,10 +68,11 @@ Windows:
 
 *The code execution cannot proceed because sycl.dll was not found. Reinstalling the program may fix this problem.*
 
-**A:** The SYCL Runtime library is required to run SYCL-enabled applications. While
-compiler driver is able to find the library and link against it, your operating
-system may struggle. Make sure that the location of the SYCL Runtime library is listed in
-the correct environment variable: `LD_LIBRARY_PATH` (for Linux) or `LIB` (for Windows).
+**A:** The SYCL Runtime library is required to run SYCL-enabled applications.
+While compiler driver is able to find the library and link against it, your
+operating system may struggle. Make sure that the location of the SYCL Runtime
+library is listed in the correct environment variable: `LD_LIBRARY_PATH`
+(for Linux) or `LIB` (for Windows).
 
 ### Q: SYCL fails to compile device code that uses STD functions.
 Example error message:
@@ -106,7 +113,8 @@ C:\Program Files (x86)\Windows Kits\10\include\10.0.18362.0\ucrt\crtdbg.h(607,26
 
 Replace usage of STD built-ins with SYCL-defined math built-ins. Please, note
 that you have to explicitly specify built-in namespace (i.e. `cl::sycl::fmin`).
-The full list of SYCL math built-ins is provided in section 4.13.3 of the specification.
+The full list of SYCL math built-ins is provided in section 4.13.3 of the
+specification.
 
 
 ## Device specific questions and issues
@@ -118,15 +126,15 @@ a portable intermediate representation format. It is a core feature of
 OpenCL 2.1, so any device, capable of OpenCL 2.1, should be supported.
 Otherwise, your OpenCL device must support `cl_khr_il_program` extension.
 
-Apart from that, there's also the so-called host device, which can be used when no
-suitable OpenCL device is found. The host device will use your host CPU as the offload
-target for kernel execution. Since the device code is also compiled for the host CPU
-and no JIT is required, you can easily use any classic C++ debugging tools of your
-choice for the host device code.
+Apart from that, there's also the so-called host device, which can be used when
+no suitable OpenCL device is found. The host device will use your host CPU as
+the offload target for kernel execution. Since the device code is also compiled
+for the host CPU and no JIT is required, you can easily use any classic C++
+debugging tools of your choice for the host device code.
 
 Furthermore, developers can extend capabilities of the SYCL Runtime to
-non-OpenCL devices by writing correspondent plugins. To learn more, please check out
-our [Plugin Interface Guide](SYCLPluginInterface.md).
+non-OpenCL devices by writing correspondent plugins. To learn more, please check
+out our [Plugin Interface Guide](SYCLPluginInterface.md).
 
 ### Q: SYCL applications hang on Intel GPUs while working well on other devices
 **A:** One of the common reasons is Intel GPUs feature called "hang check".
