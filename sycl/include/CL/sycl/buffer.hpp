@@ -50,15 +50,15 @@ public:
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList);
+    impl = std::make_shared<detail::buffer_impl>(
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        AllocatorT());
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         allocator);
   }
@@ -66,15 +66,15 @@ public:
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList);
+        propList, AllocatorT());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
   }
@@ -84,9 +84,9 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList);
+        propList, AllocatorT());
   }
 
   template <typename _T = T>
@@ -94,7 +94,7 @@ public:
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
   }
@@ -103,7 +103,7 @@ public:
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
   }
@@ -112,9 +112,9 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList);
+        propList, AllocatorT());
   }
 
   template <class InputIterator, int N = dimensions,
@@ -123,7 +123,7 @@ public:
   buffer(InputIterator first, InputIterator last, AllocatorT allocator,
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         first, last, get_count() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList, allocator);
   }
@@ -134,9 +134,9 @@ public:
   buffer(InputIterator first, InputIterator last,
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList);
+        detail::getNextPowerOfTwo(sizeof(T)), propList, AllocatorT());
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -146,7 +146,7 @@ public:
   buffer(Container &container, AllocatorT allocator,
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+    impl = std::make_shared<detail::buffer_impl>(
         container.data(), container.data() + container.size(),
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         allocator);
@@ -185,8 +185,8 @@ public:
                           CL_MEM_SIZE, sizeof(size_t), &BufSize, nullptr);
 
     Range[0] = BufSize / sizeof(T);
-    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        MemObject, SyclContext, BufSize, AvailableEvent);
+    impl = std::make_shared<detail::buffer_impl>(
+        MemObject, SyclContext, BufSize, AllocatorT(), AvailableEvent);
   }
 
   buffer(const buffer &rhs) = default;
@@ -213,13 +213,13 @@ public:
 
   size_t get_size() const { return get_count() * sizeof(T); }
 
-  AllocatorT get_allocator() const { return impl->get_allocator(); }
+  AllocatorT get_allocator() const { return impl->get_allocator<AllocatorT>(); }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
   accessor<T, dimensions, mode, target, access::placeholder::false_t>
   get_access(handler &commandGroupHandler) {
-    return impl->template get_access<T, dimensions, mode, target>(
+    return impl->template get_access<T, dimensions, mode, target, AllocatorT>(
         *this, commandGroupHandler);
   }
 
@@ -227,7 +227,7 @@ public:
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access() {
-    return impl->template get_access<T, dimensions, mode>(*this);
+    return impl->template get_access<T, dimensions, mode, AllocatorT>(*this);
   }
 
   template <access::mode mode,
@@ -235,7 +235,7 @@ public:
   accessor<T, dimensions, mode, target, access::placeholder::false_t>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
-    return impl->template get_access<T, dimensions, mode, target>(
+    return impl->template get_access<T, dimensions, mode, target, AllocatorT>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
@@ -243,8 +243,8 @@ public:
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
-    return impl->template get_access<T, dimensions, mode>(*this, accessRange,
-                                                          accessOffset);
+    return impl->template get_access<T, dimensions, mode, AllocatorT>(
+        *this, accessRange, accessOffset);
   }
 
   template <typename Destination = std::nullptr_t>
@@ -278,7 +278,7 @@ public:
   }
 
 private:
-  shared_ptr_class<detail::buffer_impl<AllocatorT>> impl;
+  shared_ptr_class<detail::buffer_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C> friend class buffer;
@@ -292,7 +292,7 @@ private:
   bool IsSubBuffer = false;
 
   // Reinterpret contructor
-  buffer(shared_ptr_class<detail::buffer_impl<AllocatorT>> Impl,
+  buffer(shared_ptr_class<detail::buffer_impl> Impl,
          range<dimensions> reinterpretRange, size_t reinterpretOffset,
          bool isSubBuffer)
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
@@ -381,7 +381,7 @@ template <typename T, int dimensions, typename AllocatorT>
 struct hash<cl::sycl::buffer<T, dimensions, AllocatorT>> {
   size_t
   operator()(const cl::sycl::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<cl::sycl::detail::buffer_impl<AllocatorT>>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::buffer_impl>>()(
         cl::sycl::detail::getSyclObjImpl(b));
   }
 };

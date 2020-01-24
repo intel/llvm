@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
@@ -32,7 +33,7 @@ using EventImplPtr = shared_ptr_class<event_impl>;
 using sycl_memory_object_allocator = detail::aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
-template <typename AllocatorT> class SYCLMemObjT : public SYCLMemObjI {
+class SYCLMemObjT : public SYCLMemObjI {
 
   // The check for output iterator is commented out as it blocks set_final_data
   // with void * argument to be used.
@@ -56,21 +57,20 @@ template <typename AllocatorT> class SYCLMemObjT : public SYCLMemObjI {
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator)
-      : MAllocator(Allocator), MProps(Props), MInteropEvent(nullptr),
+              SYCLMemObjAllocator Allocator)
+      : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
         MInteropContext(nullptr), MInteropMemObject(nullptr),
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
 
-  SYCLMemObjT(const property_list &Props, AllocatorT Allocator)
-      : SYCLMemObjT(/*SizeInBytes*/ 0, Props, Allocator) {}
-
-  SYCLMemObjT(const property_list &Props) : SYCLMemObjT(Props, AllocatorT()) {}
+  SYCLMemObjT(const property_list &Props, SYCLMemObjAllocator Allocator)
+      : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, event AvailableEvent)
-      : MAllocator(), MProps(),
+              const size_t SizeInBytes, event AvailableEvent,
+              SYCLMemObjAllocator Allocator)
+      : MAllocator(std::move(Allocator)), MProps(),
         MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
         MInteropContext(detail::getSyclObjImpl(SyclContext)),
         MInteropMemObject(MemObject), MOpenCLInterop(true),
@@ -94,14 +94,13 @@ public:
   }
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              event AvailableEvent)
-      : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent) {
-  }
+              event AvailableEvent, SYCLMemObjAllocator Allocator)
+      : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
+                    std::move(Allocator)) {}
 
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
-    auto constexpr AllocatorValueSize =
-        sizeof(allocator_value_type_t<AllocatorT>);
+    size_t AllocatorValueSize = MAllocator.getValueSize();
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
@@ -113,13 +112,15 @@ public:
     return MProps.get_property<propertyT>();
   }
 
-  AllocatorT get_allocator() const { return MAllocator; }
+  template <typename AllocatorT> AllocatorT get_allocator() const {
+    return MAllocator.getAllocator<AllocatorT>();
+  }
 
   void *allocateHostMem() override { return MAllocator.allocate(get_count()); }
 
   void releaseHostMem(void *Ptr) override {
     if (Ptr)
-      MAllocator.deallocate(allocator_pointer_t<AllocatorT>(Ptr), get_count());
+      MAllocator.deallocate(Ptr, get_count());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override {
@@ -303,19 +304,13 @@ public:
               static_cast<IteratorPointerToNonConstValueType>(MUserPtr));
   }
 
-  template <typename T = AllocatorT>
-  EnableIfNonDefaultAllocator<T> setAlign(size_t RequiredAlign) {
-    // Do nothing in case of user's allocator.
-  }
-
-  template <typename T = AllocatorT>
-  EnableIfDefaultAllocator<T> setAlign(size_t RequiredAlign) {
-    MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
+  void setAlign(size_t RequiredAlign) {
+    MAllocator.setAlignment(RequiredAlign);
   }
 
 protected:
   // Allocator used for allocation memory on host.
-  AllocatorT MAllocator;
+  SYCLMemObjAllocator MAllocator;
   // Properties passed by user.
   property_list MProps;
   // Event passed by user to interoperability constructor.

@@ -63,14 +63,14 @@ class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        Order, Type, Range, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        Order, Type, Range, AllocatorT(), PropList);
   }
 
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, AllocatorT Allocator,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Allocator, PropList);
   }
 
@@ -80,8 +80,8 @@ public:
         const range<Dimensions> &Range,
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        Order, Type, Range, Pitch, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        Order, Type, Range, Pitch, AllocatorT(), PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -90,34 +90,34 @@ public:
         const range<Dimensions> &Range,
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Pitch, Allocator, PropList);
   }
 
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        HostPointer, Order, Type, Range, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        HostPointer, Order, Type, Range, AllocatorT(), PropList);
   }
 
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, AllocatorT Allocator,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Allocator, PropList);
   }
 
   image(const void *HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        HostPointer, Order, Type, Range, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        HostPointer, Order, Type, Range, AllocatorT(), PropList);
   }
 
   image(const void *HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Allocator, PropList);
   }
 
@@ -127,8 +127,8 @@ public:
         const range<Dimensions> &Range,
         typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        HostPointer, Order, Type, Range, Pitch, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        HostPointer, Order, Type, Range, Pitch, AllocatorT(), PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -137,21 +137,21 @@ public:
         const range<Dimensions> &Range,
         typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch, Allocator, PropList);
   }
 
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        HostPointer, Order, Type, Range, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        HostPointer, Order, Type, Range, AllocatorT(), PropList);
   }
 
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Allocator, PropList);
   }
 
@@ -161,8 +161,8 @@ public:
         image_channel_type Type, const range<Dimensions> &Range,
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        HostPointer, Order, Type, Range, Pitch, PropList);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        HostPointer, Order, Type, Range, Pitch, AllocatorT(), PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -171,14 +171,14 @@ public:
         image_channel_type Type, const range<Dimensions> &Range,
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch, Allocator, PropList);
   }
 
   image(cl_mem ClMemObject, const context &SyclContext,
         event AvailableEvent = {}) {
-    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
-        ClMemObject, SyclContext, AvailableEvent);
+    impl = std::make_shared<detail::image_impl<Dimensions>>(
+        ClMemObject, SyclContext, AvailableEvent, AllocatorT());
   }
 
   /* -- common interface members -- */
@@ -227,15 +227,15 @@ public:
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t>
   get_access(handler &commandGroupHandler) {
-    return impl->template get_access<DataT, AccessMode>(*this,
-                                                        commandGroupHandler);
+    return impl->template get_access<DataT, AllocatorT, AccessMode>(
+        *this, commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t>
   get_access() {
-    return impl->template get_access<DataT, AccessMode>(*this);
+    return impl->template get_access<DataT, AllocatorT, AccessMode>(*this);
   }
 
   template <typename Destination = std::nullptr_t>
@@ -246,7 +246,7 @@ public:
   void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
-  shared_ptr_class<detail::image_impl<Dimensions, AllocatorT>> impl;
+  shared_ptr_class<detail::image_impl<Dimensions>> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -259,8 +259,7 @@ namespace std {
 template <int Dimensions, typename AllocatorT>
 struct hash<cl::sycl::image<Dimensions, AllocatorT>> {
   size_t operator()(const cl::sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<
-        cl::sycl::detail::image_impl<Dimensions, AllocatorT>>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::image_impl<Dimensions>>>()(
         cl::sycl::detail::getSyclObjImpl(I));
   }
 };

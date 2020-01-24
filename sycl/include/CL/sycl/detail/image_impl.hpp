@@ -62,9 +62,8 @@ template <typename DataT>
 using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
-template <int Dimensions, typename AllocatorT = image_allocator>
-class image_impl final : public SYCLMemObjT<AllocatorT> {
-  using BaseT = SYCLMemObjT<AllocatorT>;
+template <int Dimensions> class image_impl final : public SYCLMemObjT {
+  using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
 private:
@@ -96,54 +95,24 @@ private:
 
 public:
   image_impl(image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange,
+             const range<Dimensions> &ImageRange, SYCLMemObjAllocator Allocator,
              const property_list &PropList = {})
-      : image_impl((void *)nullptr, Order, Type, ImageRange, PropList) {}
-
-  image_impl(image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange, AllocatorT Allocator,
-             const property_list &PropList = {})
-      : image_impl((void *)nullptr, Order, Type, ImageRange, Allocator,
-                   PropList) {}
+      : image_impl((void *)nullptr, Order, Type, ImageRange,
+                   std::move(Allocator), PropList) {}
 
   template <bool B = (Dimensions > 1)>
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, const property_list &PropList = {})
-      : image_impl((void *)nullptr, Order, Type, ImageRange, Pitch, PropList) {}
-
-  template <bool B = (Dimensions > 1)>
-  image_impl(image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, AllocatorT Allocator,
+             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
              const property_list &PropList = {})
-      : image_impl((void *)nullptr, Order, Type, ImageRange, Pitch, Allocator,
-                   PropList) {}
+      : image_impl((void *)nullptr, Order, Type, ImageRange, Pitch,
+                   std::move(Allocator), PropList) {}
 
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange,
+             const range<Dimensions> &ImageRange, SYCLMemObjAllocator Allocator,
              const property_list &PropList = {})
-      : BaseT(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
-        MNumChannels(getImageNumberChannels(MOrder)),
-        MElementSize(getImageElementSize(MNumChannels, MType)) {
-    setPitches();
-    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
-  }
-
-  image_impl(void *HData, image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange, AllocatorT Allocator,
-             const property_list &PropList = {})
-      : BaseT(PropList, Allocator), MRange(ImageRange), MOrder(Order),
-        MType(Type), MNumChannels(getImageNumberChannels(MOrder)),
-        MElementSize(getImageElementSize(MNumChannels, MType)) {
-    setPitches();
-    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
-  }
-
-  image_impl(const void *HData, image_channel_order Order,
-             image_channel_type Type, const range<Dimensions> &ImageRange,
-             const property_list &PropList = {})
-      : BaseT(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
@@ -152,9 +121,10 @@ public:
 
   image_impl(const void *HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             AllocatorT Allocator, const property_list &PropList = {})
-      : BaseT(PropList, Allocator), MRange(ImageRange), MOrder(Order),
-        MType(Type), MNumChannels(getImageNumberChannels(MOrder)),
+             SYCLMemObjAllocator Allocator, const property_list &PropList = {})
+      : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
+        MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
@@ -163,21 +133,11 @@ public:
   template <bool B = (Dimensions > 1)>
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, const property_list &PropList = {})
-      : BaseT(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
-        MNumChannels(getImageNumberChannels(MOrder)),
-        MElementSize(getImageElementSize(MNumChannels, MType)) {
-    setPitches(Pitch);
-    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
-  }
-
-  template <bool B = (Dimensions > 1)>
-  image_impl(void *HData, image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, AllocatorT Allocator,
+             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
              const property_list &PropList = {})
-      : BaseT(PropList, Allocator), MRange(ImageRange), MOrder(Order),
-        MType(Type), MNumChannels(getImageNumberChannels(MOrder)),
+      : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
+        MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
@@ -185,19 +145,10 @@ public:
 
   image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             const property_list &PropList = {})
-      : BaseT(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+             SYCLMemObjAllocator Allocator, const property_list &PropList = {})
+      : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
-        MElementSize(getImageElementSize(MNumChannels, MType)) {
-    setPitches();
-    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
-  }
-
-  image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
-             image_channel_type Type, const range<Dimensions> &ImageRange,
-             AllocatorT Allocator, const property_list &PropList = {})
-      : BaseT(PropList, Allocator), MRange(ImageRange), MOrder(Order),
-        MType(Type), MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
@@ -207,30 +158,20 @@ public:
   template <bool B = (Dimensions > 1)>
   image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, const property_list &PropList = {})
-      : BaseT(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
+             const property_list &PropList = {})
+      : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
 
-  /* Available only when: Dimensions > 1 */
-  template <bool B = (Dimensions > 1)>
-  image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
-             image_channel_type Type, const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, AllocatorT Allocator,
-             const property_list &PropList = {})
-      : BaseT(PropList, Allocator), MRange(ImageRange), MOrder(Order),
-        MType(Type), MNumChannels(getImageNumberChannels(MOrder)),
-        MElementSize(getImageElementSize(MNumChannels, MType)) {
-    setPitches(Pitch);
-    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
-  }
-
-  image_impl(cl_mem MemObject, const context &SyclContext,
-             event AvailableEvent = {})
-      : BaseT(MemObject, SyclContext, std::move(AvailableEvent)),
+  image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
+             SYCLMemObjAllocator Allocator)
+      : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
+              std::move(Allocator)),
         MRange(InitializedVal<Dimensions, range>::template get<0>()) {
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(piMemGetInfo)(Mem, CL_MEM_SIZE, sizeof(size_t),
@@ -309,7 +250,7 @@ public:
   // Returns a valid accessor to the image with the specified access mode and
   // target. The only valid types for dataT are cl_int4, cl_uint4, cl_float4 and
   // cl_half4.
-  template <typename DataT, access::mode AccessMode,
+  template <typename DataT, typename AllocatorT, access::mode AccessMode,
             typename = EnableIfImgAccDataT<DataT>>
   accessor<DataT, Dimensions, AccessMode, access::target::image,
            access::placeholder::false_t>
@@ -322,7 +263,7 @@ public:
   // Returns a valid accessor to the image immediately on the host with the
   // specified access mode and target. The only valid types for dataT are
   // cl_int4, cl_uint4, cl_float4 and cl_half4.
-  template <typename DataT,
+  template <typename DataT, typename AllocatorT,
             access::mode AccessMode> //, typename = EnableIfImgAccDataT<DataT>>
   accessor<DataT, Dimensions, AccessMode, access::target::host_image,
            access::placeholder::false_t>

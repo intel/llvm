@@ -42,33 +42,32 @@ using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
 
-template <typename AllocatorT>
-class buffer_impl final : public SYCLMemObjT<AllocatorT> {
-  using BaseT = SYCLMemObjT<AllocatorT>;
+class buffer_impl final : public SYCLMemObjT {
+  using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
 public:
   buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {}
+              const property_list &Props, SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {}
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {
+              const property_list &Props, SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
 
   buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {
+              const property_list &Props, SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
 
   template <typename T>
   buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
               size_t RequiredAlign, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {
+              SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
 
@@ -79,8 +78,8 @@ public:
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {
+              const property_list &Props, SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
     // TODO: There is contradiction in the spec, in one place it says
     // the data is not copied back at all if the buffer is construted
@@ -97,17 +96,20 @@ public:
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : BaseT(SizeInBytes, Props, Allocator) {
+              const property_list &Props, SYCLMemObjAllocator Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, event AvailableEvent = {})
-      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent)) {}
+              const size_t SizeInBytes, SYCLMemObjAllocator Allocator,
+              event AvailableEvent)
+      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
+              std::move(Allocator)) {}
 
   template <typename T, int Dimensions, access::mode Mode,
-            access::target Target = access::target::global_buffer>
+            access::target Target = access::target::global_buffer,
+            typename AllocatorT>
   accessor<T, Dimensions, Mode, Target, access::placeholder::false_t>
   get_access(buffer<T, Dimensions, AllocatorT> &Buffer,
              handler &CommandGroupHandler) {
@@ -115,7 +117,7 @@ public:
         Buffer, CommandGroupHandler);
   }
 
-  template <typename T, int Dimensions, access::mode Mode>
+  template <typename T, int Dimensions, access::mode Mode, typename AllocatorT>
   accessor<T, Dimensions, Mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access(buffer<T, Dimensions, AllocatorT> &Buffer) {
@@ -124,7 +126,8 @@ public:
   }
 
   template <typename T, int dimensions, access::mode mode,
-            access::target target = access::target::global_buffer>
+            access::target target = access::target::global_buffer,
+            typename AllocatorT>
   accessor<T, dimensions, mode, target, access::placeholder::false_t>
   get_access(buffer<T, dimensions, AllocatorT> &Buffer,
              handler &commandGroupHandler, range<dimensions> accessRange,
@@ -133,7 +136,7 @@ public:
         Buffer, commandGroupHandler, accessRange, accessOffset);
   }
 
-  template <typename T, int dimensions, access::mode mode>
+  template <typename T, int dimensions, access::mode mode, typename AllocatorT>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access(buffer<T, dimensions, AllocatorT> &Buffer,
