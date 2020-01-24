@@ -120,12 +120,16 @@
 // CHECK-IR: declare void @__tgt_unregister_lib([[DESCTY]]*)
 
 // CHECK-IR: define internal void [[SYCL_REGFN]]()
-// CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
+// CHECK-IR:   call void @__sycl_register_lib([[SYCL_DESCTY]]* [[SYCL_DESC]])
 // CHECK-IR:   ret void
 
+// CHECK-IR: declare void @__sycl_register_lib([[SYCL_DESCTY]]*)
+
 // CHECK-IR: define internal void [[SYCL_UNREGFN]]()
-// CHECK-IR:   call void @__tgt_unregister_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
+// CHECK-IR:   call void @__sycl_unregister_lib([[SYCL_DESCTY]]* [[SYCL_DESC]])
 // CHECK-IR:   ret void
+
+// CHECK-IR: declare void @__sycl_unregister_lib([[SYCL_DESCTY]]*)
 
 // -------
 // Check options' effects: -emit-reg-funcs, -desc-name

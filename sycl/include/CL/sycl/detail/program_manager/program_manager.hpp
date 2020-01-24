@@ -20,12 +20,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" void __tgt_register_lib(pi_device_binaries desc);
+extern "C" void __sycl_register_lib(pi_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" void __tgt_unregister_lib(pi_device_binaries desc);
+extern "C" void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 

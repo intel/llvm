@@ -756,15 +756,18 @@ private:
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
-                                        /*isVarArg*/ false);
+    auto *RegFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
+        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
+        /*isVarArg=*/false);
     FunctionCallee RegFuncC =
-        M.getOrInsertFunction("__tgt_register_lib", RegFuncTy);
+        M.getOrInsertFunction(Kind == OffloadKind::SYCL ? "__sycl_register_lib"
+                                                        : "__tgt_register_lib",
+                              RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(RegFuncC,
-                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
+    Builder.CreateCall(RegFuncC, BinDesc);
     Builder.CreateRetVoid();
 
     // Add this function to constructors.
@@ -779,15 +782,18 @@ private:
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
-                                          /*isVarArg*/ false);
-    FunctionCallee UnRegFuncC =
-        M.getOrInsertFunction("__tgt_unregister_lib", UnRegFuncTy);
+    auto *UnRegFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
+        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
+        /*isVarArg=*/false);
+    FunctionCallee UnRegFuncC = M.getOrInsertFunction(
+        Kind == OffloadKind::SYCL ? "__sycl_unregister_lib"
+                                  : "__tgt_unregister_lib",
+        UnRegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(UnRegFuncC,
-                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
+    Builder.CreateCall(UnRegFuncC, BinDesc);
     Builder.CreateRetVoid();
 
     // Add this function to global destructors.
