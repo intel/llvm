@@ -553,6 +553,17 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
+static void instantiateSYCLIntelPipeIOAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelPipeIOAttr *Attr, Decl *New) {
+  // The ID expression is a constant expression.
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
+}
+
 void Sema::InstantiateAttrsForDecl(
     const MultiLevelTemplateArgumentList &TemplateArgs, const Decl *Tmpl,
     Decl *New, LateInstantiatedAttrVec *LateAttrs,
@@ -685,6 +696,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
       instantiateIntelFPGABankBitsAttr(*this, TemplateArgs, IntelFPGABankBits,
                                        New);
+    }
+    if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
+      instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
+      continue;
     }
 
     // Existing DLL attribute on the instantiation takes precedence.
