@@ -29,19 +29,19 @@ options.
 linked into the final binary, the compilation steps sequence is more complicated
 compared to the usual C++ flow.
 
-In general, we encourage our users to rely on SYCL Compiler for handling all of
-the compilation phases "under the hood". However, thorough understanding of the
-above-described steps may allow you to customize your compilation by invoking
+In general, we encourage our users to rely on the SYCL Compiler for handling all
+of the compilation phases "under the hood". However, thorough understanding of
+the above-described steps may allow you to customize your compilation by invoking
 different phases manually. As an example, you could:
 1. preprocess your host code with another C++-capable compiler;
-2. turn to SYCL compiler for generating the integration header and compiling the
-device code for the needed target(s);
+2. turn to the SYCL compiler for generating the integration header and compiling
+the device code for the needed target(s);
 3. use your preferred host compiler from 1) to compile your preprocessed host
 code and the integration header into a host object file;
 4. link the host object file and the device image(s) into the final executable.
 
-To learn more about the concepts behind this flow, and the internals of SYCL
-compiler as such, we welcome you to study our
+To learn more about the concepts behind this flow, and the SYCL Compiler
+internals as such, we welcome you to study our
 [SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
 document.
 
