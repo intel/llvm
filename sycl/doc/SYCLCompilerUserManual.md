@@ -80,6 +80,20 @@ your application.
     NOTE:  Any libraries that are passed on the command line which are not
     specified with `-foffload-static-lib` are treated as host libraries and are
     only used during the final host link.
+    
+**`-fsycl-device-code-split=<value>`**
+
+    Perform SYCL device code split. There are three possible values for this option:
+    - per_kernel - device code module is created for each SYCL kernel
+    - per_source - device code module is created for each source (translation unit)
+    - off - no device code split.
+    NOTE: By default device device code split is 'off' - all kernels go into a
+    single module`
+    
+**`-fsycl-device-code-split`**
+
+    Perform SYCL device code split in the per_source mode i.e. create a device
+    code module for each source (translation unit)
 
 ### Intel FPGA specific options
 
