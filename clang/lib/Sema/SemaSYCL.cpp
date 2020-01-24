@@ -681,6 +681,17 @@ static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
   return InitMethod;
 }
 
+/// Return __finalize method
+static CXXMethodDecl *getFinalizeMethod(const CXXRecordDecl *CRD) {
+  CXXMethodDecl *FinalizeMethod;
+  auto It = std::find_if(CRD->methods().begin(), CRD->methods().end(),
+                         [](const CXXMethodDecl *Method) {
+                           return Method->getNameAsString() == "__finalize";
+                         });
+  FinalizeMethod = (It != CRD->methods().end()) ? *It : nullptr;
+  return FinalizeMethod;
+}
+
 static KernelInvocationKind
 getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
   return llvm::StringSwitch<KernelInvocationKind>(KernelCallerFunc->getName())
@@ -701,6 +712,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                                             FunctionDecl *KernelCallerFunc,
                                             DeclContext *KernelDecl) {
   llvm::SmallVector<Stmt *, 16> BodyStmts;
+  llvm::SmallVector<Stmt *, 16> FinalizeStmts;
   CXXRecordDecl *LC = getKernelObjectType(KernelCallerFunc);
   assert(LC && "Kernel object must be available");
 
@@ -852,6 +864,58 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                 }
               };
 
+      auto getFinalizeExprForSpecialSYCLObj = [&](const QualType &paramTy,
+                                                  FieldDecl *Field,
+                                                  const CXXRecordDecl *CRD,
+                                                  Expr *Base) {
+        CXXMethodDecl *FinalizeMethod = getFinalizeMethod(CRD);
+        assert(FinalizeMethod &&
+               "The stream must have the __finalize method");
+
+        unsigned NumParams = FinalizeMethod->getNumParams();
+        llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
+        auto KFP = KernelFuncParam;
+        for (size_t I = 0; I < NumParams; ++KFP, ++I) {
+          QualType ParamType = (*KFP)->getOriginalType();
+          ParamDREs[I] = DeclRefExpr::Create(
+              S.Context, NestedNameSpecifierLoc(), SourceLocation(), *KFP,
+              false, DeclarationNameInfo(), ParamType, VK_LValue);
+        }
+
+        DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
+        // [kernel_obj or wrapper object].special_obj
+        auto SpecialObjME = MemberExpr::Create(
+            S.Context, Base, false, SourceLocation(), NestedNameSpecifierLoc(),
+            SourceLocation(), Field, FieldDAP,
+            DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
+            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+
+        // [kernel_obj or wrapper object].special_obj.__finalize
+        DeclAccessPair MethodDAP = DeclAccessPair::make(FinalizeMethod, AS_none);
+        auto ME = MemberExpr::Create(
+            S.Context, SpecialObjME, false, SourceLocation(),
+            NestedNameSpecifierLoc(), SourceLocation(), FinalizeMethod, MethodDAP,
+            DeclarationNameInfo(FinalizeMethod->getDeclName(), SourceLocation()),
+            nullptr, FinalizeMethod->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+
+        // Not referenced -> not emitted
+        S.MarkFunctionReferenced(SourceLocation(), FinalizeMethod, true);
+
+        QualType ResultTy = FinalizeMethod->getReturnType();
+        ExprValueKind VK = Expr::getValueKindForType(ResultTy);
+        ResultTy = ResultTy.getNonLValueExprType(S.Context);
+
+        llvm::SmallVector<Expr *, 4> ParamStmts;
+        const auto *Proto = cast<FunctionProtoType>(FinalizeMethod->getType());
+        S.GatherArgumentsForCall(SourceLocation(), FinalizeMethod, Proto, 0,
+                                 ParamDREs, ParamStmts);
+
+        // [kernel_obj or wrapper object].stream.__finalize()
+        CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
+            S.Context, ME, ParamStmts, ResultTy, VK, SourceLocation());
+        FinalizeStmts.push_back(Call);
+      };
+
       // Run through kernel object fields and add initialization for them using
       // built kernel parameters. There are a several possible cases:
       //   - Kernel object field is a SYCL special object (SYCL accessor or SYCL
@@ -913,6 +977,11 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             // Generate call to the __init method of the stream class after
             // initializing accessors wrapped by this stream object
             getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
+
+            // Generate call to the __finalize method of stream class.
+            // Will put it later to the end of function body.
+            getFinalizeExprForSpecialSYCLObj(FieldType, Field, CRD,
+                                             KernelObjCloneRef);
           }
         }
       } else {
@@ -944,6 +1013,9 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   KernelBodyTransform KBT(MappingPair, S);
   Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
   BodyStmts.push_back(NewBody);
+
+  BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(), FinalizeStmts.end());
+
   return CompoundStmt::Create(S.Context, BodyStmts, SourceLocation(),
                               SourceLocation());
 }
