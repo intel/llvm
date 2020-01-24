@@ -321,7 +321,10 @@ cl_int ReleaseCommand::enqueueImp() {
                                     ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
                                     : MAllocaCmd->getQueue();
 
-    RT::PiEvent UnmapEvent = nullptr;
+    EventImplPtr UnmapEventImpl(new event_impl(Queue));
+    UnmapEventImpl->setContextImpl(
+        detail::getSyclObjImpl(Queue->get_context()));
+    RT::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
 
     void *Src = CurAllocaIsHost
                     ? MAllocaCmd->getMemAllocation()
@@ -336,8 +339,6 @@ cl_int ReleaseCommand::enqueueImp() {
 
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImplPtr UnmapEventImpl(
-        new event_impl(UnmapEvent, Queue->get_context()));
     EventImpls.push_back(UnmapEventImpl);
   }
   RT::PiEvent &Event = MEvent->getHandleRef();
