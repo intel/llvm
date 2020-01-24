@@ -40,14 +40,19 @@ public:
 
   usm_allocator() = delete;
   usm_allocator(const context &Ctxt, const device &Dev)
-      : mContext(Ctxt), mDevice(Dev) {}
+      : MContext(Ctxt), MDevice(Dev) {}
   usm_allocator(const queue &Q)
-      : mContext(Q.get_context()), mDevice(Q.get_device()) {}
+      : MContext(Q.get_context()), MDevice(Q.get_device()) {}
   usm_allocator(const usm_allocator &Other)
-      : mContext(Other.mContext), mDevice(Other.mDevice) {}
+      : MContext(Other.MContext), MDevice(Other.MDevice) {}
 
-  // Construct an object
-  // Note: AllocKind == alloc::device is not allowed
+  /// Constructs an object on memory pointed by Ptr.
+  ///
+  /// Note: AllocKind == alloc::device is not allowed.
+  ///
+  /// @param Ptr is a pointer to memory that will be used to construct the
+  /// object.
+  /// @param Val is a value to initialize the newly constructed object.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -63,8 +68,11 @@ public:
         "Device pointers do not support construct on host");
   }
 
-  // Destroy an object
-  // Note:: AllocKind == alloc::device is not allowed
+  /// Destroys an object.
+  ///
+  /// Note:: AllocKind == alloc::device is not allowed
+  ///
+  /// @param Ptr is a pointer to memory where the object resides.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -80,7 +88,10 @@ public:
         "Device pointers do not support destroy on host");
   }
 
-  // Note:: AllocKind == alloc::device is not allowed
+  /// Note:: AllocKind == alloc::device is not allowed.
+  ///
+  /// @param Val is a reference to object.
+  /// @return an address of the object referenced by Val.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -118,7 +129,7 @@ public:
 
     auto Result = reinterpret_cast<pointer>(
         aligned_alloc(getAlignment(), Size * sizeof(value_type),
-                                 mDevice, mContext, AllocKind));
+                                 MDevice, MContext, AllocKind));
     if (!Result) {
       throw memory_allocation_error();
     }
@@ -130,7 +141,7 @@ public:
   /// @param Ptr is a pointer to memory being deallocated.
   void deallocate(pointer Ptr, size_t Size) {
     if (Ptr) {
-      free(Ptr, mContext);
+      free(Ptr, MContext);
     }
   }
 
@@ -146,8 +157,8 @@ private:
     return Alignment;
   }
 
-  const context mContext;
-  const device mDevice;
+  const context MContext;
+  const device MDevice;
 };
 
 } // namespace sycl
