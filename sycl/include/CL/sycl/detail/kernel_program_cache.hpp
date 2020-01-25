@@ -52,7 +52,7 @@ public:
 
   ~KernelProgramCache();
 
-  void setPlatformImpl(PlatformImplPtr APlatform) { MPlatform = APlatform; }
+  void setPlatformImpl(const PlatformImplPtr &APlatform) { MPlatform = APlatform; }
 
   Locked<ProgramCacheT> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
