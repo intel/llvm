@@ -462,7 +462,7 @@ using common_rel_ret_t =
 template <int N> struct Boolean;
 
 // Try to get vector element count or 1 otherwise
-template <typename T, typename Enable = void> class TryToGetNumElements;
+template <typename T, typename Enable = void> struct TryToGetNumElements;
 
 template <typename T>
 struct TryToGetNumElements<
@@ -558,7 +558,7 @@ template <typename T> static constexpr T quiet_NaN() {
 }
 
 // is_same_vector_size
-template <int FirstSize, typename... Args> struct is_same_vector_size_impl;
+template <int FirstSize, typename... Args> class is_same_vector_size_impl;
 
 template <int FirstSize, typename T, typename... Args>
 class is_same_vector_size_impl<FirstSize, T, Args...> {
@@ -573,7 +573,7 @@ public:
 };
 
 template <int FirstSize>
-struct is_same_vector_size_impl<FirstSize> : std::true_type {};
+class is_same_vector_size_impl<FirstSize> : public std::true_type {};
 
 template <typename T, typename... Args> class is_same_vector_size {
   using CurrentT = remove_pointer_t<T>;
