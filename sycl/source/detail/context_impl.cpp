@@ -24,7 +24,7 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
       MPlatform(), MPluginInterop(false), MHostContext(true) {
-  MKernelProgramCache.setPlatformImpl(MPlatform);
+  MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
@@ -40,7 +40,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
   getPlugin().call<PiApiKind::piContextCreate>(
       nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 
-  MKernelProgramCache.setPlatformImpl(MPlatform);
+  MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
@@ -70,7 +70,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   // getPlugin() will be the same as the Plugin passed. This should be taken
   // care of when creating device object.
   getPlugin().call<PiApiKind::piContextRetain>(MContext);
-  MKernelProgramCache.setPlatformImpl(MPlatform);
+  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {

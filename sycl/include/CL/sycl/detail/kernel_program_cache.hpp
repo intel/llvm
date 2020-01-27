@@ -42,7 +42,7 @@ public:
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = EntityWithState<PiProgramT>;
   using ProgramCacheT = std::map<OSModuleHandle, ProgramWithBuildStateT>;
-  using PlatformImplPtr = std::shared_ptr<platform_impl>;
+  using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
   using PiKernelPtrT = std::atomic<PiKernelT *>;
@@ -52,7 +52,7 @@ public:
 
   ~KernelProgramCache();
 
-  void setPlatformImpl(const PlatformImplPtr &APlatform) { MPlatform = APlatform; }
+  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
   Locked<ProgramCacheT> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
@@ -82,7 +82,7 @@ private:
 
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
-  PlatformImplPtr MPlatform;
+  ContextPtr MParentContext;
 };
 }
 }

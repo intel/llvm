@@ -29,12 +29,12 @@ KernelProgramCache::~KernelProgramCache() {
       PiKernelT *Kern = KernelWithState.Ptr.load();
 
       if (Kern) {
-        auto Plugin = MPlatform->getPlugin();
+        auto Plugin = MParentContext->getPlugin();
         Plugin.call<PiApiKind::piKernelRelease>(Kern);
       }
     }
 
-    auto Plugin = MPlatform->getPlugin();
+    auto Plugin = MParentContext->getPlugin();
     Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
