@@ -310,6 +310,13 @@ private:
   constexpr static bool IsImageAccessAnyRead =
       (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
+  static_assert(std::is_same<DataT, cl_int4>::value ||
+                      std::is_same<DataT, cl_uint4>::value ||
+                      std::is_same<DataT, cl_float4>::value ||
+                      std::is_same<DataT, cl_half4>::value,
+                  "The data type of an image accessor must be only cl_int4, "
+                  "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
+
   static_assert(IsImageAcc || IsHostImageAcc || IsImageArrayAcc,
                 "Expected image type");
 
