@@ -100,7 +100,7 @@ your application.
 **`-fsycl-device-code-split`**
 
     Perform SYCL device code split in the per_source mode, i.e. create a
-    separate device code module for each source (translation unit)
+    separate device code module for each source (translation unit).
 
 ### Intel FPGA specific options
 
