@@ -499,16 +499,9 @@ enum LoopControlMask {
     LoopControlIterationMultipleMask = 0x00000040,
     LoopControlPeelCountMask = 0x00000080,
     LoopControlPartialCountMask = 0x00000100,
-    LoopControlExtendedControlsMask = 0x80000000,
-};
-
-// TODO: Align the controls handling with the latest revision
-// of the SPIR-V specification for FPGA Loop Controls by removing
-// the extended controls token and using the control bits directly
-enum ExtendedControls {
-    InitiationIntervalINTEL = 5889,
-    MaxConcurrencyINTEL = 5890,
-    DependencyArrayINTEL = 5891,
+    InitiationIntervalINTEL = 0x10000,
+    MaxConcurrencyINTEL = 0x20000,
+    DependencyArrayINTEL = 0x40000,
 };
 
 enum FunctionControlShift {

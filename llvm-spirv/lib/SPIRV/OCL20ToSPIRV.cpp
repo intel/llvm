@@ -1027,9 +1027,23 @@ void OCL20ToSPIRV::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
   unsigned ExtOp = ~0U;
   if (StringRef(Info.UniqName).startswith(kSPIRVName::Prefix))
     return;
-  if (OCLSPIRVBuiltinMap::find(Info.UniqName, &OC))
-    Info.UniqName = getSPIRVFuncName(OC);
-  else if ((ExtOp = getExtOp(Info.MangledName, Info.UniqName)) != ~0U)
+  if (OCLSPIRVBuiltinMap::find(Info.UniqName, &OC)) {
+    if (OC == OpImageRead) {
+      // There are several read_image* functions defined by OpenCL C spec, but
+      // all of them use the same SPIR-V Instruction - some of them might only
+      // differ by return type, so, we need to include return type into the
+      // mangling scheme to get them differentiated.
+      //
+      // Example: int4 read_imagei(image2d_t, sampler_t, int2)
+      //          uint4 read_imageui(image2d_t, sampler_t, int2)
+      // Both functions above are represented by the same SPIR-V
+      // instruction: argument types are the same, only return type is
+      // different
+      Info.UniqName = getSPIRVFuncName(OC, CI->getType());
+    } else {
+      Info.UniqName = getSPIRVFuncName(OC);
+    }
+  } else if ((ExtOp = getExtOp(Info.MangledName, Info.UniqName)) != ~0U)
     Info.UniqName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOp);
   else
     return;

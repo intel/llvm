@@ -355,7 +355,6 @@ private:
   SPIRVWord ColCount; // Column Count
 };
 
-class SPIRVConstant;
 class SPIRVTypeArray : public SPIRVType {
 public:
   // Complete constructor

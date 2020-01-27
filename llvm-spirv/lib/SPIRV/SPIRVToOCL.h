@@ -88,6 +88,12 @@ public:
   /// Transform __spirv_{PipeOpName} to OCL pipe builtin functions.
   void visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpOpSubgroupImageMediaBlockReadINTEL =>
+  ///  intel_sub_group_media_block_read
+  ///           __spirv_OpSubgroupImageMediaBlockWriteINTEL =>
+  ///  intel_sub_group_media_block_write
+  void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);

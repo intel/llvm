@@ -1058,7 +1058,9 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlExtendedControlsMask;
+  ValidMask |= InitiationIntervalINTEL;
+  ValidMask |= MaxConcurrencyINTEL;
+  ValidMask |= DependencyArrayINTEL;
 
   return (Mask & ~ValidMask) == 0;
 }
