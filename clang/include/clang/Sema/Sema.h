@@ -12092,15 +12092,16 @@ public:
   ///   immediately.
   /// - If CurLexicalContext is a function and we are compiling
   ///   for the device, but we don't know that this function will be codegen'ed
-  ///   for devive yet, creates a diagnostic which is emitted if and when we
+  ///   for device yet, creates a diagnostic which is emitted if and when we
   ///   realize that the function will be codegen'ed.
   ///
   /// Example usage:
   ///
-  /// Variables with thread storage duration are not allowed to be used in SYCL
-  /// device code
-  /// if (getLangOpts().SYCLIsDevice)
-  ///   SYCLDiagIfDeviceCode(Loc, diag::err_thread_unsupported);
+  /// Diagnose __float128 type usage only from SYCL device code if the current
+  /// target doesn't support it
+  /// if (!S.Context.getTargetInfo().hasFloat128Type() &&
+  ///     S.getLangOpts().SYCLIsDevice)
+  ///   SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
 
   /// Checks if Callee function is a device function and emits

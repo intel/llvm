@@ -33,7 +33,7 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
-    if (!FD)
+    if (!FD || isUnevaluatedContext())
       return DeviceDiagBuilder::K_Nop;
     if (isKnownEmitted(*this, FD))
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
