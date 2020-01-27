@@ -113,6 +113,27 @@ struct LoopAttributes {
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
 
+  /// Flag for llvm.loop.coalesce metadata.
+  bool SYCLLoopCoalesceEnable;
+
+  /// Value for llvm.loop.coalesce.count metadata.
+  unsigned SYCLLoopCoalesceNLevels;
+
+  /// Flag for llvm.loop.intel.pipelining.enable, i32 0 metadata.
+  bool SYCLLoopPipeliningDisable;
+
+  /// Flag for llvm.loop.max_interleaving.count metadata.
+  bool SYCLMaxInterleavingEnable;
+
+  /// Value for llvm.loop.max_interleaving.count metadata.
+  unsigned SYCLMaxInterleavingNInvocations;
+
+  /// Flag for llvm.loop.intel.speculated.iterations.count metadata.
+  bool SYCLSpeculatedIterationsEnable;
+
+  /// Value for llvm.loop.intel.speculated.iterations.count metadata.
+  unsigned SYCLSpeculatedIterationsNIterations;
+
   /// llvm.unroll.
   unsigned UnrollCount;
 
@@ -331,6 +352,41 @@ public:
   /// Set value of threads for the next loop pushed.
   void setSYCLMaxConcurrencyNThreads(unsigned C) {
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
+  }
+
+  /// Set flag of loop_coalesce for the next loop pushed.
+  void setSYCLLoopCoalesceEnable() {
+    StagedAttrs.SYCLLoopCoalesceEnable = true;
+  }
+
+  /// Set value of coalesced levels for the next loop pushed.
+  void setSYCLLoopCoalesceNLevels(unsigned C) {
+    StagedAttrs.SYCLLoopCoalesceNLevels = C;
+  }
+
+  /// Set flag of disable_loop_pipelining for the next loop pushed.
+  void setSYCLLoopPipeliningDisable() {
+    StagedAttrs.SYCLLoopPipeliningDisable = true;
+  }
+
+  /// Set flag of max_interleaving for the next loop pushed.
+  void setSYCLMaxInterleavingEnable() {
+    StagedAttrs.SYCLMaxInterleavingEnable = true;
+  }
+
+  /// Set value of max interleaved invocations for the next loop pushed.
+  void setSYCLMaxInterleavingNInvocations(unsigned C) {
+    StagedAttrs.SYCLMaxInterleavingNInvocations = C;
+  }
+
+  /// Set flag of speculated_iterations for the next loop pushed.
+  void setSYCLSpeculatedIterationsEnable() {
+    StagedAttrs.SYCLSpeculatedIterationsEnable = true;
+  }
+
+  /// Set value of concurrent speculated iterations for the next loop pushed.
+  void setSYCLSpeculatedIterationsNIterations(unsigned C) {
+    StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
 
   /// Set the unroll count for the next loop pushed.
