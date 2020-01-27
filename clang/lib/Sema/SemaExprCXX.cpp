@@ -2171,16 +2171,15 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
     if (DiagnoseUseOfDecl(OperatorNew, StartLoc))
       return ExprError();
     MarkFunctionReferenced(StartLoc, OperatorNew);
-    if (getLangOpts().SYCLIsDevice) {
-      CheckSYCLCall(StartLoc, OperatorNew);
-    }
+    if (getLangOpts().SYCLIsDevice &&
+        OperatorNew->isReplaceableGlobalAllocationFunction())
+      SYCLDiagIfDeviceCode(StartLoc, diag::err_sycl_restrict)
+          << KernelAllocateStorage;
   }
   if (OperatorDelete) {
     if (DiagnoseUseOfDecl(OperatorDelete, StartLoc))
       return ExprError();
     MarkFunctionReferenced(StartLoc, OperatorDelete);
-    if (getLangOpts().SYCLIsDevice)
-      CheckSYCLCall(StartLoc, OperatorDelete);
   }
 
   return CXXNewExpr::Create(Context, UseGlobal, OperatorNew, OperatorDelete,

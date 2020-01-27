@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
+// RUN: %clangxx -D__SYCL_DISABLE_ID_TO_INT_CONV__ -fsycl %s -o %t_dis.out
+// RUN: %t_dis.out
 
 //==--------------- id.cpp - SYCL id test ----------------------------------==//
 //
@@ -78,23 +80,201 @@ int main() {
 
   /* size_t &operator[](int dimension)const
    * Return a reference to the requested dimension of the id object. */
+  cl::sycl::id<1> one_dim_id_brackets(64);
+  assert(one_dim_id_brackets[0] == 64);
+  cl::sycl::id<2> two_dim_id_brackets(128, 256);
+  assert(two_dim_id_brackets[0] == 128 && two_dim_id_brackets[1] == 256);
+  cl::sycl::id<3> three_dim_id_brackets(64, 1, 2);
+  assert(three_dim_id_brackets[0] == 64 && three_dim_id_brackets[1] == 1 &&
+         three_dim_id_brackets[2] == 2);
 
-  /* size_t &operator[](int dimension)const
-   * Return a reference to the requested dimension of the id object. */
+/* size_t &operator[](int dimension)const
+ * Return a reference to the requested dimension of the id object. */
+
+/* id<dimensions> operatorOP(const id<dimensions> &rhs) const
+ * Where OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=.
+ * Constructs and returns a new instance of the SYCL id class template with
+ * the same dimensionality as this SYCL id, where each element of the new SYCL
+ * id instance is the result of an element-wise OP operator between each
+ * element of this SYCL id and each element of the rhs id. If the operator
+ * returns a bool the result is the cast to size_t */
+#define oneLeftValue 10
+#define oneRightValue 2
+#define twoLeftValue 15
+#define twoRightValue 7
+#define threeLeftValue 3
+#define threeRightValue 9
+
+  cl::sycl::id<1> one_dim_op_left(oneLeftValue);
+  cl::sycl::id<1> one_dim_op_right(oneRightValue);
+  cl::sycl::range<1> one_dim_op_range(oneRightValue);
+
+  cl::sycl::id<2> two_dim_op_left(oneLeftValue, twoLeftValue);
+  cl::sycl::id<2> two_dim_op_right(oneRightValue, twoRightValue);
+  cl::sycl::range<2> two_dim_op_range(oneRightValue, twoRightValue);
+
+  cl::sycl::id<3> three_dim_op_left(oneLeftValue, twoLeftValue, threeLeftValue);
+  cl::sycl::id<3> three_dim_op_right(oneRightValue, twoRightValue,
+                                     threeRightValue);
+  cl::sycl::range<3> three_dim_op_range(oneRightValue, twoRightValue,
+                                        threeRightValue);
+#define OPERATOR_TEST_BASIC(op)                                                \
+  assert((one_dim_op_left op one_dim_op_right)[0] ==                           \
+         (oneLeftValue op oneRightValue));                                     \
+  assert((one_dim_op_right op one_dim_op_left)[0] ==                           \
+         (oneRightValue op oneLeftValue));                                     \
+  assert((one_dim_op_left op oneRightValue)[0] ==                              \
+         (oneLeftValue op oneRightValue));                                     \
+  assert((oneLeftValue op one_dim_op_right)[0] ==                              \
+         (oneLeftValue op oneRightValue));                                     \
+  assert(((two_dim_op_left op two_dim_op_right)[0] ==                          \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         ((two_dim_op_right op two_dim_op_left)[1] ==                          \
+          (twoRightValue op twoLeftValue)));                                   \
+  assert(((two_dim_op_left op oneRightValue)[0] ==                             \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         ((twoLeftValue op two_dim_op_right)[1] ==                             \
+          (twoLeftValue op twoRightValue)));                                   \
+  assert(((three_dim_op_left op three_dim_op_right)[0] ==                      \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         ((three_dim_op_left op three_dim_op_right)[1] ==                      \
+          (twoLeftValue op twoRightValue)) &&                                  \
+         ((three_dim_op_left op three_dim_op_right)[2] ==                      \
+          (threeLeftValue op threeRightValue)));                               \
+  assert(((three_dim_op_left op oneRightValue)[0] ==                           \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         ((twoLeftValue op three_dim_op_right)[1] ==                           \
+          (twoLeftValue op twoRightValue)) &&                                  \
+         ((three_dim_op_left op threeRightValue)[2] ==                         \
+          (threeLeftValue op threeRightValue)));
+
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+#define OPERATOR_TEST(op)                                                      \
+  OPERATOR_TEST_BASIC(op)                                                      \
+  assert((one_dim_op_left op one_dim_op_range)[0] ==                           \
+         (oneLeftValue op oneRightValue));                                     \
+  assert((one_dim_op_range op one_dim_op_left)[0] ==                           \
+         (oneRightValue op oneLeftValue));
+#else
+#define OPERATOR_TEST(op) OPERATOR_TEST_BASIC(op)
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
+
+  OPERATOR_TEST(+)
+  OPERATOR_TEST(-)
+  OPERATOR_TEST(*)
+  OPERATOR_TEST(/)
+  OPERATOR_TEST(%)
+  OPERATOR_TEST(<<)
+  OPERATOR_TEST(>>)
+  OPERATOR_TEST(&)
+  OPERATOR_TEST(|)
+  OPERATOR_TEST(^)
+  OPERATOR_TEST(&&)
+  OPERATOR_TEST(||)
+  OPERATOR_TEST(<)
+  OPERATOR_TEST(>)
+  OPERATOR_TEST(<=)
+  OPERATOR_TEST(>=)
+
+#undef OPERATOR_TEST
+#undef OPERATOR_TEST_BASIC
 
   /* id<dimensions> operatorOP(const id<dimensions> &rhs) const
-   * Where OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=.
+   * Where OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=.
    * Constructs and returns a new instance of the SYCL id class template with
    * the same dimensionality as this SYCL id, where each element of the new SYCL
    * id instance is the result of an element-wise OP operator between each
    * element of this SYCL id and each element of the rhs id. If the operator
    * returns a bool the result is the cast to size_t */
 
-  /* id<dimensions> operatorOP(const id<dimensions> &rhs) const
-   * Where OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=.
-   * Constructs and returns a new instance of the SYCL id class template with
-   * the same dimensionality as this SYCL id, where each element of the new SYCL
-   * id instance is the result of an element-wise OP operator between each
-   * element of this SYCL id and each element of the rhs id. If the operator
-   * returns a bool the result is the cast to size_t */
+#define OPERATOR_TEST_BASIC(op)                                                \
+  one_dim_op_left[0] = oneLeftValue;                                           \
+  one_dim_op_right[0] = oneRightValue;                                         \
+  assert((one_dim_op_left op## = one_dim_op_right)[0] ==                       \
+         (oneLeftValue op oneRightValue));                                     \
+  one_dim_op_left[0] = oneLeftValue;                                           \
+  assert((one_dim_op_left op## = oneRightValue)[0] ==                          \
+         (oneLeftValue op oneRightValue));                                     \
+  two_dim_op_left[0] = oneLeftValue;                                           \
+  two_dim_op_left[1] = twoLeftValue;                                           \
+  two_dim_op_right[0] = oneRightValue;                                         \
+  two_dim_op_right[1] = twoRightValue;                                         \
+  assert(((two_dim_op_left op## = two_dim_op_right)[0] ==                      \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         (two_dim_op_left[1] == (twoLeftValue op twoRightValue)));             \
+  two_dim_op_left[0] = oneLeftValue;                                           \
+  two_dim_op_left[1] = twoLeftValue;                                           \
+  assert(((two_dim_op_left op## = oneRightValue)[0] ==                         \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         (two_dim_op_left[1] == (twoLeftValue op oneRightValue)));             \
+  three_dim_op_left[0] = oneLeftValue;                                         \
+  three_dim_op_left[1] = twoLeftValue;                                         \
+  three_dim_op_left[2] = threeLeftValue;                                       \
+  three_dim_op_right[0] = oneRightValue;                                       \
+  three_dim_op_right[1] = twoRightValue;                                       \
+  three_dim_op_right[2] = threeRightValue;                                     \
+  assert(((three_dim_op_left op## = three_dim_op_right)[0] ==                  \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         (three_dim_op_left[1] == (twoLeftValue op twoRightValue)) &&          \
+         (three_dim_op_left[2] == (threeLeftValue op threeRightValue)));       \
+  three_dim_op_left[0] = oneLeftValue;                                         \
+  three_dim_op_left[1] = twoLeftValue;                                         \
+  three_dim_op_left[2] = threeLeftValue;                                       \
+  assert(((three_dim_op_left op## = oneRightValue)[0] ==                       \
+          (oneLeftValue op oneRightValue)) &&                                  \
+         (three_dim_op_left[1] == (twoLeftValue op oneRightValue)) &&          \
+         (three_dim_op_left[2] == (threeLeftValue op oneRightValue)));
+
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+#define OPERATOR_TEST(op)                                                      \
+  OPERATOR_TEST_BASIC(op)                                                      \
+  one_dim_op_left[0] = oneLeftValue;                                           \
+  assert((one_dim_op_left op## = one_dim_op_range)[0] ==                       \
+         (oneLeftValue op oneRightValue));                                     \
+  two_dim_op_left[0] = oneLeftValue;                                           \
+  two_dim_op_left[1] = twoLeftValue;                                           \
+  two_dim_op_range[0] = oneRightValue;                                         \
+  two_dim_op_range[1] = twoRightValue;
+#else
+#define OPERATOR_TEST(op) OPERATOR_TEST_BASIC(op)
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
+
+  OPERATOR_TEST(+)
+  OPERATOR_TEST(-)
+  OPERATOR_TEST(*)
+  OPERATOR_TEST(/)
+  OPERATOR_TEST(%)
+  OPERATOR_TEST(<<)
+  OPERATOR_TEST(>>)
+  OPERATOR_TEST(&)
+  OPERATOR_TEST(|)
+  OPERATOR_TEST(^)
+
+#undef OPERATOR_TEST
+#undef OPERATOR_TEST_BASIC
+
+#undef oneLeftValue
+#undef oneRightValue
+#undef twoLeftValue
+#undef twoRightValue
+#undef threeLeftValue
+#undef threeRightValue
+
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+/* operator size_t() const
+ * Test implicit cast from id<1> to size_t and int value
+ * Should fails on cast from id<2> and id<3> */
+#define numValue 16
+  cl::sycl::id<1> one_dim_id_cast_to_num(numValue);
+  size_t number1 = one_dim_id_cast_to_num;
+  int number2 = one_dim_id_cast_to_num;
+  size_t number3 = (size_t)one_dim_id_cast_to_num;
+  int number4 = (int)one_dim_id_cast_to_num;
+  size_t number5 = (int)one_dim_id_cast_to_num;
+  assert((number1 == numValue) && (number2 == numValue) &&
+         (number3 == numValue) && (number4 == numValue) &&
+         (number5 == numValue));
+
+#undef numValue
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 }

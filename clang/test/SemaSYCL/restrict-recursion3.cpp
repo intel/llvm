@@ -16,6 +16,8 @@ void kernel3(void) {
 using myFuncDef = int(int,int);
 
 void usage3(myFuncDef functionPtr) {
+  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
+  int *ip = new int;
   kernel3();
 }
 
@@ -26,14 +28,14 @@ int addInt(int n, int m) {
 template <typename name, typename Func>
   // expected-note@+1 2{{function implemented using recursion declared here}}
 __attribute__((sycl_kernel)) void kernel_single_task2(Func kernelFunc) {
+  // expected-note@+1 {{called by 'kernel_single_task2}}
   kernelFunc();
-  // expected-error@+1 2{{SYCL kernel cannot allocate storage}}
-  int *ip = new int;
   // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
   kernel_single_task2<name, Func>(kernelFunc);
 }
 
 int main() {
+  // expected-note@+1 {{called by 'operator()'}}
   kernel_single_task2<class fake_kernel>([]() { usage3(  &addInt ); });
   return fib(5);
 }

@@ -53,6 +53,8 @@ public:
   pointer allocate(size_t Size) {
     size_t NumBytes = Size * sizeof(value_type);
     NumBytes = ((NumBytes - 1) | (MAlignment - 1)) + 1;
+    if (Size > NumBytes)
+      throw std::bad_alloc();
 
     pointer Result = reinterpret_cast<pointer>(
         detail::OSUtil::alignedAlloc(MAlignment, NumBytes));

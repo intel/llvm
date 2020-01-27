@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 
 
 namespace std {
@@ -65,6 +65,7 @@ bool isa_B(A *a) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   int i; int *p3 = new(&i) int; // no error on placement new
+  // expected-note@+1 {{called by 'isa_B'}}
   OverloadedNewDelete *x = new( struct OverloadedNewDelete );
   auto y = new struct OverloadedNewDelete [5];
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
@@ -102,6 +103,7 @@ using myFuncDef = int(int,int);
 
 void eh_ok(void)
 {
+  __float128 A;
   try {
     ;
   } catch (...) {
@@ -138,6 +140,9 @@ void usage(myFuncDef functionPtr) {
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
   Check_RTTI_Restriction::A *a;
   Check_RTTI_Restriction::isa_B(a); });
+
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  __float128 A;
 }
 
 namespace ns {
@@ -172,9 +177,12 @@ int use2 ( a_type ab, a_type *abp ) {
   // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
   Check_RTTI_Restriction:: A *a;
+  // expected-note@+1 2{{called by 'use2'}}
   Check_RTTI_Restriction:: isa_B(a);
+  // expected-note@+1 {{called by 'use2'}}
   usage(&addInt);
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  // expected-note@+1 {{called by 'use2'}}
   if (f1 == f2) return false;
 }
 
@@ -183,7 +191,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 {{called by 'kernel_single_task'}}
+  // expected-note@+1 5{{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 

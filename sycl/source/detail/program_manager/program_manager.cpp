@@ -831,11 +831,11 @@ void ProgramManager::dumpImage(const DeviceImage &Img, KernelSetId KSId) const {
 } // namespace sycl
 } // namespace cl
 
-extern "C" void __tgt_register_lib(pi_device_binaries desc) {
+extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization
-extern "C" void __tgt_unregister_lib(pi_device_binaries desc) {
+extern "C" void __sycl_unregister_lib(pi_device_binaries desc) {
   // TODO implement the function
 }

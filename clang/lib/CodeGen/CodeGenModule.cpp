@@ -3981,9 +3981,9 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
   }
-  if (const auto *MCA = D->getAttr<IntelFPGAMaxPrivateCopiesAttr>()) {
-    llvm::APSInt MCAInt = MCA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << MCA->getSpelling() << ':' << MCAInt << '}';
+  if (const auto *PCA = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
+    llvm::APSInt PCAInt = PCA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << PCA->getSpelling() << ':' << PCAInt << '}';
   }
   if (const auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
     llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());

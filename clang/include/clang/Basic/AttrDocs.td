@@ -1876,9 +1876,9 @@ with N banks.
   }];
 }
 
-def IntelFPGAMaxPrivateCopiesAttrDocs : Documentation {
+def IntelFPGAPrivateCopiesAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "max_private_copies (IntelFPGA)";
+  let Heading = "private_copies (IntelFPGA)";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or
@@ -2006,6 +2006,16 @@ range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
 have arguments of (1, 1, 1).
 If ``intelfpga::max_global_work_dim`` is applied to a function called from a
 device kernel, the attribute is ignored and it is not propagated to a kernel.
+  }];
+}
+
+def SYCLIntelUsesGlobalWorkOffsetDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "uses_global_work_offset (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function or function call operator (of a
+function object). If 0, compiler doesn't use the global work offset values for
+the device function. Valid values are 0 and 1.
   }];
 }
 

@@ -7,7 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <CL/sycl/detail/usm_impl.hpp>
 #include <CL/sycl/usm/usm_allocator.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 

@@ -38,9 +38,9 @@ void foo()
   [[intelfpga::numbanks(8)]] unsigned int v_six[32];
 
   #ifndef SYCLHOST
-  // expected-warning@+2 {{'max_private_copies' attribute ignored}}
+  // expected-warning@+2 {{'private_copies' attribute ignored}}
   #endif
-  [[intelfpga::max_private_copies(8)]] unsigned int v_seven[64];
+  [[intelfpga::private_copies(8)]] unsigned int v_seven[64];
 
   #ifndef SYCLHOST
   // expected-warning@+2 {{'merge' attribute ignored}}

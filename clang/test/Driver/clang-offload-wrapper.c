@@ -49,9 +49,7 @@
 // CHECK-HELP: {{.*}}    =hip                   -   HIP
 // CHECK-HELP: {{.*}}    =sycl                  -   SYCL
 // CHECK-HELP: {{.*}}  -o=<filename>            - Output filename
-// CHECK-HELP: {{.*}}  --reg-func-name=<name>   - Offload descriptor registration function name
 // CHECK-HELP: {{.*}}  --target=<string>        - offload target triple
-// CHECK-HELP: {{.*}}  --unreg-func-name=<name> - Offload descriptor un-registration function name
 // CHECK-HELP: {{.*}}  -v                       - verbose output
 
 // -------
@@ -122,12 +120,16 @@
 // CHECK-IR: declare void @__tgt_unregister_lib([[DESCTY]]*)
 
 // CHECK-IR: define internal void [[SYCL_REGFN]]()
-// CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
+// CHECK-IR:   call void @__sycl_register_lib([[SYCL_DESCTY]]* [[SYCL_DESC]])
 // CHECK-IR:   ret void
 
+// CHECK-IR: declare void @__sycl_register_lib([[SYCL_DESCTY]]*)
+
 // CHECK-IR: define internal void [[SYCL_UNREGFN]]()
-// CHECK-IR:   call void @__tgt_unregister_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
+// CHECK-IR:   call void @__sycl_unregister_lib([[SYCL_DESCTY]]* [[SYCL_DESC]])
 // CHECK-IR:   ret void
+
+// CHECK-IR: declare void @__sycl_unregister_lib([[SYCL_DESCTY]]*)
 
 // -------
 // Check options' effects: -emit-reg-funcs, -desc-name
@@ -142,23 +144,6 @@
 // CHECK-IR1-NOT: @llvm.global_ctors
 // CHECK-IR1-NOT: @llvm.global_dtors
 // CHECK-IR1: @.sycl_offloading.lalala = constant [[DESCTY]] { i16 1, i16 1, [[IMAGETY]]* getelementptr inbounds ([1 x [[IMAGETY]]], [1 x [[IMAGETY]]]* @.sycl_offloading.device_images, i64 0, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }
-
-// -------
-// Check options' effects: -reg-func-name, -unreg-func-name
-//
-// RUN: clang-offload-wrapper -kind sycl -host=x86_64-pc-linux-gnu -reg-func-name=__REGFUNC__ -unreg-func-name=__UNREGFUNC__ -o - %t.tgt | llvm-dis | FileCheck %s --check-prefix CHECK-IR2
-// CHECK-IR2: source_filename = "offload.wrapper.object"
-// CHECK-IR2: define internal void {{.+}}()
-// CHECK-IR2:   call void @__REGFUNC__
-// CHECK-IR2:   ret void
-
-// CHECK-IR2: declare void @__REGFUNC__
-
-// CHECK-IR2: define internal void {{.+}}()
-// CHECK-IR2:   call void @__UNREGFUNC__
-// CHECK-IR2:   ret void
-
-// CHECK-IR2: declare void @__UNREGFUNC__
 
 // -------
 // Check option's effects: -entries
