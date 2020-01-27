@@ -274,6 +274,21 @@ public:
   }
 };
 
+class stream {
+public:
+  stream(unsigned long BufferSize, unsigned long MaxStatementSize,
+         handler &CGH) {}
+
+  void __init() {}
+
+  void __finalize() {}
+};
+
+template <typename T>
+const stream& operator<<(const stream &S, T&&) {
+  return S;
+}
+
 template <typename T, int dimensions = 1,
           typename AllocatorT = int /*fake type as AllocatorT is not used*/>
 class buffer {
