@@ -458,9 +458,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-  size_t get_count() const {
-    return get_range<Dimensions>().size();
-  }
+  size_t get_count() const { return get_range<Dimensions>().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
@@ -481,27 +479,11 @@ public:
 #else
   size_t get_count() const { return MImageCount; };
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
-  range<1> get_range() const {
-    range<1> RetRange(0);
-    RetRange[0] = getAccessRange()[0];
-    return RetRange;
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  range<Dims> get_range() const {
+    return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
   }
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
-  range<2> get_range() const {
-    range<2> RetRange(0, 0);
-    RetRange[0] = getAccessRange()[0];
-    RetRange[1] = getAccessRange()[1];
-    return RetRange;
-  }
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
-  range<3> get_range() const {
-    range<3> RetRange(0, 0, 0);
-    RetRange[0] = getAccessRange()[0];
-    RetRange[1] = getAccessRange()[1];
-    RetRange[2] = getAccessRange()[2];
-    return RetRange;
-  }
+
 #endif
 
   // Available only when:
@@ -648,15 +630,10 @@ public:
     return MBaseAcc.MImageCount / MBaseAcc.getAccessRange()[Dimensions];
   }
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
-  range<1> get_range() const {
-    return range<1>(MBaseAcc.getAccessRange()[0]);
-  }
-
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
-  range<2> get_range() const {
-    range<3> BaseAccessRange = MBaseAcc.getAccessRange();
-    return range<2>(BaseAccessRange[0], BaseAccessRange[1]);
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<(Dims == 1 || Dims == 2)>>
+  range<Dims> get_range() const {
+    return detail::convertToArrayOfN<Dims, 1>(MBaseAcc.getAccessRange());
   }
 
 #endif
@@ -1130,8 +1107,8 @@ public:
   size_t get_count() const { return getSize().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
-  range<Dimensions> get_range() const {
-    return getSize();
+  range<Dims> get_range() const {
+    return detail::convertToArrayOfN<Dims, 1>(getSize());
   }
 
   template <int Dims = Dimensions,

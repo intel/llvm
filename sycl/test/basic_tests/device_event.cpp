@@ -95,7 +95,8 @@ int test_strideN(size_t stride) {
         // that are not supposed to happen, but who knows..., c) to see those
         // values at the end if something goes wrong during the ASYNC MEM COPY.
         out_ptr[item.get_global_id()[0]] = item.get_global_id()[0] + 700;
-
+        // Just a check of get_range() API.
+        local_acc.get_range();
         item.barrier();
 
         // Copy from local memory to global memory.
