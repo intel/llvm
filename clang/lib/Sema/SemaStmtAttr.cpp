@@ -554,11 +554,52 @@ void CheckForIncompatibleUnrollHintAttributes(
     SourceLocation Loc = Range.getBegin();
     S.Diag(Loc, diag::err_loop_unroll_compatibility)
         << PragmaUnroll->getDiagnosticName(Policy)
-        << AttrUnroll->getDiagnosticName();
+        << AttrUnroll->getDiagnosticName(Policy);
   }
 }
 
-template <typename LoopUnrollAttrT>
+static bool HandleLoopUnrollAttrExpr(Sema &S, Expr *E,
+                                     const AttributeCommonInfo &A,
+                                     unsigned *UnrollFactor = nullptr) {
+  if (E && !E->isInstantiationDependent()) {
+    llvm::APSInt ArgVal(32);
+
+    if (!E->isIntegerConstantExpr(ArgVal, S.Context)) {
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << A.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return false;
+    }
+
+    int Val = ArgVal.getSExtValue();
+
+    if (Val <= 0) {
+      S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << A.getAttrName() << /* positive */ 0;
+      return false;
+    }
+
+    if (UnrollFactor)
+      *UnrollFactor = Val;
+  }
+  return true;
+}
+
+LoopUnrollHintAttr *Sema::BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
+                                                  Expr *E) {
+  return HandleLoopUnrollAttrExpr(*this, E, A)
+             ? new (Context) LoopUnrollHintAttr(Context, A, E)
+             : nullptr;
+}
+
+OpenCLUnrollHintAttr *
+Sema::BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E) {
+  unsigned UnrollFactor = 0;
+  return HandleLoopUnrollAttrExpr(*this, E, A, &UnrollFactor)
+             ? new (Context) OpenCLUnrollHintAttr(Context, A, UnrollFactor)
+             : nullptr;
+}
+
 static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
                                   SourceRange Range) {
   // Although the feature was introduced only in OpenCL C v2.0 s6.11.5, it's
@@ -574,30 +615,13 @@ static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
     return nullptr;
   }
 
-  unsigned UnrollFactor = 0;
+  Expr *E = NumArgs ? A.getArgAsExpr(0) : nullptr;
+  if (A.getParsedKind() == ParsedAttr::AT_OpenCLUnrollHint)
+    return S.BuildOpenCLLoopUnrollHintAttr(A, E);
+  else if (A.getParsedKind() == ParsedAttr::AT_LoopUnrollHint)
+    return S.BuildLoopUnrollHintAttr(A, E);
 
-  if (NumArgs == 1) {
-    Expr *E = A.getArgAsExpr(0);
-    llvm::APSInt ArgVal(32);
-
-    if (!E->isIntegerConstantExpr(ArgVal, S.Context)) {
-      S.Diag(A.getLoc(), diag::err_attribute_argument_type)
-          << A << AANT_ArgumentIntegerConstant << E->getSourceRange();
-      return nullptr;
-    }
-
-    int Val = ArgVal.getSExtValue();
-
-    if (Val <= 0) {
-      S.Diag(A.getRange().getBegin(),
-             diag::err_attribute_requires_positive_integer)
-          << A << /* positive */ 0;
-      return nullptr;
-    }
-    UnrollFactor = Val;
-  }
-
-  return LoopUnrollAttrT::CreateImplicit(S.Context, UnrollFactor);
+  return nullptr;
 }
 
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -620,9 +644,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
-    return handleLoopUnrollHint<OpenCLUnrollHintAttr>(S, St, A, Range);
   case ParsedAttr::AT_LoopUnrollHint:
-    return handleLoopUnrollHint<LoopUnrollHintAttr>(S, St, A, Range);
+    return handleLoopUnrollHint(S, St, A, Range);
   case ParsedAttr::AT_Suppress:
     return handleSuppressAttr(S, St, A, Range);
   default:
