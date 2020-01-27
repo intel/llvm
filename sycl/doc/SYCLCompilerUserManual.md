@@ -87,11 +87,11 @@ your application.
     option:
     - per_kernel - a separate device code module is created for each SYCL
     kernel. Each device code module will contain a kernel and all its
-    dependencies i.e. called functions and used variables.
+    dependencies, i.e. called functions and used variables.
     - per_source - a separate device code module is created for each source
     (translation unit). Each device code module will contain a bunch of kernels
-    grouped on per-source basis and all their dependencies i.e. all used
-    variables and called functions including functions from other translation
+    grouped on per-source basis and all their dependencies, i.e. all used
+    variables and called functions, including functions from other translation
     units marked with `SYCL_EXTERNAL` macro.
     - off - no device code split.
     NOTE: By default device code split is 'off' - all kernels go into a
