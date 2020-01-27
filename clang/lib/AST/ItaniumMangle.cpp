@@ -2043,6 +2043,8 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::Atomic:
   case Type::Pipe:
   case Type::MacroQualified:
+  case Type::ExtInt:
+  case Type::DependentExtInt:
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstTemplateTypeParmPack:
@@ -3570,6 +3572,24 @@ void CXXNameMangler::mangleType(const PipeType *T) {
   // A.1 Data types and A.3 Summary of changes
   // <type> ::= 8ocl_pipe
   Out << "8ocl_pipe";
+}
+
+void CXXNameMangler::mangleType(const ExtIntType *T) {
+  if (T->isUnsigned())
+    Out << "U8_UExtInt";
+  else
+    Out << "U7_ExtInt";
+  llvm::APSInt BW(32, true);
+  BW = T->getNumBits();
+  mangleIntegerLiteral(getASTContext().UnsignedIntTy, BW);
+}
+
+void CXXNameMangler::mangleType(const DependentExtIntType *T) {
+  if (T->isUnsigned())
+    Out << "U8_UExtInt";
+  else
+    Out << "U7_ExtInt";
+  mangleExpression(T->getNumBitsExpr());
 }
 
 void CXXNameMangler::mangleIntegerLiteral(QualType T,

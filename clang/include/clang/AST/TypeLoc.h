@@ -2314,6 +2314,12 @@ inline T TypeLoc::getAsAdjusted() const {
   }
   return Cur.getAs<T>();
 }
+class ExtIntTypeLoc
+    : public InheritingConcreteTypeLoc<TypeSpecTypeLoc, ExtIntTypeLoc,
+                                        ExtIntType> {};
+class DependentExtIntTypeLoc
+    : public InheritingConcreteTypeLoc<TypeSpecTypeLoc, DependentExtIntTypeLoc,
+                                        DependentExtIntType> {};
 
 } // namespace clang
 

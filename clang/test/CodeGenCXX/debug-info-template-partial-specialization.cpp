@@ -17,7 +17,7 @@ struct __pointer_type2
   // Test that the bool template type parameter is emitted.
   //
   // CHECK: ![[PARAMS]] = !{!{{.*}}, !{{.*}}, ![[FALSE:[0-9]+]]}
-  // CHECK: ![[FALSE]] = !DITemplateValueParameter(type: !{{[0-9]+}}, value: i8 0)
+  // CHECK: ![[FALSE]] = !DITemplateValueParameter(type: !{{[0-9]+}}, value: i1 false)
   typedef typename __pointer_type_imp::__pointer_type1<_Tp, _Dp, false>::type type;
 };
 template <class _Tp> struct default_delete {};

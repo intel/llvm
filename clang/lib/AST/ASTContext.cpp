@@ -2132,6 +2132,15 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = toBits(Layout.getAlignment());
     break;
   }
+  case Type::ExtInt: {
+    const auto *EIT = cast<ExtIntType>(T);
+    Align =
+        std::min(static_cast<unsigned>(std::max(
+                     getCharWidth(), llvm::PowerOf2Ceil(EIT->getNumBits()))),
+                 Target->getLongLongAlign());
+    Width = llvm::alignTo(EIT->getNumBits(), Align);
+    break;
+  }
   case Type::Record:
   case Type::Enum: {
     const auto *TT = cast<TagType>(T);
@@ -3328,6 +3337,8 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::PackExpansion:
+  case Type::ExtInt:
+  case Type::DependentExtInt:
     llvm_unreachable("type should never be variably-modified");
 
   // These types can be variably-modified but should never need to
@@ -3998,6 +4009,40 @@ QualType ASTContext::getReadPipeType(QualType T) const {
 
 QualType ASTContext::getWritePipeType(QualType T) const {
   return getPipeType(T, false);
+}
+
+QualType ASTContext::getExtIntType(bool IsUnsigned, unsigned NumBits) const {
+  llvm::FoldingSetNodeID ID;
+  ExtIntType::Profile(ID, IsUnsigned, NumBits);
+
+  void *InsertPos = nullptr;
+  if (ExtIntType *EIT = ExtIntTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(EIT, 0);
+
+  ExtIntType *New =
+      new (*this, TypeAlignment) ExtIntType(IsUnsigned, NumBits);
+  ExtIntTypes.InsertNode(New, InsertPos);
+  Types.push_back(New);
+  return QualType(New, 0);
+}
+
+QualType ASTContext::getDependentExtIntType(bool IsUnsigned,
+                                            Expr *NumBitsExpr) const {
+  assert(NumBitsExpr->isInstantiationDependent() && "Only good for dependent");
+  llvm::FoldingSetNodeID ID;
+  DependentExtIntType::Profile(ID, *this, IsUnsigned, NumBitsExpr);
+
+  void *InsertPos = nullptr;
+  if (DependentExtIntType *Existing =
+          DependentExtIntTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(Existing, 0);
+
+  DependentExtIntType *New = new (*this, TypeAlignment)
+      DependentExtIntType(*this, IsUnsigned, NumBitsExpr);
+  DependentExtIntTypes.InsertNode(New, InsertPos);
+
+  Types.push_back(New);
+  return QualType(New, 0);
 }
 
 #ifndef NDEBUG
@@ -5822,6 +5867,12 @@ int ASTContext::getFloatingTypeSemanticOrder(QualType LHS, QualType RHS) const {
 unsigned ASTContext::getIntegerRank(const Type *T) const {
   assert(T->isCanonicalUnqualified() && "T should be canonicalized");
 
+  // Results in this 'losing' to any type of the same size, but winning if
+  // larger.
+  if (const auto *EIT = dyn_cast<ExtIntType>(T)) {
+    return 0 + (EIT->getNumBits() << 3);
+  }
+
   switch (cast<BuiltinType>(T)->getKind()) {
   default: llvm_unreachable("getIntegerRank(): not a built-in integer");
   case BuiltinType::Bool:
@@ -7189,6 +7240,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
     return;
 
   case Type::Pipe:
+  case Type::ExtInt:
 #define ABSTRACT_TYPE(KIND, BASE)
 #define TYPE(KIND, BASE)
 #define DEPENDENT_TYPE(KIND, BASE) \
@@ -9228,6 +9280,21 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     assert(LHS != RHS &&
            "Equivalent pipe types should have already been handled!");
     return {};
+  case Type::ExtInt: {
+    // Merge two pointer types, while trying to preserve typedef info
+    bool LHSUnsigned  = LHS->getAs<ExtIntType>()->isUnsigned();
+    bool RHSUnsigned = RHS->getAs<ExtIntType>()->isUnsigned();
+    unsigned LHSBits = LHS->getAs<ExtIntType>()->getNumBits();
+    unsigned RHSBits = RHS->getAs<ExtIntType>()->getNumBits();
+
+    // Like unsigned/int, shouldn't have a type if they dont match.
+    if (LHSUnsigned != RHSUnsigned)
+      return {};
+
+    if (LHSBits >= RHSBits)
+      return LHS;
+    return RHS;
+  }
   }
 
   llvm_unreachable("Invalid Type::Class!");
@@ -9368,6 +9435,8 @@ unsigned ASTContext::getIntWidth(QualType T) const {
     T = ET->getDecl()->getIntegerType();
   if (T->isBooleanType())
     return 1;
+  if(const auto *EIT = T->getAs<ExtIntType>())
+    return EIT->getNumBits();
   // For builtin types, just use the standard type sizing method
   return (unsigned)getTypeSize(T);
 }
