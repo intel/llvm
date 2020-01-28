@@ -3877,7 +3877,7 @@ void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
     E = ICE.get();
   }
 
-  if (IntelFPGAMaxPrivateCopiesAttr::classof(&TmpAttr)) {
+  if (IntelFPGAPrivateCopiesAttr::classof(&TmpAttr)) {
     if (!D->hasAttr<IntelFPGAMemoryAttr>())
       D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
           Context, IntelFPGAMemoryAttr::Default));
@@ -5166,6 +5166,26 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
+static void handleUsesGlobalWorkOffsetAttr(Sema &S, Decl *D,
+                                           const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
+  checkForDuplicateAttribute<SYCLIntelUsesGlobalWorkOffsetAttr>(S, D, Attr);
+
+  uint32_t Enabled;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, Enabled, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+  if (Enabled > 1)
+    S.Diag(Attr.getLoc(), diag::warn_boolean_attribute_argument_is_not_valid)
+        << Attr;
+
+  D->addAttr(::new (S.Context)
+                 SYCLIntelUsesGlobalWorkOffsetAttr(S.Context, Attr, Enabled));
+}
+
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
 /// One but not both can be specified
 /// Both are incompatible with the __register__ attribute.
@@ -5241,7 +5261,7 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     InCompat = true;
   if (checkAttrMutualExclusion<IntelFPGABankWidthAttr>(S, D, Attr))
     InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGAMaxPrivateCopiesAttr>(S, D, Attr))
+  if (checkAttrMutualExclusion<IntelFPGAPrivateCopiesAttr>(S, D, Attr))
     InCompat = true;
   if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
     if (!NBA->isImplicit() &&
@@ -5445,17 +5465,17 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                  IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
-static void handleIntelFPGAMaxPrivateCopiesAttr(Sema &S, Decl *D,
-                                              const ParsedAttr &Attr) {
+static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &Attr) {
 
   if (S.LangOpts.SYCLIsHost)
     return;
 
-  checkForDuplicateAttribute<IntelFPGAMaxPrivateCopiesAttr>(S, D, Attr);
+  checkForDuplicateAttribute<IntelFPGAPrivateCopiesAttr>(S, D, Attr);
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
     return;
 
-  S.AddOneConstantValueAttr<IntelFPGAMaxPrivateCopiesAttr>(
+  S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(
       D, Attr, Attr.getArgAsExpr(0));
 }
 
@@ -7637,6 +7657,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleMaxGlobalWorkDimAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelUsesGlobalWorkOffset:
+    handleUsesGlobalWorkOffsetAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
     break;
@@ -8006,8 +8029,8 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_IntelFPGANumBanks:
     handleOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(S, D, AL);
     break;
-  case ParsedAttr::AT_IntelFPGAMaxPrivateCopies:
-    handleIntelFPGAMaxPrivateCopiesAttr(S, D, AL);
+  case ParsedAttr::AT_IntelFPGAPrivateCopies:
+    handleIntelFPGAPrivateCopiesAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGAMaxReplicates:
     handleIntelFPGAMaxReplicatesAttr(S, D, AL);
@@ -8125,6 +8148,10 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelUsesGlobalWorkOffsetAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {

@@ -8,14 +8,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 
+# enable all warnings by default
+if (MSVC)
+  set(CMAKE_CXX_FLAGS "/W4 ${CMAKE_CXX_FLAGS}")
+else ()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated-declarations")
+endif()
+
 if(SYCL_ENABLE_WERROR)
   if(MSVC)
-    set(CMAKE_CXX_FLAGS "/W4 /WX ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
     add_definitions(
       -wd4996 # Suppress 'function': was declared deprecated'
     )
   else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall -Wextra -Wno-deprecated-declarations")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
 endif()
 
@@ -188,15 +195,12 @@ add_custom_target( sycl-toolchain
           clang-offload-wrapper
           clang-offload-bundler
           llc
-          llvm-as
           llvm-ar
-          llvm-dis
           llvm-foreach
           llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
-          opt
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."
 )
@@ -230,15 +234,12 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-wrapper
      clang-offload-bundler
      llc
-     llvm-as
      llvm-ar
-     llvm-dis
      llvm-foreach
      llvm-no-spir-kernel
      llvm-spirv
      llvm-link
      llvm-objcopy
-     opt
      sycl-post-link
      clang-resource-headers
      opencl-headers

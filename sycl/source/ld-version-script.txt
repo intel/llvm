@@ -24,8 +24,8 @@
     _Z20__spirv_ocl_prefetch*;
 
     /* Export offload image hooks */
-    __tgt_register_lib;
-    __tgt_unregister_lib;
+    __sycl_register_lib;
+    __sycl_unregister_lib;
 
   local:
     *;

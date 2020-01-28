@@ -45,10 +45,10 @@ void foo1()
 
   //CHECK: VarDecl{{.*}}v_seven
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxPrivateCopiesAttr
+  //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  [[intelfpga::max_private_copies(8)]] unsigned int v_seven[64];
+  [[intelfpga::private_copies(8)]] unsigned int v_seven[64];
 
   //CHECK: VarDecl{{.*}}v_ten
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -202,7 +202,7 @@ void foo1()
 
   //expected-error@+2{{attributes are not compatible}}
   [[intelfpga::register]]
-  [[intelfpga::max_private_copies(16)]]
+  [[intelfpga::private_copies(16)]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_six_two[64];
 
@@ -304,37 +304,37 @@ void foo1()
   unsigned int bw_seven[64];
 
 
-  // max_private_copies_
+  // private_copies_
   //expected-error@+2{{attributes are not compatible}}
-  [[intelfpga::max_private_copies(16)]]
+  [[intelfpga::private_copies(16)]]
   [[intelfpga::register]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int mc_one[64];
 
   //CHECK: VarDecl{{.*}}mc_two
-  //CHECK: IntelFPGAMaxPrivateCopiesAttr
+  //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  //CHECK: IntelFPGAMaxPrivateCopiesAttr
+  //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
   //expected-warning@+2{{is already applied}}
-  [[intelfpga::max_private_copies(8)]]
-  [[intelfpga::max_private_copies(16)]]
+  [[intelfpga::private_copies(8)]]
+  [[intelfpga::private_copies(16)]]
   unsigned int mc_two[64];
 
-  //expected-error@+1{{'max_private_copies' attribute requires integer constant between 0 and 1048576 inclusive}}
-  [[intelfpga::max_private_copies(-4)]]
+  //expected-error@+1{{'private_copies' attribute requires integer constant between 0 and 1048576 inclusive}}
+  [[intelfpga::private_copies(-4)]]
   unsigned int mc_four[64];
 
-  int i_max_private_copies = 32; // expected-note {{declared here}}
+  int i_private_copies = 32; // expected-note {{declared here}}
   //expected-error@+1{{expression is not an integral constant expression}}
-  [[intelfpga::max_private_copies(i_max_private_copies)]]
-  //expected-note@-1{{read of non-const variable 'i_max_private_copies' is not allowed in a constant expression}}
+  [[intelfpga::private_copies(i_private_copies)]]
+  //expected-note@-1{{read of non-const variable 'i_private_copies' is not allowed in a constant expression}}
   unsigned int mc_five[64];
 
-  //expected-error@+1{{'max_private_copies' attribute takes one argument}}
-  [[intelfpga::max_private_copies(4,8)]]
+  //expected-error@+1{{'private_copies' attribute takes one argument}}
+  [[intelfpga::private_copies(4,8)]]
   unsigned int mc_six[64];
 
   // numbanks
@@ -476,8 +476,8 @@ void foo1()
   //expected-warning@+1{{unknown attribute '__doublepump__' ignored}}
   unsigned int __attribute__((__doublepump__)) a_six;
 
-  //expected-warning@+1{{unknown attribute '__max_private_copies__' ignored}}
-  int __attribute__((__max_private_copies__(4))) a_seven;
+  //expected-warning@+1{{unknown attribute '__private_copies__' ignored}}
+  int __attribute__((__private_copies__(4))) a_seven;
 
   //expected-warning@+1{{unknown attribute '__merge__' ignored}}
   int __attribute__((__merge__("mrg1","depth"))) a_eight;
@@ -493,17 +493,17 @@ void foo1()
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
-[[intelfpga::max_private_copies(8)]]
+[[intelfpga::private_copies(8)]]
 __attribute__((opencl_constant)) unsigned int ext_two[64] = { 1, 2, 3 };
 
 void other2()
 {
   //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
-  [[intelfpga::max_private_copies(8)]] const int ext_six[64] = { 0, 1 };
+  [[intelfpga::private_copies(8)]] const int ext_six[64] = { 0, 1 };
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
-void other3([[intelfpga::max_private_copies(8)]] int pfoo) {}
+void other3([[intelfpga::private_copies(8)]] int pfoo) {}
 
 struct foo {
   //CHECK: FieldDecl{{.*}}v_one
@@ -554,10 +554,10 @@ struct foo {
 
   //CHECK: FieldDecl{{.*}}v_seven
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxPrivateCopiesAttr
+  //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-  [[intelfpga::max_private_copies(4)]] unsigned int v_seven[64];
+  [[intelfpga::private_copies(4)]] unsigned int v_seven[64];
 
   //CHECK: FieldDecl{{.*}}v_ten
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit

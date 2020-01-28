@@ -149,7 +149,8 @@ public:
   /// @param DepEvents is a vector of events that specify the kernel dependences
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(std::vector<event> DepEvents, KernelType KernelFunc) {
+  event single_task(const vector_class<event> &DepEvents,
+                    KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.template single_task<KernelName, KernelType>(KernelFunc);
@@ -195,7 +196,8 @@ public:
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, std::vector<event> DepEvents,
+  event parallel_for(range<Dims> NumWorkItems,
+                     const vector_class<event> &DepEvents,
                      KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -248,7 +250,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     std::vector<event> DepEvents, KernelType KernelFunc) {
+                     const vector_class<event> &DepEvents,
+                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.template parallel_for<KernelName, KernelType, Dims>(
@@ -296,7 +299,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     std::vector<event> DepEvents, KernelType KernelFunc) {
+                     const vector_class<event> &DepEvents,
+                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,

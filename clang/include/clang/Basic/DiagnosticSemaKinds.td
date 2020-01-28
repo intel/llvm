@@ -143,6 +143,15 @@ def err_bankbits_numbanks_conflicting : Error<
   "the number of bank_bits must be equal to ceil(log2(numbanks))">;
 def err_bankbits_non_consecutive : Error<
   "bank_bits must be consecutive">;
+def err_intel_fpga_mem_limitations
+    : Error<
+          "illegal %select{pointer argument of type %1 |field in type pointed "
+          "to by pointer argument}0 to __builtin_intel_fpga_mem. Only pointers "
+          "to a first class lvalue or to an rvalue are allowed">;
+def err_intel_fpga_mem_arg_mismatch
+    : Error<"builtin parameter must be %select{"
+            "a pointer"
+            "|a non-negative integer constant}0">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
@@ -10338,8 +10347,10 @@ def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_used_here : Note<"used here">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
+def err_sycl_non_trivially_copyable_type : Error<
+  "kernel parameter has non-trivially copyable class/struct type %0">;
 def err_sycl_non_std_layout_type : Error<
-  "kernel parameter has non-standard layout class/struct type">;
+  "kernel parameter has non-standard layout class/struct type %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
   "conflicting attributes applied to a SYCL kernel">;
 def err_conflicting_sycl_function_attributes : Error<
@@ -10348,6 +10359,9 @@ def err_sycl_x_y_z_arguments_must_be_one : Error<
   "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
 def err_intel_attribute_argument_is_not_in_range: Error<
    "The value of %0 attribute must be in range from 0 to 3">;
+def warn_boolean_attribute_argument_is_not_valid: Warning<
+   "The value of %0 attribute should be 0 or 1. Adjusted to 1">,
+   InGroup<AdjustedAttributes>;
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "%select{static function or function in an anonymous namespace"

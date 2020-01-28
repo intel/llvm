@@ -287,6 +287,28 @@ int main() {
     assert(r == 0x7FFFFFFF);
   }
 
+  // mad_sat test two
+  {
+    char r(0);
+    char exp(120);
+    {
+      cl::sycl::buffer<char, 1> buf(&r, cl::sycl::range<1>(1));
+      cl::sycl::queue q;
+      q.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
+        cgh.single_task<class kernel>([=]() {
+          signed char inputData_0(-17);
+          signed char inputData_1(-10);
+          signed char inputData_2(-50);
+          acc[0] = cl::sycl::mad_sat(inputData_0, inputData_1, inputData_2);
+        });
+      });
+    }
+    assert(r == exp); // Should return the real number of i0*i1+i2 in CPU
+                              // Only fails in vector, but passes in scalar.
+
+  }
+
   // mul_hi
   {
     s::cl_int r{ 0 };
