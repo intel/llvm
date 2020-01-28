@@ -40,11 +40,14 @@ class SYCLMemObjAllocator {
   public:
     holder(AllocatorT Allocator)
         : MAllocator(Allocator),
-          MValueSize(sizeof(typename AllocatorT::value_type)){};
+          MValueSize(sizeof(typename AllocatorT::value_type)){}
+
     ~holder() = default;
+
     virtual void *allocate(std::size_t Count) override {
       return reinterpret_cast<void *>(MAllocator.allocate(Count));
     }
+
     virtual void deallocate(void *Ptr, std::size_t Count) override {
       MAllocator.deallocate(
           reinterpret_cast<typename AllocatorT::value_type *>(Ptr), Count);
@@ -68,6 +71,7 @@ class SYCLMemObjAllocator {
     EnableIfDefaultAllocator<T> setAlignImpl(std::size_t RequiredAlign) {
       MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
     }
+
     AllocatorT MAllocator;
     std::size_t MValueSize;
   };

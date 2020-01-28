@@ -79,6 +79,8 @@ public:
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 
+  virtual ~SYCLMemObjT() = default;
+
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     size_t AllocatorValueSize = MAllocator.getValueSize();
