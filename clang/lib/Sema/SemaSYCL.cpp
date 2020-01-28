@@ -269,7 +269,8 @@ public:
               std::make_pair(e, e->getExprLoc()));
 
         if ((it != EvaluatabilityMap.end() && it->second) &&
-            !Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>())
+            (!Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) &&
+            !Callee->getBuiltinID())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallUndefinedFunction;
       }
