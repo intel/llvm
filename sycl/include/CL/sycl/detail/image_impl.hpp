@@ -10,10 +10,7 @@
 
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
@@ -169,35 +166,7 @@ public:
   }
 
   image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-             SYCLMemObjAllocator Allocator)
-      : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
-              std::move(Allocator)),
-        MRange(InitializedVal<Dimensions, range>::template get<0>()) {
-    RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-    PI_CALL(piMemGetInfo)(Mem, CL_MEM_SIZE, sizeof(size_t),
-                          &(BaseT::MSizeInBytes), nullptr);
-
-    RT::PiMemImageFormat Format;
-    getImageInfo(PI_IMAGE_INFO_FORMAT, Format);
-    MOrder = detail::convertChannelOrder(Format.image_channel_order);
-    MType = detail::convertChannelType(Format.image_channel_data_type);
-    MNumChannels = getImageNumberChannels(MOrder);
-
-    getImageInfo(PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize);
-    assert(getImageElementSize(MNumChannels, MType) == MElementSize);
-
-    getImageInfo(PI_IMAGE_INFO_ROW_PITCH, MRowPitch);
-    getImageInfo(PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch);
-
-    switch (Dimensions) {
-    case 3:
-      getImageInfo(PI_IMAGE_INFO_DEPTH, MRange[2]);
-    case 2:
-      getImageInfo(PI_IMAGE_INFO_HEIGHT, MRange[1]);
-    case 1:
-      getImageInfo(PI_IMAGE_INFO_WIDTH, MRange[0]);
-    }
-  }
+             SYCLMemObjAllocator Allocator);
 
   // Return a range object representing the size of the image in terms of the
   // number of elements in each dimension as passed to the constructor
@@ -223,27 +192,7 @@ public:
   size_t get_count() const { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &OutEventToWait) override {
-
-    assert(!(InitFromUserData && HostPtr) &&
-           "Cannot init from user data and reuse host ptr provided "
-           "simultaneously");
-
-    void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : HostPtr;
-
-    RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
-    assert(checkImageDesc(Desc, Context, UserPtr) &&
-           "The check an image desc failed.");
-
-    RT::PiMemImageFormat Format = getImageFormat();
-    assert(checkImageFormat(Format, Context) &&
-           "The check an image format failed.");
-
-    return MemoryManager::allocateMemImage(
-        std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-        BaseT::getSize(), Desc, Format, BaseT::MInteropEvent,
-        BaseT::MInteropContext, OutEventToWait);
-  }
+                    void *HostPtr, RT::PiEvent &OutEventToWait);
 
   MemObjType getType() const override { return MemObjType::IMAGE; }
 
@@ -343,75 +292,7 @@ private:
   }
 
   bool checkImageDesc(const RT::PiMemImageDesc &Desc, ContextImplPtr Context,
-                      void *UserPtr) {
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D,
-                 PI_MEM_TYPE_IMAGE1D_ARRAY, PI_MEM_TYPE_IMAGE2D_ARRAY,
-                 PI_MEM_TYPE_IMAGE2D) &&
-        !checkImageValueRange<info::device::image2d_max_width>(
-            Context, Desc.image_width))
-      throw invalid_parameter_error(
-          "For a 1D/2D image/image array, the width must be a Value >= 1 and "
-          "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.");
-
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
-        !checkImageValueRange<info::device::image3d_max_width>(
-            Context, Desc.image_width))
-      throw invalid_parameter_error(
-          "For a 3D image, the width must be a Value >= 1 and <= "
-          "CL_DEVICE_IMAGE3D_MAX_WIDTH");
-
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
-                 PI_MEM_TYPE_IMAGE2D_ARRAY) &&
-        !checkImageValueRange<info::device::image2d_max_height>(
-            Context, Desc.image_height))
-      throw invalid_parameter_error("For a 2D image or image array, the height "
-                                    "must be a Value >= 1 and <= "
-                                    "CL_DEVICE_IMAGE2D_MAX_HEIGHT");
-
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
-        !checkImageValueRange<info::device::image3d_max_height>(
-            Context, Desc.image_height))
-      throw invalid_parameter_error(
-          "For a 3D image, the heightmust be a Value >= 1 and <= "
-          "CL_DEVICE_IMAGE3D_MAX_HEIGHT");
-
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
-        !checkImageValueRange<info::device::image3d_max_depth>(
-            Context, Desc.image_depth))
-      throw invalid_parameter_error(
-          "For a 3D image, the depth must be a Value >= 1 and <= "
-          "CL_DEVICE_IMAGE3D_MAX_DEPTH");
-
-    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
-                 PI_MEM_TYPE_IMAGE2D_ARRAY) &&
-        !checkImageValueRange<info::device::image_max_array_size>(
-            Context, Desc.image_array_size))
-      throw invalid_parameter_error(
-          "For a 1D and 2D image array, the array_size must be a "
-          "Value >= 1 and <= "
-          "CL_DEVICE_IMAGE_MAX_ARRAY_SIZE.");
-
-    if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
-      throw invalid_parameter_error(
-          "The row_pitch must be 0 if host_ptr is nullptr.");
-
-    if ((nullptr == UserPtr) && (0 != Desc.image_slice_pitch))
-      throw invalid_parameter_error(
-          "The slice_pitch must be 0 if host_ptr is nullptr.");
-
-    if (0 != Desc.num_mip_levels)
-      throw invalid_parameter_error("The mip_levels must be 0.");
-
-    if (0 != Desc.num_samples)
-      throw invalid_parameter_error("The num_samples must be 0.");
-
-    if (nullptr != Desc.buffer)
-      throw invalid_parameter_error(
-          "The buffer must be nullptr, because SYCL does not support "
-          "image creation from memory objects.");
-
-    return true;
-  }
+                      void *UserPtr);
 
   RT::PiMemImageFormat getImageFormat() {
     RT::PiMemImageFormat Format;
@@ -421,43 +302,7 @@ private:
   }
 
   bool checkImageFormat(const RT::PiMemImageFormat &Format,
-                        ContextImplPtr Context) {
-    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
-                 PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
-        !checkAny(
-            Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
-            PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8,
-            PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT,
-            PI_IMAGE_CHANNEL_TYPE_FLOAT))
-      throw invalid_parameter_error(
-          "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
-          "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
-          "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT. ");
-
-    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
-                 PI_IMAGE_CHANNEL_ORDER_RGBx) &&
-        !checkAny(Format.image_channel_data_type,
-                  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
-                  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
-                  PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010))
-      throw invalid_parameter_error(
-          "CL_RGB or CL_RGBx	These formats can only be used if channel data "
-          "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
-          "CL_UNORM_INT_101010. ");
-
-    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
-                 PI_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_ABGR) &&
-        !checkAny(
-            Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
-            PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
-            PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
-      throw invalid_parameter_error(
-          "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
-          "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "
-          "or CL_UNSIGNED_INT8.");
-
-    return true;
-  }
+                        ContextImplPtr Context);
 
   bool MIsArrayImage = false;
   range<Dimensions> MRange;
@@ -469,6 +314,9 @@ private:
   size_t MSlicePitch = 0;
 };
 
+template class image_impl<1>;
+template class image_impl<2>;
+template class image_impl<3>;
 } // namespace detail
 } // namespace sycl
 } // namespace cl
