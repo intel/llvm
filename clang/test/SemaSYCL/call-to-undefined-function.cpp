@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
 void defined() {
   // empty
