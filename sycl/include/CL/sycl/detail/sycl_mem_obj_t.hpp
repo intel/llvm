@@ -277,7 +277,7 @@ protected:
   // Copy of memory passed by user to constructor.
   void *MShadowCopy;
   // Function which update host with final data on memory object destruction.
-  std::function<void(void)> MUploadDataFunctor;
+  function_class<void(void)> MUploadDataFunctor;
   // Field which holds user's shared_ptr in case of memory object is created
   // using constructor with shared_ptr.
   shared_ptr_class<const void> MSharedPtrStorage;
