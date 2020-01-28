@@ -38,7 +38,8 @@ public:
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
-  /// @param Device is a pointer to device_impl.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
+  /// the queue.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   /// @param Order specifies whether the queue being constructed as in-order or
   /// out-of-order.
@@ -53,8 +54,10 @@ public:
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
   ///
-  /// @param Device is a pointer to device_impl.
-  /// @param Context is a pointer to context_impl.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
+  /// the queue.
+  /// @param Context is a SYCL context to associate with the queue being
+  /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   /// @param Order specifies whether the queue being constructed as in-order or
   /// out-of-order.
@@ -73,7 +76,8 @@ public:
   /// Constructs a SYCL queue from plugin interoperability handle.
   ///
   /// @param PiQueue is a raw PI queue handle.
-  /// @param Context is a pointer to context_impl.
+  /// @param Context is a SYCL context to associate with the queue being
+  /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
@@ -114,8 +118,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  /// @return a pointer to a context_impl.
-  ContextImplPtr getContextImpl() const { return MContext; }
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   /// @return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
