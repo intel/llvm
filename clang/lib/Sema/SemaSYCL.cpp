@@ -263,10 +263,15 @@ public:
 
       // Disallow functions with neither definition nor SYCL_EXTERNAL mark
       // Only validate really called functions
-      if (SYCLCG.getNode(Callee) &&
-          !Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) {
-        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelCallUndefinedFunction;
+      {
+        const auto &EvaluatabilityMap = SemaRef.getCallExprEvaluatability();
+        auto it = EvaluatabilityMap.find(
+              std::make_pair(e, e->getExprLoc()));
+
+        if ((it != EvaluatabilityMap.end() && it->second) &&
+            !Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>())
+          SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+              << Sema::KernelCallUndefinedFunction;
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
@@ -1338,6 +1343,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ConstructingOpenCLKernel = false;
   OpenCLKernel->setBody(OpenCLKernelBody);
   addSyclDeviceDecl(OpenCLKernel);
+}
+
+void Sema::StoreContextEvaluatability(CallExpr *E) {
+  CallExprEvaluatability.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(E, E->getExprLoc()),
+        std::forward_as_tuple(!isUnevaluatedContext()));
 }
 
 void Sema::MarkDevice(void) {

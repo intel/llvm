@@ -12240,6 +12240,9 @@ public:
     BuiltinFunction
   };
 
+  using CallExprWithLocation = std::pair<CallExpr *, SourceLocation>;
+  using CallExprEvaluatabilityMap = std::map<CallExprWithLocation, bool>;
+
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
@@ -12253,6 +12256,13 @@ private:
   // useful notes that shows where the kernel was called.
   bool ConstructingOpenCLKernel = false;
 
+  // We store map {call expr + its location} -> !isUnevaluatedContext for proper
+  // diagnostic of undefined kernel functions
+  // Storing is done upon each and every call to ActOnCallExpr
+  CallExprEvaluatabilityMap CallExprEvaluatability;
+
+  void StoreContextEvaluatability(CallExpr *CE);
+
 public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
   SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
@@ -12263,6 +12273,10 @@ public:
       SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
           getDiagnostics(), getLangOpts().SYCLUnnamedLambda);
     return *SyclIntHeader.get();
+  }
+
+  const CallExprEvaluatabilityMap &getCallExprEvaluatability() const {
+    return CallExprEvaluatability;
   }
 
   enum SYCLRestrictKind {
@@ -12282,7 +12296,7 @@ public:
 
   bool isKnownGoodSYCLDecl(const Decl *D);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
-  void MarkDevice(void);
+  void MarkDevice();
 
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
   /// context is "used as device code".

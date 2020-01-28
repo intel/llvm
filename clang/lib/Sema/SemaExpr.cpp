@@ -5790,6 +5790,10 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     }
   }
 
+  if (Call.isUsable() && getLangOpts().SYCLIsDevice)
+    if (CallExpr *CE = dyn_cast<CallExpr>(Call.get()))
+        StoreContextEvaluatability(CE);
+
   return Call;
 }
 
