@@ -45,7 +45,7 @@ void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
 }
 
-EventImplPtr SYCLMemObjT::updateHostMemory(void *const Ptr) {
+void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const id<3> Offset{0, 0, 0};
   const range<3> AccessRange{MSizeInBytes, 1, 1};
   const range<3> MemoryRange{MSizeInBytes, 1, 1};
@@ -59,7 +59,8 @@ EventImplPtr SYCLMemObjT::updateHostMemory(void *const Ptr) {
   Req.MData = Ptr;
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
-  return Event;
+  if (Event)
+    Event->wait(Event);
 }
 
 void SYCLMemObjT::updateHostMemory() {

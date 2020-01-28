@@ -124,9 +124,7 @@ public:
   template <typename T> void set_final_data(weak_ptr_class<T> FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
       if (shared_ptr_class<T> LockedFinalData = FinalData.lock()) {
-        EventImplPtr Event = updateHostMemory(LockedFinalData.get());
-        if (Event)
-          Event->wait(Event);
+        updateHostMemory(LockedFinalData.get());
       }
     };
   }
@@ -135,9 +133,7 @@ public:
     MUploadDataFunctor = [this]() {
       if (!MSharedPtrStorage.unique()) {
         void *FinalData = const_cast<void *>(MSharedPtrStorage.get());
-        EventImplPtr Event = updateHostMemory(FinalData);
-        if (Event)
-          Event->wait(Event);
+        updateHostMemory(FinalData);
       }
     };
   }
@@ -148,9 +144,7 @@ public:
       MUploadDataFunctor = nullptr;
     else
       MUploadDataFunctor = [this, FinalData]() {
-        EventImplPtr Event = updateHostMemory(FinalData);
-        if (Event)
-          Event->wait(Event);
+        updateHostMemory(FinalData);
       };
   }
 
@@ -163,16 +157,13 @@ public:
       // continuous data.
       const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
       vector_class<DestinationValueT> ContiguousStorage(Size);
-      EventImplPtr Event = updateHostMemory(ContiguousStorage.data());
-      if (Event) {
-        Event->wait(Event);
-        std::copy(ContiguousStorage.cbegin(), ContiguousStorage.cend(),
-                  FinalData);
-      }
+      updateHostMemory(ContiguousStorage.data());
+      std::copy(ContiguousStorage.cbegin(), ContiguousStorage.cend(),
+                FinalData);
     };
   }
 
-  EventImplPtr updateHostMemory(void *const Ptr);
+  void updateHostMemory(void *const Ptr);
 
   // Update host with the latest data + notify scheduler that the memory object
   // is going to die. After this method is finished no further operations with
