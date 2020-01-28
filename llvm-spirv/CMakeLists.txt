@@ -31,7 +31,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
     )
   endif(LLVM_SPIRV_INCLUDE_TESTS)
 
-  find_package(LLVM 10.0.0 REQUIRED
+  find_package(LLVM 11.0.0 REQUIRED
     COMPONENTS
       Analysis
       BitReader
