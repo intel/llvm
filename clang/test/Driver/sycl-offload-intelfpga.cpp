@@ -161,6 +161,23 @@
 // CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]"
 // CHK-FPGA-DEP-FILES: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
 
+/// -fintelfpga dependency file generation test to object
+// RUN: %clangxx -### -fsycl -fintelfpga %t-1.cpp %t-2.cpp -c 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES2 %s
+// CHK-FPGA-DEP-FILES2: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]"
+// CHK-FPGA-DEP-FILES2: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice,host-x86_64-unknown-linux-gnu,sycl-spir64_fpga_depfile" {{.*}} "-inputs={{.*}}.bc,{{.*}}.o,[[INPUT1]]"
+// CHK-FPGA-DEP-FILES2: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]"
+// CHK-FPGA-DEP-FILES2: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice,host-x86_64-unknown-linux-gnu,sycl-spir64_fpga_depfile" {{.*}} "-inputs={{.*}}.bc,{{.*}}.o,[[INPUT2]]"
+
+/// -fintelfpga dependency obj use test
+// RUN: touch %t-1.o
+// RUN: touch %t-2.o
+// RUN: %clangxx -### -fsycl -fintelfpga %t-1.o %t-2.o 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-OBJ -DINPUT1=%t-1.o -DINPUT2=%t-2.o %s
+// CHK-FPGA-DEP-FILES-OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga_depfile" "-inputs=[[INPUT1]]" "-outputs=[[DEPFILE1:.+\.d]]" "-unbundle"
+// CHK-FPGA-DEP-FILES-OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga_depfile" "-inputs=[[INPUT2]]" "-outputs=[[DEPFILE2:.+\.d]]" "-unbundle"
+// CHK-FPGA-DEP-FILES-OBJ: aoc{{.*}} "-dep-files=[[DEPFILE1]],[[DEPFILE2]]
+
 /// -fintelfpga output report file test
 // RUN: mkdir -p %t_dir
 // RUN: %clangxx -### -fsycl -fintelfpga %s -o %t_dir/file.out 2>&1 \
