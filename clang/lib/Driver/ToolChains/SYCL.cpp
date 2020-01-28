@@ -208,6 +208,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
          "Unsupported target");
 
   InputInfoList ForeachInputs;
+  InputInfoList FPGADepFiles;
   ArgStringList CmdArgs{"-o",  Output.getFilename()};
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
@@ -217,6 +218,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       // Add any FPGA library lists.  These come in as special tempfile lists.
       CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
           Filename));
+    else if (II.getType() == types::TY_Dependencies)
+      FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
@@ -229,8 +232,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       ForeachExt = "aocr";
     }
 
-
-  InputInfoList FPGADepFiles;
   for (auto *A : Args) {
     // Any input file is assumed to have a dependency file associated
     if (A->getOption().getKind() == Option::InputClass) {
@@ -240,7 +241,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
         types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
         if (Ty == types::TY_INVALID)
           continue;
-        if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
+        if (types::isSrcFile(Ty)) {
           llvm::sys::path::replace_extension(FN, "d");
           FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
               Args.MakeArgString(FN), Args.MakeArgString(FN)));
