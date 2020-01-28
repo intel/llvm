@@ -114,8 +114,9 @@ void event_impl::wait_and_throw(
     if (Cmd)
       Cmd->getQueue()->throw_asynchronous();
   }
-  if (MQueue)
-    MQueue->throw_asynchronous();
+  QueueImplPtr Queue = MQueue.lock();
+  if (Queue)
+    Queue->throw_asynchronous();
 }
 
 template <>
