@@ -481,8 +481,8 @@ public:
   ///
   /// @param Event is a vector of valid SYCL events to wait on.
   void depends_on(vector_class<event> Events) {
-    for (event &e : Events) {
-      depends_on(e);
+    for (event &Event : Events) {
+      MEvents.push_back(std::move(detail::getSyclObjImpl(Event)));
     }
   }
 
