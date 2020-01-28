@@ -124,11 +124,11 @@ public:
 
   /// Allocates memory.
   ///
-  /// @param Size is a count of elements to allocate memory for.
-  pointer allocate(size_t Size) {
+  /// @param NumberOfElements is a count of elements to allocate memory for.
+  pointer allocate(size_t NumberOfElements) {
 
     auto Result = reinterpret_cast<pointer>(
-        aligned_alloc(getAlignment(), Size * sizeof(value_type),
+        aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
                                  MDevice, MContext, AllocKind));
     if (!Result) {
       throw memory_allocation_error();
@@ -139,6 +139,7 @@ public:
   /// Deallocates memory.
   ///
   /// @param Ptr is a pointer to memory being deallocated.
+  /// @param Size is a number of elements previously passed to allocate.
   void deallocate(pointer Ptr, size_t Size) {
     if (Ptr) {
       free(Ptr, MContext);
