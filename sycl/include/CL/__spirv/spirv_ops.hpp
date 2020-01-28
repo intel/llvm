@@ -15,20 +15,20 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-template <typename ReTTT, typename ImageT>
-extern SYCL_EXTERNAL ReTTT __spirv_ImageQueryFormat(ImageT);
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQueryFormat(ImageT);
 
-template <typename ReTTT, typename ImageT>
-extern SYCL_EXTERNAL ReTTT __spirv_ImageQueryOrder(ImageT);
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQueryOrder(ImageT);
 
-template <typename ReTTT, typename ImageT>
-extern SYCL_EXTERNAL ReTTT __spirv_ImageQuerySize(ImageT);
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQuerySize(ImageT);
 
 template <typename ImageT, typename CoordT, typename ValT>
 extern SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
 
-template <class ReTTT, typename ImageT, typename TempArgT>
-extern SYCL_EXTERNAL ReTTT __spirv_ImageRead(ImageT, TempArgT);
+template <class RetT, typename ImageT, typename TempArgT>
+extern SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
 
 template <typename ImageT, typename SampledType>
 extern SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
@@ -275,9 +275,9 @@ extern SYCL_EXTERNAL
 int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...);
 
 #define COMPARISON(Order, Cmp)                                                 \
-  template <typename ReTTT, typename T>                                        \
+  template <typename RetT, typename T>                                        \
   extern SYCL_EXTERNAL                                                         \
-  ReTTT __spirv_F##Order##Cmp(T, T);
+  RetT __spirv_F##Order##Cmp(T, T);
 
 #define ALL_COMPARISON(Order)                                                  \
   COMPARISON(Order, Equal)                                                     \
@@ -294,9 +294,9 @@ ALL_COMPARISON(Ord)
 #undef ALL_COMPARISON
 
 #define COMPARISON(Cmp)                                                        \
-  template <typename ReTTT, typename T>                                        \
+  template <typename RetT, typename T>                                        \
   extern SYCL_EXTERNAL                                                         \
-  ReTTT __spirv_##Cmp(T, T);
+  RetT __spirv_##Cmp(T, T);
 
 COMPARISON(IEqual)
 COMPARISON(INotEqual)
@@ -315,64 +315,64 @@ COMPARISON(LessOrGreater)
 
 #undef COMPARISON
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_Any(T);
+RetT __spirv_Any(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_All(T);
+RetT __spirv_All(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_IsFinite(T);
+RetT __spirv_IsFinite(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_IsInf(T);
+RetT __spirv_IsInf(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_IsNan(T);
+RetT __spirv_IsNan(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_IsNormal(T);
+RetT __spirv_IsNormal(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_SignBitSet(T);
+RetT __spirv_SignBitSet(T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_Ordered(T, T);
+RetT __spirv_Ordered(T, T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_Unordered(T, T);
+RetT __spirv_Unordered(T, T);
 
-template <typename ReTTT, typename T>
+template <typename RetT, typename T>
 extern SYCL_EXTERNAL
-ReTTT __spirv_Dot(T, T);
+RetT __spirv_Dot(T, T);
 
 template <typename T>
 extern SYCL_EXTERNAL
 T __spirv_FMul(T, T);
 
 #define DECLARE_OCL1(name)                                                     \
-  template <typename ReTTT, typename T>                                        \
+  template <typename RetT, typename T>                                        \
   extern SYCL_EXTERNAL                                                         \
-  ReTTT __spirv_ocl_##name(T);
+  RetT __spirv_ocl_##name(T);
 
 #define DECLARE_OCL2(name)                                                     \
-  template <typename ReTTT, typename T1, typename T2>                          \
+  template <typename RetT, typename T1, typename T2>                          \
   extern SYCL_EXTERNAL                                                         \
-  ReTTT __spirv_ocl_##name(T1, T2);
+  RetT __spirv_ocl_##name(T1, T2);
 
 #define DECLARE_OCL3(name)                                                     \
-  template <typename ReTTT, typename T1, typename T2, typename T3>             \
+  template <typename RetT, typename T1, typename T2, typename T3>             \
   extern SYCL_EXTERNAL                                                         \
-  ReTTT __spirv_ocl_##name(T1, T2, T3);
+  RetT __spirv_ocl_##name(T1, T2, T3);
 
 DECLARE_OCL1(acos)
 DECLARE_OCL1(acosh)
