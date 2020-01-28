@@ -11,13 +11,10 @@
 #include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/aligned_allocator.hpp>
+//#include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -147,23 +144,7 @@ public:
   }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &OutEventToWait) override {
-
-    assert(!(InitFromUserData && HostPtr) &&
-           "Cannot init from user data and reuse host ptr provided "
-           "simultaneously");
-
-    void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : HostPtr;
-
-    assert(!(nullptr == UserPtr && BaseT::useHostPtr() && Context->is_host()) &&
-           "Internal error. Allocating memory on the host "
-           "while having use_host_ptr property");
-
-    return MemoryManager::allocateMemBuffer(
-        std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-        BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext,
-        OutEventToWait);
-  }
+                   void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
