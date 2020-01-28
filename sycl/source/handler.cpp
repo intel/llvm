@@ -25,11 +25,8 @@ event handler::finalize() {
   switch (MCGType) {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
-    shared_ptr_class<detail::kernel_impl> KernelImpl = nullptr;
-    if (MSyclKernel)
-      KernelImpl = detail::getSyclObjImpl(*MSyclKernel);
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(MNDRDesc), std::move(MHostKernel), std::move(KernelImpl),
+        std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
@@ -195,8 +192,7 @@ void handler::extractArgsAndReqs() {
         return (first.MIndex < second.MIndex);
       });
 
-  const bool IsKernelCreatedFromSource =
-      detail::getSyclObjImpl(*MSyclKernel)->isCreatedFromSource();
+  const bool IsKernelCreatedFromSource = MSyclKernel->isCreatedFromSource();
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -237,6 +233,13 @@ void handler::extractArgsAndReqsFromLambda(
     }
     processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource);
   }
+}
+
+// Calling methods of kernel_impl requires knowledge of class layout.
+// As this is impossible in header, there's a function that calls necessary
+// method inside the library and returns the result.
+string_class handler::getKernelName() {
+  return MSyclKernel->get_info<info::kernel::function_name>();
 }
 } // namespace sycl
 } // namespace cl
