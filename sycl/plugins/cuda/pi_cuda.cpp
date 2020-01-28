@@ -1178,11 +1178,14 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     CUcontext cuCtxt = ctxt->get();
     CUcontext current = nullptr;
     cuCtxGetCurrent(&current);
-    if(cuCtxt != current)
-    {
-      PI_CHECK_ERROR(cuCtxSetCurrent(cuCtxt));
+    if (cuCtxt != current) {
+      PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
     }
     PI_CHECK_ERROR(cuCtxSynchronize());
+    cuCtxGetCurrent(&current);
+    if (cuCtxt == current) {
+      PI_CHECK_ERROR(cuCtxPopCurrent(&current));
+    }
     return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
   } else {
     // Primary context is not destroyed, but released
@@ -1253,6 +1256,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
   pi_result ret = PI_SUCCESS;
 
   try {
+
     // Do nothing if there are other references
     if (memObj->decrement_reference_count() > 0) {
       return PI_SUCCESS;
@@ -1263,7 +1267,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
 
     if (!memObj->is_sub_buffer()) {
 
-      ScopedContext(uniqueMemObj->get_context());
+      ScopedContext active(uniqueMemObj->get_context());
 
       switch (uniqueMemObj->allocMode_) {
         case _pi_mem::alloc_mode::classic:
