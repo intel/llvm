@@ -9,8 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
@@ -30,7 +28,9 @@ class event_impl;
 using ContextImplPtr = shared_ptr_class<context_impl>;
 using EventImplPtr = shared_ptr_class<event_impl>;
 
-using sycl_memory_object_allocator = detail::aligned_allocator<char>;
+template <typename T>
+class aligned_allocator;
+using sycl_memory_object_allocator = aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
 class SYCLMemObjT : public SYCLMemObjI {
@@ -69,29 +69,7 @@ public:
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
-              SYCLMemObjAllocator Allocator)
-      : MAllocator(std::move(Allocator)), MProps(),
-        MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
-        MInteropContext(detail::getSyclObjImpl(SyclContext)),
-        MInteropMemObject(MemObject), MOpenCLInterop(true),
-        MHostPtrReadOnly(false), MNeedWriteBack(true),
-        MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
-        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {
-    if (MInteropContext->is_host())
-      throw cl::sycl::invalid_parameter_error(
-          "Creation of interoperability memory object using host context is "
-          "not allowed");
-
-    RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
-    RT::PiContext Context = nullptr;
-    PI_CALL(piMemGetInfo)(Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
-                          nullptr);
-
-    if (MInteropContext->getHandleRef() != Context)
-      throw cl::sycl::invalid_parameter_error(
-          "Input context must be the same as the context of cl_mem");
-    PI_CALL(piMemRetain)(Mem);
-  }
+              SYCLMemObjAllocator Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent, SYCLMemObjAllocator Allocator)
@@ -123,10 +101,7 @@ public:
       MAllocator.deallocate(Ptr, get_count());
   }
 
-  void releaseMem(ContextImplPtr Context, void *MemAllocation) override {
-    void *Ptr = getUserPtr();
-    return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
-  }
+  void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
 
   void *getUserPtr() const {
     return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
@@ -194,41 +169,14 @@ public:
     };
   }
 
-  EventImplPtr updateHostMemory(void *const Ptr) {
-    const id<3> Offset{0, 0, 0};
-    const range<3> AccessRange{MSizeInBytes, 1, 1};
-    const range<3> MemoryRange{MSizeInBytes, 1, 1};
-    const access::mode AccessMode = access::mode::read;
-    SYCLMemObjI *SYCLMemObject = this;
-    const int Dims = 1;
-    const int ElemSize = 1;
-
-    Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                    Dims, ElemSize);
-    Req.MData = Ptr;
-
-    EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
-    return Event;
-  }
+  EventImplPtr updateHostMemory(void *const Ptr);
 
   // Update host with the latest data + notify scheduler that the memory object
   // is going to die. After this method is finished no further operations with
   // the memory object is allowed. This method is executed from child's
   // destructor. This cannot be done in SYCLMemObjT's destructor as child's
   // members must be alive.
-  void updateHostMemory() {
-    if ((MUploadDataFunctor != nullptr) && MNeedWriteBack)
-      MUploadDataFunctor();
-
-    // If we're attached to a memory record, process the deletion of the memory
-    // record. We may get detached before we do this.
-    if (MRecord)
-      Scheduler::getInstance().removeMemoryObject(this);
-    releaseHostMem(MShadowCopy);
-
-    if (MOpenCLInterop)
-      PI_CALL(piMemRelease)(pi::cast<RT::PiMem>(MInteropMemObject));
-  }
+  void updateHostMemory();
 
   bool useHostPtr() {
     return has_property<property::buffer::use_host_ptr>() ||

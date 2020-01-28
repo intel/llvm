@@ -76,6 +76,7 @@ set(SYCL_SOURCES
     "detail/scheduler/scheduler.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
+    "detail/sycl_mem_obj_t.cpp"
     "detail/usm/clusm.cpp"
     "detail/usm/usm_dispatch.cpp"
     "detail/usm/usm_impl.cpp"
