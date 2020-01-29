@@ -1640,8 +1640,9 @@ private:
 
   /// Determine whether ')' is ending a cast.
   bool rParenEndsCast(const FormatToken &Tok) {
-    // C-style casts are only used in C++ and Java.
-    if (!Style.isCpp() && Style.Language != FormatStyle::LK_Java)
+    // C-style casts are only used in C++, C# and Java.
+    if (!Style.isCSharp() && !Style.isCpp() &&
+        Style.Language != FormatStyle::LK_Java)
       return false;
 
     // Empty parens aren't casts and there are no casts at the end of the line.
@@ -1800,14 +1801,16 @@ private:
       return TT_BinaryOperator;
 
     // "&&(" is quite unlikely to be two successive unary "&".
-    if (Tok.is(tok::ampamp) && NextToken && NextToken->is(tok::l_paren))
+    if (Tok.is(tok::ampamp) && NextToken->is(tok::l_paren))
       return TT_BinaryOperator;
 
     // This catches some cases where evaluation order is used as control flow:
     //   aaa && aaa->f();
-    const FormatToken *NextNextToken = NextToken->getNextNonComment();
-    if (NextNextToken && NextNextToken->is(tok::arrow))
-      return TT_BinaryOperator;
+    if (NextToken->Tok.isAnyIdentifier()) {
+      const FormatToken *NextNextToken = NextToken->getNextNonComment();
+      if (NextNextToken && NextNextToken->is(tok::arrow))
+        return TT_BinaryOperator;
+    }
 
     // It is very unlikely that we are going to find a pointer or reference type
     // definition on the RHS of an assignment.
@@ -2596,7 +2599,7 @@ bool TokenAnnotator::spaceRequiredBeforeParens(const FormatToken &Right) const {
 /// otherwise.
 static bool isKeywordWithCondition(const FormatToken &Tok) {
   return Tok.isOneOf(tok::kw_if, tok::kw_for, tok::kw_while, tok::kw_switch,
-                     tok::kw_constexpr);
+                     tok::kw_constexpr, tok::kw_catch);
 }
 
 bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
@@ -2868,7 +2871,8 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     // space between keywords and paren e.g. "using ("
     if (Right.is(tok::l_paren))
       if (Left.is(tok::kw_using))
-        return spaceRequiredBeforeParens(Left);
+        return Style.SpaceBeforeParens == FormatStyle::SBPO_ControlStatements ||
+               spaceRequiredBeforeParens(Right);
   } else if (Style.Language == FormatStyle::LK_JavaScript) {
     if (Left.is(TT_JsFatArrow))
       return true;
@@ -3140,6 +3144,24 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
       // JavaScript top-level enum key/value pairs are put on separate lines
       // instead of bin-packing.
       return true;
+    if (Right.is(tok::r_brace) && Left.is(tok::l_brace) && Left.Previous &&
+        Left.Previous->is(TT_JsFatArrow)) {
+      // JS arrow function (=> {...}).
+      switch (Style.AllowShortLambdasOnASingleLine) {
+      case FormatStyle::SLS_All:
+        return false;
+      case FormatStyle::SLS_None:
+        return true;
+      case FormatStyle::SLS_Empty:
+        return !Left.Children.empty();
+      case FormatStyle::SLS_Inline:
+        // allow one-lining inline (e.g. in function call args) and empty arrow
+        // functions.
+        return (Left.NestingLevel == 0 && Line.Level == 0) &&
+               !Left.Children.empty();
+      }
+    }
+
     if (Right.is(tok::r_brace) && Left.is(tok::l_brace) &&
         !Left.Children.empty())
       // Support AllowShortFunctionsOnASingleLine for JavaScript.

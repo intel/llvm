@@ -1,6 +1,6 @@
 //===- VectorToLoops.cpp - Conversion from Vector to mix of Loops and Std -===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -75,7 +75,7 @@ static SmallVector<edsc::ValueHandle, 8> clip(TransferOpTy transfer,
   using namespace edsc::op;
   using edsc::intrinsics::select;
 
-  IndexHandle zero(index_t(0)), one(index_t(1));
+  IndexHandle zero(index_type(0)), one(index_type(1));
   SmallVector<edsc::ValueHandle, 8> memRefAccess(transfer.indices());
   SmallVector<edsc::ValueHandle, 8> clippedScalarAccessExprs(
       memRefAccess.size(), edsc::IndexHandle());

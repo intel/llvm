@@ -1,6 +1,6 @@
 //===- Builders.h - MLIR Declarative Builder Classes ------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -24,8 +24,8 @@ namespace mlir {
 
 namespace edsc {
 
-struct index_t {
-  explicit index_t(int64_t v) : v(v) {}
+struct index_type {
+  explicit index_type(int64_t v) : v(v) {}
   explicit operator int64_t() { return v; }
   int64_t v;
 };
@@ -320,7 +320,7 @@ public:
   /// This implicit constructor is provided to each build an eager Value for a
   /// constant at the current insertion point in the IR. An implicit constructor
   /// allows idiomatic expressions mixing ValueHandle and literals.
-  ValueHandle(index_t cst);
+  ValueHandle(index_type cst);
 
   /// ValueHandle is a value type, use the default copy constructor.
   ValueHandle(const ValueHandle &other) = default;
@@ -339,6 +339,7 @@ public:
 
   /// Implicit conversion useful for automatic conversion to Container<Value>.
   operator Value() const { return getValue(); }
+  operator Type() const { return getType(); }
   operator bool() const { return hasValue(); }
 
   /// Generic mlir::Op create. This is the key to being extensible to the whole

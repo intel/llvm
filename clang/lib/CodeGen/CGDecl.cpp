@@ -112,6 +112,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::Empty:
   case Decl::Concept:
   case Decl::LifetimeExtendedTemporary:
+  case Decl::RequiresExprBody:
     // None of these decls require codegen support.
     return;
 
@@ -209,9 +210,9 @@ static std::string getStaticDeclName(CodeGenModule &CGM, const VarDecl &D) {
   if (auto *CD = dyn_cast<CapturedDecl>(DC))
     DC = cast<DeclContext>(CD->getNonClosureContext());
   if (const auto *FD = dyn_cast<FunctionDecl>(DC))
-    ContextName = CGM.getMangledName(FD);
+    ContextName = std::string(CGM.getMangledName(FD));
   else if (const auto *BD = dyn_cast<BlockDecl>(DC))
-    ContextName = CGM.getBlockMangledName(GlobalDecl(), BD);
+    ContextName = std::string(CGM.getBlockMangledName(GlobalDecl(), BD));
   else if (const auto *OMD = dyn_cast<ObjCMethodDecl>(DC))
     ContextName = OMD->getSelector().getAsString();
   else
@@ -236,7 +237,7 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   // Use the label if the variable is renamed with the asm-label extension.
   std::string Name;
   if (D.hasAttr<AsmLabelAttr>())
-    Name = getMangledName(&D);
+    Name = std::string(getMangledName(&D));
   else
     Name = getStaticDeclName(*this, D);
 
@@ -1113,7 +1114,7 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
         return CC->getNameAsString();
       if (const auto *CD = dyn_cast<CXXDestructorDecl>(FD))
         return CD->getNameAsString();
-      return getMangledName(FD);
+      return std::string(getMangledName(FD));
     } else if (const auto *OM = dyn_cast<ObjCMethodDecl>(DC)) {
       return OM->getNameAsString();
     } else if (isa<BlockDecl>(DC)) {

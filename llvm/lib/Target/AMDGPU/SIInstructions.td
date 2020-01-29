@@ -109,7 +109,7 @@ defm V_INTERP_MOV_F32 : VINTRP_m <
   (outs VINTRPDst:$vdst),
   (ins InterpSlot:$vsrc, Attr:$attr, AttrChan:$attrchan),
   "v_interp_mov_f32$vdst, $vsrc, $attr$attrchan",
-  [(set f32:$vdst, (int_amdgcn_interp_mov (i32 imm:$vsrc),
+  [(set f32:$vdst, (int_amdgcn_interp_mov (i32 timm:$vsrc),
                    (i32 timm:$attrchan), (i32 timm:$attr), M0))]>;
 
 } // End Uses = [M0, EXEC]
@@ -513,6 +513,8 @@ def ADJCALLSTACKDOWN : SPseudoInstSI<
 let Defs = [M0, EXEC, SCC],
   UseNamedOperandTable = 1 in {
 
+// SI_INDIRECT_SRC/DST are only used by legacy SelectionDAG indirect
+// addressing implementation.
 class SI_INDIRECT_SRC<RegisterClass rc> : VPseudoInstSI <
   (outs VGPR_32:$vdst),
   (ins rc:$src, VS_32:$idx, i32imm:$offset)> {
@@ -526,7 +528,6 @@ class SI_INDIRECT_DST<RegisterClass rc> : VPseudoInstSI <
   let usesCustomInserter = 1;
 }
 
-// TODO: We can support indirect SGPR access.
 def SI_INDIRECT_SRC_V1 : SI_INDIRECT_SRC<VGPR_32>;
 def SI_INDIRECT_SRC_V2 : SI_INDIRECT_SRC<VReg_64>;
 def SI_INDIRECT_SRC_V4 : SI_INDIRECT_SRC<VReg_128>;
@@ -540,6 +541,65 @@ def SI_INDIRECT_DST_V8 : SI_INDIRECT_DST<VReg_256>;
 def SI_INDIRECT_DST_V16 : SI_INDIRECT_DST<VReg_512>;
 
 } // End Uses = [EXEC], Defs = [M0, EXEC]
+
+
+// This is a pseudo variant of the v_movreld_b32 (or v_mov_b32
+// expecting to be executed with gpr indexing mode enabled)
+// instruction in which the vector operand appears only twice, once as
+// def and once as use. Using this pseudo avoids problems with the Two
+// Address instructions pass.
+class INDIRECT_REG_WRITE_pseudo<RegisterClass rc,
+                                RegisterOperand val_ty> : PseudoInstSI <
+  (outs rc:$vdst), (ins rc:$vsrc, val_ty:$val, i32imm:$subreg)> {
+  let Constraints = "$vsrc = $vdst";
+  let Uses = [M0];
+}
+
+class V_INDIRECT_REG_WRITE_B32_pseudo<RegisterClass rc> :
+  INDIRECT_REG_WRITE_pseudo<rc, VSrc_b32> {
+  let VALU = 1;
+  let VOP1 = 1;
+  let Uses = [M0, EXEC];
+}
+
+class S_INDIRECT_REG_WRITE_pseudo<RegisterClass rc,
+                                  RegisterOperand val_ty> :
+  INDIRECT_REG_WRITE_pseudo<rc, val_ty> {
+  let SALU = 1;
+  let SOP1 = 1;
+  let Uses = [M0];
+}
+
+class S_INDIRECT_REG_WRITE_B32_pseudo<RegisterClass rc> :
+  S_INDIRECT_REG_WRITE_pseudo<rc, SSrc_b32>;
+class S_INDIRECT_REG_WRITE_B64_pseudo<RegisterClass rc> :
+  S_INDIRECT_REG_WRITE_pseudo<rc, SSrc_b64>;
+
+
+def V_INDIRECT_REG_WRITE_B32_V1 : V_INDIRECT_REG_WRITE_B32_pseudo<VGPR_32>;
+def V_INDIRECT_REG_WRITE_B32_V2 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_64>;
+def V_INDIRECT_REG_WRITE_B32_V3 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_96>;
+def V_INDIRECT_REG_WRITE_B32_V4 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_128>;
+def V_INDIRECT_REG_WRITE_B32_V5 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_160>;
+def V_INDIRECT_REG_WRITE_B32_V8 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_256>;
+def V_INDIRECT_REG_WRITE_B32_V16 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_512>;
+def V_INDIRECT_REG_WRITE_B32_V32 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_1024>;
+
+def S_INDIRECT_REG_WRITE_B32_V1 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_32>;
+def S_INDIRECT_REG_WRITE_B32_V2 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_64>;
+def S_INDIRECT_REG_WRITE_B32_V3 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_96>;
+def S_INDIRECT_REG_WRITE_B32_V4 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_128>;
+def S_INDIRECT_REG_WRITE_B32_V5 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_160>;
+def S_INDIRECT_REG_WRITE_B32_V8 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_256>;
+def S_INDIRECT_REG_WRITE_B32_V16 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_512>;
+def S_INDIRECT_REG_WRITE_B32_V32 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_1024>;
+
+def S_INDIRECT_REG_WRITE_B64_V1 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_64>;
+def S_INDIRECT_REG_WRITE_B64_V2 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_128>;
+def S_INDIRECT_REG_WRITE_B64_V4 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_256>;
+def S_INDIRECT_REG_WRITE_B64_V8 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_512>;
+def S_INDIRECT_REG_WRITE_B64_V16 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_1024>;
+
 
 multiclass SI_SPILL_SGPR <RegisterClass sgpr_class> {
   let UseNamedOperandTable = 1, SGPRSpill = 1, Uses = [EXEC] in {
@@ -828,18 +888,22 @@ def : FMADModsPat<V_MAD_F16, AMDGPUfmad_ftz, f16> {
   let SubtargetPredicate = Has16BitInsts;
 }
 
-multiclass SelectPat <ValueType vt> {
-  def : GCNPat <
-    (vt (select i1:$src0, (VOP3Mods_f32 vt:$src1, i32:$src1_mods),
-                          (VOP3Mods_f32 vt:$src2, i32:$src2_mods))),
-    (V_CNDMASK_B32_e64 $src2_mods, $src2, $src1_mods, $src1, $src0)
-  >;
-}
+class VOPSelectModsPat <ValueType vt> : GCNPat <
+  (vt (select i1:$src0, (VOP3Mods vt:$src1, i32:$src1_mods),
+                        (VOP3Mods vt:$src2, i32:$src2_mods))),
+  (V_CNDMASK_B32_e64 FP32InputMods:$src2_mods, VSrc_b32:$src2,
+                     FP32InputMods:$src1_mods, VSrc_b32:$src1, SSrc_i1:$src0)
+>;
 
-defm : SelectPat <i16>;
-defm : SelectPat <i32>;
-defm : SelectPat <f16>;
-defm : SelectPat <f32>;
+class VOPSelectPat <ValueType vt> : GCNPat <
+  (vt (select i1:$src0, vt:$src1, vt:$src2)),
+  (V_CNDMASK_B32_e64 0, VSrc_b32:$src2, 0, VSrc_b32:$src1, SSrc_i1:$src0)
+>;
+
+def : VOPSelectModsPat <i32>;
+def : VOPSelectModsPat <f32>;
+def : VOPSelectPat <f16>;
+def : VOPSelectPat <i16>;
 
 let AddedComplexity = 1 in {
 def : GCNPat <
@@ -1897,11 +1961,12 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i64 (int_amdgcn_mov_dpp i64:$src, timm:$dpp_ctrl, timm:$row_mask, timm:$bank_mask,
-                           timm:$bound_ctrl)),
-  (V_MOV_B64_DPP_PSEUDO $src, $src, (as_i32imm $dpp_ctrl),
-                        (as_i32imm $row_mask), (as_i32imm $bank_mask),
-                        (as_i1imm $bound_ctrl))
+  (i64 (int_amdgcn_mov_dpp i64:$src, timm:$dpp_ctrl, timm:$row_mask,
+                           timm:$bank_mask, timm:$bound_ctrl)),
+  (V_MOV_B64_DPP_PSEUDO VReg_64:$src, VReg_64:$src,
+                        (as_i32timm $dpp_ctrl), (as_i32timm $row_mask),
+                        (as_i32timm $bank_mask),
+                        (as_i1timm $bound_ctrl))
 >;
 
 def : GCNPat <
@@ -2085,12 +2150,105 @@ def G_AMDGPU_FFBH_U32 : AMDGPUGenericInstruction {
   let hasSideEffects = 0;
 }
 
+class BufferLoadGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+}
+
+class TBufferLoadGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset, untyped_imm_0:$format,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+}
+
+def G_AMDGPU_BUFFER_LOAD_UBYTE : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_SBYTE : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_USHORT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_SSHORT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_FORMAT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_FORMAT_D16 : BufferLoadGenericInstruction;
+def G_AMDGPU_TBUFFER_LOAD_FORMAT : TBufferLoadGenericInstruction;
+def G_AMDGPU_TBUFFER_LOAD_FORMAT_D16 : TBufferLoadGenericInstruction;
+
+class BufferStoreGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayStore = 1;
+}
+
+class TBufferStoreGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$format,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayStore = 1;
+}
+
+def G_AMDGPU_BUFFER_STORE : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_BYTE : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_SHORT : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_FORMAT : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_FORMAT_D16 : BufferStoreGenericInstruction;
+def G_AMDGPU_TBUFFER_STORE_FORMAT : TBufferStoreGenericInstruction;
+def G_AMDGPU_TBUFFER_STORE_FORMAT_D16 : TBufferStoreGenericInstruction;
+
 // Atomic cmpxchg. $cmpval ad $newval are packed in a single vector
 // operand Expects a MachineMemOperand in addition to explicit
 // operands.
 def G_AMDGPU_ATOMIC_CMPXCHG : AMDGPUGenericInstruction {
   let OutOperandList = (outs type0:$oldval);
-  let InOperandList = (ins ptype1:$addr, type0:$cmpval_nnenwval);
+  let InOperandList = (ins ptype1:$addr, type0:$cmpval_newval);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
+let Namespace = "AMDGPU" in {
+def G_AMDGPU_ATOMIC_INC : G_ATOMICRMW_OP;
+def G_AMDGPU_ATOMIC_DEC : G_ATOMICRMW_OP;
+}
+
+class BufferAtomicGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
+def G_AMDGPU_BUFFER_ATOMIC_SWAP : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_ADD : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SUB : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SMIN : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_UMIN : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SMAX : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_UMAX : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_AND : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_OR : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_XOR : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_INC : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_DEC : BufferAtomicGenericInstruction;
+
+def G_AMDGPU_BUFFER_ATOMIC_CMPSWAP : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$vdata, type0:$cmp, type1:$rsrc, type2:$vindex,
+                           type2:$voffset, type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
   let hasSideEffects = 0;
   let mayLoad = 1;
   let mayStore = 1;

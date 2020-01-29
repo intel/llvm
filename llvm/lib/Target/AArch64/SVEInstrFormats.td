@@ -2402,7 +2402,7 @@ multiclass sve2_int_mla_by_indexed_elem<bits<2> opc, bit S, string asm> {
 // SVE2 Integer Multiply-Add Long - Indexed Group
 //===----------------------------------------------------------------------===//
 
-multiclass sve2_int_mla_long_by_indexed_elem<bits<4> opc, string asm> {
+multiclass sve2_int_mla_long_by_indexed_elem<bits<4> opc, string asm, SDPatternOperator op> {
   def _S : sve2_int_mla_by_indexed_elem<0b10, { opc{3}, 0b0, opc{2-1}, ?, opc{0} },
                                         asm, ZPR32, ZPR16, ZPR3b16, VectorIndexH> {
     bits<3> Zm;
@@ -2419,6 +2419,9 @@ multiclass sve2_int_mla_long_by_indexed_elem<bits<4> opc, string asm> {
     let Inst{19-16} = Zm;
     let Inst{11} = iop{0};
   }
+
+  def : SVE_4_Op_Imm_Pat<nxv4i32, op, nxv4i32, nxv8i16, nxv8i16, i64, VectorIndexH_timm, !cast<Instruction>(NAME # _S)>;
+  def : SVE_4_Op_Imm_Pat<nxv2i64, op, nxv2i64, nxv4i32, nxv4i32, i64, VectorIndexS_timm, !cast<Instruction>(NAME # _D)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2621,11 +2624,22 @@ class sve2_int_mul<bits<2> sz, bits<3> opc, string asm, ZPRRegOp zprty>
   let Inst{4-0}   = Zd;
 }
 
-multiclass sve2_int_mul<bits<3> opc, string asm> {
+multiclass sve2_int_mul<bits<3> opc, string asm, SDPatternOperator op> {
   def _B : sve2_int_mul<0b00, opc, asm, ZPR8>;
   def _H : sve2_int_mul<0b01, opc, asm, ZPR16>;
   def _S : sve2_int_mul<0b10, opc, asm, ZPR32>;
   def _D : sve2_int_mul<0b11, opc, asm, ZPR64>;
+
+  def : SVE_2_Op_Pat<nxv16i8, op, nxv16i8, nxv16i8, !cast<Instruction>(NAME # _B)>;
+  def : SVE_2_Op_Pat<nxv8i16, op, nxv8i16, nxv8i16, !cast<Instruction>(NAME # _H)>;
+  def : SVE_2_Op_Pat<nxv4i32, op, nxv4i32, nxv4i32, !cast<Instruction>(NAME # _S)>;
+  def : SVE_2_Op_Pat<nxv2i64, op, nxv2i64, nxv2i64, !cast<Instruction>(NAME # _D)>;
+}
+
+multiclass sve2_int_mul_single<bits<3> opc, string asm, SDPatternOperator op> {
+  def _B : sve2_int_mul<0b00, opc, asm, ZPR8>;
+
+  def : SVE_2_Op_Pat<nxv16i8, op, nxv16i8, nxv16i8, !cast<Instruction>(NAME # _B)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -5094,6 +5108,17 @@ class sve_int_rdffr_pred<bit s, string asm>
   let Uses = [FFR];
 }
 
+multiclass sve_int_rdffr_pred<bit s, string asm, SDPatternOperator op> {
+  def _REAL : sve_int_rdffr_pred<s, asm>;
+
+  // We need a layer of indirection because early machine code passes balk at
+  // physical register (i.e. FFR) uses that have no previous definition.
+  let hasSideEffects = 1, hasNoSchedulingInfo = 1 in {
+  def "" : Pseudo<(outs PPR8:$Pd), (ins PPRAny:$Pg), [(set (nxv16i1 PPR8:$Pd), (op (nxv16i1 PPRAny:$Pg)))]>,
+           PseudoInstExpansion<(!cast<Instruction>(NAME # _REAL) PPR8:$Pd, PPRAny:$Pg)>;
+  }
+}
+
 class sve_int_rdffr_unpred<string asm> : I<
   (outs PPR8:$Pd), (ins),
   asm, "\t$Pd",
@@ -5106,11 +5131,22 @@ class sve_int_rdffr_unpred<string asm> : I<
   let Uses = [FFR];
 }
 
-class sve_int_wrffr<string asm>
+multiclass sve_int_rdffr_unpred<string asm, SDPatternOperator op> {
+  def _REAL : sve_int_rdffr_unpred<asm>;
+
+  // We need a layer of indirection because early machine code passes balk at
+  // physical register (i.e. FFR) uses that have no previous definition.
+  let hasSideEffects = 1, hasNoSchedulingInfo = 1 in {
+  def "" : Pseudo<(outs PPR8:$Pd), (ins), [(set (nxv16i1 PPR8:$Pd), (op))]>,
+           PseudoInstExpansion<(!cast<Instruction>(NAME # _REAL) PPR8:$Pd)>;
+  }
+}
+
+class sve_int_wrffr<string asm, SDPatternOperator op>
 : I<(outs), (ins PPR8:$Pn),
   asm, "\t$Pn",
   "",
-  []>, Sched<[]> {
+  [(op (nxv16i1 PPR8:$Pn))]>, Sched<[]> {
   bits<4> Pn;
   let Inst{31-9} = 0b00100101001010001001000;
   let Inst{8-5}  = Pn;
@@ -5120,11 +5156,11 @@ class sve_int_wrffr<string asm>
   let Defs = [FFR];
 }
 
-class sve_int_setffr<string asm>
+class sve_int_setffr<string asm, SDPatternOperator op>
 : I<(outs), (ins),
   asm, "",
   "",
-  []>, Sched<[]> {
+  [(op)]>, Sched<[]> {
   let Inst{31-0} = 0b00100101001011001001000000000000;
 
   let hasSideEffects = 1;
@@ -5557,14 +5593,21 @@ class sve_mem_cld_si_base<bits<4> dtype, bit nf, string asm,
 
 multiclass sve_mem_cld_si_base<bits<4> dtype, bit nf, string asm,
                                RegisterOperand listty, ZPRRegOp zprty> {
-  def "" : sve_mem_cld_si_base<dtype, nf, asm, listty>;
+  def _REAL : sve_mem_cld_si_base<dtype, nf, asm, listty>;
 
   def : InstAlias<asm # "\t$Zt, $Pg/z, [$Rn]",
-                  (!cast<Instruction>(NAME) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 0>;
+                  (!cast<Instruction>(NAME # _REAL) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 0>;
   def : InstAlias<asm # "\t$Zt, $Pg/z, [$Rn, $imm4, mul vl]",
-                  (!cast<Instruction>(NAME) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4), 0>;
+                  (!cast<Instruction>(NAME # _REAL) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4), 0>;
   def : InstAlias<asm # "\t$Zt, $Pg/z, [$Rn]",
-                  (!cast<Instruction>(NAME) listty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 1>;
+                  (!cast<Instruction>(NAME # _REAL) listty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 1>;
+
+  // We need a layer of indirection because early machine code passes balk at
+  // physical register (i.e. FFR) uses that have no previous definition.
+  let hasSideEffects = 1, hasNoSchedulingInfo = 1, mayLoad = 1 in {
+  def "" : Pseudo<(outs listty:$Zt), (ins PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4), []>,
+           PseudoInstExpansion<(!cast<Instruction>(NAME # _REAL) listty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4)>;
+  }
 }
 
 multiclass sve_mem_cld_si<bits<4> dtype, string asm, RegisterOperand listty,
@@ -5773,6 +5816,13 @@ multiclass sve_mem_cldff_ss<bits<4> dtype, string asm, RegisterOperand listty,
 
   def : InstAlias<asm # "\t$Zt, $Pg/z, [$Rn]",
                  (!cast<Instruction>(NAME # _REAL) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, XZR), 0>;
+
+  // We need a layer of indirection because early machine code passes balk at
+  // physical register (i.e. FFR) uses that have no previous definition.
+  let hasSideEffects = 1, hasNoSchedulingInfo = 1 in {
+  def "" : Pseudo<(outs listty:$Zt), (ins PPR3bAny:$Pg, GPR64sp:$Rn, gprty:$Rm), []>,
+           PseudoInstExpansion<(!cast<Instruction>(NAME # _REAL) listty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, gprty:$Rm)>;
+  }
 }
 
 multiclass sve_mem_cldnf_si<bits<4> dtype, string asm, RegisterOperand listty,

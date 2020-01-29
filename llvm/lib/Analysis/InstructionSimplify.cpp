@@ -1429,9 +1429,6 @@ static Value *simplifyUnsignedRangeCheck(ICmpInst *ZeroICmp,
     if (match(UnsignedICmp,
               m_c_ICmp(UnsignedPred, m_Specific(A), m_Specific(B))) &&
         ICmpInst::isUnsigned(UnsignedPred)) {
-      if (UnsignedICmp->getOperand(0) != A)
-        UnsignedPred = ICmpInst::getSwappedPredicate(UnsignedPred);
-
       // A >=/<= B || (A - B) != 0  <-->  true
       if ((UnsignedPred == ICmpInst::ICMP_UGE ||
            UnsignedPred == ICmpInst::ICMP_ULE) &&
@@ -1461,9 +1458,6 @@ static Value *simplifyUnsignedRangeCheck(ICmpInst *ZeroICmp,
     //   Y <  A || Y == 0  --> Y <  A  iff B != 0
     if (match(UnsignedICmp,
               m_c_ICmp(UnsignedPred, m_Specific(Y), m_Specific(A)))) {
-      if (UnsignedICmp->getOperand(0) != Y)
-        UnsignedPred = ICmpInst::getSwappedPredicate(UnsignedPred);
-
       if (UnsignedPred == ICmpInst::ICMP_UGE && IsAnd &&
           EqPred == ICmpInst::ICMP_NE &&
           isKnownNonZero(B, Q.DL, /*Depth=*/0, Q.AC, Q.CxtI, Q.DT))
@@ -4013,6 +4007,34 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
     return FalseVal;
   if (isa<UndefValue>(FalseVal))   // select ?, X, undef -> X
     return TrueVal;
+
+  // Deal with partial undef vector constants: select ?, VecC, VecC' --> VecC''
+  Constant *TrueC, *FalseC;
+  if (TrueVal->getType()->isVectorTy() && match(TrueVal, m_Constant(TrueC)) &&
+      match(FalseVal, m_Constant(FalseC))) {
+    unsigned NumElts = TrueC->getType()->getVectorNumElements();
+    SmallVector<Constant *, 16> NewC;
+    for (unsigned i = 0; i != NumElts; ++i) {
+      // Bail out on incomplete vector constants.
+      Constant *TEltC = TrueC->getAggregateElement(i);
+      Constant *FEltC = FalseC->getAggregateElement(i);
+      if (!TEltC || !FEltC)
+        break;
+
+      // If the elements match (undef or not), that value is the result. If only
+      // one element is undef, choose the defined element as the safe result.
+      if (TEltC == FEltC)
+        NewC.push_back(TEltC);
+      else if (isa<UndefValue>(TEltC))
+        NewC.push_back(FEltC);
+      else if (isa<UndefValue>(FEltC))
+        NewC.push_back(TEltC);
+      else
+        break;
+    }
+    if (NewC.size() == NumElts)
+      return ConstantVector::get(NewC);
+  }
 
   if (Value *V =
           simplifySelectWithICmpCond(Cond, TrueVal, FalseVal, Q, MaxRecurse))

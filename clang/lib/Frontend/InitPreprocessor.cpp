@@ -80,9 +80,9 @@ static void AddImplicitIncludeMacros(MacroBuilder &Builder, StringRef File) {
 static void AddImplicitIncludePCH(MacroBuilder &Builder, Preprocessor &PP,
                                   const PCHContainerReader &PCHContainerRdr,
                                   StringRef ImplicitIncludePCH) {
-  std::string OriginalFile =
-      ASTReader::getOriginalSourceFile(ImplicitIncludePCH, PP.getFileManager(),
-                                       PCHContainerRdr, PP.getDiagnostics());
+  std::string OriginalFile = ASTReader::getOriginalSourceFile(
+      std::string(ImplicitIncludePCH), PP.getFileManager(), PCHContainerRdr,
+      PP.getDiagnostics());
   if (OriginalFile.empty())
     return;
 
@@ -560,7 +560,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   // C++20 features.
   if (LangOpts.CPlusPlus2a) {
     //Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
-    //Builder.defineMacro("__cpp_concepts", "201907L");
+    Builder.defineMacro("__cpp_concepts", "201907L");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
     //Builder.defineMacro("__cpp_consteval", "201811L");
     Builder.defineMacro("__cpp_constexpr_dynamic_alloc", "201907L");
@@ -576,8 +576,6 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
   // TS features.
-  if (LangOpts.ConceptsTS)
-    Builder.defineMacro("__cpp_experimental_concepts", "1L");
   if (LangOpts.Coroutines)
     Builder.defineMacro("__cpp_coroutines", "201703L");
 }

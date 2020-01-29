@@ -12,7 +12,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Initialization/SystemInitializerCommon.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Utility/Timer.h"
 
 #include "Plugins/ABI/MacOSX-arm/ABIMacOSX_arm.h"
@@ -33,7 +33,7 @@
 #include "Plugins/Architecture/Arm/ArchitectureArm.h"
 #include "Plugins/Architecture/Mips/ArchitectureMips.h"
 #include "Plugins/Architecture/PPC64/ArchitecturePPC64.h"
-#include "Plugins/Disassembler/llvm/DisassemblerLLVMC.h"
+#include "Plugins/Disassembler/LLVMC/DisassemblerLLVMC.h"
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOS.h"
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOSXDYLD.h"
 #include "Plugins/DynamicLoader/POSIX-DYLD/DynamicLoaderPOSIXDYLD.h"
@@ -44,17 +44,16 @@
 #include "Plugins/Instruction/MIPS/EmulateInstructionMIPS.h"
 #include "Plugins/Instruction/MIPS64/EmulateInstructionMIPS64.h"
 #include "Plugins/Instruction/PPC64/EmulateInstructionPPC64.h"
-#include "Plugins/InstrumentationRuntime/ASan/ASanRuntime.h"
-#include "Plugins/InstrumentationRuntime/MainThreadChecker/MainThreadCheckerRuntime.h"
-#include "Plugins/InstrumentationRuntime/TSan/TSanRuntime.h"
-#include "Plugins/InstrumentationRuntime/UBSan/UBSanRuntime.h"
+#include "Plugins/InstrumentationRuntime/ASan/InstrumentationRuntimeASan.h"
+#include "Plugins/InstrumentationRuntime/MainThreadChecker/InstrumentationRuntimeMainThreadChecker.h"
+#include "Plugins/InstrumentationRuntime/TSan/InstrumentationRuntimeTSan.h"
+#include "Plugins/InstrumentationRuntime/UBSan/InstrumentationRuntimeUBSan.h"
 #include "Plugins/JITLoader/GDB/JITLoaderGDB.h"
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
 #include "Plugins/Language/ObjCPlusPlus/ObjCPlusPlusLanguage.h"
 #include "Plugins/LanguageRuntime/CPlusPlus/ItaniumABI/ItaniumABILanguageRuntime.h"
-#include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV1.h"
-#include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV2.h"
+#include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntime.h"
 #include "Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime/RenderScriptRuntime.h"
 #include "Plugins/MemoryHistory/asan/MemoryHistoryASan.h"
 #include "Plugins/ObjectContainer/BSD-Archive/ObjectContainerBSDArchive.h"
@@ -91,13 +90,6 @@
 
 #if defined(__APPLE__)
 #include "Plugins/DynamicLoader/Darwin-Kernel/DynamicLoaderDarwinKernel.h"
-#include "Plugins/Platform/MacOSX/PlatformAppleTVSimulator.h"
-#include "Plugins/Platform/MacOSX/PlatformAppleWatchSimulator.h"
-#include "Plugins/Platform/MacOSX/PlatformDarwinKernel.h"
-#include "Plugins/Platform/MacOSX/PlatformRemoteAppleBridge.h"
-#include "Plugins/Platform/MacOSX/PlatformRemoteAppleTV.h"
-#include "Plugins/Platform/MacOSX/PlatformRemoteAppleWatch.h"
-#include "Plugins/Platform/MacOSX/PlatformiOSSimulator.h"
 #include "Plugins/Process/MacOSX-Kernel/ProcessKDP.h"
 #include "Plugins/SymbolVendor/MacOSX/SymbolVendorMacOSX.h"
 #endif
@@ -177,10 +169,6 @@ llvm::Error SystemInitializerTest::Initialize() {
   platform_android::PlatformAndroid::Initialize();
   PlatformRemoteiOS::Initialize();
   PlatformMacOSX::Initialize();
-#if defined(__APPLE__)
-  PlatformiOSSimulator::Initialize();
-  PlatformDarwinKernel::Initialize();
-#endif
 
   // Initialize LLVM and Clang
   llvm::InitializeAllTargets();
@@ -188,7 +176,7 @@ llvm::Error SystemInitializerTest::Initialize() {
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllDisassemblers();
 
-  ClangASTContext::Initialize();
+  TypeSystemClang::Initialize();
 
 #define LLVM_TARGET(t) LLDB_PROCESS_ ## t(Initialize)
 #include "llvm/Config/Targets.def"
@@ -204,10 +192,10 @@ llvm::Error SystemInitializerTest::Initialize() {
   ProcessMachCore::Initialize();
   minidump::ProcessMinidump::Initialize();
   MemoryHistoryASan::Initialize();
-  AddressSanitizerRuntime::Initialize();
-  ThreadSanitizerRuntime::Initialize();
-  UndefinedBehaviorSanitizerRuntime::Initialize();
-  MainThreadCheckerRuntime::Initialize();
+  InstrumentationRuntimeASan::Initialize();
+  InstrumentationRuntimeTSan::Initialize();
+  InstrumentationRuntimeUBSan::Initialize();
+  InstrumentationRuntimeMainThreadChecker::Initialize();
 
   SymbolVendorELF::Initialize();
   breakpad::SymbolFileBreakpad::Initialize();
@@ -226,8 +214,7 @@ llvm::Error SystemInitializerTest::Initialize() {
 
   SymbolFileDWARFDebugMap::Initialize();
   ItaniumABILanguageRuntime::Initialize();
-  AppleObjCRuntimeV2::Initialize();
-  AppleObjCRuntimeV1::Initialize();
+  AppleObjCRuntime::Initialize();
   SystemRuntimeMacOSX::Initialize();
   RenderScriptRuntime::Initialize();
 
@@ -244,12 +231,6 @@ llvm::Error SystemInitializerTest::Initialize() {
 #if defined(__APPLE__)
   SymbolVendorMacOSX::Initialize();
   ProcessKDP::Initialize();
-  PlatformAppleTVSimulator::Initialize();
-  PlatformAppleWatchSimulator::Initialize();
-  PlatformRemoteAppleTV::Initialize();
-  PlatformRemoteAppleWatch::Initialize();
-  PlatformRemoteAppleBridge::Initialize();
-  DynamicLoaderDarwinKernel::Initialize();
 #endif
 
   // This plugin is valid on any host that talks to a Darwin remote. It
@@ -287,7 +268,7 @@ void SystemInitializerTest::Terminate() {
   // Terminate and unload and loaded system or user LLDB plug-ins
   PluginManager::Terminate();
 
-  ClangASTContext::Terminate();
+  TypeSystemClang::Terminate();
 
   ArchitectureArm::Terminate();
   ArchitectureMips::Terminate();
@@ -303,10 +284,11 @@ void SystemInitializerTest::Terminate() {
   ProcessMachCore::Terminate();
   minidump::ProcessMinidump::Terminate();
   MemoryHistoryASan::Terminate();
-  AddressSanitizerRuntime::Terminate();
-  ThreadSanitizerRuntime::Terminate();
-  UndefinedBehaviorSanitizerRuntime::Terminate();
-  MainThreadCheckerRuntime::Terminate();
+  InstrumentationRuntimeASan::Terminate();
+  InstrumentationRuntimeTSan::Terminate();
+  InstrumentationRuntimeUBSan::Terminate();
+  InstrumentationRuntimeMainThreadChecker::Terminate();
+
   wasm::SymbolVendorWasm::Terminate();
   SymbolVendorELF::Terminate();
   breakpad::SymbolFileBreakpad::Terminate();
@@ -324,8 +306,7 @@ void SystemInitializerTest::Terminate() {
 
   SymbolFileDWARFDebugMap::Terminate();
   ItaniumABILanguageRuntime::Terminate();
-  AppleObjCRuntimeV2::Terminate();
-  AppleObjCRuntimeV1::Terminate();
+  AppleObjCRuntime::Terminate();
   SystemRuntimeMacOSX::Terminate();
   RenderScriptRuntime::Terminate();
 
@@ -337,11 +318,6 @@ void SystemInitializerTest::Terminate() {
   DynamicLoaderDarwinKernel::Terminate();
   ProcessKDP::Terminate();
   SymbolVendorMacOSX::Terminate();
-  PlatformAppleTVSimulator::Terminate();
-  PlatformAppleWatchSimulator::Terminate();
-  PlatformRemoteAppleTV::Terminate();
-  PlatformRemoteAppleWatch::Terminate();
-  PlatformRemoteAppleBridge::Terminate();
 #endif
 
 #if defined(__FreeBSD__)
@@ -359,7 +335,6 @@ void SystemInitializerTest::Terminate() {
   DynamicLoaderStatic::Terminate();
   DynamicLoaderWindowsDYLD::Terminate();
 
-
   platform_freebsd::PlatformFreeBSD::Terminate();
   platform_linux::PlatformLinux::Terminate();
   platform_netbsd::PlatformNetBSD::Terminate();
@@ -368,10 +343,6 @@ void SystemInitializerTest::Terminate() {
   platform_android::PlatformAndroid::Terminate();
   PlatformMacOSX::Terminate();
   PlatformRemoteiOS::Terminate();
-#if defined(__APPLE__)
-  PlatformiOSSimulator::Terminate();
-  PlatformDarwinKernel::Terminate();
-#endif
 
   breakpad::ObjectFileBreakpad::Terminate();
   ObjectFileELF::Terminate();

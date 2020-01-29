@@ -1,6 +1,6 @@
 //===- ConvertLaunchFuncToCudaCalls.cpp - MLIR CUDA lowering passes -------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -132,9 +132,9 @@ public:
 
     // GPU kernel modules are no longer necessary since we have a global
     // constant with the CUBIN data.
-    for (auto m : llvm::make_early_inc_range(getModule().getOps<ModuleOp>()))
-      if (m.getAttrOfType<UnitAttr>(gpu::GPUDialect::getKernelModuleAttrName()))
-        m.erase();
+    for (auto m :
+         llvm::make_early_inc_range(getModule().getOps<gpu::GPUModuleOp>()))
+      m.erase();
   }
 
 private:
@@ -307,7 +307,7 @@ Value GpuLaunchFuncToCudaCallsPass::generateKernelNameConstant(
   std::vector<char> kernelName(name.begin(), name.end());
   kernelName.push_back('\0');
 
-  std::string globalName = llvm::formatv("{0}_kernel_name", name);
+  std::string globalName = std::string(llvm::formatv("{0}_kernel_name", name));
   return LLVM::createGlobalString(
       loc, builder, globalName, StringRef(kernelName.data(), kernelName.size()),
       LLVM::Linkage::Internal, llvmDialect);
@@ -343,8 +343,8 @@ void GpuLaunchFuncToCudaCallsPass::translateGpuLaunchCalls(
                                                builder.getI32IntegerAttr(0));
   // Create an LLVM global with CUBIN extracted from the kernel annotation and
   // obtain a pointer to the first byte in it.
-  auto kernelModule =
-      getModule().lookupSymbol<ModuleOp>(launchOp.getKernelModuleName());
+  auto kernelModule = getModule().lookupSymbol<gpu::GPUModuleOp>(
+      launchOp.getKernelModuleName());
   assert(kernelModule && "expected a kernel module");
 
   auto cubinAttr = kernelModule.getAttrOfType<StringAttr>(kCubinAnnotation);
@@ -354,8 +354,7 @@ void GpuLaunchFuncToCudaCallsPass::translateGpuLaunchCalls(
     return signalPassFailure();
   }
 
-  assert(kernelModule.getName() && "expected a named module");
-  SmallString<128> nameBuffer(*kernelModule.getName());
+  SmallString<128> nameBuffer(kernelModule.getName());
   nameBuffer.append(kCubinStorageSuffix);
   Value data = LLVM::createGlobalString(
       loc, builder, nameBuffer.str(), cubinAttr.getValue(),

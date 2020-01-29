@@ -1,6 +1,6 @@
 //===-- LLVMOps.td - LLVM IR dialect op definition file ----*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -654,30 +654,30 @@ class LLVM_UnaryIntrinsicOp<string func, list<OpTrait> traits = []> :
       "{$in->getType()}), {$in});"> {
 }
 
-class LLVM_BinaryIntrinsicOp<string func, list<OpTrait> traits = []> :
+class LLVM_BinarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
     LLVM_OneResultOp<"intr." # func,
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
     Arguments<(ins LLVM_Type:$a, LLVM_Type:$b)>,
     LLVM_Builder<"$res = builder.CreateCall(llvm::Intrinsic::getDeclaration("
       "builder.GetInsertBlock()->getModule(), llvm::Intrinsic::" # func # ","
-      "{$a->getType(), $b->getType()}), {$a, $b});"> {
+      "{$a->getType()}), {$a, $b});"> {
 }
 
-class LLVM_TernaryIntrinsicOp<string func, list<OpTrait> traits = []> :
+class LLVM_TernarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
     LLVM_OneResultOp<"intr." # func,
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
     Arguments<(ins LLVM_Type:$a, LLVM_Type:$b, LLVM_Type:$c)>,
     LLVM_Builder<"$res = builder.CreateCall(llvm::Intrinsic::getDeclaration("
       "builder.GetInsertBlock()->getModule(), llvm::Intrinsic::" # func # ","
-      "{$a->getType(), $b->getType(), $c->getType()}), {$a, $b, $c});"> {
+      "{$a->getType()}), {$a, $b, $c});"> {
 }
 
 def LLVM_ExpOp : LLVM_UnaryIntrinsicOp<"exp">;
 def LLVM_FAbsOp : LLVM_UnaryIntrinsicOp<"fabs">;
 def LLVM_FCeilOp : LLVM_UnaryIntrinsicOp<"ceil">;
 def LLVM_CosOp : LLVM_UnaryIntrinsicOp<"cos">;
-def LLVM_CopySignOp : LLVM_BinaryIntrinsicOp<"copysign">;
-def LLVM_FMulAddOp : LLVM_TernaryIntrinsicOp<"fmuladd">;
+def LLVM_CopySignOp : LLVM_BinarySameArgsIntrinsicOp<"copysign">;
+def LLVM_FMulAddOp : LLVM_TernarySameArgsIntrinsicOp<"fmuladd">;
 
 def LLVM_LogOp : LLVM_Op<"intr.log", [NoSideEffect]>,
                    Arguments<(ins LLVM_Type:$in)>,
@@ -772,6 +772,21 @@ def LLVM_AtomicRMWOp : LLVM_Op<"atomicrmw">,
   }];
   let parser = [{ return parseAtomicRMWOp(parser, result); }];
   let printer = [{ printAtomicRMWOp(p, *this); }];
+  let verifier = "return ::verify(*this);";
+}
+
+def LLVM_AtomicCmpXchgOp : LLVM_Op<"cmpxchg">,
+    Arguments<(ins LLVM_Type:$ptr, LLVM_Type:$cmp, LLVM_Type:$val,
+                   AtomicOrdering:$success_ordering,
+                   AtomicOrdering:$failure_ordering)>,
+    Results<(outs LLVM_Type:$res)> {
+  let llvmBuilder = [{
+    $res = builder.CreateAtomicCmpXchg($ptr, $cmp, $val,
+                   getLLVMAtomicOrdering($success_ordering),
+                   getLLVMAtomicOrdering($failure_ordering));
+  }];
+  let parser = [{ return parseAtomicCmpXchgOp(parser, result); }];
+  let printer = [{ printAtomicCmpXchgOp(p, *this); }];
   let verifier = "return ::verify(*this);";
 }
 

@@ -1,6 +1,6 @@
 //===- mlir-cpu-runner.cpp - MLIR CPU Execution Driver---------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -105,7 +105,7 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
   applyPassManagerCLOptions(pm);
 
   pm.addPass(createGpuKernelOutliningPass());
-  auto &kernelPm = pm.nest<ModuleOp>();
+  auto &kernelPm = pm.nest<gpu::GPUModuleOp>();
   kernelPm.addPass(createLowerGpuOpsToNVVMOpsPass());
   kernelPm.addPass(createConvertGPUKernelToCubinPass(&compilePtxToCubin));
   pm.addPass(createLowerToLLVMPass());

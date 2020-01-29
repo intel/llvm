@@ -339,7 +339,7 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
     if (Action == TargetLowering::Legal)
       Action = TargetLowering::Expand;
     break;
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+#define DAG_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
   case ISD::STRICT_##DAGN:
 #include "llvm/IR/ConstrainedOps.def"
     ValVT = Node->getValueType(0);
@@ -970,7 +970,7 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::UDIVFIX:
     Results.push_back(ExpandFixedPointDiv(Node));
     return;
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+#define DAG_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
   case ISD::STRICT_##DAGN:
 #include "llvm/IR/ConstrainedOps.def"
     ExpandStrictFPOp(Node, Results);
@@ -1087,9 +1087,8 @@ SDValue VectorLegalizer::ExpandANY_EXTEND_VECTOR_INREG(SDNode *Node) {
     NumSrcElements = VT.getSizeInBits() / SrcVT.getScalarSizeInBits();
     SrcVT = EVT::getVectorVT(*DAG.getContext(), SrcVT.getScalarType(),
                              NumSrcElements);
-    Src = DAG.getNode(
-        ISD::INSERT_SUBVECTOR, DL, SrcVT, DAG.getUNDEF(SrcVT), Src,
-        DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+    Src = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, SrcVT, DAG.getUNDEF(SrcVT),
+                      Src, DAG.getVectorIdxConstant(0, DL));
   }
 
   // Build a base mask of undef shuffles.
@@ -1147,9 +1146,8 @@ SDValue VectorLegalizer::ExpandZERO_EXTEND_VECTOR_INREG(SDNode *Node) {
     NumSrcElements = VT.getSizeInBits() / SrcVT.getScalarSizeInBits();
     SrcVT = EVT::getVectorVT(*DAG.getContext(), SrcVT.getScalarType(),
                              NumSrcElements);
-    Src = DAG.getNode(
-        ISD::INSERT_SUBVECTOR, DL, SrcVT, DAG.getUNDEF(SrcVT), Src,
-        DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+    Src = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, SrcVT, DAG.getUNDEF(SrcVT),
+                      Src, DAG.getVectorIdxConstant(0, DL));
   }
 
   // Build up a zero vector to blend into this one.
@@ -1500,8 +1498,7 @@ void VectorLegalizer::UnrollStrictFPOp(SDNode *Node,
   SmallVector<SDValue, 32> OpChains;
   for (unsigned i = 0; i < NumElems; ++i) {
     SmallVector<SDValue, 4> Opers;
-    SDValue Idx = DAG.getConstant(i, dl,
-                                  TLI.getVectorIdxTy(DAG.getDataLayout()));
+    SDValue Idx = DAG.getVectorIdxConstant(i, dl);
 
     // The Chain is the first operand.
     Opers.push_back(Chain);
@@ -1551,12 +1548,10 @@ SDValue VectorLegalizer::UnrollVSETCC(SDNode *Node) {
   SDLoc dl(Node);
   SmallVector<SDValue, 8> Ops(NumElems);
   for (unsigned i = 0; i < NumElems; ++i) {
-    SDValue LHSElem = DAG.getNode(
-        ISD::EXTRACT_VECTOR_ELT, dl, TmpEltVT, LHS,
-        DAG.getConstant(i, dl, TLI.getVectorIdxTy(DAG.getDataLayout())));
-    SDValue RHSElem = DAG.getNode(
-        ISD::EXTRACT_VECTOR_ELT, dl, TmpEltVT, RHS,
-        DAG.getConstant(i, dl, TLI.getVectorIdxTy(DAG.getDataLayout())));
+    SDValue LHSElem = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, TmpEltVT, LHS,
+                                  DAG.getVectorIdxConstant(i, dl));
+    SDValue RHSElem = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, TmpEltVT, RHS,
+                                  DAG.getVectorIdxConstant(i, dl));
     Ops[i] = DAG.getNode(ISD::SETCC, dl,
                          TLI.getSetCCResultType(DAG.getDataLayout(),
                                                 *DAG.getContext(), TmpEltVT),

@@ -490,7 +490,7 @@ ELFDumper<ELFT>::getVersionDefinitions(const Elf_Shdr *Sec) const {
     VerdAux Aux;
     Aux.Offset = VerdauxBuf - Start;
     if (Verdaux->vda_name <= StrTabOrErr->size())
-      Aux.Name = StrTabOrErr->drop_front(Verdaux->vda_name);
+      Aux.Name = std::string(StrTabOrErr->drop_front(Verdaux->vda_name));
     else
       Aux.Name = "<invalid vda_name: " + to_string(Verdaux->vda_name) + ">";
     return Aux;
@@ -600,7 +600,7 @@ ELFDumper<ELFT>::getVersionDependencies(const Elf_Shdr *Sec) const {
     VN.Offset = VerneedBuf - Start;
 
     if (Verneed->vn_file < StrTab.size())
-      VN.File = StrTab.drop_front(Verneed->vn_file);
+      VN.File = std::string(StrTab.drop_front(Verneed->vn_file));
     else
       VN.File = "<corrupt vn_file: " + to_string(Verneed->vn_file) + ">";
 
@@ -630,7 +630,7 @@ ELFDumper<ELFT>::getVersionDependencies(const Elf_Shdr *Sec) const {
       if (StrTab.size() <= Vernaux->vna_name)
         Aux.Name = "<corrupt>";
       else
-        Aux.Name = StrTab.drop_front(Vernaux->vna_name);
+        Aux.Name = std::string(StrTab.drop_front(Vernaux->vna_name));
 
       VernauxBuf += Vernaux->vna_next;
     }
@@ -806,7 +806,7 @@ private:
     std::string Str;
     unsigned Column;
 
-    Field(StringRef S, unsigned Col) : Str(S), Column(Col) {}
+    Field(StringRef S, unsigned Col) : Str(std::string(S)), Column(Col) {}
     Field(unsigned Col) : Column(Col) {}
   };
 
@@ -814,7 +814,7 @@ private:
   std::string printEnum(T Value, ArrayRef<EnumEntry<TEnum>> EnumValues) {
     for (const auto &EnumItem : EnumValues)
       if (EnumItem.Value == Value)
-        return EnumItem.AltName;
+        return std::string(EnumItem.AltName);
     return to_hexString(Value, false);
   }
 
@@ -988,7 +988,7 @@ template <class ELFT> Error ELFDumper<ELFT>::LoadVersionMap() const {
   auto InsertEntry = [this](unsigned N, StringRef Version, bool IsVerdef) {
     if (N >= VersionMap.size())
       VersionMap.resize(N + 1);
-    VersionMap[N] = {Version, IsVerdef};
+    VersionMap[N] = {std::string(Version), IsVerdef};
   };
 
   if (SymbolVersionDefSection) {
@@ -1036,7 +1036,7 @@ Expected<StringRef> ELFDumper<ELFT>::getSymbolVersion(const Elf_Sym *Sym,
 }
 
 static std::string maybeDemangle(StringRef Name) {
-  return opts::Demangle ? demangle(Name) : Name.str();
+  return opts::Demangle ? demangle(std::string(Name)) : Name.str();
 }
 
 template <typename ELFT>
@@ -1106,7 +1106,7 @@ std::string ELFDumper<ELFT>::getFullSymbolName(const Elf_Sym *Symbol,
       ELFDumperStyle->reportUniqueWarning(NameOrErr.takeError());
       return ("<section " + Twine(*SectionIndex) + ">").str();
     }
-    return *NameOrErr;
+    return std::string(*NameOrErr);
   }
 
   if (!IsDynamic)
@@ -2471,9 +2471,9 @@ template <class ELFT> void ELFDumper<ELFT>::printNeededLibraries() {
     if (Entry.d_tag == ELF::DT_NEEDED)
       Libs.push_back(getDynamicString(Entry.d_un.d_val));
 
-  llvm::stable_sort(Libs);
+  llvm::sort(Libs);
 
-  for (const auto &L : Libs)
+  for (const std::string &L : Libs)
     W.startLine() << L << "\n";
 }
 
@@ -3211,7 +3211,8 @@ void GNUStyle<ELFT>::printRelocation(const ELFO *Obj, const Elf_Shdr *SymTab,
     const Elf_Shdr *Sec = unwrapOrError(
         this->FileName,
         Obj->getSection(Sym, SymTab, this->dumper()->getShndxTable()));
-    TargetName = unwrapOrError(this->FileName, Obj->getSectionName(Sec));
+    TargetName =
+        std::string(unwrapOrError(this->FileName, Obj->getSectionName(Sec)));
   } else if (Sym) {
     StringRef StrTable =
         unwrapOrError(this->FileName, Obj->getStringTableForSymtab(*SymTab));
@@ -3240,7 +3241,7 @@ void GNUStyle<ELFT>::printRelocation(const ELFO *Obj, const Elf_Sym *Sym,
   if (Sym && (!SymbolName.empty() || Sym->getValue() != 0))
     Fields[3].Str = to_string(format_hex_no_prefix(Sym->getValue(), Width));
 
-  Fields[4].Str = SymbolName;
+  Fields[4].Str = std::string(SymbolName);
   for (const Field &F : Fields)
     printField(F);
 
@@ -3515,11 +3516,17 @@ void GNUStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
   OS << "\n";
 
   const ELFObjectFile<ELFT> *ElfObj = this->dumper()->getElfObject();
+  StringRef SecStrTable = unwrapOrError<StringRef>(
+      ElfObj->getFileName(),
+      Obj->getSectionStringTable(Sections, this->WarningHandler));
   size_t SectionIndex = 0;
   for (const Elf_Shdr &Sec : Sections) {
     Fields[0].Str = to_string(SectionIndex);
-    Fields[1].Str = unwrapOrError<StringRef>(
-        ElfObj->getFileName(), Obj->getSectionName(&Sec, this->WarningHandler));
+    if (SecStrTable.empty())
+      Fields[1].Str = "<no-strings>";
+    else
+      Fields[1].Str = std::string(unwrapOrError<StringRef>(
+          ElfObj->getFileName(), Obj->getSectionName(&Sec, SecStrTable)));
     Fields[2].Str =
         getSectionTypeString(Obj->getHeader()->e_machine, Sec.sh_type);
     Fields[3].Str =
@@ -3971,6 +3978,15 @@ void GNUStyle<ELFT>::printDynamicRelocation(const ELFO *Obj, Elf_Rela R,
   printRelocation(Obj, S.Sym, S.Name, R, IsRela);
 }
 
+template <class ELFT>
+static size_t getMaxDynamicTagSize(const ELFFile<ELFT> *Obj,
+                                   typename ELFT::DynRange Tags) {
+  size_t Max = 0;
+  for (const typename ELFT::Dyn &Dyn : Tags)
+    Max = std::max(Max, Obj->getDynamicTagAsString(Dyn.d_tag).size());
+  return Max;
+}
+
 template <class ELFT> void GNUStyle<ELFT>::printDynamic(const ELFO *Obj) {
   Elf_Dyn_Range Table = this->dumper()->dynamic_table();
   if (Table.empty())
@@ -3985,17 +4001,21 @@ template <class ELFT> void GNUStyle<ELFT>::printDynamic(const ELFO *Obj) {
                    1)
      << " contains " << Table.size() << " entries:\n";
 
-  bool Is64 = ELFT::Is64Bits;
-  if (Is64)
-    OS << "  Tag                Type                 Name/Value\n";
-  else
-    OS << "  Tag        Type                 Name/Value\n";
+  // The type name is surrounded with round brackets, hence add 2.
+  size_t MaxTagSize = getMaxDynamicTagSize(Obj, Table) + 2;
+  // The "Name/Value" column should be indented from the "Type" column by N
+  // spaces, where N = MaxTagSize - length of "Type" (4) + trailing
+  // space (1) = 3.
+  OS << "  Tag" + std::string(ELFT::Is64Bits ? 16 : 8, ' ') + "Type"
+     << std::string(MaxTagSize - 3, ' ') << "Name/Value\n";
+
+  std::string ValueFmt = " %-" + std::to_string(MaxTagSize) + "s ";
   for (auto Entry : Table) {
     uintX_t Tag = Entry.getTag();
     std::string TypeString =
         std::string("(") + Obj->getDynamicTagAsString(Tag).c_str() + ")";
-    OS << "  " << format_hex(Tag, Is64 ? 18 : 10)
-       << format(" %-20s ", TypeString.c_str());
+    OS << "  " << format_hex(Tag, ELFT::Is64Bits ? 18 : 10)
+       << format(ValueFmt.c_str(), TypeString.c_str());
     this->dumper()->printDynamicEntry(OS, Tag, Entry.getVal());
     OS << "\n";
   }
@@ -4713,7 +4733,7 @@ template <typename ELFT> static GNUAbiTag getGNUAbiTag(ArrayRef<uint8_t> Desc) {
   std::string str;
   raw_string_ostream ABI(str);
   ABI << Major << "." << Minor << "." << Patch;
-  return {OSName, ABI.str(), /*IsValid=*/true};
+  return {std::string(OSName), ABI.str(), /*IsValid=*/true};
 }
 
 static std::string getGNUBuildId(ArrayRef<uint8_t> Desc) {
@@ -5607,7 +5627,8 @@ void LLVMStyle<ELFT>::printRelocation(const ELFO *Obj, Elf_Rela Rel,
     const Elf_Shdr *Sec = unwrapOrError(
         this->FileName,
         Obj->getSection(Sym, SymTab, this->dumper()->getShndxTable()));
-    TargetName = unwrapOrError(this->FileName, Obj->getSectionName(Sec));
+    TargetName =
+        std::string(unwrapOrError(this->FileName, Obj->getSectionName(Sec)));
   } else if (Sym) {
     StringRef StrTable =
         unwrapOrError(this->FileName, Obj->getStringTableForSymtab(*SymTab));
@@ -5788,15 +5809,20 @@ template <class ELFT> void LLVMStyle<ELFT>::printDynamic(const ELFFile<ELFT> *Ob
   raw_ostream &OS = W.getOStream();
   W.startLine() << "DynamicSection [ (" << Table.size() << " entries)\n";
 
-  bool Is64 = ELFT::Is64Bits;
-  if (Is64)
-    W.startLine() << "  Tag                Type                 Name/Value\n";
-  else
-    W.startLine() << "  Tag        Type                 Name/Value\n";
+  size_t MaxTagSize = getMaxDynamicTagSize(Obj, Table);
+  // The "Name/Value" column should be indented from the "Type" column by N
+  // spaces, where N = MaxTagSize - length of "Type" (4) + trailing
+  // space (1) = -3.
+  W.startLine() << "  Tag" << std::string(ELFT::Is64Bits ? 16 : 8, ' ')
+                << "Type" << std::string(MaxTagSize - 3, ' ') << "Name/Value\n";
+
+  std::string ValueFmt = "%-" + std::to_string(MaxTagSize) + "s ";
   for (auto Entry : Table) {
     uintX_t Tag = Entry.getTag();
-    W.startLine() << "  " << format_hex(Tag, Is64 ? 18 : 10, true) << " "
-                  << format("%-21s", Obj->getDynamicTagAsString(Tag).c_str());
+    W.startLine() << "  " << format_hex(Tag, ELFT::Is64Bits ? 18 : 10, true)
+                  << " "
+                  << format(ValueFmt.c_str(),
+                            Obj->getDynamicTagAsString(Tag).c_str());
     this->dumper()->printDynamicEntry(OS, Tag, Entry.getVal());
     OS << "\n";
   }

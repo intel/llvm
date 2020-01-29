@@ -183,6 +183,11 @@ template <typename... Ts> inline std::string stringify_args(const Ts &... ts) {
 namespace lldb_private {
 namespace repro {
 
+template <class T>
+struct is_trivially_serializable
+    : std::integral_constant<bool, std::is_fundamental<T>::value ||
+                                       std::is_enum<T>::value> {};
+
 /// Mapping between serialized indices and their corresponding objects.
 ///
 /// This class is used during replay to map indices back to in-memory objects.
@@ -275,16 +280,18 @@ public:
 
   /// Deserialize and interpret value as T.
   template <typename T> T Deserialize() {
+    T t = Read<T>(typename serializer_tag<T>::type());
 #ifdef LLDB_REPRO_INSTR_TRACE
-    llvm::errs() << "Deserializing with " << LLVM_PRETTY_FUNCTION << "\n";
+    llvm::errs() << "Deserializing with " << LLVM_PRETTY_FUNCTION << " -> "
+                 << stringify_args(t) << "\n";
 #endif
-    return Read<T>(typename serializer_tag<T>::type());
+    return t;
   }
 
   /// Store the returned value in the index-to-object mapping.
   template <typename T> void HandleReplayResult(const T &t) {
     unsigned result = Deserialize<unsigned>();
-    if (std::is_fundamental<T>::value)
+    if (is_trivially_serializable<T>::value)
       return;
     // We need to make a copy as the original object might go out of scope.
     m_index_to_object.AddObjectForIndex(result, new T(t));
@@ -293,7 +300,7 @@ public:
   /// Store the returned value in the index-to-object mapping.
   template <typename T> void HandleReplayResult(T *t) {
     unsigned result = Deserialize<unsigned>();
-    if (std::is_fundamental<T>::value)
+    if (is_trivially_serializable<T>::value)
       return;
     m_index_to_object.AddObjectForIndex(result, t);
   }
@@ -573,7 +580,7 @@ private:
   /// fundamental types (in which case we serialize its value) and references
   /// to objects (in which case we serialize their index).
   template <typename T> void Serialize(T &t) {
-    if (std::is_fundamental<T>::value) {
+    if (is_trivially_serializable<T>::value) {
       m_stream.write(reinterpret_cast<const char *>(&t), sizeof(T));
     } else {
       unsigned idx = m_tracker.GetIndexForObject(&t);

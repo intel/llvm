@@ -1,6 +1,6 @@
 //===-- TestOps.td - Test dialect operation definitions ----*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -376,8 +376,8 @@ def IfFirstOperandIsNoneThenSoIsSecond :
   let arguments = (ins AnyType:$x, AnyType:$y);
 }
 
-def BroadcastableOp : TEST_Op<"broadcastable", [Broadcastable]> {
-  let arguments = (ins AnyTensor, AnyTensor);
+def BroadcastableOp : TEST_Op<"broadcastable", [ResultsBroadcastableShape]> {
+  let arguments = (ins Variadic<AnyTensor>);
   let results = (outs AnyTensor);
 }
 

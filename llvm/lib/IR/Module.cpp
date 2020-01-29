@@ -71,8 +71,9 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 //
 
 Module::Module(StringRef MID, LLVMContext &C)
-    : Context(C), Materializer(), ModuleID(MID), SourceFileName(MID), DL("") {
-  ValSymTab = new ValueSymbolTable();
+    : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>()),
+      Materializer(), ModuleID(std::string(MID)),
+      SourceFileName(std::string(MID)), DL("") {
   Context.addModule(this);
 }
 
@@ -83,9 +84,6 @@ Module::~Module() {
   FunctionList.clear();
   AliasList.clear();
   IFuncList.clear();
-  NamedMDList.clear();
-  NamedMDSymTab.clear();
-  delete ValSymTab;
 }
 
 std::unique_ptr<RandomNumberGenerator> Module::createRNG(const Pass* P) const {

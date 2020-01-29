@@ -220,6 +220,18 @@ func @constant() {
   %3 = constant dense<[2, 3]> : vector<2xi32>
   // CHECK: spv.constant 1 : i32
   %4 = constant 1 : index
+  // CHECK: spv.constant dense<1> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %5 = constant dense<1> : tensor<2x3xi32>
+  // CHECK: spv.constant dense<1.000000e+00> : tensor<6xf32> : !spv.array<6 x f32 [4]>
+  %6 = constant dense<1.0> : tensor<2x3xf32>
+  // CHECK: spv.constant dense<{{\[}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00]> : tensor<6xf32> : !spv.array<6 x f32 [4]>
+  %7 = constant dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]> : tensor<2x3xf32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %8 = constant dense<[[1, 2, 3], [4, 5, 6]]> : tensor<2x3xi32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %9 =  constant dense<[[1, 2], [3, 4], [5, 6]]> : tensor<3x2xi32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %10 =  constant dense<[1, 2, 3, 4, 5, 6]> : tensor<6xi32>
   return
 }
 
@@ -287,5 +299,14 @@ func @select(%arg0 : i32, %arg1 : i32) {
 func @sitofp(%arg0 : i32) {
   // CHECK: spv.ConvertSToF
   %0 = std.sitofp %arg0 : i32 to f32
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// memref type
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: func @memref_type({{%.*}}: memref<3xi1>) {
+func @memref_type(%arg0: memref<3xi1>) {
   return
 }

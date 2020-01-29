@@ -327,7 +327,6 @@ class Foo {})cpp";
          HI.Name = "X";
          HI.LocalScope = "X<T *>::"; // FIXME: X<T *, void>::
          HI.Kind = index::SymbolKind::Constructor;
-         HI.ReturnType = "X<T *>";
          HI.Definition = "X()";
          HI.Parameters.emplace();
        }},
@@ -337,8 +336,16 @@ class Foo {})cpp";
          HI.Name = "~X";
          HI.LocalScope = "X::";
          HI.Kind = index::SymbolKind::Destructor;
-         HI.ReturnType = "void";
          HI.Definition = "~X()";
+         HI.Parameters.emplace();
+       }},
+      {"class X { operator [[in^t]](); };",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "operator int";
+         HI.LocalScope = "X::";
+         HI.Kind = index::SymbolKind::ConversionFunction;
+         HI.Definition = "operator int()";
          HI.Parameters.emplace();
        }},
 
@@ -547,6 +554,25 @@ class Foo {})cpp";
             HI.Name = "Foo<X>";
             HI.Kind = index::SymbolKind::Class;
           }},
+      {// Falls back to primary template, when the type is not instantiated.
+       R"cpp(
+          // comment from primary
+          template <typename T> class Foo {};
+          // comment from specialization
+          template <typename T> class Foo<T*> {};
+          void foo() {
+            [[Fo^o]]<int*> *x = nullptr;
+          }
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "Foo<int *>";
+         HI.Kind = index::SymbolKind::Class;
+         HI.NamespaceScope = "";
+         HI.Definition = "template <> class Foo<int *>";
+         // FIXME: Maybe force instantiation to make use of real template
+         // pattern.
+         HI.Documentation = "comment from primary";
+       }},
   };
   for (const auto &Case : Cases) {
     SCOPED_TRACE(Case.Code);
@@ -556,7 +582,6 @@ class Foo {})cpp";
     TU.ExtraArgs.push_back("-std=c++17");
     TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
     auto AST = TU.build();
-    ASSERT_TRUE(AST.getDiagnostics().empty());
 
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
     ASSERT_TRUE(H);
@@ -623,8 +648,6 @@ TEST(Hover, NoHover) {
     TestTU TU = TestTU::withCode(T.code());
     TU.ExtraArgs.push_back("-std=c++17");
     auto AST = TU.build();
-    ASSERT_TRUE(AST.getDiagnostics().empty());
-
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
     ASSERT_FALSE(H);
   }
@@ -1582,9 +1605,6 @@ TEST(Hover, All) {
     TU.ExtraArgs.push_back("-std=c++17");
     TU.ExtraArgs.push_back("-Wno-gnu-designator");
     auto AST = TU.build();
-    for (const auto &D : AST.getDiagnostics())
-      ADD_FAILURE() << D;
-    ASSERT_TRUE(AST.getDiagnostics().empty());
 
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), Index.get());
     ASSERT_TRUE(H);
@@ -1619,10 +1639,6 @@ TEST(Hover, DocsFromIndex) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   Symbol IndexSym;
   IndexSym.ID = *getSymbolID(&findDecl(AST, "X"));
   IndexSym.Documentation = "comment from index";
@@ -1656,10 +1672,6 @@ TEST(Hover, DocsFromAST) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   for (const auto &P : T.points()) {
     auto H = getHover(AST, P, format::getLLVMStyle(), nullptr);
     ASSERT_TRUE(H);
@@ -1683,10 +1695,6 @@ TEST(Hover, DocsFromMostSpecial) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   for (auto Comment : {"doc1", "doc2", "doc3"}) {
     for (const auto &P : T.points(Comment)) {
       auto H = getHover(AST, P, format::getLLVMStyle(), nullptr);
@@ -1755,7 +1763,7 @@ template <typename T, typename C = bool> class Foo {})",
           },
           R"(function foo
 
-🡺 ret_type
+→ ret_type
 Parameters:
 - 
 - type
@@ -1859,9 +1867,6 @@ TEST(Hover, ExprTests) {
     Annotations T(C.Code);
     TestTU TU = TestTU::withCode(T.code());
     auto AST = TU.build();
-    for (const auto &D : AST.getDiagnostics())
-      ADD_FAILURE() << D;
-
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
     ASSERT_TRUE(H);
     HoverInfo ExpectedHover;

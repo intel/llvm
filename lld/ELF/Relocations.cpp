@@ -761,7 +761,7 @@ static const Symbol *getAlternativeSpelling(const Undefined &sym,
       break;
 
     // Substitute name[i].
-    newName = name;
+    newName = std::string(name);
     for (char c = '0'; c <= 'z'; ++c) {
       newName[i] = c;
       if (const Symbol *s = suggest(newName))
@@ -1198,10 +1198,16 @@ static void processRelocAux(InputSectionBase &sec, RelExpr expr, RelType type,
                     getLocation(sec, sym, offset));
       if (!sym.isInPlt())
         addPltEntry(in.plt, in.gotPlt, in.relaPlt, target->pltRel, sym);
-      if (!sym.isDefined())
+      if (!sym.isDefined()) {
         replaceWithDefined(
             sym, in.plt,
             target->pltHeaderSize + target->pltEntrySize * sym.pltIndex, 0);
+        if (config->emachine == EM_PPC) {
+          // PPC32 canonical PLT entries are at the beginning of .glink
+          cast<Defined>(sym).value = in.plt->headerSize;
+          in.plt->headerSize += 16;
+        }
+      }
       sym.needsPltAddr = true;
       sec.relocations.push_back({expr, type, offset, addend, &sym});
       return;
@@ -1298,10 +1304,10 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     if (expr == R_GOT_PC && !isAbsoluteValue(sym)) {
       expr = target->adjustRelaxExpr(type, relocatedAddr, expr);
     } else {
-      // Addend of R_PPC_PLTREL24 is used to choose call stub type. It should be
-      // ignored if optimized to R_PC.
+      // The 0x8000 bit of r_addend of R_PPC_PLTREL24 is used to choose call
+      // stub type. It should be ignored if optimized to R_PC.
       if (config->emachine == EM_PPC && expr == R_PPC32_PLTREL)
-        addend = 0;
+        addend &= ~0x8000;
       expr = fromPlt(expr);
     }
   }
@@ -1851,9 +1857,7 @@ bool ThunkCreator::normalizeExistingThunk(Relocation &rel, uint64_t src) {
                               rel.sym->getVA(rel.addend) + getPCBias(rel.type)))
       return true;
     rel.sym = &t->destination;
-    // TODO Restore addend on all targets.
-    if (config->emachine == EM_AARCH64 || config->emachine == EM_PPC64)
-      rel.addend = t->addend;
+    rel.addend = t->addend;
     if (rel.sym->isInPlt())
       rel.expr = toPlt(rel.expr);
   }
@@ -1931,16 +1935,11 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
             rel.sym = t->getThunkTargetSym();
             rel.expr = fromPlt(rel.expr);
 
-            // On AArch64 and PPC64, a jump/call relocation may be encoded as
+            // On AArch64 and PPC, a jump/call relocation may be encoded as
             // STT_SECTION + non-zero addend, clear the addend after
             // redirection.
-            //
-            // The addend of R_PPC_PLTREL24 should be ignored after changing to
-            // R_PC.
-            if (config->emachine == EM_AARCH64 ||
-                config->emachine == EM_PPC64 ||
-                (config->emachine == EM_PPC && rel.type == R_PPC_PLTREL24))
-              rel.addend = 0;
+            if (config->emachine != EM_MIPS)
+              rel.addend = -getPCBias(rel.type);
           }
 
         for (auto &p : isd->thunkSections)

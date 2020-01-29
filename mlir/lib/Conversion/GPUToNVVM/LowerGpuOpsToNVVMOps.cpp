@@ -1,6 +1,6 @@
 //===- LowerGpuOpsToNVVMOps.cpp - MLIR GPU to NVVM lowering passes --------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -200,7 +200,7 @@ private:
     auto type = operand.getType().cast<LLVM::LLVMType>();
 
     // Create shared memory array to store the warp reduction.
-    auto module = operand.getDefiningOp()->getParentOfType<ModuleOp>();
+    auto module = operand.getDefiningOp()->getParentOfType<gpu::GPUModuleOp>();
     assert(module && "op must belong to a module");
     Value sharedMemPtr =
         createSharedMemoryArray(loc, module, type, kWarpSize, rewriter);
@@ -391,10 +391,10 @@ private:
   }
 
   /// Creates a global array stored in shared memory.
-  Value createSharedMemoryArray(Location loc, ModuleOp module,
+  Value createSharedMemoryArray(Location loc, gpu::GPUModuleOp module,
                                 LLVM::LLVMType elementType, int numElements,
                                 ConversionPatternRewriter &rewriter) const {
-    OpBuilder builder(module.getBodyRegion());
+    OpBuilder builder(module.body());
 
     auto arrayType = LLVM::LLVMType::getArrayTy(elementType, numElements);
     StringRef name = "reduce_buffer";
@@ -548,8 +548,8 @@ struct GPUFuncOpLowering : LLVMOpLowering {
       auto elementType =
           lowering.convertType(type.getElementType()).cast<LLVM::LLVMType>();
       auto arrayType = LLVM::LLVMType::getArrayTy(elementType, numElements);
-      std::string name =
-          llvm::formatv("__wg_{0}_{1}", gpuFuncOp.getName(), en.index());
+      std::string name = std::string(
+          llvm::formatv("__wg_{0}_{1}", gpuFuncOp.getName(), en.index()));
       auto globalOp = rewriter.create<LLVM::GlobalOp>(
           gpuFuncOp.getLoc(), arrayType, /*isConstant=*/false,
           LLVM::Linkage::Internal, name, /*value=*/Attribute(),
@@ -699,13 +699,11 @@ struct GPUReturnOpLowering : public LLVMOpLowering {
 ///
 /// This pass only handles device code and is not meant to be run on GPU host
 /// code.
-class LowerGpuOpsToNVVMOpsPass : public ModulePass<LowerGpuOpsToNVVMOpsPass> {
+class LowerGpuOpsToNVVMOpsPass
+    : public OperationPass<LowerGpuOpsToNVVMOpsPass, gpu::GPUModuleOp> {
 public:
-  void runOnModule() override {
-    ModuleOp m = getModule();
-    if (!m.getAttrOfType<UnitAttr>(gpu::GPUDialect::getKernelModuleAttrName()))
-      return;
-
+  void runOnOperation() override {
+    gpu::GPUModuleOp m = getOperation();
     OwningRewritePatternList patterns;
     NVVMTypeConverter converter(m.getContext());
     populateStdToLLVMConversionPatterns(converter, patterns);
@@ -718,7 +716,7 @@ public:
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addLegalDialect<NVVM::NVVMDialect>();
     // TODO(csigg): Remove once we support replacing non-root ops.
-    target.addLegalOp<gpu::YieldOp>();
+    target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
     if (failed(applyPartialConversion(m, target, patterns, &converter)))
       signalPassFailure();
   }
@@ -748,9 +746,12 @@ void mlir::populateGpuToNVVMConversionPatterns(
                                                "__nv_cos");
   patterns.insert<OpToFuncCallLowering<ExpOp>>(converter, "__nv_expf",
                                                "__nv_exp");
+  patterns.insert<OpToFuncCallLowering<TanhOp>>(converter, "__nv_tanhf",
+                                                "__nv_tanh");
 }
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createLowerGpuOpsToNVVMOpsPass() {
+std::unique_ptr<OpPassBase<gpu::GPUModuleOp>>
+mlir::createLowerGpuOpsToNVVMOpsPass() {
   return std::make_unique<LowerGpuOpsToNVVMOpsPass>();
 }
 

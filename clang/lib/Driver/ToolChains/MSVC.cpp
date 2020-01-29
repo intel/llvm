@@ -128,13 +128,13 @@ static bool findVCToolChainViaEnvironment(std::string &Path,
         llvm::StringRef ParentPath = llvm::sys::path::parent_path(TestPath);
         llvm::StringRef ParentFilename = llvm::sys::path::filename(ParentPath);
         if (ParentFilename == "VC") {
-          Path = ParentPath;
+          Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
           return true;
         }
         if (ParentFilename == "x86ret" || ParentFilename == "x86chk"
           || ParentFilename == "amd64ret" || ParentFilename == "amd64chk") {
-          Path = ParentPath;
+          Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::DevDivInternal;
           return true;
         }
@@ -163,7 +163,7 @@ static bool findVCToolChainViaEnvironment(std::string &Path,
         for (int i = 0; i < 3; ++i)
           ToolChainPath = llvm::sys::path::parent_path(ToolChainPath);
 
-        Path = ToolChainPath;
+        Path = std::string(ToolChainPath);
         VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
         return true;
       }
@@ -282,7 +282,7 @@ static bool findVCToolChainViaRegistry(std::string &Path,
           VSInstallPath.c_str(), VSInstallPath.find(R"(\Common7\IDE)")));
       llvm::sys::path::append(VCPath, "VC");
 
-      Path = VCPath.str();
+      Path = std::string(VCPath.str());
       VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
       return true;
     }
@@ -300,7 +300,8 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
   SmallString<128> FilePath(MSVC.getSubDirectoryPath(
       toolchains::MSVCToolChain::SubDirectoryType::Bin));
   llvm::sys::path::append(FilePath, Exe);
-  return llvm::sys::fs::can_execute(FilePath) ? FilePath.str() : Exe;
+  return std::string(llvm::sys::fs::can_execute(FilePath) ? FilePath.str()
+                                                          : Exe);
 }
 
 // Add a call to lib.exe to create an archive.  This is used to embed host
@@ -944,7 +945,7 @@ MSVCToolChain::getSubDirectoryPath(SubDirectoryType Type,
     llvm::sys::path::append(Path, "lib", SubdirName);
     break;
   }
-  return Path.str();
+  return std::string(Path.str());
 }
 
 #ifdef _WIN32
@@ -1098,7 +1099,7 @@ static bool getWindows10SDKVersionFromPath(const std::string &SDKPath,
     if (!CandidateName.startswith("10."))
       continue;
     if (CandidateName > SDKVersion)
-      SDKVersion = CandidateName;
+      SDKVersion = std::string(CandidateName);
   }
 
   return !SDKVersion.empty();
@@ -1181,7 +1182,7 @@ bool MSVCToolChain::getWindowsSDKLibraryPath(std::string &path) const {
     }
   }
 
-  path = libPath.str();
+  path = std::string(libPath.str());
   return true;
 }
 
@@ -1220,7 +1221,7 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(std::string &Path) const {
   llvm::SmallString<128> LibPath(UniversalCRTSdkPath);
   llvm::sys::path::append(LibPath, "Lib", UCRTVersion, "ucrt", ArchName);
 
-  Path = LibPath.str();
+  Path = std::string(LibPath.str());
   return true;
 }
 
@@ -1527,7 +1528,7 @@ static void TranslateDArg(Arg *A, llvm::opt::DerivedArgList &DAL,
     return;
   }
 
-  std::string NewVal = Val;
+  std::string NewVal = std::string(Val);
   NewVal[Hash] = '=';
   DAL.AddJoinedArg(A, Opts.getOption(options::OPT_D), NewVal);
 }

@@ -438,9 +438,8 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
     if (PartEVT.getVectorElementType() == ValueVT.getVectorElementType()) {
       assert(PartEVT.getVectorNumElements() > ValueVT.getVectorNumElements() &&
              "Cannot narrow, it would be a lossy transformation");
-      return DAG.getNode(
-          ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
-          DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
+                         DAG.getVectorIdxConstant(0, DL));
     }
 
     // Vector/Vector bitcast.
@@ -472,9 +471,8 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
        EVT WiderVecType = EVT::getVectorVT(*DAG.getContext(),
                                            ValueVT.getVectorElementType(), Elts);
        Val = DAG.getBitcast(WiderVecType, Val);
-       return DAG.getNode(
-           ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
-           DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+       return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
+                          DAG.getVectorIdxConstant(0, DL));
      }
 
      diagnosePossiblyInvalidConstraint(
@@ -686,9 +684,8 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
       Val = DAG.getAnyExtOrTrunc(Val, DL, PartVT);
     } else {
       if (ValueVT.getVectorNumElements() == 1) {
-        Val = DAG.getNode(
-            ISD::EXTRACT_VECTOR_ELT, DL, PartVT, Val,
-            DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+        Val = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, PartVT, Val,
+                          DAG.getVectorIdxConstant(0, DL));
       } else {
         assert(PartVT.getSizeInBits() > ValueVT.getSizeInBits() &&
                "lossy conversion of vector to scalar type");
@@ -731,7 +728,6 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
 
   EVT BuiltVectorTy = EVT::getVectorVT(
       *DAG.getContext(), IntermediateVT.getScalarType(), DestVectorNoElts);
-  MVT IdxVT = TLI.getVectorIdxTy(DAG.getDataLayout());
   if (ValueVT != BuiltVectorTy) {
     if (SDValue Widened = widenVectorToPartType(DAG, Val, DL, BuiltVectorTy))
       Val = Widened;
@@ -743,12 +739,12 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
   SmallVector<SDValue, 8> Ops(NumIntermediates);
   for (unsigned i = 0; i != NumIntermediates; ++i) {
     if (IntermediateVT.isVector()) {
-      Ops[i] = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, IntermediateVT, Val,
-                           DAG.getConstant(i * IntermediateNumElts, DL, IdxVT));
+      Ops[i] =
+          DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, IntermediateVT, Val,
+                      DAG.getVectorIdxConstant(i * IntermediateNumElts, DL));
     } else {
-      Ops[i] = DAG.getNode(
-          ISD::EXTRACT_VECTOR_ELT, DL, IntermediateVT, Val,
-          DAG.getConstant(i, DL, IdxVT));
+      Ops[i] = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, IntermediateVT, Val,
+                           DAG.getVectorIdxConstant(i, DL));
     }
   }
 
@@ -1485,6 +1481,9 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
       return DAG.getConstant(0, getCurSDLoc(),
                              TLI.getPointerTy(DAG.getDataLayout(), AS));
     }
+
+    if (match(C, m_VScale(DAG.getDataLayout())))
+      return DAG.getVScale(getCurSDLoc(), VT, APInt(VT.getSizeInBits(), 1));
 
     if (const ConstantFP *CFP = dyn_cast<ConstantFP>(C))
       return DAG.getConstantFP(*CFP, getCurSDLoc(), VT);
@@ -3586,10 +3585,9 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
 
   if (MaskV->isNullValue() && VT.isScalableVector()) {
     // Canonical splat form of first element of first input vector.
-    SDValue FirstElt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL,
-                                   SrcVT.getScalarType(), Src1,
-                                   DAG.getConstant(0, DL, 
-                                   TLI.getVectorIdxTy(DAG.getDataLayout())));
+    SDValue FirstElt =
+        DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, SrcVT.getScalarType(), Src1,
+                    DAG.getVectorIdxConstant(0, DL));
     setValue(&I, DAG.getNode(ISD::SPLAT_VECTOR, DL, VT, FirstElt));
     return;
   }
@@ -3683,9 +3681,8 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
     // If the concatenated vector was padded, extract a subvector with the
     // correct number of elements.
     if (MaskNumElts != PaddedMaskNumElts)
-      Result = DAG.getNode(
-          ISD::EXTRACT_SUBVECTOR, DL, VT, Result,
-          DAG.getConstant(0, DL, TLI.getVectorIdxTy(DAG.getDataLayout())));
+      Result = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, VT, Result,
+                           DAG.getVectorIdxConstant(0, DL));
 
     setValue(&I, Result);
     return;
@@ -3729,10 +3726,8 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
         if (StartIdx[Input] < 0)
           Src = DAG.getUNDEF(VT);
         else {
-          Src = DAG.getNode(
-              ISD::EXTRACT_SUBVECTOR, DL, VT, Src,
-              DAG.getConstant(StartIdx[Input], DL,
-                              TLI.getVectorIdxTy(DAG.getDataLayout())));
+          Src = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, VT, Src,
+                            DAG.getVectorIdxConstant(StartIdx[Input], DL));
         }
       }
 
@@ -3754,7 +3749,6 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
   // replacing the shuffle with extract and build vector.
   // to insert and build vector.
   EVT EltVT = VT.getVectorElementType();
-  EVT IdxVT = TLI.getVectorIdxTy(DAG.getDataLayout());
   SmallVector<SDValue,8> Ops;
   for (int Idx : Mask) {
     SDValue Res;
@@ -3765,8 +3759,8 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
       SDValue &Src = Idx < (int)SrcNumElts ? Src1 : Src2;
       if (Idx >= (int)SrcNumElts) Idx -= SrcNumElts;
 
-      Res = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL,
-                        EltVT, Src, DAG.getConstant(Idx, DL, IdxVT));
+      Res = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, EltVT, Src,
+                        DAG.getVectorIdxConstant(Idx, DL));
     }
 
     Ops.push_back(Res);
@@ -5781,6 +5775,13 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     // By default, turn this into a target intrinsic node.
     visitTargetIntrinsic(I, Intrinsic);
     return;
+  case Intrinsic::vscale: {
+    match(&I, m_VScale(DAG.getDataLayout()));
+    EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
+    setValue(&I,
+             DAG.getVScale(getCurSDLoc(), VT, APInt(VT.getSizeInBits(), 1)));
+    return;
+  }
   case Intrinsic::vastart:  visitVAStart(I); return;
   case Intrinsic::vaend:    visitVAEnd(I); return;
   case Intrinsic::vacopy:   visitVACopy(I); return;
@@ -5839,9 +5840,30 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     // node.
     SDValue Root = isVol ? getRoot() : getMemoryRoot();
     SDValue MC = DAG.getMemcpy(Root, sdl, Op1, Op2, Op3, Align, isVol,
-                               false, isTC,
+                               /* AlwaysInline */ false, isTC,
                                MachinePointerInfo(I.getArgOperand(0)),
                                MachinePointerInfo(I.getArgOperand(1)));
+    updateDAGForMaybeTailCall(MC);
+    return;
+  }
+  case Intrinsic::memcpy_inline: {
+    const auto &MCI = cast<MemCpyInlineInst>(I);
+    SDValue Dst = getValue(I.getArgOperand(0));
+    SDValue Src = getValue(I.getArgOperand(1));
+    SDValue Size = getValue(I.getArgOperand(2));
+    assert(isa<ConstantSDNode>(Size) && "memcpy_inline needs constant size");
+    // @llvm.memcpy.inline defines 0 and 1 to both mean no alignment.
+    Align DstAlign = MCI.getDestAlign().valueOrOne();
+    Align SrcAlign = MCI.getSourceAlign().valueOrOne();
+    Align Alignment = commonAlignment(DstAlign, SrcAlign);
+    bool isVol = MCI.isVolatile();
+    bool isTC = I.isTailCall() && isInTailCallPosition(&I, DAG.getTarget());
+    // FIXME: Support passing different dest/src alignments to the memcpy DAG
+    // node.
+    SDValue MC = DAG.getMemcpy(
+        getRoot(), sdl, Dst, Src, Size, Alignment.value(), isVol,
+        /* AlwaysInline */ true, isTC, MachinePointerInfo(I.getArgOperand(0)),
+        MachinePointerInfo(I.getArgOperand(1)));
     updateDAGForMaybeTailCall(MC);
     return;
   }
@@ -6236,7 +6258,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
                              getValue(I.getArgOperand(1)),
                              getValue(I.getArgOperand(2))));
     return;
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC)                         \
   case Intrinsic::INTRINSIC:
 #include "llvm/IR/ConstrainedOps.def"
     visitConstrainedFPIntrinsic(cast<ConstrainedFPIntrinsic>(I));
@@ -6999,14 +7021,60 @@ void SelectionDAGBuilder::visitConstrainedFPIntrinsic(
     Opers.push_back(getValue(FPI.getArgOperand(1)));
   }
 
+  auto pushOutChain = [this](SDValue Result, fp::ExceptionBehavior EB) {
+    assert(Result.getNode()->getNumValues() == 2);
+
+    // Push node to the appropriate list so that future instructions can be
+    // chained up correctly.
+    SDValue OutChain = Result.getValue(1);
+    switch (EB) {
+    case fp::ExceptionBehavior::ebIgnore:
+      // The only reason why ebIgnore nodes still need to be chained is that
+      // they might depend on the current rounding mode, and therefore must
+      // not be moved across instruction that may change that mode.
+      LLVM_FALLTHROUGH;
+    case fp::ExceptionBehavior::ebMayTrap:
+      // These must not be moved across calls or instructions that may change
+      // floating-point exception masks.
+      PendingConstrainedFP.push_back(OutChain);
+      break;
+    case fp::ExceptionBehavior::ebStrict:
+      // These must not be moved across calls or instructions that may change
+      // floating-point exception masks or read floating-point exception flags.
+      // In addition, they cannot be optimized out even if unused.
+      PendingConstrainedFPStrict.push_back(OutChain);
+      break;
+    }
+  };
+
+  SDVTList VTs = DAG.getVTList(ValueVTs);
+  fp::ExceptionBehavior EB = FPI.getExceptionBehavior().getValue();
+
   unsigned Opcode;
   switch (FPI.getIntrinsicID()) {
   default: llvm_unreachable("Impossible intrinsic");  // Can't reach here.
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+#define DAG_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
   case Intrinsic::INTRINSIC:                                                   \
     Opcode = ISD::STRICT_##DAGN;                                               \
     break;
 #include "llvm/IR/ConstrainedOps.def"
+  case Intrinsic::experimental_constrained_fmuladd: {
+    Opcode = ISD::STRICT_FMA;
+    // Break fmuladd into fmul and fadd.
+    if (TM.Options.AllowFPOpFusion == FPOpFusion::Strict ||
+        !TLI.isFMAFasterThanFMulAndFAdd(DAG.getMachineFunction(),
+                                        ValueVTs[0])) {
+      Opers.pop_back();
+      SDValue Mul = DAG.getNode(ISD::STRICT_FMUL, sdl, VTs, Opers);
+      pushOutChain(Mul, EB);
+      Opcode = ISD::STRICT_FADD;
+      Opers.clear();
+      Opers.push_back(Mul.getValue(1));
+      Opers.push_back(Mul.getValue(0));
+      Opers.push_back(getValue(FPI.getArgOperand(2)));
+    }
+    break;
+  }
   }
 
   // A few strict DAG nodes carry additional operands that are not
@@ -7025,32 +7093,8 @@ void SelectionDAGBuilder::visitConstrainedFPIntrinsic(
   }
   }
 
-  SDVTList VTs = DAG.getVTList(ValueVTs);
   SDValue Result = DAG.getNode(Opcode, sdl, VTs, Opers);
-
-  assert(Result.getNode()->getNumValues() == 2);
-
-  // Push node to the appropriate list so that future instructions can be
-  // chained up correctly.
-  SDValue OutChain = Result.getValue(1);
-  switch (FPI.getExceptionBehavior().getValue()) {
-  case fp::ExceptionBehavior::ebIgnore:
-    // The only reason why ebIgnore nodes still need to be chained is that
-    // they might depend on the current rounding mode, and therefore must
-    // not be moved across instruction that may change that mode.
-    LLVM_FALLTHROUGH;
-  case fp::ExceptionBehavior::ebMayTrap:
-    // These must not be moved across calls or instructions that may change
-    // floating-point exception masks.
-    PendingConstrainedFP.push_back(OutChain);
-    break;
-  case fp::ExceptionBehavior::ebStrict:
-    // These must not be moved across calls or instructions that may change
-    // floating-point exception masks or read floating-point exception flags.
-    // In addition, they cannot be optimized out even if unused.
-    PendingConstrainedFPStrict.push_back(OutChain);
-    break;
-  }
+  pushOutChain(Result, EB);
 
   SDValue FPResult = Result.getValue(0);
   setValue(&FPI, FPResult);
@@ -9278,7 +9322,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         if (NumParts > 1 && j == 0)
           MyFlags.Flags.setSplit();
         else if (j != 0) {
-          MyFlags.Flags.setOrigAlign(Align::None());
+          MyFlags.Flags.setOrigAlign(Align(1));
           if (j == NumParts - 1)
             MyFlags.Flags.setSplitEnd();
         }
@@ -9753,7 +9797,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           MyFlags.Flags.setSplit();
         // if it isn't first piece, alignment must be 1
         else if (i > 0) {
-          MyFlags.Flags.setOrigAlign(Align::None());
+          MyFlags.Flags.setOrigAlign(Align(1));
           if (i == NumRegs - 1)
             MyFlags.Flags.setSplitEnd();
         }

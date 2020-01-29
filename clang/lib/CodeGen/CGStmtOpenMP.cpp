@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclOpenMP.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/Basic/PrettyStackTrace.h"
@@ -1332,6 +1333,19 @@ static void emitCommonOMPParallelDirective(
   CGF.GenerateOpenMPCapturedVars(*CS, CapturedVars);
   CGF.CGM.getOpenMPRuntime().emitParallelCall(CGF, S.getBeginLoc(), OutlinedFn,
                                               CapturedVars, IfCond);
+  // Check for outer lastprivate conditional update.
+  for (const auto *C : S.getClausesOfKind<OMPReductionClause>()) {
+    for (const Expr *Ref : C->varlists())
+      CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, Ref);
+  }
+  for (const auto *C : S.getClausesOfKind<OMPLastprivateClause>()) {
+    for (const Expr *Ref : C->varlists())
+      CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, Ref);
+  }
+  for (const auto *C : S.getClausesOfKind<OMPLinearClause>()) {
+    for (const Expr *Ref : C->varlists())
+      CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, Ref);
+  }
 }
 
 static void emitEmptyBoundParameters(CodeGenFunction &,
@@ -1890,7 +1904,6 @@ void CodeGenFunction::EmitOMPSimdFinal(
 static void emitOMPLoopBodyWithStopPoint(CodeGenFunction &CGF,
                                          const OMPLoopDirective &S,
                                          CodeGenFunction::JumpDest LoopExit) {
-  CGF.CGM.getOpenMPRuntime().initLastprivateConditionalCounter(CGF, S);
   CGF.EmitOMPLoopBody(S, LoopExit);
   CGF.EmitStopPoint(&S);
 }
@@ -2011,8 +2024,6 @@ static void emitOMPSimdRegion(CodeGenFunction &CGF, const OMPLoopDirective &S,
           CGF.EmitOMPInnerLoop(
               S, LoopScope.requiresCleanups(), S.getCond(), S.getInc(),
               [&S](CodeGenFunction &CGF) {
-                CGF.CGM.getOpenMPRuntime().initLastprivateConditionalCounter(
-                    CGF, S);
                 CGF.EmitOMPLoopBody(S, CodeGenFunction::JumpDest());
                 CGF.EmitStopPoint(&S);
               },
@@ -2667,8 +2678,6 @@ bool CodeGenFunction::EmitOMPWorksharingLoop(
                                    : S.getCond(),
                   StaticChunkedOne ? S.getDistInc() : S.getInc(),
                   [&S, LoopExit](CodeGenFunction &CGF) {
-                    CGF.CGM.getOpenMPRuntime()
-                        .initLastprivateConditionalCounter(CGF, S);
                     CGF.EmitOMPLoopBody(S, LoopExit);
                     CGF.EmitStopPoint(&S);
                   },
@@ -2851,7 +2860,6 @@ void CodeGenFunction::EmitSections(const OMPExecutableDirective &S) {
       //     break;
       // }
       // .omp.sections.exit:
-      CGF.CGM.getOpenMPRuntime().initLastprivateConditionalCounter(CGF, S);
       llvm::BasicBlock *ExitBB = CGF.createBasicBlock(".omp.sections.exit");
       llvm::SwitchInst *SwitchStmt =
           CGF.Builder.CreateSwitch(CGF.EmitLoadOfScalar(IV, S.getBeginLoc()),
@@ -3976,6 +3984,7 @@ static void emitOMPAtomicReadExpr(CodeGenFunction &CGF, bool IsSeqCst,
   if (IsSeqCst)
     CGF.CGM.getOpenMPRuntime().emitFlush(CGF, llvm::None, Loc);
   CGF.emitOMPSimpleStore(VLValue, Res, X->getType().getNonReferenceType(), Loc);
+  CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, V);
 }
 
 static void emitOMPAtomicWriteExpr(CodeGenFunction &CGF, bool IsSeqCst,
@@ -3984,6 +3993,7 @@ static void emitOMPAtomicWriteExpr(CodeGenFunction &CGF, bool IsSeqCst,
   // x = expr;
   assert(X->isLValue() && "X of 'omp atomic write' is not lvalue");
   emitSimpleAtomicStore(CGF, IsSeqCst, CGF.EmitLValue(X), CGF.EmitAnyExpr(E));
+  CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, X);
   // OpenMP, 2.12.6, atomic Construct
   // Any atomic construct with a seq_cst clause forces the atomically
   // performed operation to include an implicit flush operation without a
@@ -4140,6 +4150,7 @@ static void emitOMPAtomicUpdateExpr(CodeGenFunction &CGF, bool IsSeqCst,
   };
   (void)CGF.EmitOMPAtomicSimpleUpdateExpr(
       XLValue, ExprRValue, BOUE->getOpcode(), IsXLHSInRHSPart, AO, Loc, Gen);
+  CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, X);
   // OpenMP, 2.12.6, atomic Construct
   // Any atomic construct with a seq_cst clause forces the atomically
   // performed operation to include an implicit flush operation without a
@@ -4206,6 +4217,7 @@ static void emitOMPAtomicCaptureExpr(CodeGenFunction &CGF, bool IsSeqCst,
     };
     auto Res = CGF.EmitOMPAtomicSimpleUpdateExpr(
         XLValue, ExprRValue, BOUE->getOpcode(), IsXLHSInRHSPart, AO, Loc, Gen);
+    CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, X);
     if (Res.first) {
       // 'atomicrmw' instruction was generated.
       if (IsPostfixUpdate) {
@@ -4232,6 +4244,7 @@ static void emitOMPAtomicCaptureExpr(CodeGenFunction &CGF, bool IsSeqCst,
     auto Res = CGF.EmitOMPAtomicSimpleUpdateExpr(
         XLValue, ExprRValue, /*BO=*/BO_Assign, /*IsXLHSInRHSPart=*/false, AO,
         Loc, Gen);
+    CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, X);
     if (Res.first) {
       // 'atomicrmw' instruction was generated.
       NewVVal = IsPostfixUpdate ? Res.second : ExprRValue;
@@ -4239,6 +4252,7 @@ static void emitOMPAtomicCaptureExpr(CodeGenFunction &CGF, bool IsSeqCst,
   }
   // Emit post-update store to 'v' of old/new 'x' value.
   CGF.emitOMPSimpleStore(VLValue, NewVVal, NewVValType, Loc);
+  CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF, V);
   // OpenMP, 2.12.6, atomic Construct
   // Any atomic construct with a seq_cst clause forces the atomically
   // performed operation to include an implicit flush operation without a

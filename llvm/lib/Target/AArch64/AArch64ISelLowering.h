@@ -215,6 +215,11 @@ enum NodeType : unsigned {
   PTEST,
   PTRUE,
 
+  LDNF1,
+  LDNF1S,
+  LDFF1,
+  LDFF1S,
+
   // Unsigned gather loads.
   GLD1,
   GLD1_SCALED,
@@ -272,7 +277,8 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
-  STP
+  STP,
+  STNP
 };
 
 } // end namespace AArch64ISD
@@ -747,6 +753,7 @@ private:
   SDValue LowerVectorOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVSCALE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_SUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_AND(SDValue Op, SelectionDAG &DAG) const;

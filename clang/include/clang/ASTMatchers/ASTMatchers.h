@@ -52,6 +52,7 @@
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
@@ -1822,6 +1823,22 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNewExpr> cxxNewExpr;
 ///   matches 'delete X'.
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeleteExpr>
     cxxDeleteExpr;
+
+/// Matches noexcept expressions.
+///
+/// Given
+/// \code
+///   bool a() noexcept;
+///   bool b() noexcept(true);
+///   bool c() noexcept(false);
+///   bool d() noexcept(noexcept(a()));
+///   bool e = noexcept(b()) || noexcept(c());
+/// \endcode
+/// cxxNoexceptExpr()
+///   matches `noexcept(a())`, `noexcept(b())` and `noexcept(c())`.
+///   doesn't match the noexcept specifier in the declarations a, b, c or d.
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNoexceptExpr>
+    cxxNoexceptExpr;
 
 /// Matches array subscript expressions.
 ///

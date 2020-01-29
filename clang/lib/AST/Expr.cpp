@@ -765,10 +765,10 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
           MC->mangleName(ND, Out);
 
         if (!Buffer.empty() && Buffer.front() == '\01')
-          return Buffer.substr(1);
-        return Buffer.str();
+          return std::string(Buffer.substr(1));
+        return std::string(Buffer.str());
       } else
-        return ND->getIdentifier()->getName();
+        return std::string(ND->getIdentifier()->getName());
     }
     return "";
   }
@@ -787,7 +787,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
       Out << ComputeName(IK, DCBlock);
     else if (auto *DCDecl = dyn_cast<Decl>(DC))
       Out << ComputeName(IK, DCDecl) << "_block_invoke";
-    return Out.str();
+    return std::string(Out.str());
   }
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(CurrentDecl)) {
     if (IK != PrettyFunction && IK != PrettyFunctionNoVirtual &&
@@ -1038,7 +1038,7 @@ std::string FixedPointLiteral::getValueAsString(unsigned Radix) const {
   SmallString<64> S;
   FixedPointValueToString(
       S, llvm::APSInt::getUnsigned(getValue().getZExtValue()), Scale);
-  return S.str();
+  return std::string(S.str());
 }
 
 FloatingLiteral::FloatingLiteral(const ASTContext &C, const llvm::APFloat &V,
@@ -2976,6 +2976,12 @@ static Expr *IgnoreImplicitAsWrittenSingleStep(Expr *E) {
   return IgnoreImplicitSingleStep(E);
 }
 
+static Expr *IgnoreParensOnlySingleStep(Expr *E) {
+  if (auto *PE = dyn_cast<ParenExpr>(E))
+    return PE->getSubExpr();
+  return E;
+}
+
 static Expr *IgnoreParensSingleStep(Expr *E) {
   if (auto *PE = dyn_cast<ParenExpr>(E))
     return PE->getSubExpr();
@@ -3102,7 +3108,8 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
   Expr *LastE = nullptr;
   while (E != LastE) {
     LastE = E;
-    E = E->IgnoreParenImpCasts();
+    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep, IgnoreImpCastsSingleStep,
+                        IgnoreParensOnlySingleStep);
 
     auto SR = E->getSourceRange();
 
@@ -3533,6 +3540,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case OpaqueValueExprClass:
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
+  case RequiresExprClass:
     // These never have a side-effect.
     return false;
 

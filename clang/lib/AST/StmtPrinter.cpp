@@ -75,14 +75,11 @@ namespace {
   public:
     StmtPrinter(raw_ostream &os, PrinterHelper *helper,
                 const PrintingPolicy &Policy, unsigned Indentation = 0,
-                StringRef NL = "\n",
-                const ASTContext *Context = nullptr)
+                StringRef NL = "\n", const ASTContext *Context = nullptr)
         : OS(os), IndentLevel(Indentation), Helper(helper), Policy(Policy),
           NL(NL), Context(Context) {}
 
-    void PrintStmt(Stmt *S) {
-      PrintStmt(S, Policy.Indentation);
-    }
+    void PrintStmt(Stmt *S) { PrintStmt(S, Policy.Indentation); }
 
     void PrintStmt(Stmt *S, int SubIndent) {
       IndentLevel += SubIndent;
@@ -2267,6 +2264,60 @@ void StmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
   OS << E->getFoundDecl()->getName();
   printTemplateArgumentList(OS, E->getTemplateArgsAsWritten()->arguments(),
                             Policy);
+}
+
+void StmtPrinter::VisitRequiresExpr(RequiresExpr *E) {
+  OS << "requires ";
+  auto LocalParameters = E->getLocalParameters();
+  if (!LocalParameters.empty()) {
+    OS << "(";
+    for (ParmVarDecl *LocalParam : LocalParameters) {
+      PrintRawDecl(LocalParam);
+      if (LocalParam != LocalParameters.back())
+        OS << ", ";
+    }
+
+    OS << ") ";
+  }
+  OS << "{ ";
+  auto Requirements = E->getRequirements();
+  for (concepts::Requirement *Req : Requirements) {
+    if (auto *TypeReq = dyn_cast<concepts::TypeRequirement>(Req)) {
+      if (TypeReq->isSubstitutionFailure())
+        OS << "<<error-type>>";
+      else
+        TypeReq->getType()->getType().print(OS, Policy);
+    } else if (auto *ExprReq = dyn_cast<concepts::ExprRequirement>(Req)) {
+      if (ExprReq->isCompound())
+        OS << "{ ";
+      if (ExprReq->isExprSubstitutionFailure())
+        OS << "<<error-expression>>";
+      else
+        PrintExpr(ExprReq->getExpr());
+      if (ExprReq->isCompound()) {
+        OS << " }";
+        if (ExprReq->getNoexceptLoc().isValid())
+          OS << " noexcept";
+        const auto &RetReq = ExprReq->getReturnTypeRequirement();
+        if (!RetReq.isEmpty()) {
+          OS << " -> ";
+          if (RetReq.isSubstitutionFailure())
+            OS << "<<error-type>>";
+          else if (RetReq.isTypeConstraint())
+            RetReq.getTypeConstraint()->print(OS, Policy);
+        }
+      }
+    } else {
+      auto *NestedReq = cast<concepts::NestedRequirement>(Req);
+      OS << "requires ";
+      if (NestedReq->isSubstitutionFailure())
+        OS << "<<error-expression>>";
+      else
+        PrintExpr(NestedReq->getConstraintExpr());
+    }
+    OS << "; ";
+  }
+  OS << "}";
 }
 
 // C++ Coroutines TS

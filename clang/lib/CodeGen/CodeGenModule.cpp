@@ -551,9 +551,24 @@ void CodeGenModule::Release() {
     getModule().addModuleFlag(llvm::Module::Error, "min_enum_size", EnumWidth);
   }
 
+  if (Arch == llvm::Triple::riscv32 || Arch == llvm::Triple::riscv64) {
+    StringRef ABIStr = Target.getABI();
+    llvm::LLVMContext &Ctx = TheModule.getContext();
+    getModule().addModuleFlag(llvm::Module::Error, "target-abi",
+                              llvm::MDString::get(Ctx, ABIStr));
+  }
+
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     // Indicate that we want cross-DSO control flow integrity checks.
     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
+  }
+
+  if (CodeGenOpts.WholeProgramVTables) {
+    // Indicate whether VFE was enabled for this module, so that the
+    // vcall_visibility metadata added under whole program vtables is handled
+    // appropriately in the optimizer.
+    getModule().addModuleFlag(llvm::Module::Error, "Virtual Function Elim",
+                              CodeGenOpts.VirtualFunctionElimination);
   }
 
   if (LangOpts.Sanitize.has(SanitizerKind::CFIICall)) {
@@ -1070,7 +1085,7 @@ static std::string getMangledNameImpl(const CodeGenModule &CGM, GlobalDecl GD,
       }
     }
 
-  return Out.str();
+  return std::string(Out.str());
 }
 
 void CodeGenModule::UpdateMultiVersionNames(GlobalDecl GD,

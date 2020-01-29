@@ -328,6 +328,8 @@ DIE *DwarfCompileUnit::getOrCreateCommonBlock(
 }
 
 void DwarfCompileUnit::addRange(RangeSpan Range) {
+  DD->insertSectionLabel(Range.Begin);
+
   bool SameAsPrevCU = this == DD->getPrevCU();
   DD->setPrevCU(this);
   // If we have no current ranges just add the range and return, otherwise,
@@ -400,15 +402,33 @@ DIE &DwarfCompileUnit::updateSubprogramScopeDIE(const DISubprogram *SP) {
 
   // Only include DW_AT_frame_base in full debug info
   if (!includeMinimalInlineScopes()) {
-    if (Asm->MF->getTarget().getTargetTriple().isNVPTX()) {
+    const TargetFrameLowering *TFI = Asm->MF->getSubtarget().getFrameLowering();
+    TargetFrameLowering::DwarfFrameBase FrameBase =
+        TFI->getDwarfFrameBase(*Asm->MF);
+    switch (FrameBase.Kind) {
+    case TargetFrameLowering::DwarfFrameBase::Register: {
+      if (Register::isPhysicalRegister(FrameBase.Location.Reg)) {
+        MachineLocation Location(FrameBase.Location.Reg);
+        addAddress(*SPDie, dwarf::DW_AT_frame_base, Location);
+      }
+      break;
+    }
+    case TargetFrameLowering::DwarfFrameBase::CFA: {
       DIELoc *Loc = new (DIEValueAllocator) DIELoc;
       addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_call_frame_cfa);
       addBlock(*SPDie, dwarf::DW_AT_frame_base, Loc);
-    } else {
-      const TargetRegisterInfo *RI = Asm->MF->getSubtarget().getRegisterInfo();
-      MachineLocation Location(RI->getFrameRegister(*Asm->MF));
-      if (Register::isPhysicalRegister(Location.getReg()))
-        addAddress(*SPDie, dwarf::DW_AT_frame_base, Location);
+      break;
+    }
+    case TargetFrameLowering::DwarfFrameBase::WasmFrameBase: {
+      DIELoc *Loc = new (DIEValueAllocator) DIELoc;
+      DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
+      DIExpressionCursor Cursor({});
+      DwarfExpr.addWasmLocation(FrameBase.Location.WasmLoc.Kind,
+                                FrameBase.Location.WasmLoc.Index);
+      DwarfExpr.addExpression(std::move(Cursor));
+      addBlock(*SPDie, dwarf::DW_AT_frame_base, DwarfExpr.finalize());
+      break;
+    }
     }
   }
 
@@ -933,7 +953,6 @@ DwarfCompileUnit::getDwarf5OrGNUAttr(dwarf::Attribute Attr) const {
     return dwarf::DW_AT_GNU_call_site_target;
   case dwarf::DW_AT_call_origin:
     return dwarf::DW_AT_abstract_origin;
-  case dwarf::DW_AT_call_pc:
   case dwarf::DW_AT_call_return_pc:
     return dwarf::DW_AT_low_pc;
   case dwarf::DW_AT_call_value:
@@ -958,7 +977,7 @@ DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
 }
 
 DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
-                                                 const DISubprogram *CalleeSP,
+                                                 DIE *CalleeDIE,
                                                  bool IsTail,
                                                  const MCSymbol *PCAddr,
                                                  unsigned CallReg) {
@@ -971,8 +990,7 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
     addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
                MachineLocation(CallReg));
   } else {
-    DIE *CalleeDIE = getDIE(CalleeSP);
-    assert(CalleeDIE && "Could not find DIE for call site entry origin");
+    assert(CalleeDIE && "No DIE for call site entry origin");
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
                 *CalleeDIE);
   }

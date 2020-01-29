@@ -951,7 +951,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
   for (unsigned i = 0, e = NoAliasArgs.size(); i != e; ++i) {
     const Argument *A = NoAliasArgs[i];
 
-    std::string Name = CalledFunc->getName();
+    std::string Name = std::string(CalledFunc->getName());
     if (A->hasName()) {
       Name += ": %";
       Name += A->getName();
@@ -1254,8 +1254,8 @@ static void HandleByValArgumentInit(Value *Dst, Value *Src, Module *M,
   // Always generate a memcpy of alignment 1 here because we don't know
   // the alignment of the src pointer.  Other optimizations can infer
   // better alignment.
-  Builder.CreateMemCpy(Dst, /*DstAlign*/ Align::None(), Src,
-                       /*SrcAlign*/ Align::None(), Size);
+  Builder.CreateMemCpy(Dst, /*DstAlign*/ Align(1), Src,
+                       /*SrcAlign*/ Align(1), Size);
 }
 
 /// When inlining a call site that has a byval argument,

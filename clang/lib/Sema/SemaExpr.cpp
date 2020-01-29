@@ -338,7 +338,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     if (Expr *RC = FD->getTrailingRequiresClause()) {
       ConstraintSatisfaction Satisfaction;
-      bool Failed = CheckConstraintSatisfaction(RC, Satisfaction);
+      bool Failed = CheckConstraintSatisfaction(FD, {RC}, /*TemplateArgs=*/{},
+                                                SourceRange(Loc), Satisfaction);
       if (Failed)
         // A diagnostic will have already been generated (non-constant
         // constraint expression, for example)
@@ -351,6 +352,17 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
         return true;
       }
     }
+  }
+
+  if (isa<ParmVarDecl>(D) && isa<RequiresExprBodyDecl>(D->getDeclContext()) &&
+      !isUnevaluatedContext()) {
+    // C++ [expr.prim.req.nested] p3
+    //   A local parameter shall only appear as an unevaluated operand
+    //   (Clause 8) within the constraint-expression.
+    Diag(Loc, diag::err_requires_expr_parameter_referenced_in_evaluated_context)
+        << D;
+    Diag(D->getLocation(), diag::note_entity_declared_at) << D;
+    return true;
   }
 
   return false;
@@ -1907,7 +1919,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   bool RefersToCapturedVariable =
       isa<VarDecl>(D) &&
       NeedToCaptureVariable(cast<VarDecl>(D), NameInfo.getLoc());
-
+  
   DeclRefExpr *E = DeclRefExpr::Create(
       Context, NNS, TemplateKWLoc, D, RefersToCapturedVariable, NameInfo, Ty,
       VK, FoundD, TemplateArgs, getNonOdrUseReasonInCurrentContext(D));
@@ -11382,12 +11394,12 @@ static void diagnoseXorMisusedAsPow(Sema &S, const ExprResult &XorLHS,
   if (XorStr == "xor")
     return;
 
-  std::string LHSStr = Lexer::getSourceText(
+  std::string LHSStr = std::string(Lexer::getSourceText(
       CharSourceRange::getTokenRange(LHSInt->getSourceRange()),
-      S.getSourceManager(), S.getLangOpts());
-  std::string RHSStr = Lexer::getSourceText(
+      S.getSourceManager(), S.getLangOpts()));
+  std::string RHSStr = std::string(Lexer::getSourceText(
       CharSourceRange::getTokenRange(RHSInt->getSourceRange()),
-      S.getSourceManager(), S.getLangOpts());
+      S.getSourceManager(), S.getLangOpts()));
 
   if (Negative) {
     RightSideValue = -RightSideValue;
@@ -16337,8 +16349,10 @@ bool Sema::tryCaptureVariable(
               captureVariablyModifiedType(Context, QTy, OuterRSI);
             }
           }
-          bool IsTargetCap = !IsOpenMPPrivateDecl &&
-                             isOpenMPTargetCapturedDecl(Var, RSI->OpenMPLevel);
+          bool IsTargetCap =
+              !IsOpenMPPrivateDecl &&
+              isOpenMPTargetCapturedDecl(Var, RSI->OpenMPLevel,
+                                         RSI->OpenMPCaptureLevel);
           // When we detect target captures we are looking from inside the
           // target region, therefore we need to propagate the capture from the
           // enclosing region. Therefore, the capture is not initially nested.

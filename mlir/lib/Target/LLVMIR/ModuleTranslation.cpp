@@ -1,6 +1,6 @@
 //===- ModuleTranslation.cpp - MLIR to LLVM conversion --------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -66,7 +66,7 @@ buildSequentialConstant(ArrayRef<llvm::Constant *> &constants,
       llvm::ArrayType::get(elementType, shape.front()), nested);
 }
 
-/// Returns the first non-sequential type netsed in sequential types.
+/// Returns the first non-sequential type nested in sequential types.
 static llvm::Type *getInnermostElementType(llvm::Type *type) {
   while (isa<llvm::SequentialType>(type))
     type = type->getSequentialElementType();

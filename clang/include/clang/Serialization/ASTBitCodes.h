@@ -41,7 +41,7 @@ namespace serialization {
     /// Version 4 of AST files also requires that the version control branch and
     /// revision match exactly, since there is no backward compatibility of
     /// AST files at this time.
-    const unsigned VERSION_MAJOR = 8;
+    const unsigned VERSION_MAJOR = 9;
 
     /// AST file minor version number supported by this version of
     /// Clang.
@@ -1403,6 +1403,9 @@ namespace serialization {
       /// An LifetimeExtendedTemporaryDecl record.
       DECL_LIFETIME_EXTENDED_TEMPORARY,
 
+      /// A RequiresExprBodyDecl record.
+      DECL_REQUIRES_EXPR_BODY,
+
       /// An ObjCTypeParamDecl record.
       DECL_OBJC_TYPE_PARAM,
 
@@ -1785,6 +1788,7 @@ namespace serialization {
       EXPR_MATERIALIZE_TEMPORARY, // MaterializeTemporaryExpr
       EXPR_CXX_FOLD,              // CXXFoldExpr
       EXPR_CONCEPT_SPECIALIZATION,// ConceptSpecializationExpr
+      EXPR_REQUIRES,              // RequiresExpr
 
       // CUDA
       EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr

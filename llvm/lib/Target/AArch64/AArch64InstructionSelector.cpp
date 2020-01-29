@@ -63,6 +63,7 @@ public:
     // cache it here for each run of the selector.
     ProduceNonFlagSettingCondBr =
         !MF.getFunction().hasFnAttribute(Attribute::SpeculativeLoadHardening);
+    MFReturnAddr = Register();
   }
 
 private:
@@ -88,6 +89,11 @@ private:
   bool selectVaStartDarwin(MachineInstr &I, MachineFunction &MF,
                            MachineRegisterInfo &MRI) const;
 
+  bool tryOptAndIntoCompareBranch(MachineInstr *LHS,
+                                  int64_t CmpConstant,
+                                  const CmpInst::Predicate &Pred,
+                                  MachineBasicBlock *DstMBB,
+                                  MachineIRBuilder &MIB) const;
   bool selectCompareBranch(MachineInstr &I, MachineFunction &MF,
                            MachineRegisterInfo &MRI) const;
 
@@ -123,7 +129,7 @@ private:
                                 MachineRegisterInfo &MRI) const;
   bool selectIntrinsicWithSideEffects(MachineInstr &I,
                                       MachineRegisterInfo &MRI) const;
-  bool selectIntrinsic(MachineInstr &I, MachineRegisterInfo &MRI) const;
+  bool selectIntrinsic(MachineInstr &I, MachineRegisterInfo &MRI);
   bool selectVectorICmp(MachineInstr &I, MachineRegisterInfo &MRI) const;
   bool selectIntrinsicTrunc(MachineInstr &I, MachineRegisterInfo &MRI) const;
   bool selectIntrinsicRound(MachineInstr &I, MachineRegisterInfo &MRI) const;
@@ -294,6 +300,11 @@ private:
   const AArch64RegisterBankInfo &RBI;
 
   bool ProduceNonFlagSettingCondBr = false;
+
+  // Some cached values used during selection.
+  // We use LR as a live-in register, and we keep track of it here as it can be
+  // clobbered by calls.
+  Register MFReturnAddr;
 
 #define GET_GLOBALISEL_PREDICATES_DECL
 #include "AArch64GenGlobalISel.inc"
@@ -977,6 +988,64 @@ static void changeFCMPPredToAArch64CC(CmpInst::Predicate P,
   }
 }
 
+bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
+    MachineInstr *AndInst, int64_t CmpConstant, const CmpInst::Predicate &Pred,
+    MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const {
+  // Given something like this:
+  //
+  //  %x = ...Something...
+  //  %one = G_CONSTANT i64 1
+  //  %zero = G_CONSTANT i64 0
+  //  %and = G_AND %x, %one
+  //  %cmp = G_ICMP intpred(ne), %and, %zero
+  //  %cmp_trunc = G_TRUNC %cmp
+  //  G_BRCOND %cmp_trunc, %bb.3
+  //
+  // We want to try and fold the AND into the G_BRCOND and produce either a
+  // TBNZ (when we have intpred(ne)) or a TBZ (when we have intpred(eq)).
+  //
+  // In this case, we'd get
+  //
+  // TBNZ %x %bb.3
+  //
+  if (!AndInst || AndInst->getOpcode() != TargetOpcode::G_AND)
+    return false;
+
+  // Need to be comparing against 0 to fold.
+  if (CmpConstant != 0)
+    return false;
+
+  MachineRegisterInfo &MRI = *MIB.getMRI();
+  unsigned Opc = 0;
+  Register TestReg = AndInst->getOperand(1).getReg();
+  unsigned TestSize = MRI.getType(TestReg).getSizeInBits();
+
+  // Only support EQ and NE. If we have LT, then it *is* possible to fold, but
+  // we don't want to do this. When we have an AND and LT, we need a TST/ANDS,
+  // so folding would be redundant.
+  if (Pred == CmpInst::Predicate::ICMP_EQ)
+    Opc = TestSize == 32 ? AArch64::TBZW : AArch64::TBZX;
+  else if (Pred == CmpInst::Predicate::ICMP_NE)
+    Opc = TestSize == 32 ? AArch64::TBNZW : AArch64::TBNZX;
+  else
+    return false;
+
+  // Check if the AND has a constant on its RHS which we can use as a mask.
+  // If it's a power of 2, then it's the same as checking a specific bit.
+  // (e.g, ANDing with 8 == ANDing with 000...100 == testing if bit 3 is set)
+  auto MaybeBit =
+      getConstantVRegValWithLookThrough(AndInst->getOperand(2).getReg(), MRI);
+  if (!MaybeBit || !isPowerOf2_64(MaybeBit->Value))
+    return false;
+  uint64_t Bit = Log2_64(static_cast<uint64_t>(MaybeBit->Value));
+
+  // Construct the branch.
+  auto BranchMI =
+      MIB.buildInstr(Opc).addReg(TestReg).addImm(Bit).addMBB(DstMBB);
+  constrainSelectedInstRegOperands(*BranchMI, TII, TRI, RBI);
+  return true;
+}
+
 bool AArch64InstructionSelector::selectCompareBranch(
     MachineInstr &I, MachineFunction &MF, MachineRegisterInfo &MRI) const {
 
@@ -994,9 +1063,9 @@ bool AArch64InstructionSelector::selectCompareBranch(
   if (!VRegAndVal)
     std::swap(RHS, LHS);
 
+  MachineIRBuilder MIB(I);
   VRegAndVal = getConstantVRegValWithLookThrough(RHS, MRI);
   if (!VRegAndVal || VRegAndVal->Value != 0) {
-    MachineIRBuilder MIB(I);
     // If we can't select a CBZ then emit a cmp + Bcc.
     if (!emitIntegerCompare(CCMI->getOperand(2), CCMI->getOperand(3),
                             CCMI->getOperand(1), MIB))
@@ -1008,11 +1077,18 @@ bool AArch64InstructionSelector::selectCompareBranch(
     return true;
   }
 
+  // Try to fold things into the branch.
+  const auto Pred = (CmpInst::Predicate)CCMI->getOperand(1).getPredicate();
+  MachineInstr *LHSMI = getDefIgnoringCopies(LHS, MRI);
+  if (tryOptAndIntoCompareBranch(LHSMI, VRegAndVal->Value, Pred, DestMBB,
+                                 MIB)) {
+    I.eraseFromParent();
+    return true;
+  }
+
   const RegisterBank &RB = *RBI.getRegBank(LHS, MRI, TRI);
   if (RB.getID() != AArch64::GPRRegBankID)
     return false;
-
-  const auto Pred = (CmpInst::Predicate)CCMI->getOperand(1).getPredicate();
   if (Pred != CmpInst::ICMP_NE && Pred != CmpInst::ICMP_EQ)
     return false;
 
@@ -1417,6 +1493,14 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
   MachineFunction &MF = *MBB.getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
+  const AArch64Subtarget *Subtarget =
+      &static_cast<const AArch64Subtarget &>(MF.getSubtarget());
+  if (Subtarget->requiresStrictAlign()) {
+    // We don't support this feature yet.
+    LLVM_DEBUG(dbgs() << "AArch64 GISel does not support strict-align yet\n");
+    return false;
+  }
+
   unsigned Opcode = I.getOpcode();
   // G_PHI requires same handling as PHI
   if (!isPreISelGenericOpcode(Opcode) || Opcode == TargetOpcode::G_PHI) {
@@ -1503,8 +1587,6 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     // Speculation tracking/SLH assumes that optimized TB(N)Z/CB(N)Z
     // instructions will not be produced, as they are conditional branch
     // instructions that do not set flags.
-    bool ProduceNonFlagSettingCondBr =
-        !MF.getFunction().hasFnAttribute(Attribute::SpeculativeLoadHardening);
     if (ProduceNonFlagSettingCondBr && selectCompareBranch(I, MF, MRI))
       return true;
 
@@ -3496,8 +3578,17 @@ bool AArch64InstructionSelector::tryOptSelect(MachineInstr &I) const {
   MachineInstr *CondDef = MRI.getVRegDef(I.getOperand(1).getReg());
   while (CondDef) {
     // We can only fold if all of the defs have one use.
-    if (!MRI.hasOneUse(CondDef->getOperand(0).getReg()))
-      return false;
+    Register CondDefReg = CondDef->getOperand(0).getReg();
+    if (!MRI.hasOneUse(CondDefReg)) {
+      // Unless it's another select.
+      for (auto UI = MRI.use_instr_begin(CondDefReg), UE = MRI.use_instr_end();
+           UI != UE; ++UI) {
+        if (CondDef == &*UI)
+          continue;
+        if (UI->getOpcode() != TargetOpcode::G_SELECT)
+          return false;
+      }
+    }
 
     // We can skip over G_TRUNC since the condition is 1-bit.
     // Truncating/extending can have no impact on the value.
@@ -4079,8 +4170,8 @@ bool AArch64InstructionSelector::selectIntrinsicWithSideEffects(
   return true;
 }
 
-bool AArch64InstructionSelector::selectIntrinsic(
-    MachineInstr &I, MachineRegisterInfo &MRI) const {
+bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
+                                                 MachineRegisterInfo &MRI) {
   unsigned IntrinID = findIntrinsicID(I);
   if (!IntrinID)
     return false;
@@ -4138,10 +4229,20 @@ bool AArch64InstructionSelector::selectIntrinsic(
     RBI.constrainGenericRegister(DstReg, AArch64::GPR64RegClass, MRI);
 
     if (Depth == 0 && IntrinID == Intrinsic::returnaddress) {
+      if (MFReturnAddr) {
+        MIRBuilder.buildCopy({DstReg}, MFReturnAddr);
+        I.eraseFromParent();
+        return true;
+      }
       MFI.setReturnAddressIsTaken(true);
       MF.addLiveIn(AArch64::LR, &AArch64::GPR64spRegClass);
       I.getParent()->addLiveIn(AArch64::LR);
-      MIRBuilder.buildCopy({DstReg}, {Register(AArch64::LR)});
+      // Insert the copy from LR/X30 into the entry block, before it can be
+      // clobbered by anything.
+      MachineIRBuilder EntryBuilder(MF);
+      EntryBuilder.setInstr(*MF.begin()->begin());
+      EntryBuilder.buildCopy({DstReg}, {Register(AArch64::LR)});
+      MFReturnAddr = DstReg;
       I.eraseFromParent();
       return true;
     }

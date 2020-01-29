@@ -1,6 +1,6 @@
 //===- VectorOps.cpp - MLIR Super Vectorizer Operations -------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -1679,6 +1679,18 @@ static LogicalResult verify(TupleGetOp op) {
       op.getIndex() >= static_cast<int64_t>(tupleType.size()))
     return op.emitOpError("tuple get index out of range");
   return success();
+}
+
+OpFoldResult TupleGetOp::fold(ArrayRef<Attribute> operands) {
+  // Rewrite:
+  //    %t = vector.tuple .., %e_i, ..
+  //    %x = vector.tuple_get %t, i
+  // into:
+  //    %t = vector.tuple .., %e_i, ..  // one less use
+  //    %x = %e_i
+  if (auto tupleOp = dyn_cast_or_null<TupleOp>(getOperand().getDefiningOp()))
+    return tupleOp.getOperand(getIndex());
+  return {};
 }
 
 //===----------------------------------------------------------------------===//

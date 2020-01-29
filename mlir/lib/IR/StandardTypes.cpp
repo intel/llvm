@@ -1,6 +1,6 @@
 //===- StandardTypes.cpp - MLIR Standard Type Classes ---------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -702,7 +702,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
 /// Return a version of `t` with identity layout if it can be determined
 /// statically that the layout is the canonical contiguous strided layout.
 /// Otherwise pass `t`'s layout into `simplifyAffineMap` and return a copy of
-/// `t` with simplifed layout.
+/// `t` with simplified layout.
 /// If `t` has multiple layout maps or a multi-result layout, just return `t`.
 MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
   auto affineMaps = t.getAffineMaps();

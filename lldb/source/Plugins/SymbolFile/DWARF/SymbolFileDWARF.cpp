@@ -1,4 +1,4 @@
-//===-- SymbolFileDWARF.cpp ------------------------------------*- C++ -*-===//
+//===-- SymbolFileDWARF.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -35,7 +35,7 @@
 #include "lldb/Interpreter/OptionValueProperties.h"
 
 #include "lldb/Symbol/Block.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Symbol/ClangUtil.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/CompilerDecl.h"
@@ -135,14 +135,6 @@ public:
     m_collection_sp->Initialize(g_symbolfiledwarf_properties);
   }
 
-  FileSpecList GetSymLinkPaths() {
-    const OptionValueFileSpecList *option_value =
-        m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpecList(
-            nullptr, true, ePropertySymLinkPaths);
-    assert(option_value);
-    return option_value->GetCurrentValue();
-  }
-
   bool IgnoreFileIndexes() const {
     return m_collection_sp->GetPropertyAtIndexAsBoolean(
         nullptr, ePropertyIgnoreIndexes, false);
@@ -225,10 +217,6 @@ ParseSupportFilesFromPrologue(const lldb::ModuleSP &module,
   }
 
   return support_files;
-}
-
-FileSpecList SymbolFileDWARF::GetSymlinkPaths() {
-  return GetGlobalPluginProperties()->GetSymLinkPaths();
 }
 
 void SymbolFileDWARF::Initialize() {
@@ -1007,19 +995,22 @@ bool SymbolFileDWARF::ParseLineTable(CompileUnit &comp_unit) {
   // FIXME: Rather than parsing the whole line table and then copying it over
   // into LLDB, we should explore using a callback to populate the line table
   // while we parse to reduce memory usage.
-  std::unique_ptr<LineTable> line_table_up =
-      std::make_unique<LineTable>(&comp_unit);
-  LineSequence *sequence = line_table_up->CreateLineSequenceContainer();
+  std::unique_ptr<LineSequence> sequence =
+      LineTable::CreateLineSequenceContainer();
+  std::vector<std::unique_ptr<LineSequence>> sequences;
   for (auto &row : line_table->Rows) {
-    line_table_up->AppendLineEntryToSequence(
-        sequence, row.Address.Address, row.Line, row.Column, row.File,
+    LineTable::AppendLineEntryToSequence(
+        sequence.get(), row.Address.Address, row.Line, row.Column, row.File,
         row.IsStmt, row.BasicBlock, row.PrologueEnd, row.EpilogueBegin,
         row.EndSequence);
     if (row.EndSequence) {
-      line_table_up->InsertSequence(sequence);
-      sequence = line_table_up->CreateLineSequenceContainer();
+      sequences.push_back(std::move(sequence));
+      sequence = LineTable::CreateLineSequenceContainer();
     }
   }
+
+  std::unique_ptr<LineTable> line_table_up =
+      std::make_unique<LineTable>(&comp_unit, std::move(sequences));
 
   if (SymbolFileDWARFDebugMap *debug_map_symfile = GetDebugMapSymfile()) {
     // We have an object file that has a line table with addresses that are not
@@ -1401,8 +1392,8 @@ bool SymbolFileDWARF::HasForwardDeclForClangType(
   }
   TypeSystem *type_system = compiler_type.GetTypeSystem();
 
-  ClangASTContext *clang_type_system =
-      llvm::dyn_cast_or_null<ClangASTContext>(type_system);
+  TypeSystemClang *clang_type_system =
+      llvm::dyn_cast_or_null<TypeSystemClang>(type_system);
   if (!clang_type_system)
     return false;
   DWARFASTParserClang *ast_parser =
@@ -1413,8 +1404,8 @@ bool SymbolFileDWARF::HasForwardDeclForClangType(
 bool SymbolFileDWARF::CompleteType(CompilerType &compiler_type) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
 
-  ClangASTContext *clang_type_system =
-      llvm::dyn_cast_or_null<ClangASTContext>(compiler_type.GetTypeSystem());
+  TypeSystemClang *clang_type_system =
+      llvm::dyn_cast_or_null<TypeSystemClang>(compiler_type.GetTypeSystem());
   if (clang_type_system) {
     DWARFASTParserClang *ast_parser =
         static_cast<DWARFASTParserClang *>(clang_type_system->GetDWARFParser());
@@ -1780,6 +1771,32 @@ SymbolFileDWARF::GlobalVariableMap &SymbolFileDWARF::GetGlobalAranges() {
   return *m_global_aranges_up;
 }
 
+void SymbolFileDWARF::ResolveFunctionAndBlock(lldb::addr_t file_vm_addr,
+                                              bool lookup_block,
+                                              SymbolContext &sc) {
+  assert(sc.comp_unit);
+  DWARFUnit &cu = GetDWARFCompileUnit(sc.comp_unit)->GetNonSkeletonUnit();
+  DWARFDIE function_die = cu.LookupAddress(file_vm_addr);
+  DWARFDIE block_die;
+  if (function_die) {
+    sc.function = sc.comp_unit->FindFunctionByUID(function_die.GetID()).get();
+    if (sc.function == nullptr)
+      sc.function = ParseFunction(*sc.comp_unit, function_die);
+
+    if (sc.function && lookup_block)
+      block_die = function_die.LookupDeepestBlock(file_vm_addr);
+  }
+
+  if (!sc.function || ! lookup_block)
+    return;
+
+  Block &block = sc.function->GetBlock(true);
+  if (block_die)
+    sc.block = block.FindBlockByID(block_die.GetID());
+  else
+    sc.block = block.FindBlockByID(function_die.GetID());
+}
+
 uint32_t SymbolFileDWARF::ResolveSymbolContext(const Address &so_addr,
                                                SymbolContextItem resolve_scope,
                                                SymbolContext &sc) {
@@ -1843,17 +1860,11 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(const Address &so_addr,
             bool force_check_line_table = false;
             if (resolve_scope &
                 (eSymbolContextFunction | eSymbolContextBlock)) {
-              DWARFDIE function_die = dwarf_cu->LookupAddress(file_vm_addr);
-              DWARFDIE block_die;
-              if (function_die) {
-                sc.function =
-                    sc.comp_unit->FindFunctionByUID(function_die.GetID()).get();
-                if (sc.function == nullptr)
-                  sc.function = ParseFunction(*sc.comp_unit, function_die);
-
-                if (sc.function && (resolve_scope & eSymbolContextBlock))
-                  block_die = function_die.LookupDeepestBlock(file_vm_addr);
-              } else {
+              ResolveFunctionAndBlock(file_vm_addr,
+                                      resolve_scope & eSymbolContextBlock, sc);
+              if (sc.function)
+                resolved |= eSymbolContextFunction;
+              else {
                 // We might have had a compile unit that had discontiguous
                 // address ranges where the gaps are symbols that don't have
                 // any debug info. Discontiguous compile unit address ranges
@@ -1862,21 +1873,8 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(const Address &so_addr,
                 // of the aranges down.
                 force_check_line_table = true;
               }
-
-              if (sc.function != nullptr) {
-                resolved |= eSymbolContextFunction;
-
-                if (resolve_scope & eSymbolContextBlock) {
-                  Block &block = sc.function->GetBlock(true);
-
-                  if (block_die)
-                    sc.block = block.FindBlockByID(block_die.GetID());
-                  else
-                    sc.block = block.FindBlockByID(function_die.GetID());
-                  if (sc.block)
-                    resolved |= eSymbolContextBlock;
-                }
-              }
+              if (sc.block)
+                resolved |= eSymbolContextBlock;
             }
 
             if ((resolve_scope & eSymbolContextLineEntry) ||
@@ -1976,30 +1974,8 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(const FileSpec &file_spec,
                   const lldb::addr_t file_vm_addr =
                       sc.line_entry.range.GetBaseAddress().GetFileAddress();
                   if (file_vm_addr != LLDB_INVALID_ADDRESS) {
-                    DWARFDIE function_die =
-                        GetDWARFCompileUnit(dc_cu)->LookupAddress(file_vm_addr);
-                    DWARFDIE block_die;
-                    if (function_die) {
-                      sc.function =
-                          sc.comp_unit->FindFunctionByUID(function_die.GetID())
-                              .get();
-                      if (sc.function == nullptr)
-                        sc.function =
-                            ParseFunction(*sc.comp_unit, function_die);
-
-                      if (sc.function && (resolve_scope & eSymbolContextBlock))
-                        block_die =
-                            function_die.LookupDeepestBlock(file_vm_addr);
-                    }
-
-                    if (sc.function != nullptr) {
-                      Block &block = sc.function->GetBlock(true);
-
-                      if (block_die)
-                        sc.block = block.FindBlockByID(block_die.GetID());
-                      else if (function_die)
-                        sc.block = block.FindBlockByID(function_die.GetID());
-                    }
+                    ResolveFunctionAndBlock(
+                        file_vm_addr, resolve_scope & eSymbolContextBlock, sc);
                   }
                 }
 
@@ -3131,7 +3107,8 @@ size_t SymbolFileDWARF::ParseBlocksRecursive(Function &func) {
 
   size_t functions_added = 0;
   const dw_offset_t function_die_offset = func.GetID();
-  DWARFDIE function_die = dwarf_cu->GetDIE(function_die_offset);
+  DWARFDIE function_die =
+      dwarf_cu->GetNonSkeletonUnit().GetDIE(function_die_offset);
   if (function_die) {
     ParseBlocksRecursive(*comp_unit, &func.GetBlock(false), function_die,
                          LLDB_INVALID_ADDRESS, 0);
@@ -3957,8 +3934,8 @@ void SymbolFileDWARF::DumpClangAST(Stream &s) {
   auto ts_or_err = GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
   if (!ts_or_err)
     return;
-  ClangASTContext *clang =
-      llvm::dyn_cast_or_null<ClangASTContext>(&ts_or_err.get());
+  TypeSystemClang *clang =
+      llvm::dyn_cast_or_null<TypeSystemClang>(&ts_or_err.get());
   if (!clang)
     return;
   clang->Dump(s);

@@ -27,6 +27,10 @@ class TargetOptions;
 class PassRegistry;
 class Module;
 
+// GlobalISel passes
+void initializeAMDGPUPreLegalizerCombinerPass(PassRegistry &);
+FunctionPass *createAMDGPUPreLegalizeCombiner(bool IsOptNone);
+
 // R600 Passes
 FunctionPass *createR600VectorRegMerger();
 FunctionPass *createR600ExpandSpecialInstrsPass();
@@ -55,6 +59,7 @@ FunctionPass *createSIMemoryLegalizerPass();
 FunctionPass *createSIInsertWaitcntsPass();
 FunctionPass *createSIPreAllocateWWMRegsPass();
 FunctionPass *createSIFormMemoryClausesPass();
+FunctionPass *createSIPostRABundlerPass();
 FunctionPass *createAMDGPUSimplifyLibCallsPass(const TargetOptions &,
                                                const TargetMachine *);
 FunctionPass *createAMDGPUUseNativeCallsPass();
@@ -224,6 +229,9 @@ extern char &SIInsertWaitcntsID;
 
 void initializeSIFormMemoryClausesPass(PassRegistry&);
 extern char &SIFormMemoryClausesID;
+
+void initializeSIPostRABundlerPass(PassRegistry&);
+extern char &SIPostRABundlerID;
 
 void initializeAMDGPUUnifyDivergentExitNodesPass(PassRegistry&);
 extern char &AMDGPUUnifyDivergentExitNodesID;

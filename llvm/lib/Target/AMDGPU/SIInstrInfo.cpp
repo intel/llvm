@@ -258,14 +258,14 @@ static bool isStride64(unsigned Opc) {
   }
 }
 
-bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
-                                          const MachineOperand *&BaseOp,
-                                          int64_t &Offset,
-                                          const TargetRegisterInfo *TRI) const {
+bool SIInstrInfo::getMemOperandsWithOffset(
+    const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
+    int64_t &Offset, const TargetRegisterInfo *TRI) const {
   if (!LdSt.mayLoadOrStore())
     return false;
 
   unsigned Opc = LdSt.getOpcode();
+  const MachineOperand *BaseOp;
 
   if (isDS(LdSt)) {
     const MachineOperand *OffsetImm =
@@ -278,6 +278,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
       if (!BaseOp || !BaseOp->isReg())
         return false;
 
+      BaseOps.push_back(BaseOp);
       Offset = OffsetImm->getImm();
 
       return true;
@@ -314,6 +315,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
       if (!BaseOp->isReg())
         return false;
 
+      BaseOps.push_back(BaseOp);
       Offset = EltSize * Offset0;
 
       return true;
@@ -339,7 +341,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
 
       const MachineOperand *OffsetImm =
         getNamedOperand(LdSt, AMDGPU::OpName::offset);
-      BaseOp = SOffset;
+      BaseOps.push_back(SOffset);
       Offset = OffsetImm->getImm();
       return true;
     }
@@ -358,6 +360,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
     if (!BaseOp->isReg())
       return false;
 
+    BaseOps.push_back(BaseOp);
     return true;
   }
 
@@ -373,6 +376,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
     if (!BaseOp->isReg())
       return false;
 
+    BaseOps.push_back(BaseOp);
     return true;
   }
 
@@ -380,6 +384,7 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
     const MachineOperand *VAddr = getNamedOperand(LdSt, AMDGPU::OpName::vaddr);
     if (VAddr) {
       // Can't analyze 2 offsets.
+      // FIXME remove this restriction!
       if (getNamedOperand(LdSt, AMDGPU::OpName::saddr))
         return false;
 
@@ -392,22 +397,29 @@ bool SIInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
     Offset = getNamedOperand(LdSt, AMDGPU::OpName::offset)->getImm();
     if (!BaseOp->isReg())
       return false;
+    BaseOps.push_back(BaseOp);
     return true;
   }
 
   return false;
 }
 
-static bool memOpsHaveSameBasePtr(const MachineInstr &MI1,
-                                  const MachineOperand &BaseOp1,
-                                  const MachineInstr &MI2,
-                                  const MachineOperand &BaseOp2) {
-  // Support only base operands with base registers.
-  // Note: this could be extended to support FI operands.
-  if (!BaseOp1.isReg() || !BaseOp2.isReg())
+static bool
+memOpsHaveSameBaseOperands(ArrayRef<const MachineOperand *> BaseOps1,
+                           ArrayRef<const MachineOperand *> BaseOps2) {
+  if (BaseOps1.size() != BaseOps2.size())
     return false;
+  for (size_t I = 0, E = BaseOps1.size(); I < E; ++I)
+    if (!BaseOps1[I]->isIdenticalTo(*BaseOps2[I]))
+      return false;
+  return true;
+}
 
-  if (BaseOp1.isIdenticalTo(BaseOp2))
+static bool memOpsHaveSameBasePtr(const MachineInstr &MI1,
+                                  ArrayRef<const MachineOperand *> BaseOps1,
+                                  const MachineInstr &MI2,
+                                  ArrayRef<const MachineOperand *> BaseOps2) {
+  if (memOpsHaveSameBaseOperands(BaseOps1, BaseOps2))
     return true;
 
   if (!MI1.hasOneMemOperand() || !MI2.hasOneMemOperand())
@@ -433,13 +445,14 @@ static bool memOpsHaveSameBasePtr(const MachineInstr &MI1,
   return Base1 == Base2;
 }
 
-bool SIInstrInfo::shouldClusterMemOps(const MachineOperand &BaseOp1,
-                                      const MachineOperand &BaseOp2,
+bool SIInstrInfo::shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                                      ArrayRef<const MachineOperand *> BaseOps2,
                                       unsigned NumLoads) const {
-  const MachineInstr &FirstLdSt = *BaseOp1.getParent();
-  const MachineInstr &SecondLdSt = *BaseOp2.getParent();
+  assert(!BaseOps1.empty() && !BaseOps2.empty());
+  const MachineInstr &FirstLdSt = *BaseOps1.front()->getParent();
+  const MachineInstr &SecondLdSt = *BaseOps2.front()->getParent();
 
-  if (!memOpsHaveSameBasePtr(FirstLdSt, BaseOp1, SecondLdSt, BaseOp2))
+  if (!memOpsHaveSameBasePtr(FirstLdSt, BaseOps1, SecondLdSt, BaseOps2))
     return false;
 
   const MachineOperand *FirstDst = nullptr;
@@ -448,7 +461,7 @@ bool SIInstrInfo::shouldClusterMemOps(const MachineOperand &BaseOp1,
   if ((isMUBUF(FirstLdSt) && isMUBUF(SecondLdSt)) ||
       (isMTBUF(FirstLdSt) && isMTBUF(SecondLdSt)) ||
       (isFLAT(FirstLdSt) && isFLAT(SecondLdSt))) {
-    const unsigned MaxGlobalLoadCluster = 6;
+    const unsigned MaxGlobalLoadCluster = 7;
     if (NumLoads > MaxGlobalLoadCluster)
       return false;
 
@@ -488,7 +501,11 @@ bool SIInstrInfo::shouldClusterMemOps(const MachineOperand &BaseOp1,
                                          ? MRI.getRegClass(Reg)
                                          : RI.getPhysRegClass(Reg);
 
-  return (NumLoads * (RI.getRegSizeInBits(*DstRC) / 8)) <= LoadClusterThreshold;
+  // FIXME: NumLoads should not be subtracted 1. This is to match behavior
+  // of clusterNeighboringMemOps which was previosly passing cluster length
+  // less 1. LoadClusterThreshold should be tuned instead.
+  return ((NumLoads - 1) * (RI.getRegSizeInBits(*DstRC) / 8)) <=
+         LoadClusterThreshold;
 }
 
 // FIXME: This behaves strangely. If, for example, you have 32 load + stores,
@@ -982,6 +999,86 @@ unsigned SIInstrInfo::getMovOpcode(const TargetRegisterClass *DstRC) const {
     return  AMDGPU::V_MOV_B64_PSEUDO;
   }
   return AMDGPU::COPY;
+}
+
+static unsigned getIndirectVGPRWritePseudoOpc(unsigned VecSize) {
+  switch (VecSize) {
+  case 32: // 4 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V1;
+  case 64: // 8 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V2;
+  case 96: // 12 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V3;
+  case 128: // 16 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V4;
+  case 160: // 20 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V5;
+  case 256: // 32 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V8;
+  case 512: // 64 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V16;
+  case 1024: // 128 bytes
+    return AMDGPU::V_INDIRECT_REG_WRITE_B32_V32;
+  default:
+    llvm_unreachable("unsupported size for IndirectRegWrite pseudos");
+  }
+}
+
+static unsigned getIndirectSGPRWritePseudo32(unsigned VecSize) {
+  switch (VecSize) {
+  case 32: // 4 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V1;
+  case 64: // 8 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V2;
+  case 96: // 12 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V3;
+  case 128: // 16 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V4;
+  case 160: // 20 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V5;
+  case 256: // 32 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V8;
+  case 512: // 64 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V16;
+  case 1024: // 128 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B32_V32;
+  default:
+    llvm_unreachable("unsupported size for IndirectRegWrite pseudos");
+  }
+}
+
+static unsigned getIndirectSGPRWritePseudo64(unsigned VecSize) {
+  switch (VecSize) {
+  case 64: // 8 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B64_V1;
+  case 128: // 16 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B64_V2;
+  case 256: // 32 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B64_V4;
+  case 512: // 64 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B64_V8;
+  case 1024: // 128 bytes
+    return AMDGPU::S_INDIRECT_REG_WRITE_B64_V16;
+  default:
+    llvm_unreachable("unsupported size for IndirectRegWrite pseudos");
+  }
+}
+
+const MCInstrDesc &SIInstrInfo::getIndirectRegWritePseudo(
+  unsigned VecSize, unsigned EltSize, bool IsSGPR) const {
+  if (IsSGPR) {
+    switch (EltSize) {
+    case 32:
+      return get(getIndirectSGPRWritePseudo32(VecSize));
+    case 64:
+      return get(getIndirectSGPRWritePseudo64(VecSize));
+    default:
+      llvm_unreachable("invalid reg indexing elt size");
+    }
+  }
+
+  assert(EltSize == 32 && "invalid reg indexing elt size");
+  return get(getIndirectVGPRWritePseudoOpc(VecSize));
 }
 
 static unsigned getSGPRSpillSaveOpcode(unsigned Size) {
@@ -1482,30 +1579,55 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     break;
   }
-  case AMDGPU::V_MOVRELD_B32_V1:
-  case AMDGPU::V_MOVRELD_B32_V2:
-  case AMDGPU::V_MOVRELD_B32_V4:
-  case AMDGPU::V_MOVRELD_B32_V8:
-  case AMDGPU::V_MOVRELD_B32_V16: {
-    const MCInstrDesc &MovRelDesc = get(AMDGPU::V_MOVRELD_B32_e32);
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V1:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V2:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V3:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V4:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V5:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V8:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V16:
+  case AMDGPU::V_INDIRECT_REG_WRITE_B32_V32:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V1:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V2:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V3:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V4:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V5:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V8:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V16:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B32_V32:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B64_V1:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B64_V2:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B64_V4:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B64_V8:
+  case AMDGPU::S_INDIRECT_REG_WRITE_B64_V16: {
+    const TargetRegisterClass *EltRC = getOpRegClass(MI, 2);
+
+    unsigned Opc;
+    if (RI.hasVGPRs(EltRC)) {
+      Opc = ST.useVGPRIndexMode() ?
+        AMDGPU::V_MOV_B32_indirect : AMDGPU::V_MOVRELD_B32_e32;
+    } else {
+      Opc = RI.getRegSizeInBits(*EltRC) == 64 ?
+        AMDGPU::S_MOVRELD_B64 : AMDGPU::S_MOVRELD_B32;
+    }
+
+    const MCInstrDesc &OpDesc = get(Opc);
     Register VecReg = MI.getOperand(0).getReg();
     bool IsUndef = MI.getOperand(1).isUndef();
-    unsigned SubReg = AMDGPU::sub0 + MI.getOperand(3).getImm();
+    unsigned SubReg = MI.getOperand(3).getImm();
     assert(VecReg == MI.getOperand(1).getReg());
 
-    MachineInstr *MovRel =
-        BuildMI(MBB, MI, DL, MovRelDesc)
-            .addReg(RI.getSubReg(VecReg, SubReg), RegState::Undef)
-            .add(MI.getOperand(2))
-            .addReg(VecReg, RegState::ImplicitDefine)
-            .addReg(VecReg,
-                    RegState::Implicit | (IsUndef ? RegState::Undef : 0));
+    MachineInstrBuilder MIB =
+      BuildMI(MBB, MI, DL, OpDesc)
+        .addReg(RI.getSubReg(VecReg, SubReg), RegState::Undef)
+        .add(MI.getOperand(2))
+        .addReg(VecReg, RegState::ImplicitDefine)
+        .addReg(VecReg, RegState::Implicit | (IsUndef ? RegState::Undef : 0));
 
     const int ImpDefIdx =
-        MovRelDesc.getNumOperands() + MovRelDesc.getNumImplicitUses();
+      OpDesc.getNumOperands() + OpDesc.getNumImplicitUses();
     const int ImpUseIdx = ImpDefIdx + 1;
-    MovRel->tieOperands(ImpDefIdx, ImpUseIdx);
-
+    MIB->tieOperands(ImpDefIdx, ImpUseIdx);
     MI.eraseFromParent();
     break;
   }
@@ -1547,22 +1669,6 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // This only gets its own opcode so that SIPreAllocateWWMRegs can tell when
     // WWM is exited.
     MI.setDesc(get(ST.isWave32() ? AMDGPU::S_MOV_B32 : AMDGPU::S_MOV_B64));
-    break;
-  }
-  case TargetOpcode::BUNDLE: {
-    if (!MI.mayLoad() || MI.hasUnmodeledSideEffects())
-      return false;
-
-    // If it is a load it must be a memory clause
-    for (MachineBasicBlock::instr_iterator I = MI.getIterator();
-         I->isBundledWithSucc(); ++I) {
-      I->unbundleFromSucc();
-      for (MachineOperand &MO : I->operands())
-        if (MO.isReg())
-          MO.setIsInternalRead(false);
-    }
-
-    MI.eraseFromParent();
     break;
   }
   }
@@ -2125,8 +2231,8 @@ bool SIInstrInfo::reverseBranchCondition(
 
 bool SIInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
                                   ArrayRef<MachineOperand> Cond,
-                                  unsigned TrueReg, unsigned FalseReg,
-                                  int &CondCycles,
+                                  unsigned DstReg, unsigned TrueReg,
+                                  unsigned FalseReg, int &CondCycles,
                                   int &TrueCycles, int &FalseCycles) const {
   switch (Cond[0].getImm()) {
   case VCCNZ:
@@ -2527,26 +2633,22 @@ static bool offsetsDoNotOverlap(int WidthA, int OffsetA,
 
 bool SIInstrInfo::checkInstOffsetsDoNotOverlap(const MachineInstr &MIa,
                                                const MachineInstr &MIb) const {
-  const MachineOperand *BaseOp0, *BaseOp1;
+  SmallVector<const MachineOperand *, 4> BaseOps0, BaseOps1;
   int64_t Offset0, Offset1;
+  if (!getMemOperandsWithOffset(MIa, BaseOps0, Offset0, &RI) ||
+      !getMemOperandsWithOffset(MIb, BaseOps1, Offset1, &RI))
+    return false;
 
-  if (getMemOperandWithOffset(MIa, BaseOp0, Offset0, &RI) &&
-      getMemOperandWithOffset(MIb, BaseOp1, Offset1, &RI)) {
-    if (!BaseOp0->isIdenticalTo(*BaseOp1))
-      return false;
+  if (!memOpsHaveSameBaseOperands(BaseOps0, BaseOps1))
+    return false;
 
-    if (!MIa.hasOneMemOperand() || !MIb.hasOneMemOperand()) {
-      // FIXME: Handle ds_read2 / ds_write2.
-      return false;
-    }
-    unsigned Width0 = (*MIa.memoperands_begin())->getSize();
-    unsigned Width1 = (*MIb.memoperands_begin())->getSize();
-    if (offsetsDoNotOverlap(Width0, Offset0, Width1, Offset1)) {
-      return true;
-    }
+  if (!MIa.hasOneMemOperand() || !MIb.hasOneMemOperand()) {
+    // FIXME: Handle ds_read2 / ds_write2.
+    return false;
   }
-
-  return false;
+  unsigned Width0 = MIa.memoperands().front()->getSize();
+  unsigned Width1 = MIb.memoperands().front()->getSize();
+  return offsetsDoNotOverlap(Width0, Offset0, Width1, Offset1);
 }
 
 bool SIInstrInfo::areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,

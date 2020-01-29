@@ -2035,7 +2035,7 @@ CGObjCCommonMac::GenerateConstantNSString(const StringLiteral *Literal) {
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   // Don't enforce the target's minimum global alignment, since the only use
   // of the string is via this class initializer.
-  GV->setAlignment(llvm::Align::None());
+  GV->setAlignment(llvm::Align(1));
   Fields.addBitCast(GV, CGM.Int8PtrTy);
 
   // String length.
@@ -3047,9 +3047,10 @@ llvm::Value *CGObjCCommonMac::EmitClassRefViaRuntime(
                ObjCCommonTypesHelper &ObjCTypes) {
   llvm::FunctionCallee lookUpClassFn = ObjCTypes.getLookUpClassFn();
 
-  llvm::Value *className =
-      CGF.CGM.GetAddrOfConstantCString(ID->getObjCRuntimeNameAsString())
-        .getPointer();
+  llvm::Value *className = CGF.CGM
+                               .GetAddrOfConstantCString(std::string(
+                                   ID->getObjCRuntimeNameAsString()))
+                               .getPointer();
   ASTContext &ctx = CGF.CGM.getContext();
   className =
       CGF.Builder.CreateBitCast(className,
@@ -3291,6 +3292,8 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(Twine Name,
       for (auto *PD : ClassExt->properties()) {
         if (IsClassProperty != PD->isClassProperty())
           continue;
+        if (PD->isDirectProperty())
+          continue;
         PropertySet.insert(PD->getIdentifier());
         Properties.push_back(PD);
       }
@@ -3301,6 +3304,8 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(Twine Name,
     // Don't emit duplicate metadata for properties that were already in a
     // class extension.
     if (!PropertySet.insert(PD->getIdentifier()).second)
+      continue;
+    if (PD->isDirectProperty())
       continue;
     Properties.push_back(PD);
   }
@@ -3327,8 +3332,6 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(Twine Name,
   values.addInt(ObjCTypes.IntTy, Properties.size());
   auto propertiesArray = values.beginArray(ObjCTypes.PropertyTy);
   for (auto PD : Properties) {
-    if (PD->isDirectProperty())
-      continue;
     auto property = propertiesArray.beginStruct(ObjCTypes.PropertyTy);
     property.add(GetPropertyName(PD->getIdentifier()));
     property.add(GetPropertyTypeString(PD, Container));
@@ -6350,7 +6353,7 @@ llvm::GlobalVariable * CGObjCNonFragileABIMac::BuildClassRoTInitializer(
   unsigned InstanceStart,
   unsigned InstanceSize,
   const ObjCImplementationDecl *ID) {
-  std::string ClassName = ID->getObjCRuntimeNameAsString();
+  std::string ClassName = std::string(ID->getObjCRuntimeNameAsString());
 
   CharUnits beginInstance = CharUnits::fromQuantity(InstanceStart);
   CharUnits endInstance = CharUnits::fromQuantity(InstanceSize);

@@ -183,6 +183,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(cxxMemberCallExpr);
   REGISTER_MATCHER(cxxMethodDecl);
   REGISTER_MATCHER(cxxNewExpr);
+  REGISTER_MATCHER(cxxNoexceptExpr);
   REGISTER_MATCHER(cxxNullPtrLiteralExpr);
   REGISTER_MATCHER(cxxOperatorCallExpr);
   REGISTER_MATCHER(cxxRecordDecl);
@@ -652,7 +653,7 @@ Registry::getMatcherCompletions(ArrayRef<ArgKind> AcceptedTypes) {
         OS << "...";
       OS << ")";
 
-      std::string TypedText = Name;
+      std::string TypedText = std::string(Name);
       TypedText += "(";
       if (ArgsKinds.empty())
         TypedText += ")";

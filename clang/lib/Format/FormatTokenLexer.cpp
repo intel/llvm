@@ -74,7 +74,7 @@ void FormatTokenLexer::tryMergePreviousTokens() {
   if (Style.isCSharp()) {
     if (tryMergeCSharpKeywordVariables())
       return;
-    if (tryMergeCSharpVerbatimStringLiteral())
+    if (tryMergeCSharpStringLiteral())
       return;
     if (tryMergeCSharpDoubleQuestion())
       return;
@@ -120,8 +120,11 @@ void FormatTokenLexer::tryMergePreviousTokens() {
       Tokens.back()->Tok.setKind(tok::starequal);
       return;
     }
-    if (tryMergeTokens(JSNullishOperator, TT_JsNullishCoalescingOperator))
+    if (tryMergeTokens(JSNullishOperator, TT_JsNullishCoalescingOperator)) {
+      // Treat like the "||" operator (as opposed to the ternary ?).
+      Tokens.back()->Tok.setKind(tok::pipepipe);
       return;
+    }
     if (tryMergeTokens(JSNullPropagatingOperator,
                        TT_JsNullPropagatingOperator)) {
       // Treat like a regular "." access.
@@ -178,18 +181,86 @@ bool FormatTokenLexer::tryMergeJSPrivateIdentifier() {
 // Search for verbatim or interpolated string literals @"ABC" or
 // $"aaaaa{abc}aaaaa" i and mark the token as TT_CSharpStringLiteral, and to
 // prevent splitting of @, $ and ".
-bool FormatTokenLexer::tryMergeCSharpVerbatimStringLiteral() {
+bool FormatTokenLexer::tryMergeCSharpStringLiteral() {
   if (Tokens.size() < 2)
     return false;
-  auto &At = *(Tokens.end() - 2);
-  auto &String = *(Tokens.end() - 1);
 
-  // Look for $"aaaaaa" @"aaaaaa".
-  if (!(At->is(tok::at) || At->TokenText == "$") ||
-      !String->is(tok::string_literal))
+  auto &CSharpStringLiteral = *(Tokens.end() - 2);
+
+  // Interpolated strings could contain { } with " characters inside.
+  // $"{x ?? "null"}"
+  // should not be split into $"{x ?? ", null, "}" but should treated as a
+  // single string-literal.
+  //
+  // We opt not to try and format expressions inside {} within a C#
+  // interpolated string. Formatting expressions within an interpolated string
+  // would require similar work as that done for JavaScript template strings
+  // in `handleTemplateStrings()`.
+  auto &CSharpInterpolatedString = *(Tokens.end() - 2);
+  if (CSharpInterpolatedString->Type == TT_CSharpStringLiteral &&
+      (CSharpInterpolatedString->TokenText.startswith(R"($")") ||
+       CSharpInterpolatedString->TokenText.startswith(R"($@")"))) {
+    int UnmatchedOpeningBraceCount = 0;
+
+    auto TokenTextSize = CSharpInterpolatedString->TokenText.size();
+    for (size_t Index = 0; Index < TokenTextSize; ++Index) {
+      char C = CSharpInterpolatedString->TokenText[Index];
+      if (C == '{') {
+        // "{{"  inside an interpolated string is an escaped '{' so skip it.
+        if (Index + 1 < TokenTextSize &&
+            CSharpInterpolatedString->TokenText[Index + 1] == '{') {
+          ++Index;
+          continue;
+        }
+        ++UnmatchedOpeningBraceCount;
+      } else if (C == '}') {
+        // "}}"  inside an interpolated string is an escaped '}' so skip it.
+        if (Index + 1 < TokenTextSize &&
+            CSharpInterpolatedString->TokenText[Index + 1] == '}') {
+          ++Index;
+          continue;
+        }
+        --UnmatchedOpeningBraceCount;
+      }
+    }
+
+    if (UnmatchedOpeningBraceCount > 0) {
+      auto &NextToken = *(Tokens.end() - 1);
+      CSharpInterpolatedString->TokenText =
+          StringRef(CSharpInterpolatedString->TokenText.begin(),
+                    NextToken->TokenText.end() -
+                        CSharpInterpolatedString->TokenText.begin());
+      CSharpInterpolatedString->ColumnWidth += NextToken->ColumnWidth;
+      Tokens.erase(Tokens.end() - 1);
+      return true;
+    }
+  }
+
+  // verbatim strings could contain "" which C# sees as an escaped ".
+  // @"""Hello""" will have been tokenized as @"" "Hello" "" and needs
+  // merging into a single string literal.
+  auto &String = *(Tokens.end() - 1);
+  if (!String->is(tok::string_literal))
     return false;
 
-  if (Tokens.size() >= 2 && At->is(tok::at)) {
+  if (CSharpStringLiteral->Type == TT_CSharpStringLiteral &&
+      (CSharpStringLiteral->TokenText.startswith(R"(@")") ||
+       CSharpStringLiteral->TokenText.startswith(R"($@")"))) {
+    CSharpStringLiteral->TokenText = StringRef(
+        CSharpStringLiteral->TokenText.begin(),
+        String->TokenText.end() - CSharpStringLiteral->TokenText.begin());
+    CSharpStringLiteral->ColumnWidth += String->ColumnWidth;
+    Tokens.erase(Tokens.end() - 1);
+    return true;
+  }
+
+  auto &At = *(Tokens.end() - 2);
+
+  // Look for @"aaaaaa" or $"aaaaaa".
+  if (!(At->is(tok::at) || At->TokenText == "$"))
+    return false;
+
+  if (Tokens.size() > 2 && At->is(tok::at)) {
     auto &Dollar = *(Tokens.end() - 3);
     if (Dollar->TokenText == "$") {
       // This looks like $@"aaaaa" so we need to combine all 3 tokens.

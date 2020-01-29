@@ -1,6 +1,6 @@
 //===- builder-api-test.cpp - Tests for Declarative Builder APIs ----------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -67,11 +67,11 @@ TEST_FUNC(builder_dynamic_for_func_args) {
   ValueHandle i7(constant_int(7, 32));
   ValueHandle i13(constant_int(13, 32));
   AffineLoopNestBuilder(&i, lb, ub, 3)([&] {
-    lb *index_t(3) + ub;
-    lb + index_t(3);
+    lb *index_type(3) + ub;
+    lb + index_type(3);
     AffineLoopNestBuilder(&j, lb, ub, 2)([&] {
-      ceilDiv(index_t(31) * floorDiv(i + j * index_t(3), index_t(32)),
-              index_t(32));
+      ceilDiv(index_type(31) * floorDiv(i + j * index_type(3), index_type(32)),
+              index_type(32));
       ((f7 + f13) / f7) % f13 - f7 *f13;
       ((i7 + i13) / i7) % i13 - i7 *i13;
     });
@@ -411,7 +411,7 @@ TEST_FUNC(custom_ops) {
   ValueHandle vh(indexType), vh20(indexType), vh21(indexType);
   OperationHandle ih0, ih2;
   IndexHandle m, n, M(f.getArgument(0)), N(f.getArgument(1));
-  IndexHandle ten(index_t(10)), twenty(index_t(20));
+  IndexHandle ten(index_type(10)), twenty(index_type(20));
   AffineLoopNestBuilder({&m, &n}, {M, N}, {M + ten, N + twenty}, {1, 1})([&]{
     vh = MY_CUSTOM_OP({m, m + n}, {indexType}, {});
     ih0 = MY_CUSTOM_OP_0({m, m + n}, {});
@@ -863,6 +863,49 @@ TEST_FUNC(linalg_pointwise_test) {
   AffineExpr i, j;
   bindDims(&globalContext(), i, j);
   StructuredIndexed SA(A), SB(B), SC(C);
+  linalg_pointwise_add(SA({i, j}), SB({i, j}), SC({i, j}));
+  linalg_pointwise_max(SA({i, j}), SB({i, j}), SC({i, j}));
+  linalg_pointwise_tanh(SA({i, j}), SC({i, j}));
+
+  f.print(llvm::outs());
+  f.erase();
+}
+
+// clang-format off
+// CHECK-LABEL: func @linalg_pointwise_mixed_tensors
+//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+// CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
+// CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+//       CHECK:       addf
+//       CHECK:     }: tensor<?x?xf32>, memref<?x?xf32> -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+// CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
+// CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+//       CHECK:       cmpf "ogt"
+//       CHECK:       select
+//       CHECK:   }: tensor<?x?xf32>, memref<?x?xf32> -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {args_in = 1 : i64, args_out = 1 : i64,
+// CHECK-SAME:      indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
+// CHECK-SAME:      iterator_types = ["parallel", "parallel"]}
+//       CHECK:     tanh
+//       CHECK:   }: tensor<?x?xf32> -> tensor<?x?xf32>
+// clang-format on
+TEST_FUNC(linalg_pointwise_mixed_tensors_test) {
+  using namespace edsc;
+  using namespace edsc::ops;
+
+  auto f32Type = FloatType::getF32(&globalContext());
+  auto memrefType = MemRefType::get({-1, -1}, f32Type, {}, 0);
+  auto tensorType = RankedTensorType::get({-1, -1}, f32Type);
+  auto f = makeFunction("linalg_pointwise_mixed_tensors", {},
+                        {tensorType, memrefType});
+
+  OpBuilder builder(f.getBody());
+  ScopedContext scope(builder, f.getLoc());
+  ValueHandle A(f.getArgument(0)), B(f.getArgument(1));
+  AffineExpr i, j;
+  bindDims(&globalContext(), i, j);
+  StructuredIndexed SA(A), SB(B), SC(tensorType);
   linalg_pointwise_add(SA({i, j}), SB({i, j}), SC({i, j}));
   linalg_pointwise_max(SA({i, j}), SB({i, j}), SC({i, j}));
   linalg_pointwise_tanh(SA({i, j}), SC({i, j}));

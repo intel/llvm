@@ -1,6 +1,6 @@
 //===-- LLVMOpBase.td - LLVM IR dialect shared definitions -*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -55,5 +55,11 @@ class LLVM_OpBase<Dialect dialect, string mnemonic, list<OpTrait> traits = []> :
 // directly.
 class LLVM_Op<string mnemonic, list<OpTrait> traits = []> :
     LLVM_OpBase<LLVM_Dialect, mnemonic, traits>;
+
+// Base class for LLVM intrinsics operation. It is the same as an LLVM_Op
+// but the operation has a ".intr." element in the prefix becoming
+// "llvm.intr.*".
+class LLVM_IntrOp<string mnemonic, list<OpTrait> traits = []> :
+    LLVM_Op<"intr."#mnemonic, traits>;
 
 #endif  // LLVMIR_OP_BASE

@@ -4866,9 +4866,9 @@ refines this address to produce a concrete location for the source variable.
 
 A ``llvm.dbg.value`` intrinsic describes the direct value of a source variable.
 The first operand of the intrinsic may be a direct or indirect value. A
-DIExpresion attached to the intrinsic refines the first operand to produce a
+DIExpression attached to the intrinsic refines the first operand to produce a
 direct value. For example, if the first operand is an indirect value, it may be
-necessary to insert ``DW_OP_deref`` into the DIExpresion in order to produce a
+necessary to insert ``DW_OP_deref`` into the DIExpression in order to produce a
 valid debug intrinsic.
 
 .. note::
@@ -6349,7 +6349,7 @@ The list is encoded in the IR using named metadata with the name
 ``!llvm.dependent-libraries``. Each operand is expected to be a metadata node
 which should contain a single string operand.
 
-For example, the following metadata section contains two library specfiers::
+For example, the following metadata section contains two library specifiers::
 
     !0 = !{!"a library specifier"}
     !1 = !{!"another library specifier"}
@@ -6704,7 +6704,7 @@ corresponds to "``attribute((used))``" in GNU C.
 
 On some targets, the code generator must emit a directive to the
 assembler or object file to prevent the assembler and linker from
-molesting the symbol.
+removing the symbol.
 
 .. _gv_llvmcompilerused:
 
@@ -11719,6 +11719,65 @@ the argument.
 If "len" is 0, the pointers may be NULL or dangling. However, they must still
 be appropriately aligned.
 
+.. _int_memcpy_inline:
+
+'``llvm.memcpy.inline``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.memcpy.inline`` on any
+integer bit width and for different address spaces. Not all targets
+support all bit widths however.
+
+::
+
+      declare void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* <dest>, i8* <src>,
+                                                     i32 <len>, i1 <isvolatile>)
+      declare void @llvm.memcpy.inline.p0i8.p0i8.i64(i8* <dest>, i8* <src>,
+                                                     i64 <len>, i1 <isvolatile>)
+
+Overview:
+"""""""""
+
+The '``llvm.memcpy.inline.*``' intrinsics copy a block of memory from the
+source location to the destination location and guarantees that no external
+functions are called.
+
+Note that, unlike the standard libc function, the ``llvm.memcpy.inline.*``
+intrinsics do not return a value, takes extra isvolatile
+arguments and the pointers can be in specified address spaces.
+
+Arguments:
+""""""""""
+
+The first argument is a pointer to the destination, the second is a
+pointer to the source. The third argument is a constant integer argument
+specifying the number of bytes to copy, and the fourth is a
+boolean indicating a volatile access.
+
+The :ref:`align <attr_align>` parameter attribute can be provided
+for the first and second arguments.
+
+If the ``isvolatile`` parameter is ``true``, the ``llvm.memcpy.inline`` call is
+a :ref:`volatile operation <volatile>`. The detailed access behavior is not
+very cleanly specified and it is unwise to depend on it.
+
+Semantics:
+""""""""""
+
+The '``llvm.memcpy.inline.*``' intrinsics copy a block of memory from the
+source location to the destination location, which are not allowed to
+overlap. It copies "len" bytes of memory over. If the argument is known
+to be aligned to some boundary, this can be specified as an attribute on
+the argument.
+
+If "len" is 0, the pointers may be NULL or dangling. However, they must still
+be appropriately aligned.
+
+The generated code is guaranteed not to call any external functions.
+
 .. _int_memmove:
 
 '``llvm.memmove``' Intrinsic
@@ -14942,8 +15001,7 @@ Reads a vector from memory according to the provided mask. The mask holds a bit 
 Arguments:
 """"""""""
 
-The first operand is the base pointer for the load. The second operand is the alignment of the source location. It must be a constant integer value. The third operand, mask, is a vector of boolean values with the same number of elements as the return type. The fourth is a pass-through value that is used to fill the masked-off lanes of the result. The return type, underlying type of the base pointer and the type of the '``passthru``' operand are the same vector types.
-
+The first operand is the base pointer for the load. The second operand is the alignment of the source location. It must be a power of two constant integer value. The third operand, mask, is a vector of boolean values with the same number of elements as the return type. The fourth is a pass-through value that is used to fill the masked-off lanes of the result. The return type, underlying type of the base pointer and the type of the '``passthru``' operand are the same vector types.
 
 Semantics:
 """"""""""
@@ -14986,7 +15044,7 @@ Writes a vector to memory according to the provided mask. The mask holds a bit f
 Arguments:
 """"""""""
 
-The first operand is the vector value to be written to memory. The second operand is the base pointer for the store, it has the same underlying type as the value operand. The third operand is the alignment of the destination location. The fourth operand, mask, is a vector of boolean values. The types of the mask and the value operand must have the same number of vector elements.
+The first operand is the vector value to be written to memory. The second operand is the base pointer for the store, it has the same underlying type as the value operand. The third operand is the alignment of the destination location. It must be a power of two constant integer value. The fourth operand, mask, is a vector of boolean values. The types of the mask and the value operand must have the same number of vector elements.
 
 
 Semantics:
@@ -15034,8 +15092,7 @@ Reads scalar values from arbitrary memory locations and gathers them into one ve
 Arguments:
 """"""""""
 
-The first operand is a vector of pointers which holds all memory addresses to read. The second operand is an alignment of the source addresses. It must be a constant integer value. The third operand, mask, is a vector of boolean values with the same number of elements as the return type. The fourth is a pass-through value that is used to fill the masked-off lanes of the result. The return type, underlying type of the vector of pointers and the type of the '``passthru``' operand are the same vector types.
-
+The first operand is a vector of pointers which holds all memory addresses to read. The second operand is an alignment of the source addresses. It must be 0 or a power of two constant integer value. The third operand, mask, is a vector of boolean values with the same number of elements as the return type. The fourth is a pass-through value that is used to fill the masked-off lanes of the result. The return type, underlying type of the vector of pointers and the type of the '``passthru``' operand are the same vector types.
 
 Semantics:
 """"""""""
@@ -15087,8 +15144,7 @@ Writes each element from the value vector to the corresponding memory address. T
 Arguments:
 """"""""""
 
-The first operand is a vector value to be written to memory. The second operand is a vector of pointers, pointing to where the value elements should be stored. It has the same underlying type as the value operand. The third operand is an alignment of the destination addresses. The fourth operand, mask, is a vector of boolean values. The types of the mask and the value operand must have the same number of vector elements.
-
+The first operand is a vector value to be written to memory. The second operand is a vector of pointers, pointing to where the value elements should be stored. It has the same underlying type as the value operand. The third operand is an alignment of the destination addresses. It must be 0 or a power of two constant integer value. The fourth operand, mask, is a vector of boolean values. The types of the mask and the value operand must have the same number of vector elements.
 
 Semantics:
 """"""""""
@@ -15138,7 +15194,7 @@ This is an overloaded intrinsic. Several values of integer, floating point or po
 Overview:
 """""""""
 
-Reads a number of scalar values sequentially from memory location provided in '``ptr``' and spreads them in a vector. The '``mask``' holds a bit for each vector lane. The number of elements read from memory is equal to the number of '1' bits in the mask. The loaded elements are positioned in the destination vector according to the sequence of '1' and '0' bits in the mask. E.g., if the mask vector is '10010001', "explandload" reads 3 values from memory addresses ptr, ptr+1, ptr+2 and places them in lanes 0, 3 and 7 accordingly. The masked-off lanes are filled by elements from the corresponding lanes of the '``passthru``' operand.
+Reads a number of scalar values sequentially from memory location provided in '``ptr``' and spreads them in a vector. The '``mask``' holds a bit for each vector lane. The number of elements read from memory is equal to the number of '1' bits in the mask. The loaded elements are positioned in the destination vector according to the sequence of '1' and '0' bits in the mask. E.g., if the mask vector is '10010001', "expandload" reads 3 values from memory addresses ptr, ptr+1, ptr+2 and places them in lanes 0, 3 and 7 accordingly. The masked-off lanes are filled by elements from the corresponding lanes of the '``passthru``' operand.
 
 
 Arguments:
@@ -16084,6 +16140,69 @@ The quiet comparison operation performed by
 if either operand is a SNAN.  The signaling comparison operation
 performed by '``llvm.experimental.constrained.fcmps``' will raise an
 exception if either operand is a NAN (QNAN or SNAN).
+
+'``llvm.experimental.constrained.fmuladd``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type>
+      @llvm.experimental.constrained.fmuladd(<type> <op1>, <type> <op2>,
+                                             <type> <op3>,
+                                             metadata <rounding mode>,
+                                             metadata <exception behavior>)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.constrained.fmuladd``' intrinsic represents
+multiply-add expressions that can be fused if the code generator determines
+that (a) the target instruction set has support for a fused operation,
+and (b) that the fused operation is more efficient than the equivalent,
+separate pair of mul and add instructions.
+
+Arguments:
+""""""""""
+
+The first three arguments to the '``llvm.experimental.constrained.fmuladd``'
+intrinsic must be floating-point or vector of floating-point values.
+All three arguments must have identical types.
+
+The fourth and fifth arguments specifiy the rounding mode and exception behavior
+as described above.
+
+Semantics:
+""""""""""
+
+The expression:
+
+::
+
+      %0 = call float @llvm.experimental.constrained.fmuladd.f32(%a, %b, %c,
+                                                                 metadata <rounding mode>,
+                                                                 metadata <exception behavior>)
+
+is equivalent to the expression:
+
+::
+
+      %0 = call float @llvm.experimental.constrained.fmul.f32(%a, %b,
+                                                              metadata <rounding mode>,
+                                                              metadata <exception behavior>)
+      %1 = call float @llvm.experimental.constrained.fadd.f32(%0, %c,
+                                                              metadata <rounding mode>,
+                                                              metadata <exception behavior>)
+
+except that it is unspecified whether rounding will be performed between the
+multiplication and addition steps. Fusion is not guaranteed, even if the target
+platform supports it.
+If a fused multiply-add is required, the corresponding
+:ref:`llvm.experimental.constrained.fma <int_fma>` intrinsic function should be
+used instead.
+This never sets errno, just as '``llvm.experimental.constrained.fma.*``'.
 
 Constrained libm-equivalent Intrinsics
 --------------------------------------
@@ -17889,6 +18008,34 @@ information on the *based on* terminology see
 :ref:`the pointer aliasing rules <pointeraliasing>`). If the bitwidth of the
 mask argument does not match the pointer size of the target, the mask is
 zero-extended or truncated accordingly.
+
+.. _int_vscale:
+
+'``llvm.vscale``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i32 llvm.vscale.i32()
+      declare i64 llvm.vscale.i64()
+
+Overview:
+"""""""""
+
+The ``llvm.vscale`` intrinsic returns the value for ``vscale`` in scalable
+vectors such as ``<vscale x 16 x i8>``.
+
+Semantics:
+""""""""""
+
+``vscale`` is a positive value that is constant throughout program
+execution, but is unknown at compile time.
+If the result value does not fit in the result type, then the result is
+a :ref:`poison value <poisonvalues>`.
+
 
 Stack Map Intrinsics
 --------------------

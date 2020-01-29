@@ -480,6 +480,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("IncludeIsMainSourceRegex",
                    Style.IncludeStyle.IncludeIsMainSourceRegex);
     IO.mapOptional("IndentCaseLabels", Style.IndentCaseLabels);
+    IO.mapOptional("IndentCaseBlocks", Style.IndentCaseBlocks);
     IO.mapOptional("IndentGotoLabels", Style.IndentGotoLabels);
     IO.mapOptional("IndentPPDirectives", Style.IndentPPDirectives);
     IO.mapOptional("IndentWidth", Style.IndentWidth);
@@ -782,6 +783,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.IncludeStyle.IncludeIsMainRegex = "(Test)?$";
   LLVMStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Preserve;
   LLVMStyle.IndentCaseLabels = false;
+  LLVMStyle.IndentCaseBlocks = false;
   LLVMStyle.IndentGotoLabels = true;
   LLVMStyle.IndentPPDirectives = FormatStyle::PPDIS_None;
   LLVMStyle.IndentWrappedFunctionNames = false;
@@ -937,6 +939,8 @@ FormatStyle getGoogleStyle(FormatStyle::LanguageKind Language) {
     GoogleStyle.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
     GoogleStyle.AlignOperands = false;
     GoogleStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Empty;
+    // TODO: still under discussion whether to switch to SLS_All.
+    GoogleStyle.AllowShortLambdasOnASingleLine = FormatStyle::SLS_Empty;
     GoogleStyle.AlwaysBreakBeforeMultilineStrings = false;
     GoogleStyle.BreakBeforeTernaryOperators = false;
     // taze:, triple slash directives (`/// <...`), tslint:, and @see, which is
@@ -1973,8 +1977,8 @@ static void sortCppIncludes(const FormatStyle &Style,
 
   // If the #includes are out of order, we generate a single replacement fixing
   // the entire range of blocks. Otherwise, no replacement is generated.
-  if (replaceCRLF(result) ==
-      replaceCRLF(Code.substr(IncludesBeginOffset, IncludesBlockSize)))
+  if (replaceCRLF(result) == replaceCRLF(std::string(Code.substr(
+                                 IncludesBeginOffset, IncludesBlockSize))))
     return;
 
   auto Err = Replaces.add(tooling::Replacement(
@@ -2142,8 +2146,8 @@ static void sortJavaImports(const FormatStyle &Style,
 
   // If the imports are out of order, we generate a single replacement fixing
   // the entire block. Otherwise, no replacement is generated.
-  if (replaceCRLF(result) ==
-      replaceCRLF(Code.substr(Imports.front().Offset, ImportsBlockSize)))
+  if (replaceCRLF(result) == replaceCRLF(std::string(Code.substr(
+                                 Imports.front().Offset, ImportsBlockSize))))
     return;
 
   auto Err = Replaces.add(tooling::Replacement(FileName, Imports.front().Offset,

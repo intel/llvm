@@ -1,6 +1,6 @@
 //===- Builders.cpp - MLIR Declarative Builder Classes --------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -65,7 +65,7 @@ MLIRContext *mlir::edsc::ScopedContext::getContext() {
   return getBuilder().getContext();
 }
 
-mlir::edsc::ValueHandle::ValueHandle(index_t cst) {
+mlir::edsc::ValueHandle::ValueHandle(index_type cst) {
   auto &b = ScopedContext::getBuilder();
   auto loc = ScopedContext::getLocation();
   v = b.create<ConstantIndexOp>(loc, cst.v).getResult();

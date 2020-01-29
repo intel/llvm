@@ -744,6 +744,33 @@ def err_friend_explicit_instantiation : Error<
 def err_explicit_instantiation_enum : Error<
   "enumerations cannot be explicitly instantiated">;
 def err_expected_template_parameter : Error<"expected template parameter">;
+def note_ill_formed_requires_expression_outside_template : Note<
+  "requires expression outside a template declaration may not contain invalid "
+  "types or expressions">;
+def err_empty_requires_expr : Error<
+  "a requires expression must contain at least one requirement">;
+def err_requires_expr_parameter_list_ellipsis : Error<
+  "varargs not allowed in requires expression">;
+def err_requires_expr_type_req_illegal_identifier : Error<
+  "expected identifier or template-id in type requirement">;
+def err_requires_expr_type_req_template_args_on_non_template : Error<
+  "template arguments provided for non-template '%0'">;
+def err_expected_semi_requirement : Error<
+  "expected ';' at end of requirement">;
+def err_requires_expr_missing_arrow : Error<
+  "expected '->' before expression type requirement">;
+def err_requires_expr_expected_type_constraint : Error<
+  "expected concept name with optional arguments">;
+def err_requires_expr_simple_requirement_noexcept : Error<
+  "'noexcept' can only be used in a compound requirement (with '{' '}' around "
+  "the expression)">;
+def err_requires_expr_simple_requirement_unexpected_tok : Error<
+  "unexpected %0 after expression; did you intend to use a compound "
+  "requirement (with '{' '}' around the expression)?">;
+def warn_requires_expr_in_simple_requirement : Warning<
+  "this requires expression will only be checked for syntactic validity; did "
+  "you intend to place it in a nested requirement? (add another 'requires' "
+  "before the expression)">, InGroup<DiagGroup<"requires-expression">>;
 
 def err_missing_dependent_template_keyword : Error<
   "use 'template' keyword to treat '%0' as a dependent template name">;
@@ -1019,6 +1046,8 @@ def warn_pragma_expected_section_label_or_name : Warning<
 def warn_pragma_expected_init_seg : Warning<
   "expected 'compiler', 'lib', 'user', or a string literal for the section name in '#pragma %0' - ignored">,
   InGroup<IgnoredPragmas>;
+
+def err_pragma_expected_integer : Error<"expected an integer argument in '#pragma %0'">;
 def warn_pragma_expected_integer : Warning<
   "expected integer between %0 and %1 inclusive in '#pragma %2' - ignored">,
   InGroup<IgnoredPragmas>;
@@ -1350,6 +1379,18 @@ def err_concept_definition_not_identifier : Error<
 def ext_concept_legacy_bool_keyword : ExtWarn<
   "ISO C++2a does not permit the 'bool' keyword after 'concept'">,
   InGroup<DiagGroup<"concepts-ts-compat">>;
+def err_placeholder_expected_auto_or_decltype_auto : Error<
+  "expected 'auto' or 'decltype(auto)' after concept name">;
 }
+
+def warn_max_tokens : Warning<
+  "the number of preprocessor source tokens (%0) exceeds this token limit (%1)">,
+  InGroup<MaxTokens>;
+
+def warn_max_tokens_total : Warning<
+  "the total number of preprocessor source tokens (%0) exceeds the token limit (%1)">,
+  InGroup<MaxTokens>;
+
+def note_max_tokens_total_override : Note<"total token limit set here">;
 
 } // end of Parser diagnostics

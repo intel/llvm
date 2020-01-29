@@ -44,8 +44,10 @@ add_clang_library(clangAST
   DeclOpenMP.cpp
   DeclPrinter.cpp
   DeclTemplate.cpp
+  ParentMapContext.cpp
   Expr.cpp
   ExprClassification.cpp
+  ExprConcepts.cpp
   ExprConstant.cpp
   ExprCXX.cpp
   ExprObjC.cpp

@@ -24,6 +24,13 @@
 
 #if defined(_MSC_VER)
 #include <sal.h>
+
+#if _MSC_VER == 1924 && !defined(__clang__)
+// See https://developercommunity.visualstudio.com/content/problem/845933/miscompile-boolean-condition-deduced-to-be-always.html
+// and thread "[llvm-dev] Longstanding failing tests - clang-tidy, MachO, Polly"
+// on llvm-dev Jan 21-23 2020.
+#error "MSVC 19.24 (Visual Studio 2019 version 16.4) is known to miscompile LLVM. Please upgrade to version 16.5+ or use clang-cl."
+#endif
 #endif
 
 #ifndef __has_feature
@@ -95,7 +102,8 @@
 /// Does the compiler support ref-qualifiers for *this?
 ///
 /// Sadly, this is separate from just rvalue reference support because GCC
-/// and MSVC implemented this later than everything else.
+/// and MSVC implemented this later than everything else. This appears to be
+/// corrected in MSVC 2019 but not MSVC 2017.
 #if __has_feature(cxx_rvalue_references) || LLVM_GNUC_PREREQ(4, 8, 1)
 #define LLVM_HAS_RVALUE_REFERENCE_THIS 1
 #else

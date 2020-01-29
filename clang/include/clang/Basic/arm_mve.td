@@ -116,6 +116,28 @@ def vmulqf: Intrinsic<Vector, (args Vector:$a, Vector:$b), (fmul $a, $b)>,
             NameOverride<"vmulq">;
 }
 
+let params = !listconcat(T.Int16, T.Int32) in {
+  let pnt = PNT_None in {
+    def vmvnq_n: Intrinsic<Vector, (args imm_simd_vmvn:$imm),
+                           (not (splat (Scalar $imm)))>;
+  }
+  defm vmvnq: IntrinsicMX<Vector, (args imm_simd_vmvn:$imm, Predicate:$pred),
+                     (select $pred, (not (splat (Scalar $imm))), $inactive),
+                     1, "_n", PNT_NType, PNT_None>;
+  let pnt = PNT_NType in {
+    def vbicq_n: Intrinsic<Vector, (args Vector:$v, imm_simd_restrictive:$imm),
+                           (and $v, (not (splat (Scalar $imm))))>;
+    def vorrq_n: Intrinsic<Vector, (args Vector:$v, imm_simd_restrictive:$imm),
+                           (or $v, (splat (Scalar $imm)))>;
+  }
+  def vbicq_m_n: Intrinsic<
+    Vector, (args Vector:$v, imm_simd_restrictive:$imm, Predicate:$pred),
+    (select $pred, (and $v, (not (splat (Scalar $imm)))), $v)>;
+  def vorrq_m_n: Intrinsic<
+    Vector, (args Vector:$v, imm_simd_restrictive:$imm, Predicate:$pred),
+    (select $pred, (or $v, (splat (Scalar $imm))), $v)>;
+}
+
 // The bitcasting below is not overcomplicating the IR because while
 // Vector and UVector may be different vector types at the C level i.e.
 // vectors of same size signed/unsigned ints. Once they're lowered
@@ -307,10 +329,12 @@ let params = T.Float in {
                                  (IRIntBase<"maxnum", [Vector]> $a, $b)>;
   def vminnmaq: Intrinsic<Vector, (args Vector:$a, Vector:$b),
                                   (IRIntBase<"minnum", [Vector]>
-                                   $a, (IRIntBase<"fabs", [Vector]> $b))>;
+                                   (IRIntBase<"fabs", [Vector]> $a),
+                                   (IRIntBase<"fabs", [Vector]> $b))>;
   def vmaxnmaq: Intrinsic<Vector, (args Vector:$a, Vector:$b),
                                   (IRIntBase<"maxnum", [Vector]>
-                                   $a, (IRIntBase<"fabs", [Vector]> $b))>;
+                                   (IRIntBase<"fabs", [Vector]> $a),
+                                   (IRIntBase<"fabs", [Vector]> $b))>;
 }
 
 def vpselq: Intrinsic<Vector, (args Vector:$t, Vector:$f, Predicate:$pred),

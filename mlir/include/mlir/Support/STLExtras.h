@@ -1,6 +1,6 @@
 //===- STLExtras.h - STL-like extensions that are used by MLIR --*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -187,7 +187,8 @@ namespace detail {
 /// drop_front/slice/etc.. Derived range classes must implement the following
 /// static methods:
 ///   * ReferenceT dereference_iterator(const BaseT &base, ptrdiff_t index)
-///     - Derefence an iterator pointing to the base object at the given index.
+///     - Dereference an iterator pointing to the base object at the given
+///       index.
 ///   * BaseT offset_base(const BaseT &base, ptrdiff_t index)
 ///     - Return a new base that is offset from the provide base by 'index'
 ///       elements.
@@ -287,7 +288,7 @@ protected:
 /// instead. Derived range classes are expected to implement the following
 /// static method:
 ///   * ReferenceT dereference(const BaseT &base, ptrdiff_t index)
-///     - Derefence an iterator pointing to a parent base at the given index.
+///     - Dereference an iterator pointing to a parent base at the given index.
 template <typename DerivedT, typename BaseT, typename T,
           typename PointerT = T *, typename ReferenceT = T &>
 class indexed_accessor_range

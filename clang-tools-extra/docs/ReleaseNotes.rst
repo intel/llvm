@@ -70,13 +70,26 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-misplaced-pointer-arithmetic-in-alloc
+  <clang-tidy/checks/bugprone-misplaced-pointer-arithmetic-in-alloc>` check.
+
+  Finds cases where an integer expression is added to or subtracted from the
+  result of a memory allocation function (``malloc()``, ``calloc()``,
+  ``realloc()``, ``alloca()``) instead of its argument.
+
 - New :doc:`bugprone-reserved-identifier
   <clang-tidy/checks/bugprone-reserved-identifier>` check.
 
   Checks for usages of identifiers reserved for use by the implementation.
+  
+- New :doc:`cert-oop57-cpp
+  <clang-tidy/checks/cert-oop57-cpp>` check.
+  
+  Flags use of the `C` standard library functions ``memset``, ``memcpy`` and
+  ``memcmp`` and similar derivatives on non-trivial types.
 
-New aliases
-^^^^^^^^^^^
+New check aliases
+^^^^^^^^^^^^^^^^^
 
 - New alias :doc:`cert-dcl37-c
   <clang-tidy/checks/cert-dcl37-c>` to
@@ -91,6 +104,11 @@ New aliases
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+- Improved :doc:`readability-redundant-string-init
+  <clang-tidy/checks/readability-redundant-string-init>` check now supports a
+  `StringNames` option enabling its application to custom string classes. The 
+  check now detects in class initializers and constructor initializers which 
+  are deemed to be redundant.
 
 Renamed checks
 ^^^^^^^^^^^^^^

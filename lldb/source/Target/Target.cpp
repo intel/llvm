@@ -1,4 +1,4 @@
-//===-- Target.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Target.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -37,7 +37,6 @@
 #include "lldb/Interpreter/OptionGroupWatchpoint.h"
 #include "lldb/Interpreter/OptionValues.h"
 #include "lldb/Interpreter/Property.h"
-#include "lldb/Symbol/ClangASTImporter.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Symbol.h"
@@ -91,7 +90,7 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_mutex(), m_arch(target_arch), m_images(this), m_section_load_history(),
       m_breakpoint_list(false), m_internal_breakpoint_list(true),
       m_watchpoint_list(), m_process_sp(), m_search_filter_sp(),
-      m_image_search_paths(ImageSearchPathsChanged, this), m_ast_importer_sp(),
+      m_image_search_paths(ImageSearchPathsChanged, this),
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
@@ -1378,7 +1377,6 @@ void Target::ClearModules(bool delete_locations) {
   m_section_load_history.Clear();
   m_images.Clear();
   m_scratch_type_system_map.Clear();
-  m_ast_importer_sp.reset();
 }
 
 void Target::DidExec() {
@@ -2258,16 +2256,6 @@ Target::GetUtilityFunctionForLanguage(const char *text,
   return utility_fn;
 }
 
-ClangASTImporterSP Target::GetClangASTImporter() {
-  if (m_valid) {
-    if (!m_ast_importer_sp) {
-      m_ast_importer_sp = std::make_shared<ClangASTImporter>();
-    }
-    return m_ast_importer_sp;
-  }
-  return ClangASTImporterSP();
-}
-
 void Target::SettingsInitialize() { Process::SettingsInitialize(); }
 
 void Target::SettingsTerminate() { Process::SettingsTerminate(); }
@@ -2691,8 +2679,10 @@ Status Target::Install(ProcessLaunchInfo *launch_info) {
   if (platform_sp) {
     if (platform_sp->IsRemote()) {
       if (platform_sp->IsConnected()) {
-        // Install all files that have an install path, and always install the
-        // main executable when connected to a remote platform
+        // Install all files that have an install path when connected to a
+        // remote platform. If target.auto-install-main-executable is set then
+        // also install the main executable even if it does not have an explicit
+        // install path specified.
         const ModuleList &modules = GetImages();
         const size_t num_images = modules.GetSize();
         for (size_t idx = 0; idx < num_images; ++idx) {
@@ -2703,10 +2693,8 @@ Status Target::Install(ProcessLaunchInfo *launch_info) {
             if (local_file) {
               FileSpec remote_file(module_sp->GetRemoteInstallFileSpec());
               if (!remote_file) {
-                if (is_main_executable) // TODO: add setting for always
-                                        // installing main executable???
-                {
-                  // Always install the main executable
+                if (is_main_executable && GetAutoInstallMainExecutable()) {
+                  // Automatically install the main executable.
                   remote_file = platform_sp->GetRemoteWorkingDirectory();
                   remote_file.AppendPathComponent(
                       module_sp->GetFileSpec().GetFilename().GetCString());
@@ -3968,6 +3956,12 @@ bool TargetProperties::GetRequireHardwareBreakpoints() const {
 void TargetProperties::SetRequireHardwareBreakpoints(bool b) {
   const uint32_t idx = ePropertyRequireHardwareBreakpoints;
   m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
+}
+
+bool TargetProperties::GetAutoInstallMainExecutable() const {
+  const uint32_t idx = ePropertyAutoInstallMainExecutable;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
 }
 
 void TargetProperties::Arg0ValueChangedCallback() {

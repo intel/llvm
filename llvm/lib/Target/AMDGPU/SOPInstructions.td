@@ -97,6 +97,17 @@ class SOP1_0_32 <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   let has_sdst = 0;
 }
 
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_32_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_32:$sdst, SSrc_b32:$src0),
+  "$sdst, $src0", pattern>;
+
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_64_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_64:$sdst, SSrc_b64:$src0),
+  "$sdst, $src0", pattern
+>;
+
 class SOP1_0_32R <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   opName, (outs), (ins SReg_32:$src0),
   "$src0", pattern> {
@@ -267,8 +278,8 @@ def S_QUADMASK_B64 : SOP1_64 <"s_quadmask_b64">;
 let Uses = [M0] in {
 def S_MOVRELS_B32 : SOP1_32R <"s_movrels_b32">;
 def S_MOVRELS_B64 : SOP1_64R <"s_movrels_b64">;
-def S_MOVRELD_B32 : SOP1_32 <"s_movreld_b32">;
-def S_MOVRELD_B64 : SOP1_64 <"s_movreld_b64">;
+def S_MOVRELD_B32 : SOP1_32_movreld <"s_movreld_b32">;
+def S_MOVRELD_B64 : SOP1_64_movreld <"s_movreld_b64">;
 } // End Uses = [M0]
 
 let SubtargetPredicate = isGFX6GFX7GFX8GFX9 in {
@@ -598,8 +609,12 @@ let SubtargetPredicate = isGFX9Plus in {
     def S_LSHL4_ADD_U32 : SOP2_32<"s_lshl4_add_u32">;
   } // End Defs = [SCC]
 
-  def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32">;
-  def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32">;
+  let isCommutable = 1 in {
+    def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32",
+      [(set i32:$sdst, (UniformBinFrag<mulhu> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+    def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32",
+      [(set i32:$sdst, (UniformBinFrag<mulhs> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+  }
 } // End SubtargetPredicate = isGFX9Plus
 
 //===----------------------------------------------------------------------===//

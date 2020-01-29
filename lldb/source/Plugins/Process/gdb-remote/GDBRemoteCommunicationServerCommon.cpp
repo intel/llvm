@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationServerCommon.cpp ------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationServerCommon.cpp ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1237,7 +1237,7 @@ void GDBRemoteCommunicationServerCommon::
     response.PutStringAsRawHex8(proc_triple.getTriple());
     response.PutChar(';');
 #endif
-    std::string ostype = proc_triple.getOSName();
+    std::string ostype = std::string(proc_triple.getOSName());
     // Adjust so ostype reports ios for Apple/ARM and Apple/ARM64.
     if (proc_triple.getVendor() == llvm::Triple::Apple) {
       switch (proc_triple.getArch()) {
