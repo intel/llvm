@@ -16,19 +16,8 @@ template <typename T>
 class aligned_allocator;
 
 class SYCLMemObjAllocator {
-/*  class holder_base {
-  public:
-    virtual ~holder_base() = default;
-    virtual void *allocate(std::size_t) = 0;
-    virtual void deallocate(void *, std::size_t) = 0;
-    virtual void setAlignment(std::size_t) = 0;
-    virtual void *getAllocator() = 0;
-    virtual std::size_t getValueSize() const = 0;
-  };
-*/
 
 protected:
-//    virtual void setAlignmentImpl(std::size_t) = 0;
     virtual void* getAllocatorImpl() = 0;
 public:
     virtual ~SYCLMemObjAllocator() = default;
@@ -39,34 +28,6 @@ public:
   template <typename AllocatorT> AllocatorT getAllocator() {
     return *reinterpret_cast<AllocatorT *>(getAllocatorImpl());
   }
-/*  template <typename AllocatorT>
-  SYCLMemObjAllocator(AllocatorT Allocator)
-      : MAllocator(std::unique_ptr<holder_base>(
-            new holder<AllocatorT>(Allocator))){}
-
-  template <typename AllocatorT>
-  SYCLMemObjAllocator()
-      : MAllocator(std::unique_ptr<holder_base>(
-            new holder<AllocatorT>(AllocatorT()))){}
-
-  void *allocate(std::size_t Count) { return MAllocator->allocate(Count); }
-
-  void deallocate(void *Ptr, std::size_t Count) {
-    MAllocator->deallocate(Ptr, Count);
-  }
-
-  void setAlignment(std::size_t RequiredAlignment) {
-    MAllocator->setAlignment(RequiredAlignment);
-  }
-
-  template <typename AllocatorT> AllocatorT getAllocator() {
-    return *reinterpret_cast<AllocatorT *>(MAllocator->getAllocator());
-  }
-
-  std::size_t getValueSize() const { return MAllocator->getValueSize(); }
-
-private:
-  std::unique_ptr<holder_base> MAllocator;*/
 };
 
   template <typename AllocatorT> class SYCLMemObjAllocatorHolder
