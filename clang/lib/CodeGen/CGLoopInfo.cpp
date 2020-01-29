@@ -709,8 +709,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       if (OpenCLHint)
         ValueInt = OpenCLHint->getUnrollHint();
       else { // UnrollHint
-        Expr *ValueExpr = nullptr;
-        ValueInt = (ValueExpr = UnrollHint->getUnrollHintExpr())
+        Expr *ValueExpr = UnrollHint->getUnrollHintExpr();
+        ValueInt = ValueExpr
                        ? ValueExpr->EvaluateKnownConstInt(Ctx).getSExtValue()
                        : 0;
       }
