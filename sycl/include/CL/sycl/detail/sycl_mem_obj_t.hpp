@@ -60,22 +60,22 @@ class SYCLMemObjT : public SYCLMemObjI {
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
-              SYCLMemObjAllocator Allocator)
+              unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
         MInteropContext(nullptr), MInteropMemObject(nullptr),
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
 
-  SYCLMemObjT(const property_list &Props, SYCLMemObjAllocator Allocator)
+  SYCLMemObjT(const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
-              SYCLMemObjAllocator Allocator);
+              unique_ptr_class<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              event AvailableEvent, SYCLMemObjAllocator Allocator)
+              event AvailableEvent, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 
@@ -83,7 +83,7 @@ public:
 
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
-    size_t AllocatorValueSize = MAllocator.getValueSize();
+    size_t AllocatorValueSize = MAllocator->getValueSize();
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
@@ -96,14 +96,14 @@ public:
   }
 
   template <typename AllocatorT> AllocatorT get_allocator() const {
-    return MAllocator.getAllocator<AllocatorT>();
+    return MAllocator->getAllocator<AllocatorT>();
   }
 
-  void *allocateHostMem() override { return MAllocator.allocate(get_count()); }
+  void *allocateHostMem() override { return MAllocator->allocate(get_count()); }
 
   void releaseHostMem(void *Ptr) override {
     if (Ptr)
-      MAllocator.deallocate(Ptr, get_count());
+      MAllocator->deallocate(Ptr, get_count());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
@@ -249,12 +249,12 @@ public:
   }
 
   void setAlign(size_t RequiredAlign) {
-    MAllocator.setAlignment(RequiredAlign);
+    MAllocator->setAlignment(RequiredAlign);
   }
 
 protected:
   // Allocator used for allocation memory on host.
-  SYCLMemObjAllocator MAllocator;
+  unique_ptr_class<SYCLMemObjAllocator> MAllocator;
   // Properties passed by user.
   property_list MProps;
   // Event passed by user to interoperability constructor.

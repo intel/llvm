@@ -92,7 +92,7 @@ private:
 
 public:
   image_impl(image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange, SYCLMemObjAllocator Allocator,
+             const range<Dimensions> &ImageRange, unique_ptr_class<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : image_impl((void *)nullptr, Order, Type, ImageRange,
                    std::move(Allocator), PropList) {}
@@ -100,13 +100,13 @@ public:
   template <bool B = (Dimensions > 1)>
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
+             const EnableIfPitchT<B> &Pitch, unique_ptr_class<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : image_impl((void *)nullptr, Order, Type, ImageRange, Pitch,
                    std::move(Allocator), PropList) {}
 
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
-             const range<Dimensions> &ImageRange, SYCLMemObjAllocator Allocator,
+             const range<Dimensions> &ImageRange, unique_ptr_class<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -118,7 +118,7 @@ public:
 
   image_impl(const void *HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             SYCLMemObjAllocator Allocator, const property_list &PropList = {})
+             unique_ptr_class<SYCLMemObjAllocator> Allocator, const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
@@ -130,7 +130,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
+             const EnableIfPitchT<B> &Pitch, unique_ptr_class<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -142,7 +142,7 @@ public:
 
   image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             SYCLMemObjAllocator Allocator, const property_list &PropList = {})
+             unique_ptr_class<SYCLMemObjAllocator> Allocator, const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
@@ -155,7 +155,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             const EnableIfPitchT<B> &Pitch, SYCLMemObjAllocator Allocator,
+             const EnableIfPitchT<B> &Pitch, unique_ptr_class<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -166,7 +166,7 @@ public:
   }
 
   image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-             SYCLMemObjAllocator Allocator);
+             unique_ptr_class<SYCLMemObjAllocator> Allocator);
 
   // Return a range object representing the size of the image in terms of the
   // number of elements in each dimension as passed to the constructor

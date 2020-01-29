@@ -44,17 +44,17 @@ class buffer_impl final : public SYCLMemObjT {
 
 public:
   buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, SYCLMemObjAllocator Allocator)
+              const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {}
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, SYCLMemObjAllocator Allocator)
+              const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
 
   buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, SYCLMemObjAllocator Allocator)
+              const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -62,7 +62,7 @@ public:
   template <typename T>
   buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
               size_t RequiredAlign, const property_list &Props,
-              SYCLMemObjAllocator Allocator)
+              unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -74,7 +74,7 @@ public:
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, SYCLMemObjAllocator Allocator)
+              const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
     // TODO: There is contradiction in the spec, in one place it says
@@ -92,13 +92,13 @@ public:
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props, SYCLMemObjAllocator Allocator)
+              const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, SYCLMemObjAllocator Allocator,
+              const size_t SizeInBytes, unique_ptr_class<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
       : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
               std::move(Allocator)) {}
