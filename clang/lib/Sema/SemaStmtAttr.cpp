@@ -564,18 +564,15 @@ static bool CheckLoopUnrollAttrExpr(Sema &S, Expr *E,
   if (E && !E->isInstantiationDependent()) {
     llvm::APSInt ArgVal(32);
 
-    if (!E->isIntegerConstantExpr(ArgVal, S.Context)) {
-      S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << A.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
-      return true;
-    }
+    if (!E->isIntegerConstantExpr(ArgVal, S.Context))
+      return S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+             << A.getAttrName() << AANT_ArgumentIntegerConstant
+             << E->getSourceRange();
 
-    if (ArgVal.isNonPositive()) {
-      S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << A.getAttrName() << /* positive */ 0;
-      return true;
-    }
+    if (ArgVal.isNonPositive())
+      return S.Diag(E->getExprLoc(),
+                    diag::err_attribute_requires_positive_integer)
+             << A.getAttrName() << /* positive */ 0;
 
     if (UnrollFactor)
       *UnrollFactor = ArgVal.getZExtValue();
