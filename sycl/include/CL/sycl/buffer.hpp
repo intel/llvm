@@ -60,7 +60,8 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -68,7 +69,8 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList, make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -76,7 +78,9 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   template <typename _T = T>
@@ -86,7 +90,8 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
   template <typename _T = T>
@@ -96,7 +101,9 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -105,7 +112,9 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -114,7 +123,8 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
-        propList,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
   template <class InputIterator, int N = dimensions,
@@ -125,7 +135,9 @@ public:
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
         first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList, make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   template <class InputIterator, int N = dimensions,
@@ -136,7 +148,8 @@ public:
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
         first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList, make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -149,7 +162,8 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         container.data(), container.data() + container.size(),
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
-         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(allocator));
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -186,7 +200,9 @@ public:
 
     Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        MemObject, SyclContext, BufSize,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), AvailableEvent);
+        MemObject, SyclContext, BufSize,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        AvailableEvent);
   }
 
   buffer(const buffer &rhs) = default;

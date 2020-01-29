@@ -233,9 +233,9 @@ image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
 }
 
 template <int Dimensions>
-image_impl<Dimensions>::image_impl(cl_mem MemObject, const context &SyclContext,
-                                   event AvailableEvent,
-                                   unique_ptr_class<SYCLMemObjAllocator> Allocator)
+image_impl<Dimensions>::image_impl(
+    cl_mem MemObject, const context &SyclContext, event AvailableEvent,
+    unique_ptr_class<SYCLMemObjAllocator> Allocator)
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MRange(InitializedVal<Dimensions, range>::template get<0>()) {

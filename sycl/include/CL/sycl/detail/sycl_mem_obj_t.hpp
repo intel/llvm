@@ -67,7 +67,8 @@ public:
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
 
-  SYCLMemObjT(const property_list &Props, unique_ptr_class<SYCLMemObjAllocator> Allocator)
+  SYCLMemObjT(const property_list &Props,
+              unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
@@ -75,7 +76,8 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              event AvailableEvent, unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              event AvailableEvent,
+              unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 

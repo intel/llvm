@@ -64,14 +64,19 @@ public:
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, AllocatorT Allocator,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -81,7 +86,9 @@ public:
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -91,34 +98,47 @@ public:
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, AllocatorT Allocator,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   image(const void *HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   image(const void *HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -128,7 +148,9 @@ public:
         typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        HostPointer, Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -138,21 +160,29 @@ public:
         typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        HostPointer, Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        HostPointer, Order, Type, Range,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -162,7 +192,9 @@ public:
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(), PropList);
+        HostPointer, Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        PropList);
   }
 
   /* Available only when: dimensions >1 */
@@ -172,13 +204,17 @@ public:
         const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        HostPointer, Order, Type, Range, Pitch,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(Allocator), PropList);
+        HostPointer, Order, Type, Range, Pitch,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            Allocator),
+        PropList);
   }
 
   image(cl_mem ClMemObject, const context &SyclContext,
         event AvailableEvent = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
-        ClMemObject, SyclContext, AvailableEvent,  make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        ClMemObject, SyclContext, AvailableEvent,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
   /* -- common interface members -- */

@@ -15,15 +15,15 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-            const size_t SizeInBytes, event AvailableEvent,
-            unique_ptr_class<SYCLMemObjAllocator> Allocator)
+                         const size_t SizeInBytes, event AvailableEvent,
+                         unique_ptr_class<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MInteropMemObject(MemObject), MOpenCLInterop(true),
-      MHostPtrReadOnly(false), MNeedWriteBack(true),
-      MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
-      MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {
+      MHostPtrReadOnly(false), MNeedWriteBack(true), MSizeInBytes(SizeInBytes),
+      MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
+      MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
