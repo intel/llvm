@@ -21,20 +21,16 @@ __SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
-static std::vector<RT::PiEvent>
-getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
-  std::vector<RT::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls)
-    RetPiEvents.push_back(EventImpl->getHandleRef());
-  return RetPiEvents;
-}
-
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
     auto Plugin = Events[0]->getPlugin();
-    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
+    std::vector<RT::PiEvent> PiEvents;
+    std::transform(Events.begin(), Events.end(), PiEvents.begin(),
+                   [](const EventImplPtr &EventImpl) {
+                     return EventImpl->getHandleRef();
+                   });
     Plugin.call<PiApiKind::piEventsWait>(PiEvents.size(), &PiEvents[0]);
   }
 }
@@ -491,10 +487,8 @@ void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
                           RT::PiEvent &OutEvent) {
 
   // Host queue is not supported here.
-  // Assuming all DepEvents are to the same device. Therefore, we can use the
-  // Plugin of the queue.
-  // TODO: Ask Vlad. Can a device Queue have DepEvents to different devices on
-  // different Platforms?
+  // All DepEvents are to the same Context. 
+  // Using the plugin of the Queue.
 
   auto Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piEnqueueMemUnmap>(

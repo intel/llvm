@@ -22,6 +22,7 @@
 __SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
+class context_impl;
 class KernelProgramCache {
 public:
   /// Denotes pointer to some entity with its state.

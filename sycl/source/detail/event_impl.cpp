@@ -9,6 +9,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/event_info.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 

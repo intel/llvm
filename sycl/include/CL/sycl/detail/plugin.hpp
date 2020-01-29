@@ -43,8 +43,8 @@ public:
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;
-    std::string FnName = PiCallInfo.getFuncName();
     if (MPiEnableTrace) {
+      std::string FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
     }
@@ -63,7 +63,8 @@ public:
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
     checkPiResult(Err);
   }
-  // TODO: Make this private.
+  // TODO: Make this private. Currently used in program_manager to create a
+  // pointer to PiProgram.
   RT::PiPlugin MPlugin;
 
 private:

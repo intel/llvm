@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/kernel_program_cache.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
