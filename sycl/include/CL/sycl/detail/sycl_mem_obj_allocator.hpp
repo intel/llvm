@@ -80,12 +80,12 @@ public:
   template <typename AllocatorT>
   SYCLMemObjAllocator(AllocatorT Allocator)
       : MAllocator(std::unique_ptr<holder_base>(
-            new holder<AllocatorT>(Allocator))){};
+            new holder<AllocatorT>(Allocator))){}
 
   template <typename AllocatorT>
   SYCLMemObjAllocator()
       : MAllocator(std::unique_ptr<holder_base>(
-            new holder<AllocatorT>(AllocatorT()))){};
+            new holder<AllocatorT>(AllocatorT()))){}
 
   void *allocate(std::size_t Count) { return MAllocator->allocate(Count); }
 
