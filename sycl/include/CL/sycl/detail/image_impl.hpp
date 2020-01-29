@@ -192,7 +192,7 @@ public:
   size_t get_count() const { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &OutEventToWait);
+                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::IMAGE; }
 
@@ -288,10 +288,6 @@ private:
   size_t MRowPitch = 0;
   size_t MSlicePitch = 0;
 };
-
-template class image_impl<1>;
-template class image_impl<2>;
-template class image_impl<3>;
 } // namespace detail
 } // namespace sycl
 } // namespace cl

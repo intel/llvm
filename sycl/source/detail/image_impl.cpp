@@ -258,8 +258,10 @@ image_impl<Dimensions>::image_impl(cl_mem MemObject, const context &SyclContext,
   switch (Dimensions) {
   case 3:
     getImageInfo(PI_IMAGE_INFO_DEPTH, MRange[2]);
+    // fall through
   case 2:
     getImageInfo(PI_IMAGE_INFO_HEIGHT, MRange[1]);
+    // fall through
   case 1:
     getImageInfo(PI_IMAGE_INFO_WIDTH, MRange[0]);
   }
@@ -401,6 +403,11 @@ bool image_impl<Dimensions>::checkImageFormat(
 
   return true;
 }
+
+template class image_impl<1>;
+template class image_impl<2>;
+template class image_impl<3>;
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
