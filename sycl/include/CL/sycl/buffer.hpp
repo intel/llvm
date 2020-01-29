@@ -215,19 +215,20 @@ public:
 
   AllocatorT get_allocator() const { return impl->get_allocator<AllocatorT>(); }
 
-  template <access::mode mode,
-            access::target target = access::target::global_buffer>
-  accessor<T, dimensions, mode, target, access::placeholder::false_t>
-  get_access(handler &commandGroupHandler) {
-    return impl->template get_access<T, dimensions, mode, target, AllocatorT>(
-        *this, commandGroupHandler);
+  template <access::mode Mode,
+            access::target Target = access::target::global_buffer>
+  accessor<T, dimensions, Mode, Target, access::placeholder::false_t>
+  get_access(handler &CommandGroupHandler) {
+    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t>(
+        *this, CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access() {
-    return impl->template get_access<T, dimensions, mode, AllocatorT>(*this);
+    return accessor<T, dimensions, mode, access::target::host_buffer,
+                    access::placeholder::false_t>(*this);
   }
 
   template <access::mode mode,
@@ -235,7 +236,7 @@ public:
   accessor<T, dimensions, mode, target, access::placeholder::false_t>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
-    return impl->template get_access<T, dimensions, mode, target, AllocatorT>(
+    return accessor<T, dimensions, mode, target, access::placeholder::false_t>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
@@ -243,8 +244,9 @@ public:
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
-    return impl->template get_access<T, dimensions, mode, AllocatorT>(
-        *this, accessRange, accessOffset);
+    return accessor<T, dimensions, mode, access::target::host_buffer,
+                    access::placeholder::false_t>(*this, accessRange,
+                                                  accessOffset);
   }
 
   template <typename Destination = std::nullptr_t>

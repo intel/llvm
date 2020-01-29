@@ -227,15 +227,16 @@ public:
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t>
   get_access(handler &commandGroupHandler) {
-    return impl->template get_access<DataT, AllocatorT, AccessMode>(
-        *this, commandGroupHandler);
+    return accessor<DataT, Dimensions, AccessMode, access::target::image,
+                    access::placeholder::false_t>(*this, commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t>
   get_access() {
-    return impl->template get_access<DataT, AllocatorT, AccessMode>(*this);
+    return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+                    access::placeholder::false_t>(*this);
   }
 
   template <typename Destination = std::nullptr_t>

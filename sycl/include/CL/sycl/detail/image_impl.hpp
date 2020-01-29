@@ -196,31 +196,6 @@ public:
 
   MemObjType getType() const override { return MemObjType::IMAGE; }
 
-  // Returns a valid accessor to the image with the specified access mode and
-  // target. The only valid types for dataT are cl_int4, cl_uint4, cl_float4 and
-  // cl_half4.
-  template <typename DataT, typename AllocatorT, access::mode AccessMode,
-            typename = EnableIfImgAccDataT<DataT>>
-  accessor<DataT, Dimensions, AccessMode, access::target::image,
-           access::placeholder::false_t>
-  get_access(image<Dimensions, AllocatorT> &Image,
-             handler &CommandGroupHandler) {
-    return accessor<DataT, Dimensions, AccessMode, access::target::image,
-                    access::placeholder::false_t>(Image, CommandGroupHandler);
-  }
-
-  // Returns a valid accessor to the image immediately on the host with the
-  // specified access mode and target. The only valid types for dataT are
-  // cl_int4, cl_uint4, cl_float4 and cl_half4.
-  template <typename DataT, typename AllocatorT,
-            access::mode AccessMode> //, typename = EnableIfImgAccDataT<DataT>>
-  accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-           access::placeholder::false_t>
-  get_access(image<Dimensions, AllocatorT> &Image) {
-    return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-                    access::placeholder::false_t>(Image);
-  }
-
   // This utility api is currently used by accessor to get the element size of
   // the image. Element size is dependent on num of channels and channel type.
   // This information is not accessible from the image using any public API.
