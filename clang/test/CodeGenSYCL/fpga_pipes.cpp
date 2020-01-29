@@ -3,10 +3,10 @@
 // CHECK: %opencl.pipe_ro_t
 
 using WPipeTy = __attribute__((pipe("write_only"))) const int;
-WPipeTy WPipeCreator();
+SYCL_EXTERNAL WPipeTy WPipeCreator();
 
 using RPipeTy = __attribute__((pipe("read_only"))) const int;
-RPipeTy RPipeCreator();
+SYCL_EXTERNAL RPipeTy RPipeCreator();
 
 template <typename PipeTy>
 void foo(PipeTy Pipe) {}

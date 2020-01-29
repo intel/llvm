@@ -5,9 +5,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 %s
 
 #if defined(PRINTF_INVALID_DECL)
-extern "C" int __spirv_ocl_printf(const char *__format, ...);
+extern "C" SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 namespace A {
-  int __spirv_ocl_printf(const char *__format, ...);
+  SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 }
 #elif defined(PRINTF_INVALID_DEF)
 int __spirv_ocl_printf(const char *__format, ...) {
@@ -17,18 +17,20 @@ int __spirv_ocl_printf(const char *__format, ...) {
 class A {
   friend int __spirv_ocl_printf(const char *__format, ...);
 };
-int __spirv_ocl_printf(const char *__format, ...);
+SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 #elif defined(PRINTF_VALID2)
 extern "C" {
   extern "C++" {
-    int __spirv_ocl_printf(const char *__format, ...);
+    SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
   }
 }
 #else
-int __spirv_ocl_printf(const char *__format, ...);
+int __spirv_ocl_printf(const char *__format, ...) {
+  return 42;
+}
 #endif
 
-int __cdecl foo(int, ...); // expected-no-error
+SYCL_EXTERNAL int __cdecl foo(int, ...); // expected-no-error
 
 float bar(float f, ...) { return ++f; } // expected-no-error
 
