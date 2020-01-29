@@ -706,13 +706,15 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     // 1 - disable unroll.
     // other positive integer n - unroll by n.
     if (OpenCLHint || UnrollHint) {
-      Expr *ValueExpr = nullptr;
-      ValueInt =
-          OpenCLHint
-              ? OpenCLHint->getUnrollHint()
-              : ((ValueExpr = UnrollHint->getUnrollHintExpr())
-                     ? ValueExpr->EvaluateKnownConstInt(Ctx).getSExtValue()
-                     : 0);
+      if (OpenCLHint)
+        ValueInt = OpenCLHint->getUnrollHint();
+      else { // UnrollHint
+        Expr *ValueExpr = nullptr;
+        ValueInt = (ValueExpr = UnrollHint->getUnrollHintExpr())
+                       ? ValueExpr->EvaluateKnownConstInt(Ctx).getSExtValue()
+                       : 0;
+      }
+
       if (ValueInt == 0) {
         State = LoopHintAttr::Enable;
       } else if (ValueInt != 1) {

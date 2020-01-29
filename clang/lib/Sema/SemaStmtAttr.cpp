@@ -558,9 +558,9 @@ void CheckForIncompatibleUnrollHintAttributes(
   }
 }
 
-static bool HandleLoopUnrollAttrExpr(Sema &S, Expr *E,
-                                     const AttributeCommonInfo &A,
-                                     unsigned *UnrollFactor = nullptr) {
+static bool CheckLoopUnrollAttrExpr(Sema &S, Expr *E,
+                                    const AttributeCommonInfo &A,
+                                    unsigned *UnrollFactor = nullptr) {
   if (E && !E->isInstantiationDependent()) {
     llvm::APSInt ArgVal(32);
 
@@ -568,26 +568,24 @@ static bool HandleLoopUnrollAttrExpr(Sema &S, Expr *E,
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
           << A.getAttrName() << AANT_ArgumentIntegerConstant
           << E->getSourceRange();
-      return false;
+      return true;
     }
 
-    int Val = ArgVal.getSExtValue();
-
-    if (Val <= 0) {
+    if (ArgVal.isNonPositive()) {
       S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
           << A.getAttrName() << /* positive */ 0;
-      return false;
+      return true;
     }
 
     if (UnrollFactor)
-      *UnrollFactor = Val;
+      *UnrollFactor = ArgVal.getZExtValue();
   }
-  return true;
+  return false;
 }
 
 LoopUnrollHintAttr *Sema::BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                                   Expr *E) {
-  return HandleLoopUnrollAttrExpr(*this, E, A)
+  return !CheckLoopUnrollAttrExpr(*this, E, A)
              ? new (Context) LoopUnrollHintAttr(Context, A, E)
              : nullptr;
 }
@@ -595,7 +593,7 @@ LoopUnrollHintAttr *Sema::BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
 OpenCLUnrollHintAttr *
 Sema::BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E) {
   unsigned UnrollFactor = 0;
-  return HandleLoopUnrollAttrExpr(*this, E, A, &UnrollFactor)
+  return !CheckLoopUnrollAttrExpr(*this, E, A, &UnrollFactor)
              ? new (Context) OpenCLUnrollHintAttr(Context, A, UnrollFactor)
              : nullptr;
 }
