@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>

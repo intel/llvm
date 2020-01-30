@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
