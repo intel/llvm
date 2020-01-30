@@ -88,18 +88,18 @@ event handler::finalize() {
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource) {
-  const auto kind_std_layout = detail::kernel_param_kind_t::kind_std_layout;
-  const auto kind_accessor = detail::kernel_param_kind_t::kind_accessor;
-  const auto kind_sampler = detail::kernel_param_kind_t::kind_sampler;
-  const auto kind_pointer = detail::kernel_param_kind_t::kind_pointer;
+  const auto kind_std_layout_v = detail::kernel_param_kind_t::kind_std_layout;
+  const auto kind_accessor_v = detail::kernel_param_kind_t::kind_accessor;
+  const auto kind_sampler_v = detail::kernel_param_kind_t::kind_sampler;
+  const auto kind_pointer_v = detail::kernel_param_kind_t::kind_pointer;
 
   switch (Kind) {
-  case kind_std_layout:
-  case kind_pointer: {
+  case kind_std_layout_v:
+  case kind_pointer_v: {
     MArgs.emplace_back(Kind, Ptr, Size, Index + IndexShift);
     break;
   }
-  case kind_accessor: {
+  case kind_accessor_v: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
     const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
@@ -114,14 +114,14 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         const size_t SizeAccField =
             sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
         ++IndexShift;
-        MArgs.emplace_back(kind_std_layout, &AccImpl->MAccessRange[0],
+        MArgs.emplace_back(kind_std_layout_v, &AccImpl->MAccessRange[0],
                            SizeAccField, Index + IndexShift);
         ++IndexShift;
-        MArgs.emplace_back(kind_std_layout, &AccImpl->MMemoryRange[0],
+        MArgs.emplace_back(kind_std_layout_v, &AccImpl->MMemoryRange[0],
                            SizeAccField, Index + IndexShift);
         ++IndexShift;
-        MArgs.emplace_back(kind_std_layout, &AccImpl->MOffset[0], SizeAccField,
-                           Index + IndexShift);
+        MArgs.emplace_back(kind_std_layout_v, &AccImpl->MOffset[0],
+                           SizeAccField, Index + IndexShift);
       }
       break;
     }
@@ -139,18 +139,18 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       int SizeInBytes = LAcc->MElemSize;
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
-      MArgs.emplace_back(kind_std_layout, nullptr, SizeInBytes,
+      MArgs.emplace_back(kind_std_layout_v, nullptr, SizeInBytes,
                          Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
-        MArgs.emplace_back(kind_std_layout, &Size, SizeAccField,
+        MArgs.emplace_back(kind_std_layout_v, &Size, SizeAccField,
                            Index + IndexShift);
         ++IndexShift;
-        MArgs.emplace_back(kind_std_layout, &Size, SizeAccField,
+        MArgs.emplace_back(kind_std_layout_v, &Size, SizeAccField,
                            Index + IndexShift);
         ++IndexShift;
-        MArgs.emplace_back(kind_std_layout, &Size, SizeAccField,
+        MArgs.emplace_back(kind_std_layout_v, &Size, SizeAccField,
                            Index + IndexShift);
       }
       break;
@@ -174,8 +174,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
-  case kind_sampler: {
-    MArgs.emplace_back(kind_sampler, Ptr, sizeof(sampler), Index + IndexShift);
+  case kind_sampler_v: {
+    MArgs.emplace_back(kind_sampler_v, Ptr, sizeof(sampler),
+                       Index + IndexShift);
     break;
   }
   }
