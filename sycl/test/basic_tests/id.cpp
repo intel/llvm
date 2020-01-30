@@ -91,6 +91,111 @@ int main() {
 /* size_t &operator[](int dimension)const
  * Return a reference to the requested dimension of the id object. */
 
+/* bool operatorOP(const id<dimensions> &rhs) const
+ * Where OP is: ==, !=.
+ * Common by-value semantics.
+ * T must be equality comparable on the host application and within SYCL kernel
+ * functions. Equality between two instances of T (i.e. a == b) must be true if
+ * the value of all members are equal and non-equality between two instances of
+ * T (i.e. a != b) must be true if the value of any members are not equal,
+ * unless either instance has become invalidated by a move operation.
+ * Where T is id<dimensions>. */
+#define firstOneValue 10
+#define secondOneValue 19
+#define firstTwoValue 15
+#define secondTwoValue 12
+#define firstThreeValue 3
+#define secondThreeValue 22
+
+  cl::sycl::id<1> one_dim_op_one(firstOneValue);
+  cl::sycl::id<1> one_dim_op_two(secondOneValue);
+  cl::sycl::id<1> one_dim_op_another_one(firstOneValue);
+
+  cl::sycl::id<2> two_dim_op_one(firstOneValue, firstTwoValue);
+  cl::sycl::id<2> two_dim_op_two(secondOneValue, secondTwoValue);
+  cl::sycl::id<2> two_dim_op_another_one(firstOneValue, firstTwoValue);
+
+  cl::sycl::id<3> three_dim_op_one(firstOneValue, firstTwoValue,
+                                   firstThreeValue);
+  cl::sycl::id<3> three_dim_op_two(secondOneValue, secondTwoValue,
+                                   secondThreeValue);
+  cl::sycl::id<3> three_dim_op_another_one(firstOneValue, firstTwoValue,
+                                           firstThreeValue);
+
+  // OP : ==
+  // id<1> == id<1>
+  assert((one_dim_op_one == one_dim_op_two) ==
+         (firstOneValue == secondOneValue));
+  assert((one_dim_op_one == one_dim_op_another_one) ==
+         (firstOneValue == firstOneValue));
+  // id<2> == id<2>
+  assert(
+      (two_dim_op_one == two_dim_op_two) ==
+      ((firstOneValue == secondOneValue) && (firstTwoValue == secondTwoValue)));
+  assert(
+      (two_dim_op_one == two_dim_op_another_one) ==
+      ((firstOneValue == firstOneValue) && (firstTwoValue == firstTwoValue)));
+  // id<3> == id<3>
+  assert((three_dim_op_one == three_dim_op_two) ==
+         ((firstOneValue == secondOneValue) &&
+          (firstTwoValue == secondTwoValue) &&
+          (firstThreeValue == secondThreeValue)));
+  assert((three_dim_op_one == three_dim_op_another_one) ==
+         ((firstOneValue == firstOneValue) &&
+          (firstTwoValue == firstTwoValue) &&
+          (firstThreeValue == firstThreeValue)));
+
+  // OP : !=
+  // id<1> != id<1>
+  assert((one_dim_op_one != one_dim_op_two) ==
+         (firstOneValue != secondOneValue));
+  assert((one_dim_op_one != one_dim_op_another_one) ==
+         (firstOneValue != firstOneValue));
+  // id<2> != id<2>
+  assert(((two_dim_op_one != two_dim_op_two) ==
+          (firstOneValue != secondOneValue)) ||
+         (firstTwoValue != secondTwoValue));
+  assert(((two_dim_op_one != two_dim_op_another_one) ==
+          (firstOneValue != firstOneValue)) ||
+         (firstTwoValue != firstTwoValue));
+  // id<3> != id<3>
+  assert((three_dim_op_one != three_dim_op_two) ==
+         ((firstOneValue != secondOneValue) ||
+          (firstTwoValue != secondTwoValue) ||
+          (firstThreeValue != secondThreeValue)));
+  assert((three_dim_op_one != three_dim_op_another_one) ==
+         ((firstOneValue != firstOneValue) ||
+          (firstTwoValue != firstTwoValue) ||
+          (firstThreeValue != firstThreeValue)));
+
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  // id<1> == size_t
+  assert((one_dim_op_one == secondOneValue) ==
+         (firstOneValue == secondOneValue));
+  assert((one_dim_op_one == firstOneValue) == (firstOneValue == firstOneValue));
+  // size_t == id<1>
+  assert((firstOneValue == one_dim_op_two) ==
+         (firstOneValue == secondOneValue));
+  assert((firstOneValue == one_dim_op_another_one) ==
+         (firstOneValue == firstOneValue));
+  // id<1> != size_t
+  assert((one_dim_op_one != secondOneValue) ==
+         (firstOneValue != secondOneValue));
+  assert((one_dim_op_one != firstOneValue) == (firstOneValue != firstOneValue));
+  // size_t != id<1>
+  assert((firstOneValue != one_dim_op_two) ==
+         (firstOneValue != secondOneValue));
+  assert((firstOneValue != one_dim_op_another_one) ==
+         (firstOneValue != firstOneValue));
+#endif
+
+#undef firstOneValue
+#undef secondOneValue
+#undef firstTwoValue
+#undef secondTwoValue
+#undef firstThreeValue
+#undef secondThreeValue
+
 /* id<dimensions> operatorOP(const id<dimensions> &rhs) const
  * Where OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=.
  * Constructs and returns a new instance of the SYCL id class template with
@@ -179,13 +284,25 @@ int main() {
 #undef OPERATOR_TEST
 #undef OPERATOR_TEST_BASIC
 
-  /* id<dimensions> operatorOP(const id<dimensions> &rhs) const
-   * Where OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=.
-   * Constructs and returns a new instance of the SYCL id class template with
-   * the same dimensionality as this SYCL id, where each element of the new SYCL
-   * id instance is the result of an element-wise OP operator between each
-   * element of this SYCL id and each element of the rhs id. If the operator
-   * returns a bool the result is the cast to size_t */
+#undef oneLeftValue
+#undef oneRightValue
+#undef twoLeftValue
+#undef twoRightValue
+#undef threeLeftValue
+#undef threeRightValue
+
+/* id<dimensions> operatorOP(const id<dimensions> &rhs) const
+ * Where OP is: +, -, *, /, %, <<, >>, &, |, ^.
+ * Assigns each element of this SYCL id instance with the result of an
+ * element-wise OP operator between each element of this SYCL id and each
+ * element of the rhs id and returns a reference to this SYCL id. If the
+ * operator returns a bool the result is the cast to size_t */
+#define oneLeftValue 10
+#define oneRightValue 2
+#define twoLeftValue 15
+#define twoRightValue 7
+#define threeLeftValue 3
+#define threeRightValue 9
 
 #define OPERATOR_TEST_BASIC(op)                                                \
   one_dim_op_left[0] = oneLeftValue;                                           \

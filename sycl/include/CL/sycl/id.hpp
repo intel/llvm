@@ -79,6 +79,21 @@ __SYCL_INLINE namespace cl {
       return result;
     }
 
+// OP is: ==, !=
+#define __SYCL_GEN_OPT(op)                                                     \
+  bool operator op(const id<dimensions> &rhs) const {                          \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      if (this->common_array[i] != rhs.common_array[i])                        \
+        return false op true;                                                  \
+    }                                                                          \
+    return true op true;                                                       \
+  }
+
+    __SYCL_GEN_OPT(==)
+    __SYCL_GEN_OPT(!=)
+
+#undef __SYCL_GEN_OPT
+
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT(op)                                                     \
   id<dimensions> operator op(const id<dimensions> &rhs) const {                \
@@ -177,33 +192,40 @@ __SYCL_INLINE namespace cl {
 
     operator size_t() const { return this->get(0); }
 
+// OP is: ==, !=
+#define __SYCL_GEN_OPT(op)                                                     \
+  bool operator op(id<1> &rhs) const {                                         \
+    return this->common_array[0] op rhs.common_array[0];                       \
+  }                                                                            \
+  bool operator op(size_t &rhs) const { return this->common_array[0] op rhs; } \
+  bool operator op(range<1> &rhs) const {                                      \
+    return this->common_array[0] op rhs[0];                                    \
+  }
+  /* The equality check of size_t op id<1> goes thougth id<1> -> size_t
+   * conversion */
+
+    __SYCL_GEN_OPT(==)
+    __SYCL_GEN_OPT(!=)
+
+#undef __SYCL_GEN_OPT
+
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT(op)                                                     \
   id<1> operator op(const id<1> &rhs) const {                                  \
-    id<1> result;                                                              \
-    result.common_array[0] = this->common_array[0] op rhs.common_array[0];     \
-    return result;                                                             \
+    return id<1>(this->common_array[0] op rhs.common_array[0]);                \
   }                                                                            \
   template <typename T> id<1> operator op(const T &rhs) const {                \
-    id<1> result;                                                              \
-    result.common_array[0] = this->common_array[0] op rhs;                     \
-    return result;                                                             \
+    return id<1>(this->common_array[0] op rhs);                                \
   }                                                                            \
   template <typename T>                                                        \
   friend id<1> operator op(const T &lhs, const id<1> &rhs) {                   \
-    id<1> result;                                                              \
-    result.common_array[0] = lhs op rhs.common_array[0];                       \
-    return result;                                                             \
+    return id<1>(lhs op rhs.common_array[0]);                                  \
   }                                                                            \
   id<1> operator op(const range<1> &rhs) const {                               \
-    id<1> result;                                                              \
-    result.common_array[0] = this->common_array[0] op rhs[0];                  \
-    return result;                                                             \
+    return id<1>(this->common_array[0] op rhs[0]);                             \
   }                                                                            \
   friend id<1> operator op(const range<1> &lhs, const id<1> &rhs) {            \
-    id<1> result;                                                              \
-    result.common_array[0] = lhs[0] op rhs.common_array[0];                    \
-    return result;                                                             \
+    return id<1>(lhs[0] op rhs.common_array[0]);                               \
   }
 
     __SYCL_GEN_OPT(+)
