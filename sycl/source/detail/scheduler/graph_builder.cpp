@@ -640,7 +640,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   std::queue<Command *> ToVisit;
   std::set<Command *> Visited;
   // First, mark all allocas for deletion and their direct users for traversal
-  // Dependencies of the users will be cleaned up during traversal
+  // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
     for (Command *UserCmd : AllocaCmd->MUsers)
@@ -659,40 +659,41 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Command *Cmd = ToVisit.front();
     ToVisit.pop();
 
-    if (Visited.insert(Cmd).second) {
-      for (Command *UserCmd : Cmd->MUsers)
-        ToVisit.push(UserCmd);
+    if (!Visited.insert(Cmd).second)
+      continue;
 
-      // Delete all dependencies on any allocations being removed
-      // Track which commands should have their users updated
-      std::set<Command *> UpdateCandidates; // At least 1 dep removed
-      std::set<Command *> UpdateTaboo;      // At least 1 dep left
-      auto NewEnd = std::remove_if(
-          Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
-            if (AllocasToDelete.find(Dep.MAllocaCmd) != AllocasToDelete.end()) {
-              UpdateCandidates.insert(Dep.MDepCommand);
-              return true;
-            }
-            UpdateTaboo.insert(Dep.MDepCommand);
-            return false;
-          });
-      Cmd->MDeps.erase(NewEnd, Cmd->MDeps.end());
+    for (Command *UserCmd : Cmd->MUsers)
+      ToVisit.push(UserCmd);
 
-      // Update users of removed dependencies
-      for (Command *DepCmd : UpdateCandidates) {
-        if (UpdateTaboo.find(DepCmd) != UpdateTaboo.end())
-          continue;
-        std::vector<Command *> &DepUsers = DepCmd->MUsers;
-        DepUsers.erase(std::remove(DepUsers.begin(), DepUsers.end(), Cmd),
-                       DepUsers.end());
-      }
+    // Delete all dependencies on any allocations being removed
+    // Track which commands should have their users updated
+    std::set<Command *> UpdateCandidates; // At least 1 dep removed
+    std::set<Command *> UpdateTaboo;      // At least 1 dep left
+    auto NewEnd = std::remove_if(
+        Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
+          if (AllocasToDelete.count(Dep.MAllocaCmd)) {
+            UpdateCandidates.insert(Dep.MDepCommand);
+            return true;
+          }
+          UpdateTaboo.insert(Dep.MDepCommand);
+          return false;
+        });
+    Cmd->MDeps.erase(NewEnd, Cmd->MDeps.end());
 
-      // If all dependencies have been removed this way, mark the command for
-      // deletion
-      if (Cmd->MDeps.empty()) {
-        CmdsToDelete.push_back(Cmd);
-        Cmd->MUsers.clear();
-      }
+    // Update users of removed dependencies
+    for (Command *DepCmd : UpdateCandidates) {
+      if (UpdateTaboo.count(DepCmd))
+        continue;
+      std::vector<Command *> &DepUsers = DepCmd->MUsers;
+      DepUsers.erase(std::remove(DepUsers.begin(), DepUsers.end(), Cmd),
+                     DepUsers.end());
+    }
+
+    // If all dependencies have been removed this way, mark the command for
+    // deletion
+    if (Cmd->MDeps.empty()) {
+      CmdsToDelete.push_back(Cmd);
+      Cmd->MUsers.clear();
     }
   }
 
