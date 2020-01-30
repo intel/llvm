@@ -1191,17 +1191,22 @@ def OpenCLUnrollHint : InheritableAttr {
 
 def LoopUnrollHint : InheritableAttr {
   let Spellings = [CXX11<"clang","loop_unroll">];
-  let Args = [UnsignedArgument<"UnrollHint">];
+  let Args = [ExprArgument<"UnrollHintExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
     static const char *getName() {
       return "loop_unroll";
     }
-    std::string getDiagnosticName() const {
-      std::string Value = "";
-      if (getUnrollHint())
-        Value = "(" + std::to_string(getUnrollHint()) + ")";
-      return "[[clang::loop_unroll" + Value + "]]";
+    std::string getDiagnosticName(const PrintingPolicy &Policy) const {
+      std::string ValueName;
+      llvm::raw_string_ostream OS(ValueName);
+      if (auto *E = getUnrollHintExpr()) {
+        OS << "(";
+        E->printPretty(OS, nullptr, Policy);
+        OS << ")";
+      }
+      return "[[clang::loop_unroll" + OS.str() + "]]";
     }
   }];
   let Documentation = [LoopUnrollHintDocs];

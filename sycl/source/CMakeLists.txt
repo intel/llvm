@@ -87,6 +87,7 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "half_type.cpp"
+    "handler.cpp"
     "kernel.cpp"
     "platform.cpp"
     "program.cpp"

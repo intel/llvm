@@ -1055,6 +1055,8 @@ namespace {
     const SYCLIntelFPGAMaxConcurrencyAttr *
     TransformSYCLIntelFPGAMaxConcurrencyAttr(
         const SYCLIntelFPGAMaxConcurrencyAttr *MC);
+    const LoopUnrollHintAttr *
+    TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1517,6 +1519,13 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
   return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
       *MC, TransformedExpr);
+}
+
+const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
+    const LoopUnrollHintAttr *LU) {
+  Expr *TransformedExpr =
+      getDerived().TransformExpr(LU->getUnrollHintExpr()).get();
+  return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

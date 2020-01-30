@@ -171,10 +171,13 @@ struct PrintingPolicy {
   /// When true, suppress printing of lifetime qualifier in ARC.
   unsigned SuppressLifetimeQualifiers : 1;
 
-  /// When true prints a canonical type instead of an alias. E.g.
+  /// When true prints a canonical type instead of an alias.
+  /// Also removes preceeding keywords if there is one. E.g.
   ///   \code
-  ///   using SizeT = int;
-  ///   template<SizeT N> class C;
+  ///   namespace NS {
+  ///      using SizeT = int;
+  ///   }
+  ///   template<typename NS::SizeT N> class C;
   ///   \endcode
   /// will be printed as
   ///   \code

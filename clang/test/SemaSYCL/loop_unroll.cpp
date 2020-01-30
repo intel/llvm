@@ -1,5 +1,12 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
+template <int A>
+void bar() {
+  // expected-error@+1 {{'loop_unroll' attribute requires a positive integral compile time constant expression}}
+  [[clang::loop_unroll(A)]]
+  for (int i = 0; i < 10; ++i);
+}
+
 void foo() {
   // expected-error@+1 {{clang loop attributes must be applied to for, while, or do statements}}
   [[clang::loop_unroll(8)]] int a[10];
@@ -44,6 +51,12 @@ void foo() {
   constexpr int c = 4;
   [[clang::loop_unroll(c)]]
   for (int i = 0; i < 10; ++i);
+
+  // expected-note@+1 {{in instantiation of function template specialization}}
+  bar<-4>();
+
+  // no error expected
+  bar<c>();
 }
 
 template <typename name, typename Func>
