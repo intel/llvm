@@ -114,8 +114,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     for (const auto &II : InputFiles)
       CmdArgs.push_back(II.getFilename());
 
-  // Add additional options from -Xsycl-target-linker
-  TranslateSYCLLinkerArgs(C, Args, getToolChain(), CmdArgs);
   // Add an intermediate output file.
   CmdArgs.push_back("-o");
   const char *OutputFileName = Output.getFilename();
@@ -182,48 +180,6 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
                            SpirvInputs);
-}
-
-void SYCL::TranslateSYCLLinkerArgs(Compilation &C,
-   const llvm::opt::ArgList &Args, const ToolChain &TC,
-   llvm::opt::ArgStringList &CmdArgs) {
-
-  // Handle -Xsycl-target-linker flag.
-  for (auto *A : Args) {
-    bool XSYCLLinkerNoTriple;
-    XSYCLLinkerNoTriple = A->getOption().matches(options::OPT_Xsycl_linker);
-    if (A->getOption().matches(options::OPT_Xsycl_linker_EQ)) {
-      // Passing llvm-link args: -Xsycl-target-linker=<triple> -opt=val.
-      if (A->getValue() != TC.getTripleString())
-        // Provided triple does not match current tool chain.
-        continue;
-    } else if (!XSYCLLinkerNoTriple)
-      // Don't worry about any of the other args, we only want to pass what is
-      // passed in -Xsycl-target-linker.
-      continue;
-
-    // Add the argument from -Xsycl-target-linker.
-    StringRef ArgString;
-    if (XSYCLLinkerNoTriple) {
-      // With multiple -fsycl-targets, a triple is required so we know where
-      // the options should go.
-      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
-            << A->getSpelling();
-        continue;
-      }
-      // No triple, so just add the argument.
-      ArgString = A->getValue();
-    } else
-      // Triple found, add the next argument in line.
-      ArgString = A->getValue(1);
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
-    A->claim();
-  }
 }
 
 void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
@@ -317,7 +273,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-output-report-folder=") + ReportOptArg));
+  // Add -Xsycl-target* options.
   getToolChain().TranslateBackendTargetArgs(Args, CmdArgs);
+  getToolChain().TranslateLinkerTargetArgs(Args, CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
@@ -355,7 +313,9 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
+  // Add -Xsycl-target* options.
   getToolChain().TranslateBackendTargetArgs(Args, CmdArgs);
+  getToolChain().TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
@@ -382,7 +342,9 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
       ForeachInputs.push_back(II);
     CmdArgs.push_back(Args.MakeArgString(Filename));
   }
+  // Add -Xsycl-target* options.
   getToolChain().TranslateBackendTargetArgs(Args, CmdArgs);
+  getToolChain().TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);

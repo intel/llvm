@@ -1179,9 +1179,54 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   return nullptr;
 }
 
+// Expects a specific type of option (e.g. -Xsycl-target-backend) and will
+// extract the arguments.
+static void TranslateTargetOpt(const ToolChain &TC,
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs,
+    OptSpecifier Opt, OptSpecifier Opt_EQ) {
+  for (auto *A : Args) {
+    bool OptNoTriple;
+    OptNoTriple = A->getOption().matches(Opt);
+    if (A->getOption().matches(Opt_EQ)) {
+      // Passing device args: -X<Opt>=<triple> -opt=val.
+      if (A->getValue() != TC.getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!OptNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -X<Opt>
+      continue;
+
+    // Add the argument from -X<Opt>
+    StringRef ArgString;
+    if (OptNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        TC.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+
+    // Do a simple parse of the args to pass back
+    SmallVector<StringRef, 16> TargetArgs;
+    // TODO: Improve parsing, as this only handles arguments separated by
+    // spaces.
+    ArgString.split(TargetArgs, ' ', -1, false);
+    for (const auto &TA : TargetArgs)
+      CmdArgs.push_back(Args.MakeArgString(TA));
+    A->claim();
+  }
+}
+
 void ToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
-  // Handle -Xsycl-target and -Xs flags.
+  // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
     // target compilations is not associated with a specific triple.  The
@@ -1208,41 +1253,15 @@ void ToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
       A->claim();
       continue;
     }
-    bool XSYCLTargetNoTriple;
-    XSYCLTargetNoTriple = A->getOption().matches(options::OPT_Xsycl_backend);
-    if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
-      // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
-      if (A->getValue() != getTripleString())
-        // Provided triple does not match current tool chain.
-        continue;
-    } else if (!XSYCLTargetNoTriple)
-      // Don't worry about any of the other args, we only want to pass what is
-      // passed in -Xsycl-target-backend.
-      continue;
-
-    // Add the argument from -Xsycl-target-backend.
-    StringRef ArgString;
-    if (XSYCLTargetNoTriple) {
-      // With multiple -fsycl-targets, a triple is required so we know where
-      // the options should go.
-      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
-            << A->getSpelling();
-        continue;
-      }
-      // No triple, so just add the argument.
-      ArgString = A->getValue();
-    } else
-      // Triple found, add the next argument in line.
-      ArgString = A->getValue(1);
-
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    // TODO: Improve parsing, as this only handles arguments separated by
-    // spaces.
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
-    A->claim();
   }
+  // Handle -Xsycl-target-backend.
+  TranslateTargetOpt(*this, Args, CmdArgs, options::OPT_Xsycl_backend,
+      options::OPT_Xsycl_backend_EQ);
+}
+
+void ToolChain::TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Handle -Xsycl-target-linker.
+  TranslateTargetOpt(*this, Args, CmdArgs, options::OPT_Xsycl_linker,
+      options::OPT_Xsycl_linker_EQ);
 }

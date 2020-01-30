@@ -310,6 +310,10 @@ public:
   void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CmdArgs) const;
 
+  /// Gather command line arguments for target linker call
+  void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CmdArgs) const;
+
   /// Choose a tool to use to handle the action \p JA.
   ///
   /// This can be overridden when a particular ToolChain needs to use

@@ -20,10 +20,6 @@ class Command;
 namespace tools {
 namespace SYCL {
 
-// Gather command line arguments for device specific link
-void TranslateSYCLLinkerArgs(Compilation &C,
-              const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
-
 void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  std::unique_ptr<Command> InputCommand,
                                  const InputInfoList &InputFiles,
