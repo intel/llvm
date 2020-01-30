@@ -85,6 +85,18 @@ struct kernel_name2<space::clong_t, volatile space::culong_t> {};
 template <>
 struct kernel_name2<space::a_t, volatile space::b_t> {};
 
+// CHECK: template <long T> struct kernel_name3;
+template <typename space::long_t T>
+struct kernel_name3;
+
+struct foo {
+  using type = long;
+};
+
+// CHECK: template <long T> struct kernel_name4;
+template <typename foo::type T>
+struct kernel_name4;
+
 int main() {
   dummy_functor f;
   // non-type template arguments
@@ -116,5 +128,10 @@ int main() {
   single_task<kernel_name2<space::clong_t, volatile space::culong_t>>(f);
   // CHECK: template <> struct KernelInfo<::kernel_name2< ::A, volatile ::space::B>> {
   single_task<kernel_name2<space::a_t, volatile space::b_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name3<1>> {
+  single_task<kernel_name3<1>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name4<1>> {
+  single_task<kernel_name4<1>>(f);
+
   return 0;
 }
