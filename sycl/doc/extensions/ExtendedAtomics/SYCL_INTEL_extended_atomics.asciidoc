@@ -1,0 +1,525 @@
+= SYCL_INTEL_extended_atomics
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension that introduces new functionality to the +cl::sycl::atomic+ class, to further align with the functionality of the +std::atomic+ class from {cpp}11 and {cpp}20.
+
+== Name Strings
+
++SYCL_INTEL_extended_atomics+
+
+== Notice
+
+Copyright (c) 2019 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+
+== Overview
+
+The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces an alternative atomic class (+cl::sycl::intel::atomic+) including additional features from {cpp}11 and {cpp}20:
+
+- Overloaded operators to reduce the verbosity of using atomics
+- Support for floating-point types
+
+=== Overloaded Operators
+
+In SYCL 1.2.1, the +cl::sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics, and requires developers to change their kernel code when switching between +read_write+ and +atomic+ accessors:
+
+[source,c++]
+----
+q.submit([&](handler& cgh)
+{
+  auto acc = buf.get_access<access::mode::atomic>(cgh);
+  cgh.parallel_for(..., [=](id<1> i)
+  {
+    acc[i].fetch_add(1); // developer cannot write acc[i]++ without this extension
+  });
+});
+----
+
+The operators defined by this extension match those defined for +std::atomic+ in {cpp}11.  The functionality of each operator is equivalent to calling a corresponding member function of the atomic class -- the operators do not expose any new functionality of the class, but act as shorthands for common use-cases.
+
+==== Operators for All Supported Types
+
+[source,c++]
+----
+  operator T();
+  T operator=(T desired);
+  T operator+=(T operand);
+  T operator-=(T operand);
+----
+
+==== Operators for Integral Types
+
+[source,c++]
+----
+  T operator++(int operand);
+  T operator--(int operand);
+  T operator++();
+  T operator--();
+  T operator&=(T operand);
+  T operator|=(T operand);
+  T operator^=(T operand);
+----
+
+=== Support for Floating-point Types
+
+In SYCL 1.2.1, support for floating-point types is limited to the +load+, +store+ and +exchange+ member functions.  Many applications requiring additional atomic operations (e.g. addition) currently work around this restriction using type punning and integer +compare_exchange+ operations.
+
+This extension extends support for floating-point types to the +compare_exchange+, +fetch_add+ and +fetch_sub+ functions in line with {cpp}20.  These new functions do not require dedicated floating-point atomic instructions and can be emulated using integer operations, giving compilers the freedom to choose the best implementation for the target device.
+
+== Modifications of SYCL 1.2.1 Specification
+
+=== Modify Sentence in Section 3.5.1
+
+==== From:
+
+Atomic access can also be requested on an accessor which allows +cl::sycl::atomic+ classes to be used via the accessor.
+
+==== To:
+
+Atomic access can also be requested on an accessor which allows +cl::sycl::intel::atomic+ classes to be used via the accessor.
+
+=== Modify Paragraph in Section 3.5.2.3
+
+==== From:
+
+Atomic operations can be performed on memory in buffers. The range of atomic operations available on a specific OpenCL device is limited by the atomic capabilities of that device. The +cl::sycl::atomic<T>+ must be used for elements of a buffer to provide safe atomic access to the buffer from device code.
+
+==== To:
+
+Atomic operations can be performed on memory. The range of atomic operations available on a specific OpenCL device is limited by the atomic capabilities of that device.  The +cl::sycl::intel::atomic+ class may be used to provide safe atomic access to any memory location, in host or device code.
+
+=== Modify Paragraph in Section 4.2
+
+==== From:
+
+Each of the following SYCL runtime classes: +accessor+, +sampler+, +stream+, +vec+, +multi_ptr+, +device_event+, +id+, +range+, +item+, +nd_item+, +h_item+, +group+ and +atomic+ must be available within a SYCL kernel function.
+
+==== To:
+
+Each of the following SYCL runtime classes: +accessor+, +sampler+, +stream+, +vec+, +multi_ptr+, +device_event+, +id+, +range+, +item+, +nd_item+, +h_item+, +group+ and +intel::atomic+ must be available within a SYCL kernel function.
+
+=== Modify Paragraph in Section 4.7.6.5
+
+==== From:
+
+A buffer accessor with access target +access::target::global_buffer+ can optionally provide atomic access to a SYCL buffer, using the access mode +access::mode::atomic+, in which case all operators which return an element of the SYCL buffer return an instance of the SYCL atomic class.
+
+==== To:
+
+A buffer accessor with access target +access::target::global_buffer+ can optionally provide atomic access to a SYCL buffer, using the access mode +access::mode::atomic+, in which case all operators which return an element of the SYCL buffer return an instance of the +cl::sycl::intel::atomic+ class.
+
+=== Modify Listing 4.1
+
+==== From:
+
+[source,c++]
+----
+/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
+operator atomic<dataT, access::address_space::global_space> () const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
+atomic<dataT, access::address_space::global_space> operator[](id<dimensions> index) const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
+atomic<dataT, access::address_space::global_space> operator[](size_t index) const;
+----
+
+==== To:
+
+[source,c++]
+----
+/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
+operator intel::atomic<dataT, access::address_space::global_space> () const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
+intel::atomic<dataT, access::address_space::global_space> operator[](id<dimensions> index) const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
+intel::atomic<dataT, access::address_space::global_space> operator[](size_t index) const;
+----
+
+=== Modify Table 4.46
+
+==== Replace each instance of:
+
++atomic+
+
+==== With:
+
++intel::atomic+
+
+=== Modify Paragraph in Section 4.7.6.7
+
+==== From:
+
+A local accessor can optionally provide atomic access to allocated memory, using the access mode +access::mode::atomic+, in which case all operators which return an element of the allocated memory return an instance of the SYCL atomic class.
+
+==== To:
+
+A local accessor can optionally provide atomic access to allocated memory, using the access mode +access::mode::atomic+, in which case all operators which return an element of the allocated memory return an instance of the +cl::sycl::intel::atomic+ class.
+
+=== Modify Listing 4.2
+
+==== From:
+
+[source,c++]
+----
+/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
+operator atomic<dataT, access::address_space::local_space> () const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
+atomic<dataT, access::address_space::local_space> operator[](id<dimensions> index) const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
+atomic<dataT, access::address_space::local_space> operator[](size_t index) const;
+----
+
+===== To:
+
+[source,c++]
+----
+/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
+operator intel::atomic<dataT, access::address_space::local_space> () const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
+intel::atomic<dataT, access::address_space::local_space> operator[](id<dimensions> index) const;
+
+/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
+intel::atomic<dataT, access::address_space::local_space> operator[](size_t index) const;
+----
+
+=== Modify Table 4.49
+
+==== Replace each instance of:
+
++atomic+
+
+==== With:
+
++intel::atomic+
+
+=== Modify Section 4.11
+
+==== From:
+
+The SYCL specification provides atomic operations based on the {cpp}11 library syntax. The only available ordering, due to constraints of the OpenCL 1.2 memory model, is +memory_order_relaxed+. No default order is supported because a default order would imply sequential consistency. The SYCL atomic library may map directly to the underlying {cpp}11 library in host code, and must interact safely with the host {cpp}11 atomic library when used in host code. The SYCL library must be used in device code to ensure that only the limited subset of functionality is available. SYCL 1.2.1 device compilers should give a compilation error on use of the +std::atomic+ classes and functions in device code.
+
+The template parameter +addressSpace+ is permitted to be +access::address_space::global_space+ or +access::address_space::local_space+.
+
+The data type +T+ is permitted to be +int+, +unsigned int+, +long+, +unsigned long+, +long long+, +unsigned long long+ and +float+. Though +float+ is only available for the +store+, +load+ and +exchange+ member functions. For any data type +T+ which is 64 bit, the member functions of the atomic class are required to compile however are only guaranteed to execute if the 64 bit atomic extension +cl_khr_int64_base_atomics+ or +cl_khr_int64_extended_atomics+ (depending on which extension provides support for each given member function) is supported by the SYCL device which is executing the SYCL kernel function. If a member function is called with a 64 bit data type and the necessary extension is not supported by the SYCL device which is executing the SYCL kernel function, the SYCL runtime must throw a SYCL feature_not_supported exception. For more detail see Section 5.2.
+
+==== To:
+
+The SYCL specification provides atomic operations based on the {cpp}11 library syntax. The only available ordering, due to constraints of the OpenCL 1.2 memory model, is +memory_order_relaxed+. No default order is supported because a default order would imply sequential consistency. The SYCL atomic library may map directly to the underlying {cpp}11 library in host code, and must interact safely with the host {cpp}11 atomic library when used in host code. The SYCL library must be used in device code to ensure that only the limited subset of functionality is available. SYCL 1.2.1 device compilers should give a compilation error on use of the +std::atomic+ classes and functions in device code.
+
+The template parameter +addressSpace+ is permitted to be +access::address_space::global_space+ or +access::address_space::local_space+.
+
+The data type +T+ is permitted to be +int+, +unsigned int+, +long+, +unsigned long+, +long long+, +unsigned long long+, +float+ or +double+.  For any data type +T+ which is 64 bit, the member functions of the atomic class are required to compile however are only guaranteed to execute if the 64 bit atomic extension +cl_khr_int64_base_atomics+ or +cl_khr_int64_extended_atomics+ (depending on which extension provides support for each given member function) is supported by the SYCL device which is executing the SYCL kernel function.  For +float+ and +double+, the member functions of the atomic class may be emulated, and may use a different floating-point environment to those defined by +info::device::single_fp_config+ and +info::device::double_fp_config+ (i.e. floating-point atomics may use different rounding modes and may have different exception behavior).  If a member function is called with a 64 bit data type and the necessary extension is not supported by the SYCL device which is executing the SYCL kernel function, the SYCL runtime must throw a SYCL +feature_not_supported+ exception.  For more detail see Section 5.2.
+
+==== From:
+
+[source,c++]
+----
+namespace cl {
+namespace sycl {
+enum class memory_order : int {
+  relaxed
+};
+template <typename T, access::address_space addressSpace =
+  access::address_space::global_space>
+class atomic {
+ public:
+  template <typename pointerT>
+  atomic(multi_ptr<pointerT, addressSpace> ptr);
+
+  void store(T operand, memory_order memoryOrder =
+  memory_order::relaxed);
+
+  T load(memory_order memoryOrder = memory_order::relaxed) const;
+
+  T exchange(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  bool compare_exchange_strong(T &expected, T desired,
+    memory_order successMemoryOrder = memory_order::relaxed,
+    memory_order failMemoryOrder = memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_add(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_sub(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_and(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_or(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_xor(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_min(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+
+  /* Available only when: T != float */
+  T fetch_max(T operand, memory_order memoryOrder =
+    memory_order::relaxed);
+};
+} // namespace sycl
+} // namespace cl
+----
+
+==== To:
+
+[source,c++]
+----
+namespace cl {
+namespace sycl {
+enum class memory_order : int {
+  relaxed
+};
+namespace intel {
+template <typename T, access::address_space addressSpace =
+  access::address_space::global_space>
+class atomic {
+ public:
+
+  atomic(multi_ptr<T, addressSpace> ptr);
+  atomic(const atomic&);
+  atomic& operator=(const atomic&) = delete;
+
+  bool is_lock_free() const;
+
+  void store(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T operator=(T desired);
+
+  T load(memory_order order = memory_order::relaxed) const;
+
+  operator T() const;
+
+  T exchange(T operand, memory_order order =
+    memory_order::relaxed);
+
+  bool compare_exchange_weak(T &expected, T desired,
+    memory_order success = memory_order::relaxed,
+    memory_order failure = memory_order::relaxed);
+
+  bool compare_exchange_weak(T &expected, T desired,
+    memory_order order = memory_order::relaxed);
+
+  bool compare_exchange_strong(T &expected, T desired,
+    memory_order success = memory_order::relaxed,
+    memory_order failure = memory_order::relaxed);
+
+  bool compare_exchange_strong(T &expected, T desired,
+    memory_order order = memory_order::relaxed);
+
+  T fetch_add(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T fetch_sub(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T fetch_min(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T fetch_max(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T operator+=(T operand);
+  T operator-=(T operand);
+
+  /* Available only when T is Integral */
+  T fetch_and(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T fetch_or(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T fetch_xor(T operand, memory_order order =
+    memory_order::relaxed);
+
+  T operator++(int operand);
+  T operator--(int operand);
+  T operator++();
+  T operator--();
+  T operator&= (T operand);
+  T operator|= (T operand);
+  T operator^= (T operand);
+};
+} // namespace intel
+} // namespace sycl
+} // namespace cl
+----
+
+=== Modify Table 4.100
+
+==== From:
+
+|===
+|Constructor|Description
+
+|+template <typename pointerT> atomic(multi_ptr<pointerT, addressSpace> ptr)+
+|Permitted data types for +pointerT+ are any valid scalar data type which is the same size in bytes as +T+.  Constructs an instance of SYCL +atomic+ which is associated with the pointer +ptr+, converted to a pointer of data type +T+.
+|===
+
+==== To:
+
+|===
+|Constructor|Description
+
+|+atomic(multi_ptr<T, addressSpace> ptr)+
+|Constructs an instance of SYCL +atomic+ which is associated with the pointer +ptr+.
+|===
+
+=== Modify Table 4.101
+
+==== Add:
+
+|===
+|Member function|Description
+|+bool is_lock_free() const+
+|Return +true+ if the atomic operations provided by this SYCL +atomic+ are lock-free.
+
+|+bool compare_exchange_weak(T &expected, T desired, memory_order order = memory_order::relaxed)+
+|Atomically compares the value at the address of the +multi_ptr+ associated with this SYCL +atomic+ against the value of +expected+.  If the values are equal attempts to replaces value at address of the +multi_ptr+ associated with this SYCL +atomic+ with the value of +desired+, otherwise assigns the original value at the address of the +multi_ptr+ associated with this SYCL +atomic+ to +expected+.  Returns +true+ if the comparison operation and replacement operation were successful.  The memory order of this atomic operation must be +memory_order::relaxed+ for both success and fail.
+
+|+bool compare_exchange_weak(T &expected, T desired, memory_order order = memory_order::relaxed)+
+|Equivalent to +compare_exchange_weak(expected, desired, order, order)+.
+
+|+bool compare_exchange_strong(T &expected, T desired, memory_order order = memory_order::relaxed)+
+|Equivalent to +compare_exchange_strong(expected, desired, order, order)+.
+
+|+operator T() const+
+|Equivalent to +load()+.
+
+|+T operator=(T desired)+
+|Equivalent to +store(desired)+.  Returns +desired+.
+
+|`operator+=(T operand)`
+|Equivalent to +fetch_add(operand)+.
+
+|+operator-=(T operand)+
+|Equivalent to +fetch_sub(operand)+.
+
+|`T operator++(int operand)`
+|Available only when: +T+ != +float+.  Equivalent to +fetch_add(operand)+.
+
+|+T operator--(int operand)+
+|Available only when: +T+ != +float+.  Equivalent to +fetch_sub(operand)+.
+
+|`T operator++()`
+|Available only when: +T+ != +float+.  Equivalent to `fetch_add(1) + 1`.
+
+|+T operator--()+
+|Available only when: +T+ != +float+.  Equivalent to `fetch_sub(1) - 1`.
+
+|`T operator&=(T operand)`
+|Available only when: +T+ != +float+.  Equivalent to +fetch_and(operand)+.
+
+|`T operator\|= (T operand)`
+|Available only when: +T+ != +float+.  Equivalent to +fetch_or(operand)+.
+
+|`T operator^= (T operand)`
+|Available only when: +T+ != +float+.  Equivalent to +fetch_xor(operand)+.
+
+|
+|===
+
+==== Remove:
+
+"Available only when: +T+ != +float+" from definitions of +compare_exchange_strong+, +fetch_add+ and +fetch_sub+.
+
+=== Modify Section 5.2
+
+==== From:
+
+The SYCL +atomic+ class can support 64 bit data types...
+
+==== To:
+
+The +intel::atomic+ class can support 64 bit data types...
+
+== Issues
+
+None.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-01-30|John Pennycook|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
