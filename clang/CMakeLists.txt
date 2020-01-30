@@ -237,7 +237,14 @@ set(ENABLE_X86_RELAX_RELOCATIONS OFF CACHE BOOL
 set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
   "Enable the experimental new pass manager by default.")
 
-set(CLANG_SPAWN_CC1 OFF CACHE BOOL
+# Clang tool executes cc1 commands in the same process after b4a99a0
+# It causes increasing memory consumption for compilations where several
+# source files are passed (for C++ application) or several build steps (e.g.
+# for SYCL application we have host, device and integration header step
+# per source file). Memory is not freed for all cc1 commands until end
+# This change forces clang driver use old behavior untill memory issue
+# is fixed.
+set(CLANG_SPAWN_CC1 ON CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
 # TODO: verify the values against LangStandards.def?
