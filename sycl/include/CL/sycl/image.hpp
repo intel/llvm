@@ -257,7 +257,9 @@ public:
   size_t get_count() const { return impl->get_count(); }
 
   // Returns the allocator provided to the image
-  AllocatorT get_allocator() const { return impl->get_allocator(); }
+  AllocatorT get_allocator() const {
+    return impl->template get_allocator<AllocatorT>();
+  }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,

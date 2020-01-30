@@ -229,7 +229,9 @@ public:
 
   size_t get_size() const { return get_count() * sizeof(T); }
 
-  AllocatorT get_allocator() const { return impl->get_allocator<AllocatorT>(); }
+  AllocatorT get_allocator() const {
+    return impl->template get_allocator<AllocatorT>();
+  }
 
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
