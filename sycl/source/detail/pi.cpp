@@ -51,7 +51,7 @@ bool useBackend(Backend TheBackend) {
 }
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
-// use OpenCL objects as the
+// use OpenCL objects to construct SYCL class objects.
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
@@ -128,8 +128,9 @@ vector_class<plugin> initialize() {
     }
     Plugins.push_back(plugin(PluginInformation));
   }
-  GlobalPlugin = std::make_shared<plugin>(
-      PluginInformation); // Correct the logic for this.
+  // TODO: Correct the logic to store the appropriate plugin into GlobalPlugin
+  // variable. Currently it saves the last plugin found.
+  GlobalPlugin = std::make_shared<plugin>(PluginInformation);
   return Plugins;
 }
 
