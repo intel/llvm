@@ -27,7 +27,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are tradema
 
 NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 
-This document describes an extension that introduces new functionality to the +cl::sycl::atomic+ class, to further align with the functionality of the +std::atomic+ class from {cpp}11 and {cpp}20.
+This document describes an extension that replaces the +cl::sycl::atomic+ class with the `cl::sycl::intel::atomic` class, which exposes additional functionality aligned with the +std::atomic+ class from {cpp}11 and {cpp}20.
 
 == Name Strings
 
