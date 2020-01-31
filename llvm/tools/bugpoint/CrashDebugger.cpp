@@ -499,7 +499,8 @@ bool ReduceCrashingBlocks::TestBlocks(std::vector<const BasicBlock *> &BBs) {
   std::vector<std::pair<std::string, std::string>> BlockInfo;
 
   for (BasicBlock *BB : Blocks)
-    BlockInfo.emplace_back(BB->getParent()->getName(), BB->getName());
+    BlockInfo.emplace_back(std::string(BB->getParent()->getName()),
+                           std::string(BB->getName()));
 
   SmallVector<BasicBlock *, 16> ToProcess;
   for (auto &F : *M) {
@@ -606,7 +607,8 @@ bool ReduceCrashingConditionals::TestBlocks(
   std::vector<std::pair<std::string, std::string>> BlockInfo;
 
   for (const BasicBlock *BB : Blocks)
-    BlockInfo.emplace_back(BB->getParent()->getName(), BB->getName());
+    BlockInfo.emplace_back(std::string(BB->getParent()->getName()),
+                           std::string(BB->getName()));
 
   SmallVector<BasicBlock *, 16> ToProcess;
   for (auto &F : *M) {
@@ -696,7 +698,8 @@ bool ReduceSimplifyCFG::TestBlocks(std::vector<const BasicBlock *> &BBs) {
   std::vector<std::pair<std::string, std::string>> BlockInfo;
 
   for (const BasicBlock *BB : Blocks)
-    BlockInfo.emplace_back(BB->getParent()->getName(), BB->getName());
+    BlockInfo.emplace_back(std::string(BB->getParent()->getName()),
+                           std::string(BB->getName()));
 
   // Loop over and delete any hack up any blocks that are not listed...
   for (auto &F : *M)

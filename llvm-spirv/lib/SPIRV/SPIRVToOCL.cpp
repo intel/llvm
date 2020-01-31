@@ -64,12 +64,12 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     return;
 
   auto MangledName = F->getName();
-  std::string DemangledName;
+  StringRef DemangledName;
   Op OC = OpNop;
-  if (!oclIsBuiltin(MangledName, &DemangledName) ||
+  if (!oclIsBuiltin(MangledName, DemangledName) ||
       (OC = getSPIRVFuncOC(DemangledName)) == OpNop)
     return;
-  LLVM_DEBUG(dbgs() << "DemangledName = " << DemangledName.c_str() << '\n'
+  LLVM_DEBUG(dbgs() << "DemangledName = " << DemangledName.str() << '\n'
                     << "OpCode = " << OC << '\n');
 
   if (OC == OpImageQuerySize || OC == OpImageQuerySizeLod) {
@@ -333,9 +333,9 @@ void SPIRVToOCL::translateMangledAtomicTypeName() {
   for (auto &I : M->functions()) {
     if (!I.hasName())
       continue;
-    std::string MangledName = I.getName();
-    std::string DemangledName;
-    if (!oclIsBuiltin(MangledName, &DemangledName) ||
+    std::string MangledName{I.getName()};
+    StringRef DemangledName;
+    if (!oclIsBuiltin(MangledName, DemangledName) ||
         DemangledName.find(kOCLBuiltinName::AtomPrefix) != 0)
       continue;
     auto Loc = MangledName.find(kOCLBuiltinName::AtomPrefix);

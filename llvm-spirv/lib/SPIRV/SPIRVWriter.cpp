@@ -131,11 +131,12 @@ bool LLVMToSPIRV::oclIsKernel(Function *F) {
 }
 
 bool LLVMToSPIRV::isBuiltinTransToInst(Function *F) {
-  std::string DemangledName;
-  if (!oclIsBuiltin(F->getName(), &DemangledName) &&
-      !isDecoratedSPIRVFunc(F, &DemangledName))
+  StringRef DemangledName;
+  if (!oclIsBuiltin(F->getName(), DemangledName) &&
+      !isDecoratedSPIRVFunc(F, DemangledName))
     return false;
-  SPIRVDBG(spvdbgs() << "CallInst: demangled name: " << DemangledName << '\n');
+  SPIRVDBG(spvdbgs() << "CallInst: demangled name: " << DemangledName.str()
+                     << '\n');
   return getSPIRVFuncOC(DemangledName) != OpNop;
 }
 
@@ -143,9 +144,8 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
                                           SPIRVExtInstSetKind *ExtSet,
                                           SPIRVWord *ExtOp,
                                           SmallVectorImpl<std::string> *Dec) {
-  std::string OrigName = F->getName();
-  std::string DemangledName;
-  if (!oclIsBuiltin(OrigName, &DemangledName))
+  StringRef DemangledName;
+  if (!oclIsBuiltin(F->getName(), DemangledName))
     return false;
   LLVM_DEBUG(dbgs() << "[oclIsBuiltinTransToExtInst] CallInst: demangled name: "
                     << DemangledName << '\n');
@@ -156,7 +156,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   auto Loc = S.find(kSPIRVPostfix::Divider);
   auto ExtSetName = S.substr(0, Loc);
   SPIRVExtInstSetKind Set = SPIRVEIS_Count;
-  if (!SPIRVExtSetShortNameMap::rfind(ExtSetName, &Set))
+  if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
     return false;
   assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_Debug) &&
          "Unsupported extended instruction set");
@@ -164,7 +164,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   auto ExtOpName = S.substr(Loc + 1);
   auto Splited = ExtOpName.split(kSPIRVPostfix::ExtDivider);
   OCLExtOpKind EOC;
-  if (!OCLExtOpMap::rfind(Splited.first, &EOC))
+  if (!OCLExtOpMap::rfind(Splited.first.str(), &EOC))
     return false;
 
   if (ExtSet)
@@ -309,11 +309,11 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
         return transSPIRVOpaqueType(T);
 
       if (STName.startswith(kOCLSubgroupsAVCIntel::TypePrefix))
-        return mapType(T,
-                       BM->addSubgroupAvcINTELType(
-                           OCLSubgroupINTELTypeOpCodeMap::map(ST->getName())));
+        return mapType(
+            T, BM->addSubgroupAvcINTELType(
+                   OCLSubgroupINTELTypeOpCodeMap::map(ST->getName().str())));
 
-      if (OCLOpaqueTypeOpCodeMap::find(STName, &OpCode)) {
+      if (OCLOpaqueTypeOpCodeMap::find(STName.str(), &OpCode)) {
         switch (OpCode) {
         default:
           return mapType(T, BM->addOpaqueGenericType(OpCode));
@@ -365,13 +365,13 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     assert(!ST->getName().startswith(kSPR2TypeName::PipeRO));
     assert(!ST->getName().startswith(kSPR2TypeName::PipeWO));
     assert(!ST->getName().startswith(kSPR2TypeName::ImagePrefix));
-    return mapType(T, BM->addOpaqueType(T->getStructName()));
+    return mapType(T, BM->addOpaqueType(T->getStructName().str()));
   }
 
   if (auto ST = dyn_cast<StructType>(T)) {
     assert(ST->isSized());
 
-    std::string Name;
+    StringRef Name;
     if (ST->hasName())
       Name = ST->getName();
 
@@ -380,7 +380,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
       return transType(getPipeStorageType(M));
 
-    auto *Struct = BM->openStructType(T->getStructNumElements(), Name);
+    auto *Struct = BM->openStructType(T->getStructNumElements(), Name.str());
     mapType(T, Struct);
 
     SmallVector<unsigned, 4> ForwardRefs;
@@ -489,7 +489,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
   if (F->hasName())
-    BM->setName(BF, F->getName());
+    BM->setName(BF, F->getName().str());
   if (oclIsKernel(F))
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
   else if (F->getLinkage() != GlobalValue::InternalLinkage)
@@ -500,7 +500,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
     if (I->hasName())
-      BM->setName(BA, I->getName());
+      BM->setName(BA, I->getName().str());
     if (I->hasByValAttr())
       BA->addAttr(FunctionParameterAttributeByVal);
     if (I->hasNoAliasAttr())
@@ -655,9 +655,9 @@ SPIRVValue *LLVMToSPIRV::transValue(Value *V, SPIRVBasicBlock *BB,
   auto BV = transValueWithoutDecoration(V, BB, CreateForward);
   if (!BV || !transDecoration(V, BV))
     return nullptr;
-  std::string Name = V->getName();
+  StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
-    BM->setName(BV, Name);
+    BM->setName(BV, Name.str());
   return BV;
 }
 
@@ -876,7 +876,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
         static_cast<SPIRVFunction *>(getTranslatedValue(LBB->getParent()));
     assert(BF && "Function not translated");
     BB = static_cast<SPIRVBasicBlock *>(mapValue(V, BM->addBasicBlock(BF)));
-    BM->setName(BB, LBB->getName());
+    BM->setName(BB, LBB->getName().str());
     return BB;
   }
 
@@ -923,7 +923,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
 
     auto BVar = static_cast<SPIRVVariable *>(BM->addVariable(
         transType(Ty), GV->isConstant(), transLinkageType(GV), BVarInit,
-        GV->getName(),
+        GV->getName().str(),
         SPIRSPIRVAddrSpaceMap::map(
             static_cast<SPIRAddressSpace>(Ty->getAddressSpace())),
         nullptr));
@@ -1026,7 +1026,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
-                           Alc->getName(), StorageClassFunction, BB));
+                           Alc->getName().str(), StorageClassFunction, BB));
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -1391,7 +1391,7 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
         Value = S;
     }
 
-    Decorates.push_back({Dec, Value});
+    Decorates.emplace_back(Dec, Value.str());
     AnnotatedCode = AnnotatedCode.drop_front(To + 1);
   }
   return Decorates;
@@ -1663,7 +1663,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // If we didn't find any IntelFPGA-specific decorations, let's add the whole
     // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
-      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
+      SV->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
     } else {
       addIntelFPGADecorations(SV, Decorations);
     }
@@ -1699,7 +1700,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       // whole annotation string as UserSemantic Decoration
       if (Decorations.empty()) {
         Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            Ty, MemberNumber, AnnotationString));
+            Ty, MemberNumber, AnnotationString.str()));
       } else {
         addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
       }
@@ -1743,14 +1744,14 @@ SPIRVValue *LLVMToSPIRV::transDirectCallInst(CallInst *CI,
   SPIRVWord ExtOp = SPIRVWORD_MAX;
   llvm::Function *F = CI->getCalledFunction();
   auto MangledName = F->getName();
-  std::string DemangledName;
+  StringRef DemangledName;
 
   if (MangledName.startswith(SPCV_CAST) || MangledName == SAMPLER_INIT)
     return oclTransSpvcCastSampler(CI, BB);
 
-  if (oclIsBuiltin(MangledName, &DemangledName) ||
-      isDecoratedSPIRVFunc(F, &DemangledName))
-    if (auto BV = transBuiltinToInst(DemangledName, MangledName, CI, BB))
+  if (oclIsBuiltin(MangledName, DemangledName) ||
+      isDecoratedSPIRVFunc(F, DemangledName))
+    if (auto BV = transBuiltinToInst(DemangledName, CI, BB))
       return BV;
 
   SmallVector<std::string, 2> Dec;
@@ -1856,7 +1857,8 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
     // If we didn't find any IntelFPGA-specific decorations, let's
     // add the whole annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
-      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
+      SV->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
     } else {
       addIntelFPGADecorations(SV, Decorations);
     }
@@ -2032,9 +2034,8 @@ llvm::IntegerType *LLVMToSPIRV::getSizetType(unsigned AS) {
 void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(
     llvm::FunctionType *FT, std::map<unsigned, Type *> &ChangedType,
     Function *F) {
-  auto Name = F->getName();
-  std::string Demangled;
-  if (!oclIsBuiltin(Name, &Demangled))
+  StringRef Demangled;
+  if (!oclIsBuiltin(F->getName(), Demangled))
     return;
   if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos)
     return;
@@ -2042,10 +2043,9 @@ void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(
     ChangedType[1] = getSamplerType(F->getParent());
 }
 
-SPIRVInstruction *
-LLVMToSPIRV::transBuiltinToInst(const std::string &DemangledName,
-                                const std::string &MangledName, CallInst *CI,
-                                SPIRVBasicBlock *BB) {
+SPIRVInstruction *LLVMToSPIRV::transBuiltinToInst(StringRef DemangledName,
+                                                  CallInst *CI,
+                                                  SPIRVBasicBlock *BB) {
   SmallVector<std::string, 2> Dec;
   auto OC = getSPIRVFuncOC(DemangledName, &Dec);
 

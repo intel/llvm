@@ -2478,7 +2478,8 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
   case G_BITREVERSE:
     return lowerBitreverse(MI);
   case G_READ_REGISTER:
-    return lowerReadRegister(MI);
+  case G_WRITE_REGISTER:
+    return lowerReadWriteRegister(MI);
   }
 }
 
@@ -4645,8 +4646,9 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerInsert(MachineInstr &MI) {
       ExtInsSrc = MIRBuilder.buildShl(IntDstTy, ExtInsSrc, ShiftAmt).getReg(0);
     }
 
-    APInt MaskVal = ~APInt::getBitsSet(DstTy.getSizeInBits(), Offset,
-                                       InsertTy.getSizeInBits());
+    APInt MaskVal = APInt::getBitsSetWithWrap(DstTy.getSizeInBits(),
+                                              Offset + InsertTy.getSizeInBits(),
+                                              Offset);
 
     auto Mask = MIRBuilder.buildConstant(IntDstTy, MaskVal);
     auto MaskedSrc = MIRBuilder.buildAnd(IntDstTy, Src, Mask);
@@ -4774,20 +4776,29 @@ LegalizerHelper::lowerBitreverse(MachineInstr &MI) {
 }
 
 LegalizerHelper::LegalizeResult
-LegalizerHelper::lowerReadRegister(MachineInstr &MI) {
-  Register Dst = MI.getOperand(0).getReg();
-  const LLT Ty = MRI.getType(Dst);
-  const MDString *RegStr = cast<MDString>(
-    cast<MDNode>(MI.getOperand(1).getMetadata())->getOperand(0));
-
+LegalizerHelper::lowerReadWriteRegister(MachineInstr &MI) {
   MachineFunction &MF = MIRBuilder.getMF();
   const TargetSubtargetInfo &STI = MF.getSubtarget();
   const TargetLowering *TLI = STI.getTargetLowering();
-  Register Reg = TLI->getRegisterByName(RegStr->getString().data(), Ty, MF);
-  if (!Reg.isValid())
+
+  bool IsRead = MI.getOpcode() == TargetOpcode::G_READ_REGISTER;
+  int NameOpIdx = IsRead ? 1 : 0;
+  int ValRegIndex = IsRead ? 0 : 1;
+
+  Register ValReg = MI.getOperand(ValRegIndex).getReg();
+  const LLT Ty = MRI.getType(ValReg);
+  const MDString *RegStr = cast<MDString>(
+    cast<MDNode>(MI.getOperand(NameOpIdx).getMetadata())->getOperand(0));
+
+  Register PhysReg = TLI->getRegisterByName(RegStr->getString().data(), Ty, MF);
+  if (!PhysReg.isValid())
     return UnableToLegalize;
 
-  MIRBuilder.buildCopy(Dst, Reg);
+  if (IsRead)
+    MIRBuilder.buildCopy(ValReg, PhysReg);
+  else
+    MIRBuilder.buildCopy(PhysReg, ValReg);
+
   MI.eraseFromParent();
   return Legalized;
 }

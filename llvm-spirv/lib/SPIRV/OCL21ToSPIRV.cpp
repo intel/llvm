@@ -68,14 +68,14 @@ public:
   //    __spirv{N}Op{ConvertOpName}(src, dummy)
   ///   =>
   ///   __spirv_{ConvertOpName}_R{TargeTyName}
-  void visitCallConvert(CallInst *CI, StringRef MangledName, Op OC);
+  void visitCallConvert(CallInst *CI, Op OC);
 
   /// Transform SPIR-V decoration
   ///   x = __spirv_{OpName};
   ///   y = __spirv{N}Op{Decorate}(x, type, value, dummy)
   ///   =>
   ///   y = __spirv_{OpName}{Postfix(type,value)}
-  void visitCallDecorate(CallInst *CI, StringRef MangledName);
+  void visitCallDecorate(CallInst *CI);
 
   /// Transform sub_group_barrier to __spirv_ControlBarrier.
   /// sub_group_barrier(scope, flag) =>
@@ -141,16 +141,16 @@ void OCL21ToSPIRV::visitCallInst(CallInst &CI) {
     return;
 
   auto MangledName = F->getName();
-  std::string DemangledName;
+  StringRef DemangledName;
 
-  if (oclIsBuiltin(MangledName, &DemangledName)) {
+  if (oclIsBuiltin(MangledName, DemangledName)) {
     if (DemangledName == kOCLBuiltinName::SubGroupBarrier) {
       visitCallSubGroupBarrier(&CI);
       return;
     }
   }
 
-  if (!oclIsBuiltin(MangledName, &DemangledName, true))
+  if (!oclIsBuiltin(MangledName, DemangledName, true))
     return;
   LLVM_DEBUG(dbgs() << "DemangledName:" << DemangledName << '\n');
   StringRef Ref(DemangledName);
@@ -161,18 +161,17 @@ void OCL21ToSPIRV::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "maps to opcode " << OC << '\n');
 
   if (isCvtOpCode(OC)) {
-    visitCallConvert(&CI, MangledName, OC);
+    visitCallConvert(&CI, OC);
     return;
   }
   if (OC == OpDecorate) {
-    visitCallDecorate(&CI, MangledName);
+    visitCallDecorate(&CI);
     return;
   }
   transBuiltin(&CI, OC);
 }
 
-void OCL21ToSPIRV::visitCallConvert(CallInst *CI, StringRef MangledName,
-                                    Op OC) {
+void OCL21ToSPIRV::visitCallConvert(CallInst *CI, Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
@@ -190,16 +189,17 @@ void OCL21ToSPIRV::visitCallConvert(CallInst *CI, StringRef MangledName,
   ValuesToDelete.insert(CI->getCalledFunction());
 }
 
-void OCL21ToSPIRV::visitCallDecorate(CallInst *CI, StringRef MangledName) {
+void OCL21ToSPIRV::visitCallDecorate(CallInst *CI) {
   auto Target = cast<CallInst>(CI->getArgOperand(0));
   assert(Target->getCalledFunction() && "Unexpected indirect call");
-  auto F = Target->getCalledFunction();
-  auto Name = F->getName().str();
-  std::string DemangledName;
-  oclIsBuiltin(Name, &DemangledName);
+  Function *F = Target->getCalledFunction();
+  auto Name = F->getName();
+  StringRef DemangledName;
+  oclIsBuiltin(Name, DemangledName);
+
   BuiltinFuncMangleInfo Info;
   F->setName(mangleBuiltin(
-      DemangledName + kSPIRVPostfix::Divider +
+      std::string(DemangledName) + kSPIRVPostfix::Divider +
           getPostfix(getArgAsDecoration(CI, 1), getArgAsInt(CI, 2)),
       getTypes(getArguments(CI)), &Info));
   CI->replaceAllUsesWith(Target);

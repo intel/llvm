@@ -882,6 +882,14 @@ ClangASTImporter::ASTImporterDelegate::ImportImpl(Decl *From) {
 
 void ClangASTImporter::ASTImporterDelegate::ImportDefinitionTo(
     clang::Decl *to, clang::Decl *from) {
+  // We might have a forward declaration from a shared library that we
+  // gave external lexical storage so that Clang asks us about the full
+  // definition when it needs it. In this case the ASTImporter isn't aware
+  // that the forward decl from the shared library is the actual import
+  // target but would create a second declaration that would then be defined.
+  // We want that 'to' is actually complete after this function so let's
+  // tell the ASTImporter that 'to' was imported from 'from'.
+  MapImported(from, to);
   ASTImporter::Imported(from, to);
 
   /*
@@ -974,6 +982,25 @@ void ClangASTImporter::ASTImporterDelegate::ImportDefinitionTo(
           m_source_ctx->getObjCInterfaceType(imported_from_superclass)));
     } while (false);
   }
+}
+
+/// Takes a CXXMethodDecl and completes the return type if necessary. This
+/// is currently only necessary for virtual functions with covariant return
+/// types where Clang's CodeGen expects that the underlying records are already
+/// completed.
+static void MaybeCompleteReturnType(ClangASTImporter &importer,
+                                        CXXMethodDecl *to_method) {
+  if (!to_method->isVirtual())
+    return;
+  QualType return_type = to_method->getReturnType();
+  if (!return_type->isPointerType() && !return_type->isReferenceType())
+    return;
+
+  clang::RecordDecl *rd = return_type->getPointeeType()->getAsRecordDecl();
+  if (!rd)
+    return;
+
+  importer.CompleteTagDecl(rd);
 }
 
 void ClangASTImporter::ASTImporterDelegate::Imported(clang::Decl *from,
@@ -1121,6 +1148,9 @@ void ClangASTImporter::ASTImporterDelegate::Imported(clang::Decl *from,
       }
     }
   }
+
+  if (clang::CXXMethodDecl *to_method = dyn_cast<CXXMethodDecl>(to))
+    MaybeCompleteReturnType(m_master, to_method);
 }
 
 clang::Decl *

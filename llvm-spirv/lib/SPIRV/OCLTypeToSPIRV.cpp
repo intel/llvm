@@ -208,8 +208,8 @@ void OCLTypeToSPIRV::adaptArgumentsBySamplerUse(Module &M) {
     if (!F.empty()) // not decl
       continue;
     auto MangledName = F.getName();
-    std::string DemangledName;
-    if (!oclIsBuiltin(MangledName, &DemangledName, false))
+    StringRef DemangledName;
+    if (!oclIsBuiltin(MangledName, DemangledName, false))
       continue;
     if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos)
       continue;

@@ -155,10 +155,11 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
 
-  std::string SubArchName = getToolChain().getTriple().getArchName();
+  std::string SubArchName =
+      std::string(getToolChain().getTriple().getArchName());
 
   // Prefix for temporary file name.
-  std::string Prefix = llvm::sys::path::stem(SubArchName);
+  std::string Prefix = std::string(llvm::sys::path::stem(SubArchName));
 
   // We want to use llvm-spirv linker to link spirv binaries before putting
   // them into the fat object.

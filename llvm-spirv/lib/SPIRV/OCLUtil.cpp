@@ -150,9 +150,9 @@ BarrierLiterals getBarrierLiterals(CallInst *CI) {
   auto N = CI->getNumArgOperands();
   assert(N == 1 || N == 2);
 
-  std::string DemangledName;
+  StringRef DemangledName;
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  if (!oclIsBuiltin(CI->getCalledFunction()->getName(), &DemangledName)) {
+  if (!oclIsBuiltin(CI->getCalledFunction()->getName(), DemangledName)) {
     assert(0 &&
            "call must a builtin (work_group_barrier or sub_group_barrier)");
   }
@@ -168,9 +168,9 @@ BarrierLiterals getBarrierLiterals(CallInst *CI) {
                          Scope);
 }
 
-unsigned getExtOp(StringRef OrigName, const std::string &GivenDemangledName) {
-  std::string DemangledName = GivenDemangledName;
-  if (!oclIsBuiltin(OrigName, DemangledName.empty() ? &DemangledName : nullptr))
+unsigned getExtOp(StringRef OrigName, StringRef GivenDemangledName) {
+  std::string DemangledName{GivenDemangledName};
+  if (DemangledName.empty() || !oclIsBuiltin(OrigName, GivenDemangledName))
     return ~0U;
   LLVM_DEBUG(dbgs() << "getExtOp: demangled name: " << DemangledName << '\n');
   OCLExtOpKind EOC;
@@ -425,8 +425,8 @@ public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
   OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
       : ArgTypes(ArgTypes.vec()) {}
-  void init(const std::string &UniqName) override {
-    UnmangledName = UniqName;
+  void init(StringRef UniqName) override {
+    UnmangledName = UniqName.str();
     size_t Pos = std::string::npos;
 
     auto EraseSubstring = [](std::string &Str, std::string ToErase) {

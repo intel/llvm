@@ -285,7 +285,7 @@ bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
                               StringRef Name, BuiltinFuncMangleInfo *Mangle,
                               AttributeList *Attrs, bool TakeName) {
-  std::string MangledName = Name;
+  std::string MangledName{Name};
   bool IsVarArg = false;
   if (Mangle) {
     MangledName = mangleBuiltin(Name, ArgTypes, Mangle);
@@ -350,7 +350,7 @@ std::string decorateSPIRVFunction(const std::string &S) {
   return std::string(kSPIRVName::Prefix) + S + kSPIRVName::Postfix;
 }
 
-std::string undecorateSPIRVFunction(const std::string &S) {
+StringRef undecorateSPIRVFunction(StringRef S) {
   assert(S.find(kSPIRVName::Prefix) == 0);
   const size_t Start = strlen(kSPIRVName::Prefix);
   auto End = S.rfind(kSPIRVName::Postfix);
@@ -437,11 +437,11 @@ std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned) {
          mapLLVMTypeToOCLType(PRetTy, IsSigned);
 }
 
-Op getSPIRVFuncOC(const std::string &S, SmallVectorImpl<std::string> *Dec) {
+Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   Op OC;
   SmallVector<StringRef, 2> Postfix;
-  std::string Name;
-  if (!oclIsBuiltin(S, &Name))
+  StringRef Name;
+  if (!oclIsBuiltin(S, Name))
     Name = S;
   StringRef R(Name);
   R = dePrefixSPIRVName(R, Postfix);
@@ -463,7 +463,7 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
 
 // Enqueue kernel, kernel query, pipe and address space cast built-ins
 // are not mangled.
-bool isNonMangledOCLBuiltin(const StringRef &Name) {
+bool isNonMangledOCLBuiltin(StringRef Name) {
   if (!Name.startswith("__"))
     return false;
 
@@ -471,22 +471,19 @@ bool isNonMangledOCLBuiltin(const StringRef &Name) {
          isPipeOrAddressSpaceCastBI(Name.drop_front(2));
 }
 
-bool oclIsBuiltin(const StringRef &Name, std::string *DemangledName,
-                  bool IsCpp) {
+// Demangled name is a substring of the name. The DemangledName is updated only
+// if true is returned
+bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   if (Name == "printf") {
-    if (DemangledName)
-      *DemangledName = Name;
+    DemangledName = Name;
     return true;
   }
   if (isNonMangledOCLBuiltin(Name)) {
-    if (DemangledName)
-      *DemangledName = Name.drop_front(2);
+    DemangledName = Name.drop_front(2);
     return true;
   }
   if (!Name.startswith("_Z"))
     return false;
-  if (!DemangledName)
-    return true;
   // OpenCL C++ built-ins are declared in cl namespace.
   // TODO: consider using 'St' abbriviation for cl namespace mangling.
   // Similar to ::std:: in C++.
@@ -503,12 +500,12 @@ bool oclIsBuiltin(const StringRef &Name, std::string *DemangledName,
     size_t Len = 0;
     Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
         .getAsInteger(10, Len);
-    *DemangledName = Name.substr(Start, Len);
+    DemangledName = Name.substr(Start, Len);
   } else {
     size_t Start = Name.find_first_not_of("0123456789", 2);
     size_t Len = 0;
     Name.substr(2, Start - 2).getAsInteger(10, Len);
-    *DemangledName = Name.substr(Start, Len);
+    DemangledName = Name.substr(Start, Len);
   }
   return true;
 }
@@ -549,8 +546,8 @@ void eraseSubstitutionFromMangledName(std::string &MangledName) {
   }
 }
 
-ParamType lastFuncParamType(const std::string &MangledName) {
-  auto Copy = MangledName;
+ParamType lastFuncParamType(StringRef MangledName) {
+  std::string Copy(MangledName);
   eraseSubstitutionFromMangledName(Copy);
   char Mangled = Copy.back();
   std::string Mangled2 = Copy.substr(Copy.size() - 2);
@@ -567,7 +564,7 @@ ParamType lastFuncParamType(const std::string &MangledName) {
 }
 
 // Check if the last argument is signed
-bool isLastFuncParamSigned(const std::string &MangledName) {
+bool isLastFuncParamSigned(StringRef MangledName) {
   return lastFuncParamType(MangledName) == ParamType::SIGNED;
 }
 
@@ -623,7 +620,7 @@ CallInst *mutateCallInst(
   auto NewName = ArgMutate(CI, Args);
   std::string InstName;
   if (!CI->getType()->isVoidTy() && CI->hasName()) {
-    InstName = CI->getName();
+    InstName = CI->getName().str();
     CI->setName(InstName + ".old");
   }
   auto NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
@@ -646,13 +643,13 @@ Instruction *mutateCallInst(
   auto Args = getArguments(CI);
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
-  std::string InstName;
+  StringRef InstName;
   if (CI->hasName()) {
     InstName = CI->getName();
     CI->setName(InstName + ".old");
   }
   auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle,
-                           InstName + ".tmp", TakeFuncName);
+                           std::string(InstName) + ".tmp", TakeFuncName);
   auto NewI = RetMutate(NewCI);
   NewI->takeName(CI);
   NewI->setDebugLoc(CI->getDebugLoc());
@@ -911,11 +908,10 @@ ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
   return ConstantInt::get(I->getType(), F(I->getSExtValue()), true);
 }
 
-bool isDecoratedSPIRVFunc(const Function *F, std::string *UndecoratedName) {
+bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
   if (!F->hasName() || !F->getName().startswith(kSPIRVName::Prefix))
     return false;
-  if (UndecoratedName)
-    *UndecoratedName = undecorateSPIRVFunction(F->getName());
+  UndecoratedName = undecorateSPIRVFunction(F->getName());
   return true;
 }
 
@@ -1081,7 +1077,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       OS << reinterpret_cast<size_t>(Ty);
       Name = Tmp = std::string("struct_") + OS.str();
     }
-    return SPIR::RefParamType(new SPIR::UserDefinedType(Name));
+    return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
   }
 
   if (Ty->isPointerTy()) {
@@ -1307,18 +1303,18 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
 }
 
 std::string getImageBaseTypeName(StringRef Name) {
-  std::string ImageTyName = Name;
 
   SmallVector<StringRef, 4> SubStrs;
   const char Delims[] = {kSPR2TypeName::Delimiter, 0};
   Name.split(SubStrs, Delims);
   if (Name.startswith(kSPR2TypeName::OCLPrefix)) {
-    ImageTyName = SubStrs[1].str();
+    Name = SubStrs[1];
   } else {
-    ImageTyName = SubStrs[0].str();
+    Name = SubStrs[0];
   }
 
-  if (hasAccessQualifiedName(ImageTyName))
+  std::string ImageTyName{Name};
+  if (hasAccessQualifiedName(Name))
     ImageTyName.erase(ImageTyName.size() - 5, 3);
 
   return ImageTyName;
@@ -1339,8 +1335,9 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc) {
                       << ", " << Desc.Format << ")\n");
 
     BaseTy = kSPIRVTypeName::Image;
-    OS << getSPIRVImageTypePostfixes(kSPIRVImageSampledTypeName::Void, Desc,
-                                     SPIRSPIRVAccessQualifierMap::map(Acc));
+    OS << getSPIRVImageTypePostfixes(
+        kSPIRVImageSampledTypeName::Void, Desc,
+        SPIRSPIRVAccessQualifierMap::map(Acc.str()));
   } else {
     LLVM_DEBUG(dbgs() << "Mapping of " << Name << " is not implemented\n");
     llvm_unreachable("Not implemented");
@@ -1409,11 +1406,10 @@ manglePipeOrAddressSpaceCastBuiltin(const SPIR::FunctionDescriptor &Fd,
   return SPIR::MANGLE_SUCCESS;
 }
 
-std::string mangleBuiltin(const std::string &UniqName,
-                          ArrayRef<Type *> ArgTypes,
+std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo) {
   if (!BtnInfo)
-    return UniqName;
+    return std::string(UniqName);
   BtnInfo->init(UniqName);
   std::string MangledName;
   LLVM_DEBUG(dbgs() << "[mangle] " << UniqName << " => ");
@@ -1485,7 +1481,7 @@ StringRef getAccessQualifier(StringRef TyName) {
 Type *getSPIRVImageTypeFromOCL(Module *M, Type *ImageTy) {
   assert(isOCLImageType(ImageTy) && "Unsupported type");
   auto ImageTypeName = ImageTy->getPointerElementType()->getStructName();
-  std::string Acc = kAccessQualName::ReadOnly;
+  StringRef Acc = kAccessQualName::ReadOnly;
   if (hasAccessQualifiedName(ImageTypeName))
     Acc = getAccessQualifier(ImageTypeName);
   return getOrCreateOpaquePtrType(M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));

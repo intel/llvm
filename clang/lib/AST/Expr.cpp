@@ -741,7 +741,7 @@ std::string PredefinedExpr::ComputeName(ASTContext &Context, IdentKind IK,
   SmallString<256> Buffer;
   llvm::raw_svector_ostream Out(Buffer);
   Ctx->mangleTypeName(Ty, Out);
-  return Buffer.str();
+  return std::string(Buffer.str());
 }
 
 // FIXME: Maybe this should use DeclPrinter with a special "print predefined

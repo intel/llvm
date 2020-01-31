@@ -277,6 +277,38 @@ getAssumedConstant(Attributor &A, const Value &V, const AbstractAttribute &AA,
   return CI;
 }
 
+/// Get pointer operand of memory accessing instruction. If \p I is
+/// not a memory accessing instruction, return nullptr. If \p AllowVolatile,
+/// is set to false and the instruction is volatile, return nullptr.
+static const Value *getPointerOperand(const Instruction *I,
+                                      bool AllowVolatile) {
+  if (auto *LI = dyn_cast<LoadInst>(I)) {
+    if (!AllowVolatile && LI->isVolatile())
+      return nullptr;
+    return LI->getPointerOperand();
+  }
+
+  if (auto *SI = dyn_cast<StoreInst>(I)) {
+    if (!AllowVolatile && SI->isVolatile())
+      return nullptr;
+    return SI->getPointerOperand();
+  }
+
+  if (auto *CXI = dyn_cast<AtomicCmpXchgInst>(I)) {
+    if (!AllowVolatile && CXI->isVolatile())
+      return nullptr;
+    return CXI->getPointerOperand();
+  }
+
+  if (auto *RMWI = dyn_cast<AtomicRMWInst>(I)) {
+    if (!AllowVolatile && RMWI->isVolatile())
+      return nullptr;
+    return RMWI->getPointerOperand();
+  }
+
+  return nullptr;
+}
+
 /// Recursively visit all values that might become \p IRP at some point. This
 /// will be done by looking through cast instructions, selects, phis, and calls
 /// with the "returned" attribute. Once we cannot look through the value any
@@ -417,8 +449,7 @@ static const Value *
 getBasePointerOfAccessPointerOperand(const Instruction *I, int64_t &BytesOffset,
                                      const DataLayout &DL,
                                      bool AllowNonInbounds = false) {
-  const Value *Ptr =
-      Attributor::getPointerOperand(I, /* AllowVolatile */ false);
+  const Value *Ptr = getPointerOperand(I, /* AllowVolatile */ false);
   if (!Ptr)
     return nullptr;
 
@@ -776,7 +807,7 @@ struct AAArgumentFromCallSiteArguments : public Base {
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
-    StateType S;
+    StateType S(StateType::getBestState(this->getState()));
     clampCallSiteArgumentStates<AAType, StateType>(A, *this, S);
     // TODO: If we know we visited all incoming values, thus no are assumed
     // dead, we can take the known information from the state T.
@@ -1800,7 +1831,7 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
   int64_t Offset;
   if (const Value *Base = getBasePointerOfAccessPointerOperand(I, Offset, DL)) {
     if (Base == &AssociatedValue &&
-        Attributor::getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
+        getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
       int64_t DerefBytes =
           (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType()) + Offset;
 
@@ -1813,7 +1844,7 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
   if (const Value *Base = getBasePointerOfAccessPointerOperand(
           I, Offset, DL, /*AllowNonInbounds*/ true)) {
     if (Offset == 0 && Base == &AssociatedValue &&
-        Attributor::getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
+        getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
       int64_t DerefBytes =
           (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType());
       IsNonNull |= !NullPointerIsDefined;
@@ -2058,8 +2089,7 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
       // If we reach here, we know we have an instruction
       // that accesses memory through a pointer operand,
       // for which getPointerOperand() should give it to us.
-      const Value *PtrOp =
-          Attributor::getPointerOperand(&I, /* AllowVolatile */ true);
+      const Value *PtrOp = getPointerOperand(&I, /* AllowVolatile */ true);
       assert(PtrOp &&
              "Expected pointer operand of memory accessing instruction");
 
@@ -2387,8 +2417,9 @@ struct AANoAliasFloating final : AANoAliasImpl {
     Value &Val = getAssociatedValue();
     if (isa<AllocaInst>(Val))
       indicateOptimisticFixpoint();
-    if (isa<ConstantPointerNull>(Val) &&
-        Val.getType()->getPointerAddressSpace() == 0)
+    else if (isa<ConstantPointerNull>(Val) &&
+             !NullPointerIsDefined(getAnchorScope(),
+                                   Val.getType()->getPointerAddressSpace()))
       indicateOptimisticFixpoint();
   }
 
@@ -2466,10 +2497,64 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
     ImmutableCallSite ICS(&getAnchorValue());
     if (ICS.paramHasAttr(getArgNo(), Attribute::NoAlias))
       indicateOptimisticFixpoint();
+    Value &Val = getAssociatedValue();
+    if (isa<ConstantPointerNull>(Val) &&
+        !NullPointerIsDefined(getAnchorScope(),
+                              Val.getType()->getPointerAddressSpace()))
+      indicateOptimisticFixpoint();
   }
 
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
+  /// Determine if the underlying value may alias with the call site argument
+  /// \p OtherArgNo of \p ICS (= the underlying call site).
+  bool mayAliasWithArgument(Attributor &A, AAResults *&AAR,
+                            const AAMemoryBehavior &MemBehaviorAA,
+                            ImmutableCallSite ICS, unsigned OtherArgNo) {
+    // We do not need to worry about aliasing with the underlying IRP.
+    if (this->getArgNo() == (int)OtherArgNo)
+      return false;
+
+    // If it is not a pointer or pointer vector we do not alias.
+    const Value *ArgOp = ICS.getArgOperand(OtherArgNo);
+    if (!ArgOp->getType()->isPtrOrPtrVectorTy())
+      return false;
+
+    auto &ICSArgMemBehaviorAA = A.getAAFor<AAMemoryBehavior>(
+        *this, IRPosition::callsite_argument(ICS, OtherArgNo),
+        /* TrackDependence */ false);
+
+    // If the argument is readnone, there is no read-write aliasing.
+    if (ICSArgMemBehaviorAA.isAssumedReadNone()) {
+      A.recordDependence(ICSArgMemBehaviorAA, *this, DepClassTy::OPTIONAL);
+      return false;
+    }
+
+    // If the argument is readonly and the underlying value is readonly, there
+    // is no read-write aliasing.
+    bool IsReadOnly = MemBehaviorAA.isAssumedReadOnly();
+    if (ICSArgMemBehaviorAA.isAssumedReadOnly() && IsReadOnly) {
+      A.recordDependence(MemBehaviorAA, *this, DepClassTy::OPTIONAL);
+      A.recordDependence(ICSArgMemBehaviorAA, *this, DepClassTy::OPTIONAL);
+      return false;
+    }
+
+    // We have to utilize actual alias analysis queries so we need the object.
+    if (!AAR)
+      AAR = A.getInfoCache().getAAResultsForFunction(*getAnchorScope());
+
+    // Try to rule it out at the call site.
+    bool IsAliasing = !AAR || !AAR->isNoAlias(&getAssociatedValue(), ArgOp);
+    LLVM_DEBUG(dbgs() << "[NoAliasCSArg] Check alias between "
+                         "callsite arguments: "
+                      << getAssociatedValue() << " " << *ArgOp << " => "
+                      << (IsAliasing ? "" : "no-") << "alias \n");
+
+    return IsAliasing;
+  }
+
+  bool
+  isKnownNoAliasDueToNoAliasPreservation(Attributor &A, AAResults *&AAR,
+                                         const AAMemoryBehavior &MemBehaviorAA,
+                                         const AANoAlias &NoAliasAA) {
     // We can deduce "noalias" if the following conditions hold.
     // (i)   Associated value is assumed to be noalias in the definition.
     // (ii)  Associated value is assumed to be no-capture in all the uses
@@ -2477,62 +2562,64 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
     // (iii) There is no other pointer argument which could alias with the
     //       value.
 
-    const Value &V = getAssociatedValue();
-    const IRPosition IRP = IRPosition::value(V);
+    bool AssociatedValueIsNoAliasAtDef = NoAliasAA.isAssumedNoAlias();
+    if (!AssociatedValueIsNoAliasAtDef) {
+      LLVM_DEBUG(dbgs() << "[AANoAlias] " << getAssociatedValue()
+                        << " is not no-alias at the definition\n");
+      return false;
+    }
 
-    // (i) Check whether noalias holds in the definition.
-
-    auto &NoAliasAA = A.getAAFor<AANoAlias>(*this, IRP);
-    LLVM_DEBUG(dbgs() << "[Attributor][AANoAliasCSArg] check definition: " << V
-                      << " :: " << NoAliasAA << "\n");
-
-    if (!NoAliasAA.isAssumedNoAlias())
-      return indicatePessimisticFixpoint();
-
-    LLVM_DEBUG(dbgs() << "[Attributor][AANoAliasCSArg] " << V
-                      << " is assumed NoAlias in the definition\n");
-
-    // (ii) Check whether the value is captured in the scope using AANoCapture.
-    //      FIXME: This is conservative though, it is better to look at CFG and
-    //             check only uses possibly executed before this callsite.
-
-    auto &NoCaptureAA = A.getAAFor<AANoCapture>(*this, IRP);
+    const IRPosition &VIRP = IRPosition::value(getAssociatedValue());
+    auto &NoCaptureAA =
+        A.getAAFor<AANoCapture>(*this, VIRP, /* TrackDependence */ false);
+    // Check whether the value is captured in the scope using AANoCapture.
+    // FIXME: This is conservative though, it is better to look at CFG and
+    //        check only uses possibly executed before this callsite.
     if (!NoCaptureAA.isAssumedNoCaptureMaybeReturned()) {
       LLVM_DEBUG(
-          dbgs() << "[Attributor][AANoAliasCSArg] " << V
+          dbgs() << "[AANoAliasCSArg] " << getAssociatedValue()
                  << " cannot be noalias as it is potentially captured\n");
-      return indicatePessimisticFixpoint();
+      return false;
     }
+    A.recordDependence(NoCaptureAA, *this, DepClassTy::OPTIONAL);
 
-    // (iii) Check there is no other pointer argument which could alias with the
-    // value.
+    // Check there is no other pointer argument which could alias with the
+    // value passed at this call site.
     // TODO: AbstractCallSite
     ImmutableCallSite ICS(&getAnchorValue());
-    for (unsigned i = 0; i < ICS.getNumArgOperands(); i++) {
-      if (getArgNo() == (int)i)
-        continue;
-      const Value *ArgOp = ICS.getArgOperand(i);
-      if (!ArgOp->getType()->isPointerTy())
-        continue;
+    for (unsigned OtherArgNo = 0; OtherArgNo < ICS.getNumArgOperands();
+         OtherArgNo++)
+      if (mayAliasWithArgument(A, AAR, MemBehaviorAA, ICS, OtherArgNo))
+        return false;
 
-      if (const Function *F = getAnchorScope()) {
-        if (AAResults *AAR = A.getInfoCache().getAAResultsForFunction(*F)) {
-          bool IsAliasing = !AAR->isNoAlias(&getAssociatedValue(), ArgOp);
-          LLVM_DEBUG(dbgs()
-                     << "[Attributor][NoAliasCSArg] Check alias between "
-                        "callsite arguments "
-                     << AAR->isNoAlias(&getAssociatedValue(), ArgOp) << " "
-                     << getAssociatedValue() << " " << *ArgOp << " => "
-                     << (IsAliasing ? "" : "no-") << "alias \n");
+    return true;
+  }
 
-          if (!IsAliasing)
-            continue;
-        }
-      }
-      return indicatePessimisticFixpoint();
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    // If the argument is readnone we are done as there are no accesses via the
+    // argument.
+    auto &MemBehaviorAA =
+        A.getAAFor<AAMemoryBehavior>(*this, getIRPosition(),
+                                     /* TrackDependence */ false);
+    if (MemBehaviorAA.isAssumedReadNone()) {
+      A.recordDependence(MemBehaviorAA, *this, DepClassTy::OPTIONAL);
+      return ChangeStatus::UNCHANGED;
     }
 
-    return ChangeStatus::UNCHANGED;
+    const IRPosition &VIRP = IRPosition::value(getAssociatedValue());
+    const auto &NoAliasAA = A.getAAFor<AANoAlias>(*this, VIRP,
+                                                  /* TrackDependence */ false);
+
+    AAResults *AAR = nullptr;
+    if (isKnownNoAliasDueToNoAliasPreservation(A, AAR, MemBehaviorAA,
+                                               NoAliasAA)) {
+      LLVM_DEBUG(
+          dbgs() << "[AANoAlias] No-Alias deduced via no-alias preservation\n");
+      return ChangeStatus::UNCHANGED;
+    }
+
+    return indicatePessimisticFixpoint();
   }
 
   /// See AbstractAttribute::trackStatistics()
@@ -3218,7 +3305,7 @@ struct AADereferenceableImpl : AADereferenceable {
     if (const Value *Base = getBasePointerOfAccessPointerOperand(
             I, Offset, DL, /*AllowNonInbounds*/ true)) {
       if (Base == &getAssociatedValue() &&
-          Attributor::getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
+          getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
         uint64_t Size = DL.getTypeStoreSize(PtrTy->getPointerElementType());
         addAccessedBytes(Offset, Size);
       }
@@ -4203,7 +4290,7 @@ struct AAValueSimplifyImpl : AAValueSimplify {
     if (AccumulatedSimplifiedValue.hasValue())
       return AccumulatedSimplifiedValue == QueryingValueSimplified;
 
-    LLVM_DEBUG(dbgs() << "[Attributor][ValueSimplify] " << QueryingValue
+    LLVM_DEBUG(dbgs() << "[ValueSimplify] " << QueryingValue
                       << " is assumed to be "
                       << QueryingValueSimplifiedUnwrapped << "\n");
 
@@ -4245,8 +4332,8 @@ struct AAValueSimplifyImpl : AAValueSimplify {
       // We can replace the AssociatedValue with the constant.
       Value &V = getAssociatedValue();
       if (!V.user_empty() && &V != C && V.getType() == C->getType()) {
-        LLVM_DEBUG(dbgs() << "[Attributor][ValueSimplify] " << V << " -> " << *C
-                          << "\n");
+        LLVM_DEBUG(dbgs() << "[ValueSimplify] " << V << " -> " << *C
+                          << " :: " << *this << "\n");
         A.changeValueAfterManifest(V, *C);
         Changed = ChangeStatus::CHANGED;
       }
@@ -4373,22 +4460,21 @@ struct AAValueSimplifyFloating : AAValueSimplifyImpl {
   ChangeStatus updateImpl(Attributor &A) override {
     bool HasValueBefore = SimplifiedAssociatedValue.hasValue();
 
-    auto VisitValueCB = [&](Value &V, BooleanState, bool Stripped) -> bool {
+    auto VisitValueCB = [&](Value &V, bool &, bool Stripped) -> bool {
       auto &AA = A.getAAFor<AAValueSimplify>(*this, IRPosition::value(V));
       if (!Stripped && this == &AA) {
         // TODO: Look the instruction and check recursively.
 
-        LLVM_DEBUG(
-            dbgs() << "[Attributor][ValueSimplify] Can't be stripped more : "
-                   << V << "\n");
+        LLVM_DEBUG(dbgs() << "[ValueSimplify] Can't be stripped more : " << V
+                          << "\n");
         return false;
       }
       return checkAndUpdate(A, *this, V, SimplifiedAssociatedValue);
     };
 
-    if (!genericValueTraversal<AAValueSimplify, BooleanState>(
-            A, getIRPosition(), *this, static_cast<BooleanState &>(*this),
-            VisitValueCB))
+    bool Dummy = false;
+    if (!genericValueTraversal<AAValueSimplify, bool>(A, getIRPosition(), *this,
+                                                      Dummy, VisitValueCB))
       if (!askSimplifiedValueForAAValueConstantRange(A))
         return indicatePessimisticFixpoint();
 
@@ -5363,23 +5449,13 @@ struct AAValueConstantRangeImpl : AAValueConstantRange {
   }
 };
 
-struct AAValueConstantRangeArgument final : public AAValueConstantRangeImpl {
-
+struct AAValueConstantRangeArgument final
+    : AAArgumentFromCallSiteArguments<
+          AAValueConstantRange, AAValueConstantRangeImpl, IntegerRangeState> {
   AAValueConstantRangeArgument(const IRPosition &IRP)
-      : AAValueConstantRangeImpl(IRP) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Use AAArgumentFromCallSiteArguments
-
-    IntegerRangeState S(getBitWidth());
-    clampCallSiteArgumentStates<AAValueConstantRange, IntegerRangeState>(
-        A, *this, S);
-
-    // TODO: If we know we visited all incoming values, thus no are assumed
-    // dead, we can take the known information from the state T.
-    return clampStateAndIndicateChange<IntegerRangeState>(this->getState(), S);
-  }
+      : AAArgumentFromCallSiteArguments<
+            AAValueConstantRange, AAValueConstantRangeImpl, IntegerRangeState>(
+            IRP) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -5450,8 +5526,8 @@ struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
     // Otherwise we give up.
     indicatePessimisticFixpoint();
 
-    LLVM_DEBUG(dbgs() << "[Attributor][AAValueConstantRange] We give up: "
-                      << getAssociatedValue());
+    LLVM_DEBUG(dbgs() << "[AAValueConstantRange] We give up: "
+                      << getAssociatedValue() << "\n");
   }
 
   bool calculateBinaryOperator(Attributor &A, BinaryOperator *BinOp,
@@ -5945,6 +6021,8 @@ ChangeStatus Attributor::run(Module &M) {
         assert(DOIAAState.isAtFixpoint() && "Expected fixpoint state!");
         if (!DOIAAState.isValidState())
           InvalidAAs.insert(DepOnInvalidAA);
+        else
+          ChangedAAs.push_back(DepOnInvalidAA);
       }
       if (!RecomputeDependences)
         Worklist.insert(QuerriedAAs.OptionalAAs.begin(),

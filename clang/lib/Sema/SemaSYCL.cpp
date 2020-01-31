@@ -1193,7 +1193,7 @@ static std::string constructKernelName(QualType KernelNameType,
   llvm::raw_svector_ostream Out(Result);
 
   MC.mangleTypeName(KernelNameType, Out);
-  return Out.str();
+  return std::string(Out.str());
 }
 
 static FunctionDecl *
@@ -1762,9 +1762,9 @@ void SYCLIntegrationHeader::startKernel(StringRef KernelName,
                                         QualType KernelNameType,
                                         StringRef KernelStableName) {
   KernelDescs.resize(KernelDescs.size() + 1);
-  KernelDescs.back().Name = KernelName;
+  KernelDescs.back().Name = std::string(KernelName);
   KernelDescs.back().NameType = KernelNameType;
-  KernelDescs.back().StableName = KernelStableName;
+  KernelDescs.back().StableName = std::string(KernelStableName);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
