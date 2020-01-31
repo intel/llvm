@@ -109,7 +109,7 @@ The operators defined by this extension match those defined for +std::atomic+ in
 
 In SYCL 1.2.1, support for floating-point types is limited to the +load+, +store+ and +exchange+ member functions.  Many applications requiring additional atomic operations (e.g. addition) currently work around this restriction using type punning and integer +compare_exchange+ operations.
 
-This extension extends support for floating-point types to the +compare_exchange+, +fetch_add+ and +fetch_sub+ functions in line with {cpp}20.  These new functions do not require dedicated floating-point atomic instructions and can be emulated using integer operations, giving compilers the freedom to choose the best implementation for the target device.
+This extension extends support for floating-point types to the +compare_exchange+, +fetch_add+ and +fetch_sub+ functions in line with {cpp}20, as well as the +fetch_min+ and +fetch_max+ functions.  These new functions do not require dedicated floating-point atomic instructions and can be emulated using integer operations, giving compilers the freedom to choose the best implementation for the target device.
 
 == Modifications of SYCL 1.2.1 Specification
 
