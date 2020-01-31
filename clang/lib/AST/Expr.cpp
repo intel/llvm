@@ -932,7 +932,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
 
     Out << Proto;
 
-    return Name.str().str();
+    return std::string(Name);
   }
   if (const CapturedDecl *CD = dyn_cast<CapturedDecl>(CurrentDecl)) {
     for (const DeclContext *DC = CD->getParent(); DC; DC = DC->getParent())
@@ -963,7 +963,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
     MD->getSelector().print(Out);
     Out <<  ']';
 
-    return Name.str().str();
+    return std::string(Name);
   }
   if (isa<TranslationUnitDecl>(CurrentDecl) && IK == PrettyFunction) {
     // __PRETTY_FUNCTION__ -> "top level", the others produce an empty string.

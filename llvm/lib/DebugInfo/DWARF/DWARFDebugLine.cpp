@@ -299,6 +299,14 @@ parseV5DirFileTables(const DWARFDataExtractor &DebugLineData,
   return Error::success();
 }
 
+uint64_t DWARFDebugLine::Prologue::getLength() const {
+  uint64_t Length = PrologueLength + sizeofTotalLength() +
+                    sizeof(getVersion()) + sizeofPrologueLength();
+  if (getVersion() >= 5)
+    Length += 2; // Address + Segment selector sizes.
+  return Length;
+}
+
 Error DWARFDebugLine::Prologue::parse(
     const DWARFDataExtractor &DebugLineData, uint64_t *OffsetPtr,
     function_ref<void(Error)> RecoverableErrorCallback, const DWARFContext &Ctx,
@@ -1090,13 +1098,12 @@ bool DWARFDebugLine::Prologue::getFileNameByIndex(
     if (0 < Entry.DirIdx && Entry.DirIdx <= IncludeDirectories.size())
       IncludeDir =
           IncludeDirectories[Entry.DirIdx - 1].getAsCString().getValue();
-
-    // We may still need to append compilation directory of compile unit.
-    // We know that FileName is not absolute, the only way to have an
-    // absolute path at this point would be if IncludeDir is absolute.
-    if (!CompDir.empty() && !isPathAbsoluteOnWindowsOrPosix(IncludeDir))
-      sys::path::append(FilePath, Style, CompDir);
   }
+  // We may still need to append compilation directory of compile unit.
+  // We know that FileName is not absolute, the only way to have an
+  // absolute path at this point would be if IncludeDir is absolute.
+  if (!CompDir.empty() && !isPathAbsoluteOnWindowsOrPosix(IncludeDir))
+    sys::path::append(FilePath, Style, CompDir);
 
   // sys::path::append skips empty strings.
   sys::path::append(FilePath, Style, IncludeDir, FileName);

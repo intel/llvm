@@ -33,7 +33,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
@@ -669,13 +668,16 @@ public:
     // Iterate through individual objects and extract them
     for (size_t I = 0; I < NumObjects; ++I) {
       uint64_t ObjSize = SizeVec[I];
+      // Flag for the special case used to "unbundle" host target object.
+      bool HostTriple = ObjSize == 1;
+
       StringRef ObjFileName = OutName;
       SmallString<128> Path;
 
       // If not in file list mode there is no need in a temporary file - output
       // goes directly to what was specified in -outputs. The same is true for
       // the host triple.
-      if (FileListMode) {
+      if (FileListMode && !HostTriple) {
         std::error_code EC =
             sys::fs::createTemporaryFile(TempFileNameBase, "devo", Path);
         ObjFileName = Path.data();
@@ -688,6 +690,19 @@ public:
 
       if (EC)
         return createFileError(ObjFileName, EC);
+
+      if (HostTriple) {
+        // Copy fat object contents to the output when extracting host bundle.
+
+        // In the partially linked fat object multiple dummy host bundles were
+        // concatenated - check all of them were of size 1
+        for (size_t II = I; II < NumObjects; ++II)
+          if (SizeVec[II] != 1)
+            return createStringError(inconvertibleErrorCode(),
+                                     "inconsistent host triple bundle");
+        OS.write(Input.getBufferStart(), Input.getBufferSize());
+        break;
+      }
       OS.write(ObjData, ObjSize);
 
       if (FileListMode) {
@@ -720,7 +735,8 @@ public:
 
     // And input sizes.
     for (unsigned I = 0; I < NumberOfInputs; ++I)
-      InputSizes.push_back(Inputs[I]->getBufferSize());
+      InputSizes.push_back(I == HostInputIndex ? 1u
+                                               : Inputs[I]->getBufferSize());
     return Error::success();
   }
 
@@ -775,12 +791,25 @@ public:
     StringSaver SS{Alloc};
     SmallVector<StringRef, 8u> ObjcopyArgs{"llvm-objcopy"};
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      StringRef InputFile = InputFileNames[I];
+      if (I == HostInputIndex) {
+        // Special handling for the host bundle. We do not need to add a
+        // standard bundle for the host object since we are going to use fat
+        // object as a host object. Therefore use dummy contents (one zero byte)
+        // when creating section for the host bundle.
+        Expected<StringRef> TempFileOrErr = TempFiles.Create(ArrayRef<char>(0));
+        if (!TempFileOrErr)
+          return TempFileOrErr.takeError();
+        InputFile = *TempFileOrErr;
+      }
+
       ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
-                                    "=" + InputFileNames[I]));
+                                    "=" + InputFile));
 
       // Create temporary file with the section size contents.
-      Expected<StringRef> SizeFileOrErr = TempFiles.Create(makeArrayRef(reinterpret_cast<char *>(&InputSizes[I]), sizeof(InputSizes[I])));
+      Expected<StringRef> SizeFileOrErr = TempFiles.Create(makeArrayRef(
+          reinterpret_cast<char *>(&InputSizes[I]), sizeof(InputSizes[I])));
       if (!SizeFileOrErr)
         return SizeFileOrErr.takeError();
 
@@ -1448,9 +1477,9 @@ int main(int argc, const char **argv) {
   else {
     if (OutputFileNames.size() != 1) {
       Error = true;
-      reportError(createStringError(
-          errc::invalid_argument,
-          "only one output file supported in bundling mode"));
+      reportError(
+          createStringError(errc::invalid_argument,
+                            "only one output file supported in bundling mode"));
     }
     if (InputFileNames.size() != TargetNames.size()) {
       Error = true;

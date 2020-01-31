@@ -2399,6 +2399,50 @@ AMDGPUInstructionSelector::selectDS1Addr1Offset(MachineOperand &Root) const {
     }};
 }
 
+InstructionSelector::ComplexRendererFns
+AMDGPUInstructionSelector::selectDS64Bit4ByteAligned(MachineOperand &Root) const {
+  const MachineInstr *RootDef = MRI->getVRegDef(Root.getReg());
+  if (!RootDef) {
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(Root); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(1); }
+      }};
+  }
+
+  int64_t ConstAddr = 0;
+  Register PtrBase;
+  int64_t Offset;
+
+  std::tie(PtrBase, Offset) =
+    getPtrBaseWithConstantOffset(Root.getReg(), *MRI);
+
+  if (Offset) {
+    int64_t DWordOffset0 = Offset / 4;
+    int64_t DWordOffset1 = DWordOffset0 + 1;
+    if (isDSOffsetLegal(PtrBase, DWordOffset1, 8)) {
+      // (add n0, c0)
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.addReg(PtrBase); },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(DWordOffset0); },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(DWordOffset1); }
+        }};
+    }
+  } else if (RootDef->getOpcode() == AMDGPU::G_SUB) {
+    // TODO
+
+  } else if (mi_match(Root.getReg(), *MRI, m_ICst(ConstAddr))) {
+    // TODO
+
+  }
+
+  return {{
+      [=](MachineInstrBuilder &MIB) { MIB.add(Root); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(1); }
+    }};
+}
+
 /// If \p Root is a G_PTR_ADD with a G_CONSTANT on the right hand side, return
 /// the base value with the constant offset. There may be intervening copies
 /// between \p Root and the identified constant. Returns \p Root, 0 if this does
@@ -2683,9 +2727,7 @@ void AMDGPUInstructionSelector::renderTruncImm32(MachineInstrBuilder &MIB,
                                                  int OpIdx) const {
   assert(MI.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
          "Expected G_CONSTANT");
-  Optional<int64_t> CstVal = getConstantVRegVal(MI.getOperand(0).getReg(), *MRI);
-  assert(CstVal && "Expected constant value");
-  MIB.addImm(CstVal.getValue());
+  MIB.addImm(MI.getOperand(1).getCImm()->getSExtValue());
 }
 
 void AMDGPUInstructionSelector::renderNegateImm(MachineInstrBuilder &MIB,
