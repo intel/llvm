@@ -12240,9 +12240,6 @@ public:
     BuiltinFunction
   };
 
-  using CallExprWithLocation = std::pair<CallExpr *, SourceLocation>;
-  using CallExprEvaluatabilityMap = std::map<CallExprWithLocation, bool>;
-
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
@@ -12256,12 +12253,10 @@ private:
   // useful notes that shows where the kernel was called.
   bool ConstructingOpenCLKernel = false;
 
-  // We store map {call expr + its location} -> !isUnevaluatedContext for proper
-  // diagnostic of undefined kernel functions
-  // Storing is done upon each and every call to ActOnCallExpr
-  CallExprEvaluatabilityMap CallExprEvaluatability;
-
-  void StoreContextEvaluatability(CallExpr *CE);
+  /// FunctionDecls and SourceLocations for which checkSYCLDeviceFunction has
+  /// emitted a (maybe deferred) "bad call" diagnostic.  We use this to avoid
+  /// emitting the same deferred diag twice.
+  llvm::DenseSet<FunctionDeclAndLoc> LocsWithSYCLCallDiags;
 
 public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
@@ -12273,10 +12268,6 @@ public:
       SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
           getDiagnostics(), getLangOpts().SYCLUnnamedLambda);
     return *SyclIntHeader.get();
-  }
-
-  const CallExprEvaluatabilityMap &getCallExprEvaluatability() const {
-    return CallExprEvaluatability;
   }
 
   enum SYCLRestrictKind {
@@ -12320,7 +12311,9 @@ public:
   /// Checks if Callee function is a device function and emits
   /// diagnostics if it is known that it is a device function, adds this
   /// function to the DeviceCallGraph otherwise.
-  void checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
+  ///
+  /// \return false if check fails
+  bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 };
 
 /// RAII object that enters a new expression evaluation context.

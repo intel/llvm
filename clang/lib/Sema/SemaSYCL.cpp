@@ -260,21 +260,6 @@ public:
         SemaRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
-
-      // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-      // Only validate really called functions
-      {
-        const auto &EvaluatabilityMap = SemaRef.getCallExprEvaluatability();
-        auto it = EvaluatabilityMap.find(
-              std::make_pair(e, e->getExprLoc()));
-
-        if (!SemaRef.isKnownGoodSYCLDecl(Callee) &&
-            ((it != EvaluatabilityMap.end() && it->second) &&
-             (!Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) &&
-             !Callee->getBuiltinID()))
-          SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << Sema::KernelCallUndefinedFunction;
-      }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
                !isa<CXXPseudoDestructorExpr>(e->getCallee()))
@@ -1347,13 +1332,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   addSyclDeviceDecl(OpenCLKernel);
 }
 
-void Sema::StoreContextEvaluatability(CallExpr *E) {
-  CallExprEvaluatability.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(E, E->getExprLoc()),
-        std::forward_as_tuple(!isUnevaluatedContext()));
-}
-
 void Sema::MarkDevice(void) {
   // Let's mark all called functions with SYCL Device attribute.
   // Create the call graph so we can detect recursion and check the validity
@@ -1467,22 +1445,48 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
   return DeviceDiagBuilder(DiagKind, Loc, DiagID, FD, *this);
 }
 
-void Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
+bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
+  assert(getLangOpts().SYCLIsDevice && "Should only be called during SYCL compilation");
   assert(Callee && "Callee may not be null.");
 
   // Errors in unevaluated context don't need to be generated,
   // so we can safely skip them.
-  if (isUnevaluatedContext())
+  if (isUnevaluatedContext() || isConstantEvaluated())
     return;
 
   FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
 
+  if (!Caller)
+    return true;
+
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
-  if (Caller && isKnownEmitted(*this, Caller))
+  if (isKnownEmitted(*this, Caller))
     markKnownEmitted(*this, Caller, Callee, Loc, isKnownEmitted);
-  else if (Caller)
+  else
     DeviceCallGraph[Caller].insert({Callee, Loc});
+
+  DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
+
+  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
+  if (!isKnownGoodSYCLDecl(Callee) &&
+      (!Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) &&
+      !Callee->getBuiltinID())
+    DiagKind = getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted
+        ? DeviceDiagBuilder::K_ImmediateWithCallStack
+        : DeviceDiagBuilder::K_Deferred;
+
+  // Don't emit the same diagnostic for the second time
+  if (!LocsWithSYCLCallDiags.insert({Caller, Loc}).second)
+    return true;
+
+  DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+      << Sema::KernelCallUndefinedFunction;
+  DeviceDiagBuilder(DiagKind, Callee->getLocation(),
+                    diag::note_previous_decl, Caller, *this) << Callee;
+
+  return DiagKind != DeviceDiagBuilder::K_Immediate &&
+         DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
 }
 
 // -----------------------------------------------------------------------------

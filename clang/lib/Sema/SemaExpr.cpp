@@ -292,8 +292,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     if (getLangOpts().CUDA && !CheckCUDACall(Loc, FD))
       return true;
 
-    if (getLangOpts().SYCLIsDevice)
-      checkSYCLDeviceFunction(Loc, FD);
+    if (getLangOpts().SYCLIsDevice && !checkSYCLDeviceFunction(Loc, FD))
+      return true;
   }
 
   if (auto *MD = dyn_cast<CXXMethodDecl>(D)) {
@@ -5789,10 +5789,6 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
           << ULE->getName();
     }
   }
-
-  if (Call.isUsable() && getLangOpts().SYCLIsDevice)
-    if (CallExpr *CE = dyn_cast<CallExpr>(Call.get()))
-        StoreContextEvaluatability(CE);
 
   return Call;
 }

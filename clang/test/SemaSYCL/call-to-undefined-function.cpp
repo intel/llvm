@@ -5,12 +5,14 @@ void defined() {
 }
 
 void undefined();
+// expected-note@-1 {{'undefined' declared here}}
 
 SYCL_EXTERNAL void undefinedExternal();
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
+  // expected-note@-1 {{called by 'kernel_single_task<CallToUndefinedFnTester,}}
 }
 
 int main() {
