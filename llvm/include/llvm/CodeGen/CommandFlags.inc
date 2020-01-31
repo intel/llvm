@@ -238,6 +238,10 @@ static cl::opt<bool>
                      cl::desc("Emit functions into separate sections"),
                      cl::init(false));
 
+static cl::opt<unsigned> TLSSize("tls-size",
+                                 cl::desc("Bit size of immediate TLS offsets"),
+                                 cl::init(0));
+
 static cl::opt<bool> EmulatedTLS("emulated-tls",
                                  cl::desc("Use emulated TLS model"),
                                  cl::init(false));
@@ -305,6 +309,7 @@ static TargetOptions InitTargetOptionsFromCodeGenFlags() {
   Options.DataSections = DataSections;
   Options.FunctionSections = FunctionSections;
   Options.UniqueSectionNames = UniqueSectionNames;
+  Options.TLSSize = TLSSize;
   Options.EmulatedTLS = EmulatedTLS;
   Options.ExplicitEmulatedTLS = EmulatedTLS.getNumOccurrences() > 0;
   Options.ExceptionModel = ExceptionModel;
@@ -372,6 +377,17 @@ LLVM_ATTRIBUTE_UNUSED static std::vector<std::string> getFeatureList() {
   return Features.getFeatures();
 }
 
+static void renderBoolStringAttr(AttrBuilder &B, StringRef Name, bool Val) {
+  B.addAttribute(Name, Val ? "true" : "false");
+}
+
+#define HANDLE_BOOL_ATTR(CL, AttrName)                              \
+  do {                                                              \
+    if (CL.getNumOccurrences() > 0 && !F.hasFnAttribute(AttrName))  \
+      renderBoolStringAttr(NewAttrs, AttrName, CL);                 \
+  } while (0)
+
+
 /// Set function attributes of function \p F based on CPU, Features, and command
 /// line flags.
 LLVM_ATTRIBUTE_UNUSED static void
@@ -382,9 +398,21 @@ setFunctionAttributes(StringRef CPU, StringRef Features, Function &F) {
 
   if (!CPU.empty() && !F.hasFnAttribute("target-cpu"))
     NewAttrs.addAttribute("target-cpu", CPU);
-  if (!Features.empty())
-    NewAttrs.addAttribute("target-features", Features);
-  if (FramePointerUsage.getNumOccurrences() > 0) {
+  if (!Features.empty()) {
+    // Append the command line features to any that are already on the function.
+    StringRef OldFeatures
+      = F.getFnAttribute("target-features").getValueAsString();
+    if (OldFeatures.empty())
+      NewAttrs.addAttribute("target-features", Features);
+    else {
+      SmallString<256> Appended(OldFeatures);
+      Appended.push_back(',');
+      Appended.append(Features);
+      NewAttrs.addAttribute("target-features", Appended);
+    }
+  }
+  if (FramePointerUsage.getNumOccurrences() > 0 &&
+      !F.hasFnAttribute("frame-pointer")) {
     if (FramePointerUsage == llvm::FramePointer::All)
       NewAttrs.addAttribute("frame-pointer", "all");
     else if (FramePointerUsage == llvm::FramePointer::NonLeaf)
@@ -397,6 +425,11 @@ setFunctionAttributes(StringRef CPU, StringRef Features, Function &F) {
                           toStringRef(DisableTailCalls));
   if (StackRealign)
     NewAttrs.addAttribute("stackrealign");
+
+  HANDLE_BOOL_ATTR(EnableUnsafeFPMath, "unsafe-fp-math");
+  HANDLE_BOOL_ATTR(EnableNoInfsFPMath, "no-infs-fp-math");
+  HANDLE_BOOL_ATTR(EnableNoNaNsFPMath, "no-nans-fp-math");
+  HANDLE_BOOL_ATTR(EnableNoSignedZerosFPMath, "no-signed-zeros-fp-math");
 
   if (TrapFuncName.getNumOccurrences() > 0)
     for (auto &B : F)

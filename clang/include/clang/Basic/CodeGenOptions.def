@@ -106,9 +106,15 @@ CODEGENOPT(XRayAlwaysEmitCustomEvents , 1, 0)
 ///< Set when -fxray-always-emit-typedevents is enabled.
 CODEGENOPT(XRayAlwaysEmitTypedEvents , 1, 0)
 
+///< Set when -fxray-ignore-loops is enabled.
+CODEGENOPT(XRayIgnoreLoops , 1, 0)
+
+
 ///< Set the minimum number of instructions in a function to determine selective
 ///< XRay instrumentation.
 VALUE_CODEGENOPT(XRayInstructionThreshold , 32, 200)
+
+VALUE_CODEGENOPT(PatchableFunctionEntryCount , 32, 0) ///< Number of NOPs at function entry
 
 CODEGENOPT(InstrumentForProfiling , 1, 0) ///< Set when -pg is enabled.
 CODEGENOPT(CallFEntry , 1, 0) ///< Set when -mfentry is enabled.
@@ -151,7 +157,6 @@ CODEGENOPT(Reassociate       , 1, 0) ///< Allow reassociation of FP math ops
 CODEGENOPT(ReciprocalMath    , 1, 0) ///< Allow FP divisions to be reassociated.
 CODEGENOPT(NoTrappingMath    , 1, 0) ///< Set when -fno-trapping-math is enabled.
 CODEGENOPT(NoNaNsFPMath      , 1, 0) ///< Assume FP arguments, results not NaN.
-CODEGENOPT(FlushDenorm       , 1, 0) ///< Allow FP denorm numbers to be flushed to zero
 CODEGENOPT(CorrectlyRoundedDivSqrt, 1, 0) ///< -cl-fp32-correctly-rounded-divide-sqrt
 
 /// When false, this attempts to generate code as if the result of an
@@ -330,6 +335,9 @@ ENUM_CODEGENOPT(VecLib, VectorLibrary, 2, NoLibrary)
 
 /// The default TLS model to use.
 ENUM_CODEGENOPT(DefaultTLSModel, TLSModel, 2, GeneralDynamicTLSModel)
+
+/// Bit size of immediate TLS offsets (0 == use the default).
+VALUE_CODEGENOPT(TLSSize, 8, 0)
 
 /// Number of path components to strip when emitting checks. (0 == full
 /// filename)

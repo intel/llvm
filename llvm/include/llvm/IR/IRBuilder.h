@@ -1195,6 +1195,18 @@ private:
     return MetadataAsValue::get(Context, ExceptMDS);
   }
 
+  Value *getConstrainedFPPredicate(CmpInst::Predicate Predicate) {
+    assert(CmpInst::isFPPredicate(Predicate) &&
+           Predicate != CmpInst::FCMP_FALSE &&
+           Predicate != CmpInst::FCMP_TRUE &&
+           "Invalid constrained FP comparison predicate!");
+
+    StringRef PredicateStr = CmpInst::getPredicateName(Predicate);
+    auto *PredicateMDS = MDString::get(Context, PredicateStr);
+
+    return MetadataAsValue::get(Context, PredicateMDS);
+  }
+
 public:
   Value *CreateAdd(Value *LHS, Value *RHS, const Twine &Name = "",
                    bool HasNUW = false, bool HasNSW = false) {
@@ -2349,12 +2361,51 @@ public:
     return Insert(new ICmpInst(P, LHS, RHS), Name);
   }
 
+  // Create a quiet floating-point comparison (i.e. one that raises an FP
+  // exception only in the case where an input is a signaling NaN).
+  // Note that this differs from CreateFCmpS only if IsFPConstrained is true.
   Value *CreateFCmp(CmpInst::Predicate P, Value *LHS, Value *RHS,
                     const Twine &Name = "", MDNode *FPMathTag = nullptr) {
+    return CreateFCmpHelper(P, LHS, RHS, Name, FPMathTag, false);
+  }
+
+  // Create a signaling floating-point comparison (i.e. one that raises an FP
+  // exception whenever an input is any NaN, signaling or quiet).
+  // Note that this differs from CreateFCmp only if IsFPConstrained is true.
+  Value *CreateFCmpS(CmpInst::Predicate P, Value *LHS, Value *RHS,
+                     const Twine &Name = "", MDNode *FPMathTag = nullptr) {
+    return CreateFCmpHelper(P, LHS, RHS, Name, FPMathTag, true);
+  }
+
+private:
+  // Helper routine to create either a signaling or a quiet FP comparison.
+  Value *CreateFCmpHelper(CmpInst::Predicate P, Value *LHS, Value *RHS,
+                          const Twine &Name, MDNode *FPMathTag,
+                          bool IsSignaling) {
+    if (IsFPConstrained) {
+      auto ID = IsSignaling ? Intrinsic::experimental_constrained_fcmps
+                            : Intrinsic::experimental_constrained_fcmp;
+      return CreateConstrainedFPCmp(ID, P, LHS, RHS, Name);
+    }
+
     if (auto *LC = dyn_cast<Constant>(LHS))
       if (auto *RC = dyn_cast<Constant>(RHS))
         return Insert(Folder.CreateFCmp(P, LC, RC), Name);
     return Insert(setFPAttrs(new FCmpInst(P, LHS, RHS), FPMathTag, FMF), Name);
+  }
+
+public:
+  CallInst *CreateConstrainedFPCmp(
+      Intrinsic::ID ID, CmpInst::Predicate P, Value *L, Value *R,
+      const Twine &Name = "",
+      Optional<fp::ExceptionBehavior> Except = None) {
+    Value *PredicateV = getConstrainedFPPredicate(P);
+    Value *ExceptV = getConstrainedFPExcept(Except);
+
+    CallInst *C = CreateIntrinsic(ID, {L->getType()},
+                                  {L, R, PredicateV, ExceptV}, nullptr, Name);
+    setConstrainedFPCallAttr(C);
+    return C;
   }
 
   //===--------------------------------------------------------------------===//

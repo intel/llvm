@@ -252,7 +252,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
           lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
           if (io_handler_sp) {
             io_handler_sp->SetIsDone(false);
-            debugger.PushIOHandler(ci.GetIOHandler());
+            debugger.RunIOHandlerAsync(ci.GetIOHandler());
           }
         }
       }
@@ -283,6 +283,8 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
 
       PersistentExpressionState *persistent_state =
           m_target.GetPersistentExpressionStateForLanguage(GetLanguage());
+      if (!persistent_state)
+        return;
 
       const size_t var_count_before = persistent_state->GetSize();
 
@@ -368,7 +370,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
               lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
               if (io_handler_sp) {
                 io_handler_sp->SetIsDone(false);
-                debugger.PushIOHandler(ci.GetIOHandler());
+                debugger.RunIOHandlerAsync(ci.GetIOHandler());
               }
             }
             break;
@@ -528,7 +530,7 @@ Status REPL::RunLoop() {
                                                       save_default_line);
   }
 
-  debugger.PushIOHandler(io_handler_sp);
+  debugger.RunIOHandlerAsync(io_handler_sp);
 
   // Check if we are in dedicated REPL mode where LLDB was start with the "--
   // repl" option from the command line. Currently we know this by checking if

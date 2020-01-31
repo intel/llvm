@@ -1,12 +1,12 @@
 // RUN: mlir-opt %s -test-linalg-transform-patterns | FileCheck %s
 
-// CHECK-DAG: #[[STRIDED_1D:.*]] = (d0)[s0] -> (d0 + s0)
-// CHECK-DAG: #[[STRIDED_2D:.*]] = (d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)
-// CHECK-DAG: #[[mk:.*]] = (d0, d1, d2) -> (d0, d2)
-// CHECK-DAG: #[[kn:.*]] = (d0, d1, d2) -> (d2, d1)
-// CHECK-DAG: #[[mn:.*]] = (d0, d1, d2) -> (d0, d1)
-// CHECK-DAG: #[[nm:.*]] = (d0, d1, d2) -> (d1, d0)
-// CHECK-DAG: #[[km:.*]] = (d0, d1, d2) -> (d2, d0)
+// CHECK-DAG: #[[STRIDED_1D:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
+// CHECK-DAG: #[[STRIDED_2D:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
+// CHECK-DAG: #[[mk:.*]] = affine_map<(d0, d1, d2) -> (d0, d2)>
+// CHECK-DAG: #[[kn:.*]] = affine_map<(d0, d1, d2) -> (d2, d1)>
+// CHECK-DAG: #[[mn:.*]] = affine_map<(d0, d1, d2) -> (d0, d1)>
+// CHECK-DAG: #[[nm:.*]] = affine_map<(d0, d1, d2) -> (d1, d0)>
+// CHECK-DAG: #[[km:.*]] = affine_map<(d0, d1, d2) -> (d2, d0)>
 
 func @dot(%x: memref<?xf32, offset: ?, strides: [1]>,
           %y: memref<?xf32, offset: ?, strides: [1]>,
@@ -86,8 +86,8 @@ func @matmul(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>,
   args_in = 1,
   args_out = 1,
   indexing_maps = [
-    (i, j) -> (i, j),
-    (i, j) -> (i, j)
+    affine_map<(i, j) -> (i, j)>,
+    affine_map<(i, j) -> (i, j)>
   ],
   iterator_types = ["parallel", "parallel"]
 }
@@ -168,12 +168,12 @@ func @fusion_test(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>,
   args_in = 2,
   args_out = 1,
   indexing_maps = [
-    (m, n, k) -> (m, k),
-    (m, n, k) -> (k, n),
-    (m, n, k) -> (m, n)
+    affine_map<(m, n, k) -> (m, k)>,
+    affine_map<(m, n, k) -> (k, n)>,
+    affine_map<(m, n, k) -> (m, n)>
   ],
   iterator_types = ["parallel", "parallel", "reduction"],
-  __internal_linalg_transform__ = "_marked_matmul_"
+  __internal_linalg_transform__ = "VECTORIZE"
 }
 func @vectorization_test(%A: memref<8x16xf32>, %B: memref<16x32xf32>,
                          %C: memref<8x32xf32>) {
@@ -185,7 +185,6 @@ func @vectorization_test(%A: memref<8x16xf32>, %B: memref<16x32xf32>,
   } : memref<8x16xf32>, memref<16x32xf32>, memref<8x32xf32>
   return
 }
-
 // CHECK-LABEL: func @vectorization_test
 //       CHECK: vector.type_cast %{{.*}} : memref<8x16xf32> to memref<vector<8x16xf32>>
 //       CHECK: load %{{.*}}[] : memref<vector<8x16xf32>>
@@ -195,15 +194,26 @@ func @vectorization_test(%A: memref<8x16xf32>, %B: memref<16x32xf32>,
 //       CHECK: load %{{.*}}[] : memref<vector<8x32xf32>>
 //       CHECK: vector.contract {indexing_maps = [#[[mk]], #[[kn]], #[[mn]]], iterator_types = ["parallel", "parallel", "reduction"]} %{{.*}}, %{{.*}}, %{{.*}} : vector<8x16xf32>, vector<16x32xf32> into vector<8x32xf32>
 //       CHECK: store %{{.*}}, %{{.*}}[] : memref<vector<8x32xf32>>
+
+func @vectorization_test_2(%A: memref<8x16xf32>, %B: memref<16x32xf32>,
+                         %C: memref<8x32xf32>) {
+  linalg.matmul(%A, %B, %C) { __internal_linalg_transform__ = "VECTORIZE"} :
+    memref<8x16xf32>, memref<16x32xf32>, memref<8x32xf32>
+  return
+}
+// CHECK-LABEL: func @vectorization_test_2
+//       CHECK: vector.contract {{.*}} :
+//                vector<8x16xf32>, vector<16x32xf32> into vector<8x32xf32>
+
 func @fma(%a: f32, %b: f32, %c: f32) -> f32 {
           %d = mulf %a, %b: f32
           %e = addf %c, %d: f32
           return %e: f32
         }
 #matmul_accesses = [
-          (m, n, k) -> (m, k),
-          (m, n, k) -> (k, n),
-          (m, n, k) -> (m, n)
+          affine_map<(m, n, k) -> (m, k)>,
+          affine_map<(m, n, k) -> (k, n)>,
+          affine_map<(m, n, k) -> (m, n)>
 ]
 #generic_matmul_trait = {
           args_in = 2,
@@ -213,7 +223,6 @@ func @fma(%a: f32, %b: f32, %c: f32) -> f32 {
           library_call = "linalg_matmul",
           iterator_types = ["parallel", "parallel", "reduction"]
         }
-
 func @permute_generic(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>,
            %B: memref<?x?xf32, offset: ?, strides: [?, 1]>,
            %C: memref<?x?xf32, offset: ?, strides: [?, 1]>) {

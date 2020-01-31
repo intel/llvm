@@ -15,14 +15,6 @@
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
-// Base class for LLVM operations.  All operations get an "llvm." prefix in
-// their name automatically.  LLVM operations have either zero or one result,
-// this class is specialized below for both cases and should not be used
-// directly.
-class LLVM_Op<string mnemonic, list<OpTrait> traits = []> :
-    LLVM_OpBase<LLVM_Dialect, mnemonic, traits> {
-}
-
 class LLVM_Builder<string builder> {
   string llvmBuilder = builder;
 }
@@ -178,7 +170,7 @@ def LLVM_ICmpOp : LLVM_OneResultOp<"icmp", [NoSideEffect]>,
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, ICmpPredicate predicate, Value lhs, "
     "Value rhs", [{
-      LLVMDialect *dialect = &lhs->getType().cast<LLVMType>().getDialect();
+      LLVMDialect *dialect = &lhs.getType().cast<LLVMType>().getDialect();
       build(b, result, LLVMType::getInt1Ty(dialect),
             b->getI64IntegerAttr(static_cast<int64_t>(predicate)), lhs, rhs);
     }]>];
@@ -225,7 +217,7 @@ def LLVM_FCmpOp : LLVM_OneResultOp<"fcmp", [NoSideEffect]>,
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, FCmpPredicate predicate, Value lhs, "
     "Value rhs", [{
-      LLVMDialect *dialect = &lhs->getType().cast<LLVMType>().getDialect();
+      LLVMDialect *dialect = &lhs.getType().cast<LLVMType>().getDialect();
       build(b, result, LLVMType::getInt1Ty(dialect),
             b->getI64IntegerAttr(static_cast<int64_t>(predicate)), lhs, rhs);
     }]>];
@@ -285,7 +277,7 @@ def LLVM_LoadOp : LLVM_OneResultOp<"load">, Arguments<(ins LLVM_Type:$addr)>,
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, Value addr",
     [{
-      auto type = addr->getType().cast<LLVM::LLVMType>().getPointerElementTy();
+      auto type = addr.getType().cast<LLVM::LLVMType>().getPointerElementTy();
       build(b, result, type, addr);
     }]>];
   let parser = [{ return parseLoadOp(parser, result); }];
@@ -378,7 +370,7 @@ def LLVM_InsertValueOp : LLVM_OneResultOp<"insertvalue", [NoSideEffect]>,
     "Builder *b, OperationState &result, Value container, Value value, "
     "ArrayAttr position",
     [{
-      build(b, result, container->getType(), container, value, position);
+      build(b, result, container.getType(), container, value, position);
     }]>];
   let parser = [{ return parseInsertValueOp(parser, result); }];
   let printer = [{ printInsertValueOp(p, *this); }];
@@ -392,8 +384,8 @@ def LLVM_ShuffleVectorOp
     "Builder *b, OperationState &result, Value v1, Value v2, "
     "ArrayAttr mask, ArrayRef<NamedAttribute> attrs = {}">];
   let verifier = [{
-    auto wrappedVectorType1 = v1()->getType().cast<LLVM::LLVMType>();
-    auto wrappedVectorType2 = v2()->getType().cast<LLVM::LLVMType>();
+    auto wrappedVectorType1 = v1().getType().cast<LLVM::LLVMType>();
+    auto wrappedVectorType2 = v2().getType().cast<LLVM::LLVMType>();
     if (!wrappedVectorType2.getUnderlyingType()->isVectorTy())
       return emitOpError("expected LLVM IR Dialect vector type for operand #2");
     if (wrappedVectorType1.getVectorElementType() !=
@@ -415,7 +407,7 @@ def LLVM_SelectOp
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, Value condition, Value lhs, "
     "Value rhs", [{
-      build(b, result, lhs->getType(), condition, lhs, rhs);
+      build(b, result, lhs.getType(), condition, lhs, rhs);
     }]>];
   let parser = [{ return parseSelectOp(parser, result); }];
   let printer = [{ printSelectOp(p, *this); }];
@@ -729,6 +721,58 @@ def LLVM_Prefetch : LLVM_ZeroResultOp<"intr.prefetch">,
         module, llvm::Intrinsic::prefetch, $addr->getType());
     builder.CreateCall(fn, {$addr, $rw, $hint, $cache});
   }];
+}
+
+def AtomicBinOpXchg : I64EnumAttrCase<"xchg", 0>;
+def AtomicBinOpAdd  : I64EnumAttrCase<"add", 1>;
+def AtomicBinOpSub  : I64EnumAttrCase<"sub", 2>;
+def AtomicBinOpAnd  : I64EnumAttrCase<"_and", 3>;
+def AtomicBinOpNand : I64EnumAttrCase<"nand", 4>;
+def AtomicBinOpOr   : I64EnumAttrCase<"_or", 5>;
+def AtomicBinOpXor  : I64EnumAttrCase<"_xor", 6>;
+def AtomicBinOpMax  : I64EnumAttrCase<"max", 7>;
+def AtomicBinOpMin  : I64EnumAttrCase<"min", 8>;
+def AtomicBinOpUMax : I64EnumAttrCase<"umax", 9>;
+def AtomicBinOpUMin : I64EnumAttrCase<"umin", 10>;
+def AtomicBinOpFAdd : I64EnumAttrCase<"fadd", 11>;
+def AtomicBinOpFSub : I64EnumAttrCase<"fsub", 12>;
+def AtomicBinOp : I64EnumAttr<
+    "AtomicBinOp",
+    "llvm.atomicrmw binary operations",
+    [AtomicBinOpXchg, AtomicBinOpAdd, AtomicBinOpSub, AtomicBinOpAnd,
+     AtomicBinOpNand, AtomicBinOpOr, AtomicBinOpXor, AtomicBinOpMax,
+     AtomicBinOpMin, AtomicBinOpUMax, AtomicBinOpUMin, AtomicBinOpFAdd,
+     AtomicBinOpFSub]> {
+  let cppNamespace = "::mlir::LLVM";
+}
+
+def AtomicOrderingNotAtomic              : I64EnumAttrCase<"not_atomic", 0>;
+def AtomicOrderingUnordered              : I64EnumAttrCase<"unordered", 1>;
+def AtomicOrderingMonotonic              : I64EnumAttrCase<"monotonic", 2>;
+def AtomicOrderingAcquire                : I64EnumAttrCase<"acquire", 4>;
+def AtomicOrderingRelease                : I64EnumAttrCase<"release", 5>;
+def AtomicOrderingAcquireRelease         : I64EnumAttrCase<"acq_rel", 6>;
+def AtomicOrderingSequentiallyConsistent : I64EnumAttrCase<"seq_cst", 7>;
+def AtomicOrdering : I64EnumAttr<
+    "AtomicOrdering",
+    "Atomic ordering for LLVM's memory model",
+    [AtomicOrderingNotAtomic, AtomicOrderingUnordered, AtomicOrderingMonotonic,
+     AtomicOrderingAcquire, AtomicOrderingRelease, AtomicOrderingAcquireRelease,
+     AtomicOrderingSequentiallyConsistent]> {
+  let cppNamespace = "::mlir::LLVM";
+}
+
+def LLVM_AtomicRMWOp : LLVM_Op<"atomicrmw">,
+    Arguments<(ins AtomicBinOp:$bin_op, LLVM_Type:$ptr, LLVM_Type:$val,
+                   AtomicOrdering:$ordering)>,
+    Results<(outs LLVM_Type:$res)> {
+  let llvmBuilder = [{
+    $res = builder.CreateAtomicRMW(getLLVMAtomicBinOp($bin_op), $ptr, $val,
+                                   getLLVMAtomicOrdering($ordering));
+  }];
+  let parser = [{ return parseAtomicRMWOp(parser, result); }];
+  let printer = [{ printAtomicRMWOp(p, *this); }];
+  let verifier = "return ::verify(*this);";
 }
 
 #endif // LLVMIR_OPS

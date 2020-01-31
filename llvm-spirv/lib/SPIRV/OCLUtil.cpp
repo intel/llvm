@@ -612,8 +612,10 @@ public:
       addSamplerArg(1);
     } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::Prefix) !=
                std::string::npos) {
-      if (UnmangledName.find("evaluate_with_single_reference") !=
-          std::string::npos)
+      if (UnmangledName.find("evaluate_ipe") != std::string::npos)
+        addSamplerArg(1);
+      else if (UnmangledName.find("evaluate_with_single_reference") !=
+               std::string::npos)
         addSamplerArg(2);
       else if (UnmangledName.find("evaluate_with_multi_reference") !=
                std::string::npos) {
@@ -637,11 +639,19 @@ public:
       else if (UnmangledName.find("set_inter_base_multi_reference_penalty") !=
                    std::string::npos ||
                UnmangledName.find("set_inter_shape_penalty") !=
+                   std::string::npos ||
+               UnmangledName.find("set_inter_direction_penalty") !=
                    std::string::npos)
         addUnsignedArg(0);
       else if (UnmangledName.find("set_motion_vector_cost_function") !=
                std::string::npos)
         addUnsignedArgs(0, 2);
+      else if (UnmangledName.find("interlaced_field_polarity") !=
+               std::string::npos)
+        addUnsignedArg(0);
+      else if (UnmangledName.find("interlaced_field_polarities") !=
+               std::string::npos)
+        addUnsignedArgs(0, 1);
       else if (UnmangledName.find(kOCLSubgroupsAVCIntel::MCEPrefix) !=
                std::string::npos) {
         if (UnmangledName.find("get_default") != std::string::npos)
@@ -653,15 +663,38 @@ public:
         else if (UnmangledName.find("set_single_reference") !=
                  std::string::npos)
           addUnsignedArg(1);
+        else if (UnmangledName.find("set_dual_reference") != std::string::npos)
+          addUnsignedArg(2);
+        else if (UnmangledName.find("set_weighted_sad") != std::string::npos ||
+                 UnmangledName.find("set_early_search_termination_threshold") !=
+                     std::string::npos)
+          addUnsignedArg(0);
         else if (UnmangledName.find("adjust_ref_offset") != std::string::npos)
           addUnsignedArgs(1, 3);
         else if (UnmangledName.find("set_max_motion_vector_count") !=
                      std::string::npos ||
                  UnmangledName.find("get_border_reached") != std::string::npos)
           addUnsignedArg(0);
+        else if (UnmangledName.find("shape_distortions") != std::string::npos ||
+                 UnmangledName.find("shape_motion_vectors") !=
+                     std::string::npos ||
+                 UnmangledName.find("shape_reference_ids") !=
+                     std::string::npos) {
+          if (UnmangledName.find("single_reference") != std::string::npos) {
+            addUnsignedArg(1);
+            EraseSubstring(UnmangledName, "_single_reference");
+          } else if (UnmangledName.find("dual_reference") !=
+                     std::string::npos) {
+            addUnsignedArgs(1, 2);
+            EraseSubstring(UnmangledName, "_dual_reference");
+          }
+        } else if (UnmangledName.find("ref_window_size") != std::string::npos)
+          addUnsignedArg(0);
       } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::SICPrefix) !=
                  std::string::npos) {
-        if (UnmangledName.find("initialize") != std::string::npos)
+        if (UnmangledName.find("initialize") != std::string::npos ||
+            UnmangledName.find("set_intra_luma_shape_penalty") !=
+                std::string::npos)
           addUnsignedArg(0);
         else if (UnmangledName.find("configure_ipe") != std::string::npos) {
           if (UnmangledName.find("_luma") != std::string::npos) {
@@ -672,7 +705,23 @@ public:
             addUnsignedArgs(7, 9);
             EraseSubstring(UnmangledName, "_chroma");
           }
-        }
+        } else if (UnmangledName.find("configure_skc") != std::string::npos)
+          addUnsignedArgs(0, 4);
+        else if (UnmangledName.find("set_skc") != std::string::npos) {
+          if (UnmangledName.find("forward_transform_enable"))
+            addUnsignedArg(0);
+        } else if (UnmangledName.find("set_block") != std::string::npos) {
+          if (UnmangledName.find("based_raw_skip_sad") != std::string::npos)
+            addUnsignedArg(0);
+        } else if (UnmangledName.find("get_motion_vector_mask") !=
+                   std::string::npos) {
+          addUnsignedArgs(0, 1);
+        } else if (UnmangledName.find("luma_mode_cost_function") !=
+                   std::string::npos)
+          addUnsignedArgs(0, 2);
+        else if (UnmangledName.find("chroma_mode_cost_function") !=
+                 std::string::npos)
+          addUnsignedArg(0);
       }
     } else if (UnmangledName == "intel_sub_group_shuffle_down" ||
                UnmangledName == "intel_sub_group_shuffle_up") {
@@ -702,11 +751,14 @@ public:
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
+    } else if (UnmangledName.find("intel_sub_group_media_block_write") !=
+               std::string::npos) {
+      addUnsignedArg(3);
     }
   }
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
-  Function *F; // SPIRV decorated function
+  Function *F;                  // SPIRV decorated function
   std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 

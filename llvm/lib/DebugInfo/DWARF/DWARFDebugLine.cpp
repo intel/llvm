@@ -16,6 +16,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFRelocMap.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -114,8 +115,9 @@ void DWARFDebugLine::Prologue::dump(raw_ostream &OS,
      << format("     opcode_base: %u\n", OpcodeBase);
 
   for (uint32_t I = 0; I != StandardOpcodeLengths.size(); ++I)
-    OS << format("standard_opcode_lengths[%s] = %u\n",
-                 LNStandardString(I + 1).data(), StandardOpcodeLengths[I]);
+    OS << formatv("standard_opcode_lengths[{0}] = {1}\n",
+                  static_cast<dwarf::LineNumberOps>(I + 1),
+                  StandardOpcodeLengths[I]);
 
   if (!IncludeDirectories.empty()) {
     // DWARF v5 starts directory indexes at 0.
@@ -190,7 +192,6 @@ parseV2DirFileTables(const DWARFDataExtractor &DebugLineData,
 // the end of the prologue.
 static llvm::Expected<ContentDescriptors>
 parseV5EntryFormat(const DWARFDataExtractor &DebugLineData, uint64_t *OffsetPtr,
-                   uint64_t EndPrologueOffset,
                    DWARFDebugLine::ContentTypeTracker *ContentTypes) {
   ContentDescriptors Descriptors;
   int FormatCount = DebugLineData.getU8(OffsetPtr);
@@ -216,15 +217,14 @@ parseV5EntryFormat(const DWARFDataExtractor &DebugLineData, uint64_t *OffsetPtr,
 
 static Error
 parseV5DirFileTables(const DWARFDataExtractor &DebugLineData,
-                     uint64_t *OffsetPtr, uint64_t EndPrologueOffset,
-                     const dwarf::FormParams &FormParams,
+                     uint64_t *OffsetPtr, const dwarf::FormParams &FormParams,
                      const DWARFContext &Ctx, const DWARFUnit *U,
                      DWARFDebugLine::ContentTypeTracker &ContentTypes,
                      std::vector<DWARFFormValue> &IncludeDirectories,
                      std::vector<DWARFDebugLine::FileNameEntry> &FileNames) {
   // Get the directory entry description.
   llvm::Expected<ContentDescriptors> DirDescriptors =
-      parseV5EntryFormat(DebugLineData, OffsetPtr, EndPrologueOffset, nullptr);
+      parseV5EntryFormat(DebugLineData, OffsetPtr, nullptr);
   if (!DirDescriptors)
     return DirDescriptors.takeError();
 
@@ -251,8 +251,8 @@ parseV5DirFileTables(const DWARFDataExtractor &DebugLineData,
   }
 
   // Get the file entry description.
-  llvm::Expected<ContentDescriptors> FileDescriptors = parseV5EntryFormat(
-      DebugLineData, OffsetPtr, EndPrologueOffset, &ContentTypes);
+  llvm::Expected<ContentDescriptors> FileDescriptors =
+      parseV5EntryFormat(DebugLineData, OffsetPtr, &ContentTypes);
   if (!FileDescriptors)
     return FileDescriptors.takeError();
 
@@ -349,9 +349,9 @@ Error DWARFDebugLine::Prologue::parse(const DWARFDataExtractor &DebugLineData,
   }
 
   if (getVersion() >= 5) {
-    if (Error e = parseV5DirFileTables(
-            DebugLineData, OffsetPtr, EndPrologueOffset, FormParams, Ctx, U,
-            ContentTypes, IncludeDirectories, FileNames)) {
+    if (Error E =
+            parseV5DirFileTables(DebugLineData, OffsetPtr, FormParams, Ctx, U,
+                                 ContentTypes, IncludeDirectories, FileNames)) {
       return joinErrors(
           createStringError(
               errc::invalid_argument,
@@ -359,7 +359,7 @@ Error DWARFDebugLine::Prologue::parse(const DWARFDataExtractor &DebugLineData,
               " found an invalid directory or file table description at"
               " 0x%8.8" PRIx64,
               PrologueOffset, *OffsetPtr),
-          std::move(e));
+          std::move(E));
     }
   } else
     parseV2DirFileTables(DebugLineData, OffsetPtr, EndPrologueOffset,
@@ -609,19 +609,28 @@ Error DWARFDebugLine::LineTable::parse(
         //
         // Make sure the extractor knows the address size.  If not, infer it
         // from the size of the operand.
-        if (DebugLineData.getAddressSize() == 0)
+        {
+          uint8_t ExtractorAddressSize = DebugLineData.getAddressSize();
+          if (ExtractorAddressSize != Len - 1 && ExtractorAddressSize != 0)
+            RecoverableErrorCallback(createStringError(
+                errc::invalid_argument,
+                "mismatching address size at offset 0x%8.8" PRIx64
+                " expected 0x%2.2" PRIx8 " found 0x%2.2" PRIx64,
+                ExtOffset, ExtractorAddressSize, Len - 1));
+
+          // Assume that the line table is correct and temporarily override the
+          // address size.
           DebugLineData.setAddressSize(Len - 1);
-        else if (DebugLineData.getAddressSize() != Len - 1) {
-          return createStringError(errc::invalid_argument,
-                             "mismatching address size at offset 0x%8.8" PRIx64
-                             " expected 0x%2.2" PRIx8 " found 0x%2.2" PRIx64,
-                             ExtOffset, DebugLineData.getAddressSize(),
-                             Len - 1);
+          State.Row.Address.Address = DebugLineData.getRelocatedAddress(
+              OffsetPtr, &State.Row.Address.SectionIndex);
+
+          // Restore the address size if the extractor already had it.
+          if (ExtractorAddressSize != 0)
+            DebugLineData.setAddressSize(ExtractorAddressSize);
+
+          if (OS)
+            *OS << format(" (0x%16.16" PRIx64 ")", State.Row.Address.Address);
         }
-        State.Row.Address.Address = DebugLineData.getRelocatedAddress(
-            OffsetPtr, &State.Row.Address.SectionIndex);
-        if (OS)
-          *OS << format(" (0x%16.16" PRIx64 ")", State.Row.Address.Address);
         break;
 
       case DW_LNE_define_file:
@@ -883,9 +892,11 @@ Error DWARFDebugLine::LineTable::parse(
   }
 
   if (!State.Sequence.Empty)
-    RecoverableErrorCallback(
-        createStringError(errc::illegal_byte_sequence,
-                    "last sequence in debug line table is not terminated!"));
+    RecoverableErrorCallback(createStringError(
+        errc::illegal_byte_sequence,
+        "last sequence in debug line table at offset 0x%8.8" PRIx64
+        " is not terminated",
+        DebugLineOffset));
 
   // Sort all sequences so that address lookup will work faster.
   if (!Sequences.empty()) {

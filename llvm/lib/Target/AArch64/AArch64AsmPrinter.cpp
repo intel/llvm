@@ -243,6 +243,18 @@ void AArch64AsmPrinter::EmitStartOfAsmFile(Module &M) {
 
 void AArch64AsmPrinter::LowerPATCHABLE_FUNCTION_ENTER(const MachineInstr &MI)
 {
+  const Function &F = MF->getFunction();
+  if (F.hasFnAttribute("patchable-function-entry")) {
+    unsigned Num;
+    if (F.getFnAttribute("patchable-function-entry")
+            .getValueAsString()
+            .getAsInteger(10, Num))
+      return;
+    for (; Num; --Num)
+      EmitToStreamer(*OutStreamer, MCInstBuilder(AArch64::HINT).addImm(0));
+    return;
+  }
+
   EmitSled(MI, SledKind::FUNCTION_ENTER);
 }
 
@@ -1286,7 +1298,7 @@ void AArch64AsmPrinter::EmitInstruction(const MachineInstr *MI) {
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeAArch64AsmPrinter() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64AsmPrinter() {
   RegisterAsmPrinter<AArch64AsmPrinter> X(getTheAArch64leTarget());
   RegisterAsmPrinter<AArch64AsmPrinter> Y(getTheAArch64beTarget());
   RegisterAsmPrinter<AArch64AsmPrinter> Z(getTheARM64Target());

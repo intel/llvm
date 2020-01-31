@@ -100,7 +100,7 @@ struct TestInlinerInterface : public DialectInlinerInterface {
     // Replace the values directly with the return operands.
     assert(returnOp.getNumOperands() == valuesToRepl.size());
     for (const auto &it : llvm::enumerate(returnOp.getOperands()))
-      valuesToRepl[it.index()]->replaceAllUsesWith(it.value());
+      valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 
   /// Attempt to materialize a conversion for a type mismatch between a call
@@ -113,7 +113,7 @@ struct TestInlinerInterface : public DialectInlinerInterface {
                                        Location conversionLoc) const final {
     // Only allow conversion for i16/i32 types.
     if (!(resultType.isInteger(16) || resultType.isInteger(32)) ||
-        !(input->getType().isInteger(16) || input->getType().isInteger(32)))
+        !(input.getType().isInteger(16) || input.getType().isInteger(32)))
       return nullptr;
     return builder.create<TestCastOp>(conversionLoc, resultType, input);
   }
@@ -295,15 +295,39 @@ LogicalResult TestOpWithVariadicResultsAndFolder::fold(
 }
 
 LogicalResult mlir::OpWithInferTypeInterfaceOp::inferReturnTypes(
-    llvm::Optional<Location> location, ValueRange operands,
+    MLIRContext *, Optional<Location> location, ValueRange operands,
     ArrayRef<NamedAttribute> attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferedReturnTypes) {
-  if (operands[0]->getType() != operands[1]->getType()) {
+  if (operands[0].getType() != operands[1].getType()) {
     return emitOptionalError(location, "operand type mismatch ",
-                             operands[0]->getType(), " vs ",
-                             operands[1]->getType());
+                             operands[0].getType(), " vs ",
+                             operands[1].getType());
   }
-  inferedReturnTypes.assign({operands[0]->getType()});
+  inferedReturnTypes.assign({operands[0].getType()});
+  return success();
+}
+
+LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    ArrayRef<NamedAttribute> attributes, RegionRange regions,
+    SmallVectorImpl<ShapedTypeComponents> &inferedComponents) {
+  // Create return type consisting of the first element of each shape of the
+  // input operands or unknown for unranked operand.
+  std::vector<int64_t> shape;
+  shape.reserve(operands.size());
+  for (auto operandType : operands.getTypes()) {
+    if (auto sval = operandType.dyn_cast<ShapedType>()) {
+      if (sval.hasRank())
+        shape.push_back(sval.getShape().front());
+      else
+        shape.push_back(ShapedType::kDynamicSize);
+    } else {
+      return emitOptionalError(location, "only shaped type operands allowed");
+    }
+  }
+  inferedComponents.reserve(1);
+  auto type = IntegerType::get(17, context);
+  inferedComponents.emplace_back(shape, type);
   return success();
 }
 

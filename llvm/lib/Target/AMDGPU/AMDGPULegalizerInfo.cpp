@@ -244,6 +244,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     S32, S64, S16, V2S16
   };
 
+  const LLT MinLegalScalarShiftTy = ST.has16BitInsts() ? S16 : S32;
+
   setAction({G_BRCOND, S1}, Legal); // VCC branches
   setAction({G_BRCOND, S32}, Legal); // SCC branches
 
@@ -308,7 +310,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // Don't worry about the size constraint.
     .legalIf(all(isRegisterType(0), isRegisterType(1)))
     // FIXME: Testing hack
-    .legalForCartesianProduct({S16, LLT::vector(2, 8), });
+    .legalForCartesianProduct({S16, LLT::vector(2, 8), })
+    .lower();
+
 
   getActionDefinitionsBuilder(G_FCONSTANT)
     .legalFor({S32, S64, S16})
@@ -447,8 +451,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
                {S96, S32},
                // FIXME: Hack
                {S64, LLT::scalar(33)},
-               {S32, S8}, {S128, S32}, {S128, S64}, {S32, LLT::scalar(24)}})
-    .scalarize(0);
+               {S32, S8}, {S32, LLT::scalar(24)}})
+    .scalarize(0)
+    .clampScalar(0, S32, S64);
 
   // TODO: Split s1->s64 during regbankselect for VALU.
   auto &IToFP = getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
@@ -928,7 +933,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     } else
       Shifts.legalFor({{S16, S32}, {S16, S16}});
 
-    Shifts.clampScalar(1, S16, S32);
+    // TODO: Support 16-bit shift amounts
+    Shifts.clampScalar(1, S32, S32);
     Shifts.clampScalar(0, S16, S64);
     Shifts.widenScalarToNextPow2(0, 16);
   } else {
@@ -1113,7 +1119,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .scalarize(1);
   }
 
-  getActionDefinitionsBuilder(G_SEXT_INREG).lower();
+  // TODO: Make legal for s32, s64. s64 case needs break down in regbankselect.
+  getActionDefinitionsBuilder(G_SEXT_INREG)
+    .clampScalar(0, MinLegalScalarShiftTy, S64)
+    .lower();
+
+  getActionDefinitionsBuilder({G_READ_REGISTER, G_WRITE_REGISTER}).lower();
 
   getActionDefinitionsBuilder(G_READCYCLECOUNTER)
     .legalFor({S64});
@@ -1801,14 +1812,26 @@ bool AMDGPULegalizerInfo::legalizeAtomicCmpXChg(
 
 // Return the use branch instruction, otherwise null if the usage is invalid.
 static MachineInstr *verifyCFIntrinsic(MachineInstr &MI,
-                                       MachineRegisterInfo &MRI) {
+                                       MachineRegisterInfo &MRI,
+                                       MachineInstr *&Br) {
   Register CondDef = MI.getOperand(0).getReg();
   if (!MRI.hasOneNonDBGUse(CondDef))
     return nullptr;
 
   MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(CondDef);
-  return UseMI.getParent() == MI.getParent() &&
-    UseMI.getOpcode() == AMDGPU::G_BRCOND ? &UseMI : nullptr;
+  if (UseMI.getParent() != MI.getParent() ||
+      UseMI.getOpcode() != AMDGPU::G_BRCOND)
+    return nullptr;
+
+  // Make sure the cond br is followed by a G_BR
+  MachineBasicBlock::iterator Next = std::next(UseMI.getIterator());
+  if (Next != MI.getParent()->end()) {
+    if (Next->getOpcode() != AMDGPU::G_BR)
+      return nullptr;
+    Br = &*Next;
+  }
+
+  return &UseMI;
 }
 
 Register AMDGPULegalizerInfo::getLiveInRegister(MachineRegisterInfo &MRI,
@@ -2337,7 +2360,8 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
   switch (IntrID) {
   case Intrinsic::amdgcn_if:
   case Intrinsic::amdgcn_else: {
-    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI)) {
+    MachineInstr *Br = nullptr;
+    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI, Br)) {
       const SIRegisterInfo *TRI
         = static_cast<const SIRegisterInfo *>(MRI.getTargetRegisterInfo());
 
@@ -2345,18 +2369,25 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
       Register Def = MI.getOperand(1).getReg();
       Register Use = MI.getOperand(3).getReg();
 
+      MachineBasicBlock *BrTarget = BrCond->getOperand(1).getMBB();
+      if (Br)
+        BrTarget = Br->getOperand(0).getMBB();
+
       if (IntrID == Intrinsic::amdgcn_if) {
         B.buildInstr(AMDGPU::SI_IF)
           .addDef(Def)
           .addUse(Use)
-          .addMBB(BrCond->getOperand(1).getMBB());
+          .addMBB(BrTarget);
       } else {
         B.buildInstr(AMDGPU::SI_ELSE)
           .addDef(Def)
           .addUse(Use)
-          .addMBB(BrCond->getOperand(1).getMBB())
+          .addMBB(BrTarget)
           .addImm(0);
       }
+
+      if (Br)
+        Br->getOperand(0).setMBB(BrCond->getOperand(1).getMBB());
 
       MRI.setRegClass(Def, TRI->getWaveMaskRegClass());
       MRI.setRegClass(Use, TRI->getWaveMaskRegClass());
@@ -2368,11 +2399,14 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return false;
   }
   case Intrinsic::amdgcn_loop: {
-    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI)) {
+    MachineInstr *Br = nullptr;
+    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI, Br)) {
       const SIRegisterInfo *TRI
         = static_cast<const SIRegisterInfo *>(MRI.getTargetRegisterInfo());
 
       B.setInstr(*BrCond);
+
+      // FIXME: Need to adjust branch targets based on unconditional branch.
       Register Reg = MI.getOperand(2).getReg();
       B.buildInstr(AMDGPU::SI_LOOP)
         .addUse(Reg)

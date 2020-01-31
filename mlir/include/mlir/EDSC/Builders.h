@@ -251,6 +251,16 @@ public:
   ///   not yet bound to mlir::Value.
   BlockBuilder(BlockHandle *bh, ArrayRef<ValueHandle *> args);
 
+  /// Constructs a new mlir::Block with argument types derived from `args` and
+  /// appends it as the last block in the region.
+  /// Captures the new block in `bh` and its arguments into `args`.
+  /// Enters the new mlir::Block* and sets the insertion point to its end.
+  ///
+  /// Prerequisites:
+  ///   The ValueHandle `args` are typed delayed ValueHandles; i.e. they are
+  ///   not yet bound to mlir::Value.
+  BlockBuilder(BlockHandle *bh, Region &region, ArrayRef<ValueHandle *> args);
+
   /// The only purpose of this operator is to serve as a sequence point so that
   /// the evaluation of `fun` (which build IR snippets in a scoped fashion) is
   /// scoped within a BlockBuilder.
@@ -303,7 +313,7 @@ public:
   /// Value. An eager Value represents both the declaration and the definition
   /// (in the PL sense) of a placeholder for an mlir::Value that has already
   /// been constructed in the past and that is captured "now" in the program.
-  explicit ValueHandle(Value v) : t(v->getType()), v(v) {}
+  explicit ValueHandle(Value v) : t(v.getType()), v(v) {}
 
   /// Builds a ConstantIndexOp of value `cst`. The constant is created at the
   /// current insertion point.
@@ -365,7 +375,7 @@ public:
   Operation *getOperation() const {
     if (!v)
       return nullptr;
-    return v->getDefiningOp();
+    return v.getDefiningOp();
   }
 
 protected:
@@ -449,6 +459,9 @@ public:
 
   /// Delegates block creation to MLIR and wrap the resulting mlir::Block.
   static BlockHandle create(ArrayRef<Type> argTypes);
+
+  /// Delegates block creation to MLIR and wrap the resulting mlir::Block.
+  static BlockHandle createInRegion(Region &region, ArrayRef<Type> argTypes);
 
   operator bool() { return block != nullptr; }
   operator mlir::Block *() { return block; }

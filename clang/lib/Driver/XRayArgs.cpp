@@ -70,6 +70,13 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
       D.Diag(diag::err_drv_clang_unsupported)
           << (std::string(XRayInstrumentOption) + " on " + Triple.str());
     }
+
+    // Both XRay and -fpatchable-function-entry use
+    // TargetOpcode::PATCHABLE_FUNCTION_ENTER.
+    if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ))
+      D.Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fxray-instrument" << A->getSpelling();
+
     XRayInstrument = true;
     if (const Arg *A =
             Args.getLastArg(options::OPT_fxray_instruction_threshold_,
@@ -106,7 +113,8 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
         for (const auto &P : BundleParts) {
           // TODO: Automate the generation of the string case table.
           auto Valid = llvm::StringSwitch<bool>(P)
-                           .Cases("none", "all", "function", "custom", true)
+                           .Cases("none", "all", "function", "function-entry",
+                                  "function-exit", "custom", true)
                            .Default(false);
 
           if (!Valid) {
@@ -230,8 +238,14 @@ void XRayArgs::addArgs(const ToolChain &TC, const ArgList &Args,
   } else if (InstrumentationBundle.empty()) {
     Bundle += "none";
   } else {
-    if (InstrumentationBundle.has(XRayInstrKind::Function))
+    if (InstrumentationBundle.has(XRayInstrKind::FunctionEntry) &&
+        InstrumentationBundle.has(XRayInstrKind::FunctionExit))
       Bundle += "function";
+    else if (InstrumentationBundle.has(XRayInstrKind::FunctionEntry))
+      Bundle += "function-entry";
+    else if (InstrumentationBundle.has(XRayInstrKind::FunctionExit))
+      Bundle += "function-exit";
+
     if (InstrumentationBundle.has(XRayInstrKind::Custom))
       Bundle += "custom";
     if (InstrumentationBundle.has(XRayInstrKind::Typed))
