@@ -781,17 +781,18 @@ int runOrcLazyJIT(const char *ProgName) {
 
   auto Dump = createDebugDumper();
 
-  J->setLazyCompileTransform([&](orc::ThreadSafeModule TSM,
-                                 const orc::MaterializationResponsibility &R) {
-    TSM.withModuleDo([&](Module &M) {
-      if (verifyModule(M, &dbgs())) {
-        dbgs() << "Bad module: " << &M << "\n";
-        exit(1);
-      }
-      Dump(M);
-    });
-    return TSM;
-  });
+  J->getIRTransformLayer().setTransform(
+      [&](orc::ThreadSafeModule TSM,
+          const orc::MaterializationResponsibility &R) {
+        TSM.withModuleDo([&](Module &M) {
+          if (verifyModule(M, &dbgs())) {
+            dbgs() << "Bad module: " << &M << "\n";
+            exit(1);
+          }
+          Dump(M);
+        });
+        return TSM;
+      });
 
   orc::MangleAndInterner Mangle(J->getExecutionSession(), J->getDataLayout());
   J->getMainJITDylib().addGenerator(
@@ -854,12 +855,6 @@ int runOrcLazyJIT(const char *ProgName) {
     ExitOnErr(J->addObjectFile(std::move(Obj)));
   }
 
-  // Generate a argument string.
-  std::vector<std::string> Args;
-  Args.push_back(InputFile);
-  for (auto &Arg : InputArgv)
-    Args.push_back(Arg);
-
   // Run any static constructors.
   ExitOnErr(J->runConstructors());
 
@@ -878,8 +873,8 @@ int runOrcLazyJIT(const char *ProgName) {
 
   typedef int (*MainFnPtr)(int, char *[]);
   auto Result = orc::runAsMain(
-      jitTargetAddressToFunction<MainFnPtr>(MainSym.getAddress()), Args,
-      StringRef("lli"));
+      jitTargetAddressToFunction<MainFnPtr>(MainSym.getAddress()), InputArgv,
+      StringRef(InputFile));
 
   // Wait for -entry-point threads.
   for (auto &AltEntryThread : AltEntryThreads)

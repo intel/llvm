@@ -12,7 +12,6 @@
 
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalValue.h"
@@ -38,9 +37,7 @@ TargetMachine::TargetMachine(const Target &T, StringRef DataLayoutString,
     : TheTarget(T), DL(DataLayoutString), TargetTriple(TT), TargetCPU(CPU),
       TargetFS(FS), AsmInfo(nullptr), MRI(nullptr), MII(nullptr), STI(nullptr),
       RequireStructuredCFG(false), O0WantsFastISel(false),
-      DefaultOptions(Options), Options(Options) {
-  MIRF = std::make_unique<MIRFormatter>();
-}
+      DefaultOptions(Options), Options(Options) {}
 
 TargetMachine::~TargetMachine() = default;
 
@@ -49,17 +46,17 @@ bool TargetMachine::isPositionIndependent() const {
 }
 
 /// Reset the target options based on the function's attributes.
+/// setFunctionAttributes should have made the raw attribute value consistent
+/// with the command line flag if used.
+//
 // FIXME: This function needs to go away for a number of reasons:
 // a) global state on the TargetMachine is terrible in general,
 // b) these target options should be passed only on the function
 //    and not on the TargetMachine (via TargetOptions) at all.
 void TargetMachine::resetTargetOptions(const Function &F) const {
-#define RESET_OPTION(X, Y)                                                     \
-  do {                                                                         \
-    if (F.hasFnAttribute(Y))                                                   \
-      Options.X = (F.getFnAttribute(Y).getValueAsString() == "true");          \
-    else                                                                       \
-      Options.X = DefaultOptions.X;                                            \
+#define RESET_OPTION(X, Y)                                              \
+  do {                                                                  \
+    Options.X = (F.getFnAttribute(Y).getValueAsString() == "true");     \
   } while (0)
 
   RESET_OPTION(UnsafeFPMath, "unsafe-fp-math");

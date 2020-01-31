@@ -31,6 +31,31 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
+/// Pattern to convert a loop::IfOp within kernel functions into
+/// spirv::SelectionOp.
+class IfOpConversion final : public SPIRVOpLowering<loop::IfOp> {
+public:
+  using SPIRVOpLowering<loop::IfOp>::SPIRVOpLowering;
+
+  PatternMatchResult
+  matchAndRewrite(loop::IfOp IfOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// Pattern to erase a loop::TerminatorOp.
+class TerminatorOpConversion final
+    : public SPIRVOpLowering<loop::TerminatorOp> {
+public:
+  using SPIRVOpLowering<loop::TerminatorOp>::SPIRVOpLowering;
+
+  PatternMatchResult
+  matchAndRewrite(loop::TerminatorOp terminatorOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(terminatorOp);
+    return matchSuccess();
+  }
+};
+
 /// Pattern lowering GPU block/thread size/id to loading SPIR-V invocation
 /// builin variables.
 template <typename SourceOp, spirv::BuiltIn builtin>
@@ -127,7 +152,7 @@ ForOpConversion::matchAndRewrite(loop::ForOp forOp, ArrayRef<Value> operands,
 
   // Create the new induction variable to use.
   BlockArgument newIndVar =
-      header->addArgument(forOperands.lowerBound()->getType());
+      header->addArgument(forOperands.lowerBound().getType());
   Block *body = forOp.getBody();
 
   // Apply signature conversion to the body of the forOp. It has a single block,
@@ -166,10 +191,62 @@ ForOpConversion::matchAndRewrite(loop::ForOp forOp, ArrayRef<Value> operands,
 
   // Add the step to the induction variable and branch to the header.
   Value updatedIndVar = rewriter.create<spirv::IAddOp>(
-      loc, newIndVar->getType(), newIndVar, forOperands.step());
+      loc, newIndVar.getType(), newIndVar, forOperands.step());
   rewriter.create<spirv::BranchOp>(loc, header, updatedIndVar);
 
   rewriter.eraseOp(forOp);
+  return matchSuccess();
+}
+
+//===----------------------------------------------------------------------===//
+// loop::IfOp.
+//===----------------------------------------------------------------------===//
+
+PatternMatchResult
+IfOpConversion::matchAndRewrite(loop::IfOp ifOp, ArrayRef<Value> operands,
+                                ConversionPatternRewriter &rewriter) const {
+  // When lowering `loop::IfOp` we explicitly create a selection header block
+  // before the control flow diverges and a merge block where control flow
+  // subsequently converges.
+  loop::IfOpOperandAdaptor ifOperands(operands);
+  auto loc = ifOp.getLoc();
+
+  // Create `spv.selection` operation, selection header block and merge block.
+  auto selectionControl = rewriter.getI32IntegerAttr(
+      static_cast<uint32_t>(spirv::SelectionControl::None));
+  auto selectionOp = rewriter.create<spirv::SelectionOp>(loc, selectionControl);
+  selectionOp.addMergeBlock();
+  auto *mergeBlock = selectionOp.getMergeBlock();
+
+  OpBuilder::InsertionGuard guard(rewriter);
+  auto *selectionHeaderBlock = new Block();
+  selectionOp.body().getBlocks().push_front(selectionHeaderBlock);
+
+  // Inline `then` region before the merge block and branch to it.
+  auto &thenRegion = ifOp.thenRegion();
+  auto *thenBlock = &thenRegion.front();
+  rewriter.setInsertionPointToEnd(&thenRegion.back());
+  rewriter.create<spirv::BranchOp>(loc, mergeBlock);
+  rewriter.inlineRegionBefore(thenRegion, mergeBlock);
+
+  auto *elseBlock = mergeBlock;
+  // If `else` region is not empty, inline that region before the merge block
+  // and branch to it.
+  if (!ifOp.elseRegion().empty()) {
+    auto &elseRegion = ifOp.elseRegion();
+    elseBlock = &elseRegion.front();
+    rewriter.setInsertionPointToEnd(&elseRegion.back());
+    rewriter.create<spirv::BranchOp>(loc, mergeBlock);
+    rewriter.inlineRegionBefore(elseRegion, mergeBlock);
+  }
+
+  // Create a `spv.BranchConditional` operation for selection header block.
+  rewriter.setInsertionPointToEnd(selectionHeaderBlock);
+  rewriter.create<spirv::BranchConditionalOp>(loc, ifOperands.condition(),
+                                              thenBlock, ArrayRef<Value>(),
+                                              elseBlock, ArrayRef<Value>());
+
+  rewriter.eraseOp(ifOp);
   return matchSuccess();
 }
 
@@ -348,12 +425,12 @@ void mlir::populateGPUToSPIRVPatterns(MLIRContext *context,
                                       ArrayRef<int64_t> workGroupSize) {
   patterns.insert<KernelFnConversion>(context, typeConverter, workGroupSize);
   patterns.insert<
-      GPUReturnOpConversion, ForOpConversion, KernelModuleConversion,
-      KernelModuleTerminatorConversion,
+      ForOpConversion, GPUReturnOpConversion, IfOpConversion,
+      KernelModuleConversion, KernelModuleTerminatorConversion,
       LaunchConfigConversion<gpu::BlockDimOp, spirv::BuiltIn::WorkgroupSize>,
       LaunchConfigConversion<gpu::BlockIdOp, spirv::BuiltIn::WorkgroupId>,
       LaunchConfigConversion<gpu::GridDimOp, spirv::BuiltIn::NumWorkgroups>,
       LaunchConfigConversion<gpu::ThreadIdOp,
-                             spirv::BuiltIn::LocalInvocationId>>(context,
-                                                                 typeConverter);
+                             spirv::BuiltIn::LocalInvocationId>,
+      TerminatorOpConversion>(context, typeConverter);
 }

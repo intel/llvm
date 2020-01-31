@@ -1189,7 +1189,7 @@ namespace llvm {
       return nullptr; // nothing to do, move along.
     }
 
-    Register getRegisterByName(const char* RegName, EVT VT,
+    Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
@@ -1684,6 +1684,21 @@ namespace llvm {
       int Pos = (i % NumEltsInLane) / 2 + LaneStart;
       Pos += (Unary ? 0 : NumElts * (i % 2));
       Pos += (Lo ? 0 : NumEltsInLane / 2);
+      Mask.push_back(Pos);
+    }
+  }
+
+  /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation
+  /// imposed by AVX and specific to the unary pattern. Example:
+  /// v8iX Lo --> <0, 0, 1, 1, 2, 2, 3, 3>
+  /// v8iX Hi --> <4, 4, 5, 5, 6, 6, 7, 7>
+  template <typename T = int>
+  void createSplat2ShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo) {
+    assert(Mask.empty() && "Expected an empty shuffle mask vector");
+    int NumElts = VT.getVectorNumElements();
+    for (int i = 0; i < NumElts; ++i) {
+      int Pos = i / 2;
+      Pos += (Lo ? 0 : NumElts / 2);
       Mask.push_back(Pos);
     }
   }

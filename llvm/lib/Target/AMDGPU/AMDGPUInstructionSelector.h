@@ -100,6 +100,9 @@ private:
   splitBufferOffsets(MachineIRBuilder &B, Register OrigOffset) const;
 
   bool selectStoreIntrinsic(MachineInstr &MI, bool IsFormat) const;
+  bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
+  bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
+  bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
 
   bool selectG_INTRINSIC_W_SIDE_EFFECTS(MachineInstr &I) const;
   int getS_CMPOpcode(CmpInst::Predicate P, unsigned Size) const;
@@ -116,6 +119,7 @@ private:
   bool selectG_BRCOND(MachineInstr &I) const;
   bool selectG_FRAME_INDEX(MachineInstr &I) const;
   bool selectG_PTR_MASK(MachineInstr &I) const;
+  bool selectG_EXTRACT_VECTOR_ELT(MachineInstr &I) const;
 
   std::pair<Register, unsigned>
   selectVOP3ModsImpl(Register Src) const;
@@ -161,24 +165,33 @@ private:
   InstructionSelector::ComplexRendererFns
   selectMUBUFScratchOffset(MachineOperand &Root) const;
 
-  bool isDSOffsetLegal(const MachineRegisterInfo &MRI,
-                       const MachineOperand &Base,
-                       int64_t Offset, unsigned OffsetBits) const;
+  bool isDSOffsetLegal(Register Base, int64_t Offset,
+                       unsigned OffsetBits) const;
+
+  std::pair<Register, unsigned>
+  selectDS1Addr1OffsetImpl(MachineOperand &Src) const;
 
   InstructionSelector::ComplexRendererFns
   selectDS1Addr1Offset(MachineOperand &Root) const;
 
-  void renderTruncImm32(MachineInstrBuilder &MIB,
-                        const MachineInstr &MI) const;
+  void renderTruncImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                        int OpIdx = -1) const;
 
-  void renderNegateImm(MachineInstrBuilder &MIB,
-                       const MachineInstr &MI) const;
+  void renderTruncTImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                         int OpIdx) const;
+  void renderTruncTImm16(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                         int OpIdx) const;
+  void renderTruncTImm1(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                        int OpIdx) const;
 
-  void renderBitcastImm(MachineInstrBuilder &MIB,
-                        const MachineInstr &MI) const;
+  void renderNegateImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                       int OpIdx) const;
 
-  void renderPopcntImm(MachineInstrBuilder &MIB,
-                       const MachineInstr &MI) const;
+  void renderBitcastImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                        int OpIdx) const;
+
+  void renderPopcntImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                       int OpIdx) const;
 
   bool isInlineImmediate16(int64_t Imm) const;
   bool isInlineImmediate32(int64_t Imm) const;

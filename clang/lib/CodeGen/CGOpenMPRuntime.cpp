@@ -24,6 +24,7 @@
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetOperations.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -1438,6 +1439,7 @@ CGOpenMPRuntime::getUserDefinedReduction(const OMPDeclareReductionDecl *D) {
   return UDRMap.lookup(D);
 }
 
+namespace {
 // Temporary RAII solution to perform a push/pop stack event on the OpenMP IR
 // Builder if one is present.
 struct PushAndPopStackRAII {
@@ -1481,6 +1483,7 @@ struct PushAndPopStackRAII {
   }
   llvm::OpenMPIRBuilder *OMPBuilder;
 };
+} // namespace
 
 static llvm::Function *emitParallelOrTeamsOutlinedFunction(
     CodeGenModule &CGM, const OMPExecutableDirective &D, const CapturedStmt *CS,
@@ -1514,7 +1517,7 @@ static llvm::Function *emitParallelOrTeamsOutlinedFunction(
   CGOpenMPOutlinedRegionInfo CGInfo(*CS, ThreadIDVar, CodeGen, InnermostKind,
                                     HasCancel, OutlinedHelperName);
   CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(CGF, &CGInfo);
-  return CGF.GenerateOpenMPCapturedStmtFunction(*CS);
+  return CGF.GenerateOpenMPCapturedStmtFunction(*CS, D.getBeginLoc());
 }
 
 llvm::Function *CGOpenMPRuntime::emitParallelOutlinedFunction(
@@ -3769,6 +3772,7 @@ void CGOpenMPRuntime::emitForStaticInit(CodeGenFunction &CGF,
   llvm::Value *ThreadId = getThreadID(CGF, Loc);
   llvm::FunctionCallee StaticInitFunction =
       createForStaticInitFunction(Values.IVSize, Values.IVSigned);
+  auto DL = ApplyDebugLocation::CreateDefaultArtificial(CGF, Loc);
   emitForStaticInitCall(CGF, UpdatedLocation, ThreadId, StaticInitFunction,
                         ScheduleNum, ScheduleKind.M1, ScheduleKind.M2, Values);
 }
@@ -3803,6 +3807,7 @@ void CGOpenMPRuntime::emitForStaticFinish(CodeGenFunction &CGF,
                                    ? OMP_IDENT_WORK_LOOP
                                    : OMP_IDENT_WORK_SECTIONS),
       getThreadID(CGF, Loc)};
+  auto DL = ApplyDebugLocation::CreateDefaultArtificial(CGF, Loc);
   CGF.EmitRuntimeCall(createRuntimeFunction(OMPRTL__kmpc_for_static_fini),
                       Args);
 }
@@ -6481,7 +6486,7 @@ void CGOpenMPRuntime::emitTargetOutlinedFunctionHelper(
   CGOpenMPTargetRegionInfo CGInfo(CS, CodeGen, EntryFnName);
   CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(CGF, &CGInfo);
 
-  OutlinedFn = CGF.GenerateOpenMPCapturedStmtFunction(CS);
+  OutlinedFn = CGF.GenerateOpenMPCapturedStmtFunction(CS, D.getBeginLoc());
 
   // If this target outline function is not an offload entry, we don't need to
   // register it.
@@ -9083,8 +9088,9 @@ void CGOpenMPRuntime::emitUDMapperArrayInitOrDel(
 
   // Evaluate if this is an array section.
   llvm::BasicBlock *IsDeleteBB =
-      MapperCGF.createBasicBlock("omp.array" + Prefix + ".evaldelete");
-  llvm::BasicBlock *BodyBB = MapperCGF.createBasicBlock("omp.array" + Prefix);
+      MapperCGF.createBasicBlock(getName({"omp.array", Prefix, ".evaldelete"}));
+  llvm::BasicBlock *BodyBB =
+      MapperCGF.createBasicBlock(getName({"omp.array", Prefix}));
   llvm::Value *IsArray = MapperCGF.Builder.CreateICmpSGE(
       Size, MapperCGF.Builder.getInt64(1), "omp.arrayinit.isarray");
   MapperCGF.Builder.CreateCondBr(IsArray, IsDeleteBB, ExitBB);
@@ -9097,10 +9103,10 @@ void CGOpenMPRuntime::emitUDMapperArrayInitOrDel(
   llvm::Value *DeleteCond;
   if (IsInit) {
     DeleteCond = MapperCGF.Builder.CreateIsNull(
-        DeleteBit, "omp.array" + Prefix + ".delete");
+        DeleteBit, getName({"omp.array", Prefix, ".delete"}));
   } else {
     DeleteCond = MapperCGF.Builder.CreateIsNotNull(
-        DeleteBit, "omp.array" + Prefix + ".delete");
+        DeleteBit, getName({"omp.array", Prefix, ".delete"}));
   }
   MapperCGF.Builder.CreateCondBr(DeleteCond, BodyBB, ExitBB);
 
@@ -10998,7 +11004,7 @@ Address CGOpenMPRuntime::getAddressOfLocalVariable(CodeGenFunction &CGF,
 
   llvm::Value *Addr =
       CGF.EmitRuntimeCall(createRuntimeFunction(OMPRTL__kmpc_alloc), Args,
-                          CVD->getName() + ".void.addr");
+                          getName({CVD->getName(), ".void.addr"}));
   llvm::Value *FiniArgs[OMPAllocateCleanupTy::CleanupArgs] = {ThreadID, Addr,
                                                               Allocator};
   llvm::FunctionCallee FiniRTLFn = createRuntimeFunction(OMPRTL__kmpc_free);
@@ -11008,7 +11014,7 @@ Address CGOpenMPRuntime::getAddressOfLocalVariable(CodeGenFunction &CGF,
   Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       Addr,
       CGF.ConvertTypeForMem(CGM.getContext().getPointerType(CVD->getType())),
-      CVD->getName() + ".addr");
+      getName({CVD->getName(), ".addr"}));
   return Address(Addr, Align);
 }
 
@@ -11125,8 +11131,8 @@ bool checkContext<OMP_CTX_SET_device, OMP_CTX_kind, CodeGenModule &>(
   return true;
 }
 
-bool matchesContext(CodeGenModule &CGM,
-                    const CompleteOMPContextSelectorData &ContextData) {
+static bool matchesContext(CodeGenModule &CGM,
+                           const CompleteOMPContextSelectorData &ContextData) {
   for (const OMPContextSelectorData &Data : ContextData) {
     switch (Data.Ctx) {
     case OMP_CTX_vendor:
@@ -11362,8 +11368,6 @@ CGOpenMPRuntime::LastprivateConditionalRAII::LastprivateConditionalRAII(
     Data.UseOriginalIV = true;
     return;
   }
-  llvm::SmallString<16> Buffer;
-  llvm::raw_svector_ostream OS(Buffer);
   PresumedLoc PLoc =
       CGM.getContext().getSourceManager().getPresumedLoc(S.getBeginLoc());
   assert(PLoc.isValid() && "Source location is expected to be always valid.");
@@ -11372,9 +11376,9 @@ CGOpenMPRuntime::LastprivateConditionalRAII::LastprivateConditionalRAII(
   if (auto EC = llvm::sys::fs::getUniqueID(PLoc.getFilename(), ID))
     CGM.getDiags().Report(diag::err_cannot_open_file)
         << PLoc.getFilename() << EC.message();
-  OS << "$pl_cond_" << ID.getDevice() << "_" << ID.getFile() << "_"
-     << PLoc.getLine() << "_" << PLoc.getColumn() << "$iv";
-  Data.IVName = OS.str();
+  Data.IVName = CGM.getOpenMPRuntime().getName(
+      {"pl_cond", llvm::utostr(ID.getDevice()), llvm::utostr(ID.getFile()),
+       llvm::utostr(PLoc.getLine()), llvm::utostr(PLoc.getColumn()), "iv"});
 }
 
 CGOpenMPRuntime::LastprivateConditionalRAII::~LastprivateConditionalRAII() {
@@ -11497,7 +11501,7 @@ void CGOpenMPRuntime::checkAndEmitLastprivateConditional(CodeGenFunction &CGF,
   // int<xx> last_iv = 0;
   llvm::Type *LLIVTy = CGF.ConvertTypeForMem(IVLVal.getType());
   llvm::Constant *LastIV =
-      getOrCreateInternalVariable(LLIVTy, UniqueDeclName + "$iv");
+      getOrCreateInternalVariable(LLIVTy, getName({UniqueDeclName, "iv"}));
   cast<llvm::GlobalVariable>(LastIV)->setAlignment(
       IVLVal.getAlignment().getAsAlign());
   LValue LastIVLVal = CGF.MakeNaturalAlignAddrLValue(LastIV, IVLVal.getType());

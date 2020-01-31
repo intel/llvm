@@ -52,6 +52,7 @@ class MCInst;
 struct MCSchedModel;
 class Module;
 class ScheduleDAG;
+class ScheduleDAGMI;
 class ScheduleHazardRecognizer;
 class SDNode;
 class SelectionDAG;
@@ -1370,7 +1371,7 @@ public:
   /// scheduling the machine instructions before register allocation.
   virtual ScheduleHazardRecognizer *
   CreateTargetMIHazardRecognizer(const InstrItineraryData *,
-                                 const ScheduleDAG *DAG) const;
+                                 const ScheduleDAGMI *DAG) const;
 
   /// Allocate and return a hazard recognizer to use for this target when
   /// scheduling the machine instructions after register allocation.
@@ -1806,6 +1807,14 @@ public:
   /// \p MIs belonging to VReg-less functions.
   virtual Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
                                                          Register Reg) const;
+
+  /// Return MIR formatter to format/parse MIR operands.  Target can override
+  /// this virtual function and return target specific MIR formatter.
+  virtual const MIRFormatter *getMIRFormatter() const {
+    if (!Formatter.get())
+      Formatter = std::make_unique<MIRFormatter>();
+    return Formatter.get();
+  }
 
 private:
   mutable std::unique_ptr<MIRFormatter> Formatter;

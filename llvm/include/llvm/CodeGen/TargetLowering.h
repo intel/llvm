@@ -284,6 +284,20 @@ public:
     return getPointerTy(DL);
   }
 
+  /// This callback is used to inspect load/store instructions and add
+  /// target-specific MachineMemOperand flags to them.  The default
+  /// implementation does nothing.
+  virtual MachineMemOperand::Flags getTargetMMOFlags(const Instruction &I) const {
+    return MachineMemOperand::MONone;
+  }
+
+  MachineMemOperand::Flags getLoadMemOperandFlags(const LoadInst &LI,
+                                                  const DataLayout &DL) const;
+  MachineMemOperand::Flags getStoreMemOperandFlags(const StoreInst &SI,
+                                                   const DataLayout &DL) const;
+  MachineMemOperand::Flags getAtomicMemOperandFlags(const Instruction &AI,
+                                                    const DataLayout &DL) const;
+
   virtual bool isSelectSupported(SelectSupportKind /*kind*/) const {
     return true;
   }
@@ -3710,7 +3724,7 @@ public:
   /// Return the register ID of the name passed in. Used by named register
   /// global variables extension. There is no target-independent behaviour
   /// so the default action is to bail.
-  virtual Register getRegisterByName(const char* RegName, EVT VT,
+  virtual Register getRegisterByName(const char* RegName, LLT Ty,
                                      const MachineFunction &MF) const {
     report_fatal_error("Named registers not implemented for this target");
   }
@@ -3761,13 +3775,6 @@ public:
   virtual SDValue prepareVolatileOrAtomicLoad(SDValue Chain, const SDLoc &DL,
                                               SelectionDAG &DAG) const {
     return Chain;
-  }
-
-  /// This callback is used to inspect load/store instructions and add
-  /// target-specific MachineMemOperand flags to them.  The default
-  /// implementation does nothing.
-  virtual MachineMemOperand::Flags getMMOFlags(const Instruction &I) const {
-    return MachineMemOperand::MONone;
   }
 
   /// Should SelectionDAG lower an atomic store of the given kind as a normal

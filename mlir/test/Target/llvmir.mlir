@@ -804,6 +804,34 @@ llvm.func @vector_ops(%arg0: !llvm<"<4 x float>">, %arg1: !llvm<"<4 x i1>">, %ar
   llvm.return %1 : !llvm<"<4 x float>">
 }
 
+// CHECK-LABEL: @vector_splat_1d
+llvm.func @vector_splat_1d() -> !llvm<"<4 x float>"> {
+  // CHECK: ret <4 x float> zeroinitializer
+  %0 = llvm.mlir.constant(dense<0.000000e+00> : vector<4xf32>) : !llvm<"<4 x float>">
+  llvm.return %0 : !llvm<"<4 x float>">
+}
+
+// CHECK-LABEL: @vector_splat_2d
+llvm.func @vector_splat_2d() -> !llvm<"[4 x <16 x float>]"> {
+  // CHECK: ret [4 x <16 x float>] zeroinitializer
+  %0 = llvm.mlir.constant(dense<0.000000e+00> : vector<4x16xf32>) : !llvm<"[4 x <16 x float>]">
+  llvm.return %0 : !llvm<"[4 x <16 x float>]">
+}
+
+// CHECK-LABEL: @vector_splat_3d
+llvm.func @vector_splat_3d() -> !llvm<"[4 x [16 x <4 x float>]]"> {
+  // CHECK: ret [4 x [16 x <4 x float>]] zeroinitializer
+  %0 = llvm.mlir.constant(dense<0.000000e+00> : vector<4x16x4xf32>) : !llvm<"[4 x [16 x <4 x float>]]">
+  llvm.return %0 : !llvm<"[4 x [16 x <4 x float>]]">
+}
+
+// CHECK-LABEL: @vector_splat_nonzero
+llvm.func @vector_splat_nonzero() -> !llvm<"<4 x float>"> {
+  // CHECK: ret <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>
+  %0 = llvm.mlir.constant(dense<1.000000e+00> : vector<4xf32>) : !llvm<"<4 x float>">
+  llvm.return %0 : !llvm<"<4 x float>">
+}
+
 // CHECK-LABEL: @ops
 llvm.func @ops(%arg0: !llvm.float, %arg1: !llvm.float, %arg2: !llvm.i32, %arg3: !llvm.i32) -> !llvm<"{ float, i32 }"> {
 // CHECK-NEXT: fsub float %0, %1
@@ -1038,4 +1066,56 @@ llvm.func @null() -> !llvm<"i32*"> {
   %0 = llvm.mlir.null : !llvm<"i32*">
   // CHECK: ret i32* null
   llvm.return %0 : !llvm<"i32*">
+}
+
+// Check that dense elements attributes are exported properly in constants.
+// CHECK-LABEL: @elements_constant_3d_vector
+llvm.func @elements_constant_3d_vector() -> !llvm<"[2 x [2 x <2 x i32>]]"> {
+  // CHECK: ret [2 x [2 x <2 x i32>]]
+  // CHECK-SAME: {{\[}}[2 x <2 x i32>] [<2 x i32> <i32 1, i32 2>, <2 x i32> <i32 3, i32 4>],
+  // CHECK-SAME:       [2 x <2 x i32>] [<2 x i32> <i32 42, i32 43>, <2 x i32> <i32 44, i32 45>]]
+  %0 = llvm.mlir.constant(dense<[[[1, 2], [3, 4]], [[42, 43], [44, 45]]]> : vector<2x2x2xi32>) : !llvm<"[2 x [2 x <2 x i32>]]">
+  llvm.return %0 : !llvm<"[2 x [2 x <2 x i32>]]">
+}
+
+// CHECK-LABEL: @elements_constant_3d_array
+llvm.func @elements_constant_3d_array() -> !llvm<"[2 x [2 x [2 x i32]]]"> {
+  // CHECK: ret [2 x [2 x [2 x i32]]]
+  // CHECK-SAME: {{\[}}[2 x [2 x i32]] {{\[}}[2 x i32] [i32 1, i32 2], [2 x i32] [i32 3, i32 4]],
+  // CHECK-SAME:       [2 x [2 x i32]] {{\[}}[2 x i32] [i32 42, i32 43], [2 x i32] [i32 44, i32 45]]]
+  %0 = llvm.mlir.constant(dense<[[[1, 2], [3, 4]], [[42, 43], [44, 45]]]> : tensor<2x2x2xi32>) : !llvm<"[2 x [2 x [2 x i32]]]">
+  llvm.return %0 : !llvm<"[2 x [2 x [2 x i32]]]">
+}
+
+// CHECK-LABEL: @atomics
+llvm.func @atomics(
+    %f32_ptr : !llvm<"float*">, %f32 : !llvm.float,
+    %i32_ptr : !llvm<"i32*">, %i32 : !llvm.i32) -> !llvm.float {
+  // CHECK: atomicrmw fadd float* %{{.*}}, float %{{.*}} unordered
+  %0 = llvm.atomicrmw "fadd" "unordered" %f32_ptr, %f32 : (!llvm<"float*">, !llvm.float) -> !llvm.float
+  // CHECK: atomicrmw fsub float* %{{.*}}, float %{{.*}} unordered
+  %1 = llvm.atomicrmw "fsub" "unordered" %f32_ptr, %f32 : (!llvm<"float*">, !llvm.float) -> !llvm.float
+  // CHECK: atomicrmw xchg float* %{{.*}}, float %{{.*}} monotonic
+  %2 = llvm.atomicrmw "xchg" "monotonic" %f32_ptr, %f32 : (!llvm<"float*">, !llvm.float) -> !llvm.float
+  // CHECK: atomicrmw add i32* %{{.*}}, i32 %{{.*}} acquire
+  %3 = llvm.atomicrmw "add" "acquire" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw sub i32* %{{.*}}, i32 %{{.*}} release
+  %4 = llvm.atomicrmw "sub" "release" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw and i32* %{{.*}}, i32 %{{.*}} acq_rel
+  %5 = llvm.atomicrmw "_and" "acq_rel" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw nand i32* %{{.*}}, i32 %{{.*}} seq_cst
+  %6 = llvm.atomicrmw "nand" "seq_cst" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw or i32* %{{.*}}, i32 %{{.*}} unordered
+  %7 = llvm.atomicrmw "_or" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw xor i32* %{{.*}}, i32 %{{.*}} unordered
+  %8 = llvm.atomicrmw "_xor" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw max i32* %{{.*}}, i32 %{{.*}} unordered
+  %9 = llvm.atomicrmw "max" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw min i32* %{{.*}}, i32 %{{.*}} unordered
+  %10 = llvm.atomicrmw "min" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw umax i32* %{{.*}}, i32 %{{.*}} unordered
+  %11 = llvm.atomicrmw "umax" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  // CHECK: atomicrmw umin i32* %{{.*}}, i32 %{{.*}} unordered
+  %12 = llvm.atomicrmw "umin" "unordered" %i32_ptr, %i32 : (!llvm<"i32*">, !llvm.i32) -> !llvm.i32
+  llvm.return %0 : !llvm.float
 }

@@ -69,7 +69,7 @@ mlir::edsc::ValueHandle::ValueHandle(index_t cst) {
   auto &b = ScopedContext::getBuilder();
   auto loc = ScopedContext::getLocation();
   v = b.create<ConstantIndexOp>(loc, cst.v).getResult();
-  t = v->getType();
+  t = v.getType();
 }
 
 ValueHandle &mlir::edsc::ValueHandle::operator=(const ValueHandle &other) {
@@ -133,14 +133,30 @@ BlockHandle mlir::edsc::BlockHandle::create(ArrayRef<Type> argTypes) {
   return res;
 }
 
+BlockHandle mlir::edsc::BlockHandle::createInRegion(Region &region,
+                                                    ArrayRef<Type> argTypes) {
+  auto &currentB = ScopedContext::getBuilder();
+  BlockHandle res;
+  region.push_back(new Block);
+  res.block = &region.back();
+  // createBlock sets the insertion point inside the block.
+  // We do not want this behavior when using declarative builders with nesting.
+  OpBuilder::InsertionGuard g(currentB);
+  currentB.setInsertionPoint(res.block, res.block->begin());
+  for (auto t : argTypes) {
+    res.block->addArgument(t);
+  }
+  return res;
+}
+
 static Optional<ValueHandle> emitStaticFor(ArrayRef<ValueHandle> lbs,
                                            ArrayRef<ValueHandle> ubs,
                                            int64_t step) {
   if (lbs.size() != 1 || ubs.size() != 1)
     return Optional<ValueHandle>();
 
-  auto *lbDef = lbs.front().getValue()->getDefiningOp();
-  auto *ubDef = ubs.front().getValue()->getDefiningOp();
+  auto *lbDef = lbs.front().getValue().getDefiningOp();
+  auto *ubDef = ubs.front().getValue().getDefiningOp();
   if (!lbDef || !ubDef)
     return Optional<ValueHandle>();
 
@@ -285,6 +301,23 @@ mlir::edsc::BlockBuilder::BlockBuilder(BlockHandle *bh,
   enter(bh->getBlock());
 }
 
+mlir::edsc::BlockBuilder::BlockBuilder(BlockHandle *bh, Region &region,
+                                       ArrayRef<ValueHandle *> args) {
+  assert(!*bh && "BlockHandle already captures a block, use "
+                 "the explicit BockBuilder(bh, Append())({}) syntax instead.");
+  SmallVector<Type, 8> types;
+  for (auto *a : args) {
+    assert(!a->hasValue() &&
+           "Expected delayed ValueHandle that has not yet captured.");
+    types.push_back(a->getType());
+  }
+  *bh = BlockHandle::createInRegion(region, types);
+  for (auto it : llvm::zip(args, bh->getBlock()->getArguments())) {
+    *(std::get<0>(it)) = ValueHandle(std::get<1>(it));
+  }
+  enter(bh->getBlock());
+}
+
 /// Only serves as an ordering point between entering nested block and creating
 /// stmts.
 void mlir::edsc::BlockBuilder::operator()(function_ref<void(void)> fun) {
@@ -305,7 +338,7 @@ categorizeValueByAffineType(MLIRContext *context, Value val, unsigned &numDims,
                             unsigned &numSymbols) {
   AffineExpr d;
   Value resultVal = nullptr;
-  if (auto constant = dyn_cast_or_null<ConstantIndexOp>(val->getDefiningOp())) {
+  if (auto constant = dyn_cast_or_null<ConstantIndexOp>(val.getDefiningOp())) {
     d = getAffineConstantExpr(constant.getValue(), context);
   } else if (isValidSymbol(val) && !isValidDim(val)) {
     d = getAffineSymbolExpr(numSymbols++, context);
@@ -344,8 +377,8 @@ template <typename IOp, typename FOp>
 static ValueHandle createBinaryHandle(
     ValueHandle lhs, ValueHandle rhs,
     function_ref<AffineExpr(AffineExpr, AffineExpr)> affCombiner) {
-  auto thisType = lhs.getValue()->getType();
-  auto thatType = rhs.getValue()->getType();
+  auto thisType = lhs.getValue().getType();
+  auto thatType = rhs.getValue().getType();
   assert(thisType == thatType && "cannot mix types in operators");
   (void)thisType;
   (void)thatType;

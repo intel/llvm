@@ -209,6 +209,8 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
     else if (c->getType()->isFloatingPointTy())
       return b.getFloatAttr(FloatType::getF32(context), c->getValueAPF());
   }
+  if (auto *f = dyn_cast<llvm::Function>(value))
+    return b.getSymbolRefAttr(f->getName());
   return Attribute();
 }
 
@@ -564,7 +566,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
     assert(instMap.count(llvmAndUnknown.first));
     Value newValue = instMap[llvmAndUnknown.first];
     Value oldValue = llvmAndUnknown.second->getResult(0);
-    oldValue->replaceAllUsesWith(newValue);
+    oldValue.replaceAllUsesWith(newValue);
     llvmAndUnknown.second->erase();
   }
   return success();
