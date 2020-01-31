@@ -35,7 +35,7 @@ This document describes an extension that introduces new functionality to the +c
 
 == Notice
 
-Copyright (c) 2019 Intel Corporation.  All rights reserved.
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
 
 == Status
 
