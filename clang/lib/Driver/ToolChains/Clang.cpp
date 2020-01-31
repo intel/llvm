@@ -7255,8 +7255,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (!ForeachArgs.empty()) {
       std::string ForeachOutName =
           C.getDriver().GetTemporaryPath("wrapper-linker", "txt");
-      const char *ForeachOutput =
-          C.addTempFile(C.getArgs().MakeArgString(ForeachOutName));
+      const char *ForeachOutput = C.addTempFile(
+          C.getArgs().MakeArgString(ForeachOutName), types::TY_Tempfilelist);
       SmallString<128> OutOpt("--out-file-list=");
       OutOpt += ForeachOutput;
 

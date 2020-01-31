@@ -747,6 +747,10 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+  // Intel media_block_io builtins
+  _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
+  _SPIRV_OP(intel_sub_group_media_block_write,
+            SubgroupImageMediaBlockWriteINTEL)
 #undef _SPIRV_OP
 }
 

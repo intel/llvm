@@ -822,15 +822,13 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
         Parameters.push_back(I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
       } else if (S == "llvm.loop.ii.count") {
-        Parameters.push_back(InitiationIntervalINTEL);
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
-        LoopControl |= spv::LoopControlExtendedControlsMask;
+        LoopControl |= spv::InitiationIntervalINTEL;
       } else if (S == "llvm.loop.max_concurrency.count") {
-        Parameters.push_back(MaxConcurrencyINTEL);
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
-        LoopControl |= spv::LoopControlExtendedControlsMask;
+        LoopControl |= spv::MaxConcurrencyINTEL;
       } else if (S == "llvm.loop.parallel_access_indices") {
         // Intel FPGA IVDep loop attribute
         LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
@@ -850,7 +848,6 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
   // If any loop control parameters were held back until fully collected,
   // now is the time to move the information to the main parameters collection
   if (!DependencyArrayParameters.empty()) {
-    Parameters.push_back(DependencyArrayINTEL);
     // The first parameter states the number of <array, safelen> pairs to be
     // listed
     Parameters.push_back(DependencyArrayParameters.size());
@@ -858,7 +855,7 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
       Parameters.push_back(ArraySflnPair.first);
       Parameters.push_back(ArraySflnPair.second);
     }
-    LoopControl |= spv::LoopControlExtendedControlsMask;
+    LoopControl |= spv::DependencyArrayINTEL;
   }
 
   return static_cast<spv::LoopControlMask>(LoopControl);
@@ -1380,7 +1377,7 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
                 .Case("memory", DecorationMemoryINTEL)
                 .Case("numbanks", DecorationNumbanksINTEL)
                 .Case("bankwidth", DecorationBankwidthINTEL)
-                .Case("max_private_copies", DecorationMaxPrivateCopiesINTEL)
+                .Case("private_copies", DecorationMaxPrivateCopiesINTEL)
                 .Case("max_replicates", DecorationMaxReplicatesINTEL)
                 .Case("bank_bits", DecorationBankBitsINTEL)
                 .Case("merge", DecorationMergeINTEL)

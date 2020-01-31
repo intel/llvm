@@ -95,6 +95,10 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVPipeBuiltin(&CI, OC);
     return;
   }
+  if (isMediaBlockINTELOpcode(OC)) {
+    visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -315,6 +319,41 @@ void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
           P = CastInst::CreatePointerBitCastOrAddrSpaceCast(P, NewTy, "", CI);
         }
         return DemangledName;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // Moving the first argument to the end.
+        std::rotate(Args.rbegin(), Args.rend() - 1, Args.rend());
+        Type *RetType = CI->getType();
+        if (OC == OpSubgroupImageMediaBlockWriteINTEL) {
+          assert(Args.size() >= 4 && "Wrong media block write signature");
+          RetType = Args.at(3)->getType(); // texel type
+        }
+        unsigned int BitWidth = RetType->getScalarSizeInBits();
+        std::string FuncPostfix;
+        if (BitWidth == 8)
+          FuncPostfix = "_uc";
+        else if (BitWidth == 16)
+          FuncPostfix = "_us";
+        else if (BitWidth == 32)
+          FuncPostfix = "_ui";
+        else
+          assert(0 && "Unsupported texel type!");
+
+        if (RetType->isVectorTy()) {
+          unsigned int NumEl = RetType->getVectorNumElements();
+          assert((NumEl == 2 || NumEl == 4 || NumEl == 8 || NumEl == 16) &&
+                 "Wrong function type!");
+          FuncPostfix += std::to_string(NumEl);
+        }
+
+        return OCLSPIRVBuiltinMap::rmap(OC) + FuncPostfix;
       },
       &Attrs);
 }

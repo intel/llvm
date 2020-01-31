@@ -221,6 +221,7 @@ private:
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
+  bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();
   bool transOCLBuiltinFromVariable(GlobalVariable *GV,
                                    SPIRVBuiltinVariableKind Kind);

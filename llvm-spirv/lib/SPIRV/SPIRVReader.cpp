@@ -572,6 +572,24 @@ bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
   return isCmpOpCode(OC) && !(OC >= OpLessOrGreater && OC <= OpUnordered);
 }
 
+bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
+  // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
+  // translated directly to OCL builtin. Some of them are translated
+  // to LLVM representation without any modifications (SPIRV format of
+  // instruction is represented in LLVM) and then its translated to
+  // clang-consistent format in SPIRVToOCL pass.
+  if (isSubgroupAvcINTELInstructionOpCode(OpCode) ||
+      isIntelSubgroupOpCode(OpCode))
+    return true;
+  if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
+    // everything except atomics, groups, pipes and media_block_io_intel is
+    // directly translated
+    return !(isAtomicOpCode(OpCode) || isGroupOpCode(OpCode) ||
+             isPipeOpCode(OpCode) || isMediaBlockINTELOpcode(OpCode));
+  }
+  return false;
+}
+
 void SPIRVToLLVM::setName(llvm::Value *V, SPIRVValue *BV) {
   auto Name = BV->getName();
   if (!Name.empty() && (!V->hasName() || Name != V->getName()))
@@ -628,6 +646,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           getMetadataFromNameAndParameter("llvm.loop.ivdep.safelen",
                                           LoopControlParameters[NumParam])));
       ++NumParam;
+      // TODO: Fix the increment/assertion logic in all of the conditions
       assert(NumParam <= LoopControlParameters.size() &&
              "Missing loop control parameter!");
     }
@@ -666,117 +685,103 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlExtendedControlsMask) {
-    while (NumParam < LoopControlParameters.size()) {
-      switch (LoopControlParameters[NumParam]) {
-      case InitiationIntervalINTEL: {
-        // To generate a correct integer part of metadata we skip a parameter
-        // that encodes name of the metadata and take the next one
-        Metadata.push_back(llvm::MDNode::get(
-            *Context,
-            getMetadataFromNameAndParameter(
-                "llvm.loop.ii.count", LoopControlParameters[++NumParam])));
-        break;
+  if (LC & InitiationIntervalINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context, getMetadataFromNameAndParameter(
+                      "llvm.loop.ii.count", LoopControlParameters[NumParam])));
+    ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & MaxConcurrencyINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.max_concurrency.count",
+                                        LoopControlParameters[NumParam])));
+    ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & DependencyArrayINTEL) {
+    // Collect array variable <-> safelen information
+    std::map<Value *, unsigned> ArraySflnMap;
+    unsigned NumOperandPairs = LoopControlParameters[NumParam];
+    unsigned OperandsEndIndex = NumParam + NumOperandPairs * 2;
+    assert(OperandsEndIndex <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+    SPIRVModule *M = LM->getModule();
+    while (NumParam < OperandsEndIndex) {
+      SPIRVId ArraySPIRVId = LoopControlParameters[++NumParam];
+      Value *ArrayVar = ValueMap[M->getValue(ArraySPIRVId)];
+      unsigned Safelen = LoopControlParameters[++NumParam];
+      ArraySflnMap.emplace(ArrayVar, Safelen);
+    }
+
+    // A single run over the loop to retrieve all GetElementPtr instructions
+    // that access relevant array variables
+    std::map<Value *, std::vector<GetElementPtrInst *>> ArrayGEPMap;
+    for (const auto &BB : LoopObj->blocks()) {
+      for (Instruction &I : *BB) {
+        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+        if (!GEP)
+          continue;
+
+        Value *AccessedArray = GEP->getPointerOperand();
+        auto ArraySflnIt = ArraySflnMap.find(AccessedArray);
+        if (ArraySflnIt != ArraySflnMap.end())
+          ArrayGEPMap[AccessedArray].push_back(GEP);
       }
-      case MaxConcurrencyINTEL: {
-        Metadata.push_back(llvm::MDNode::get(
-            *Context, getMetadataFromNameAndParameter(
-                          "llvm.loop.max_concurrency.count",
-                          LoopControlParameters[++NumParam])));
-        break;
-      }
-      case DependencyArrayINTEL: {
-        // Collect array variable <-> safelen information
-        std::map<Value *, unsigned> ArraySflnMap;
-        unsigned NumOperandPairs = LoopControlParameters[++NumParam];
-        unsigned OperandsEndIndex = NumParam + NumOperandPairs * 2;
-        assert(OperandsEndIndex <= LoopControlParameters.size() &&
-               "Missing loop control parameter!");
-        SPIRVModule *M = LM->getModule();
-        while (NumParam < OperandsEndIndex) {
-          SPIRVId ArraySPIRVId = LoopControlParameters[++NumParam];
-          Value *ArrayVar = ValueMap[M->getValue(ArraySPIRVId)];
-          unsigned Safelen = LoopControlParameters[++NumParam];
-          ArraySflnMap.emplace(ArrayVar, Safelen);
+    }
+
+    // Create index group metadata nodes - one per each array
+    // variables. Mark each GEP accessing a particular array variable
+    // into a corresponding index group
+    std::map<unsigned, std::vector<MDNode *>> SafelenIdxGroupMap;
+    for (auto &ArrayGEPIt : ArrayGEPMap) {
+      // Emit a distinct index group that will be referenced from
+      // llvm.loop.parallel_access_indices metadata
+      auto *CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+      unsigned Safelen = ArraySflnMap.find(ArrayGEPIt.first)->second;
+      SafelenIdxGroupMap[Safelen].push_back(CurrentDepthIdxGroup);
+
+      for (auto *GEP : ArrayGEPIt.second) {
+        StringRef IdxGroupMDName("llvm.index.group");
+        llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
+        if (!PreviousIdxGroup) {
+          GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
+          continue;
         }
 
-        // A single run over the loop to retrieve all GetElementPtr instructions
-        // that access relevant array variables
-        std::map<Value *, std::vector<GetElementPtrInst *>> ArrayGEPMap;
-        for (auto &BB : LoopObj->blocks()) {
-          for (Instruction &I : *BB) {
-            auto *GEP = dyn_cast<GetElementPtrInst>(&I);
-            if (!GEP)
-              continue;
-
-            Value *AccessedArray = GEP->getPointerOperand();
-            auto ArraySflnIt = ArraySflnMap.find(AccessedArray);
-            if (ArraySflnIt != ArraySflnMap.end())
-              ArrayGEPMap[AccessedArray].push_back(GEP);
-          }
-        }
-
-        // Create index group metadata nodes specific - one per each array
-        // variables. Mark each GEP accessing a particular array variable
-        // into a corresponding index group
-        std::map<unsigned, std::vector<MDNode *>> SafelenIdxGroupMap;
-        for (auto &ArrayGEPIt : ArrayGEPMap) {
-          // Emit a distinct index group that will be referenced from
-          // llvm.loop.parallel_access_indices metadata
-          auto *CurrentDepthIdxGroup =
-              llvm::MDNode::getDistinct(*Context, None);
-          unsigned Safelen = ArraySflnMap.find(ArrayGEPIt.first)->second;
-          SafelenIdxGroupMap[Safelen].push_back(CurrentDepthIdxGroup);
-
-          for (auto *GEP : ArrayGEPIt.second) {
-            StringRef IdxGroupMDName("llvm.index.group");
-            llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
-            if (!PreviousIdxGroup) {
-              GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
-              continue;
-            }
-
-            // If we're dealing with an embedded loop, it may be the case
-            // that GEP instructions for some of the arrays were already
-            // marked by the algorithm when it went over the outer level loops.
-            // In order to retain the IVDep information for each "loop
-            // dimension", we will mark such GEP's into a separate joined node
-            // that will refer to the previous levels' index groups AND to the
-            // index group specific to the current loop.
-            std::vector<llvm::Metadata *> CurrentDepthOperands;
-            for (auto &Op : PreviousIdxGroup->operands())
-              CurrentDepthOperands.push_back(Op);
-            if (CurrentDepthOperands.size() == 0)
-              CurrentDepthOperands.push_back(PreviousIdxGroup);
-            CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
-            auto *JointIdxGroup =
-                llvm::MDNode::get(*Context, CurrentDepthOperands);
-            GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
-          }
-        }
-
-        for (auto &SflnIdxGroupIt : SafelenIdxGroupMap) {
-          auto *Name =
-              MDString::get(*Context, "llvm.loop.parallel_access_indices");
-          unsigned SflnValue = SflnIdxGroupIt.first;
-          llvm::Metadata *SafelenMDOp =
-              SflnValue ? ConstantAsMetadata::get(ConstantInt::get(
-                              Type::getInt32Ty(*Context), SflnValue))
-                        : nullptr;
-          std::vector<llvm::Metadata *> Parameters{Name};
-          for (auto *Node : SflnIdxGroupIt.second)
-            Parameters.push_back(Node);
-          if (SafelenMDOp)
-            Parameters.push_back(SafelenMDOp);
-          Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
-        }
-        break;
+        // If we're dealing with an embedded loop, it may be the case
+        // that GEP instructions for some of the arrays were already
+        // marked by the algorithm when it went over the outer level loops.
+        // In order to retain the IVDep information for each "loop
+        // dimension", we will mark such GEP's into a separate joined node
+        // that will refer to the previous levels' index groups AND to the
+        // index group specific to the current loop.
+        std::vector<llvm::Metadata *> CurrentDepthOperands(
+            PreviousIdxGroup->op_begin(), PreviousIdxGroup->op_end());
+        if (CurrentDepthOperands.empty())
+          CurrentDepthOperands.push_back(PreviousIdxGroup);
+        CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
+        auto *JointIdxGroup = llvm::MDNode::get(*Context, CurrentDepthOperands);
+        GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
       }
-      default:
-        llvm_unreachable(
-            "Unexpected token in LoopControlExtendedConstrolsMask");
-      }
-      ++NumParam;
+    }
+
+    for (auto &SflnIdxGroupIt : SafelenIdxGroupMap) {
+      auto *Name = MDString::get(*Context, "llvm.loop.parallel_access_indices");
+      unsigned SflnValue = SflnIdxGroupIt.first;
+      llvm::Metadata *SafelenMDOp =
+          SflnValue ? ConstantAsMetadata::get(ConstantInt::get(
+                          Type::getInt32Ty(*Context), SflnValue))
+                    : nullptr;
+      std::vector<llvm::Metadata *> Parameters{Name};
+      for (auto *Node : SflnIdxGroupIt.second)
+        Parameters.push_back(Node);
+      if (SafelenMDOp)
+        Parameters.push_back(SafelenMDOp);
+      Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
   }
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
@@ -1327,15 +1332,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   // Translation of non-instruction values
   switch (OC) {
-  case OpConstant: {
+  case OpConstant:
+  case OpSpecConstant: {
     SPIRVConstant *BConst = static_cast<SPIRVConstant *>(BV);
     SPIRVType *BT = BV->getType();
     Type *LT = transType(BT);
+    uint64_t ConstValue = BConst->getZExtIntValue();
+    SPIRVWord SpecId = 0;
+    if (OC == OpSpecConstant && BV->hasDecorate(DecorationSpecId, 0, &SpecId)) {
+      // Update the value with possibly provided external specialization.
+      if (BM->getSpecializationConstant(SpecId, ConstValue)) {
+        assert(
+            (BT->getBitWidth() == 64 ||
+             (ConstValue >> BT->getBitWidth()) == 0) &&
+            "Size of externally provided specialization constant value doesn't"
+            "fit into the specialization constant type");
+      }
+    }
     switch (BT->getOpCode()) {
     case OpTypeBool:
     case OpTypeInt:
       return mapValue(
-          BV, ConstantInt::get(LT, BConst->getZExtIntValue(),
+          BV, ConstantInt::get(LT, ConstValue,
                                static_cast<SPIRVTypeInt *>(BT)->isSigned()));
     case OpTypeFloat: {
       const llvm::fltSemantics *FS = nullptr;
@@ -1350,12 +1368,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         FS = &APFloat::IEEEdouble();
         break;
       default:
-        llvm_unreachable("invalid float type");
+        llvm_unreachable("invalid floating-point type");
       }
-      return mapValue(
-          BV, ConstantFP::get(*Context,
-                              APFloat(*FS, APInt(BT->getFloatBitWidth(),
-                                                 BConst->getZExtIntValue()))));
+      APFloat FPConstValue(*FS, APInt(BT->getFloatBitWidth(), ConstValue));
+      return mapValue(BV, ConstantFP::get(*Context, FPConstValue));
     }
     default:
       llvm_unreachable("Not implemented");
@@ -1369,12 +1385,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpConstantFalse:
     return mapValue(BV, ConstantInt::getFalse(*Context));
 
+  case OpSpecConstantTrue:
+  case OpSpecConstantFalse: {
+    bool IsTrue = OC == OpSpecConstantTrue;
+    SPIRVWord SpecId = 0;
+    if (BV->hasDecorate(DecorationSpecId, 0, &SpecId)) {
+      uint64_t ConstValue = 0;
+      if (BM->getSpecializationConstant(SpecId, ConstValue)) {
+        IsTrue = ConstValue;
+      }
+    }
+    return mapValue(BV, IsTrue ? ConstantInt::getTrue(*Context)
+                               : ConstantInt::getFalse(*Context));
+  }
+
   case OpConstantNull: {
     auto LT = transType(BV->getType());
     return mapValue(BV, Constant::getNullValue(LT));
   }
 
-  case OpConstantComposite: {
+  case OpConstantComposite:
+  case OpSpecConstantComposite: {
     auto BCC = static_cast<SPIRVConstantComposite *>(BV);
     std::vector<Constant *> CV;
     for (auto &I : BCC->getElements())
@@ -2250,10 +2281,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto OC = BV->getOpCode();
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV))) {
       return mapValue(BV, transCmpInst(BV, BB, F));
-    } else if ((OCLSPIRVBuiltinMap::rfind(OC, nullptr) ||
-                isSubgroupAvcINTELInstructionOpCode(OC) ||
-                isIntelSubgroupOpCode(OC)) &&
-               !isAtomicOpCode(OC) && !isGroupOpCode(OC) && !isPipeOpCode(OC)) {
+    } else if (isDirectlyTranslatedToOCL(OC)) {
       return mapValue(
           BV, transOCLBuiltinFromInst(static_cast<SPIRVInstruction *>(BV), BB));
     } else if (isBinaryShiftLogicalBitwiseOpCode(OC) || isLogicalOpCode(OC)) {
@@ -2401,8 +2429,7 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
       if (NumImages == 1) {
         // Multi reference opcode - remove src image OpVmeImageINTEL opcode
         // and replace it with corresponding OpImage and OpSampler arguments
-        bool IsInterlaced = (Args.size() == 4) ? true : false;
-        size_t SamplerPos = IsInterlaced ? 3 : 2;
+        size_t SamplerPos = Args.size() - 1;
         Args.erase(Args.begin(), Args.begin() + 1);
         Args.insert(Args.begin(), SrcImage->getOperands()[0]);
         Args.insert(Args.begin() + SamplerPos, SrcImage->getOperands()[1]);
@@ -2880,7 +2907,7 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
   if (E->hasDecorate(DecorationNumbanksINTEL, 0, &Result))
     Out << "{numbanks:" << Result << '}';
   if (E->hasDecorate(DecorationMaxPrivateCopiesINTEL, 0, &Result))
-    Out << "{max_private_copies:" << Result << '}';
+    Out << "{private_copies:" << Result << '}';
   if (E->hasDecorate(DecorationSinglepumpINTEL))
     Out << "{pump:1}";
   if (E->hasDecorate(DecorationDoublepumpINTEL))
@@ -2926,7 +2953,7 @@ void generateIntelFPGAAnnotationForStructMember(
     Out << "{numbanks:" << Result << '}';
   if (E->hasMemberDecorate(DecorationMaxPrivateCopiesINTEL, 0, MemberNumber,
                            &Result))
-    Out << "{max_private_copies:" << Result << '}';
+    Out << "{private_copies:" << Result << '}';
   if (E->hasMemberDecorate(DecorationSinglepumpINTEL, 0, MemberNumber))
     Out << "{pump:1}";
   if (E->hasMemberDecorate(DecorationDoublepumpINTEL, 0, MemberNumber))
@@ -3621,4 +3648,49 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
     dumpLLVM(M, DbgTmpLLVMFileName);
 
   return true;
+}
+
+void llvm::getSpecConstInfo(std::istream &IS,
+                            std::vector<SpecConstInfoTy> &SpecConstInfo) {
+  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
+  BM->setAutoAddExtensions(false);
+  SPIRVDecoder D(IS, *BM);
+  SPIRVWord Magic;
+  D >> Magic;
+  if (!BM->getErrorLog().checkError(Magic == MagicNumber, SPIRVEC_InvalidModule,
+                                    "invalid magic number")) {
+    return;
+  }
+  // Skip the rest of the header
+  D.ignore(4);
+
+  // According to the logical layout of SPIRV module (p2.4 of the spec),
+  // all constant instructions must appear before function declarations.
+  while (D.OpCode != OpFunction && D.getWordCountAndOpCode()) {
+    switch (D.OpCode) {
+    case OpDecorate:
+      // The decoration is added to the module in scope of SPIRVDecorate::decode
+      D.getEntry();
+      break;
+    case OpTypeBool:
+    case OpTypeInt:
+    case OpTypeFloat:
+      BM->addEntry(D.getEntry());
+      break;
+    case OpSpecConstant:
+    case OpSpecConstantTrue:
+    case OpSpecConstantFalse: {
+      auto *C = BM->addConstant(static_cast<SPIRVValue *>(D.getEntry()));
+      SPIRVWord SpecConstIdLiteral = 0;
+      if (C->hasDecorate(DecorationSpecId, 0, &SpecConstIdLiteral)) {
+        SPIRVType *Ty = C->getType();
+        uint32_t SpecConstSize = Ty->isTypeBool() ? 1 : Ty->getBitWidth() / 8;
+        SpecConstInfo.emplace_back(SpecConstIdLiteral, SpecConstSize);
+      }
+      break;
+    }
+    default:
+      D.ignoreInstruction();
+    }
+  }
 }
