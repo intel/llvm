@@ -8,11 +8,7 @@
 
 #pragma once
 
-<<<<<<< HEAD
-=======
-#include <CL/sycl/detail/program_impl.hpp>
-#include <CL/sycl/detail/plugin_impl.hpp>
->>>>>>> [SYCL][PI] Removal of PI_CALL family of macros & implementation of Plugin_Impl
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
