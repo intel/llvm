@@ -22,7 +22,7 @@ namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
-    PI_CALL(piQueueGetInfo)(m_CommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT,
+    PI_CALL(piQueueGetInfo)(MCommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT,
                             sizeof(result), &result, nullptr);
   return result;
 }
@@ -35,7 +35,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-event queue_impl::memset(std::shared_ptr<detail::queue_impl> Impl, void *Ptr,
+event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
                          int Value, size_t Count) {
   context Context = get_context();
   RT::PiEvent Event = nullptr;
@@ -47,7 +47,7 @@ event queue_impl::memset(std::shared_ptr<detail::queue_impl> Impl, void *Ptr,
   return event(pi::cast<cl_event>(Event), Context);
 }
 
-event queue_impl::memcpy(std::shared_ptr<detail::queue_impl> Impl, void *Dest,
+event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
                          const void *Src, size_t Count) {
   context Context = get_context();
   RT::PiEvent Event = nullptr;

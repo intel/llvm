@@ -276,9 +276,7 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/program_traits.def>
 
-PARAM_TRAITS_SPEC(queue, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(queue, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(queue, device, cl::sycl::device)
+#include <CL/sycl/info/queue_traits.def>
 
 #undef PARAM_TRAITS_SPEC
 #undef PARAM_TRAITS_SPEC_WITH_INPUT
