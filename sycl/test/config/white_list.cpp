@@ -7,7 +7,7 @@
 // RUN: env PRINT_PLATFORM_INFO=1 %t.out > %t2.conf
 // RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %t.out
 //
-// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_WHITE_LIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %t.out
+// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOW_LIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -37,7 +37,7 @@ int main() {
         replaceSpecialCharacters(Name);
         replaceSpecialCharacters(Ver);
 
-        std::cout << "SYCL_DEVICE_WHITE_LIST=PlatformName:{{" << Name
+        std::cout << "SYCL_DEVICE_ALLOW_LIST=PlatformName:{{" << Name
                   << "}},PlatformVersion:{{" << Ver << "}}";
 
         return 0;
@@ -58,7 +58,7 @@ int main() {
         replaceSpecialCharacters(Name);
         replaceSpecialCharacters(Ver);
 
-        std::cout << "SYCL_DEVICE_WHITE_LIST=DeviceName:{{" << Name
+        std::cout << "SYCL_DEVICE_ALLOW_LIST=DeviceName:{{" << Name
                   << "}},DriverVersion:{{" << Ver << "}}";
 
         return 0;

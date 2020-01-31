@@ -19,7 +19,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_PRINT_EXECUTION_GRAPH | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | SYCL_THROW_ON_BLOCK | Any(*) | Throw an exception on attempt to wait for a blocked command.  |
 | SYCL_DEVICELIB_INHIBIT_NATIVE | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
-
+| SYCL_DEVICE_ALLOW_LIST | List of devices and their minimum driver version following pattern: DeviceName:{{XXX}},DriverVersion:{{X.Y.Z.W}} | Filter out devices that do not match pattern specified. |
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 ## SYCL_PRINT_EXECUTION_GRAPH Options
