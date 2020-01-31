@@ -1,6 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DEF %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DECL %s
+// The following run only uses -Wno-sycl-strict to bypass SYCL_EXTERNAL applied
+// to funtion with raw pointer parameter
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_INVALID_DECL %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID1 %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 %s
 
@@ -17,17 +19,15 @@ int __spirv_ocl_printf(const char *__format, ...) {
 class A {
   friend int __spirv_ocl_printf(const char *__format, ...);
 };
-SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
+int __spirv_ocl_printf(const char *__format, ...);
 #elif defined(PRINTF_VALID2)
 extern "C" {
   extern "C++" {
-    SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
+    int __spirv_ocl_printf(const char *__format, ...);
   }
 }
 #else
-int __spirv_ocl_printf(const char *__format, ...) {
-  return 42;
-}
+int __spirv_ocl_printf(const char *, ...);
 #endif
 
 SYCL_EXTERNAL int __cdecl foo(int, ...); // expected-no-error
