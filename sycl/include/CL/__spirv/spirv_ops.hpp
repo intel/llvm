@@ -259,7 +259,7 @@ extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-extern SYCL_EXTERNAL int
+extern int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...);
 
 #define __SPIRV_COMPARISON(Order, Cmp)                                         \
