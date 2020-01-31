@@ -64,6 +64,8 @@ The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on t
 - Overloaded operators to reduce the verbosity of using atomics
 - Support for floating-point types
 
+The extension can be enabled using the `-fsycl-extended-atomics` flag, and applications can check whether the extension is enabled using `__has_extension(sycl_extended_atomics)`.
+
 === Overloaded Operators
 
 In SYCL 1.2.1, the +cl::sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics, and requires developers to change their kernel code when switching between +read_write+ and +atomic+ accessors:
