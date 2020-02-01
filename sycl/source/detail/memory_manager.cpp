@@ -26,7 +26,7 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // devices associated with the same Backend.
   if (!Events.empty()) {
     auto Plugin = Events[0]->getPlugin();
-    std::vector<RT::PiEvent> PiEvents;
+    std::vector<RT::PiEvent> PiEvents(Events.size());
     std::transform(Events.begin(), Events.end(), PiEvents.begin(),
                    [](const EventImplPtr &EventImpl) {
                      return EventImpl->getHandleRef();
