@@ -224,9 +224,11 @@ private:
     PI_CALL(piMemImageGetInfo)(Mem, Info, sizeof(T), &Dest, nullptr);
   }
 
+  vector_class<device> getDevices(const ContextImplPtr Context);
+
   template <info::device Param>
   bool checkImageValueRange(const ContextImplPtr Context, const size_t Value) {
-    const auto &Devices = Context->get_info<info::context::devices>();
+    const auto &Devices = getDevices(Context);
     return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
                                      [Value](const device &Dev) {
                                        return Value <= Dev.get_info<Param>();

@@ -404,6 +404,12 @@ bool image_impl<Dimensions>::checkImageFormat(
   return true;
 }
 
+template <int Dimensions>
+vector_class<device>
+image_impl<Dimensions>::getDevices(const ContextImplPtr Context) {
+  return Context->get_info<info::context::devices>();
+}
+
 template class image_impl<1>;
 template class image_impl<2>;
 template class image_impl<3>;
