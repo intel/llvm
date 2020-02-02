@@ -35,6 +35,8 @@ Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
 // spell-checker: disable
 Ben Ashbaugh, Intel +
 James Brodman, Intel +
+Wenju He, Intel +
+Kris Kang, Intel +
 Michael Kinsner, Intel +
 Michal Mrozek, Intel +
 Lukasz Towarek, Intel +
@@ -43,7 +45,7 @@ TODO: many more...
 
 == Notice
 
-Copyright (c) 2019 Intel Corporation.  All rights reserved.
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -58,11 +60,12 @@ If you are interested in using this feature in your software product, please let
 == Version
 
 Built On: {docdate} +
-Revision: G
+Revision: O
 
 == Dependencies
 
-This extension is written against the OpenCL API Specification Version 2.2, Revision v2.2-8.
+This extension is written against the OpenCL API Specification Version 2.2, Revision v2.2-11.
+This extension extends the `clSetKernelExecInfo` API from OpenCL 2.0 and hence requires an OpenCL 2.0 platform, however it is intended to be implementable by devices supporting many diverse OpenCL versions.
 
 == Overview
 
@@ -102,7 +105,7 @@ void*   clSharedMemAllocINTEL(
 
 cl_int  clMemFreeINTEL(
             cl_context context,
-            const void* ptr);
+            void* ptr);
 
 cl_int  clGetMemAllocInfoINTEL(
             cl_context context,
@@ -117,11 +120,11 @@ cl_int  clSetKernelArgMemPointerINTEL(
             cl_uint arg_index,
             const void* arg_value);
 
-// TBD: Memset API vs. "fill" API.  Is this sufficient?
-cl_int  clEnqueueMemsetINTEL(
+cl_int  clEnqueueMemFillINTEL(
             cl_command_queue command_queue,
             void* dst_ptr,
-            cl_int value,
+            const void* pattern,
+            size_t pattern_size,
             size_t size,
             cl_uint num_events_in_wait_list,
             const cl_event* event_wait_list,
@@ -141,7 +144,7 @@ cl_int  clEnqueueMigrateMemINTEL(
             cl_command_queue command_queue,
             const void* ptr,
             size_t size,
-            cl_mem_migration_flags flags,
+            cl_mem_migration_flags_intel flags,
             cl_uint num_events_in_wait_list,
             const cl_event* event_wait_list,
             cl_event* event);
@@ -173,7 +176,7 @@ Bitfield type and bits describing the Unified Shared Memory capabilities of an O
 
 [source]
 ----
-typedef cl_bitfield cl_unified_shared_memory_capabilities_intel;
+typedef cl_bitfield cl_device_unified_shared_memory_capabilities_intel;
 
 #define CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL                   (1 << 0)
 #define CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL            (1 << 1)
@@ -214,13 +217,13 @@ typedef cl_uint cl_mem_info_intel;
 #define CL_MEM_ALLOC_TYPE_INTEL         0x419A
 #define CL_MEM_ALLOC_BASE_PTR_INTEL     0x419B
 #define CL_MEM_ALLOC_SIZE_INTEL         0x419C
-#define CL_MEM_ALLOC_INFO_DEVICE_INTEL  0x419D
+#define CL_MEM_ALLOC_DEVICE_INTEL       0x419D
 /* CL_MEM_ALLOC_FLAGS_INTEL - defined above */
-#define CL_MEM_ALLOC_INFO_TBD0_INTEL    0x419E  /* reserved for future */
-#define CL_MEM_ALLOC_INFO_TBD1_INTEL    0x419F  /* reserved for future */
+/* Enum values 0x419E-0x419F are reserved for future queries. */
 ----
 
-Enumeration type and values describing the type of Unified Shared Memory allocation.  Returned by *clGetMemAllocInfoINTEL* when _param_name_ is `CL_MEM_ALLOC_TYPE_INTEL`:
+Enumeration type and values describing the type of Unified Shared Memory allocation.
+Returned by *clGetMemAllocInfoINTEL* when _param_name_ is `CL_MEM_ALLOC_TYPE_INTEL`:
 
 [source]
 ----
@@ -232,20 +235,23 @@ typedef cl_uint cl_unified_shared_memory_type_intel;
 #define CL_MEM_TYPE_SHARED_INTEL        0x4199
 ----
 
+Bitfield type and bits used by *clEnqueueMigrateMemINTEL* to describe how to migrate a Unified Shared Memory allocation.
+Note, this bitfield type and bits are aliases of the `cl_mem_migration_flags` bitfield type and bits:
+
+[source]
+----
+typedef cl_bitfield cl_mem_migration_flags_intel;
+
+#define CL_MIGRATE_MEM_OBJECT_HOST_INTEL              (1 << 0)
+#define CL_MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED_INTEL (1 << 1)
+----
+
 Enumeration type and values for the _advice_ parameter to *clEnqueueMemAdviseINTEL* to provide memory advice for a Unified Shared Memory allocation:
 
 [source]
 ----
 typedef cl_uint cl_mem_advice_intel;
-
-#define CL_MEM_ADVICE_TBD0_INTEL        0x4208  /* reserved for future */
-#define CL_MEM_ADVICE_TBD1_INTEL        0x4209  /* reserved for future */
-#define CL_MEM_ADVICE_TBD2_INTEL        0x420A  /* reserved for future */
-#define CL_MEM_ADVICE_TBD3_INTEL        0x420B  /* reserved for future */
-#define CL_MEM_ADVICE_TBD4_INTEL        0x420C  /* reserved for future */
-#define CL_MEM_ADVICE_TBD5_INTEL        0x420D  /* reserved for future */
-#define CL_MEM_ADVICE_TBD6_INTEL        0x420E  /* reserved for future */
-#define CL_MEM_ADVICE_TBD7_INTEL        0x420F  /* reserved for future */
+/* Enum values 0x4208-0x420F are reserved for future memory advices. */
 ----
 
 Accepted value for the _param_name_ parameter to *clSetKernelExecInfo* to specify that the kernel may indirectly access Unified Shared Memory allocations of the specified type:
@@ -257,7 +263,7 @@ Accepted value for the _param_name_ parameter to *clSetKernelExecInfo* to specif
 #define CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL    0x4202
 ----
 
-Accepted value for the _param_name_ paramter to *clSetKernelExecInfo* to specify a set of Unified Shared Memory allocations that the kernel may indirectly access:
+Accepted value for the _param_name_ parameter to *clSetKernelExecInfo* to specify a set of Unified Shared Memory allocations that the kernel may indirectly access:
 
 [source]
 ----
@@ -268,7 +274,7 @@ New return values from *clGetEventInfo* when _param_name_ is `CL_EVENT_COMMAND_T
 
 [source]
 ----
-#define CL_COMMAND_MEMSET_INTEL         0x4204
+#define CL_COMMAND_MEMFILL_INTEL        0x4204
 #define CL_COMMAND_MEMCPY_INTEL         0x4205
 #define CL_COMMAND_MIGRATEMEM_INTEL     0x4206
 #define CL_COMMAND_MEMADVISE_INTEL      0x4207
@@ -276,7 +282,11 @@ New return values from *clGetEventInfo* when _param_name_ is `CL_EVENT_COMMAND_T
 
 == Modifications to the OpenCL API Specification
 
-=== Section 3.2 - Querying Devices:
+=== Section 3.3 - Memory Model
+
+TODO - WIP
+
+=== Section 4.2 - Querying Devices:
 
 Add to Table 5 - OpenCL Device Queries:
 
@@ -294,7 +304,7 @@ Add to Table 5 - OpenCL Device Queries:
   `CL_DEVICE_CROSS_DEVICE_SHARED_{zwsp}MEM_CAPABILITIES_INTEL` +
   {blank}
   `CL_DEVICE_SHARED_SYSTEM_{zwsp}MEM_CAPABILITIES_INTEL`
-  | `cl_unified_shared_memory_capabilities_intel`
+  | `cl_device_unified_shared_{zwsp}memory_capabilities_intel`
       | Describes the ability for a device to access Unified Shared Memory allocations of the specified type.
       
         The host memory access capabilities apply to any host allocation.
@@ -324,7 +334,7 @@ Add to Table 5 - OpenCL Device Queries:
         The device supports concurrent atomic access to Unified Shared Memory allocations of this type.
 |====
 
-=== New Section 4.X - Unified Shared Memory
+=== New Section 5.X - Unified Shared Memory
 
 This section describes _Unified Shared Memory_, abbreviated _USM_.
 Unified Shared Memory allocations are represented as pointers in the host application, rather than as handles (specifically, `cl_mems`).
@@ -439,8 +449,8 @@ Please refer to the <<cl_mem_properties_intel,table below>> for valid property v
 _size_ is the size in bytes of the requested host allocation.
 
 _alignment_ is the minimum alignment in bytes for the requested host allocation.
-It must be a power of two up to the largest data type supported by any OpenCL device in _context_.
-If _alignment_ is `0`, a default alignment will be used that is equal to the size of largest data type supported by any OpenCL device in _context_.
+It must be a power of two and must be equal to or smaller than the size of the largest data type supported by any OpenCL device in _context_.
+If _alignment_ is `0`, a default alignment will be used that is equal to the size of the largest data type supported by any OpenCL device in _context_.
 
 _errcode_ret_ may return an appropriate error code.
 If _errcode_ret_ is `NULL` then no error code will be returned.
@@ -448,7 +458,15 @@ If _errcode_ret_ is `NULL` then no error code will be returned.
 *clHostMemAllocINTEL* will return a valid non-`NULL` address and `CL_SUCCESS` will be returned in _errcode_ret_ if the host Unified Shared Memory is allocated successfully.
 Otherwise, `NULL` will be returned, and _errcode_ret_ will be set to one of the following error values:
 
-* TODO
+* `CL_INVALID_CONTEXT` if _context_ is not a valid context.
+* `CL_INVALID_OPERATION` if `CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL` is zero for all devices in _context_, indicating that no devices in _context_ support host Unified Shared Memory allocations.
+* `CL_INVALID_VALUE` if _alignment_ is not zero or a power of two.
+* `CL_INVALID_VALUE` if _alignment_ is greater than the size of the largest data type supported by any OpenCL device in _context_ that supports host Unified Shared Memory allocations.
+* `CL_INVALID_PROPERTY` if a memory property name in _properties_ is not a supported property name, if the value specified for a supported property name is not valid, or if the same property name is specified more than once.
+* `CL_INVALID_BUFFER_SIZE` if _size_ is zero or greater than `CL_DEVICE_MAX_MEM_ALLOC_SIZE` for any OpenCL device in _context_ that supports host Unified Shared Memory allocations.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
+
 
 ===== Device Allocations
 
@@ -479,7 +497,7 @@ Please refer to the <<cl_mem_properties_intel,table below>> for valid property v
 _size_ is the size in bytes of the requested device allocation.
 
 _alignment_ is the minimum alignment in bytes for the requested device allocation.
-It must be a power of two up to the largest data type supported by _device_.
+It must be a power of two and must be equal to or smaller than the size of the largest data type supported by _device_.
 If _alignment_ is `0`, a default alignment will be used that is equal to the size of largest data type supported by _device_.
 
 _errcode_ret_ may return an appropriate error code.
@@ -488,7 +506,15 @@ If _errcode_ret_ is `NULL` then no error code will be returned.
 *clDeviceMemAllocINTEL* will return a valid non-`NULL` address and `CL_SUCCESS` will be returned in _errcode_ret_ if the device Unified Shared Memory is allocated successfully.
 Otherwise, `NULL` will be returned, and _errcode_ret_ will be set to one of the following error values:
 
-* TODO
+* `CL_INVALID_CONTEXT` if _context_ is not a valid context.
+* `CL_INVALID_DEVICE` if _device_ is not a valid device or is not associated with _context_.
+* `CL_INVALID_OPERATION` if `CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL` is zero for _device_, indicating that _device_ does not support device Unified Shared Memory allocations.
+* `CL_INVALID_VALUE` if _alignment_ is not zero or a power of two.
+* `CL_INVALID_VALUE` if _alignment_ is greater than the size of the largest data type supported by _device_.
+* `CL_INVALID_PROPERTY` if a memory property name in _properties_ is not a supported property name, if the value specified for a supported property name is not valid, or if the same property name is specified more than once.
+* `CL_INVALID_BUFFER_SIZE` if _size_ is zero or greater than `CL_DEVICE_MAX_MEM_ALLOC_SIZE` for _device_.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 ===== Shared Allocations
 
@@ -522,8 +548,9 @@ Please refer to the <<cl_mem_properties_intel,table below>> for valid property v
 _size_ is the size in bytes of the requested shared allocation.
 
 _alignment_ is the minimum alignment in bytes for the requested shared allocation.
-It must be a power of two up to the largest data type supported by _device_.
+It must be a power of two and must be equal to or smaller than the size of the largest data type supported by _device_.
 If _alignment_ is `0`, a default alignment will be used that is equal to the size of largest data type supported by _device_.
+If _device_ is `NULL`, _alignment_ must be a power of two equal to or smaller than the size of the largest data type supported by any OpenCL device in _context_, and the default alignment will be equal to the size of the largest data type supported by any OpenCL device in _context_.
 
 _errcode_ret_ may return an appropriate error code.
 If _errcode_ret_ is `NULL` then no error code will be returned.
@@ -531,7 +558,15 @@ If _errcode_ret_ is `NULL` then no error code will be returned.
 *clSharedMemAllocINTEL* will return a valid non-`NULL` address and `CL_SUCCESS` will be returned in _errcode_ret_ if the shared Unified Shared Memory is allocated successfully.
 Otherwise, `NULL` will be returned, and _errcode_ret_ will be set to one of the following error values:
 
-* TODO
+* `CL_INVALID_CONTEXT` if _context_ is not a valid context.
+* `CL_INVALID_DEVICE` if _device_ is not `NULL` and is either not a valid device or is not associated with _context_.
+* `CL_INVALID_OPERATION` if _device_ is not `NULL` and `CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL` and `CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL` are both zero, indicating that _device_ does not support shared Unified Shared Memory allocations, or if _device_ is `NULL` and no devices in _context_ support shared Unified Shared Memory allocations.
+* `CL_INVALID_VALUE` if _alignment_ is not zero or a power of two.
+* `CL_INVALID_VALUE` if _device_ is not `NULL` and _alignment_ is greater than the size of the largest data type supported by _device_, or if _device_ is `NULL` and _alignment_ is greater than the size of the largest data type supported by any OpenCL device in _context_ that supports shared Unified Shared Memory allocations.
+* `CL_INVALID_PROPERTY` if a memory property name in _properties_ is not a supported property name, if the value specified for a supported property name is not valid, or if the same property name is specified more than once.
+* `CL_INVALID_BUFFER_SIZE` if _size_ is zero, or if _device_ is not `NULL` and _size_ is greater than `CL_DEVICE_MAX_MEM_ALLOC_SIZE` for _device_, or if _device_ is `NULL` and _size_ is greater than `CL_DEVICE_MAX_MEM_ALLOC_SIZE` for any device in _context_ that supports shared Unified Shared Memory allocations.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 ===== Freeing Allocations
 
@@ -541,7 +576,7 @@ The function
 ----
 cl_int  clMemFreeINTEL(
             cl_context context,
-            const void* ptr); // TBD: const?
+            void* ptr);
 ----
 
 frees a Unified Shared Memory allocation.
@@ -558,7 +593,10 @@ It is the responsibility of the application to make sure enqueued commands that 
 *clMemFreeINTEL* will return `CL_SUCCESS` if the function executes successfully.
 Otherwise, it will return one of the following error values:
 
-* TODO
+* `CL_INVALID_CONTEXT` if _context_ is not a valid context.
+* `CL_INVALID_VALUE` if _ptr_ is not a value returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, *clSharedMemAllocINTEL*, or a `NULL` pointer.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 ===== Controlling Allocations
 
@@ -621,7 +659,11 @@ If _param_value_size_ret_ is `NULL`, it is ignored.
 *clGetMemAllocInfoINTEL* returns `CL_SUCCESS` if the function is executed successfully.
 Otherwise, it will return one of the following error values:
 
-* TODO
+* `CL_INVALID_CONTEXT` if _context_ is not a valid context.
+* `CL_INVALID_VALUE` if _param_name_ is not a valid Unified Shared Memory allocation query.
+* `CL_INVALID_VALUE` if _param_value_ is not `NULL` and _param_value_size_ is smaller than the size of the query return type.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 [[cl_mem_info_intel]]
 .List of supported param_names by clGetMemAllocInfoINTEL
@@ -681,15 +723,20 @@ Arguments to the kernel are referred to by indices that go from 0 for the leftmo
 _arg_value_ is the pointer value that should be used as the argument specified by _arg_index_.
 The pointer value will be used as the argument by all API calls that enqueue a kernel until the argument value is set to a different pointer value by a subsequent call.
 A pointer into Unified Shared Memory allocation may only be set as an argument value for an argument declared to be a pointer to `global` or `constant` memory.
-The pointer need not be a value returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, or *clSharedMemAllocINTEL*.
+For devices supporting shared system allocations, any pointer value is valid.
+Otherwise, the pointer value must be `NULL` or must point into a Unified Shared Memory allocation returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, or *clSharedMemAllocINTEL*.
 
 *clSetKernelArgMemPointerINTEL* returns `CL_SUCCESS` if the function is executed successfully.
 Otherwise, it will return one of the following errors:
 
-* TODO
+* `CL_INVALID_KERNEL` if _kernel_ is not a valid kernel object.
+* `CL_INVALID_ARG_INDEX` if _arg_index_ is not a valid argument index.
+* `CL_INVALID_ARG_VALUE` if _arg_value_ is not a valid argument value.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 In addition to direct use of a Unified Shared Memory allocation as a kernel argument, Unified Shared Memory allocations may be accessed by kernels indirectly.
-The new _param_name_ values described below may be used with the existing *clSetKernelExecInfo* function to describes how Unified Shared Memory allocations are accessed indirectly by a kernel:
+The new _param_name_ values described below may be used with the existing *clSetKernelExecInfo* function to describe how Unified Shared Memory allocations are accessed indirectly by a kernel:
 
 [caption="Table 28. "]
 .List of supported param_names by clSetKernelExecInfo
@@ -712,43 +759,47 @@ The new _param_name_ values described below may be used with the existing *clSet
       | Specifies that the kernel may access any device Unified Shared Memory allocation indirectly.
 
         By default, the value for this flag is `CL_FALSE`, indicating that the kernel will only access explicitly specified device Unified Shared Memory allocations.
-| `CL_KERNEL_EXEC_INFO_{zwsp}SHARED_DEVICE_ACCESS_INTEL`
+| `CL_KERNEL_EXEC_INFO_{zwsp}SHARED_ACCESS_INTEL`
   | cl_bool
       | Specifies that the kernel may access any shared Unified Shared Memory allocation indirectly.
 
-        By default, the value for this flag is `CL_FALSE`, indicating that the kernel will only access explicitly specified clSharedMemAllocINTEL Unified Shared Memory allocations.
+        By default, the value for this flag is `CL_FALSE`, indicating that the kernel will only access explicitly specified shared Unified Shared Memory allocations.
 
 |====
 
-==== Setting and Copying Unified Shared Memory
+==== Filling and Copying Unified Shared Memory
 
 The function
 
 [source]
 ----
-// TBD: Memset API vs. "fill" API.  Is this sufficient?
-cl_int  clEnqueueMemsetINTEL(
+cl_int  clEnqueueMemFillINTEL(
             cl_command_queue command_queue,
             void* dst_ptr,
-            cl_int value,
+            const void* pattern,
+            size_t pattern_size,
             size_t size,
             cl_uint num_events_in_wait_list,
             const cl_event* event_wait_list,
             cl_event* event);
 ----
 
-sets a region of a memory to the specified value.
+fills a region of a memory with the specified pattern.
 
 _command_queue_ is a valid host command queue.
-The memory set command will be queued for execution on the device associated with _command_queue_.
+The memory fill command will be queued for execution on the device associated with _command_queue_.
 
-_dst_ptr_ is a pointer to the start of the memory region to set.
-The Unified Shared Memory allocation pointed to by _dst_ptr_ must be valid for the context associated with _command_queue_, and must be accessible by the device associated with _command_queue_.
+_dst_ptr_ is a pointer to the start of the memory region to fill.
+The Unified Shared Memory allocation pointed to by _dst_ptr_ must be valid for the context associated with _command_queue_, must be accessible by the device associated with _command_queue_, and must be aligned to _pattern_size_ bytes.
 
-_value_ is the value to set in the Unified Shared Memory region.
-It is interpreted as an 8-bit value and the upper 24-bits are ignored.
+_pattern_ is a pointer to the value to write to the Unified Shared Memory region.
+The memory associated with _pattern_ can be reused or freed after the function returns.
+
+_pattern_size_ describes the size of of the value to write to the Unified Shared Memory region, in bytes.
+_pattern_size_ must be a power of two and must be less than or equal to the size of the largest integer or floating-point vector data type supported by the device.
 
 _size_ describes the size of the memory region to set, in bytes.
+_size_ must be a multiple of _pattern_size_.
 
 _event_wait_list_ and _num_events_in_wait_list_ specify events that need to complete before this command can be executed.
 If _event_wait_list_ is `NULL`, then this command does not wait on any event to complete.
@@ -762,10 +813,18 @@ _event_ returns a unique event object that identifies this command.
 If _event_ is `NULL`, no event will be created and therefore it will not be possible to query or wait for this command.
 If the _event_wait_list_ and the _event_ arguments are not `NULL`, the _event_ argument must not refer to an element of the _event_wait_list_ array.
 
-*clEnqueueMemsetINTEL* returns CL_SUCCESS if the command is queued successfully.
+*clEnqueueMemFillINTEL* returns CL_SUCCESS if the command is queued successfully.
 Otherwise, it will return one of the following errors:
 
-* TODO
+* `CL_INVALID_COMMAND_QUEUE` if _command_queue_ is not a valid host command-queue.
+* `CL_INVALID_CONTEXT` if the context associated with _command_queue_ and events in _event_wait_list_ are not the same.
+* `CL_INVALID_VALUE` if _dst_ptr_ is `NULL`, or if _dst_ptr_ is not aligned to _pattern_size_ bytes.
+* `CL_INVALID_VALUE` if _pattern_ is `NULL`.
+* `CL_INVALID_VALUE` if _pattern_size_ is not a power of two or is greater than the size of the largest integer or floating-point vector data type supported by the device associated with _command_queue_.
+* `CL_INVALID_VALUE` if _size_ is not a multiple of _pattern_size_.
+* `CL_INVALID_EVENT_WAIT_LIST` if _event_wait_list_ is `NULL` and _num_events_in_wait_list_ is greater than zero, or if _event_wait_list_ is not `NULL` and _num_events_in_wait_list_ is zero, or if event objects in _event_wait_list_ are not valid events.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 The function
 
@@ -814,7 +873,14 @@ If the _event_wait_list_ and the _event_ arguments are not `NULL`, the _event_ a
 *clEnqueueMemcpyINTEL* returns CL_SUCCESS if the command is queued successfully.
 Otherwise, it will return one of the following errors:
 
-* TODO
+* `CL_INVALID_COMMAND_QUEUE` if _command_queue_ is not a valid host command-queue.
+* `CL_INVALID_CONTEXT` if the context associated with _command_queue_ and events in _event_wait_list_ are not the same.
+* `CL_INVALID_VALUE` if either _dst_ptr_ or _src_ptr_ are `NULL`.
+* `CL_INVALID_EVENT_WAIT_LIST` if _event_wait_list_ is `NULL` and _num_events_in_wait_list_ is greater than zero, or if _event_wait_list_ is not `NULL` and _num_events_in_wait_list_ is zero, or if event objects in _event_wait_list_ are not valid events.
+* `CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST` if the copy operation is blocking and the execution status of any of the events in _event_wait_list_ is a negative integer value.
+* `CL_MEM_COPY_OVERLAP` if the values specified for _dst_ptr_, _src_ptr_ and _size_ result in an overlapping copy.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 ==== Unified Shared Memory Hints
 
@@ -826,7 +892,7 @@ cl_int  clEnqueueMigrateMemINTEL(
             cl_command_queue command_queue,
             const void* ptr,
             size_t size,
-            cl_mem_migration_flags flags,
+            cl_mem_migration_flags_intel flags,
             cl_uint num_events_in_wait_list,
             const cl_event* event_wait_list,
             cl_event* event);
@@ -863,7 +929,13 @@ If the _event_wait_list_ and the _event_ arguments are not `NULL`, the _event_ a
 *clEnqueueMigrateMemINTEL* returns CL_SUCCESS if the command is queued successfully.
 Otherwise, it will return one of the following errors:
 
-* TODO
+* `CL_INVALID_COMMAND_QUEUE` if _command_queue_ is not a valid host command-queue.
+* `CL_INVALID_CONTEXT` if the context associated with _command_queue_ and events in _event_wait_list_ are not the same.
+* `CL_INVALID_VALUE` **TODO**, are any values of _ptr_ and _size_ considered invalid?
+* `CL_INVALID_VALUE` if _flags_ is zero or is not a supported combination of memory migration flags.
+* `CL_INVALID_EVENT_WAIT_LIST` if _event_wait_list_ is `NULL` and _num_events_in_wait_list_ is greater than zero, or if _event_wait_list_ is not `NULL` and _num_events_in_wait_list_ is zero, or if event objects in _event_wait_list_ are not valid events.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 The function
 
@@ -911,7 +983,13 @@ If the _event_wait_list_ and the _event_ arguments are not `NULL`, the _event_ a
 *clEnqueueMemAdviseINTEL* returns CL_SUCCESS if the command is queued successfully.
 Otherwise, it will return one of the following errors:
 
-* TODO
+* `CL_INVALID_COMMAND_QUEUE` if _command_queue_ is not a valid host command-queue.
+* `CL_INVALID_CONTEXT` if the context associated with _command_queue_ and events in _event_wait_list_ are not the same.
+* `CL_INVALID_VALUE` **TODO**, are any values of _ptr_ and _size_ considered invalid?
+* `CL_INVALID_VALUE` if _advice_ is zero or is not supported advice for the device associated with _command_queue_.
+* `CL_INVALID_EVENT_WAIT_LIST` if _event_wait_list_ is `NULL` and _num_events_in_wait_list_ is greater than zero, or if _event_wait_list_ is not `NULL` and _num_events_in_wait_list_ is zero, or if event objects in _event_wait_list_ are not valid events.
+* `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
+* `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
 
 == Issues
 
@@ -968,20 +1046,22 @@ The behavior was defined for all queries for this case in revision G.
 . Do we want separate "memset" APIs to set to different sized "value", such as 8-bits, 16-bits?, 32-bits, or others?  Do we want to go back to a "fill" API?
 +
 --
-*UNRESOLVED*:
-The CPU "memset" only sets to an 8-bit value.
+`RESOLVED`:
+Switched to a "fill" API in revision I.
+
+Discussion: The host "memset" only sets to an 8-bit value.
 Switching back to a "fill" API is very flexible, but perhaps overkill, since it supports any supported integer or floating-point scalar or vector type.
 --
 
-. What are the restrictions for the _dst_ptr_ values that can be passed to the "memset" API?
+. What are the restrictions for the _dst_ptr_ values that can be passed to the "fill" API?
 +
 --
 *UNRESOLVED*:
 Need to close on:
 
-* Can a device "memset" another device's allocation?  (Recommendation: No.)
-* Can a device "memset" arbitrary host memory?  (Recommendation: Maybe?)
-* Can a device "memset" a USM allocation from another context?  (Recommendation: No?)
+* Can a device "fill" another device's allocation?  (Recommendation: Yes, if accessible.)
+* Can a device "fill" arbitrary host memory?  (Recommendation: Maybe?)
+* Can a device "fill" a USM allocation from another context?  (Recommendation: No.)
 --
 
 . What are the restrictions for the _src_ptr_ and _dst_ptr_ values that can be passed to the "memcpy" API?
@@ -1040,13 +1120,83 @@ This query was added in revision G.
 *UNRESOLVED*:
 --
 
-== TODO
+. What are invalid values for `ptr` and `size` for *clEnqueueMigrateMemINTEL* and *clEnqueueMemAdviseINTEL*?
+How about *clEnqueueMemFillINTEL* and *clEnqueueMemcpyINTEL*?
+Specifically, is `NULL` a valid value for `ptr`?
+Is `size` equal to zero valid?
++
+--
+*UNRESOLVED*:
+--
 
-//. Title
-//+
-//--
-//`RESOLVED`: Description
-//--
+. Should we add a device query for a maximum supported USM alignment, or should the maximum supported alignment implicitly be defined by the size of the largest data type supported by the device?
++
+--
+*UNRESOLVED*:
+A device query would allow for larger supported alignments, such as page alignment.
+Note that supported alignments should always be a power of two.
+--
+
+. Should we add a device query for a maximum supported USM fill pattern size, or should the maximum supported fill pattern size implicitly be defined by the size of the largest data type supported by the device?
++
+--
+*UNRESOLVED*:
+A device query would allow for larger fill patterns.
+Note that the fill pattern size should always be a power of two.
+--
+
+. Can a pointer to a device, host, or shared USM allocation be used to create a `cl_mem` using `CL_MEM_USE_HOST_PTR`?
++
+--
+*UNRESOLVED*:
+Trending "no" in all cases.
+If the USM allocation is from the same context this could be an error, such as `CL_INVALID_HOST_PTR`.
+If the USM allocation is from a different context then behavior could be undefined.
+--
+
+. Can a pointer to a device, host, or shared USM allocation be used to create a `cl_mem` buffer using `CL_MEM_COPY_HOST_PTR`?
++
+--
+*UNRESOLVED*:
+Trending "no" for device and shared USM allocations.
+If the USM allocation is from the same context this could be an error, such as `CL_INVALID_HOST_PTR`.
+If the USM allocation is from a different context then behavior could be undefined.
+
+Trending "yes" for host USM allocations, both when the host USM allocation is from this context and from another context.
+--
+
+. Can a pointer to a device, host, or shared USM allocation be passed to API functions to read from or write to `cl_mem` objects, such as `clEnqueueReadBuffer` or `clEnqueueWriteImage`?
++
+--
+*UNRESOLVED*:
+Trending "yes" for device USM allocations, so long as the device USM allocation is accessible by the device associated with the command queue, and the device allocation was made against the context associated with the command queue.
+
+Trending "yes" for host USM allocations, both when the host USM allocation is from this context and from another context.
+
+Trending "no" for shared USM allocations.
+If the shared USM allocation is from the same context this could be an error, such as `CL_INVALID_HOST_PTR`.
+If the shared USM allocation is from a different context then behavior could be undefined.
+--
+
+. Can a pointer to a device, host, or shared USM allocation be passed to API functions to fill a `cl_mem`, SVM allocation, or USM allocation, such as `clEnqueueFillBuffer`?
++
+--
+*UNRESOLVED*:
+Trending "no" for device and shared allocations.
+If the USM allocation is from the same context this could be an error, such as `CL_INVALID_HOST_PTR`.
+If the USM allocation is from a different context then behavior could be undefined.
+
+Trending "yes" for host USM allocations, both when the host USM allocation is from this context and from another context.
+--
+
+. Should we support passing traditional `cl_mem_flags` via the USM allocation properties?
++
+--
+*UNRESOLVED*:
+Trending "yes", by allowing `CL_MEM_FLAGS` as a property and `cl_mem_flags` as the property value.
+
+Note that some flags will not be valid, such as `CL_MEM_USE_HOST_PTR`.
+--
 
 == Revision History
 
@@ -1062,6 +1212,14 @@ This query was added in revision G.
 |E|2019-07-22|Ben Ashbaugh|Allocation properties should be const.
 |F|2019-07-26|Ben Ashbaugh|Removed DEFAULT mem alloc flag.
 |G|2019-08-23|Ben Ashbaugh|Added mem alloc query for associated device.
+|H|2019-10-11|Ben Ashbaugh|Added initial list and description of error codes.
+|I|2019-11-14|Ben Ashbaugh|Switched from a memset to a memfill API.
+|J|2019-11-18|Ben Ashbaugh|Updated a few more error conditions.
+|K|2019-12-18|Krzysztof Gibala|Updated write combine description.
+|L|2020-01-15|Ben Ashbaugh|Added invalid arg case to setkernelarg API.
+|M|2020-01-17|Ben Ashbaugh|Minor name changes, removed const from memfree API.
+|N|2020-01-22|Ben Ashbaugh|Updated write combine description.
+|O|2020-01-23|Ben Ashbaugh|Added aliases for USM migration flags.
 |========================================
 
 //************************************************************************

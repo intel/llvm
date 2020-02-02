@@ -78,7 +78,7 @@ public:
 
   const T &getProp() const {
     assert(true == m_Initialized && "Property was not set!");
-    return *(T *)m_Mem;
+    return *(const T *)m_Mem;
   }
   bool isInitialized() const { return m_Initialized; }
 
