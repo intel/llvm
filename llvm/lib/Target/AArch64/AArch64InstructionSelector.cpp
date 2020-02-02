@@ -990,6 +990,31 @@ static void changeFCMPPredToAArch64CC(CmpInst::Predicate P,
   }
 }
 
+/// Return a register which can be used as a bit to test in a TB(N)Z.
+static Register getTestBitReg(Register Reg, MachineRegisterInfo &MRI) {
+  assert(Reg.isValid() && "Expected valid register!");
+  while (MachineInstr *MI = getDefIgnoringCopies(Reg, MRI)) {
+    unsigned Opc = MI->getOpcode();
+    Register NextReg;
+
+    // (tbz (any_ext x), b) -> (tbz x, b) if we don't use the extended bits.
+    //
+    // (tbz (trunc x), b) -> (tbz x, b) is always safe, because the bit number
+    // on the truncated x is the same as the bit number on x.
+    if (Opc == TargetOpcode::G_ANYEXT || Opc == TargetOpcode::G_ZEXT ||
+        Opc == TargetOpcode::G_TRUNC)
+      NextReg = MI->getOperand(1).getReg();
+
+    // Did we find something worth folding?
+    if (!NextReg.isValid() || !MRI.hasOneUse(NextReg))
+      break;
+
+    // NextReg is worth folding. Keep looking.
+    Reg = NextReg;
+  }
+  return Reg;
+}
+
 bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
     MachineInstr *AndInst, int64_t CmpConstant, const CmpInst::Predicate &Pred,
     MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const {
@@ -1018,7 +1043,6 @@ bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
     return false;
 
   MachineRegisterInfo &MRI = *MIB.getMRI();
-  Register TestReg = AndInst->getOperand(1).getReg();
 
   // Only support EQ and NE. If we have LT, then it *is* possible to fold, but
   // we don't want to do this. When we have an AND and LT, we need a TST/ANDS,
@@ -1034,7 +1058,11 @@ bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
       getConstantVRegValWithLookThrough(AndInst->getOperand(2).getReg(), MRI);
   if (!MaybeBit || !isPowerOf2_64(MaybeBit->Value))
     return false;
+
+  // Try to optimize the TB(N)Z.
   uint64_t Bit = Log2_64(static_cast<uint64_t>(MaybeBit->Value));
+  Register TestReg = AndInst->getOperand(1).getReg();
+  TestReg = getTestBitReg(TestReg, MRI);
 
   // Choose the correct TB(N)Z opcode to use.
   unsigned Opc = 0;
@@ -1397,6 +1425,10 @@ bool AArch64InstructionSelector::convertPtrAddToAdd(
   Register AddOp2Reg = I.getOperand(2).getReg();
   const LLT PtrTy = MRI.getType(DstReg);
   if (PtrTy.getAddressSpace() != 0)
+    return false;
+
+  // Only do this for scalars for now.
+  if (PtrTy.isVector())
     return false;
 
   MachineIRBuilder MIB(I);

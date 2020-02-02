@@ -2191,6 +2191,9 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
   if (TrailingRequiresClause) {
     EnterExpressionEvaluationContext ConstantEvaluated(
         SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+    auto *ThisContext = dyn_cast_or_null<CXXRecordDecl>(Owner);
+    Sema::CXXThisScopeRAII ThisScope(SemaRef, ThisContext,
+                                     D->getMethodQualifiers(), ThisContext);
     ExprResult SubstRC = SemaRef.SubstExpr(TrailingRequiresClause,
                                            TemplateArgs);
     if (SubstRC.isInvalid())

@@ -1320,18 +1320,16 @@ bool SITargetLowering::allowsMisalignedMemoryAccesses(
 }
 
 EVT SITargetLowering::getOptimalMemOpType(
-    uint64_t Size, unsigned DstAlign, unsigned SrcAlign, bool IsMemset,
-    bool ZeroMemset, bool MemcpyStrSrc,
-    const AttributeList &FuncAttributes) const {
+    const MemOp &Op, const AttributeList &FuncAttributes) const {
   // FIXME: Should account for address space here.
 
   // The default fallback uses the private pointer size as a guess for a type to
   // use. Make sure we switch these to 64-bit accesses.
 
-  if (Size >= 16 && DstAlign >= 4) // XXX: Should only do for global
+  if (Op.Size >= 16 && Op.DstAlign >= 4) // XXX: Should only do for global
     return MVT::v4i32;
 
-  if (Size >= 8 && DstAlign >= 4)
+  if (Op.Size >= 8 && Op.DstAlign >= 4)
     return MVT::v2i32;
 
   // Use the default.
@@ -5622,7 +5620,7 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
 }
 
 SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
-                                       SDValue Offset, SDValue GLC, SDValue DLC,
+                                       SDValue Offset, SDValue CachePolicy,
                                        SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
 
@@ -5640,8 +5638,7 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
     SDValue Ops[] = {
         Rsrc,
         Offset, // Offset
-        GLC,
-        DLC,
+        CachePolicy
     };
 
     // Widen vec3 load to vec4.
@@ -5675,7 +5672,6 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
   }
 
   SDVTList VTList = DAG.getVTList({LoadVT, MVT::Glue});
-  unsigned CachePolicy = cast<ConstantSDNode>(GLC)->getZExtValue();
   SDValue Ops[] = {
       DAG.getEntryNode(),                               // Chain
       Rsrc,                                             // rsrc
@@ -5683,7 +5679,7 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
       {},                                               // voffset
       {},                                               // soffset
       {},                                               // offset
-      DAG.getTargetConstant(CachePolicy, DL, MVT::i32), // cachepolicy
+      CachePolicy,                                      // cachepolicy
       DAG.getTargetConstant(0, DL, MVT::i1),            // idxen
   };
 
@@ -5867,7 +5863,7 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     if (!parseCachePolicy(Op.getOperand(3), DAG, &GLC, nullptr,
                           IsGFX10 ? &DLC : nullptr))
       return Op;
-    return lowerSBuffer(VT, DL, Op.getOperand(1), Op.getOperand(2), GLC, DLC,
+    return lowerSBuffer(VT, DL, Op.getOperand(1), Op.getOperand(2), Op.getOperand(3),
                         DAG);
   }
   case Intrinsic::amdgcn_fdiv_fast:

@@ -312,7 +312,8 @@ class AnyTypeOf<list<Type> allowedTypes, string description = ""> : Type<
 def AnyInteger : Type<CPred<"$_self.isa<IntegerType>()">, "integer">;
 
 // Index type.
-def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">;
+def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">,
+            BuildableType<"getIndexType()">;
 
 // Integer type of a specific width.
 class I<int width>
@@ -1578,6 +1579,9 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
 
   // Custom printer.
   code printer = ?;
+
+  // Custom assembly format.
+  string assemblyFormat = ?;
 
   // Custom verifier.
   code verifier = ?;

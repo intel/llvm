@@ -325,9 +325,10 @@ bool Sema::CheckFunctionConstraints(const FunctionDecl *FD,
                                     ConstraintSatisfaction &Satisfaction,
                                     SourceLocation UsageLoc) {
   const Expr *RC = FD->getTrailingRequiresClause();
-  assert(!RC->isInstantiationDependent() &&
-         "CheckFunctionConstraints can only be used with functions with "
-         "non-dependent constraints");
+  if (RC->isInstantiationDependent()) {
+    Satisfaction.IsSatisfied = true;
+    return false;
+  }
   // We substitute with empty arguments in order to rebuild the atomic
   // constraint in a constant-evaluated context.
   // FIXME: Should this be a dedicated TreeTransform?
@@ -675,6 +676,10 @@ static bool substituteParameterMappings(Sema &S, NormalizedConstraint &N,
                   ArgsAsWritten->arguments().back().getSourceRange().getEnd()));
   if (S.SubstTemplateArguments(*Atomic.ParameterMapping, MLTAL, SubstArgs))
     return true;
+  Atomic.ParameterMapping.emplace(
+        MutableArrayRef<TemplateArgumentLoc>(
+            new (S.Context) TemplateArgumentLoc[SubstArgs.size()],
+            SubstArgs.size()));
   std::copy(SubstArgs.arguments().begin(), SubstArgs.arguments().end(),
             N.getAtomicConstraint()->ParameterMapping->begin());
   return false;

@@ -269,8 +269,9 @@ def LLVM_AllocaOp :
 def LLVM_GEPOp : LLVM_OneResultOp<"getelementptr", [NoSideEffect]>,
                  Arguments<(ins LLVM_Type:$base, Variadic<LLVM_Type>:$indices)>,
                  LLVM_Builder<"$res = builder.CreateGEP($base, $indices);"> {
-  let parser = [{ return parseGEPOp(parser, result); }];
-  let printer = [{ printGEPOp(p, *this); }];
+  let assemblyFormat = [{
+    $base `[` $indices `]` attr-dict `:` functional-type(operands, results)
+  }];
 }
 def LLVM_LoadOp : LLVM_OneResultOp<"load">, Arguments<(ins LLVM_Type:$addr)>,
                   LLVM_Builder<"$res = builder.CreateLoad($addr);"> {
@@ -494,22 +495,33 @@ def LLVM_UnreachableOp : LLVM_TerminatorOp<"unreachable", []> {
 // https://llvm.org/docs/LangRef.html#linkage-types. The names are equivalent to
 // visible names in the IR rather than to enum values names in llvm::GlobalValue
 // since the latter is easier to change.
-def LinkagePrivate             : LLVM_EnumAttrCase<"Private", "private", 0>;
-def LinkageInternal            : LLVM_EnumAttrCase<"Internal", "internal", 1>;
-def LinkageAvailableExternally : LLVM_EnumAttrCase<"AvailableExternally",
-                                                   "available_externally", 2>;
-def LinkageLinkonce            : LLVM_EnumAttrCase<"Linkonce", "linkonce", 3>;
-def LinkageWeak                : LLVM_EnumAttrCase<"Weak", "weak", 4>;
-def LinkageCommon              : LLVM_EnumAttrCase<"Common", "common", 5>;
-def LinkageAppending           : LLVM_EnumAttrCase<"Appending", "appending", 6>;
-def LinkageExternWeak          : LLVM_EnumAttrCase<"ExternWeak",
-                                                   "extern_weak", 7>;
-def LinkageLinkonceODR         : LLVM_EnumAttrCase<"LinkonceODR",
-                                                   "linkonce_odr", 8>;
-def LinkageWeakODR             : LLVM_EnumAttrCase<"WeakODR", "weak_odr", 9>;
-def LinkageExternal            : LLVM_EnumAttrCase<"External", "external", 10>;
+def LinkagePrivate
+    : LLVM_EnumAttrCase<"Private", "private", "PrivateLinkage", 0>;
+def LinkageInternal
+    : LLVM_EnumAttrCase<"Internal", "internal", "InternalLinkage", 1>;
+def LinkageAvailableExternally
+    : LLVM_EnumAttrCase<"AvailableExternally", "available_externally",
+                        "AvailableExternallyLinkage", 2>;
+def LinkageLinkonce
+    : LLVM_EnumAttrCase<"Linkonce", "linkonce", "LinkOnceAnyLinkage", 3>;
+def LinkageWeak
+    : LLVM_EnumAttrCase<"Weak", "weak", "WeakAnyLinkage", 4>;
+def LinkageCommon
+    : LLVM_EnumAttrCase<"Common", "common", "CommonLinkage", 5>;
+def LinkageAppending
+    : LLVM_EnumAttrCase<"Appending", "appending", "AppendingLinkage", 6>;
+def LinkageExternWeak
+   : LLVM_EnumAttrCase<"ExternWeak", "extern_weak", "ExternalWeakLinkage", 7>;
+def LinkageLinkonceODR
+    : LLVM_EnumAttrCase<"LinkonceODR", "linkonce_odr", "LinkOnceODRLinkage", 8>;
+def LinkageWeakODR
+    : LLVM_EnumAttrCase<"WeakODR", "weak_odr", "WeakODRLinkage", 9>;
+def LinkageExternal
+    : LLVM_EnumAttrCase<"External", "external", "ExternalLinkage", 10>;
+
 def Linkage : LLVM_EnumAttr<
     "Linkage",
+    "::llvm::GlobalValue::LinkageTypes",
     "LLVM linkage types",
     [LinkagePrivate, LinkageInternal, LinkageAvailableExternally,
      LinkageLinkonce, LinkageWeak, LinkageCommon, LinkageAppending,
@@ -541,8 +553,7 @@ def LLVM_AddressOfOp
     GlobalOp getGlobal();
   }];
 
-  let printer = "printAddressOfOp(p, *this);";
-  let parser = "return parseAddressOfOp(parser, result);";
+  let assemblyFormat = "$global_name attr-dict `:` type($res)";
   let verifier = "return ::verify(*this);";
 }
 
@@ -659,23 +670,20 @@ def LLVM_NullOp
     : LLVM_OneResultOp<"mlir.null", [NoSideEffect]>,
       LLVM_Builder<"$res = llvm::ConstantPointerNull::get("
                    "    cast<llvm::PointerType>($_resultType));"> {
-  let parser = [{ return parseNullOp(parser, result); }];
-  let printer = [{ printNullOp(p, *this); }];
+  let assemblyFormat = "attr-dict `:` type($res)";
   let verifier = [{ return ::verify(*this); }];
 }
 
 def LLVM_UndefOp : LLVM_OneResultOp<"mlir.undef", [NoSideEffect]>,
                    LLVM_Builder<"$res = llvm::UndefValue::get($_resultType);"> {
-  let parser = [{ return parseUndefOp(parser, result); }];
-  let printer = [{ printUndefOp(p, *this); }];
+  let assemblyFormat = "attr-dict `:` type($res)";
 }
 def LLVM_ConstantOp
     : LLVM_OneResultOp<"mlir.constant", [NoSideEffect]>,
       Arguments<(ins AnyAttr:$value)>,
       LLVM_Builder<"$res = getLLVMConstant($_resultType, $value, $_location);">
 {
-  let parser = [{ return parseConstantOp(parser, result); }];
-  let printer = [{ printConstantOp(p, *this); }];
+  let assemblyFormat = "`(` $value `)` attr-dict `:` type($res)";
 }
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being

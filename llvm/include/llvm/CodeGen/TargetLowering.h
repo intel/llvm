@@ -106,6 +106,49 @@ namespace Sched {
 
 } // end namespace Sched
 
+// MemOp models a memory operation, either memset or memcpy/memmove.
+struct MemOp {
+  // Shared
+  uint64_t Size;
+  unsigned DstAlign; // Specified alignment of the memory operation or zero if
+                     // destination alignment can satisfy any constraint.
+  bool AllowOverlap;
+  // memset only
+  bool IsMemset;   // If setthis memory operation is a memset.
+  bool ZeroMemset; // If set clears out memory with zeros.
+  // memcpy only
+  bool MemcpyStrSrc; // Indicates whether the memcpy source is an in-register
+                     // constant so it does not need to be loaded.
+  unsigned SrcAlign; // Inferred alignment of the source or zero if the memory
+                     // operation does not need to load the value.
+
+  static MemOp Copy(uint64_t Size, bool DstAlignCanChange, unsigned DstAlign,
+                    unsigned SrcAlign, bool IsVolatile,
+                    bool MemcpyStrSrc = false) {
+    return {
+        /*.Size =*/Size,
+        /*.DstAlign =*/DstAlignCanChange ? 0 : DstAlign,
+        /*.AllowOverlap =*/!IsVolatile,
+        /*.IsMemset =*/false,
+        /*.ZeroMemset =*/false,
+        /*.MemcpyStrSrc =*/MemcpyStrSrc,
+        /*.SrcAlign =*/SrcAlign,
+    };
+  }
+  static MemOp Set(uint64_t Size, bool DstAlignCanChange, unsigned DstAlign,
+                   bool IsZeroMemset, bool IsVolatile) {
+    return {
+        /*.Size =*/Size,
+        /*.DstAlign =*/DstAlignCanChange ? 0 : DstAlign,
+        /*.AllowOverlap =*/!IsVolatile,
+        /*.IsMemset =*/true,
+        /*.ZeroMemset =*/IsZeroMemset,
+        /*.MemcpyStrSrc =*/false,
+        /*.SrcAlign =*/0,
+    };
+  }
+};
+
 /// This base class for TargetLowering contains the SelectionDAG-independent
 /// parts that can be used from the rest of CodeGen.
 class TargetLoweringBase {
@@ -131,7 +174,8 @@ public:
     TypeScalarizeVector, // Replace this one-element vector with its element.
     TypeSplitVector,     // Split this vector into two of half the size.
     TypeWidenVector,     // This vector should be widened into a larger vector.
-    TypePromoteFloat     // Replace this float with a larger one.
+    TypePromoteFloat,    // Replace this float with a larger one.
+    TypeSoftPromoteHalf, // Soften half to i16 and use float to do arithmetic.
   };
 
   /// LegalizeKind holds the legalization kind that needs to happen to EVT
@@ -330,6 +374,12 @@ public:
     // The default action for other vectors is to promote
     return TypePromoteInteger;
   }
+
+  // Return true if the half type should be passed around as i16, but promoted
+  // to float around arithmetic. The default behavior is to pass around as
+  // float and convert around loads/stores/bitcasts and other places where
+  // the size matters.
+  virtual bool softPromoteHalfType() const { return false; }
 
   // There are two general methods for expanding a BUILD_VECTOR node:
   //  1. Use SCALAR_TO_VECTOR on the defined scalar values and then shuffle
@@ -1518,29 +1568,17 @@ public:
 
   /// Returns the target specific optimal type for load and store operations as
   /// a result of memset, memcpy, and memmove lowering.
-  ///
-  /// If DstAlign is zero that means it's safe to destination alignment can
-  /// satisfy any constraint. Similarly if SrcAlign is zero it means there isn't
-  /// a need to check it against alignment requirement, probably because the
-  /// source does not need to be loaded. If 'IsMemset' is true, that means it's
-  /// expanding a memset. If 'ZeroMemset' is true, that means it's a memset of
-  /// zero. 'MemcpyStrSrc' indicates whether the memcpy source is constant so it
-  /// does not need to be loaded.  It returns EVT::Other if the type should be
-  /// determined using generic target-independent logic.
+  /// It returns EVT::Other if the type should be determined using generic
+  /// target-independent logic.
   virtual EVT
-  getOptimalMemOpType(uint64_t /*Size*/, unsigned /*DstAlign*/,
-                      unsigned /*SrcAlign*/, bool /*IsMemset*/,
-                      bool /*ZeroMemset*/, bool /*MemcpyStrSrc*/,
+  getOptimalMemOpType(const MemOp &Op,
                       const AttributeList & /*FuncAttributes*/) const {
     return MVT::Other;
   }
 
-
   /// LLT returning variant.
   virtual LLT
-  getOptimalMemOpLLT(uint64_t /*Size*/, unsigned /*DstAlign*/,
-                     unsigned /*SrcAlign*/, bool /*IsMemset*/,
-                     bool /*ZeroMemset*/, bool /*MemcpyStrSrc*/,
+  getOptimalMemOpLLT(const MemOp &Op,
                      const AttributeList & /*FuncAttributes*/) const {
     return LLT();
   }
@@ -3102,14 +3140,8 @@ public:
   /// Return true if the number of memory ops is below the threshold (Limit).
   /// It returns the types of the sequence of memory ops to perform
   /// memset / memcpy by reference.
-  bool findOptimalMemOpLowering(std::vector<EVT> &MemOps,
-                                unsigned Limit, uint64_t Size,
-                                unsigned DstAlign, unsigned SrcAlign,
-                                bool IsMemset,
-                                bool ZeroMemset,
-                                bool MemcpyStrSrc,
-                                bool AllowOverlap,
-                                unsigned DstAS, unsigned SrcAS,
+  bool findOptimalMemOpLowering(std::vector<EVT> &MemOps, unsigned Limit,
+                                const MemOp &Op, unsigned DstAS, unsigned SrcAS,
                                 const AttributeList &FuncAttributes) const;
 
   /// Check to see if the specified operand of the specified instruction is a

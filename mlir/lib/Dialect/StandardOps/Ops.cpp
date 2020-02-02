@@ -350,9 +350,8 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocOp> {
     }
 
     // Create new memref type (which will have fewer dynamic dimensions).
-    auto newMemRefType = MemRefType::get(
-        newShapeConstants, memrefType.getElementType(),
-        memrefType.getAffineMaps(), memrefType.getMemorySpace());
+    MemRefType newMemRefType =
+        MemRefType::Builder(memrefType).setShape(newShapeConstants);
     assert(static_cast<int64_t>(newOperands.size()) ==
            newMemRefType.getNumDynamicDims());
 
@@ -445,29 +444,6 @@ void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 // CallOp
 //===----------------------------------------------------------------------===//
-
-static ParseResult parseCallOp(OpAsmParser &parser, OperationState &result) {
-  FlatSymbolRefAttr calleeAttr;
-  FunctionType calleeType;
-  SmallVector<OpAsmParser::OperandType, 4> operands;
-  auto calleeLoc = parser.getNameLoc();
-  if (parser.parseAttribute(calleeAttr, "callee", result.attributes) ||
-      parser.parseOperandList(operands, OpAsmParser::Delimiter::Paren) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(calleeType) ||
-      parser.addTypesToList(calleeType.getResults(), result.types) ||
-      parser.resolveOperands(operands, calleeType.getInputs(), calleeLoc,
-                             result.operands))
-    return failure();
-
-  return success();
-}
-
-static void print(OpAsmPrinter &p, CallOp op) {
-  p << "call " << op.getAttr("callee") << '(' << op.getOperands() << ')';
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"callee"});
-  p << " : " << op.getCalleeType();
-}
 
 static LogicalResult verify(CallOp op) {
   // Check that the callee attribute was specified.
@@ -1184,19 +1160,6 @@ struct SimplifyDeadDealloc : public OpRewritePattern<DeallocOp> {
 };
 } // end anonymous namespace.
 
-static void print(OpAsmPrinter &p, DeallocOp op) {
-  p << "dealloc " << op.memref() << " : " << op.memref().getType();
-}
-
-static ParseResult parseDeallocOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType memrefInfo;
-  MemRefType type;
-
-  return failure(parser.parseOperand(memrefInfo) ||
-                 parser.parseColonType(type) ||
-                 parser.resolveOperand(memrefInfo, type, result.operands));
-}
-
 static LogicalResult verify(DeallocOp op) {
   if (!op.memref().getType().isa<MemRefType>())
     return op.emitOpError("operand must be a memref");
@@ -1844,20 +1807,6 @@ LogicalResult PrefetchOp::fold(ArrayRef<Attribute> cstOperands,
 // RankOp
 //===----------------------------------------------------------------------===//
 
-static void print(OpAsmPrinter &p, RankOp op) {
-  p << "rank " << op.getOperand() << " : " << op.getOperand().getType();
-}
-
-static ParseResult parseRankOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType operandInfo;
-  Type type;
-  Type indexType = parser.getBuilder().getIndexType();
-  return failure(parser.parseOperand(operandInfo) ||
-                 parser.parseColonType(type) ||
-                 parser.resolveOperand(operandInfo, type, result.operands) ||
-                 parser.addTypeToList(indexType, result.types));
-}
-
 OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
   // Constant fold rank when the rank of the tensor is known.
   auto type = getOperand().getType();
@@ -2503,9 +2452,9 @@ struct ViewOpShapeFolder : public OpRewritePattern<ViewOp> {
                                      rewriter.getContext());
 
     // Create new memref type with constant folded dims and/or offset/strides.
-    auto newMemRefType =
-        MemRefType::get(newShapeConstants, memrefType.getElementType(), {map},
-                        memrefType.getMemorySpace());
+    MemRefType newMemRefType = MemRefType::Builder(memrefType)
+                                   .setShape(newShapeConstants)
+                                   .setAffineMaps({map});
     (void)dynamicOffsetOperandCount; // unused in opt mode
     assert(static_cast<int64_t>(newOperands.size()) ==
            dynamicOffsetOperandCount + newMemRefType.getNumDynamicDims());
@@ -2559,7 +2508,6 @@ static Type inferSubViewResultType(MemRefType memRefType) {
   auto rank = memRefType.getRank();
   int64_t offset;
   SmallVector<int64_t, 4> strides;
-  Type elementType = memRefType.getElementType();
   auto res = getStridesAndOffset(memRefType, strides, offset);
   assert(succeeded(res) && "SubViewOp expected strided memref type");
   (void)res;
@@ -2574,8 +2522,9 @@ static Type inferSubViewResultType(MemRefType memRefType) {
   auto stridedLayout =
       makeStridedLinearLayoutMap(strides, offset, memRefType.getContext());
   SmallVector<int64_t, 4> sizes(rank, ShapedType::kDynamicSize);
-  return MemRefType::get(sizes, elementType, stridedLayout,
-                         memRefType.getMemorySpace());
+  return MemRefType::Builder(memRefType)
+      .setShape(sizes)
+      .setAffineMaps(stridedLayout);
 }
 
 void mlir::SubViewOp::build(Builder *b, OperationState &result, Value source,
@@ -2824,9 +2773,8 @@ public:
       assert(defOp);
       staticShape[size.index()] = cast<ConstantIndexOp>(defOp).getValue();
     }
-    MemRefType newMemRefType = MemRefType::get(
-        staticShape, subViewType.getElementType(), subViewType.getAffineMaps(),
-        subViewType.getMemorySpace());
+    MemRefType newMemRefType =
+        MemRefType::Builder(subViewType).setShape(staticShape);
     auto newSubViewOp = rewriter.create<SubViewOp>(
         subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
         ArrayRef<Value>(), subViewOp.strides(), newMemRefType);
@@ -2875,8 +2823,7 @@ public:
     AffineMap layoutMap = makeStridedLinearLayoutMap(
         staticStrides, resultOffset, rewriter.getContext());
     MemRefType newMemRefType =
-        MemRefType::get(subViewType.getShape(), subViewType.getElementType(),
-                        layoutMap, subViewType.getMemorySpace());
+        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
     auto newSubViewOp = rewriter.create<SubViewOp>(
         subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
         subViewOp.sizes(), ArrayRef<Value>(), newMemRefType);
@@ -2927,8 +2874,7 @@ public:
     AffineMap layoutMap = makeStridedLinearLayoutMap(
         resultStrides, staticOffset, rewriter.getContext());
     MemRefType newMemRefType =
-        MemRefType::get(subViewType.getShape(), subViewType.getElementType(),
-                        layoutMap, subViewType.getMemorySpace());
+        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
     auto newSubViewOp = rewriter.create<SubViewOp>(
         subViewOp.getLoc(), subViewOp.source(), ArrayRef<Value>(),
         subViewOp.sizes(), subViewOp.strides(), newMemRefType);

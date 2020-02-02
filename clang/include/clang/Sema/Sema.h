@@ -499,7 +499,7 @@ public:
   /// The maximum alignment, same as in llvm::Value. We duplicate them here
   /// because that allows us not to duplicate the constants in clang code,
   /// which we must to since we can't directly use the llvm constants.
-  /// The value is verified against llvm here: lib/CodeGen/CGValue.h
+  /// The value is verified against llvm here: lib/CodeGen/CGDecl.cpp
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
@@ -3069,10 +3069,19 @@ public:
                   bool ConsiderCudaAttrs = true,
                   bool ConsiderRequiresClauses = true);
 
+  enum class AllowedExplicit {
+    /// Allow no explicit functions to be used.
+    None,
+    /// Allow explicit conversion functions but not explicit constructors.
+    Conversions,
+    /// Allow both explicit conversion functions and explicit constructors.
+    All
+  };
+
   ImplicitConversionSequence
   TryImplicitConversion(Expr *From, QualType ToType,
                         bool SuppressUserConversions,
-                        bool AllowExplicit,
+                        AllowedExplicit AllowExplicit,
                         bool InOverloadResolution,
                         bool CStyle,
                         bool AllowObjCWritebackConversion);
@@ -7152,7 +7161,7 @@ public:
   /// Get a template argument mapping the given template parameter to itself,
   /// e.g. for X in \c template<int X>, this would return an expression template
   /// argument referencing X.
-  TemplateArgumentLoc getIdentityTemplateArgumentLoc(Decl *Param,
+  TemplateArgumentLoc getIdentityTemplateArgumentLoc(NamedDecl *Param,
                                                      SourceLocation Location);
 
   void translateTemplateArguments(const ASTTemplateArgsPtr &In,

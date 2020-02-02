@@ -60,7 +60,7 @@ private:
   SDValue lowerImage(SDValue Op, const AMDGPU::ImageDimIntrinsicInfo *Intr,
                      SelectionDAG &DAG) const;
   SDValue lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc, SDValue Offset,
-                       SDValue GLC, SDValue DLC, SelectionDAG &DAG) const;
+                       SDValue CachePolicy, SelectionDAG &DAG) const;
 
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
@@ -257,10 +257,7 @@ public:
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *IsFast = nullptr) const override;
 
-  EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign,
-                          unsigned SrcAlign, bool IsMemset,
-                          bool ZeroMemset,
-                          bool MemcpyStrSrc,
+  EVT getOptimalMemOpType(const MemOp &Op,
                           const AttributeList &FuncAttributes) const override;
 
   bool isMemOpUniform(const SDNode *N) const;

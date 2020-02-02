@@ -380,30 +380,6 @@ static LogicalResult verify(GenericOp op) { return verifyGenericOp(op); }
 static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 
 //===----------------------------------------------------------------------===//
-// RangeOp
-//===----------------------------------------------------------------------===//
-
-static void print(OpAsmPrinter &p, RangeOp op) {
-  p << op.getOperationName() << " " << op.min() << ":" << op.max() << ":"
-    << op.step();
-  p.printOptionalAttrDict(op.getAttrs());
-  p << " : " << op.getResult().getType();
-}
-
-static ParseResult parseRangeOp(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 3> rangeInfo(3);
-  RangeType type;
-  auto indexTy = parser.getBuilder().getIndexType();
-  return failure(parser.parseOperand(rangeInfo[0]) || parser.parseColon() ||
-                 parser.parseOperand(rangeInfo[1]) || parser.parseColon() ||
-                 parser.parseOperand(rangeInfo[2]) ||
-                 parser.parseOptionalAttrDict(result.attributes) ||
-                 parser.parseColonType(type) ||
-                 parser.resolveOperands(rangeInfo, indexTy, result.operands) ||
-                 parser.addTypeToList(type, result.types));
-}
-
-//===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
@@ -504,7 +480,7 @@ computeReshapeCollapsedType(MemRefType type,
 
   // Early-exit: if `type` is contiguous, the result must be contiguous.
   if (canonicalizeStridedLayout(type).getAffineMaps().empty())
-    return MemRefType::get(newSizes, type.getElementType(), {});
+    return MemRefType::Builder(type).setShape(newSizes).setAffineMaps({});
 
   // Convert back to int64_t because we don't have enough information to create
   // new strided layouts from AffineExpr only. This corresponds to a case where
@@ -523,7 +499,7 @@ computeReshapeCollapsedType(MemRefType type,
   auto layout =
       makeStridedLinearLayoutMap(intStrides, intOffset, type.getContext());
   return canonicalizeStridedLayout(
-      MemRefType::get(newSizes, type.getElementType(), {layout}));
+      MemRefType::Builder(type).setShape(newSizes).setAffineMaps({layout}));
 }
 
 /// Helper functions assert Attribute of the proper type in attr and returns the
@@ -583,28 +559,6 @@ void mlir::linalg::ReshapeOp::build(
                       b->getAffineMapArrayAttr(maps));
 }
 
-static void print(OpAsmPrinter &p, ReshapeOp op) {
-  p << op.getOperationName() << " " << op.view() << " " << op.reassociation();
-  p.printOptionalAttrDict(op.getAttrs(),
-                          {ReshapeOp::getReassociationAttrName()});
-  p << " : " << op.getViewType() << " into " << op.getResult().getType();
-}
-
-static ParseResult parseReshapeOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType view;
-  ArrayAttr reassociation;
-  MemRefType type, resultType;
-  return failure(parser.parseOperand(view) ||
-                 parser.parseAttribute(reassociation,
-                                       ReshapeOp::getReassociationAttrName(),
-                                       result.attributes) ||
-                 parser.parseOptionalAttrDict(result.attributes) ||
-                 parser.parseColonType(type) ||
-                 parser.parseKeywordType("into", resultType) ||
-                 parser.resolveOperand(view, type, result.operands) ||
-                 parser.addTypeToList(resultType, result.types));
-}
-
 static LogicalResult verify(ReshapeOp op) {
   MemRefType expandedType = op.getViewType();
   MemRefType collapsedType = op.getResult().getType().cast<MemRefType>();
@@ -659,11 +613,10 @@ void mlir::linalg::SliceOp::build(Builder *b, OperationState &result,
   unsigned rank = memRefType.getRank();
   // TODO(ntv): propagate static size and stride information when available.
   SmallVector<int64_t, 4> sizes(rank, -1); // -1 encodes dynamic size.
-  Type elementType = memRefType.getElementType();
-  result.addTypes({MemRefType::get(
-      sizes, elementType,
-      {makeStridedLinearLayoutMap(strides, offset, b->getContext())},
-      memRefType.getMemorySpace())});
+  result.addTypes({MemRefType::Builder(memRefType)
+                       .setShape(sizes)
+                       .setAffineMaps(makeStridedLinearLayoutMap(
+                           strides, offset, b->getContext()))});
 }
 
 static void print(OpAsmPrinter &p, SliceOp op) {
@@ -744,8 +697,8 @@ void mlir::linalg::TransposeOp::build(Builder *b, OperationState &result,
   auto map = makeStridedLinearLayoutMap(strides, offset, b->getContext());
   map = permutationMap ? map.compose(permutationMap) : map;
   // Compute result type.
-  auto resultType = MemRefType::get(sizes, memRefType.getElementType(), map,
-                                    memRefType.getMemorySpace());
+  MemRefType resultType =
+      MemRefType::Builder(memRefType).setShape(sizes).setAffineMaps(map);
 
   build(b, result, resultType, view, attrs);
   result.addAttribute(TransposeOp::getPermutationAttrName(), permutation);
@@ -838,43 +791,6 @@ static LogicalResult verify(YieldOp op) {
 }
 
 /////// Operations corresponding to library calls defined with Tablegen ////////
-// For such operations correspond to library calls (i.e. defined in
-// LinalgStructuredOps.td), we define an overloaded `print` function and a
-// parse`className` function.
-
-// A LinalgStructuredOp prints as:
-//
-// ```mlir
-//   concrete_op_name (ssa-inputs, ssa-outputs) : view-types
-// ```
-//
-// for example:
-//
-// ```
-//   linalg.matmul(%0, %1, %2) :
-//     memref<?x?xf32, stride_specification>,
-//     memref<?x?xf32, stride_specification>,
-//     memref<?x?xf32, stride_specification>
-// ```
-//
-// Where %0, %1 and %2 are ssa-values of type MemRefType with strides.
-static void printLinalgStructuredOp(OpAsmPrinter &p, Operation *op) {
-  assert(op->getAbstractOperation() && "unregistered operation");
-  p << op->getName().getStringRef() << "(" << op->getOperands() << ")";
-  p.printOptionalAttrDict(op->getAttrs());
-  p << " : " << op->getOperandTypes();
-}
-
-static ParseResult parseLinalgStructuredOp(OpAsmParser &parser,
-                                           OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 3> ops;
-  SmallVector<Type, 3> types;
-  return failure(
-      parser.parseOperandList(ops, OpAsmParser::Delimiter::Paren) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonTypeList(types) ||
-      parser.resolveOperands(ops, types, parser.getNameLoc(), result.operands));
-}
 
 static LogicalResult verify(FillOp op) {
   auto viewType = op.getOutputShapedType(0);
