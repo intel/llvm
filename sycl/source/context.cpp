@@ -15,7 +15,7 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
-
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -37,13 +37,27 @@ context::context(const vector_class<device> &DeviceList,
   if (DeviceList.empty()) {
     throw invalid_parameter_error("DeviceList is empty.");
   }
-  if (DeviceList[0].is_host())
-    impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler);
-  else
-    // TODO also check that devices belongs to the same platform
-    impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler);
+  auto NonHostDeviceIter = std::find_if_not(
+      DeviceList.begin(), DeviceList.end(),
+      [&](const device &CurrentDevice) { return CurrentDevice.is_host(); });
+  if (NonHostDeviceIter == DeviceList.end())
+    impl =
+        std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler);
+  else {
+    const device &NonHostDevice = *NonHostDeviceIter;
+    const auto &NonHostPlatform = NonHostDevice.get_platform().get();
+    if (std::any_of(DeviceList.begin(), DeviceList.end(),
+                    [&](const device &CurrentDevice) {
+                        return (CurrentDevice.is_host() ||
+                                (CurrentDevice.get_platform().get() !=
+                                 NonHostPlatform));
+                    }))
+      throw invalid_parameter_error(
+          "Can't add devices across platforms to a single context.");
+    else
+      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler);
+  }
 }
-
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   impl = std::make_shared<detail::context_impl>(
           detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler);
