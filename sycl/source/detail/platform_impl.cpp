@@ -62,7 +62,7 @@ struct DevDescT {
 };
 
 static std::vector<DevDescT> getWhiteListDesc() {
-  const char *str = SYCLConfig<SYCL_DEVICE_ALLOW_LIST>::get();
+  const char *str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
   if (!str)
     return {};
 
@@ -217,7 +217,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                         NumDevices, PiDevices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
-  if (SYCLConfig<SYCL_DEVICE_ALLOW_LIST>::get())
+  if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterWhiteList(PiDevices, MPlatform);
 
   std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
