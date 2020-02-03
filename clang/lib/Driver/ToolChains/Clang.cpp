@@ -6909,16 +6909,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   const char *InputFileName = Input.getFilename();
   bool IsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  types::ID InputType(Input.getType());
 
   // For Linux, we have initial support for fat archives (archives which
   // contain bundled objects). We will perform partial linking against the
   // specific offload target archives which will be sent to the unbundler to
   // produce a list of target objects.
   // FIXME: This should be a separate job in the toolchain.
-  if (!IsMSVCEnv && (Input.getType() == types::TY_Archive ||
-       Input.getType() == types::TY_WholeArchive ||
-       Input.getType() == types::TY_Object) &&
-      TCArgs.hasArg(options::OPT_offload_lib_Group)) {
+  if (!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group) &&
+      (types::isArchive(InputType) || InputType == types::TY_Object)) {
     TypeArg = "oo";
     ArgStringList LinkArgs;
     LinkArgs.push_back("-r");
@@ -6951,8 +6950,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(std::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
-  } else if (Input.getType() == types::TY_FPGA_AOCX ||
-             Input.getType() == types::TY_FPGA_AOCR) {
+  } else if (InputType == types::TY_FPGA_AOCX ||
+             InputType == types::TY_FPGA_AOCR) {
     // Override type with archive object
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
@@ -6960,9 +6959,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (Input.getType() == types::TY_FPGA_AOCO ||
-      (IsMSVCEnv && (Input.getType() == types::TY_Archive ||
-        Input.getType() == types::TY_WholeArchive)))
+  if (InputType == types::TY_FPGA_AOCO ||
+      (IsMSVCEnv && types::isArchive(InputType)))
     TypeArg = "aoo";
 
   // Get the type.
@@ -6977,12 +6975,12 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // FPGA device triples are 'transformed' for the bundler when creating
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
-    if (types::isFPGA(Input.getType())) {
+    if (types::isFPGA(InputType)) {
       if (getToolChain().getTriple().getSubArch() ==
               llvm::Triple::SPIRSubArch_fpga &&
           Dep.DependentOffloadKind == Action::OFK_SYCL) {
         llvm::Triple TT;
-        TT.setArchName(types::getTypeName(Input.getType()));
+        TT.setArchName(types::getTypeName(InputType));
         TT.setVendorName("intel");
         TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
@@ -6996,9 +6994,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (Input.getType() == types::TY_Archive ||
-               Input.getType() == types::TY_WholeArchive ||
-               (Input.getType() == types::TY_Object &&
+    } else if (types::isArchive(InputType) || (InputType == types::TY_Object &&
                ((!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group)) ||
                 (TCArgs.hasArg(options::OPT_fintelfpga) &&
                  TCArgs.hasArg(options::OPT_fsycl_link_EQ))))) {

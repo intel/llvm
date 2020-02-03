@@ -235,6 +235,17 @@ bool types::isFPGA(ID Id) {
   }
 }
 
+bool types::isArchive(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+
+  case TY_Archive:
+  case TY_WholeArchive:
+    return true;
+  }
+}
+
 bool types::isSrcFile(ID Id) {
   return Id != TY_Object && getPreprocessedType(Id) != TY_INVALID;
 }
