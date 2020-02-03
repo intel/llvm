@@ -25,7 +25,7 @@ static void replaceSpecialCharacters(std::string &Str) {
 
 int main() {
 
-  // Expected that allowlist filter is not set
+  // Expected that the allowlist filter is not set
   if (getenv("PRINT_PLATFORM_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms())
       if (!Platform.is_host()) {
@@ -45,7 +45,7 @@ int main() {
     throw std::runtime_error("Non host device is not found");
   }
 
-  // Expected that  allowlist filter is not set
+  // Expected that the allowlist filter is not set
   if (getenv("PRINT_DEVICE_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms())
       if (!Platform.is_host()) {
@@ -66,7 +66,7 @@ int main() {
     throw std::runtime_error("Non host device is not found");
   }
 
-  // Expected allowlist to be set with result from "PRINT_DEVICE_INFO" run
+  // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
   if (getenv("TEST_DEVICE_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms())
       if (!Platform.is_host()) {
@@ -78,7 +78,7 @@ int main() {
     throw std::runtime_error("Non host device is not found");
   }
 
-  // Expected allowlist to be set but empty
+  // Expected the allowlist to be set but empty
   if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms())
       if (!Platform.is_host())
