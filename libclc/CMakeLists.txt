@@ -212,3 +212,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			PARENT_TARGET libclc-builtins)
 	endforeach( d )
 endforeach( t )
+
+install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+				DESTINATION lib
+				COMPONENT libspirv-builtins
+				FILES_MATCHING PATTERN "libspirv-*")
+
+install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+				DESTINATION lib
+				COMPONENT clc-builtins
+				FILES_MATCHING PATTERN "clc-*")
