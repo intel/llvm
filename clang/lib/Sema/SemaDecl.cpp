@@ -17890,11 +17890,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
-    bool hasAttr = FD->hasAttrs() && llvm::any_of(FD->getAttrs(), [](Attr *A) {
-      return isa<SYCLDeviceAttr>(A) || isa<SYCLKernelAttr>(A);
-    });
-
-    if (!hasAttr)
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
       return FunctionEmissionStatus::Unknown;
 
     // Check whether this function is externally visible -- if so, it's

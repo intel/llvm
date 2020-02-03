@@ -1425,9 +1425,7 @@ static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return true;
 
-  // Otherwise, the function is known-emitted if it's in our set of
-  // known-emitted functions.
-  return S.DeviceKnownEmittedFns.count(FD) > 0;
+  return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
 }
 
 Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
@@ -1481,6 +1479,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   bool NotDefinedNoAttr = !RealCallee->isDefined() &&
       !RealCallee->hasAttr<SYCLDeviceAttr>() &&
       !RealCallee->hasAttr<SYCLKernelAttr>();
+  // Class methods are not defined here even though it may have an inlined body
   bool HasInlineBody = [RealCallee]() {
     if (CXXMethodDecl *D = dyn_cast_or_null<CXXMethodDecl>(RealCallee))
       return D->hasInlineBody();

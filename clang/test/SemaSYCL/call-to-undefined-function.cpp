@@ -22,7 +22,7 @@ void definedTpl() {
 
 template <typename T>
 void undefinedTpl();
-// expected-note@-1 {{'undefinedTpl' declared here}}
+// expected-note@-1 {{'undefinedTpl<int>' declared here}}
 
 template <typename T>
 extern SYCL_EXTERNAL void undefinedExternalTpl();

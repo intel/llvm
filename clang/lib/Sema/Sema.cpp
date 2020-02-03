@@ -1596,10 +1596,9 @@ void Sema::markKnownEmitted(
     S.DeviceKnownEmittedFns[C.Callee] = {C.Caller, C.Loc};
 
     // Add implicit attribute for known-emitted functions
-    if (LangOpts.SYCLIsDevice && C.Callee->isDefined())
-      if (!C.Callee->hasAttr<SYCLDeviceAttr>() &&
-          !C.Callee->hasAttr<SYCLKernelAttr>())
-        C.Callee->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+    if (LangOpts.SYCLIsDevice && C.Callee->isDefined() &&
+        !C.Callee->hasAttr<SYCLDeviceAttr>())
+          C.Callee->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
 
     emitDeferredDiags(S, C.Callee, C.Caller);
 
