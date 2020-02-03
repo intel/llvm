@@ -466,12 +466,12 @@ public:
           FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
         }
       }
-      if (auto *A = FD->getAttr<SYCLIntelUsesGlobalWorkOffsetAttr>()) {
+      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.insert(A);
         } else {
           SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelUsesGlobalWorkOffsetAttr>();
+          FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
         }
       }
 
@@ -1367,7 +1367,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
-        case attr::Kind::SYCLIntelUsesGlobalWorkOffset: {
+        case attr::Kind::SYCLIntelNoGlobalWorkOffset: {
           SYCLKernel->addAttr(A);
           break;
         }
