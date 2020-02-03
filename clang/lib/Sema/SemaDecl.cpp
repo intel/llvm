@@ -17889,6 +17889,28 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
       return FunctionEmissionStatus::Emitted;
   }
 
+  if (getLangOpts().SYCLIsDevice) {
+    bool hasAttr = FD->hasAttrs() && llvm::any_of(FD->getAttrs(), [](Attr *A) {
+      return isa<SYCLDeviceAttr>(A) || isa<SYCLKernelAttr>(A);
+    });
+
+    if (!hasAttr)
+      return FunctionEmissionStatus::Unknown;
+
+    // Check whether this function is externally visible -- if so, it's
+    // known-emitted.
+    //
+    // We have to check the GVA linkage of the function's *definition* -- if we
+    // only have a declaration, we don't know whether or not the function will
+    // be emitted, because (say) the definition could include "inline".
+    FunctionDecl *Def = FD->getDefinition();
+
+    if (Def &&
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
+        && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
+      return FunctionEmissionStatus::Emitted;
+  }
+
   // Otherwise, the function is known-emitted if it's in our set of
   // known-emitted functions.
   return (DeviceKnownEmittedFns.count(FD) > 0)

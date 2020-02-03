@@ -1468,10 +1468,29 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
+  FunctionDecl *RealCallee = Callee;
+
+  if (auto *Templ = RealCallee->getPrimaryTemplate()) {
+    FunctionDecl *TemplFD = Templ->getAsFunction();
+
+    if (TemplFD->isDefined())
+      RealCallee = TemplFD;
+  }
+
   // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  if (!isKnownGoodSYCLDecl(Callee) &&
-      (!Callee->isDefined() && !Callee->hasAttr<SYCLDeviceAttr>()) &&
-      !Callee->getBuiltinID())
+  bool NotDefinedNoAttr = !RealCallee->isDefined() &&
+      !RealCallee->hasAttr<SYCLDeviceAttr>() &&
+      !RealCallee->hasAttr<SYCLKernelAttr>();
+  bool HasInlineBody = [RealCallee]() {
+    if (CXXMethodDecl *D = dyn_cast_or_null<CXXMethodDecl>(RealCallee))
+      return D->hasInlineBody();
+
+    return false;
+  }();
+
+  if (!isKnownGoodSYCLDecl(RealCallee) &&
+      (NotDefinedNoAttr && !HasInlineBody) &&
+      !RealCallee->getBuiltinID())
     DiagKind = getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted
         ? DeviceDiagBuilder::K_ImmediateWithCallStack
         : DeviceDiagBuilder::K_Deferred;

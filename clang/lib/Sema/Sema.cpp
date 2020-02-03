@@ -1594,6 +1594,13 @@ void Sema::markKnownEmitted(
     assert(!IsKnownEmitted(S, C.Callee) &&
            "Worklist should not contain known-emitted functions.");
     S.DeviceKnownEmittedFns[C.Callee] = {C.Caller, C.Loc};
+
+    // Add implicit attribute for known-emitted functions
+    if (LangOpts.SYCLIsDevice && C.Callee->isDefined())
+      if (!C.Callee->hasAttr<SYCLDeviceAttr>() &&
+          !C.Callee->hasAttr<SYCLKernelAttr>())
+        C.Callee->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+
     emitDeferredDiags(S, C.Callee, C.Caller);
 
     // If this is a template instantiation, explore its callgraph as well:
