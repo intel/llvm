@@ -60,7 +60,7 @@ void *aligned_alloc(size_t alignment, size_t size, const queue &q,
 ///
 template <typename T>
 T *malloc_device(size_t Count, const device &Dev, const context &Ctxt) {
-  return static_cast<T *>(malloc_device(Count*sizeof(T), Dev, Ctxt));
+  return static_cast<T *>(malloc_device(Count * sizeof(T), Dev, Ctxt));
 }
 
 template <typename T> T *malloc_device(size_t Count, const queue &Q) {
