@@ -40,7 +40,6 @@ class context_bound;
 namespace queue {
 class enable_profiling;
 class in_order;
-class out_of_order;
 } // namespace queue
 
 namespace detail {
