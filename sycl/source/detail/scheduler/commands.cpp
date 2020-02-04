@@ -144,12 +144,11 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             RT::PiEvent &Event) {
 
   if (!EventImpls.empty()) {
+    std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
     if (Queue->is_host()) {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       auto Plugin = EventImpls[0]->getPlugin();
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     } else {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       auto Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
