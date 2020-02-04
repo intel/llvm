@@ -318,8 +318,9 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
         [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
 
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), PiContext, Img.BuildOptions, PiDevices,
-              ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
+        build(std::move(ProgramManaged), PiContext, Img.CompileOptions,
+              Img.LinkOptions, PiDevices, ContextImpl->getCachedLibPrograms(),
+              LinkDeviceLibs);
 
     return BuiltProgram.release();
   };
@@ -508,7 +509,8 @@ ProgramManager::ProgramManager() {
     ImgPtr->Version = PI_DEVICE_BINARY_VERSION;
     ImgPtr->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
     ImgPtr->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
-    ImgPtr->BuildOptions = "";
+    ImgPtr->CompileOptions = "";
+    ImgPtr->LinkOptions = "";
     ImgPtr->ManifestStart = nullptr;
     ImgPtr->ManifestEnd = nullptr;
     ImgPtr->BinaryStart = Data.release();
@@ -614,19 +616,26 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
 
 ProgramManager::ProgramPtr
 ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
-                      const string_class &Options,
+                      const string_class &CompileOptions,
+                      const string_class &LinkOptions,
                       const std::vector<RT::PiDevice> &Devices,
                       std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
                       bool LinkDeviceLibs) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
-              << Options << ", ... " << Devices.size() << ")\n";
+              << CompileOptions << ", " << LinkOptions << ", ... "
+              << Devices.size() << ")\n";
   }
-  const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
-  if (!Opts)
-    Opts = Options.c_str();
+  const char *CompileOpts = std::getenv("SYCL_PROGRAM_COMPILE_OPTIONS");
+  if (!CompileOpts) {
+    CompileOpts = CompileOptions.c_str();
+  }
+  const char *LinkOpts = std::getenv("SYCL_PROGRAM_LINK_OPTIONS");
+  if (!LinkOpts) {
+    LinkOpts = LinkOptions.c_str();
+  }
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
@@ -634,21 +643,27 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
   }
 
   if (LinkPrograms.empty()) {
+    std::string Opts(CompileOpts);
+    Opts += " ";
+    Opts += LinkOpts;
+
     RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
-        Program.get(), Devices.size(), Devices.data(), Opts, nullptr, nullptr);
+        Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
+        nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get()));
     return Program;
   }
 
   // Include the main program and compile/link everything together
-  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(), Opts,
-                            0, nullptr, nullptr, nullptr, nullptr);
+  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(),
+                            CompileOpts, 0, nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
+
   RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
-      Context, Devices.size(), Devices.data(), Opts, LinkPrograms.size(),
+      Context, Devices.size(), Devices.data(), LinkOpts, LinkPrograms.size(),
       LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
@@ -719,12 +734,14 @@ void ProgramManager::debugDumpBinaryImage(const DeviceImage *Img) const {
   std::cerr << "  --- Image " << Img << "\n";
   if (!Img)
     return;
-  std::cerr << "    Version  : " << (int)Img->Version << "\n";
-  std::cerr << "    Kind     : " << (int)Img->Kind << "\n";
-  std::cerr << "    Format   : " << (int)Img->Format << "\n";
-  std::cerr << "    Target   : " << Img->DeviceTargetSpec << "\n";
-  std::cerr << "    Options  : "
-            << (Img->BuildOptions ? Img->BuildOptions : "NULL") << "\n";
+  std::cerr << "    Version         : " << (int)Img->Version << "\n";
+  std::cerr << "    Kind            : " << (int)Img->Kind << "\n";
+  std::cerr << "    Format          : " << (int)Img->Format << "\n";
+  std::cerr << "    Target          : " << Img->DeviceTargetSpec << "\n";
+  std::cerr << "    Compile options : "
+            << (Img->CompileOptions ? Img->CompileOptions : "NULL") << "\n";
+  std::cerr << "    Link options    : "
+            << (Img->LinkOptions ? Img->LinkOptions : "NULL") << "\n";
   std::cerr << "    Bin size : "
             << ((intptr_t)Img->BinaryEnd - (intptr_t)Img->BinaryStart) << "\n";
   std::cerr << "    Entries  : ";
