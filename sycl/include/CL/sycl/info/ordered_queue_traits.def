@@ -1,3 +1,0 @@
-PARAM_TRAITS_SPEC(ordered_queue, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(ordered_queue, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(ordered_queue, device, cl::sycl::device)

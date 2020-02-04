@@ -92,8 +92,8 @@ event ordered_queue::submit_impl(function_class<void(handler &)> CGH,
   return impl->submit(CGH, impl, secondQueue.impl);
 }
 
-template <info::ordered_queue param>
-typename info::param_traits<info::ordered_queue, param>::return_type
+template <info::queue param>
+typename info::param_traits<info::queue, param>::return_type
 ordered_queue::get_info() const {
   return impl->get_info<param>();
 }
@@ -101,7 +101,7 @@ ordered_queue::get_info() const {
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type ordered_queue::get_info<info::param_type::param>() const;
 
-#include <CL/sycl/info/ordered_queue_traits.def>
+#include <CL/sycl/info/queue_traits.def>
 
 #undef PARAM_TRAITS_SPEC
 

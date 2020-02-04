@@ -278,8 +278,6 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/queue_traits.def>
 
-#include <CL/sycl/info/ordered_queue_traits.def>
-
 #undef PARAM_TRAITS_SPEC
 #undef PARAM_TRAITS_SPEC_WITH_INPUT
 

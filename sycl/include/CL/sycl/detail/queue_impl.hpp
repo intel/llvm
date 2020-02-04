@@ -132,10 +132,6 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  template <info::ordered_queue param>
-  typename info::param_traits<info::ordered_queue, param>::return_type
-  get_info() const;
-
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///

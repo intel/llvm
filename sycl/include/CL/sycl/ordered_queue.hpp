@@ -93,9 +93,8 @@ public:
 
   bool is_host() const;
 
-  template <info::ordered_queue param>
-  typename info::param_traits<info::ordered_queue, param>::return_type
-  get_info() const;
+  template <info::queue param>
+  typename info::param_traits<info::queue, param>::return_type get_info() const;
 
   template <typename T> event submit(T cgf) { return submit_impl(cgf); }
 
