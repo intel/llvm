@@ -50,7 +50,7 @@ int main() {
                               {0, 0, 0},
                               {0, 0, 0},
                               access::mode::read_write,
-                              detail::getSyclObjImpl(Buf),
+                              detail::getSyclObjImpl(Buf).get(),
                               0,
                               0,
                               0};
