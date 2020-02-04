@@ -16,11 +16,6 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
-namespace detail {
-// Helper functions to avoid calls to implementation detail methods.
-pi_device getRawDevice(device &D);
-pi_program getRawProgram(program &P);
-} // namespace detail
 namespace intel {
 
 // This is a preview extension implementation, intended to provide early access

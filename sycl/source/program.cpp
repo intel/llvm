@@ -13,7 +13,12 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
-
+namespace detail {
+pi_program getRawProgram(program &P) {
+  return detail::pi::cast<pi_program>(
+      detail::getSyclObjImpl(P)->getHandleRef());
+}
+} // namespace detail
 program::program(const context &context)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context))) {}

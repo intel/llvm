@@ -23,6 +23,9 @@ class context;
 class device;
 namespace detail {
 class program_impl;
+
+// Helper function to avoid calls to implementation detail methods.
+pi_program getRawProgram(program &P);
 }
 
 enum class program_state { none, compiled, linked };

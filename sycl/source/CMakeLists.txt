@@ -88,7 +88,6 @@ set(SYCL_SOURCES
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
-    "function_pointer.cpp"
     "half_type.cpp"
     "handler.cpp"
     "kernel.cpp"

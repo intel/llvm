@@ -22,6 +22,9 @@ void force_type(info::device_type &t, const info::device_type &ft) {
     throw cl::sycl::invalid_parameter_error("No device of forced type.");
   }
 }
+pi_device getRawDevice(device &D) {
+  return detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef());
+}
 } // namespace detail
 
 device::device() : impl(std::make_shared<detail::device_impl>()) {}

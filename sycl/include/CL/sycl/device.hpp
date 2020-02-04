@@ -21,6 +21,9 @@ namespace sycl {
 class device_selector;
 namespace detail {
 class device_impl;
+
+// Helper function to avoid calls to implementation detail methods.
+pi_device getRawDevice(device &D);
 }
 
 class device {
