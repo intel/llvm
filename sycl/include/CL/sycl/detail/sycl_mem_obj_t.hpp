@@ -16,8 +16,6 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <CL/sycl/detail/event_impl.hpp>
-
 #include <type_traits>
 #include <cstring>
 
