@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+// FIXME do not use internal methods in tests.
+#include <CL/sycl/detail/program_impl.hpp>
 
 namespace RT = cl::sycl::RT;
 namespace detail = cl::sycl::detail;

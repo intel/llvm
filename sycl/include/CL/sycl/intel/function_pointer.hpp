@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
@@ -17,6 +16,11 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
+namespace detail {
+// Helper functions to avoid calls to implementation detail methods.
+pi_device getRawDevice(device &D);
+pi_program getRawProgram(program &P);
+} // namespace detail
 namespace intel {
 
 // This is a preview extension implementation, intended to provide early access
@@ -27,7 +31,7 @@ namespace intel {
 // products. If you are interested in using this feature in your software
 // product, please let us know!
 
-using device_func_ptr_holder_t = cl::sycl::cl_ulong;
+using device_func_ptr_holder_t = cl_ulong;
 
 /// \brief this function performs a cast from device_func_ptr_holder_t type
 /// to the provided function pointer type.
@@ -82,9 +86,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
   PI_CALL(piextGetDeviceFunctionPointer)(
-      detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
-      detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
-      FuncName, &FPtr);
+      detail::getRawDevice(D), detail::getRawProgram(P), FuncName, &FPtr);
 
   return FPtr;
 }
