@@ -668,7 +668,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     Opts += LinkOpts;
 
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), Devices.size(), Devices.data(), Opts.c_str, nullptr,
+        Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
         nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context));
