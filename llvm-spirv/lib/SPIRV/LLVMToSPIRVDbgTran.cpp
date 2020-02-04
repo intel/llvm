@@ -70,10 +70,10 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
   for (const DISubprogram *F : DIF.subprograms())
     transDbgEntry(F);
 
-  for (const DbgDeclareInst *DDI : DbgDeclareIntrinsics)
+  for (const DbgVariableIntrinsic *DDI : DbgDeclareIntrinsics)
     finalizeDebugDeclare(DDI);
 
-  for (const DbgValueInst *DVI : DbgValueIntrinsics)
+  for (const DbgVariableIntrinsic *DVI : DbgValueIntrinsics)
     finalizeDebugValue(DVI);
 
   transLocationInfo();
@@ -81,9 +81,8 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
 
 // llvm.dbg.declare intrinsic.
 
-SPIRVValue *
-LLVMToSPIRVDbgTran::createDebugDeclarePlaceholder(const DbgDeclareInst *DbgDecl,
-                                                  SPIRVBasicBlock *BB) {
+SPIRVValue *LLVMToSPIRVDbgTran::createDebugDeclarePlaceholder(
+    const DbgVariableIntrinsic *DbgDecl, SPIRVBasicBlock *BB) {
   DbgDeclareIntrinsics.push_back(DbgDecl);
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount, getDebugInfoNoneId());
@@ -91,7 +90,8 @@ LLVMToSPIRVDbgTran::createDebugDeclarePlaceholder(const DbgDeclareInst *DbgDecl,
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::Declare, Ops, BB);
 }
 
-void LLVMToSPIRVDbgTran::finalizeDebugDeclare(const DbgDeclareInst *DbgDecl) {
+void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
+    const DbgVariableIntrinsic *DbgDecl) {
   SPIRVValue *V = SPIRVWriter->getTranslatedValue(DbgDecl);
   assert(V && "llvm.dbg.declare intrinsic isn't mapped to a SPIRV instruction");
   assert(V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Declare) &&
@@ -100,7 +100,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(const DbgDeclareInst *DbgDecl) {
     return;
   SPIRVExtInst *DD = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DD->getBasicBlock();
-  llvm::Value *Alloca = DbgDecl->getAddress();
+  llvm::Value *Alloca = DbgDecl->getVariableLocation();
 
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount);
@@ -113,10 +113,9 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(const DbgDeclareInst *DbgDecl) {
 
 // llvm.dbg.value intrinsic.
 
-SPIRVValue *
-LLVMToSPIRVDbgTran::createDebugValuePlaceholder(const DbgValueInst *DbgValue,
-                                                SPIRVBasicBlock *BB) {
-  if (!DbgValue->getValue())
+SPIRVValue *LLVMToSPIRVDbgTran::createDebugValuePlaceholder(
+    const DbgVariableIntrinsic *DbgValue, SPIRVBasicBlock *BB) {
+  if (!DbgValue->getVariableLocation(/* AllowNullOp = */ false))
     return nullptr; // It is pointless without new value
 
   DbgValueIntrinsics.push_back(DbgValue);
@@ -126,7 +125,8 @@ LLVMToSPIRVDbgTran::createDebugValuePlaceholder(const DbgValueInst *DbgValue,
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::Value, Ops, BB);
 }
 
-void LLVMToSPIRVDbgTran::finalizeDebugValue(const DbgValueInst *DbgValue) {
+void LLVMToSPIRVDbgTran::finalizeDebugValue(
+    const DbgVariableIntrinsic *DbgValue) {
   SPIRVValue *V = SPIRVWriter->getTranslatedValue(DbgValue);
   assert(V && "llvm.dbg.value intrinsic isn't mapped to a SPIRV instruction");
   assert(V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Value) &&
@@ -135,7 +135,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(const DbgValueInst *DbgValue) {
     return;
   SPIRVExtInst *DV = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DV->getBasicBlock();
-  Value *Val = DbgValue->getValue();
+  Value *Val = DbgValue->getVariableLocation(/* AllowNullOp = */ false);
 
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
