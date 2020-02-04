@@ -18,13 +18,23 @@
 #include <memory>
 #include <utility>
 
+#ifdef __has_cpp_attribute
+  #if __has_cpp_attribute(deprecated)
+    #define __SYCL_DEPRECATED__ [[deprecated("Replaced by in_order queue property")]]
+  #endif
+#endif
+#ifndef __SYCL_DEPRECATED__
+  #define __SYCL_DEPRECATED__
+#endif
+
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declaration
 class context;
 class device;
-class ordered_queue {
+
+class __SYCL_DEPRECATED__ ordered_queue {
 public:
   explicit ordered_queue(const property_list &propList = {})
       : ordered_queue(default_selector(), async_handler{}, propList) {}
@@ -37,7 +47,6 @@ public:
                 const property_list &propList = {})
       : ordered_queue(deviceSelector.select_device(), async_handler{},
                       propList) {}
-
   ordered_queue(const device_selector &deviceSelector,
                 const async_handler &asyncHandler,
                 const property_list &propList = {})
@@ -170,6 +179,8 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
+
+#undef __SYCL_DEPRECATED__
 
 } // namespace sycl
 } // namespace cl
