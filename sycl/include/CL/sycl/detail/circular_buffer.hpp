@@ -85,6 +85,10 @@ public:
   void clear() { MValues.clear(); }
 
 private:
+  // Deque is used as the underlying container for double-ended push/pop
+  // operations and built-in iterator support. Frequent memory allocations
+  // and deallocations are a concern, switching to an array/vector might be a
+  // worthwhile optimization.
   std::deque<T> MValues;
   const size_t MCapacity;
 };

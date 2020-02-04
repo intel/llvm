@@ -156,6 +156,7 @@ void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
                                         : Record->MWriteLeaves};
   if (Leaves.full()) {
     Command *OldLeaf = Leaves.front();
+    // TODO this is a workaround for duplicate leaves, remove once fixed
     if (OldLeaf == Cmd)
       return;
     // Add the old leaf as a dependency for the new one by duplicating one of
