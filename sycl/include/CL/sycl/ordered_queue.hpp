@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -33,8 +32,12 @@ namespace sycl {
 // Forward declaration
 class context;
 class device;
+namespace detail {
+class queue_impl;
+}
 
 class __SYCL_DEPRECATED__ ordered_queue {
+
 public:
   explicit ordered_queue(const property_list &propList = {})
       : ordered_queue(default_selector(), async_handler{}, propList) {}
@@ -60,10 +63,7 @@ public:
 
   ordered_queue(const context &syclContext,
                 const device_selector &deviceSelector,
-                const property_list &propList = {})
-      : ordered_queue(syclContext, deviceSelector,
-                      detail::getSyclObjImpl(syclContext)->get_async_handler(),
-                      propList) {}
+                const property_list &propList = {});
 
   ordered_queue(const context &syclContext,
                 const device_selector &deviceSelector,
@@ -85,47 +85,37 @@ public:
 
   bool operator!=(const ordered_queue &rhs) const { return !(*this == rhs); }
 
-  cl_command_queue get() const { return impl->get(); }
+  cl_command_queue get() const;
 
-  context get_context() const { return impl->get_context(); }
+  context get_context() const;
 
-  device get_device() const { return impl->get_device(); }
+  device get_device() const;
 
-  bool is_host() const { return impl->is_host(); }
+  bool is_host() const;
 
   template <info::ordered_queue param>
   typename info::param_traits<info::ordered_queue, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  get_info() const;
 
-  template <typename T> event submit(T cgf) { return impl->submit(cgf, impl); }
+  template <typename T> event submit(T cgf) { return submit_impl(cgf); }
 
   template <typename T> event submit(T cgf, ordered_queue &secondaryQueue) {
-    return impl->submit(cgf, impl, secondaryQueue.impl);
+    return submit_impl(cgf, secondaryQueue);
   }
 
-  void wait() { impl->wait(); }
+  void wait();
 
-  void wait_and_throw() { impl->wait_and_throw(); }
+  void wait_and_throw();
 
-  void throw_asynchronous() { impl->throw_asynchronous(); }
+  void throw_asynchronous();
 
-  template <typename propertyT> bool has_property() const {
-    return impl->has_property<propertyT>();
-  }
+  template <typename propertyT> bool has_property() const;
 
-  template <typename propertyT> propertyT get_property() const {
-    return impl->get_property<propertyT>();
-  }
+  template <typename propertyT> propertyT get_property() const;
 
-  event memset(void *ptr, int value, size_t count) {
-    return impl->memset(impl, ptr, value, count);
-  }
+  event memset(void *ptr, int value, size_t count);
 
-  event memcpy(void *dest, const void *src, size_t count) {
-    return impl->memcpy(impl, dest, src, count);
-  }
+  event memcpy(void *dest, const void *src, size_t count);
 
   event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &cgh) { cgh.prefetch(Ptr, Count); });
@@ -175,9 +165,13 @@ public:
   }
 
 private:
-  std::shared_ptr<detail::queue_impl> impl;
+  shared_ptr_class<detail::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+
+  event submit_impl(function_class<void(handler &)> CGH);
+  event submit_impl(function_class<void(handler &)> CGH,
+                    ordered_queue &secondQueue);
 };
 
 #undef __SYCL_DEPRECATED__

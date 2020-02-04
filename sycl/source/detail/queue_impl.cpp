@@ -27,11 +27,24 @@ template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   return result;
 }
 
+template <>
+cl_uint queue_impl::get_info<info::ordered_queue::reference_count>() const {
+  return get_info<info::queue::reference_count>();
+}
+
 template <> context queue_impl::get_info<info::queue::context>() const {
   return get_context();
 }
 
+template <> context queue_impl::get_info<info::ordered_queue::context>() const {
+  return get_context();
+}
+
 template <> device queue_impl::get_info<info::queue::device>() const {
+  return get_device();
+}
+
+template <> device queue_impl::get_info<info::ordered_queue::device>() const {
   return get_device();
 }
 
