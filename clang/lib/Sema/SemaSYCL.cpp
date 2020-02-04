@@ -1450,7 +1450,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   // Errors in unevaluated context don't need to be generated,
   // so we can safely skip them.
   if (isUnevaluatedContext() || isConstantEvaluated())
-    return;
+    return true;
 
   FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
 

@@ -93,18 +93,39 @@ struct TplWithTplMethod2<T, true> {
   }
 };
 
+void forwardDeclFn();
+void forwardDeclFn2();
+
+void useFwDeclFn() {
+  forwardDeclFn();
+  forwardDeclFn2();
+}
+
+void forwardDeclFn() {
+  // empty
+}
+
 int main() {
   kernel_single_task<class CallToUndefinedFnTester>([]() {
+    // simple functions
     defined();
     undefinedExternal();
     undefined();
     // expected-error@-1 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
 
+    // templated functions
     definedTpl<int>();
     undefinedExternalTpl<int>();
     undefinedTpl<int>();
     // expected-error@-1 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
 
+    // partially specialized template function
+    definedPartialTpl<int, false>();
+    definedPartialTpl<int, true>();
+    definedPartialTpl<char, false>();
+    definedPartialTpl<char, true>();
+
+    // template class with specialization
     {
       Tpl<int, false> tpl;
       tpl.defined();
@@ -115,6 +136,7 @@ int main() {
       tpl.defined();
     }
 
+    // template class with template method, both have specializations.
     {
       TplWithTplMethod<int, false> tpl;
       tpl.defined<char, false>();
@@ -147,9 +169,13 @@ int main() {
       tpl.defined<int, true>();
     }
 
-    definedPartialTpl<int, false>();
-    definedPartialTpl<int, true>();
-    definedPartialTpl<char, false>();
-    definedPartialTpl<char, true>();
+    // forward-declared function
+    useFwDeclFn();
+    forwardDeclFn();
+    forwardDeclFn2();
   });
+}
+
+void forwardDeclFn2() {
+  // empty
 }

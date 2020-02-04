@@ -1597,8 +1597,11 @@ void Sema::markKnownEmitted(
 
     // Add implicit attribute for known-emitted functions
     if (LangOpts.SYCLIsDevice && C.Callee->isDefined() &&
-        !C.Callee->hasAttr<SYCLDeviceAttr>())
+        !C.Callee->hasAttr<SYCLDeviceAttr>()) {
           C.Callee->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+
+          addSyclDeviceDecl(C.Callee);
+      }
 
     emitDeferredDiags(S, C.Callee, C.Caller);
 
