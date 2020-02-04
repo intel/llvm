@@ -89,7 +89,7 @@ public:
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
-  /// Constructs a SYCL queue instance with an asunc_handler that is associated
+  /// Constructs a SYCL queue instance with an async_handler that is associated
   /// with the context provided, using the device returned by the device
   /// selector.
   ///
@@ -242,7 +242,7 @@ public:
 
   /// single_task version with a kernel represented as a lambda.
   ///
-  /// @param DepEvent is an event that specifies the kernel dependences
+  /// @param DepEvent is an event that specifies the kernel dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent, KernelType KernelFunc) {
@@ -254,7 +254,7 @@ public:
 
   /// single_task version with a kernel represented as a lambda.
   ///
-  /// @param DepEvents is a vector of events that specify the kernel dependences
+  /// @param DepEvents is a vector of events that specify the kernel dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const vector_class<event> &DepEvents,
@@ -283,7 +283,7 @@ public:
   /// specifies global size only.
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
-  /// @param DepEvent is an event that specifies the kernel dependences
+  /// @param DepEvent is an event that specifies the kernel dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -301,7 +301,7 @@ public:
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param DepEvents is a vector of events that specifies the kernel
-  /// dependences
+  /// dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -336,7 +336,7 @@ public:
   ///
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param WorkItemOffset specifies the offset for each work item id
-  /// @param DepEvent is an event that specifies the kernel dependences
+  /// @param DepEvent is an event that specifies the kernel dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -355,7 +355,7 @@ public:
   /// @param NumWorkItems is a range that specifies the work space of the kernel
   /// @param WorkItemOffset specifies the offset for each work item id
   /// @param DepEvents is a vector of events that specifies the kernel
-  /// dependences
+  /// dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -388,7 +388,7 @@ public:
   ///
   /// @param ExecutionRange is a range that specifies the work space of the
   /// kernel
-  /// @param DepEvent is an event that specifies the kernel dependences
+  /// @param DepEvent is an event that specifies the kernel dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
@@ -407,7 +407,7 @@ public:
   /// @param ExecutionRange is a range that specifies the work space of the
   /// kernel
   /// @param DepEvents is a vector of events that specifies the kernel
-  /// dependences
+  /// dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
