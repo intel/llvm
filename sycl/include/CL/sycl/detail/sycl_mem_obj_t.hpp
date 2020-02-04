@@ -16,8 +16,8 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <type_traits>
 #include <cstring>
+#include <type_traits>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
