@@ -1,0 +1,29 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+#define DECL(TYPE, TYPE_MANGLED, AS, AS_MANGLED) \
+_CLC_DECL TYPE _Z18__spirv_AtomicLoadPU3##AS_MANGLED##K##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskE( \
+    volatile AS const TYPE *, enum Scope, enum MemorySemanticsMask);
+
+#define DECL_AS(TYPE, TYPE_MANGLED) \
+DECL(TYPE, TYPE_MANGLED, global, AS1) \
+DECL(TYPE, TYPE_MANGLED, local, AS3)
+
+DECL_AS(int, i)
+DECL_AS(unsigned int, j)
+
+#ifdef cl_khr_int64_base_atomics
+DECL_AS(long, l)
+DECL_AS(unsigned long, m)
+DECL_AS(long, x)
+DECL_AS(unsigned long, y)
+#endif
+
+#undef DECL_AS
+#undef DECL
