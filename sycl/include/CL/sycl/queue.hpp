@@ -254,7 +254,8 @@ public:
 
   /// single_task version with a kernel represented as a lambda.
   ///
-  /// @param DepEvents is a vector of events that specify the kernel dependencies
+  /// @param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// @param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const vector_class<event> &DepEvents,
