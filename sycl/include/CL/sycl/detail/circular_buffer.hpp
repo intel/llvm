@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+#include <cstddef>
 #include <deque>
 #include <utility>
 
@@ -21,7 +22,7 @@ namespace detail {
 // new data overwrites the old.
 template <typename T> class CircularBuffer {
 public:
-  explicit CircularBuffer(size_t Capacity) : MCapacity{Capacity} {};
+  explicit CircularBuffer(std::size_t Capacity) : MCapacity{Capacity} {};
 
   using value_type = T;
   using pointer = T *;
@@ -48,13 +49,13 @@ public:
 
   const_reference back() const { return MValues.back(); }
 
-  reference operator[](size_t Idx) { return MValues[Idx]; }
+  reference operator[](std::size_t Idx) { return MValues[Idx]; }
 
-  const_reference operator[](size_t Idx) const { return MValues[Idx]; }
+  const_reference operator[](std::size_t Idx) const { return MValues[Idx]; }
 
-  size_t size() const { return MValues.size(); }
+  std::size_t size() const { return MValues.size(); }
 
-  size_t capacity() const { return MCapacity; }
+  std::size_t capacity() const { return MCapacity; }
 
   bool empty() const { return MValues.empty(); };
 
@@ -90,7 +91,7 @@ private:
   // and deallocations are a concern, switching to an array/vector might be a
   // worthwhile optimization.
   std::deque<T> MValues;
-  const size_t MCapacity;
+  const std::size_t MCapacity;
 };
 
 } // namespace detail

@@ -2,6 +2,7 @@
 // RUN: %t.out
 #include <CL/sycl.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -61,7 +62,7 @@ int main() {
 
   // Create commands that will be added as leaves exceeding the limit by 1
   std::vector<FakeCommand *> LeavesToAdd;
-  for (size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
+  for (std::size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
     LeavesToAdd.push_back(
         new FakeCommand(detail::getSyclObjImpl(Queue), FakeReq));
   }
@@ -79,7 +80,7 @@ int main() {
   const detail::CircularBuffer<detail::Command *> &Leaves = Rec->MWriteLeaves;
   assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd.front()) ==
          Leaves.end());
-  for (size_t i = 1; i < LeavesToAdd.size(); ++i) {
+  for (std::size_t i = 1; i < LeavesToAdd.size(); ++i) {
     assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd[i]) !=
            Leaves.end());
   }
