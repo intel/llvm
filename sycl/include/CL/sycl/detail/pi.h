@@ -302,8 +302,11 @@ struct pi_device_binary_struct {
   /// PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
   const char *DeviceTargetSpec;
   /// a null-terminated string; target- and compiler-specific options
-  /// which are suggested to use to "build" program at runtime
-  const char *BuildOptions;
+  /// which are suggested to use to "compile" program at runtime
+  const char *CompileOptions;
+  /// a null-terminated string; target- and compiler-specific options
+  /// which are suggested to use to "link" program at runtime
+  const char *LinkOptions;
   /// Pointer to the manifest data start
   const char *ManifestStart;
   /// Pointer to the manifest data end

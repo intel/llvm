@@ -1425,6 +1425,12 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
 
 void Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   assert(Callee && "Callee may not be null.");
+
+  // Errors in unevaluated context don't need to be generated,
+  // so we can safely skip them.
+  if (isUnevaluatedContext())
+    return;
+
   FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
 
   // If the caller is known-emitted, mark the callee as known-emitted.

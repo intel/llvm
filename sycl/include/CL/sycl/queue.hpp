@@ -421,6 +421,13 @@ public:
     });
   }
 
+  /// Returns whether the queue is in order or OoO
+  ///
+  /// Equivalent to has_property<property::queue::in_order>()
+  bool is_in_order() const {
+    return impl->has_property<property::queue::in_order>();
+  }
+
 private:
   shared_ptr_class<detail::queue_impl> impl;
   template <class Obj>

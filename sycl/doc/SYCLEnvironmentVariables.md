@@ -13,7 +13,8 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_PI_TRACE | Any(*) | Force tracing of PI calls to stderr. |
 | SYCL_BE | PI_OPENCL, PI_OTHER | When SYCL RT is built with PI this controls which plugin to use. Default value is PI_OPENCL. |
 | SYCL_DEVICE_TYPE | One of: CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `cl::sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. |
-| SYCL_PROGRAM_BUILD_OPTIONS | String of valid OpenCL build options | Override build options for all programs. |
+| SYCL_PROGRAM_COMPILE_OPTIONS | String of valid OpenCL compile options | Override compile options for all programs. |
+| SYCL_PROGRAM_LINK_OPTIONS | String of valid OpenCL link options | Override link options for all programs. |
 | SYCL_USE_KERNEL_SPV | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `cl::sycl::runtime_error` exception is thrown.|
 | SYCL_DUMP_IMAGES | Any(*) | Dump device image binaries to file. Control has no effect if SYCL_USE_KERNEL_SPV is set. |
 | SYCL_PRINT_EXECUTION_GRAPH | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
