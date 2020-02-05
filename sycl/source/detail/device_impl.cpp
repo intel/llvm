@@ -57,7 +57,7 @@ device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
 device_impl::~device_impl() {
   if (!MIsRootDevice && !MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
     CHECK_OCL_CODE_NO_EXC(Err);
   }
@@ -76,7 +76,7 @@ cl_device_id device_impl::get() const {
 
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
   // TODO: check that device is an OpenCL interop one
@@ -110,7 +110,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 
   vector_class<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piDevicePartition>(MDevice, Properties,
                                             SubDevicesCount, SubDevices.data(),
                                             &ReturnedSubDevices);

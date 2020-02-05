@@ -47,7 +47,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
 
   RT::PiEvent &CLEvent = Cmd->getEvent()->getHandleRef();
   if (CLEvent) {
-    auto Plugin = Event->getPlugin();
+    const detail::plugin &Plugin = Event->getPlugin();
     Plugin.call<PiApiKind::piEventsWait>(1, &CLEvent);
   }
 }

@@ -68,7 +68,7 @@ program_impl::program_impl(
       NonInterOpToLink |= !Prg->MLinkable;
       Programs.push_back(Prg->MProgram);
     }
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
@@ -82,7 +82,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
 
   // TODO handle the case when cl_program build is in progress
   cl_uint NumDevices;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(
       Program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &NumDevices, nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
@@ -144,7 +144,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host() && MProgram != nullptr) {
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piProgramRelease>(MProgram);
   }
 }
@@ -154,7 +154,7 @@ cl_program program_impl::get() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance");
   }
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
@@ -193,7 +193,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
           Module, get_context(), KernelName);
-      auto Plugin = getPlugin();
+      const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     } else {
       create_pi_program_with_kernel_name(Module, KernelName);
@@ -219,7 +219,7 @@ void program_impl::link(string_class LinkOptions) {
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
         LinkOptions.c_str(), 1, &MProgram, nullptr, nullptr, &MProgram);
@@ -258,7 +258,7 @@ kernel program_impl::get_kernel(string_class KernelName,
 vector_class<vector_class<char>> program_impl::get_binaries() const {
   throw_if_state_is(program_state::none);
   vector_class<vector_class<char>> Result;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   if (!is_host()) {
     vector_class<size_t> BinarySizes(MDevices.size());
     Plugin.call<PiApiKind::piProgramGetInfo>(
@@ -281,7 +281,7 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   assert(!MProgram && "This program already has an encapsulated cl_program");
   const char *Src = Source.c_str();
   size_t Size = Source.size();
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piclProgramCreateWithSource>(
       MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 }
@@ -289,7 +289,7 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
 void program_impl::compile(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
       nullptr, nullptr, nullptr);
@@ -305,7 +305,7 @@ void program_impl::compile(const string_class &Options) {
 void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -329,7 +329,7 @@ vector_class<RT::PiDevice> program_impl::get_pi_devices() const {
 
 bool program_impl::has_cl_kernel(const string_class &KernelName) const {
   size_t Size;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, CL_PROGRAM_KERNEL_NAMES, 0,
                                            nullptr, &Size);
   string_class ClResult(Size, ' ');
@@ -354,7 +354,7 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
     Kernel = ProgramManager::getInstance().getOrCreateKernel(
         MProgramModuleHandle, get_context(), KernelName);
   } else {
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
         MProgram, KernelName.c_str(), &Kernel);
     if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
@@ -403,7 +403,7 @@ cl_uint program_impl::get_info<info::program::reference_count>() const {
     throw invalid_object_error("This instance of program is a host instance");
   }
   cl_uint Result;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, CL_PROGRAM_REFERENCE_COUNT,
                                            sizeof(cl_uint), &Result, nullptr);
   return Result;

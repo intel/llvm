@@ -47,7 +47,7 @@ ProgramManager &ProgramManager::getInstance() {
 
 static RT::PiDevice getFirstDevice(const ContextImplPtr &Context) {
   cl_uint NumDevices = 0;
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
                                            PI_CONTEXT_INFO_NUM_DEVICES,
                                            sizeof(NumDevices), &NumDevices,
@@ -68,7 +68,7 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
                                          const unsigned char *Data,
                                          size_t DataLen) {
   // FIXME: we don't yet support multiple devices with a single binary.
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   cl_uint NumDevices = 0;
   Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
@@ -92,7 +92,7 @@ static RT::PiProgram createSpirvProgram(const ContextImplPtr Context,
                                         const unsigned char *Data,
                                         size_t DataLen) {
   RT::PiProgram Program = nullptr;
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piProgramCreate>(Context->getHandleRef(), Data,
                                           DataLen, &Program);
   return Program;
@@ -309,7 +309,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
     const DeviceImage &Img = getDeviceImage(M, KSId, Context);
 
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    auto Plugin = ContextImpl->getPlugin();
+    const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram Prg = createPIProgram(Img, Context);
     ProgramPtr ProgramManaged(Prg,
                               Plugin.MPlugin.PiFunctionTable.piProgramRelease);
@@ -365,7 +365,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
 
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-    auto Plugin = Ctx->getPlugin();
+    const detail::plugin &Plugin = Ctx->getPlugin();
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                            &Result);
 
@@ -380,7 +380,7 @@ RT::PiProgram
 ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context) {
   RT::PiProgram Program;
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piKernelGetInfo>(
       Kernel, CL_KERNEL_PROGRAM, sizeof(cl_program), &Program, nullptr);
   return Program;
@@ -389,7 +389,7 @@ ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
 string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
                                                 const ContextImplPtr Context) {
   size_t Size = 0;
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, CL_PROGRAM_DEVICES, 0,
                                            nullptr, &Size);
   vector_class<RT::PiDevice> PIDevices(Size / sizeof(RT::PiDevice));
@@ -474,7 +474,7 @@ static RT::PiProgram loadDeviceLibFallback(
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
   }
 
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       LibProg,
       // Assume that Devices contains all devices from Context.
@@ -661,7 +661,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
   }
 
-  auto Plugin = Context->getPlugin();
+  const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
     std::string Opts(CompileOpts);
     Opts += " ";

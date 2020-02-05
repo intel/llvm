@@ -68,7 +68,7 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
 
   // non-Host device
   RT::PiEvent Event = nullptr;
-  auto Plugin = getPlugin();
+  const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
                                                    Advice, &Event);
 

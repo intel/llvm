@@ -94,7 +94,7 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
   EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
   RT::PiEvent &EventHandle = (*Event)->getHandleRef();
-  auto Plugin = (*Event)->getPlugin();
+  const detail::plugin &Plugin = (*Event)->getPlugin();
   Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, CL_COMPLETE);
   delete (Event);
 }
@@ -115,7 +115,7 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
       continue;
     }
     ContextImplPtr EventContext = Event->getContextImpl();
-    auto Plugin = Event->getPlugin();
+    const detail::plugin &Plugin = Event->getPlugin();
     // If contexts don't match - connect them using user event
     if (EventContext != Context && !Context->is_host()) {
 
@@ -146,10 +146,10 @@ void Command::waitForEvents(QueueImplPtr Queue,
   if (!EventImpls.empty()) {
     std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
     if (Queue->is_host()) {
-      auto Plugin = EventImpls[0]->getPlugin();
+      const detail::plugin &Plugin = EventImpls[0]->getPlugin();
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     } else {
-      auto Plugin = Queue->getPlugin();
+      const detail::plugin &Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -848,7 +848,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
       if (!RawEvents.empty()) {
         // Assuming that the events are for devices to the same Plugin.
-        auto Plugin = EventImpls[0]->getPlugin();
+        const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
       DispatchNativeKernel((void *)ArgsBlob.data());
@@ -872,7 +872,7 @@ cl_int ExecCGCommand::enqueueImp() {
       MemLocs.push_back(NextArg);
       NextArg++;
     }
-    auto Plugin = MQueue->getPlugin();
+    const detail::plugin &Plugin = MQueue->getPlugin();
     pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueNativeKernel>(
         MQueue->getHandleRef(), DispatchNativeKernel, (void *)ArgsBlob.data(),
         ArgsBlob.size() * sizeof(ArgsBlob[0]), Buffers.size(), Buffers.data(),
@@ -904,7 +904,7 @@ cl_int ExecCGCommand::enqueueImp() {
         }
       if (!RawEvents.empty()) {
         // Assuming that the events are for devices to the same Plugin.
-        auto Plugin = EventImpls[0]->getPlugin();
+        const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
       ExecKernel->MHostKernel->call(NDRDesc,
@@ -914,7 +914,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();
-    auto Plugin = MQueue->getPlugin();
+    const detail::plugin &Plugin = MQueue->getPlugin();
     RT::PiKernel Kernel = nullptr;
 
     if (nullptr != ExecKernel->MSyclKernel) {

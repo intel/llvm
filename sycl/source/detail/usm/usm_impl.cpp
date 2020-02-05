@@ -43,7 +43,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    auto Plugin = CtxImpl->getPlugin();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
 
     switch (Kind) {
@@ -92,7 +92,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    auto Plugin = CtxImpl->getPlugin();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
     pi_device Id;
 
@@ -132,7 +132,7 @@ void free(void *Ptr, const context &Ctxt) {
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    auto Plugin = CtxImpl->getPlugin();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
 }

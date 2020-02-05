@@ -88,7 +88,7 @@ public:
     MCommandQueue = pi::cast<RT::PiQueue>(PiQueue);
 
     RT::PiDevice Device = nullptr;
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueGetInfo>(MCommandQueue, PI_QUEUE_INFO_DEVICE,
                                            sizeof(Device), &Device, nullptr);
@@ -231,7 +231,7 @@ public:
     RT::PiQueue Queue;
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
-    auto Plugin = getPlugin();
+    const detail::plugin &Plugin = getPlugin();
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
         Context, Device, CreationFlags, &Queue);
 

@@ -23,7 +23,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
   RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
   m_contextToSampler[syclContext] = Sampler;
-  auto Plugin = getSyclObjImpl(syclContext)->getPlugin();
+  const detail::plugin &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   Plugin.call<PiApiKind::piSamplerRetain>(Sampler);
   Plugin.call<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(pi_bool),
@@ -39,7 +39,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 sampler_impl::~sampler_impl() {
   for (auto &Iter : m_contextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
-    auto Plugin = getSyclObjImpl(Iter.first)->getPlugin();
+    const detail::plugin &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
     Plugin.call<PiApiKind::piSamplerRelease>(Iter.second);
   }
 }
@@ -59,7 +59,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
 
   RT::PiResult errcode_ret = PI_SUCCESS;
   RT::PiSampler resultSampler = nullptr;
-  auto Plugin = getSyclObjImpl(Context)->getPlugin();
+  const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin.call_nocheck<PiApiKind::piSamplerCreate>(
       getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
