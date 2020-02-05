@@ -832,7 +832,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
   if (LangOpts.SYCLIsDevice)
-    PerModulePasses.add(createSYCLLowerWGScopePass());
+    PerFunctionPasses.add(createSYCLLowerWGScopePass());
 
   CreatePasses(PerModulePasses, PerFunctionPasses);
 
