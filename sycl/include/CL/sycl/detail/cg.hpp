@@ -385,8 +385,8 @@ public:
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
-    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
-           "Wrong type of exec kernel CG.");
+    __SYCL_ASSERT(getType() == RUN_ON_HOST_INTEL || getType() == KERNEL,
+                  "Wrong type of exec kernel CG.");
   }
 
   vector_class<ArgDesc> getArguments() const { return MArgs; }

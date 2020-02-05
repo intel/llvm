@@ -7,6 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
+option(SYCL_ENABLE_ASSERTIONS OFF "Enable assertions in SYCL Runtime")
+
+if (CMAKE_BUILD_TYPE MATCHES "Debug" OR CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
+  set(SYCL_ENABLE_ASSERTIONS ON CACHE BOOL "Enable assertions in SYCL Runtime")
+endif()
 
 # enable all warnings by default
 if (MSVC)

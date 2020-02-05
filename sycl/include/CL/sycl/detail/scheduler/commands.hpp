@@ -121,7 +121,8 @@ public:
   virtual void printDot(std::ostream &Stream) const = 0;
 
   virtual const Requirement *getRequirement() const {
-    assert(!"Internal Error. The command has no stored requirement");
+    __SYCL_ASSERT(false,
+                  "Internal Error. The command has no stored requirement");
     return nullptr;
   }
 

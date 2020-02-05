@@ -182,7 +182,7 @@ private:
     // Now if they are equal we extract argumets from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
-    assert(MSyclKernel && "MSyclKernel is not initialized");
+    __SYCL_ASSERT(MSyclKernel != nullptr, "MSyclKernel is not initialized");
     const string_class LambdaName = detail::KernelInfo<LambdaNameT>::getName();
     const string_class KernelName = getKernelName();
     return LambdaName == KernelName;
@@ -1082,9 +1082,9 @@ public:
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
     // TODO replace to get_size() when it will provide correct values.
-    assert(
+    __SYCL_ASSERT(
         (Dst.get_range().size() * sizeof(T_Dst) >=
-         Src.get_range().size() * sizeof(T_Src)) &&
+         Src.get_range().size() * sizeof(T_Src)),
         "dest must have at least as many bytes as the range accessed by src.");
     if (MIsHost ||
         !IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range())) {

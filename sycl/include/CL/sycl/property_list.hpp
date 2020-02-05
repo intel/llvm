@@ -79,7 +79,7 @@ public:
   }
 
   const T &getProp() const {
-    assert(true == m_Initialized && "Property was not set!");
+    __SYCL_ASSERT(m_Initialized, "Property was not set!");
     return *(const T *)m_Mem;
   }
   bool isInitialized() const { return m_Initialized; }
