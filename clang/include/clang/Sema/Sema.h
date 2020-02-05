@@ -12314,6 +12314,9 @@ public:
   ///
   /// \return false if check fails
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
+
+  /// Emit diagnostic that can't be emitted with deferred diagnostics mechnism
+  void finalizeSYCLDelayedAnalysis();
 };
 
 /// RAII object that enters a new expression evaluation context.

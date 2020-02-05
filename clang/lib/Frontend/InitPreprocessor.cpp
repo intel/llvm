@@ -1099,6 +1099,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
+    Builder.defineMacro("SYCL_ALLOW_RAW_POINTER_IN_KERNEL",
+                        "__attribute__((sycl_allow_raw_pointer_in_kernel))");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");

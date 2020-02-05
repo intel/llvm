@@ -972,8 +972,10 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   if (getLangOpts().SYCLIsDevice && SyclIntHeader != nullptr) {
     SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
   }
-  if (getLangOpts().SYCLIsDevice)
+  if (getLangOpts().SYCLIsDevice) {
     MarkDevice();
+    finalizeSYCLDelayedAnalysis();
+  }
 
   // Finalize analysis of OpenMP-specific constructs.
   if (LangOpts.OpenMP)
@@ -1594,14 +1596,6 @@ void Sema::markKnownEmitted(
     assert(!IsKnownEmitted(S, C.Callee) &&
            "Worklist should not contain known-emitted functions.");
     S.DeviceKnownEmittedFns[C.Callee] = {C.Caller, C.Loc};
-
-    // Add implicit attribute for known-emitted functions
-    if (LangOpts.SYCLIsDevice && C.Callee->isDefined() &&
-        !C.Callee->hasAttr<SYCLDeviceAttr>()) {
-          C.Callee->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
-
-          addSyclDeviceDecl(C.Callee);
-      }
 
     emitDeferredDiags(S, C.Callee, C.Caller);
 

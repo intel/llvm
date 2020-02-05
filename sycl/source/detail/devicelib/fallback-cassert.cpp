@@ -14,7 +14,7 @@ static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
 
-SYCL_EXTERNAL
+SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
 extern "C" void __devicelib_assert_fail(
     const char *expr, const char *file,
     int32_t line, const char *func,

@@ -28,6 +28,10 @@
 #define SYCL_EXTERNAL
 #endif
 
+#ifndef SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+#define SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+#endif
+
 #if __cplusplus >= 201402
   #define __SYCL_DEPRECATED__                                                  \
     [[deprecated("Replaced by in_order queue property")]]
@@ -37,3 +41,4 @@
 #else
   #define __SYCL_DEPRECATED__
 #endif
+

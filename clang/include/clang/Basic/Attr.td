@@ -1082,6 +1082,13 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def SYCLAllowRawPointerInKernel : Attr {
+  let Spellings = [Clang<"sycl_allow_raw_pointer_in_kernel">];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [SYCLDeviceDocs];
+}
+
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;

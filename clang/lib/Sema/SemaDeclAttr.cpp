@@ -4497,12 +4497,12 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         << AL << 1 /* class member function */;
     return;
   }
-  if (FD->getReturnType()->isPointerType()) {
+  if (FD->getReturnType()->isPointerType() && !FD->hasAttr<SYCLAllowRawPointerInKernelAttr>()) {
     S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
         << AL << 0 /* function with a raw pointer return type */;
   }
   for (const ParmVarDecl *Param : FD->parameters())
-    if (Param->getType()->isPointerType()) {
+    if (Param->getType()->isPointerType() && !FD->hasAttr<SYCLAllowRawPointerInKernelAttr>()) {
       S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
           << AL << 1 /* function with a raw pointer parameter type */;
     }
@@ -7456,6 +7456,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAllowRawPointerInKernel:
+    handleSimpleAttribute<SYCLAllowRawPointerInKernelAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);

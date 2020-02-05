@@ -1548,4 +1548,19 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // namespace sycl
 } // namespace cl
 
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__GNUC__) || defined(__clang__)
+extern "C" {
+extern SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+void __assert_fail(const char *expr, const char *file,
+                   unsigned int line, const char *func);
+}
+#elif defined(_MSC_VER)
+extern "C" {
+extern SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line)
+}
+#endif // defined(_MSC_VER_)
+#endif // __SYCL_DEVICE_ONLY__
+
 #undef __NOEXC

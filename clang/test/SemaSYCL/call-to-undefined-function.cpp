@@ -12,7 +12,6 @@ SYCL_EXTERNAL void undefinedExternal();
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
-  // expected-note@-1 {{called by 'kernel_single_task<CallToUndefinedFnTester,}}
 }
 
 template <typename T>
@@ -107,6 +106,9 @@ void forwardDeclFn() {
 
 int main() {
   kernel_single_task<class CallToUndefinedFnTester>([]() {
+    // expected-note@-1 {{called by 'operator()'}}
+    // expected-note@-2 {{called by 'operator()'}}
+
     // simple functions
     defined();
     undefinedExternal();
