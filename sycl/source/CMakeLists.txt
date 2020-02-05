@@ -42,6 +42,7 @@ endfunction(add_sycl_rt_library)
 set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
     "detail/accessor_impl.cpp"
+    "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"
     "detail/builtins_integer.cpp"
@@ -76,6 +77,7 @@ set(SYCL_SOURCES
     "detail/scheduler/scheduler.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
+    "detail/sycl_mem_obj_t.cpp"
     "detail/usm/clusm.cpp"
     "detail/usm/usm_dispatch.cpp"
     "detail/usm/usm_impl.cpp"
