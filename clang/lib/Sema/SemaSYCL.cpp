@@ -775,8 +775,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                                           BodyStmtsT &Statements) {
         CXXMethodDecl *Method = getMethodByName(CRD, MethodName);
         assert(Method &&
-               "The accessor/sampler/stream must have the "
-               "__init/__finalize method");
+               "The accessor/sampler/stream must have the __init method. Stream"
+               " must also have __finalize method");
         unsigned NumParams = Method->getNumParams();
         llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
         auto KFP = KernelFuncParam;
