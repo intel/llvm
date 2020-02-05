@@ -32,6 +32,7 @@ def do_configure(args):
                  "-DLLVM_BUILD_TOOLS=ON",
                  "-DSYCL_ENABLE_WERROR=ON",
                  "-DLLVM_ENABLE_ASSERTIONS=ON",
+                 "-DSYCL_ENABLE_ASSERTIONS=ON",
                  "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
                  "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
                  llvm_dir]

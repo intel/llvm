@@ -314,7 +314,7 @@ public:
   bool operator==(const group<dimensions> &rhs) const {
     bool Result = (rhs.globalRange == globalRange) &&
                   (rhs.localRange == localRange) && (rhs.index == index);
-    __SYCL_ASSERT(rhs.groupRange == groupRange &&
+    __SYCL_ASSERT(rhs.groupRange == groupRange,
                   "inconsistent group class fields");
     return Result;
   }
@@ -345,13 +345,7 @@ protected:
   friend class detail::Builder;
   group(const range<dimensions> &G, const range<dimensions> &L,
         const range<dimensions> GroupRange, const id<dimensions> &I)
-      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {
-    // Make sure local range divides global without remainder:
-    __SYCL_ASSERT(((G % L).size() == 0) &&
-                  "global range is not multiple of local");
-    __SYCL_ASSERT((((G / L) - GroupRange).size() == 0) &&
-                  "inconsistent group constructor arguments");
-  }
+      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
 };
 
 } // namespace sycl
