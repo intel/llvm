@@ -31,7 +31,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
 
   RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;
-  const plugin_impl &Plugin = getPlugin();
+  const plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
                                          &Context, nullptr);
 
@@ -75,7 +75,7 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const plugin_impl &Plugin = getPlugin();
+    const plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piMemRelease>(
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
