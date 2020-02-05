@@ -54,7 +54,15 @@ private:
   const char *Executable;
 
   /// The container for custom driver-set diagnostic messages that are
-  /// produced upon particular error codes returned by the command
+  /// produced upon particular error codes returned by the command.
+  /// In order to add such a diagnostic for an external tool, consider the
+  /// following criteria:
+  /// 1) Does the command's executable return different codes upon different
+  ///    types of errors?
+  /// 2) If the executable provides a single error code for various error types,
+  ///    is only a certain type of failure expected to occur within the driver
+  ///    flow? E.g. the driver guarantees a valid input to the tool, so any
+  ///    "invalid input" error can be ruled out
   ErrorCodeDiagMapTy ErrorCodeDiagMap;
 
   /// The list of program arguments (not including the implicit first
