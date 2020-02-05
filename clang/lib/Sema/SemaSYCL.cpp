@@ -773,7 +773,6 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                                           Expr *Base,
                                           const std::string &MethodName,
                                           BodyStmtsT &Statements) {
-        // All special SYCL objects must have __init/__finalize method
         CXXMethodDecl *Method = getMethodByName(CRD, MethodName);
         assert(Method &&
                "The accessor/sampler/stream must have the "
@@ -1066,10 +1065,7 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
           continue;
         }
       }
-      // TODO: Make stream class trivially copyable and remove the check on
-      // stream class.
-      if (!ArgTy.isTriviallyCopyableType(Context) &&
-          !Util::isSyclStreamType(ArgTy)) {
+      if (!ArgTy.isTriviallyCopyableType(Context)) {
         Context.getDiagnostics().Report(
             Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
             << ArgTy;
