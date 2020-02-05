@@ -100,13 +100,6 @@ void check_ast()
   [[intelfpga::memory("MLAB")]]
   unsigned int doublepump_mlab[64];
 
-  //CHECK: VarDecl{{.*}}mlab_doublepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB{{$}}
-  //CHECK: IntelFPGADoublePumpAttr
-  [[intelfpga::memory("MLAB")]]
-  [[intelfpga::doublepump]]
-  unsigned int mlab_doublepump[64];
-
   //CHECK: VarDecl{{.*}}max_replicates
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
@@ -445,7 +438,7 @@ void diagnostics()
 
   //expected-error@+1{{bank_bits must be consecutive}}
   [[intelfpga::bank_bits(1,3,4), intelfpga::bankwidth(4)]]
-  unsigned int bb_noncons_2[4];
+  unsigned int bb_noncons1[4];
 
   //expected-error@+1{{attribute takes at least 1 argument}}
   [[intelfpga::bank_bits]]
