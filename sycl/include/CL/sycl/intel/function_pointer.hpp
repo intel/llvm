@@ -28,6 +28,11 @@ namespace intel {
 
 using device_func_ptr_holder_t = cl_ulong;
 
+namespace detail {
+device_func_ptr_holder_t getDeviceFunctionPointerImpl(device &D, program &P,
+                                                      const char *FuncName);
+}
+
 /// \brief this function performs a cast from device_func_ptr_holder_t type
 /// to the provided function pointer type.
 template <
@@ -77,13 +82,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
         "Program must be built before passing to get_device_func_ptr");
   }
 
-  device_func_ptr_holder_t FPtr = 0;
-  // FIXME: return value must be checked here, but since we cannot yet check
-  // if corresponding extension is supported, let's silently ignore it here.
-  PI_CALL(piextGetDeviceFunctionPointer)(
-      detail::getRawDevice(D), detail::getRawProgram(P), FuncName, &FPtr);
-
-  return FPtr;
+  return detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
 
 } // namespace intel
