@@ -219,6 +219,10 @@ endif()
 include(CheckIncludeFile)
 check_include_file(sys/resource.h CLANG_HAVE_RLIMITS)
 
+if(SYCL_BUILD_PI_CUDA)
+  set(SYCL_HAVE_PI_CUDA 1)
+endif()
+
 set(CLANG_RESOURCE_DIR "" CACHE STRING
   "Relative directory from the Clang binary to its resource files.")
 

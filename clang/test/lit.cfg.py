@@ -77,6 +77,8 @@ if config.clang_staticanalyzer:
     if config.clang_staticanalyzer_z3 == '1':
         config.available_features.add('z3')
 
+if config.sycl_pi_cuda == '1':
+    config.available_features.add('sycl-pi-cuda')
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
