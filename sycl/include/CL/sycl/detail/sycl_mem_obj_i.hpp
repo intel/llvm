@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <memory>
 
@@ -28,6 +27,8 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // objects.
 class SYCLMemObjI {
 public:
+  virtual ~SYCLMemObjI() = default;
+
   enum MemObjType { BUFFER, IMAGE };
 
   virtual MemObjType getType() const = 0;
