@@ -298,9 +298,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
                                    sizeof(pi_device), &DeviceId, nullptr);
 
   for (const device &Dev : CtxImpl->getDevices()) {
-    // Try to find the vreal sycl device used in the context
-    if (detail::getSyclObjImpl(Dev)->getHandleRef()) == DeviceId)
-      return D;
+    // Try to find the real sycl device used in the context
+    if (detail::getSyclObjImpl(Dev)->getHandleRef() == DeviceId)
+      return Dev;
   }
 
   throw runtime_error("Cannot find device associated with USM allocation!");
