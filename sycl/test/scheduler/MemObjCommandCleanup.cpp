@@ -2,7 +2,9 @@
 // RUN: %t.out
 #include <CL/sycl.hpp>
 
+#include <functional>
 #include <memory>
+#include <utility>
 
 #include "FakeCommand.hpp"
 
@@ -27,6 +29,18 @@ public:
                           detail::Requirement *Req) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
+};
+
+class FakeCommandWithCallback : public FakeCommand {
+public:
+  FakeCommandWithCallback(detail::QueueImplPtr Queue, detail::Requirement Req,
+                          std::function<void()> Callback)
+      : FakeCommand(Queue, Req), MCallback(std::move(Callback)) {}
+
+  ~FakeCommandWithCallback() override { MCallback(); }
+
+protected:
+  std::function<void()> MCallback;
 };
 
 template <typename MemObjT>
@@ -71,8 +85,10 @@ int main() {
   addEdge(FakeDirectUser.get(), FakeAllocaB.get(), FakeAllocaB.get());
 
   // Create an indirect user of the soon-to-be deleted alloca
-  FakeCommand *FakeIndirectUser =
-      new FakeCommand(detail::getSyclObjImpl(Queue), FakeReqA);
+  bool IndirectUserDeleted = false;
+  std::function<void()> Callback = [&]() { IndirectUserDeleted = true; };
+  FakeCommand *FakeIndirectUser = new FakeCommandWithCallback(
+      detail::getSyclObjImpl(Queue), FakeReqA, Callback);
   addEdge(FakeIndirectUser, FakeDirectUser.get(), FakeAllocaA);
 
   TS.cleanupCommandsForRecord(RecA);
@@ -83,4 +99,5 @@ int main() {
   assert(FakeDirectUser->MUsers.size() == 0);
   assert(FakeDirectUser->MDeps.size() == 1);
   assert(FakeDirectUser->MDeps[0].MDepCommand == FakeAllocaB.get());
+  assert(IndirectUserDeleted);
 }

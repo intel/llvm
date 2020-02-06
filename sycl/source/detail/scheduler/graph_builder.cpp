@@ -17,6 +17,7 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <queue>
 #include <set>
@@ -667,24 +668,23 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
-    std::set<Command *> UpdateCandidates; // At least 1 dep removed
-    std::set<Command *> UpdateTaboo;      // At least 1 dep left
+    std::map<Command *, bool> ShouldBeUpdated;
     auto NewEnd = std::remove_if(
         Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
           if (AllocasToDelete.count(Dep.MAllocaCmd)) {
-            UpdateCandidates.insert(Dep.MDepCommand);
+            ShouldBeUpdated.insert({Dep.MDepCommand, true});
             return true;
           }
-          UpdateTaboo.insert(Dep.MDepCommand);
+          ShouldBeUpdated[Dep.MDepCommand] = false;
           return false;
         });
     Cmd->MDeps.erase(NewEnd, Cmd->MDeps.end());
 
     // Update users of removed dependencies
-    for (Command *DepCmd : UpdateCandidates) {
-      if (UpdateTaboo.count(DepCmd))
+    for (auto DepCmdIt : ShouldBeUpdated) {
+      if (!DepCmdIt.second)
         continue;
-      std::vector<Command *> &DepUsers = DepCmd->MUsers;
+      std::vector<Command *> &DepUsers = DepCmdIt.first->MUsers;
       DepUsers.erase(std::remove(DepUsers.begin(), DepUsers.end(), Cmd),
                      DepUsers.end());
     }
