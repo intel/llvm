@@ -81,6 +81,13 @@ public:
                              MachineIRBuilder &B) const;
   bool legalizeFlog(MachineInstr &MI, MachineIRBuilder &B,
                     double Log2BaseInverted) const;
+  bool legalizeFExp(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeFFloor(MachineInstr &MI, MachineRegisterInfo &MRI,
+                      MachineIRBuilder &B) const;
+
+  bool legalizeBuildVector(MachineInstr &MI, MachineRegisterInfo &MRI,
+                           MachineIRBuilder &B) const;
+
   Register getLiveInRegister(MachineRegisterInfo &MRI,
                              Register Reg, LLT Ty) const;
 
@@ -133,6 +140,10 @@ public:
       MachineInstr &MI, MachineIRBuilder &B,
       GISelChangeObserver &Observer,
       const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr) const;
+
+  bool legalizeSBufferLoad(
+    MachineInstr &MI, MachineIRBuilder &B,
+    GISelChangeObserver &Observer) const;
 
   bool legalizeAtomicIncDec(MachineInstr &MI,  MachineIRBuilder &B,
                             bool IsInc) const;

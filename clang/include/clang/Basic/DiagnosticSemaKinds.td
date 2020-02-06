@@ -2414,7 +2414,7 @@ def note_for_range_begin_end : Note<
 def warn_for_range_const_reference_copy : Warning<
   "loop variable %0 "
   "%diff{has type $ but is initialized with type $"
-  "| is initialized with a value of a different type}1,2 resulting in a copy">,
+  "|is initialized with a value of a different type}1,2 resulting in a copy">,
   InGroup<RangeLoopConstruct>, DefaultIgnore;
 def note_use_type_or_non_reference : Note<
   "use non-reference type %0 to keep the copy or type %1 to prevent copying">;
@@ -2440,6 +2440,13 @@ def warn_cxx14_compat_constexpr_not_const : Warning<
   "'constexpr' non-static member function will not be implicitly 'const' "
   "in C++14; add 'const' to avoid a change in behavior">,
   InGroup<DiagGroup<"constexpr-not-const">>;
+def err_invalid_consteval_take_address : Error<
+  "cannot take address of consteval function %0 outside"
+  " of an immediate invocation">;
+def err_invalid_consteval_call : Error<
+  "call to consteval function '%q0' is not a constant expression">;
+def err_invalid_consteval_decl_kind : Error<
+  "%0 cannot be declared consteval">;
 def err_invalid_constexpr : Error<
   "%select{function parameter|typedef}0 "
   "cannot be %sub{select_constexpr_spec_kind}1">;
@@ -2537,7 +2544,7 @@ def warn_cxx17_compat_constexpr_local_var_no_init : Warning<
   "is incompatible with C++ standards before C++20">,
   InGroup<CXXPre2aCompat>, DefaultIgnore;
 def ext_constexpr_function_never_constant_expr : ExtWarn<
-  "constexpr %select{function|constructor}0 never produces a "
+  "%select{constexpr|consteval}1 %select{function|constructor}0 never produces a "
   "constant expression">, InGroup<DiagGroup<"invalid-constexpr">>, DefaultError;
 def err_attr_cond_never_constant_expr : Error<
   "%0 attribute expression never produces a constant expression">;
@@ -9755,7 +9762,7 @@ def err_omp_ordered_directive_with_param : Error<
 def err_omp_ordered_directive_without_param : Error<
   "'ordered' directive with 'depend' clause cannot be closely nested inside ordered region without specified parameter">;
 def note_omp_ordered_param : Note<
-  "'ordered' clause with specified parameter">;
+  "'ordered' clause%select{| with specified parameter}0">;
 def err_omp_expected_base_var_name : Error<
   "expected variable name as a base of the array %select{subscript|section}0">;
 def err_omp_map_shared_storage : Error<
@@ -9800,8 +9807,8 @@ def err_omp_unexpected_schedule_modifier : Error<
   "modifier '%0' cannot be used along with modifier '%1'">;
 def err_omp_schedule_nonmonotonic_static : Error<
   "'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind">;
-def err_omp_schedule_nonmonotonic_ordered : Error<
-  "'schedule' clause with 'nonmonotonic' modifier cannot be specified if an 'ordered' clause is specified">;
+def err_omp_simple_clause_incompatible_with_ordered : Error<
+  "'%0' clause with '%1' modifier cannot be specified if an 'ordered' clause is specified">;
 def err_omp_ordered_simd : Error<
   "'ordered' clause with a parameter can not be specified in '#pragma omp %0' directive">;
 def err_omp_variable_in_given_clause_and_dsa : Error<

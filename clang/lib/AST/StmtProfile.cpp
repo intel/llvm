@@ -775,6 +775,7 @@ void OMPClauseProfiler::VisitOMPNontemporalClause(
   for (auto *E : C->private_refs())
     Profiler->VisitStmt(E);
 }
+void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
 } // namespace
 
 void
@@ -1535,8 +1536,8 @@ static Stmt::StmtClass DecodeOperatorCall(const CXXOperatorCallExpr *S,
     return Stmt::BinaryOperatorClass;
 
   case OO_Spaceship:
-    // FIXME: Update this once we support <=> expressions.
-    llvm_unreachable("<=> expressions not supported yet");
+    BinaryOp = BO_Cmp;
+    return Stmt::BinaryOperatorClass;
 
   case OO_AmpAmp:
     BinaryOp = BO_LAnd;

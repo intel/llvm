@@ -166,6 +166,11 @@ static const Instruction *safeCxtI(const Value *V, const Instruction *CxtI) {
 static bool getShuffleDemandedElts(const ShuffleVectorInst *Shuf,
                                    const APInt &DemandedElts,
                                    APInt &DemandedLHS, APInt &DemandedRHS) {
+  // The length of scalable vectors is unknown at compile time, thus we
+  // cannot check their values
+  if (Shuf->getMask()->getType()->getVectorElementCount().Scalable)
+    return false;
+
   int NumElts = Shuf->getOperand(0)->getType()->getVectorNumElements();
   int NumMaskElts = Shuf->getMask()->getType()->getVectorNumElements();
   DemandedLHS = DemandedRHS = APInt::getNullValue(NumElts);
@@ -4521,6 +4526,20 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V) {
   // TODO: Deal with other Constant subclasses.
   if (isa<ConstantInt>(V) || isa<GlobalVariable>(V))
     return true;
+
+  if (auto PN = dyn_cast<PHINode>(V)) {
+    if (llvm::all_of(PN->incoming_values(), [](const Use &U) {
+          return isa<ConstantInt>(U.get());
+        }))
+      return true;
+  }
+
+  if (auto II = dyn_cast<ICmpInst>(V)) {
+    if (llvm::all_of(II->operands(), [](const Value *V) {
+          return isGuaranteedNotToBeUndefOrPoison(V);
+        }))
+      return true;
+  }
 
   return false;
 }

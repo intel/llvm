@@ -127,11 +127,8 @@ unsigned LLVMGetMDKindID(const char *Name, unsigned SLen) {
   return LLVMGetMDKindIDInContext(LLVMGetGlobalContext(), Name, SLen);
 }
 
-#define GET_ATTR_KIND_FROM_NAME
-#include "AttributesCompatFunc.inc"
-
 unsigned LLVMGetEnumAttributeKindForName(const char *Name, size_t SLen) {
-  return getAttrKindFromName(StringRef(Name, SLen));
+  return Attribute::getAttrKindFromName(StringRef(Name, SLen));
 }
 
 unsigned LLVMGetLastEnumAttributeKind(void) {
