@@ -250,8 +250,9 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   pi_usm_type AllocTy;
 
   // query type using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_TYPE,
-                                   sizeof(pi_usm_type), &AllocTy, nullptr);
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy, nullptr);
 
   alloc ResultAlloc;
   switch (AllocTy) {
@@ -297,8 +298,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   pi_device DeviceId;
 
   // query device using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_DEVICE,
-                                   sizeof(pi_device), &DeviceId, nullptr);
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
 
   for (const device &Dev : CtxImpl->getDevices()) {
     // Try to find the real sycl device used in the context
