@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/scheduler/commands.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -33,7 +34,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // The MemObjRecord is created for each memory object used in command
 // groups. There should be only one MemObjRecord for SYCL memory object.
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, size_t LeafLimit)
+  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
       : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
                                                              CurContext} {}
 
