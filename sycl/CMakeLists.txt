@@ -51,6 +51,7 @@ endif()
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
 set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
+set(LLVM_PYTHON_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/python")
 set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
 
 # Find OpenCL headers and libraries installed in the system and use them to
@@ -150,6 +151,12 @@ COMMENT "Copying SYCL headers ...")
 # Configure SYCL headers
 install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
 
+# Auxilliary extras for SYCL headers
+add_custom_target(sycl-headers-extras ALL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/xmethods ${dst_dir}
+COMMENT "Copying SYCL header xmethod scripts ...")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/xmethods" DESTINATION ${LLVM_PYTHON_DIRECTORY} COMPONENT sycl-headers-extras)
+
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
   list(APPEND SYCL_RT_LIBS sycld)
@@ -244,6 +251,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-resource-headers
      opencl-headers
      sycl-headers
+     sycl-headers-extras
      sycl
      pi_opencl
 )
