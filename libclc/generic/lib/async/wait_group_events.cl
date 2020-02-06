@@ -1,5 +1,6 @@
+#include <spirv/spirv.h>
 #include <clc/clc.h>
 
 _CLC_DEF void wait_group_events(int num_events, event_t *event_list) {
-  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    _Z23__spirv_GroupWaitEventsN5__spv5ScopeEjP9ocl_event(Workgroup, num_events, event_list);
 }

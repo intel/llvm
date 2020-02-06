@@ -1,12 +1,15 @@
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
-#define IMPL(TYPE, AS) \
+#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED) \
 _CLC_OVERLOAD _CLC_DEF TYPE atomic_and(volatile AS TYPE *p, TYPE val) { \
-  return __sync_fetch_and_and(p, val); \
+  /* TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling. */ \
+  return _Z17__spirv_AtomicAndPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskE##TYPE_MANGLED( \
+      p, Device, SequentiallyConsistent, val); \
 }
 
-IMPL(int, global)
-IMPL(unsigned int, global)
-IMPL(int, local)
-IMPL(unsigned int, local)
+IMPL(int, i, global, AS1)
+IMPL(unsigned int, j, global, AS1)
+IMPL(int, i, local, AS3)
+IMPL(unsigned int, j, local, AS3)
 #undef IMPL

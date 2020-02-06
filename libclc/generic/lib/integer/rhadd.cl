@@ -1,3 +1,4 @@
+#include <spirv/spirv.h>
 #include <clc/clc.h>
 
 #define __CLC_BODY <rhadd.inc>
