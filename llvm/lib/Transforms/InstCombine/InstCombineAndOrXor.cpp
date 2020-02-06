@@ -143,8 +143,7 @@ Instruction *InstCombiner::OptAndOp(BinaryOperator *Op,
           // the XOR is to toggle the bit.  If it is clear, then the ADD has
           // no effect.
           if ((AddRHS & AndRHSV).isNullValue()) { // Bit is not set, noop
-            TheAnd.setOperand(0, X);
-            return &TheAnd;
+            return replaceOperand(TheAnd, 0, X);
           } else {
             // Pull the XOR out of the AND.
             Value *NewAnd = Builder.CreateAnd(X, AndRHS);
@@ -2015,7 +2014,7 @@ Instruction *InstCombiner::matchBSwap(BinaryOperator &Or) {
   LastInst->removeFromParent();
 
   for (auto *Inst : Insts)
-    Worklist.Add(Inst);
+    Worklist.push(Inst);
   return LastInst;
 }
 
@@ -3109,7 +3108,7 @@ Instruction *InstCombiner::visitXor(BinaryOperator &I) {
       if (match(Op0, m_Or(m_Value(X), m_APInt(C))) &&
           MaskedValueIsZero(X, *C, 0, &I)) {
         Constant *NewC = ConstantInt::get(I.getType(), *C ^ *RHSC);
-        Worklist.Add(cast<Instruction>(Op0));
+        Worklist.push(cast<Instruction>(Op0));
         I.setOperand(0, X);
         I.setOperand(1, NewC);
         return &I;

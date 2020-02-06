@@ -2086,6 +2086,7 @@ static unsigned PrintActions1(const Compilation &C, Action *A,
     bool IsFirst = true;
     OA->doOnEachDependence(
         [&](Action *A, const ToolChain *TC, const char *BoundArch) {
+          assert(TC && "Unknown host toolchain");
           // E.g. for two CUDA device dependences whose bound arch is sm_20 and
           // sm_35 this will generate:
           // "cuda-device" (nvptx64-nvidia-cuda:sm_20) {#ID}, "cuda-device"
@@ -2093,13 +2094,9 @@ static unsigned PrintActions1(const Compilation &C, Action *A,
           if (!IsFirst)
             os << ", ";
           os << '"';
-          if (TC)
-            os << A->getOffloadingKindPrefix();
-          else
-            os << "host";
+          os << A->getOffloadingKindPrefix();
           os << " (";
           os << TC->getTriple().normalize();
-
           if (BoundArch)
             os << ":" << BoundArch;
           os << ")";
