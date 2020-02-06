@@ -1686,7 +1686,7 @@ int Driver::ExecuteCompilation(
     // diagnostics, so always print the diagnostic there.
     const Tool &FailingTool = FailingCommand->getCreator();
 
-    if (!FailingCommand->getCreator().hasGoodDiagnostics() || CommandRes != 1) {
+    if (!FailingTool.hasGoodDiagnostics() || CommandRes != 1) {
       // FIXME: See FIXME above regarding result code interpretation.
       if (CommandRes < 0)
         Diag(clang::diag::err_drv_command_signalled)
@@ -1695,6 +1695,10 @@ int Driver::ExecuteCompilation(
         Diag(clang::diag::err_drv_command_failed)
             << FailingTool.getShortName() << CommandRes;
     }
+
+    auto CustomDiag = FailingCommand->getDiagForErrorCode(CommandRes);
+    if (!CustomDiag.empty())
+      Diag(clang::diag::note_drv_command_failed_diag_msg) << CustomDiag;
   }
   return Res;
 }

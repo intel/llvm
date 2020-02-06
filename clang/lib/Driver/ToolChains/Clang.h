@@ -199,6 +199,7 @@ public:
       : Tool("SYCL post link", "sycl-post-link", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
