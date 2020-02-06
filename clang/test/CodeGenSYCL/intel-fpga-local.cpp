@@ -22,16 +22,16 @@
 // CHECK-DEVICE:  [[ANN_memory_mlab:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}
 
 // CHECK-BOTH: @llvm.global.annotations
-// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ14attr_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
+// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
 // CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}i32 36
-// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ14attr_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
-// CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ14attr_on_staticvE15static_annotate to i8*)
+// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
+// CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ15attrs_on_staticvE15static_annotate to i8*)
 // CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}}i32 40
 
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
 
-void attr_on_static() {
+void attrs_on_static() {
   int a = 42;
   static int static_numbanks [[intelfpga::numbanks(4)]];
   // CHECK-BOTH: load{{.*}}static_numbanks
@@ -202,7 +202,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 
 int main() {
   kernel_single_task<class kernel_function>([]() {
-    attr_on_static();
+    attrs_on_static();
     attrs_on_var();
     attrs_on_struct();
     field_addrspace_cast();
