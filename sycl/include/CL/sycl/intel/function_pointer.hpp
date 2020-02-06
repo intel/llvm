@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
@@ -17,6 +16,10 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
+namespace detail {
+cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
+                                      const char *FuncName);
+}
 namespace intel {
 
 // This is a preview extension implementation, intended to provide early access
@@ -27,7 +30,7 @@ namespace intel {
 // products. If you are interested in using this feature in your software
 // product, please let us know!
 
-using device_func_ptr_holder_t = cl::sycl::cl_ulong;
+using device_func_ptr_holder_t = cl_ulong;
 
 /// \brief this function performs a cast from device_func_ptr_holder_t type
 /// to the provided function pointer type.
@@ -78,15 +81,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
         "Program must be built before passing to get_device_func_ptr");
   }
 
-  device_func_ptr_holder_t FPtr = 0;
-  // FIXME: return value must be checked here, but since we cannot yet check
-  // if corresponding extension is supported, let's silently ignore it here.
-  PI_CALL(piextGetDeviceFunctionPointer)(
-      detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
-      detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
-      FuncName, &FPtr);
-
-  return FPtr;
+  return detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
 
 } // namespace intel

@@ -22,7 +22,6 @@ class device_selector;
 namespace detail {
 class device_impl;
 }
-
 class device {
 public:
   /// Constructs a SYCL device instance as a host device.
