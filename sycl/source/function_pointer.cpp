@@ -12,21 +12,19 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
-namespace intel {
 namespace detail {
-device_func_ptr_holder_t getDeviceFunctionPointerImpl(device &D, program &P,
-                                                      const char *FuncName) {
-  device_func_ptr_holder_t FPtr = 0;
+intel::device_func_ptr_holder_t
+getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
+  intel::device_func_ptr_holder_t FPtr = 0;
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
   PI_CALL(piextGetDeviceFunctionPointer)(
-      sycl::detail::pi::cast<pi_device>(sycl::detail::getSyclObjImpl(D)->getHandleRef()),
-      sycl::detail::pi::cast<pi_program>(sycl::detail::getSyclObjImpl(P)->getHandleRef()),
+      detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
+      detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);
   return FPtr;
 }
 
 } // namespace detail
-} // namespace intel
 } // namespace sycl
 } // namespace cl

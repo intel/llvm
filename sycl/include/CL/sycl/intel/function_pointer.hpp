@@ -16,6 +16,10 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
+namespace detail {
+cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
+                                      const char *FuncName);
+}
 namespace intel {
 
 // This is a preview extension implementation, intended to provide early access
@@ -27,11 +31,6 @@ namespace intel {
 // product, please let us know!
 
 using device_func_ptr_holder_t = cl_ulong;
-
-namespace detail {
-device_func_ptr_holder_t getDeviceFunctionPointerImpl(device &D, program &P,
-                                                      const char *FuncName);
-}
 
 /// \brief this function performs a cast from device_func_ptr_holder_t type
 /// to the provided function pointer type.
