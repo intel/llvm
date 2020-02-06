@@ -1153,12 +1153,12 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
-def SYCLIntelUsesGlobalWorkOffset : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","uses_global_work_offset">];
-  let Args = [BoolArgument<"Enabled">];
+def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","no_global_work_offset">];
+  let Args = [BoolArgument<"Enabled", 1>];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelUsesGlobalWorkOffsetDocs];
+  let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
   let PragmaAttributeSupport = 0;
 }
 
