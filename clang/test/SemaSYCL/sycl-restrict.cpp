@@ -30,44 +30,53 @@ template<typename t> void foo2(){};
 // getCurLexicalContext() returns translation unit decl and we can diagnose only
 // inside function decls
 __float128 foo(__float128 P) {
-  // expected-error@+1 {{__float128 is not supported on this target}}
-  Z<__float128> A;
+
+  // TODO should this be diagnosed?
   bar(P);
-  bar(A);
   // expected-error@+1 {{__float128 is not supported on this target}}
   __float128 B;
   bar(B);
-  // expected-error@+1 {{__float128 is not supported on this target}}
-  bar((__float128)0);
 
-  // TODO
-  // NOT ANALYZED PROBLEM
+  // expected-error@+1 2{{__float128 is not supported on this target}}
+  auto D = bar((__float128)0);
   // expected-error@+1 {{__float128 is not supported on this target}}
+  auto C = D;
+
+  // expected-error@+1 2{{__float128 is not supported on this target}}
+  decltype(bar((__float128)0)) E = bar((__float128)0);
+
   foo2<__float128>();
+  Z<__float128> A;
   return P;
 }
 
 void usage() {
   // expected-error@+1 {{__float128 is not supported on this target}}
   __float128 A;
-  // expected-note@+1{{called by 'usage'}}
+  // expected-note@+2{{called by 'usage'}}
+  // expected-error@+1 {{__float128 is not supported on this target}}
   auto B = foo(A);
   int E = sizeof(__float128);
 
-  // NOT ANALYZED PROBLEM
+  // expected-error@+1 {{__float128 is not supported on this target}}
   decltype(A) C;
+  // expected-error@+1 {{__float128 is not supported on this target}}
   decltype(foo1()) D;
 }
 
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  // expected-note@+1 2{{called by 'kernel_single_task}}
+  // expected-note@+1 3{{called by 'kernel_single_task}}
   kernelFunc();
 }
 
 int main() {
-  // expected-note@+1 2{{called by 'operator()'}}
-  kernel_single_task<class fake_kernel>([]() { usage(); });
+  __float128 B = 1;
+  // expected-note@+2 2{{called by 'operator()'}}
+  kernel_single_task<class fake_kernel>([=]() {
+          usage();
+  // expected-error@+1 {{__float128 is not supported on this target}}
+          auto C = B; });
   return 0;
 }
 

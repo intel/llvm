@@ -4712,6 +4712,9 @@ Sema::DeduceAutoType(TypeLoc Type, Expr *&Init, QualType &Result,
     }
   }
 
+  if (!Context.getTargetInfo().hasFloat128Type() &&
+      (Result->isFloat128Type()) && getLangOpts().SYCLIsDevice)
+    SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
   return DAR_Succeeded;
 }
 

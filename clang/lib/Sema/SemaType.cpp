@@ -1516,12 +1516,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_float128:
     if (!S.Context.getTargetInfo().hasFloat128Type() &&
-        S.getLangOpts().SYCLIsDevice)
-      S.SYCLDiagIfDeviceCode(DS.getTypeSpecTypeLoc(),
-                             diag::err_type_unsupported)
-          << "__float128";
-    else if (!S.Context.getTargetInfo().hasFloat128Type() &&
-             !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice) &&
+        !S.getLangOpts().SYCLIsDevice)
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
           << "__float128";
     Result = Context.Float128Ty;
@@ -3095,7 +3091,6 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
   if (DeducedType *Deduced = T->getContainedDeducedType()) {
     AutoType *Auto = dyn_cast<AutoType>(Deduced);
     int Error = -1;
-
     // Is this a 'auto' or 'decltype(auto)' type (as opposed to __auto_type or
     // class template argument deduction)?
     bool IsCXXAutoType =
@@ -5441,6 +5436,11 @@ TypeSourceInfo *Sema::GetTypeForDeclarator(Declarator &D, Scope *S) {
 
   TypeSourceInfo *ReturnTypeInfo = nullptr;
   QualType T = GetDeclSpecTypeForDeclarator(state, ReturnTypeInfo);
+  if (!Context.getTargetInfo().hasFloat128Type() && (T->isFloat128Type()) &&
+      getLangOpts().SYCLIsDevice &&
+      D.getContext() != DeclaratorContext::TemplateArgContext)
+    SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_type_unsupported)
+        << "__float128";
   if (D.isPrototypeContext() && getLangOpts().ObjCAutoRefCount)
     inferARCWriteback(state, T);
 
@@ -5551,6 +5551,11 @@ TypeSourceInfo *Sema::GetTypeForDeclaratorCast(Declarator &D, QualType FromTy) {
 
   TypeSourceInfo *ReturnTypeInfo = nullptr;
   QualType declSpecTy = GetDeclSpecTypeForDeclarator(state, ReturnTypeInfo);
+  if (!Context.getTargetInfo().hasFloat128Type() &&
+      (declSpecTy->isFloat128Type()) && getLangOpts().SYCLIsDevice &&
+      D.getContext() != DeclaratorContext::TemplateParamContext)
+    SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_type_unsupported)
+        << "__float128";
 
   if (getLangOpts().ObjC) {
     Qualifiers::ObjCLifetime ownership = Context.getInnerObjCOwnership(FromTy);
