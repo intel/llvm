@@ -6936,16 +6936,25 @@ void OffloadBundler::ConstructJobMultipleOutputs(
 
     // TODO - We can potentially go through the args and add the known linker
     // pass through args of --whole-archive and --no-whole-archive.  This
-    // would allow for support for usages of -Wl,--whole-archive
+    // would allow to support user commands like: -Wl,--whole-archive
     // -foffload-static-lib=<lib> -Wl,--no-whole-archive
     // Input files consist of fat libraries and the object(s) to be unbundled.
+    bool IsWholeArchive = false;
     for (const auto &I : Inputs) {
-      if (I.getType() == types::TY_WholeArchive)
+      if (I.getType() == types::TY_WholeArchive &&
+          IsWholeArchive == false) {
         LinkArgs.push_back("--whole-archive");
-      LinkArgs.push_back(I.getFilename());
-      if (I.getType() == types::TY_WholeArchive)
+        IsWholeArchive = true;
+      } else if (I.getType() == types::TY_Archive &&
+                 IsWholeArchive == true) {
         LinkArgs.push_back("--no-whole-archive");
+        IsWholeArchive = false;
+      }
+      LinkArgs.push_back(I.getFilename());
     }
+    // disable whole archive is it is enabled.
+    if (IsWholeArchive)
+      LinkArgs.push_back("--no-whole-archive");
     // Add crt objects
     LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());

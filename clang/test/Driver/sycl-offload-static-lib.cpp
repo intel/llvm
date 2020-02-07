@@ -89,16 +89,17 @@
 
 /// test behaviors of -foffload-whole-static-lib=<lib>
 // RUN: touch %t.a
+// RUN: touch %t_2.a
 // RUN: touch %t.o
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-whole-static-lib=%t.a -### %t.o 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-whole-static-lib=%t.a -foffload-whole-static-lib=%t_2.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_WHOLE_STATIC_LIB
-// FOFFLOAD_WHOLE_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUT:.+\.o]]" "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" "[[INPUTO:.+\.o]]" "--whole-archive" "[[INPUTA:.+\.a]]" "--no-whole-archive" "{{.*}}crtn.o"
+// FOFFLOAD_WHOLE_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUT:.+\.o]]" "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" "[[INPUTO:.+\.o]]" "--whole-archive" "[[INPUTA:.+\.a]]" "[[INPUTB:.+\.a]]" "--no-whole-archive" "{{.*}}crtn.o"
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo" {{.*}} "-inputs=[[INPUT]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-spirv{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: llc{{.*}}
-// FOFFLOAD_WHOLE_STATIC_LIB: ld{{.*}} "[[INPUTA]]" "[[INPUTO]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: ld{{.*}} "[[INPUTA]]" "[[INPUTB]]" "[[INPUTO]]"
 
 /// ###########################################################################
 

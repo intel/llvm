@@ -239,7 +239,6 @@ bool types::isArchive(ID Id) {
   switch (Id) {
   default:
     return false;
-
   case TY_Archive:
   case TY_WholeArchive:
     return true;
