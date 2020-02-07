@@ -6,28 +6,11 @@
 #include <memory>
 #include <vector>
 
+#include "FakeCommand.hpp"
+
 // This test checks the leaf limit imposed on the execution graph
 
 using namespace cl::sycl;
-
-class FakeCommand : public detail::Command {
-public:
-  FakeCommand(detail::QueueImplPtr Queue, detail::Requirement Req)
-      : Command{detail::Command::ALLOCA, Queue}, MRequirement{std::move(Req)} {}
-
-  void printDot(std::ostream &Stream) const override {}
-
-  const detail::Requirement *getRequirement() const final {
-    return &MRequirement;
-  };
-
-  cl_int enqueueImp() override { return MRetVal; }
-
-  cl_int MRetVal = CL_SUCCESS;
-
-protected:
-  detail::Requirement MRequirement;
-};
 
 class TestScheduler : public detail::Scheduler {
 public:
