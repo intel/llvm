@@ -21,6 +21,7 @@
 #include "MSP430.h"
 #include "InputInfo.h"
 #include "PS4CPU.h"
+#include "SYCL.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LangOptions.h"
@@ -7227,10 +7228,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Twine(Opt) + Twine("\"") + AL + Twine("\"")));
       }
     };
-    getToolChain().TranslateBackendTargetArgs(TCArgs, BuildArgs);
+    SYCL::TranslateBackendTargetArgs(getToolChain(), TCArgs, BuildArgs);
     createArgString("-compile-opts=");
     BuildArgs.clear();
-    getToolChain().TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+    SYCL::TranslateLinkerTargetArgs(getToolChain(), TCArgs, BuildArgs);
     createArgString("-link-opts=");
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));

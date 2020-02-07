@@ -26,6 +26,12 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output, const Tool *T,
                                  StringRef Ext);
 
+void TranslateBackendTargetArgs(const ToolChain &TC,
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs);
+
+void TranslateLinkerTargetArgs(const ToolChain &TC,
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs);
+
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
 // offloading information. Finally compiles to object using llc
