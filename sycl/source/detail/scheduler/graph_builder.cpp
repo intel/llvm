@@ -640,20 +640,18 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
   std::queue<Command *> ToVisit;
   std::set<Command *> Visited;
+  std::vector<Command *> CmdsToDelete;
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
     for (Command *UserCmd : AllocaCmd->MUsers)
       ToVisit.push(UserCmd);
+    CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
     AllocaCmd->MUsers.clear();
   }
-
-  const std::set<Command *> AllocasToDelete{AllocaCommands.begin(),
-                                            AllocaCommands.end()};
-  std::vector<Command *> CmdsToDelete;
 
   // Traverse the graph using BFS
   while (!ToVisit.empty()) {
@@ -671,7 +669,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     std::map<Command *, bool> ShouldBeUpdated;
     auto NewEnd = std::remove_if(
         Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
-          if (AllocasToDelete.count(Dep.MAllocaCmd)) {
+          if (std::find(AllocaCommands.begin(), AllocaCommands.end(),
+                        Dep.MAllocaCmd) != AllocaCommands.end()) {
             ShouldBeUpdated.insert({Dep.MDepCommand, true});
             return true;
           }
@@ -700,10 +699,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   for (Command *Cmd : CmdsToDelete) {
     Cmd->getEvent()->setCommand(nullptr);
     delete Cmd;
-  }
-  for (Command *AllocaCmd : AllocasToDelete) {
-    AllocaCmd->getEvent()->setCommand(nullptr);
-    delete AllocaCmd;
   }
 }
 
