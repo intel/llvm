@@ -1,4 +1,4 @@
-//===-- ClangExpressionParser.cpp -------------------------------*- C++ -*-===//
+//===-- ClangExpressionParser.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -67,6 +67,7 @@
 #include "IRForTarget.h"
 #include "ModuleDependencyCollector.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
@@ -75,7 +76,6 @@
 #include "lldb/Expression/IRInterpreter.h"
 #include "lldb/Host/File.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
@@ -91,6 +91,7 @@
 #include "lldb/Utility/StringList.h"
 
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+#include "Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime/RenderScriptRuntime.h"
 
 #include <cctype>
 #include <memory>
@@ -207,7 +208,8 @@ public:
     if (make_new_diagnostic) {
       // ClangDiagnostic messages are expected to have no whitespace/newlines
       // around them.
-      std::string stripped_output = llvm::StringRef(m_output).trim();
+      std::string stripped_output =
+          std::string(llvm::StringRef(m_output).trim());
 
       auto new_diagnostic = std::make_unique<ClangDiagnostic>(
           stripped_output, severity, Info.getID());
@@ -253,9 +255,9 @@ static void SetupModuleHeaderPaths(CompilerInstance *compiler,
   }
 
   llvm::SmallString<128> module_cache;
-  auto props = ModuleList::GetGlobalModuleListProperties();
+  const auto &props = ModuleList::GetGlobalModuleListProperties();
   props.GetClangModulesCachePath().GetPath(module_cache);
-  search_opts.ModuleCachePath = module_cache.str();
+  search_opts.ModuleCachePath = std::string(module_cache.str());
   LLDB_LOG(log, "Using module cache path: {0}", module_cache.c_str());
 
   search_opts.ResourceDir = GetClangResourceDir().GetPath();
@@ -391,9 +393,13 @@ ClangExpressionParser::ClangExpressionParser(
   // target. In this case, a specialized language runtime is available and we
   // can query it for extra options. For 99% of use cases, this will not be
   // needed and should be provided when basic platform detection is not enough.
-  if (lang_rt)
+  // FIXME: Generalize this. Only RenderScriptRuntime currently supports this
+  // currently. Hardcoding this isn't ideal but it's better than LanguageRuntime
+  // having knowledge of clang::TargetOpts.
+  if (auto *renderscript_rt =
+          llvm::dyn_cast_or_null<RenderScriptRuntime>(lang_rt))
     overridden_target_opts =
-        lang_rt->GetOverrideExprOptions(m_compiler->getTargetOpts());
+        renderscript_rt->GetOverrideExprOptions(m_compiler->getTargetOpts());
 
   if (overridden_target_opts)
     if (log && log->GetVerbose()) {
@@ -606,7 +612,8 @@ ClangExpressionParser::ClangExpressionParser(
   m_compiler->createASTContext();
   clang::ASTContext &ast_context = m_compiler->getASTContext();
 
-  m_ast_context.reset(new ClangASTContext(ast_context));
+  m_ast_context.reset(new TypeSystemClang(
+      "Expression ASTContext for '" + m_filename + "'", ast_context));
 
   std::string module_name("$__lldb_module");
 

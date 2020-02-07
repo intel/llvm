@@ -1,6 +1,6 @@
 //===- ExecutionEngine.h - MLIR Execution engine and utils -----*- C++ -*--===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -26,6 +26,7 @@ namespace llvm {
 template <typename T> class Expected;
 class Module;
 class ExecutionEngine;
+class JITEventListener;
 class MemoryBuffer;
 } // namespace llvm
 
@@ -97,15 +98,18 @@ public:
   void dumpToObjectFile(StringRef filename);
 
 private:
-  // Ordering of llvmContext and jit is important for destruction purposes: the
-  // jit must be destroyed before the context.
+  /// Ordering of llvmContext and jit is important for destruction purposes: the
+  /// jit must be destroyed before the context.
   llvm::LLVMContext llvmContext;
 
-  // Underlying LLJIT.
+  /// Underlying LLJIT.
   std::unique_ptr<llvm::orc::LLJIT> jit;
 
-  // Underlying cache.
+  /// Underlying cache.
   std::unique_ptr<SimpleObjectCache> cache;
+
+  /// GDB notification listener.
+  llvm::JITEventListener *gdbListener;
 };
 
 template <typename... Args>

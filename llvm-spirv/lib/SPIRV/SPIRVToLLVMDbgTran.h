@@ -171,7 +171,7 @@ private:
     }
     return nullptr;
   }
-  StringRef getString(const SPIRVId Id);
+  const std::string &getString(const SPIRVId Id);
 };
 } // namespace SPIRV
 

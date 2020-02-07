@@ -1,6 +1,6 @@
 //===- AsmPrinter.cpp - MLIR Assembly Printer Implementation --------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -422,7 +422,7 @@ namespace {
 /// This class manages the state of SSA value names.
 class SSANameState {
 public:
-  /// A sentinal value used for values with names set.
+  /// A sentinel value used for values with names set.
   enum : unsigned { NameSentinel = ~0U };
 
   SSANameState(Operation *op,

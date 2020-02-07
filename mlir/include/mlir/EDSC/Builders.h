@@ -1,6 +1,6 @@
 //===- Builders.h - MLIR Declarative Builder Classes ------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -24,8 +24,8 @@ namespace mlir {
 
 namespace edsc {
 
-struct index_t {
-  explicit index_t(int64_t v) : v(v) {}
+struct index_type {
+  explicit index_type(int64_t v) : v(v) {}
   explicit operator int64_t() { return v; }
   int64_t v;
 };
@@ -155,6 +155,13 @@ public:
   static LoopBuilder makeAffine(ValueHandle *iv,
                                 ArrayRef<ValueHandle> lbHandles,
                                 ArrayRef<ValueHandle> ubHandles, int64_t step);
+  /// Constructs a new loop::ParallelOp and captures the associated induction
+  /// variables. An array of ValueHandle pointers is passed as the first
+  /// argument and is the *only* way to capture loop induction variables.
+  static LoopBuilder makeParallel(ArrayRef<ValueHandle *> ivs,
+                                  ArrayRef<ValueHandle> lbHandles,
+                                  ArrayRef<ValueHandle> ubHandles,
+                                  ArrayRef<ValueHandle> steps);
   /// Constructs a new loop::ForOp and captures the associated induction
   /// variable. A ValueHandle pointer is passed as the first argument and is the
   /// *only* way to capture the loop induction variable.
@@ -207,6 +214,20 @@ public:
                         ArrayRef<ValueHandle> ubs, int64_t step);
   AffineLoopNestBuilder(ArrayRef<ValueHandle *> ivs, ArrayRef<ValueHandle> lbs,
                         ArrayRef<ValueHandle> ubs, ArrayRef<int64_t> steps);
+
+  void operator()(function_ref<void(void)> fun = nullptr);
+
+private:
+  SmallVector<LoopBuilder, 4> loops;
+};
+
+/// Helper class to sugar building loop.parallel loop nests from lower/upper
+/// bounds and step sizes.
+class ParallelLoopNestBuilder {
+public:
+  ParallelLoopNestBuilder(ArrayRef<ValueHandle *> ivs,
+                          ArrayRef<ValueHandle> lbs, ArrayRef<ValueHandle> ubs,
+                          ArrayRef<ValueHandle> steps);
 
   void operator()(function_ref<void(void)> fun = nullptr);
 
@@ -320,7 +341,7 @@ public:
   /// This implicit constructor is provided to each build an eager Value for a
   /// constant at the current insertion point in the IR. An implicit constructor
   /// allows idiomatic expressions mixing ValueHandle and literals.
-  ValueHandle(index_t cst);
+  ValueHandle(index_type cst);
 
   /// ValueHandle is a value type, use the default copy constructor.
   ValueHandle(const ValueHandle &other) = default;
@@ -339,6 +360,7 @@ public:
 
   /// Implicit conversion useful for automatic conversion to Container<Value>.
   operator Value() const { return getValue(); }
+  operator Type() const { return getType(); }
   operator bool() const { return hasValue(); }
 
   /// Generic mlir::Op create. This is the key to being extensible to the whole

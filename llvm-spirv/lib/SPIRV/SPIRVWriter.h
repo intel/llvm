@@ -161,9 +161,9 @@ private:
                                SmallVectorImpl<std::string> *Dec = nullptr);
   bool oclIsKernel(Function *F);
   bool transOCLKernelMetadata();
-  SPIRVInstruction *transBuiltinToInst(const std::string &DemangledName,
-                                       const std::string &MangledName,
-                                       CallInst *CI, SPIRVBasicBlock *BB);
+  SPIRVInstruction *transBuiltinToInst(StringRef DemangledName, CallInst *CI,
+                                       SPIRVBasicBlock *BB);
+  SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);
   SPIRVInstruction *transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                                         SPIRVBasicBlock *BB);
   void mutateFuncArgType(const std::map<unsigned, Type *> &ChangedType,

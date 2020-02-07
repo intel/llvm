@@ -50,6 +50,7 @@ void DAGTypeLegalizer::ExpandRes_BITCAST(SDNode *N, SDValue &Lo, SDValue &Hi) {
     case TargetLowering::TypePromoteInteger:
       break;
     case TargetLowering::TypePromoteFloat:
+    case TargetLowering::TypeSoftPromoteHalf:
       llvm_unreachable("Bitcast of a promotion-needing float should never need"
                        "expansion");
     case TargetLowering::TypeSoftenFloat:
@@ -119,9 +120,8 @@ void DAGTypeLegalizer::ExpandRes_BITCAST(SDNode *N, SDValue &Lo, SDValue &Hi) {
 
       SmallVector<SDValue, 8> Vals;
       for (unsigned i = 0; i < NumElems; ++i)
-        Vals.push_back(DAG.getNode(
-            ISD::EXTRACT_VECTOR_ELT, dl, ElemVT, CastInOp,
-            DAG.getConstant(i, dl, TLI.getVectorIdxTy(DAG.getDataLayout()))));
+        Vals.push_back(DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, ElemVT,
+                                   CastInOp, DAG.getVectorIdxConstant(i, dl)));
 
       // Build Lo, Hi pair by pairing extracted elements if needed.
       unsigned Slot = 0;

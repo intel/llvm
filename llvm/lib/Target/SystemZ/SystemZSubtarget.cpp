@@ -28,11 +28,16 @@ void SystemZSubtarget::anchor() {}
 
 SystemZSubtarget &
 SystemZSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
-  std::string CPUName = CPU;
+  StringRef CPUName = CPU;
   if (CPUName.empty())
     CPUName = "generic";
   // Parse features string.
   ParseSubtargetFeatures(CPUName, FS);
+
+  // -msoft-float implies -mno-vx.
+  if (HasSoftFloat)
+    HasVector = false;
+
   return *this;
 }
 
@@ -57,7 +62,7 @@ SystemZSubtarget::SystemZSubtarget(const Triple &TT, const std::string &CPU,
       HasInsertReferenceBitsMultiple(false),
       HasMiscellaneousExtensions3(false), HasMessageSecurityAssist9(false),
       HasVectorEnhancements2(false), HasVectorPackedDecimalEnhancement(false),
-      HasEnhancedSort(false), HasDeflateConversion(false),
+      HasEnhancedSort(false), HasDeflateConversion(false), HasSoftFloat(false),
       TargetTriple(TT), InstrInfo(initializeSubtargetDependencies(CPU, FS)),
       TLInfo(TM, *this), TSInfo(), FrameLowering() {}
 

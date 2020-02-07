@@ -1,6 +1,6 @@
 //===- LoopFusionUtils.h - Loop fusion utilities ----------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -50,6 +50,11 @@ struct FusionResult {
 FusionResult canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
                           unsigned dstLoopDepth,
                           ComputationSliceState *srcSlice);
+
+/// Fuses 'srcForOp' into 'dstForOp' with destination loop block insertion point
+/// and source slice loop bounds specified in 'srcSlice'.
+void fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
+               ComputationSliceState *srcSlice);
 
 /// LoopNestStats aggregates various per-loop statistics (eg. loop trip count
 /// and operation count) for a loop nest up until (and including) the innermost

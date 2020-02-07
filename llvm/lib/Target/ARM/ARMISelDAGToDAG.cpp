@@ -266,7 +266,12 @@ private:
   /// pointer points to a set of NumVecs sub-opcodes used for the
   /// different stages (e.g. VLD20 versus VLD21) of each load family.
   void SelectMVE_VLD(SDNode *N, unsigned NumVecs,
-                     const uint16_t *const *Opcodes);
+                     const uint16_t *const *Opcodes, bool HasWriteback);
+
+  /// SelectMVE_VxDUP - Select MVE incrementing-dup instructions. Opcodes is an
+  /// array of 3 elements for the 8, 16 and 32-bit lane sizes.
+  void SelectMVE_VxDUP(SDNode *N, const uint16_t *Opcodes,
+                       bool Wrapping, bool Predicated);
 
   /// SelectVLDDup - Select NEON load-duplicate intrinsics.  NumVecs
   /// should be 1, 2, 3 or 4.  The opcode array specifies the instructions used
@@ -1791,8 +1796,8 @@ bool ARMDAGToDAGISel::tryMVEIndexedLoad(SDNode *N) {
   SDValue Ops[] = {Base, NewOffset,
                    CurDAG->getTargetConstant(Pred, SDLoc(N), MVT::i32), PredReg,
                    Chain};
-  SDNode *New = CurDAG->getMachineNode(Opcode, SDLoc(N), N->getValueType(0),
-                                       MVT::i32, MVT::Other, Ops);
+  SDNode *New = CurDAG->getMachineNode(Opcode, SDLoc(N), MVT::i32,
+                                       N->getValueType(0), MVT::Other, Ops);
   transferMemOperands(N, New);
   ReplaceUses(SDValue(N, 0), SDValue(New, 1));
   ReplaceUses(SDValue(N, 1), SDValue(New, 0));
@@ -2038,6 +2043,7 @@ void ARMDAGToDAGISel::SelectVLD(SDNode *N, bool isUpdating, unsigned NumVecs,
                                 const uint16_t *DOpcodes,
                                 const uint16_t *QOpcodes0,
                                 const uint16_t *QOpcodes1) {
+  assert(Subtarget->hasNEON());
   assert(NumVecs >= 1 && NumVecs <= 4 && "VLD NumVecs out-of-range");
   SDLoc dl(N);
 
@@ -2177,6 +2183,7 @@ void ARMDAGToDAGISel::SelectVST(SDNode *N, bool isUpdating, unsigned NumVecs,
                                 const uint16_t *DOpcodes,
                                 const uint16_t *QOpcodes0,
                                 const uint16_t *QOpcodes1) {
+  assert(Subtarget->hasNEON());
   assert(NumVecs >= 1 && NumVecs <= 4 && "VST NumVecs out-of-range");
   SDLoc dl(N);
 
@@ -2328,6 +2335,7 @@ void ARMDAGToDAGISel::SelectVLDSTLane(SDNode *N, bool IsLoad, bool isUpdating,
                                       unsigned NumVecs,
                                       const uint16_t *DOpcodes,
                                       const uint16_t *QOpcodes) {
+  assert(Subtarget->hasNEON());
   assert(NumVecs >=2 && NumVecs <= 4 && "VLDSTLane NumVecs out-of-range");
   SDLoc dl(N);
 
@@ -2511,7 +2519,16 @@ void ARMDAGToDAGISel::SelectMVE_WB(SDNode *N, const uint16_t *Opcodes,
 
   Ops.push_back(N->getOperand(0)); // chain
 
-  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
+  SmallVector<EVT, 8> VTs;
+  VTs.push_back(N->getValueType(1));
+  VTs.push_back(N->getValueType(0));
+  VTs.push_back(N->getValueType(2));
+
+  SDNode *New = CurDAG->getMachineNode(Opcode, SDLoc(N), VTs, Ops);
+  ReplaceUses(SDValue(N, 0), SDValue(New, 1));
+  ReplaceUses(SDValue(N, 1), SDValue(New, 0));
+  ReplaceUses(SDValue(N, 2), SDValue(New, 2));
+  CurDAG->RemoveDeadNode(N);
 }
 
 void ARMDAGToDAGISel::SelectMVE_LongShift(SDNode *N, uint16_t Opcode,
@@ -2673,7 +2690,8 @@ void ARMDAGToDAGISel::SelectMVE_VRMLLDAVH(SDNode *N, bool Predicated,
 }
 
 void ARMDAGToDAGISel::SelectMVE_VLD(SDNode *N, unsigned NumVecs,
-                                    const uint16_t *const *Opcodes) {
+                                    const uint16_t *const *Opcodes,
+                                    bool HasWriteback) {
   EVT VT = N->getValueType(0);
   SDLoc Loc(N);
 
@@ -2693,24 +2711,79 @@ void ARMDAGToDAGISel::SelectMVE_VLD(SDNode *N, unsigned NumVecs,
   }
 
   EVT DataTy = EVT::getVectorVT(*CurDAG->getContext(), MVT::i64, NumVecs * 2);
-  EVT ResultTys[] = {DataTy, MVT::Other};
+  SmallVector<EVT, 4> ResultTys = {DataTy, MVT::Other};
+  unsigned PtrOperand = HasWriteback ? 1 : 2;
 
   auto Data = SDValue(
       CurDAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, Loc, DataTy), 0);
   SDValue Chain = N->getOperand(0);
-  for (unsigned Stage = 0; Stage < NumVecs; ++Stage) {
-    SDValue Ops[] = {Data, N->getOperand(2), Chain};
+  // Add a MVE_VLDn instruction for each Vec, except the last
+  for (unsigned Stage = 0; Stage < NumVecs - 1; ++Stage) {
+    SDValue Ops[] = {Data, N->getOperand(PtrOperand), Chain};
     auto LoadInst =
         CurDAG->getMachineNode(OurOpcodes[Stage], Loc, ResultTys, Ops);
     Data = SDValue(LoadInst, 0);
     Chain = SDValue(LoadInst, 1);
   }
+  // The last may need a writeback on it
+  if (HasWriteback)
+    ResultTys = {DataTy, MVT::i32, MVT::Other};
+  SDValue Ops[] = {Data, N->getOperand(PtrOperand), Chain};
+  auto LoadInst =
+      CurDAG->getMachineNode(OurOpcodes[NumVecs - 1], Loc, ResultTys, Ops);
 
-  for (unsigned i = 0; i < NumVecs; i++)
+  unsigned i;
+  for (i = 0; i < NumVecs; i++)
     ReplaceUses(SDValue(N, i),
-                CurDAG->getTargetExtractSubreg(ARM::qsub_0 + i, Loc, VT, Data));
-  ReplaceUses(SDValue(N, NumVecs), Chain);
+                CurDAG->getTargetExtractSubreg(ARM::qsub_0 + i, Loc, VT,
+                                               SDValue(LoadInst, 0)));
+  if (HasWriteback)
+    ReplaceUses(SDValue(N, i++), SDValue(LoadInst, 1));
+  ReplaceUses(SDValue(N, i), SDValue(LoadInst, HasWriteback ? 2 : 1));
   CurDAG->RemoveDeadNode(N);
+}
+
+void ARMDAGToDAGISel::SelectMVE_VxDUP(SDNode *N, const uint16_t *Opcodes,
+                                      bool Wrapping, bool Predicated) {
+  EVT VT = N->getValueType(0);
+  SDLoc Loc(N);
+
+  uint16_t Opcode;
+  switch (VT.getScalarSizeInBits()) {
+  case 8:
+    Opcode = Opcodes[0];
+    break;
+  case 16:
+    Opcode = Opcodes[1];
+    break;
+  case 32:
+    Opcode = Opcodes[2];
+    break;
+  default:
+    llvm_unreachable("bad vector element size in SelectMVE_VxDUP");
+  }
+
+  SmallVector<SDValue, 8> Ops;
+  unsigned OpIdx = 1;
+
+  SDValue Inactive;
+  if (Predicated)
+    Inactive = N->getOperand(OpIdx++);
+
+  Ops.push_back(N->getOperand(OpIdx++));     // base
+  if (Wrapping)
+    Ops.push_back(N->getOperand(OpIdx++));   // limit
+
+  SDValue ImmOp = N->getOperand(OpIdx++);    // step
+  int ImmValue = cast<ConstantSDNode>(ImmOp)->getZExtValue();
+  Ops.push_back(getI32Imm(ImmValue, Loc));
+
+  if (Predicated)
+    AddMVEPredicateToOps(Ops, Loc, N->getOperand(OpIdx), Inactive);
+  else
+    AddEmptyMVEPredicateToOps(Ops, Loc, N->getValueType(0));
+
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), makeArrayRef(Ops));
 }
 
 void ARMDAGToDAGISel::SelectVLDDup(SDNode *N, bool IsIntrinsic,
@@ -2718,6 +2791,7 @@ void ARMDAGToDAGISel::SelectVLDDup(SDNode *N, bool IsIntrinsic,
                                    const uint16_t *DOpcodes,
                                    const uint16_t *QOpcodes0,
                                    const uint16_t *QOpcodes1) {
+  assert(Subtarget->hasNEON());
   assert(NumVecs >= 1 && NumVecs <= 4 && "VLDDup NumVecs out-of-range");
   SDLoc dl(N);
 
@@ -3877,14 +3951,24 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   }
 
   case ARMISD::VLD2_UPD: {
-    static const uint16_t DOpcodes[] = { ARM::VLD2d8wb_fixed,
-                                         ARM::VLD2d16wb_fixed,
-                                         ARM::VLD2d32wb_fixed,
-                                         ARM::VLD1q64wb_fixed};
-    static const uint16_t QOpcodes[] = { ARM::VLD2q8PseudoWB_fixed,
-                                         ARM::VLD2q16PseudoWB_fixed,
-                                         ARM::VLD2q32PseudoWB_fixed };
-    SelectVLD(N, true, 2, DOpcodes, QOpcodes, nullptr);
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VLD2d8wb_fixed, ARM::VLD2d16wb_fixed, ARM::VLD2d32wb_fixed,
+          ARM::VLD1q64wb_fixed};
+      static const uint16_t QOpcodes[] = {ARM::VLD2q8PseudoWB_fixed,
+                                          ARM::VLD2q16PseudoWB_fixed,
+                                          ARM::VLD2q32PseudoWB_fixed};
+      SelectVLD(N, true, 2, DOpcodes, QOpcodes, nullptr);
+    } else {
+      static const uint16_t Opcodes8[] = {ARM::MVE_VLD20_8,
+                                          ARM::MVE_VLD21_8_wb};
+      static const uint16_t Opcodes16[] = {ARM::MVE_VLD20_16,
+                                           ARM::MVE_VLD21_16_wb};
+      static const uint16_t Opcodes32[] = {ARM::MVE_VLD20_32,
+                                           ARM::MVE_VLD21_32_wb};
+      static const uint16_t *const Opcodes[] = {Opcodes8, Opcodes16, Opcodes32};
+      SelectMVE_VLD(N, 2, Opcodes, true);
+    }
     return;
   }
 
@@ -3904,17 +3988,30 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   }
 
   case ARMISD::VLD4_UPD: {
-    static const uint16_t DOpcodes[] = { ARM::VLD4d8Pseudo_UPD,
-                                         ARM::VLD4d16Pseudo_UPD,
-                                         ARM::VLD4d32Pseudo_UPD,
-                                         ARM::VLD1d64QPseudoWB_fixed};
-    static const uint16_t QOpcodes0[] = { ARM::VLD4q8Pseudo_UPD,
-                                          ARM::VLD4q16Pseudo_UPD,
-                                          ARM::VLD4q32Pseudo_UPD };
-    static const uint16_t QOpcodes1[] = { ARM::VLD4q8oddPseudo_UPD,
-                                          ARM::VLD4q16oddPseudo_UPD,
-                                          ARM::VLD4q32oddPseudo_UPD };
-    SelectVLD(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VLD4d8Pseudo_UPD, ARM::VLD4d16Pseudo_UPD, ARM::VLD4d32Pseudo_UPD,
+          ARM::VLD1d64QPseudoWB_fixed};
+      static const uint16_t QOpcodes0[] = {ARM::VLD4q8Pseudo_UPD,
+                                           ARM::VLD4q16Pseudo_UPD,
+                                           ARM::VLD4q32Pseudo_UPD};
+      static const uint16_t QOpcodes1[] = {ARM::VLD4q8oddPseudo_UPD,
+                                           ARM::VLD4q16oddPseudo_UPD,
+                                           ARM::VLD4q32oddPseudo_UPD};
+      SelectVLD(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
+    } else {
+      static const uint16_t Opcodes8[] = {ARM::MVE_VLD40_8, ARM::MVE_VLD41_8,
+                                          ARM::MVE_VLD42_8,
+                                          ARM::MVE_VLD43_8_wb};
+      static const uint16_t Opcodes16[] = {ARM::MVE_VLD40_16, ARM::MVE_VLD41_16,
+                                           ARM::MVE_VLD42_16,
+                                           ARM::MVE_VLD43_16_wb};
+      static const uint16_t Opcodes32[] = {ARM::MVE_VLD40_32, ARM::MVE_VLD41_32,
+                                           ARM::MVE_VLD42_32,
+                                           ARM::MVE_VLD43_32_wb};
+      static const uint16_t *const Opcodes[] = {Opcodes8, Opcodes16, Opcodes32};
+      SelectMVE_VLD(N, 4, Opcodes, true);
+    }
     return;
   }
 
@@ -3962,15 +4059,17 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   }
 
   case ARMISD::VST2_UPD: {
-    static const uint16_t DOpcodes[] = { ARM::VST2d8wb_fixed,
-                                         ARM::VST2d16wb_fixed,
-                                         ARM::VST2d32wb_fixed,
-                                         ARM::VST1q64wb_fixed};
-    static const uint16_t QOpcodes[] = { ARM::VST2q8PseudoWB_fixed,
-                                         ARM::VST2q16PseudoWB_fixed,
-                                         ARM::VST2q32PseudoWB_fixed };
-    SelectVST(N, true, 2, DOpcodes, QOpcodes, nullptr);
-    return;
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VST2d8wb_fixed, ARM::VST2d16wb_fixed, ARM::VST2d32wb_fixed,
+          ARM::VST1q64wb_fixed};
+      static const uint16_t QOpcodes[] = {ARM::VST2q8PseudoWB_fixed,
+                                          ARM::VST2q16PseudoWB_fixed,
+                                          ARM::VST2q32PseudoWB_fixed};
+      SelectVST(N, true, 2, DOpcodes, QOpcodes, nullptr);
+      return;
+    }
+    break;
   }
 
   case ARMISD::VST3_UPD: {
@@ -3989,18 +4088,20 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   }
 
   case ARMISD::VST4_UPD: {
-    static const uint16_t DOpcodes[] = { ARM::VST4d8Pseudo_UPD,
-                                         ARM::VST4d16Pseudo_UPD,
-                                         ARM::VST4d32Pseudo_UPD,
-                                         ARM::VST1d64QPseudoWB_fixed};
-    static const uint16_t QOpcodes0[] = { ARM::VST4q8Pseudo_UPD,
-                                          ARM::VST4q16Pseudo_UPD,
-                                          ARM::VST4q32Pseudo_UPD };
-    static const uint16_t QOpcodes1[] = { ARM::VST4q8oddPseudo_UPD,
-                                          ARM::VST4q16oddPseudo_UPD,
-                                          ARM::VST4q32oddPseudo_UPD };
-    SelectVST(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
-    return;
+    if (Subtarget->hasNEON()) {
+      static const uint16_t DOpcodes[] = {
+          ARM::VST4d8Pseudo_UPD, ARM::VST4d16Pseudo_UPD, ARM::VST4d32Pseudo_UPD,
+          ARM::VST1d64QPseudoWB_fixed};
+      static const uint16_t QOpcodes0[] = {ARM::VST4q8Pseudo_UPD,
+                                           ARM::VST4q16Pseudo_UPD,
+                                           ARM::VST4q32Pseudo_UPD};
+      static const uint16_t QOpcodes1[] = {ARM::VST4q8oddPseudo_UPD,
+                                           ARM::VST4q16oddPseudo_UPD,
+                                           ARM::VST4q32oddPseudo_UPD};
+      SelectVST(N, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
+      return;
+    }
+    break;
   }
 
   case ARMISD::VST2LN_UPD: {
@@ -4479,7 +4580,7 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
       static const uint16_t Opcodes32[] = {ARM::MVE_VLD20_32,
                                            ARM::MVE_VLD21_32};
       static const uint16_t *const Opcodes[] = {Opcodes8, Opcodes16, Opcodes32};
-      SelectMVE_VLD(N, 2, Opcodes);
+      SelectMVE_VLD(N, 2, Opcodes, false);
       return;
     }
 
@@ -4493,7 +4594,7 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
                                            ARM::MVE_VLD42_32,
                                            ARM::MVE_VLD43_32};
       static const uint16_t *const Opcodes[] = {Opcodes8, Opcodes16, Opcodes32};
-      SelectMVE_VLD(N, 4, Opcodes);
+      SelectMVE_VLD(N, 4, Opcodes, false);
       return;
     }
     }
@@ -4571,6 +4672,46 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
       };
       SelectMVE_VRMLLDAVH(N, IntNo == Intrinsic::arm_mve_vrmlldavha_predicated,
                           OpcodesS, OpcodesU);
+      return;
+    }
+
+    case Intrinsic::arm_mve_vidup:
+    case Intrinsic::arm_mve_vidup_predicated: {
+      static const uint16_t Opcodes[] = {
+          ARM::MVE_VIDUPu8, ARM::MVE_VIDUPu16, ARM::MVE_VIDUPu32,
+      };
+      SelectMVE_VxDUP(N, Opcodes, false,
+                      IntNo == Intrinsic::arm_mve_vidup_predicated);
+      return;
+    }
+
+    case Intrinsic::arm_mve_vddup:
+    case Intrinsic::arm_mve_vddup_predicated: {
+      static const uint16_t Opcodes[] = {
+          ARM::MVE_VDDUPu8, ARM::MVE_VDDUPu16, ARM::MVE_VDDUPu32,
+      };
+      SelectMVE_VxDUP(N, Opcodes, false,
+                      IntNo == Intrinsic::arm_mve_vddup_predicated);
+      return;
+    }
+
+    case Intrinsic::arm_mve_viwdup:
+    case Intrinsic::arm_mve_viwdup_predicated: {
+      static const uint16_t Opcodes[] = {
+          ARM::MVE_VIWDUPu8, ARM::MVE_VIWDUPu16, ARM::MVE_VIWDUPu32,
+      };
+      SelectMVE_VxDUP(N, Opcodes, true,
+                      IntNo == Intrinsic::arm_mve_viwdup_predicated);
+      return;
+    }
+
+    case Intrinsic::arm_mve_vdwdup:
+    case Intrinsic::arm_mve_vdwdup_predicated: {
+      static const uint16_t Opcodes[] = {
+          ARM::MVE_VDWDUPu8, ARM::MVE_VDWDUPu16, ARM::MVE_VDWDUPu32,
+      };
+      SelectMVE_VxDUP(N, Opcodes, true,
+                      IntNo == Intrinsic::arm_mve_vdwdup_predicated);
       return;
     }
     }

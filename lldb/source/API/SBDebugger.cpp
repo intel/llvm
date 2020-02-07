@@ -1,4 +1,4 @@
-//===-- SBDebugger.cpp ------------------------------------------*- C++ -*-===//
+//===-- SBDebugger.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1282,7 +1282,7 @@ SBDebugger::GetInternalVariableValue(const char *var_name,
     if (value_sp) {
       StreamString value_strm;
       value_sp->DumpValue(&exe_ctx, value_strm, OptionValue::eDumpOptionValue);
-      const std::string &value_str = value_strm.GetString();
+      const std::string &value_str = std::string(value_strm.GetString());
       if (!value_str.empty()) {
         StringList string_list;
         string_list.SplitIntoLines(value_str);
@@ -1627,14 +1627,6 @@ static SBError SetFileRedirect(SBDebugger *, SBFile file) { return SBError(); }
 
 static SBError SetFileRedirect(SBDebugger *, FileSP file) { return SBError(); }
 
-static bool GetDefaultArchitectureRedirect(char *arch_name,
-                                           size_t arch_name_len) {
-  // The function is writing to its argument. Without the redirect it would
-  // write into the replay buffer.
-  char buffer[1024];
-  return SBDebugger::GetDefaultArchitecture(buffer, arch_name_len);
-}
-
 template <> void RegisterMethods<SBDebugger>(Registry &R) {
   // Custom implementation.
   R.Register(&invoke<void (SBDebugger::*)(
@@ -1643,9 +1635,6 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
   R.Register(&invoke<void (SBDebugger::*)(
                  FILE *, bool)>::method<&SBDebugger::SetOutputFileHandle>::doit,
              &SetFileHandleRedirect);
-  R.Register<bool(char *, size_t)>(static_cast<bool (*)(char *, size_t)>(
-                                       &SBDebugger::GetDefaultArchitecture),
-                                   &GetDefaultArchitectureRedirect);
 
   R.Register(&invoke<SBError (SBDebugger::*)(
                  SBFile)>::method<&SBDebugger::SetInputFile>::doit,
@@ -1666,6 +1655,9 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
   R.Register(&invoke<SBError (SBDebugger::*)(
                  FileSP)>::method<&SBDebugger::SetErrorFile>::doit,
              &SetFileRedirect);
+
+  LLDB_REGISTER_CHAR_PTR_REDIRECT_STATIC(bool, SBDebugger,
+                                         GetDefaultArchitecture);
 
   LLDB_REGISTER_CONSTRUCTOR(SBDebugger, ());
   LLDB_REGISTER_CONSTRUCTOR(SBDebugger, (const lldb::DebuggerSP &));

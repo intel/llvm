@@ -128,8 +128,11 @@ bool writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts, std::ostream &OS,
 bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
                std::istream &IS, Module *&M, std::string &ErrMsg);
 
+/// \brief Partially load SPIR-V from the stream and decode only instructions
+/// needed to get information about specialization constants.
+/// \returns true if succeeds.
 using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
-void getSpecConstInfo(std::istream &IS,
+bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 
 /// \brief Convert a SPIRVModule into LLVM IR.

@@ -377,7 +377,8 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
                        SPIRV::TranslatorOpts &Opts) {
   std::ifstream IFS(InputFile, std::ios::binary);
   std::vector<SpecConstInfoTy> SpecConstInfo;
-  getSpecConstInfo(IFS, SpecConstInfo);
+  if (!getSpecConstInfo(IFS, SpecConstInfo))
+    return true;
 
   SmallVector<StringRef, 8> Split;
   SpecConstStr.split(Split, ' ', -1, false);
@@ -540,7 +541,10 @@ int main(int Ac, char **Av) {
   if (SpecConstInfo) {
     std::ifstream IFS(InputFile, std::ios::binary);
     std::vector<SpecConstInfoTy> SpecConstInfo;
-    getSpecConstInfo(IFS, SpecConstInfo);
+    if (!getSpecConstInfo(IFS, SpecConstInfo)) {
+      std::cout << "Invalid SPIR-V binary";
+      return -1;
+    }
     std::cout << "Number of scalar specialization constants in the module = "
               << SpecConstInfo.size() << "\n";
     for (auto &SpecConst : SpecConstInfo)

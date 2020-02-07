@@ -93,7 +93,7 @@ class ARMTargetAsmStreamer : public ARMTargetStreamer {
   void emitIntTextAttribute(unsigned Attribute, unsigned IntValue,
                             StringRef StringValue) override;
   void emitArch(ARM::ArchKind Arch) override;
-  void emitArchExtension(unsigned ArchExt) override;
+  void emitArchExtension(uint64_t ArchExt) override;
   void emitObjectArch(ARM::ArchKind Arch) override;
   void emitFPU(unsigned FPU) override;
   void emitInst(uint32_t Inst, char Suffix = '\0') override;
@@ -222,7 +222,7 @@ void ARMTargetAsmStreamer::emitArch(ARM::ArchKind Arch) {
   OS << "\t.arch\t" << ARM::getArchName(Arch) << "\n";
 }
 
-void ARMTargetAsmStreamer::emitArchExtension(unsigned ArchExt) {
+void ARMTargetAsmStreamer::emitArchExtension(uint64_t ArchExt) {
   OS << "\t.arch_extension\t" << ARM::getArchExtName(ArchExt) << "\n";
 }
 
@@ -238,7 +238,7 @@ void ARMTargetAsmStreamer::finishAttributeSection() {}
 
 void
 ARMTargetAsmStreamer::AnnotateTLSDescriptorSequence(const MCSymbolRefExpr *S) {
-  OS << "\t.tlsdescseq\t" << S->getSymbol().getName();
+  OS << "\t.tlsdescseq\t" << S->getSymbol().getName() << "\n";
 }
 
 void ARMTargetAsmStreamer::emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) {
@@ -328,12 +328,8 @@ private:
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::NumericAttribute,
-      Attribute,
-      Value,
-      StringRef("")
-    };
+    AttributeItem Item = {AttributeItem::NumericAttribute, Attribute, Value,
+                          std::string(StringRef(""))};
     Contents.push_back(Item);
   }
 
@@ -344,17 +340,13 @@ private:
       if (!OverwriteExisting)
         return;
       Item->Type = AttributeItem::TextAttribute;
-      Item->StringValue = Value;
+      Item->StringValue = std::string(Value);
       return;
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::TextAttribute,
-      Attribute,
-      0,
-      Value
-    };
+    AttributeItem Item = {AttributeItem::TextAttribute, Attribute, 0,
+                          std::string(Value)};
     Contents.push_back(Item);
   }
 
@@ -366,17 +358,13 @@ private:
         return;
       Item->Type = AttributeItem::NumericAndTextAttributes;
       Item->IntValue = IntValue;
-      Item->StringValue = StringValue;
+      Item->StringValue = std::string(StringValue);
       return;
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::NumericAndTextAttributes,
-      Attribute,
-      IntValue,
-      StringValue
-    };
+    AttributeItem Item = {AttributeItem::NumericAndTextAttributes, Attribute,
+                          IntValue, std::string(StringValue)};
     Contents.push_back(Item);
   }
 

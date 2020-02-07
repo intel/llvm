@@ -1,6 +1,6 @@
 //===- Block.cpp - MLIR Block Class ---------------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -158,6 +158,13 @@ auto Block::addArguments(ArrayRef<Type> types)
     addArgument(type);
   }
   return {arguments.data() + initialSize, arguments.data() + arguments.size()};
+}
+
+BlockArgument Block::insertArgument(unsigned index, Type type) {
+  auto arg = BlockArgument::create(type, this);
+  assert(index <= arguments.size());
+  arguments.insert(arguments.begin() + index, arg);
+  return arg;
 }
 
 void Block::eraseArgument(unsigned index, bool updatePredTerms) {

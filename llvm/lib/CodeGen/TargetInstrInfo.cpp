@@ -1028,6 +1028,18 @@ CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
   return new ScoreboardHazardRecognizer(II, DAG, "post-RA-sched");
 }
 
+// Default implementation of getMemOperandWithOffset.
+bool TargetInstrInfo::getMemOperandWithOffset(
+    const MachineInstr &MI, const MachineOperand *&BaseOp, int64_t &Offset,
+    const TargetRegisterInfo *TRI) const {
+  SmallVector<const MachineOperand *, 4> BaseOps;
+  if (!getMemOperandsWithOffset(MI, BaseOps, Offset, TRI) ||
+      BaseOps.size() != 1)
+    return false;
+  BaseOp = BaseOps.front();
+  return true;
+}
+
 //===----------------------------------------------------------------------===//
 //  SelectionDAG latency interface.
 //===----------------------------------------------------------------------===//
@@ -1166,8 +1178,14 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
     if (!TII->getMemOperandWithOffset(MI, BaseOp, Offset, TRI))
       return None;
 
-    assert(MI.getNumExplicitDefs() == 1 &&
-           "Can currently only handle mem instructions with a single define");
+    // TODO: Can currently only handle mem instructions with a single define.
+    // An example from the x86 target:
+    //    ...
+    //    DIV64m $rsp, 1, $noreg, 24, $noreg, implicit-def dead $rax, implicit-def $rdx
+    //    ...
+    //
+    if (MI.getNumExplicitDefs() != 1)
+      return None;
 
     // TODO: In what way do we need to take Reg into consideration here?
 

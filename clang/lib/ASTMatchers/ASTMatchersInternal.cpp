@@ -15,9 +15,11 @@
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Lex/Lexer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/None.h"
@@ -237,7 +239,8 @@ bool DynTypedMatcher::matches(const ast_type_traits::DynTypedNode &DynNode,
   TraversalKindScope RAII(Finder->getASTContext(),
                           Implementation->TraversalKind());
 
-  auto N = Finder->getASTContext().traverseIgnored(DynNode);
+  auto N =
+      Finder->getASTContext().getParentMapContext().traverseIgnored(DynNode);
 
   if (RestrictKind.isBaseOf(N.getNodeKind()) &&
       Implementation->dynMatches(N, Finder, Builder)) {
@@ -256,7 +259,8 @@ bool DynTypedMatcher::matchesNoKindCheck(
   TraversalKindScope raii(Finder->getASTContext(),
                           Implementation->TraversalKind());
 
-  auto N = Finder->getASTContext().traverseIgnored(DynNode);
+  auto N =
+      Finder->getASTContext().getParentMapContext().traverseIgnored(DynNode);
 
   assert(RestrictKind.isBaseOf(N.getNodeKind()));
   if (Implementation->dynMatches(N, Finder, Builder)) {
@@ -592,6 +596,39 @@ bool HasNameMatcher::matchesNode(const NamedDecl &Node) const {
   return matchesNodeFullFast(Node);
 }
 
+// Checks whether \p Loc points to a token with source text of \p TokenText.
+static bool isTokenAtLoc(const SourceManager &SM, const LangOptions &LangOpts,
+                         StringRef Text, SourceLocation Loc) {
+  llvm::SmallString<16> Buffer;
+  bool Invalid = false;
+  // Since `Loc` may point into an expansion buffer, which has no corresponding
+  // source, we need to look at the spelling location to read the actual source.
+  StringRef TokenText = Lexer::getSpelling(SM.getSpellingLoc(Loc), Buffer, SM,
+                                           LangOpts, &Invalid);
+  return !Invalid && Text == TokenText;
+}
+
+llvm::Optional<SourceLocation>
+getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
+                       const ASTContext &Context) {
+  auto &SM = Context.getSourceManager();
+  const LangOptions &LangOpts = Context.getLangOpts();
+  while (Loc.isMacroID()) {
+    SrcMgr::ExpansionInfo Expansion =
+        SM.getSLocEntry(SM.getFileID(Loc)).getExpansion();
+    if (Expansion.isMacroArgExpansion())
+      // Check macro argument for an expansion of the given macro. For example,
+      // `F(G(3))`, where `MacroName` is `G`.
+      if (llvm::Optional<SourceLocation> ArgLoc = getExpansionLocOfMacro(
+              MacroName, Expansion.getSpellingLoc(), Context))
+        return ArgLoc;
+    Loc = Expansion.getExpansionLocStart();
+    if (isTokenAtLoc(SM, LangOpts, MacroName, Loc))
+      return Loc;
+  }
+  return llvm::None;
+}
+
 } // end namespace internal
 
 const internal::VariadicDynCastAllOfMatcher<Stmt, ObjCAutoreleasePoolStmt>
@@ -647,6 +684,7 @@ const internal::VariadicDynCastAllOfMatcher<Decl, CXXDestructorDecl>
 const internal::VariadicDynCastAllOfMatcher<Decl, EnumDecl> enumDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, EnumConstantDecl>
     enumConstantDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, TagDecl> tagDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, CXXMethodDecl> cxxMethodDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, CXXConversionDecl>
     cxxConversionDecl;
@@ -727,6 +765,8 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, MaterializeTemporaryExpr>
     materializeTemporaryExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNewExpr> cxxNewExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeleteExpr> cxxDeleteExpr;
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNoexceptExpr>
+    cxxNoexceptExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ArraySubscriptExpr>
     arraySubscriptExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDefaultArgExpr>
@@ -858,6 +898,8 @@ const AstTypeMatcher<BuiltinType> builtinType;
 const AstTypeMatcher<ArrayType> arrayType;
 const AstTypeMatcher<ComplexType> complexType;
 const AstTypeMatcher<ConstantArrayType> constantArrayType;
+const AstTypeMatcher<DeducedTemplateSpecializationType>
+    deducedTemplateSpecializationType;
 const AstTypeMatcher<DependentSizedArrayType> dependentSizedArrayType;
 const AstTypeMatcher<IncompleteArrayType> incompleteArrayType;
 const AstTypeMatcher<VariableArrayType> variableArrayType;

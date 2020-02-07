@@ -107,7 +107,7 @@ void ARMTargetInfo::setArchInfo() {
   StringRef ArchName = getTriple().getArchName();
 
   ArchISA = llvm::ARM::parseArchISA(ArchName);
-  CPU = llvm::ARM::getDefaultCPU(ArchName);
+  CPU = std::string(llvm::ARM::getDefaultCPU(ArchName));
   llvm::ARM::ArchKind AK = llvm::ARM::parseArch(ArchName);
   if (AK != llvm::ARM::ArchKind::INVALID)
     ArchKind = AK;
@@ -372,7 +372,7 @@ bool ARMTargetInfo::initFeatureMap(
   llvm::ARM::getFPUFeatures(FPUKind, TargetFeatures);
 
   // get default Extension features
-  unsigned Extensions = llvm::ARM::getDefaultExtensions(CPU, Arch);
+  uint64_t Extensions = llvm::ARM::getDefaultExtensions(CPU, Arch);
   llvm::ARM::getExtensionFeatures(Extensions, TargetFeatures);
 
   for (auto Feature : TargetFeatures)
@@ -480,10 +480,8 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     } else if (Feature == "+dotprod") {
       DotProd = true;
     } else if (Feature == "+mve") {
-      DSP = 1;
       MVE |= MVE_INT;
     } else if (Feature == "+mve.fp") {
-      DSP = 1;
       HasLegalHalfType = true;
       FPU |= FPARMV8;
       MVE |= MVE_INT | MVE_FP;

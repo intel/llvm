@@ -892,21 +892,10 @@ namespace llvm {
                             MachineFunction &MF,
                             unsigned Intrinsic) const override;
 
-    /// getOptimalMemOpType - Returns the target specific optimal type for load
-    /// and store operations as a result of memset, memcpy, and memmove
-    /// lowering. If DstAlign is zero that means it's safe to destination
-    /// alignment can satisfy any constraint. Similarly if SrcAlign is zero it
-    /// means there isn't a need to check it against alignment requirement,
-    /// probably because the source does not need to be loaded. If 'IsMemset' is
-    /// true, that means it's expanding a memset. If 'ZeroMemset' is true, that
-    /// means it's a memset of zero. 'MemcpyStrSrc' indicates whether the memcpy
-    /// source is constant so it does not need to be loaded.
     /// It returns EVT::Other if the type should be determined using generic
     /// target-independent logic.
-    EVT
-    getOptimalMemOpType(uint64_t Size, unsigned DstAlign, unsigned SrcAlign,
-                        bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
-                        const AttributeList &FuncAttributes) const override;
+    EVT getOptimalMemOpType(const MemOp &Op,
+                            const AttributeList &FuncAttributes) const override;
 
     /// Is unaligned memory access allowed for the given type, and is it fast
     /// relative to software emulation.
@@ -972,6 +961,23 @@ namespace llvm {
     const MCExpr *getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                unsigned JTI,
                                                MCContext &Ctx) const override;
+
+    /// Structure that collects some common arguments that get passed around
+    /// between the functions for call lowering.
+    struct CallFlags {
+      const CallingConv::ID CallConv;
+      const bool IsTailCall : 1;
+      const bool IsVarArg : 1;
+      const bool IsPatchPoint : 1;
+      const bool IsIndirect : 1;
+      const bool HasNest : 1;
+
+      CallFlags(CallingConv::ID CC, bool IsTailCall, bool IsVarArg,
+                bool IsPatchPoint, bool IsIndirect, bool HasNest)
+          : CallConv(CC), IsTailCall(IsTailCall), IsVarArg(IsVarArg),
+            IsPatchPoint(IsPatchPoint), IsIndirect(IsIndirect),
+            HasNest(HasNest) {}
+    };
 
   private:
     struct ReuseLoadInfo {
@@ -1100,9 +1106,8 @@ namespace llvm {
                             const SmallVectorImpl<ISD::InputArg> &Ins,
                             const SDLoc &dl, SelectionDAG &DAG,
                             SmallVectorImpl<SDValue> &InVals) const;
-    SDValue FinishCall(CallingConv::ID CallConv, const SDLoc &dl,
-                       bool isTailCall, bool isVarArg, bool isPatchPoint,
-                       bool hasNest, SelectionDAG &DAG,
+
+    SDValue FinishCall(CallFlags CFlags, const SDLoc &dl, SelectionDAG &DAG,
                        SmallVector<std::pair<unsigned, SDValue>, 8> &RegsToPass,
                        SDValue InFlag, SDValue Chain, SDValue CallSeqStart,
                        SDValue &Callee, int SPDiff, unsigned NumBytes,
@@ -1155,36 +1160,28 @@ namespace llvm {
                                        ISD::ArgFlagsTy Flags, SelectionDAG &DAG,
                                        const SDLoc &dl) const;
 
-    SDValue LowerCall_Darwin(SDValue Chain, SDValue Callee,
-                             CallingConv::ID CallConv, bool isVarArg,
-                             bool isTailCall, bool isPatchPoint,
+    SDValue LowerCall_Darwin(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
                              ImmutableCallSite CS) const;
-    SDValue LowerCall_64SVR4(SDValue Chain, SDValue Callee,
-                             CallingConv::ID CallConv, bool isVarArg,
-                             bool isTailCall, bool isPatchPoint,
+    SDValue LowerCall_64SVR4(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
                              ImmutableCallSite CS) const;
-    SDValue LowerCall_32SVR4(SDValue Chain, SDValue Callee,
-                             CallingConv::ID CallConv, bool isVarArg,
-                             bool isTailCall, bool isPatchPoint,
+    SDValue LowerCall_32SVR4(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
                              ImmutableCallSite CS) const;
-    SDValue LowerCall_AIX(SDValue Chain, SDValue Callee,
-                          CallingConv::ID CallConv, bool isVarArg,
-                          bool isTailCall, bool isPatchPoint,
+    SDValue LowerCall_AIX(SDValue Chain, SDValue Callee, CallFlags CFlags,
                           const SmallVectorImpl<ISD::OutputArg> &Outs,
                           const SmallVectorImpl<SDValue> &OutVals,
                           const SmallVectorImpl<ISD::InputArg> &Ins,

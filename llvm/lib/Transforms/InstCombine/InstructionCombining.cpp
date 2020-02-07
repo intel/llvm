@@ -60,6 +60,7 @@
 #include "llvm/Analysis/TargetFolder.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constant.h"
@@ -856,6 +857,99 @@ Value *InstCombiner::dyn_castNegVal(Value *V) const {
   return nullptr;
 }
 
+/// Get negated V (that is 0-V) without increasing instruction count,
+/// assuming that the original V will become unused.
+Value *InstCombiner::freelyNegateValue(Value *V) {
+  if (Value *NegV = dyn_castNegVal(V))
+    return NegV;
+
+  Instruction *I = dyn_cast<Instruction>(V);
+  if (!I)
+    return nullptr;
+
+  unsigned BitWidth = I->getType()->getScalarSizeInBits();
+  switch (I->getOpcode()) {
+  // 0-(zext i1 A)  =>  sext i1 A
+  case Instruction::ZExt:
+    if (I->getOperand(0)->getType()->isIntOrIntVectorTy(1))
+      return Builder.CreateSExtOrBitCast(
+          I->getOperand(0), I->getType(), I->getName() + ".neg");
+    return nullptr;
+
+  // 0-(sext i1 A)  =>  zext i1 A
+  case Instruction::SExt:
+    if (I->getOperand(0)->getType()->isIntOrIntVectorTy(1))
+      return Builder.CreateZExtOrBitCast(
+          I->getOperand(0), I->getType(), I->getName() + ".neg");
+    return nullptr;
+
+  // 0-(A lshr (BW-1))  =>  A ashr (BW-1)
+  case Instruction::LShr:
+    if (match(I->getOperand(1), m_SpecificInt(BitWidth - 1)))
+      return Builder.CreateAShr(
+          I->getOperand(0), I->getOperand(1),
+          I->getName() + ".neg", cast<BinaryOperator>(I)->isExact());
+    return nullptr;
+
+  // 0-(A ashr (BW-1))  =>  A lshr (BW-1)
+  case Instruction::AShr:
+    if (match(I->getOperand(1), m_SpecificInt(BitWidth - 1)))
+      return Builder.CreateLShr(
+          I->getOperand(0), I->getOperand(1),
+          I->getName() + ".neg", cast<BinaryOperator>(I)->isExact());
+    return nullptr;
+
+  default:
+    break;
+  }
+
+  // TODO: The "sub" pattern below could also be applied without the one-use
+  // restriction. Not allowing it for now in line with existing behavior.
+  if (!I->hasOneUse())
+    return nullptr;
+
+  switch (I->getOpcode()) {
+  // 0-(A-B)  =>  B-A
+  case Instruction::Sub:
+    return Builder.CreateSub(
+        I->getOperand(1), I->getOperand(0), I->getName() + ".neg");
+
+  // 0-(A sdiv C)  =>  A sdiv (0-C)  provided the negation doesn't overflow.
+  case Instruction::SDiv: {
+    Constant *C = dyn_cast<Constant>(I->getOperand(1));
+    if (C && !C->containsUndefElement() && C->isNotMinSignedValue() &&
+        C->isNotOneValue())
+      return Builder.CreateSDiv(I->getOperand(0), ConstantExpr::getNeg(C),
+          I->getName() + ".neg", cast<BinaryOperator>(I)->isExact());
+    return nullptr;
+  }
+
+  // 0-(A<<B)  =>  (0-A)<<B
+  case Instruction::Shl:
+    if (Value *NegA = freelyNegateValue(I->getOperand(0)))
+      return Builder.CreateShl(NegA, I->getOperand(1), I->getName() + ".neg");
+    return nullptr;
+
+  // 0-(trunc A)  =>  trunc (0-A)
+  case Instruction::Trunc:
+    if (Value *NegA = freelyNegateValue(I->getOperand(0)))
+      return Builder.CreateTrunc(NegA, I->getType(), I->getName() + ".neg");
+    return nullptr;
+
+  // 0-(A*B)  =>  (0-A)*B
+  // 0-(A*B)  =>  A*(0-B)
+  case Instruction::Mul:
+    if (Value *NegA = freelyNegateValue(I->getOperand(0)))
+      return Builder.CreateMul(NegA, I->getOperand(1), V->getName() + ".neg");
+    if (Value *NegB = freelyNegateValue(I->getOperand(1)))
+      return Builder.CreateMul(I->getOperand(0), NegB, V->getName() + ".neg");
+    return nullptr;
+
+  default:
+    return nullptr;
+  }
+}
+
 static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
@@ -1392,7 +1486,7 @@ Value *InstCombiner::Descale(Value *Val, APInt Scale, bool &NoSignedWrap) {
   assert(Op != Parent.first->getOperand(Parent.second) &&
          "Descaling was a no-op?");
   Parent.first->setOperand(Parent.second, Op);
-  Worklist.Add(Parent.first);
+  Worklist.push(Parent.first);
 
   // Now work back up the expression correcting nsw flags.  The logic is based
   // on the following observation: if X * Y is known not to overflow as a signed
@@ -1410,7 +1504,7 @@ Value *InstCombiner::Descale(Value *Val, APInt Scale, bool &NoSignedWrap) {
       NoSignedWrap &= OpNoSignedWrap;
       if (NoSignedWrap != OpNoSignedWrap) {
         BO->setHasNoSignedWrap(NoSignedWrap);
-        Worklist.Add(Ancestor);
+        Worklist.push(Ancestor);
       }
     } else if (Ancestor->getOpcode() == Instruction::Trunc) {
       // The fact that the descaled input to the trunc has smaller absolute
@@ -1588,6 +1682,57 @@ Instruction *InstCombiner::foldVectorBinop(BinaryOperator &Inst) {
       Value *NewRHS = ConstOp1 ? NewC : V1;
       return createBinOpShuffle(NewLHS, NewRHS, Mask);
     }
+  }
+
+  // Try to reassociate to sink a splat shuffle after a binary operation.
+  if (Inst.isAssociative() && Inst.isCommutative()) {
+    // Canonicalize shuffle operand as LHS.
+    if (isa<ShuffleVectorInst>(RHS))
+      std::swap(LHS, RHS);
+
+    Value *X;
+    Constant *MaskC;
+    const APInt *SplatIndex;
+    BinaryOperator *BO;
+    if (!match(LHS, m_OneUse(m_ShuffleVector(m_Value(X), m_Undef(),
+                                             m_Constant(MaskC)))) ||
+        !match(MaskC, m_APIntAllowUndef(SplatIndex)) ||
+        X->getType() != Inst.getType() || !match(RHS, m_OneUse(m_BinOp(BO))) ||
+        BO->getOpcode() != Opcode)
+      return nullptr;
+
+    // FIXME: This may not be safe if the analysis allows undef elements. By
+    //        moving 'Y' before the splat shuffle, we are implicitly assuming
+    //        that it is not undef/poison at the splat index.
+    Value *Y, *OtherOp;
+    if (isSplatValue(BO->getOperand(0), SplatIndex->getZExtValue())) {
+      Y = BO->getOperand(0);
+      OtherOp = BO->getOperand(1);
+    } else if (isSplatValue(BO->getOperand(1), SplatIndex->getZExtValue())) {
+      Y = BO->getOperand(1);
+      OtherOp = BO->getOperand(0);
+    } else {
+      return nullptr;
+    }
+
+    // X and Y are splatted values, so perform the binary operation on those
+    // values followed by a splat followed by the 2nd binary operation:
+    // bo (splat X), (bo Y, OtherOp) --> bo (splat (bo X, Y)), OtherOp
+    Value *NewBO = Builder.CreateBinOp(Opcode, X, Y);
+    UndefValue *Undef = UndefValue::get(Inst.getType());
+    Constant *NewMask = ConstantInt::get(MaskC->getType(), *SplatIndex);
+    Value *NewSplat = Builder.CreateShuffleVector(NewBO, Undef, NewMask);
+    Instruction *R = BinaryOperator::Create(Opcode, NewSplat, OtherOp);
+
+    // Intersect FMF on both new binops. Other (poison-generating) flags are
+    // dropped to be safe.
+    if (isa<FPMathOperator>(R)) {
+      R->copyFastMathFlags(&Inst);
+      R->andIRFlags(BO);
+    }
+    if (auto *NewInstBO = dyn_cast<BinaryOperator>(NewBO))
+      NewInstBO->copyIRFlags(R);
+    return R;
   }
 
   return nullptr;
@@ -2598,11 +2743,9 @@ Instruction *InstCombiner::visitReturnInst(ReturnInst &RI) {
   // There might be assume intrinsics dominating this return that completely
   // determine the value. If so, constant fold it.
   KnownBits Known = computeKnownBits(ResultOp, 0, &RI);
-  if (Known.isConstant()) {
-    Worklist.AddValue(ResultOp);
-    RI.setOperand(0, Constant::getIntegerValue(VTy, Known.getConstant()));
-    return &RI;
-  }
+  if (Known.isConstant())
+    return replaceOperand(RI, 0,
+        Constant::getIntegerValue(VTy, Known.getConstant()));
 
   return nullptr;
 }
@@ -2635,7 +2778,7 @@ Instruction *InstCombiner::visitBranchInst(BranchInst &BI) {
     CmpInst *Cond = cast<CmpInst>(BI.getCondition());
     Cond->setPredicate(CmpInst::getInversePredicate(Pred));
     BI.swapSuccessors();
-    Worklist.Add(Cond);
+    Worklist.push(Cond);
     return &BI;
   }
 
@@ -3267,7 +3410,7 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
 
 bool InstCombiner::run() {
   while (!Worklist.isEmpty()) {
-    Instruction *I = Worklist.RemoveOne();
+    Instruction *I = Worklist.removeOne();
     if (I == nullptr) continue;  // skip null values.
 
     // Check to see if we can DCE the instruction.
@@ -3353,7 +3496,7 @@ bool InstCombiner::run() {
             // worklist
             for (Use &U : I->operands())
               if (Instruction *OpI = dyn_cast<Instruction>(U.get()))
-                Worklist.Add(OpI);
+                Worklist.push(OpI);
           }
         }
       }
@@ -3396,8 +3539,8 @@ bool InstCombiner::run() {
         InstParent->getInstList().insert(InsertPos, Result);
 
         // Push the new instruction and any users onto the worklist.
-        Worklist.AddUsersToWorkList(*Result);
-        Worklist.Add(Result);
+        Worklist.pushUsersToWorkList(*Result);
+        Worklist.push(Result);
 
         eraseInstFromFunction(*I);
       } else {
@@ -3409,15 +3552,16 @@ bool InstCombiner::run() {
         if (isInstructionTriviallyDead(I, &TLI)) {
           eraseInstFromFunction(*I);
         } else {
-          Worklist.AddUsersToWorkList(*I);
-          Worklist.Add(I);
+          Worklist.pushUsersToWorkList(*I);
+          Worklist.push(I);
         }
       }
       MadeIRChange = true;
     }
+    Worklist.addDeferredInstructions();
   }
 
-  Worklist.Zap();
+  Worklist.zap();
   return MadeIRChange;
 }
 
@@ -3476,10 +3620,20 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
 
       // See if we can constant fold its operands.
       for (Use &U : Inst->operands()) {
-        if (!isa<ConstantVector>(U) && !isa<ConstantExpr>(U))
+        bool WrapAsMetadata = false;
+        auto *V = cast<Value>(U);
+
+        // Look through metadata wrappers.
+        if (auto *MAV = dyn_cast<MetadataAsValue>(V))
+          if (auto *VAM = dyn_cast<ValueAsMetadata>(MAV->getMetadata())) {
+            V = VAM->getValue();
+            WrapAsMetadata = true;
+          }
+
+        if (!isa<ConstantVector>(V) && !isa<ConstantExpr>(V))
           continue;
 
-        auto *C = cast<Constant>(U);
+        auto *C = cast<Constant>(V);
         Constant *&FoldRes = FoldedConstants[C];
         if (!FoldRes)
           FoldRes = ConstantFoldConstant(C, DL, TLI);
@@ -3490,7 +3644,11 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
           LLVM_DEBUG(dbgs() << "IC: ConstFold operand of: " << *Inst
                             << "\n    Old = " << *C
                             << "\n    New = " << *FoldRes << '\n');
-          U = FoldRes;
+          if (WrapAsMetadata)
+            U = MetadataAsValue::get(Inst->getContext(),
+                                     ValueAsMetadata::get(FoldRes));
+          else
+            U = FoldRes;
           MadeIRChange = true;
         }
       }
@@ -3527,7 +3685,7 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
   // of the function down.  This jives well with the way that it adds all uses
   // of instructions to the worklist after doing a transformation, thus avoiding
   // some N^2 behavior in pathological cases.
-  ICWorklist.AddInitialGroup(InstrsForInstCombineWorklist);
+  ICWorklist.addInitialGroup(InstrsForInstCombineWorklist);
 
   return MadeIRChange;
 }
@@ -3580,7 +3738,7 @@ static bool combineInstructionsOverFunction(
   IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(
       F.getContext(), TargetFolder(DL),
       IRBuilderCallbackInserter([&Worklist, &AC](Instruction *I) {
-        Worklist.Add(I);
+        Worklist.add(I);
         if (match(I, m_Intrinsic<Intrinsic::assume>()))
           AC.registerAssumption(cast<CallInst>(I));
       }));

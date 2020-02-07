@@ -1,6 +1,6 @@
 //===- Utils.h - Utilities to support the Linalg dialect --------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -26,6 +26,26 @@ class LinalgDependenceGraph;
 struct FusionInfo {
   LinalgOp originalProducer;
   LinalgOp fusedProducer;
+};
+
+/// A struct containing common matchers over linalg op's region.
+struct RegionMatcher {
+  enum class BinaryOpKind {
+    IAdd,
+  };
+
+  /// Matches the given linalg op if its body is performing binary operation on
+  /// int or float scalar values and returns the binary op kind.
+  ///
+  /// The linalg op's region is expected to be
+  /// ```
+  /// {
+  ///   ^bb(%a: <scalar-type>, %b: <scalar-type>):
+  ///     %0 = <binary-op> %a, %b: <scalar-type>
+  ///     linalg.yield %0: <scalar-type>
+  /// }
+  /// ```
+  static Optional<BinaryOpKind> matchAsScalarBinaryOp(GenericOp op);
 };
 
 /// Checks whether the specific `producer` is the last write to exactly the
@@ -76,7 +96,7 @@ SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
 
 struct TiledLinalgOp {
   LinalgOp op;
-  SmallVector<loop::ForOp, 8> loops;
+  SmallVector<Operation *, 8> loops;
 };
 
 /// Performs standalone tiling of a single LinalgOp by `tileSizes`.
@@ -98,6 +118,9 @@ Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
                                      ArrayRef<Value> tileSizes,
                                      ArrayRef<unsigned> permutation = {},
                                      OperationFolder *folder = nullptr);
+Optional<TiledLinalgOp> tileLinalgOpToParallelLoops(
+    OpBuilder &b, LinalgOp op, ArrayRef<Value> tileSizes,
+    ArrayRef<unsigned> permutation = {}, OperationFolder *folder = nullptr);
 
 /// Performs standalone tiling of a single LinalgOp by constant `tileSizes`.
 /// and permute the loop nest according to `permutation`
@@ -118,6 +141,9 @@ Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
                                      ArrayRef<int64_t> tileSizes,
                                      ArrayRef<unsigned> permutation = {},
                                      OperationFolder *folder = nullptr);
+Optional<TiledLinalgOp> tileLinalgOpToParallelLoops(
+    OpBuilder &b, LinalgOp op, ArrayRef<int64_t> tileSizes,
+    ArrayRef<unsigned> permutation = {}, OperationFolder *folder = nullptr);
 
 template <typename... Args>
 Optional<TiledLinalgOp> tileLinalgOperation(OpBuilder &b, Operation *op,

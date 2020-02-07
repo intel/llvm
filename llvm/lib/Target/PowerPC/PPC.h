@@ -51,10 +51,9 @@ namespace llvm {
   FunctionPass *createPPCExpandISELPass();
   FunctionPass *createPPCPreEmitPeepholePass();
   void LowerPPCMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
-                                    AsmPrinter &AP, bool IsDarwin);
+                                    AsmPrinter &AP);
   bool LowerPPCMachineOperandToMCOperand(const MachineOperand &MO,
-                                         MCOperand &OutMO, AsmPrinter &AP,
-                                         bool IsDarwin);
+                                         MCOperand &OutMO, AsmPrinter &AP);
 
   void initializePPCCTRLoopsPass(PassRegistry&);
 #ifndef NDEBUG
@@ -98,15 +97,6 @@ namespace llvm {
     /// MO_PIC_FLAG - If this bit is set, the symbol reference is relative to
     /// the function's picbase, e.g. lo16(symbol-picbase).
     MO_PIC_FLAG = 2,
-
-    /// MO_NLP_FLAG - If this bit is set, the symbol reference is actually to
-    /// the non_lazy_ptr for the global, e.g. lo16(symbol$non_lazy_ptr-picbase).
-    MO_NLP_FLAG = 4,
-
-    /// MO_NLP_HIDDEN_FLAG - If this bit is set, the symbol reference is to a
-    /// symbol with hidden visibility.  This causes a different kind of
-    /// non-lazy-pointer to be generated.
-    MO_NLP_HIDDEN_FLAG = 8,
 
     /// The next are not flags but distinct values.
     MO_ACCESS_MASK = 0xf0,

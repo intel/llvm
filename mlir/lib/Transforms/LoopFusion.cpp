@@ -1,6 +1,6 @@
 //===- LoopFusion.cpp - Code to perform loop fusion -----------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -541,7 +541,7 @@ public:
   // on the value of 'createPrivateMemRef'.
   void updateEdges(unsigned srcId, unsigned dstId, Value oldMemRef,
                    bool createPrivateMemRef) {
-    // For each edge in 'inEdges[srcId]': add new edge remaping to 'dstId'.
+    // For each edge in 'inEdges[srcId]': add new edge remapping to 'dstId'.
     if (inEdges.count(srcId) > 0) {
       SmallVector<Edge, 2> oldInEdges = inEdges[srcId];
       for (auto &inEdge : oldInEdges) {

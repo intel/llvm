@@ -5,7 +5,6 @@ os:
 
 # Use Ubuntu 18.04 LTS (Bionic) as the Linux testing environment.
 dist: bionic
-sudo: false
 
 git:
   depth: 1
@@ -20,21 +19,18 @@ branches:
 #  all with regular expressions, for example /^v\d+\.\d+(\.\d+)?(-\S*)?$/."
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
-addons:
-  apt:
-    sources:
-    - sourceline: 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main'
-      key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
-    - sourceline: 'deb https://packages.lunarg.com/vulkan bionic main'
-      key_url: 'http://packages.lunarg.com/lunarg-signing-key-pub.asc'
-    packages:
-    - llvm-10-tools
-    - llvm-10-dev
-    - clang-format-10
-    - clang-tidy-10
-    - libclang-10-dev
-    - lldb-10
-    - spirv-tools
+before_install:
+  - curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
+  - curl -L "http://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+  - echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+  - echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+  - sudo apt-get update
+  - sudo apt-get -yq --no-install-suggests --no-install-recommends install
+      llvm-${LLVM_VERSION}-dev
+      clang-${LLVM_VERSION}
+      clang-format-${LLVM_VERSION}
+      clang-tidy-${LLVM_VERSION}
+      spirv-tools
 
 compiler:
   - gcc
@@ -45,6 +41,7 @@ env:
     - MAKEFLAGS="-j2"
     - CHECK_FORMAT=0
     - CHECK_TIDY=0
+    - LLVM_VERSION=11
   matrix:
     - BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
@@ -97,7 +94,7 @@ script:
           -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
           -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
           -DLLVM_BUILD_TOOLS=ON \
-          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-10/build/utils/lit/lit.py" \
+          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${LLVM_VERSION}/build/utils/lit/lit.py" \
           -DLLVM_INCLUDE_TESTS=ON \
           -DCMAKE_INSTALL_PREFIX=../install/ \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -118,11 +115,11 @@ script:
         -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=${BUILDDIR}/../llvm-project/llvm-spirv \
         -DLLVM_ENABLE_PROJECTS="llvm-spirv" \
         -G "Unix Makefiles"
-      ln -s /usr/lib/llvm-10/bin/clang bin/
+      ln -s /usr/lib/llvm-${LLVM_VERSION}/bin/clang bin/
     fi
   - if [ $CHECK_FORMAT == "1" ]; then
       cd ..;
-      ln -s /usr/share/clang/clang-format-10/clang-format-diff.py utils/;
+      ln -s /usr/share/clang/clang-format-${LLVM_VERSION}/clang-format-diff.py utils/;
       ./utils/check_code_format.sh;
     elif [ $CHECK_TIDY == "1" ]; then
       cd ..;

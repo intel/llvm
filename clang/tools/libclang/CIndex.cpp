@@ -2466,6 +2466,7 @@ void OMPClauseEnqueue::VisitOMPNontemporalClause(
   for (const auto *E : C->private_refs())
     Visitor->AddStmt(E);
 }
+void OMPClauseEnqueue::VisitOMPOrderClause(const OMPOrderClause *C) {}
 }
 
 void EnqueueVisitor::EnqueueChildren(const OMPClause *S) {
@@ -6340,6 +6341,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::UsingPack:
   case Decl::Concept:
   case Decl::LifetimeExtendedTemporary:
+  case Decl::RequiresExprBody:
     return C;
 
   // Declaration kinds that don't make any sense here, but are

@@ -84,7 +84,7 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   return nullptr;
 }
 
-StringRef SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
+const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
   SPIRVString *String = BM->get<SPIRVString>(Id);
   assert(String && "Invalid string");
   return String->getStr();

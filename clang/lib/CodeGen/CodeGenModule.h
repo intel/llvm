@@ -877,6 +877,17 @@ public:
   /// Returns the assumed alignment of an opaque pointer to the given class.
   CharUnits getClassPointerAlignment(const CXXRecordDecl *CD);
 
+  /// Returns the minimum object size for an object of the given class type
+  /// (or a class derived from it).
+  CharUnits getMinimumClassObjectSize(const CXXRecordDecl *CD);
+
+  /// Returns the minimum object size for an object of the given type.
+  CharUnits getMinimumObjectSize(QualType Ty) {
+    if (CXXRecordDecl *RD = Ty->getAsCXXRecordDecl())
+      return getMinimumClassObjectSize(RD);
+    return getContext().getTypeSizeInChars(Ty);
+  }
+
   /// Returns the assumed alignment of a virtual base of a class.
   CharUnits getVBaseAlignment(CharUnits DerivedAlign,
                               const CXXRecordDecl *Derived,
@@ -1304,6 +1315,11 @@ public:
   /// may participate in (single-module) CFI and whole-program vtable
   /// optimization.
   bool HasHiddenLTOVisibility(const CXXRecordDecl *RD);
+
+  /// Returns whether the given record has public std LTO visibility
+  /// and therefore may not participate in (single-module) CFI and whole-program
+  /// vtable optimization.
+  bool HasLTOVisibilityPublicStd(const CXXRecordDecl *RD);
 
   /// Returns the vcall visibility of the given type. This is the scope in which
   /// a virtual function call could be made which ends up being dispatched to a

@@ -109,8 +109,12 @@ public:
 
   /// Return the alignment of the memory that is being allocated by the
   /// instruction.
+  MaybeAlign getAlign() const {
+    return decodeMaybeAlign(getSubclassDataFromInstruction() & 31);
+  }
+  // FIXME: Remove this one transition to Align is over.
   unsigned getAlignment() const {
-    if (const auto MA = decodeMaybeAlign(getSubclassDataFromInstruction() & 31))
+    if (const auto MA = getAlign())
       return MA->value();
     return 0;
   }
@@ -1056,13 +1060,13 @@ public:
                                    Ptr->getType()->getPointerAddressSpace());
     // Vector GEP
     if (Ptr->getType()->isVectorTy()) {
-      unsigned NumElem = Ptr->getType()->getVectorNumElements();
-      return VectorType::get(PtrTy, NumElem);
+      ElementCount EltCount = Ptr->getType()->getVectorElementCount();
+      return VectorType::get(PtrTy, EltCount);
     }
     for (Value *Index : IdxList)
       if (Index->getType()->isVectorTy()) {
-        unsigned NumElem = Index->getType()->getVectorNumElements();
-        return VectorType::get(PtrTy, NumElem);
+        ElementCount EltCount = Index->getType()->getVectorElementCount();
+        return VectorType::get(PtrTy, EltCount);
       }
     // Scalar GEP
     return PtrTy;

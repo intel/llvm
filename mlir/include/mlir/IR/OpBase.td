@@ -1,6 +1,6 @@
 //===-- OpBase.td - Base op definition file ----------------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -259,12 +259,14 @@ class Dialect {
 class Type<Pred condition, string descr = ""> :
     TypeConstraint<condition, descr> {
   string typeDescription = "";
+  string builderCall = "";
 }
 
 // Allows providing an alternative name and description to an existing type def.
 class TypeAlias<Type t, string description = t.description> :
     Type<t.predicate, description> {
   let typeDescription = t.typeDescription;
+  let builderCall = t.builderCall;
 }
 
 // A type of a specific dialect.
@@ -289,7 +291,6 @@ class Variadic<Type type> : TypeConstraint<type.predicate, type.description> {
 // making some Types and some Attrs buildable.
 class BuildableType<code builder> {
   // The builder call to invoke (if specified) to construct the BuildableType.
-  // Format: this will be affixed to the builder.
   code builderCall = builder;
 }
 
@@ -312,13 +313,14 @@ class AnyTypeOf<list<Type> allowedTypes, string description = ""> : Type<
 def AnyInteger : Type<CPred<"$_self.isa<IntegerType>()">, "integer">;
 
 // Index type.
-def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">;
+def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">,
+            BuildableType<"$_builder.getIndexType()">;
 
 // Integer type of a specific width.
 class I<int width>
     : Type<CPred<"$_self.isInteger(" # width # ")">,
                   width # "-bit integer">,
-      BuildableType<"getIntegerType(" # width # ")"> {
+      BuildableType<"$_builder.getIntegerType(" # width # ")"> {
   int bitwidth = width;
 }
 
@@ -341,7 +343,7 @@ def AnyFloat : Type<CPred<"$_self.isa<FloatType>()">, "floating-point">;
 class F<int width>
     : Type<CPred<"$_self.isF" # width # "()">,
                 width # "-bit float">,
-      BuildableType<"getF" # width # "Type()"> {
+      BuildableType<"$_builder.getF" # width # "Type()"> {
   int bitwidth = width;
 }
 
@@ -354,7 +356,7 @@ def F32 : F<32>;
 def F64 : F<64>;
 
 def BF16 : Type<CPred<"$_self.isBF16()">, "bfloat16 type">,
-           BuildableType<"getBF16Type()">;
+           BuildableType<"$_builder.getBF16Type()">;
 
 class Complex<Type type>
     : Type<And<[
@@ -481,8 +483,8 @@ class 3DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [3]>;
 class 4DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [4]>;
 
 // Unranked Memref type
-def AnyUnrankedMemRef : 
-    ShapedContainerType<[AnyType], 
+def AnyUnrankedMemRef :
+    ShapedContainerType<[AnyType],
                         IsUnrankedMemRefTypePred, "unranked.memref">;
 // Memref type.
 
@@ -684,7 +686,7 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.description> {
 class TypedAttrBase<BuildableType attrValType, string attrKind,
                     Pred condition, string descr> :
     Attr<condition, descr> {
-  let constBuilderCall = "$_builder.get" # attrKind # "($_builder." #
+  let constBuilderCall = "$_builder.get" # attrKind # "(" #
                          attrValType.builderCall # ", $0)";
   let storageType = attrKind;
 }
@@ -808,39 +810,47 @@ def UnitAttr : Attr<CPred<"$_self.isa<UnitAttr>()">, "unit attribute"> {
 // Enum attribute kinds
 
 // Additional information for an enum attribute case.
-class EnumAttrCaseInfo<string sym, int val> {
-  // The C++ enumerant symbol
+class EnumAttrCaseInfo<string sym, int intVal, string strVal> {
+  // The C++ enumerant symbol.
   string symbol = sym;
 
-  // The C++ enumerant value
+  // The C++ enumerant value.
   // If less than zero, there will be no explicit discriminator values assigned
   // to enumerators in the generated enum class.
-  int value = val;
+  int value = intVal;
+
+  // The string representation of the enumerant. May be the same as symbol.
+  string str = strVal;
 }
 
 // An enum attribute case stored with StringAttr.
 class StrEnumAttrCase<string sym, int val = -1> :
-    EnumAttrCaseInfo<sym, val>,
+    EnumAttrCaseInfo<sym, val, sym>,
     StringBasedAttr<
       CPred<"$_self.cast<StringAttr>().getValue() == \"" # sym # "\"">,
       "case " # sym>;
 
-// An enum attribute case stored with IntegerAttr.
-class IntEnumAttrCaseBase<I intType, string sym, int val> :
-    EnumAttrCaseInfo<sym, val>,
-    IntegerAttrBase<intType, "case " # sym> {
+// An enum attribute case stored with IntegerAttr, which has an integer value,
+// its representation as a string and a C++ symbol name which may be different.
+class IntEnumAttrCaseBase<I intType, string sym, string strVal, int intVal> :
+    EnumAttrCaseInfo<sym, intVal, strVal>,
+    IntegerAttrBase<intType, "case " # strVal> {
   let predicate =
-    CPred<"$_self.cast<IntegerAttr>().getInt() == " # val>;
+    CPred<"$_self.cast<IntegerAttr>().getInt() == " # intVal>;
 }
 
-class I32EnumAttrCase<string sym, int val> : IntEnumAttrCaseBase<I32, sym, val>;
-class I64EnumAttrCase<string sym, int val> : IntEnumAttrCaseBase<I64, sym, val>;
+// Cases of integer enum attributes with a specific type. By default, the string
+// representation is the same as the C++ symbol name.
+class I32EnumAttrCase<string sym, int val, string str = sym>
+    : IntEnumAttrCaseBase<I32, sym, str, val>;
+class I64EnumAttrCase<string sym, int val, string str = sym>
+    : IntEnumAttrCaseBase<I64, sym, str, val>;
 
 // A bit enum case stored with 32-bit IntegerAttr. `val` here is *not* the
 // ordinal number of the bit that is set. It is the 32-bit integer with only
 // one bit set.
 class BitEnumAttrCase<string sym, int val> :
-    EnumAttrCaseInfo<sym, val>,
+    EnumAttrCaseInfo<sym, val, sym>,
     IntegerAttrBase<I32, "case " # sym> {
   let predicate = CPred<
     "$_self.cast<IntegerAttr>().getValue().getZExtValue() & " # val # "u">;
@@ -1327,7 +1337,10 @@ class PredOpTrait<string descr, Pred pred> : OpTrait {
 }
 
 // Op supports operand broadcast behavior.
-def Broadcastable  : NativeOpTrait<"BroadcastableTwoOperandsOneResult">;
+def ResultsBroadcastableShape :
+  NativeOpTrait<"ResultsBroadcastableShape">;
+// TODO: Alias of the above, remove post integrate.
+def Broadcastable : NativeOpTrait<"ResultsBroadcastableShape">;
 // X op Y == Y op X
 def Commutative  : NativeOpTrait<"IsCommutative">;
 // Op behaves like a function.
@@ -1408,8 +1421,12 @@ def ins;
 // OpInterfaceTrait corresponds to a specific 'OpInterface' class defined in
 // C++. The purpose to wrap around C++ symbol string with this class is to make
 // interfaces specified for ops in TableGen less alien and more integrated.
-class OpInterfaceTrait<string name> : NativeOpTrait<""> {
+class OpInterfaceTrait<string name, code verifyBody = [{}]> : NativeOpTrait<""> {
   let trait = name # "::Trait";
+
+  // Specify the body of the verification function. `$_op` will be replaced with
+  // the operation being verified.
+  code verify = verifyBody;
 }
 
 // This class represents a single, optionally static, interface method.
@@ -1564,6 +1581,9 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   // Custom printer.
   code printer = ?;
 
+  // Custom assembly format.
+  string assemblyFormat = ?;
+
   // Custom verifier.
   code verifier = ?;
 
@@ -1639,7 +1659,9 @@ class AllMatchSameOperatorTrait<list<string> names, string operator,
                                 string description> :
     PredOpTrait<
         "all of {" # StrJoin<names>.result # "} have same " # description,
-        AllMatchSameOperatorPred<names, operator>>;
+        AllMatchSameOperatorPred<names, operator>> {
+  list<string> values = names;
+}
 
 class AllElementCountsMatch<list<string> names> :
     AllMatchSameOperatorTrait<names, ElementCount<"_self">.result,

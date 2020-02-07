@@ -1,6 +1,6 @@
 //===- LinalgPatterns.td - Linalg transformation patterns --*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -77,6 +77,10 @@ class TileLinalgOp<list<int> sizes, string value, list<int> permutation=[]> :
 //===----------------------------------------------------------------------===//
 class LinalgOpToLoops<string OpType> : NativeCodeCall<
   "if (failed(linalgOpToLoops<" # OpType # ">($_builder, op))) " #
+  "  return matchFailure();">;
+
+class LinalgOpToParallelLoops<string OpType> : NativeCodeCall<
+  "if (failed(linalgOpToParallelLoops<" # OpType # ">($_builder, op))) " #
   "  return matchFailure();">;
 
 class LinalgOpToAffineLoops<string OpType> : NativeCodeCall<

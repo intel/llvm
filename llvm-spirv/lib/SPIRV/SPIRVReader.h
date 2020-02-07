@@ -129,9 +129,8 @@ public:
   ///
   /// These functions are translated to functions with array type argument
   /// first, then post-processed to have pointer arguments.
-  bool
-  postProcessOCLBuiltinWithArrayArguments(Function *F,
-                                          const std::string &DemangledName);
+  bool postProcessOCLBuiltinWithArrayArguments(Function *F,
+                                               StringRef DemangledName);
 
   /// \brief Post-process OpImageSampleExplicitLod.
   ///   sampled_image = __spirv_SampledImage__(image, sampler);

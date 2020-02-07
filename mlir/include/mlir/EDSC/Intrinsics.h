@@ -1,6 +1,6 @@
 //===- Intrinsics.h - MLIR Operations for Declarative Builders ---*- C++-*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -34,7 +34,7 @@ namespace edsc {
 struct IndexHandle : public ValueHandle {
   explicit IndexHandle()
       : ValueHandle(ScopedContext::getBuilder().getIndexType()) {}
-  explicit IndexHandle(index_t v) : ValueHandle(v) {}
+  explicit IndexHandle(index_type v) : ValueHandle(v) {}
   explicit IndexHandle(Value v) : ValueHandle(v) {
     assert(v.getType() == ScopedContext::getBuilder().getIndexType() &&
            "Expected index type");
@@ -96,7 +96,7 @@ public:
   ValueHandleArray(ArrayRef<IndexHandle> vals) {
     values.append(vals.begin(), vals.end());
   }
-  ValueHandleArray(ArrayRef<index_t> vals) {
+  ValueHandleArray(ArrayRef<index_type> vals) {
     SmallVector<IndexHandle, 8> tmp(vals.begin(), vals.end());
     values.append(tmp.begin(), tmp.end());
   }
@@ -195,6 +195,7 @@ using addf = ValueBuilder<AddFOp>;
 using affine_apply = ValueBuilder<AffineApplyOp>;
 using affine_if = OperationBuilder<AffineIfOp>;
 using affine_load = ValueBuilder<AffineLoadOp>;
+using affine_min = ValueBuilder<AffineMinOp>;
 using affine_store = OperationBuilder<AffineStoreOp>;
 using alloc = ValueBuilder<AllocOp>;
 using call = OperationBuilder<mlir::CallOp>;

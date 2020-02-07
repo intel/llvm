@@ -1,6 +1,6 @@
 //===- LinalgOps.td - Linalg dialect ops -------------------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -56,6 +56,7 @@ def Linalg_RangeOp :
 
   // Fully specified by traits.
   let verifier = ?;
+  let assemblyFormat = "$min `:` $max `:` $step attr-dict `:` type(results)";
 }
 
 def Linalg_ReshapeOp : Linalg_Op<"reshape", [NoSideEffect]>,
@@ -68,9 +69,10 @@ def Linalg_ReshapeOp : Linalg_Op<"reshape", [NoSideEffect]>,
     MemRefType is contiguous, the resulting memref may require explicit alloc
     and copies.
 
-    A reassociation is defined as a continous grouping of dimensions and is
-    represented with an affine map array attribute. In the future, non-continous
-    groupings may be allowed (i.e. permutations, reindexings etc).
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an affine map array attribute. In the future,
+    non-continuous groupings may be allowed (i.e. permutations, reindexings
+    etc).
 
     For now, it is assumed that either:
       1. a reassociation produces and consumes contiguous MemRefType or,
@@ -116,6 +118,10 @@ def Linalg_ReshapeOp : Linalg_Op<"reshape", [NoSideEffect]>,
     static StringRef getReassociationAttrName() { return "reassociation"; }
     MemRefType getViewType() { return view().getType().cast<MemRefType>(); }
   }];
+  let assemblyFormat = [{
+    $view $reassociation attr-dict `:` type($view) `into` type(results)
+  }];
+  let hasFolder = 1;
 }
 
 def Linalg_SliceOp : Linalg_Op<"slice", [NoSideEffect]>,
@@ -187,6 +193,8 @@ def Linalg_SliceOp : Linalg_Op<"slice", [NoSideEffect]>,
       return res;
     }
   }];
+
+  let hasFolder = 1;
 }
 
 def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
@@ -221,6 +229,8 @@ def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
     static StringRef getPermutationAttrName() { return "permutation"; }
     ShapedType getShapedType() { return view().getType().cast<ShapedType>(); }
   }];
+
+  let hasFolder = 1;
 }
 
 def Linalg_YieldOp : Linalg_Op<"yield", [NativeOpTrait<"IsTerminator">]>,

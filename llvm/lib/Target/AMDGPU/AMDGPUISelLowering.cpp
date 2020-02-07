@@ -641,8 +641,9 @@ bool AMDGPUTargetLowering::shouldReduceLoadWidth(SDNode *N,
 
   unsigned NewSize = NewVT.getStoreSizeInBits();
 
-  // If we are reducing to a 32-bit load, this is always better.
-  if (NewSize == 32)
+  // If we are reducing to a 32-bit load or a smaller multi-dword load,
+  // this is always better.
+  if (NewSize >= 32)
     return true;
 
   EVT OldVT = N->getValueType(0);
@@ -731,6 +732,26 @@ bool AMDGPUTargetLowering::isSDNodeAlwaysUniform(const SDNode * N) const {
     }
     break;
   }
+}
+
+char AMDGPUTargetLowering::isNegatibleForFree(SDValue Op, SelectionDAG &DAG,
+                                              bool LegalOperations,
+                                              bool ForCodeSize,
+                                              unsigned Depth) const {
+  switch (Op.getOpcode()) {
+    case ISD::FMA:
+    case ISD::FMAD: {
+      // Negating a fma is not free if it has users without source mods.
+      if (!allUsesHaveSourceMods(Op.getNode()))
+        return 0;
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TargetLowering::isNegatibleForFree(Op, DAG, LegalOperations,
+                                            ForCodeSize, Depth);
 }
 
 //===---------------------------------------------------------------------===//
@@ -1383,12 +1404,11 @@ AMDGPUTargetLowering::splitVector(const SDValue &N, const SDLoc &DL,
                  (HiVT.isVector() ? HiVT.getVectorNumElements() : 1) <=
              N.getValueType().getVectorNumElements() &&
          "More vector elements requested than available!");
-  auto IdxTy = getVectorIdxTy(DAG.getDataLayout());
   SDValue Lo = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, LoVT, N,
-                           DAG.getConstant(0, DL, IdxTy));
+                           DAG.getVectorIdxConstant(0, DL));
   SDValue Hi = DAG.getNode(
       HiVT.isVector() ? ISD::EXTRACT_SUBVECTOR : ISD::EXTRACT_VECTOR_ELT, DL,
-      HiVT, N, DAG.getConstant(LoVT.getVectorNumElements(), DL, IdxTy));
+      HiVT, N, DAG.getVectorIdxConstant(LoVT.getVectorNumElements(), DL));
   return std::make_pair(Lo, Hi);
 }
 
@@ -1433,18 +1453,17 @@ SDValue AMDGPUTargetLowering::SplitVectorLoad(const SDValue Op,
                      HiPtr, SrcValue.getWithOffset(LoMemVT.getStoreSize()),
                      HiMemVT, HiAlign, Load->getMemOperand()->getFlags());
 
-  auto IdxTy = getVectorIdxTy(DAG.getDataLayout());
   SDValue Join;
   if (LoVT == HiVT) {
     // This is the case that the vector is power of two so was evenly split.
     Join = DAG.getNode(ISD::CONCAT_VECTORS, SL, VT, LoLoad, HiLoad);
   } else {
     Join = DAG.getNode(ISD::INSERT_SUBVECTOR, SL, VT, DAG.getUNDEF(VT), LoLoad,
-                       DAG.getConstant(0, SL, IdxTy));
-    Join = DAG.getNode(HiVT.isVector() ? ISD::INSERT_SUBVECTOR
-                                       : ISD::INSERT_VECTOR_ELT,
-                       SL, VT, Join, HiLoad,
-                       DAG.getConstant(LoVT.getVectorNumElements(), SL, IdxTy));
+                       DAG.getVectorIdxConstant(0, SL));
+    Join = DAG.getNode(
+        HiVT.isVector() ? ISD::INSERT_SUBVECTOR : ISD::INSERT_VECTOR_ELT, SL,
+        VT, Join, HiLoad,
+        DAG.getVectorIdxConstant(LoVT.getVectorNumElements(), SL));
   }
 
   SDValue Ops[] = {Join, DAG.getNode(ISD::TokenFactor, SL, MVT::Other,
@@ -1474,7 +1493,7 @@ SDValue AMDGPUTargetLowering::WidenVectorLoad(SDValue Op,
       WideMemVT, BaseAlign, Load->getMemOperand()->getFlags());
   return DAG.getMergeValues(
       {DAG.getNode(ISD::EXTRACT_SUBVECTOR, SL, VT, WideLoad,
-                   DAG.getConstant(0, SL, getVectorIdxTy(DAG.getDataLayout()))),
+                   DAG.getVectorIdxConstant(0, SL)),
        WideLoad.getValue(1)},
       SL);
 }
@@ -1588,7 +1607,7 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG,
   const AMDGPUMachineFunction *MFI = MF.getInfo<AMDGPUMachineFunction>();
 
   // float fr = mad(fqneg, fb, fa);
-  unsigned OpCode = MFI->getMode().FP32Denormals ?
+  unsigned OpCode = MFI->getMode().allFP32Denormals() ?
                     (unsigned)AMDGPUISD::FMAD_FTZ :
                     (unsigned)ISD::FMAD;
   SDValue fr = DAG.getNode(OpCode, DL, FltVT, fqneg, fb, fa);
@@ -1673,7 +1692,7 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
     // Compute denominator reciprocal.
-    unsigned FMAD = MFI->getMode().FP32Denormals ?
+    unsigned FMAD = MFI->getMode().allFP32Denormals() ?
                     (unsigned)AMDGPUISD::FMAD_FTZ :
                     (unsigned)ISD::FMAD;
 
@@ -4324,9 +4343,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(KILL)
   NODE_NAME_CASE(DUMMY_CHAIN)
   case AMDGPUISD::FIRST_MEM_OPCODE_NUMBER: break;
-  NODE_NAME_CASE(INTERP_P1LL_F16)
-  NODE_NAME_CASE(INTERP_P1LV_F16)
-  NODE_NAME_CASE(INTERP_P2_F16)
   NODE_NAME_CASE(LOAD_D16_HI)
   NODE_NAME_CASE(LOAD_D16_LO)
   NODE_NAME_CASE(LOAD_D16_HI_I8)

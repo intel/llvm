@@ -460,7 +460,7 @@ bool sys::RemoveFileOnSignal(StringRef Filename, std::string* ErrMsg) {
   if (FilesToRemove == NULL)
     FilesToRemove = new std::vector<std::string>;
 
-  FilesToRemove->push_back(Filename);
+  FilesToRemove->push_back(std::string(Filename));
 
   LeaveCriticalSection(&CriticalSection);
   return false;
@@ -820,7 +820,13 @@ static LONG WINAPI LLVMUnhandledExceptionFilter(LPEXCEPTION_POINTERS ep) {
                    << "\n";
   }
 
-  LocalPrintStackTrace(llvm::errs(), ep ? ep->ContextRecord : nullptr);
+  // Stack unwinding appears to modify the context. Copy it to preserve the
+  // caller's context.
+  CONTEXT ContextCopy;
+  if (ep)
+    memcpy(&ContextCopy, ep->ContextRecord, sizeof(ContextCopy));
+
+  LocalPrintStackTrace(llvm::errs(), ep ? &ContextCopy : nullptr);
 
   return EXCEPTION_EXECUTE_HANDLER;
 }

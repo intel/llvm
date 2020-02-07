@@ -56,9 +56,10 @@ namespace {
 
 // Update the FileIndex with new ASTs and plumb the diagnostics responses.
 struct UpdateIndexCallbacks : public ParsingCallbacks {
-  UpdateIndexCallbacks(FileIndex *FIndex, DiagnosticsConsumer &DiagConsumer,
+  UpdateIndexCallbacks(FileIndex *FIndex,
+                       ClangdServer::Callbacks *ServerCallbacks,
                        bool SemanticHighlighting)
-      : FIndex(FIndex), DiagConsumer(DiagConsumer),
+      : FIndex(FIndex), ServerCallbacks(ServerCallbacks),
         SemanticHighlighting(SemanticHighlighting) {}
 
   void onPreambleAST(PathRef Path, ASTContext &Ctx,
@@ -77,42 +78,53 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
     if (SemanticHighlighting)
       Highlightings = getSemanticHighlightings(AST);
 
-    Publish([&]() {
-      DiagConsumer.onDiagnosticsReady(Path, std::move(Diagnostics));
-      if (SemanticHighlighting)
-        DiagConsumer.onHighlightingsReady(Path, std::move(Highlightings));
-    });
+    if (ServerCallbacks)
+      Publish([&]() {
+        ServerCallbacks->onDiagnosticsReady(Path, std::move(Diagnostics));
+        if (SemanticHighlighting)
+          ServerCallbacks->onHighlightingsReady(Path, std::move(Highlightings));
+      });
   }
 
   void onFailedAST(PathRef Path, std::vector<Diag> Diags,
                    PublishFn Publish) override {
-    Publish([&]() { DiagConsumer.onDiagnosticsReady(Path, Diags); });
+    if (ServerCallbacks)
+      Publish([&]() { ServerCallbacks->onDiagnosticsReady(Path, Diags); });
   }
 
   void onFileUpdated(PathRef File, const TUStatus &Status) override {
-    DiagConsumer.onFileUpdated(File, Status);
+    if (ServerCallbacks)
+      ServerCallbacks->onFileUpdated(File, Status);
   }
 
 private:
   FileIndex *FIndex;
-  DiagnosticsConsumer &DiagConsumer;
+  ClangdServer::Callbacks *ServerCallbacks;
   bool SemanticHighlighting;
 };
 } // namespace
 
 ClangdServer::Options ClangdServer::optsForTest() {
   ClangdServer::Options Opts;
-  Opts.UpdateDebounce = std::chrono::steady_clock::duration::zero(); // Faster!
+  Opts.UpdateDebounce = DebouncePolicy::fixed(/*zero*/ {});
   Opts.StorePreamblesInMemory = true;
   Opts.AsyncThreadsCount = 4; // Consistent!
   Opts.SemanticHighlighting = true;
   return Opts;
 }
 
+ClangdServer::Options::operator TUScheduler::Options() const {
+  TUScheduler::Options Opts;
+  Opts.AsyncThreadsCount = AsyncThreadsCount;
+  Opts.RetentionPolicy = RetentionPolicy;
+  Opts.StorePreamblesInMemory = StorePreamblesInMemory;
+  Opts.UpdateDebounce = UpdateDebounce;
+  return Opts;
+}
+
 ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                            const FileSystemProvider &FSProvider,
-                           DiagnosticsConsumer &DiagConsumer,
-                           const Options &Opts)
+                           const Options &Opts, Callbacks *Callbacks)
     : FSProvider(FSProvider),
       DynamicIdx(Opts.BuildDynamicSymbolIndex
                      ? new FileIndex(Opts.HeavyweightDynamicSymbolIndex)
@@ -127,10 +139,9 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
       // FIXME(ioeric): this can be slow and we may be able to index on less
       // critical paths.
       WorkScheduler(
-          CDB, Opts.AsyncThreadsCount, Opts.StorePreamblesInMemory,
-          std::make_unique<UpdateIndexCallbacks>(DynamicIdx.get(), DiagConsumer,
-                                                 Opts.SemanticHighlighting),
-          Opts.UpdateDebounce, Opts.RetentionPolicy) {
+          CDB, TUScheduler::Options(Opts),
+          std::make_unique<UpdateIndexCallbacks>(DynamicIdx.get(), Callbacks,
+                                                 Opts.SemanticHighlighting)) {
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {
@@ -147,7 +158,11 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
         Context::current().clone(), FSProvider, CDB,
         BackgroundIndexStorage::createDiskBackedStorageFactory(
             [&CDB](llvm::StringRef File) { return CDB.getProjectInfo(File); }),
-        std::max(Opts.AsyncThreadsCount, 1u));
+        std::max(Opts.AsyncThreadsCount, 1u),
+        [Callbacks](BackgroundQueue::Stats S) {
+          if (Callbacks)
+            Callbacks->onBackgroundIndexProgress(S);
+        });
     AddIndex(BackgroundIdx.get());
   }
   if (DynamicIdx)
@@ -168,7 +183,7 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
   // Compile command is set asynchronously during update, as it can be slow.
   ParseInputs Inputs;
   Inputs.FS = FS;
-  Inputs.Contents = Contents;
+  Inputs.Contents = std::string(Contents);
   Inputs.Opts = std::move(Opts);
   Inputs.Index = Index;
   bool NewFile = WorkScheduler.update(File, Inputs, WantDiags);
@@ -310,16 +325,21 @@ void ClangdServer::prepareRename(PathRef File, Position Pos,
       return CB(InpAST.takeError());
     auto &AST = InpAST->AST;
     const auto &SM = AST.getSourceManager();
-    SourceLocation Loc =
-        SM.getMacroArgExpandedLocation(getBeginningOfIdentifier(
-            Pos, AST.getSourceManager(), AST.getLangOpts()));
-    auto Range = getTokenRange(SM, AST.getLangOpts(), Loc);
-    if (!Range)
-      return CB(llvm::None); // "rename" is not valid at the position.
+    auto Loc = sourceLocationInMainFile(SM, Pos);
+    if (!Loc)
+      return CB(Loc.takeError());
+    const auto *TouchingIdentifier =
+        spelledIdentifierTouching(*Loc, AST.getTokens());
+    if (!TouchingIdentifier)
+      return CB(llvm::None); // no rename on non-identifiers.
+
+    auto Range = halfOpenToRange(
+        SM, CharSourceRange::getCharRange(TouchingIdentifier->location(),
+                                          TouchingIdentifier->endLocation()));
 
     if (CrossFileRename)
       // FIXME: we now assume cross-file rename always succeeds, revisit this.
-      return CB(*Range);
+      return CB(Range);
 
     // Performing the local rename isn't substantially more expensive than
     // doing an AST-based check, so we just rename and throw away the results.
@@ -332,7 +352,7 @@ void ClangdServer::prepareRename(PathRef File, Position Pos,
       // the message to users (VSCode does).
       return CB(Changes.takeError());
     }
-    return CB(*Range);
+    return CB(Range);
   };
   WorkScheduler.runWithAST("PrepareRename", File, std::move(Action));
 }
@@ -472,8 +492,8 @@ void ClangdServer::switchSourceHeader(
   //     the same directory.
   //  2) if 1) fails, we use the AST&Index approach, it is slower but supports
   //     different code layout.
-  if (auto CorrespondingFile =
-          getCorrespondingHeaderOrSource(Path, FSProvider.getFileSystem()))
+  if (auto CorrespondingFile = getCorrespondingHeaderOrSource(
+          std::string(Path), FSProvider.getFileSystem()))
     return CB(std::move(CorrespondingFile));
   auto Action = [Path = Path.str(), CB = std::move(CB),
                  this](llvm::Expected<InputsAndAST> InpAST) mutable {

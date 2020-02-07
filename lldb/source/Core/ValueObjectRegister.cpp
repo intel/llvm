@@ -1,4 +1,4 @@
-//===-- ValueObjectRegister.cpp ---------------------------------*- C++ -*-===//
+//===-- ValueObjectRegister.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -357,7 +357,6 @@ bool ValueObjectRegister::ResolveValue(Scalar &scalar) {
 }
 
 void ValueObjectRegister::GetExpressionPath(Stream &s,
-                                            bool qualify_cxx_base_classes,
                                             GetExpressionPathFormat epformat) {
   s.Printf("$%s", m_reg_info.name);
 }

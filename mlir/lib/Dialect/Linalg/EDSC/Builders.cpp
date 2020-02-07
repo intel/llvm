@@ -1,6 +1,6 @@
 //===- Builders.cpp - MLIR Declarative Linalg Builders --------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -46,8 +46,8 @@ mlir::edsc::LoopRangeBuilder::LoopRangeBuilder(ValueHandle *iv,
   enter(body, /*prev=*/1);
 }
 
-ValueHandle mlir::edsc::LoopRangeBuilder::
-operator()(std::function<void(void)> fun) {
+ValueHandle
+mlir::edsc::LoopRangeBuilder::operator()(std::function<void(void)> fun) {
   if (fun)
     fun();
   exit();
@@ -77,8 +77,8 @@ mlir::edsc::LoopNestRangeBuilder::LoopNestRangeBuilder(
     : LoopNestRangeBuilder(
           ivs, SmallVector<ValueHandle, 4>(ranges.begin(), ranges.end())) {}
 
-ValueHandle LoopNestRangeBuilder::LoopNestRangeBuilder::
-operator()(std::function<void(void)> fun) {
+ValueHandle LoopNestRangeBuilder::LoopNestRangeBuilder::operator()(
+    std::function<void(void)> fun) {
   if (fun)
     fun();
   for (auto &lit : reverse(loops)) {
@@ -89,6 +89,7 @@ operator()(std::function<void(void)> fun) {
 
 namespace mlir {
 namespace edsc {
+
 template <>
 GenericLoopNestRangeBuilder<loop::ForOp>::GenericLoopNestRangeBuilder(
     ArrayRef<edsc::ValueHandle *> ivs, ArrayRef<Value> ranges) {
@@ -105,12 +106,28 @@ GenericLoopNestRangeBuilder<AffineForOp>::GenericLoopNestRangeBuilder(
     assert(range.getType() && "expected linalg.range type");
     assert(range.getDefiningOp() && "need operations to extract range parts");
     RangeOp rangeOp = cast<RangeOp>(range.getDefiningOp());
-    lbs.emplace_back(ValueHandle(rangeOp.min()));
-    ubs.emplace_back(ValueHandle(rangeOp.max()));
-    steps.emplace_back(ValueHandle(rangeOp.step()));
+    lbs.emplace_back(rangeOp.min());
+    ubs.emplace_back(rangeOp.max());
+    steps.emplace_back(rangeOp.step());
   }
   builder = std::make_unique<AffineLoopNestBuilder>(ivs, lbs, ubs, steps);
 }
+
+template <>
+GenericLoopNestRangeBuilder<loop::ParallelOp>::GenericLoopNestRangeBuilder(
+    ArrayRef<ValueHandle *> ivs, ArrayRef<Value> ranges) {
+  SmallVector<ValueHandle, 4> lbs, ubs, steps;
+  for (Value range : ranges) {
+    assert(range.getType() && "expected linalg.range type");
+    assert(range.getDefiningOp() && "need operations to extract range parts");
+    RangeOp rangeOp = cast<RangeOp>(range.getDefiningOp());
+    lbs.emplace_back(rangeOp.min());
+    ubs.emplace_back(rangeOp.max());
+    steps.emplace_back(rangeOp.step());
+  }
+  builder = std::make_unique<ParallelLoopNestBuilder>(ivs, lbs, ubs, steps);
+}
+
 } // namespace edsc
 } // namespace mlir
 
@@ -131,6 +148,10 @@ Operation *mlir::edsc::makeGenericLinalgOp(
     ArrayRef<StructuredIndexed> outputs,
     function_ref<void(ArrayRef<BlockArgument>)> regionBuilder,
     ArrayRef<Value> otherValues, ArrayRef<Attribute> otherAttributes) {
+  for (unsigned i = 0, e = outputs.size(); i + 1 < e; ++i)
+    assert(!(outputs[i].getType().isa<RankedTensorType>() &&
+             outputs[i + 1].getType().isa<MemRefType>()) &&
+           "output tensors must be passed after output buffers");
   auto &builder = edsc::ScopedContext::getBuilder();
   auto *ctx = builder.getContext();
   unsigned nInputs = inputs.size();
@@ -154,7 +175,11 @@ Operation *mlir::edsc::makeGenericLinalgOp(
   SmallVector<Value, 4> values;
   values.reserve(nViews);
   values.append(inputs.begin(), inputs.end());
-  values.append(outputs.begin(), outputs.end());
+  std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(values),
+               [](StructuredIndexed s) { return s.hasValue(); });
+  SmallVector<Type, 4> types;
+  std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(types),
+               [](StructuredIndexed s) { return !s.hasValue(); });
 
   auto iteratorStrTypes = functional::map(toString, iteratorTypes);
   // clang-format off
@@ -162,7 +187,7 @@ Operation *mlir::edsc::makeGenericLinalgOp(
       edsc::ScopedContext::getBuilder()
           .create<linalg::GenericOp>(
               edsc::ScopedContext::getLocation(),
-              ArrayRef<Type>{}, // TODO(ntv): support tensors
+              types,
               values,
               IntegerAttr::get(IntegerType::get(64, ctx), nInputs),
               IntegerAttr::get(IntegerType::get(64, ctx), nOutputs),
@@ -197,6 +222,13 @@ Operation *mlir::edsc::makeGenericLinalgOp(
   return op;
 }
 
+static void mulRegionBuilder(ArrayRef<BlockArgument> args) {
+  using edsc::op::operator*;
+  assert(args.size() == 2 && "expected 2 block arguments");
+  ValueHandle a(args[0]), b(args[1]);
+  linalg_yield((a * b).getValue());
+}
+
 void mlir::edsc::ops::macRegionBuilder(ArrayRef<BlockArgument> args) {
   using edsc::op::operator+;
   using edsc::op::operator*;
@@ -210,6 +242,14 @@ Operation *mlir::edsc::ops::linalg_pointwise(UnaryPointwiseOpBuilder unaryOp,
                                              StructuredIndexed O) {
   SmallVector<edsc::IterType, 4> iterTypes(O.getExprs().size(),
                                            edsc::IterType::Parallel);
+  if (O.getType().isa<RankedTensorType>()) {
+    auto fun = [&unaryOp](ArrayRef<BlockArgument> args) {
+      assert(args.size() == 1 && "expected 1 block arguments");
+      ValueHandle a(args[0]);
+      linalg_yield(unaryOp(a));
+    };
+    return makeGenericLinalgOp(iterTypes, {I}, {O}, fun);
+  }
   auto fun = [&unaryOp](ArrayRef<BlockArgument> args) {
     assert(args.size() == 2 && "expected 2 block arguments");
     ValueHandle a(args[0]);
@@ -220,7 +260,6 @@ Operation *mlir::edsc::ops::linalg_pointwise(UnaryPointwiseOpBuilder unaryOp,
 
 Operation *mlir::edsc::ops::linalg_pointwise_tanh(StructuredIndexed I,
                                                   StructuredIndexed O) {
-  ;
   using edsc::intrinsics::tanh;
   UnaryPointwiseOpBuilder unOp([](ValueHandle a) -> Value { return tanh(a); });
   return linalg_pointwise(unOp, I, O);
@@ -233,6 +272,14 @@ Operation *mlir::edsc::ops::linalg_pointwise(BinaryPointwiseOpBuilder binaryOp,
                                              StructuredIndexed O) {
   SmallVector<edsc::IterType, 4> iterTypes(O.getExprs().size(),
                                            edsc::IterType::Parallel);
+  if (O.getType().isa<RankedTensorType>()) {
+    auto fun = [&binaryOp](ArrayRef<BlockArgument> args) {
+      assert(args.size() == 2 && "expected 2 block arguments");
+      ValueHandle a(args[0]), b(args[1]);
+      linalg_yield(binaryOp(a, b));
+    };
+    return makeGenericLinalgOp(iterTypes, {I1, I2}, {O}, fun);
+  }
   auto fun = [&binaryOp](ArrayRef<BlockArgument> args) {
     assert(args.size() == 3 && "expected 3 block arguments");
     ValueHandle a(args[0]), b(args[1]);
@@ -271,6 +318,34 @@ Operation *mlir::edsc::ops::linalg_matmul(ValueHandle vA, ValueHandle vB,
     {IterType::Parallel, IterType::Parallel, IterType::Reduction},
     {A({m, k}), B({k, n})},
     {C({m, n})},
+    macRegionBuilder);
+  // clang-format on
+}
+
+Operation *mlir::edsc::ops::linalg_matmul(ValueHandle vA, ValueHandle vB,
+                                          RankedTensorType tC) {
+  // clang-format off
+  AffineExpr m, n, k;
+  bindDims(ScopedContext::getContext(), m, n, k);
+  StructuredIndexed A(vA), B(vB), C(tC);
+  return makeGenericLinalgOp(
+    {IterType::Parallel, IterType::Parallel, IterType::Reduction},
+    {A({m, k}), B({k, n})},
+    {C({m, n})},
+    mulRegionBuilder);
+  // clang-format on
+}
+
+Operation *mlir::edsc::ops::linalg_matmul(ValueHandle vA, ValueHandle vB,
+                                          ValueHandle vC, RankedTensorType tD) {
+  // clang-format off
+  AffineExpr m, n, k;
+  bindDims(ScopedContext::getContext(), m, n, k);
+  StructuredIndexed A(vA), B(vB), C(vC), D(tD);
+  return makeGenericLinalgOp(
+    {IterType::Parallel, IterType::Parallel, IterType::Reduction},
+    {A({m, k}), B({k, n}), C({m, n})},
+    {D({m, n})},
     macRegionBuilder);
   // clang-format on
 }

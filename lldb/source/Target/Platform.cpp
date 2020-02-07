@@ -1,4 +1,4 @@
-//===-- Platform.cpp --------------------------------------------*- C++ -*-===//
+//===-- Platform.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -421,9 +421,6 @@ void Platform::GetStatus(Stream &strm) {
     strm.EOL();
   }
 
-  if (GetOSKernelDescription(s))
-    strm.Printf("    Kernel: %s\n", s.c_str());
-
   if (IsHost()) {
     strm.Printf("  Hostname: %s\n", GetHostname());
   } else {
@@ -443,6 +440,9 @@ void Platform::GetStatus(Stream &strm) {
 
   if (!specific_info.empty())
     strm.Printf("Platform-specific connection: %s\n", specific_info.c_str());
+
+  if (GetOSKernelDescription(s))
+    strm.Printf("    Kernel: %s\n", s.c_str());
 }
 
 llvm::VersionTuple Platform::GetOSVersion(Process *process) {
@@ -1400,11 +1400,11 @@ OptionGroupPlatformRSync::SetOptionValue(uint32_t option_idx,
     break;
 
   case 'R':
-    m_rsync_opts.assign(option_arg);
+    m_rsync_opts.assign(std::string(option_arg));
     break;
 
   case 'P':
-    m_rsync_prefix.assign(option_arg);
+    m_rsync_prefix.assign(std::string(option_arg));
     break;
 
   case 'i':
@@ -1446,7 +1446,7 @@ OptionGroupPlatformSSH::SetOptionValue(uint32_t option_idx,
     break;
 
   case 'S':
-    m_ssh_opts.assign(option_arg);
+    m_ssh_opts.assign(std::string(option_arg));
     break;
 
   default:
@@ -1473,7 +1473,7 @@ lldb_private::Status OptionGroupPlatformCaching::SetOptionValue(
   char short_option = (char)GetDefinitions()[option_idx].short_option;
   switch (short_option) {
   case 'c':
-    m_cache_dir.assign(option_arg);
+    m_cache_dir.assign(std::string(option_arg));
     break;
 
   default:

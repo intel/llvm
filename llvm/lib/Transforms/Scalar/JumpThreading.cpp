@@ -170,7 +170,7 @@ FunctionPass *llvm::createJumpThreadingPass(int Threshold) {
 }
 
 JumpThreadingPass::JumpThreadingPass(int T) {
-  BBDupThreshold = (T == -1) ? BBDuplicateThreshold : unsigned(T);
+  DefaultBBDupThreshold = (T == -1) ? BBDuplicateThreshold : unsigned(T);
 }
 
 // Update branch probability information according to conditional
@@ -373,6 +373,15 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
     BPI = std::move(BPI_);
     BFI = std::move(BFI_);
   }
+
+  // Reduce the number of instructions duplicated when optimizing strictly for
+  // size.
+  if (BBDuplicateThreshold.getNumOccurrences())
+    BBDupThreshold = BBDuplicateThreshold;
+  else if (F.hasFnAttribute(Attribute::MinSize))
+    BBDupThreshold = 3;
+  else
+    BBDupThreshold = DefaultBBDupThreshold;
 
   // JumpThreading must not processes blocks unreachable from entry. It's a
   // waste of compute time and can potentially lead to hangs.
@@ -2122,11 +2131,12 @@ bool JumpThreadingPass::MaybeThreadThroughTwoBasicBlocks(BasicBlock *BB,
   BasicBlock *ZeroPred = nullptr;
   BasicBlock *OnePred = nullptr;
   for (BasicBlock *P : predecessors(PredBB)) {
-    if (Constant *Cst = EvaluateOnPredecessorEdge(BB, P, Cond)) {
-      if (Cst->isZeroValue()) {
+    if (ConstantInt *CI = dyn_cast_or_null<ConstantInt>(
+            EvaluateOnPredecessorEdge(BB, P, Cond))) {
+      if (CI->isZero()) {
         ZeroCount++;
         ZeroPred = P;
-      } else {
+      } else if (CI->isOne()) {
         OneCount++;
         OnePred = P;
       }
@@ -2168,14 +2178,20 @@ bool JumpThreadingPass::MaybeThreadThroughTwoBasicBlocks(BasicBlock *BB,
     return false;
   }
 
-  // Check the cost of duplicating BB and PredBB.
-  unsigned JumpThreadCost =
+  // Compute the cost of duplicating BB and PredBB.
+  unsigned BBCost =
       getJumpThreadDuplicationCost(BB, BB->getTerminator(), BBDupThreshold);
-  JumpThreadCost += getJumpThreadDuplicationCost(
+  unsigned PredBBCost = getJumpThreadDuplicationCost(
       PredBB, PredBB->getTerminator(), BBDupThreshold);
-  if (JumpThreadCost > BBDupThreshold) {
+
+  // Give up if costs are too high.  We need to check BBCost and PredBBCost
+  // individually before checking their sum because getJumpThreadDuplicationCost
+  // return (unsigned)~0 for those basic blocks that cannot be duplicated.
+  if (BBCost > BBDupThreshold || PredBBCost > BBDupThreshold ||
+      BBCost + PredBBCost > BBDupThreshold) {
     LLVM_DEBUG(dbgs() << "  Not threading BB '" << BB->getName()
-                      << "' - Cost is too high: " << JumpThreadCost << "\n");
+                      << "' - Cost is too high: " << PredBBCost
+                      << " for PredBB, " << BBCost << "for BB\n");
     return false;
   }
 

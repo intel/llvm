@@ -753,9 +753,10 @@ unsigned PPCInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
 // Select analysis.
 bool PPCInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
-                ArrayRef<MachineOperand> Cond,
-                unsigned TrueReg, unsigned FalseReg,
-                int &CondCycles, int &TrueCycles, int &FalseCycles) const {
+                                   ArrayRef<MachineOperand> Cond,
+                                   unsigned DstReg, unsigned TrueReg,
+                                   unsigned FalseReg, int &CondCycles,
+                                   int &TrueCycles, int &FalseCycles) const {
   if (Cond.size() != 2)
     return false;
 
@@ -1223,7 +1224,7 @@ void PPCInstrInfo::StoreRegToStackSlot(
 
 void PPCInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator MI,
-                                       unsigned SrcReg, bool isKill,
+                                       Register SrcReg, bool isKill,
                                        int FrameIdx,
                                        const TargetRegisterClass *RC,
                                        const TargetRegisterInfo *TRI) const {
@@ -1276,7 +1277,7 @@ void PPCInstrInfo::LoadRegFromStackSlot(MachineFunction &MF, const DebugLoc &DL,
 void
 PPCInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MI,
-                                   unsigned DestReg, int FrameIdx,
+                                   Register DestReg, int FrameIdx,
                                    const TargetRegisterClass *RC,
                                    const TargetRegisterInfo *TRI) const {
   MachineFunction &MF = *MBB.getParent();
@@ -2034,10 +2035,7 @@ ArrayRef<std::pair<unsigned, const char *>>
 PPCInstrInfo::getSerializableBitmaskMachineOperandTargetFlags() const {
   using namespace PPCII;
   static const std::pair<unsigned, const char *> TargetFlags[] = {
-      {MO_PLT, "ppc-plt"},
-      {MO_PIC_FLAG, "ppc-pic"},
-      {MO_NLP_FLAG, "ppc-nlp"},
-      {MO_NLP_HIDDEN_FLAG, "ppc-nlp-hidden"}};
+      {MO_PLT, "ppc-plt"}, {MO_PIC_FLAG, "ppc-pic"}};
   return makeArrayRef(TargetFlags);
 }
 

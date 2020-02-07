@@ -1,6 +1,6 @@
 //===- Parser.cpp - MLIR Parser Implementation ----------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -1434,7 +1434,7 @@ static std::string extractSymbolReference(Token tok) {
   // Check to see if the reference is a string literal, or a bare identifier.
   if (nameStr.front() == '"')
     return tok.getStringValue();
-  return nameStr;
+  return std::string(nameStr);
 }
 
 /// Parse an arbitrary attribute.
@@ -3573,8 +3573,9 @@ Value OperationParser::createForwardRefPlaceholder(SMLoc loc, Type type) {
 ///  operation         ::= op-result-list?
 ///                        (generic-operation | custom-operation)
 ///                        trailing-location?
-///  generic-operation ::= string-literal '(' ssa-use-list? ')' attribute-dict?
-///                        `:` function-type
+///  generic-operation ::= string-literal `(` ssa-use-list? `)`
+///                        successor-list? (`(` region-list `)`)?
+///                        attribute-dict? `:` function-type
 ///  custom-operation  ::= bare-id custom-operation-format
 ///  op-result-list    ::= op-result (`,` op-result)* `=`
 ///  op-result         ::= ssa-id (`:` integer-literal)

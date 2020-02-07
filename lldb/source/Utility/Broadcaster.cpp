@@ -1,4 +1,4 @@
-//===-- Broadcaster.cpp -----------------------------------------*- C++ -*-===//
+//===-- Broadcaster.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -406,7 +406,7 @@ void BroadcasterManager::RemoveListener(Listener *listener) {
   listener_collection::iterator iter = m_listeners.begin(),
                                 end_iter = m_listeners.end();
 
-  std::find_if(iter, end_iter, predicate);
+  iter = std::find_if(iter, end_iter, predicate);
   if (iter != end_iter)
     m_listeners.erase(iter);
 

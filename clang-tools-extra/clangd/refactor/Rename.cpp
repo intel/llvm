@@ -75,8 +75,8 @@ llvm::Optional<std::string> getOtherRefFile(const Decl &D, StringRef MainFile,
   return OtherFile;
 }
 
-llvm::DenseSet<const Decl *> locateDeclAt(ParsedAST &AST,
-                                          SourceLocation TokenStartLoc) {
+llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
+                                               SourceLocation TokenStartLoc) {
   unsigned Offset =
       AST.getSourceManager().getDecomposedSpellingLoc(TokenStartLoc).second;
 
@@ -85,7 +85,7 @@ llvm::DenseSet<const Decl *> locateDeclAt(ParsedAST &AST,
   if (!SelectedNode)
     return {};
 
-  llvm::DenseSet<const Decl *> Result;
+  llvm::DenseSet<const NamedDecl *> Result;
   for (const NamedDecl *D :
        targetDecl(SelectedNode->ASTNode,
                   DeclRelation::Alias | DeclRelation::TemplatePattern)) {
@@ -94,6 +94,15 @@ llvm::DenseSet<const Decl *> locateDeclAt(ParsedAST &AST,
     Result.insert(D);
   }
   return Result;
+}
+
+bool isBlacklisted(const NamedDecl &RenameDecl) {
+  static const auto *StdSymbols = new llvm::DenseSet<llvm::StringRef>({
+#define SYMBOL(Name, NameSpace, Header) {#NameSpace #Name},
+#include "StdSymbolMap.inc"
+#undef SYMBOL
+  });
+  return StdSymbols->count(RenameDecl.getQualifiedNameAsString());
 }
 
 enum ReasonToReject {
@@ -105,7 +114,7 @@ enum ReasonToReject {
   AmbiguousSymbol,
 };
 
-llvm::Optional<ReasonToReject> renameable(const Decl &RenameDecl,
+llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
                                           StringRef MainFilePath,
                                           const SymbolIndex *Index,
                                           bool CrossFile) {
@@ -120,6 +129,9 @@ llvm::Optional<ReasonToReject> renameable(const Decl &RenameDecl,
   if (RenameDecl.getParentFunctionOrMethod())
     return None;
 
+  if (isBlacklisted(RenameDecl))
+    return ReasonToReject::UnsupportedSymbol;
+
   // Check whether the symbol being rename is indexable.
   auto &ASTCtx = RenameDecl.getASTContext();
   bool MainFileIsHeader = isHeaderFile(MainFilePath, ASTCtx.getLangOpts());
@@ -131,12 +143,10 @@ llvm::Optional<ReasonToReject> renameable(const Decl &RenameDecl,
     IsMainFileOnly = false;
   else if (!DeclaredInMainFile)
     IsMainFileOnly = false;
-  bool IsIndexable =
-      isa<NamedDecl>(RenameDecl) &&
-      SymbolCollector::shouldCollectSymbol(
-          cast<NamedDecl>(RenameDecl), RenameDecl.getASTContext(),
-          SymbolCollector::Options(), IsMainFileOnly);
-  if (!IsIndexable) // If the symbol is not indexable, we disallow rename.
+  // If the symbol is not indexable, we disallow rename.
+  if (!SymbolCollector::shouldCollectSymbol(
+          RenameDecl, RenameDecl.getASTContext(), SymbolCollector::Options(),
+          IsMainFileOnly))
     return ReasonToReject::NonIndexable;
 
   if (!CrossFile) {
@@ -215,7 +225,7 @@ std::vector<SourceLocation> findOccurrencesWithinFile(ParsedAST &AST,
   // getUSRsForDeclaration will find other related symbols, e.g. virtual and its
   // overriddens, primary template and all explicit specializations.
   // FIXME: Get rid of the remaining tooling APIs.
-  const auto RenameDecl =
+  const auto *RenameDecl =
       ND.getDescribedTemplate() ? ND.getDescribedTemplate() : &ND;
   std::vector<std::string> RenameUSRs =
       tooling::getUSRsForDeclaration(RenameDecl, AST.getASTContext());
@@ -335,8 +345,6 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
 // as the file content we rename on, and fallback to file content on disk if
 // there is no dirty buffer.
 //
-// FIXME: Add range patching heuristics to detect staleness of the index, and
-// report to users.
 // FIXME: Our index may return implicit references, which are not eligible for
 // rename, we should filter out these references.
 llvm::Expected<FileEdits> renameOutsideFile(
@@ -469,13 +477,10 @@ llvm::Expected<FileEdits> rename(const RenameInputs &RInputs) {
   if (DeclsUnderCursor.size() > 1)
     return makeError(ReasonToReject::AmbiguousSymbol);
 
-  const auto *RenameDecl = llvm::dyn_cast<NamedDecl>(*DeclsUnderCursor.begin());
-  if (!RenameDecl)
-    return makeError(ReasonToReject::UnsupportedSymbol);
-
-  auto Reject =
-      renameable(*RenameDecl->getCanonicalDecl(), RInputs.MainFilePath,
-                 RInputs.Index, RInputs.AllowCrossFile);
+  const auto &RenameDecl =
+      llvm::cast<NamedDecl>(*(*DeclsUnderCursor.begin())->getCanonicalDecl());
+  auto Reject = renameable(RenameDecl, RInputs.MainFilePath, RInputs.Index,
+                           RInputs.AllowCrossFile);
   if (Reject)
     return makeError(*Reject);
 
@@ -488,7 +493,7 @@ llvm::Expected<FileEdits> rename(const RenameInputs &RInputs) {
   // To make cross-file rename work for local symbol, we use a hybrid solution:
   //   - run AST-based rename on the main file;
   //   - run index-based rename on other affected files;
-  auto MainFileRenameEdit = renameWithinFile(AST, *RenameDecl, RInputs.NewName);
+  auto MainFileRenameEdit = renameWithinFile(AST, RenameDecl, RInputs.NewName);
   if (!MainFileRenameEdit)
     return MainFileRenameEdit.takeError();
 
@@ -504,7 +509,7 @@ llvm::Expected<FileEdits> rename(const RenameInputs &RInputs) {
   // symbol if we don't have index.
   if (RInputs.Index) {
     auto OtherFilesEdits =
-        renameOutsideFile(*RenameDecl, RInputs.MainFilePath, RInputs.NewName,
+        renameOutsideFile(RenameDecl, RInputs.MainFilePath, RInputs.NewName,
                           *RInputs.Index, GetFileContent);
     if (!OtherFilesEdits)
       return OtherFilesEdits.takeError();

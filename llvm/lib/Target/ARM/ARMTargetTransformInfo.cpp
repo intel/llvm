@@ -67,6 +67,20 @@ bool ARMTTIImpl::areInlineCompatible(const Function *Caller,
   return MatchExact && MatchSubset;
 }
 
+bool ARMTTIImpl::shouldFavorBackedgeIndex(const Loop *L) const {
+  if (L->getHeader()->getParent()->hasOptSize())
+    return false;
+  if (ST->hasMVEIntegerOps())
+    return false;
+  return ST->isMClass() && ST->isThumb2() && L->getNumBlocks() == 1;
+}
+
+bool ARMTTIImpl::shouldFavorPostInc() const {
+  if (ST->hasMVEIntegerOps())
+    return true;
+  return false;
+}
+
 int ARMTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty) {
   assert(Ty->isIntegerTy());
 
@@ -552,8 +566,8 @@ int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
     return LibCallCost;
 
   const unsigned Size = C->getValue().getZExtValue();
-  const unsigned DstAlign = MI->getDestAlignment();
-  const unsigned SrcAlign = MI->getSourceAlignment();
+  const Align DstAlign = *MI->getDestAlign();
+  const Align SrcAlign = *MI->getSourceAlign();
   const Function *F = I->getParent()->getParent();
   const unsigned Limit = TLI->getMaxStoresPerMemmove(F->hasMinSize());
   std::vector<EVT> MemOps;
@@ -562,8 +576,9 @@ int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
   // loaded and stored. That's why we multiply the number of elements by 2 to
   // get the cost for this memcpy.
   if (getTLI()->findOptimalMemOpLowering(
-          MemOps, Limit, Size, DstAlign, SrcAlign, false /*IsMemset*/,
-          false /*ZeroMemset*/, false /*MemcpyStrSrc*/, false /*AllowOverlap*/,
+          MemOps, Limit,
+          MemOp::Copy(Size, /*DstAlignCanChange*/ false, DstAlign, SrcAlign,
+                      /*IsVolatile*/ true),
           MI->getDestAddressSpace(), MI->getSourceAddressSpace(),
           F->getAttributes()))
     return MemOps.size() * 2;
@@ -844,6 +859,67 @@ int ARMTTIImpl::getInterleavedMemoryOpCost(
   return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
                                            Alignment, AddressSpace,
                                            UseMaskForCond, UseMaskForGaps);
+}
+
+unsigned ARMTTIImpl::getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
+                                            Value *Ptr, bool VariableMask,
+                                            unsigned Alignment) {
+  if (!ST->hasMVEIntegerOps() || !EnableMaskedGatherScatters)
+    return BaseT::getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
+                                         Alignment);
+
+  assert(DataTy->isVectorTy() && "Can't do gather/scatters on scalar!");
+  VectorType *VTy = cast<VectorType>(DataTy);
+
+  // TODO: Splitting, once we do that.
+  // TODO: trunc/sext/zext the result/input
+
+  unsigned NumElems = VTy->getNumElements();
+  unsigned EltSize = VTy->getScalarSizeInBits();
+  std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, DataTy);
+
+  // For now, it is assumed that for the MVE gather instructions the loads are
+  // all effectively serialised. This means the cost is the scalar cost
+  // multiplied by the number of elements being loaded. This is possibly very
+  // conservative, but even so we still end up vectorising loops because the
+  // cost per iteration for many loops is lower than for scalar loops.
+  unsigned VectorCost = NumElems * LT.first;
+  // The scalarization cost should be a lot higher. We use the number of vector
+  // elements plus the scalarization overhead.
+  unsigned ScalarCost =
+      NumElems * LT.first + BaseT::getScalarizationOverhead(DataTy, {});
+
+  // TODO: Cost extended gathers or trunc stores correctly.
+  if (EltSize * NumElems != 128 || NumElems < 4)
+    return ScalarCost;
+  if (Alignment < EltSize / 8)
+    return ScalarCost;
+
+  // Any (aligned) i32 gather will not need to be scalarised.
+  if (EltSize == 32)
+    return VectorCost;
+  // For smaller types, we need to ensure that the gep's inputs are correctly
+  // extended from a small enough value. Other size (including i64) are
+  // scalarized for now.
+  if (EltSize != 8 && EltSize != 16)
+    return ScalarCost;
+
+  if (auto BC = dyn_cast<BitCastInst>(Ptr))
+    Ptr = BC->getOperand(0);
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
+    if (GEP->getNumOperands() != 2)
+      return ScalarCost;
+    unsigned Scale = DL.getTypeAllocSize(GEP->getResultElementType());
+    // Scale needs to be correct (which is only relevant for i16s).
+    if (Scale != 1 && Scale * 8 != EltSize)
+      return ScalarCost;
+    // And we need to zext (not sext) the indexes from a small enough type.
+    if (auto ZExt = dyn_cast<ZExtInst>(GEP->getOperand(1)))
+      if (ZExt->getOperand(0)->getType()->getScalarSizeInBits() <= EltSize)
+        return VectorCost;
+    return ScalarCost;
+  }
+  return ScalarCost;
 }
 
 bool ARMTTIImpl::isLoweredToCall(const Function *F) {
@@ -1289,7 +1365,8 @@ bool ARMTTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
     return false;
   case Instruction::ICmp:
   case Instruction::Add:
-    return ScalarBits < 64 && ScalarBits * Ty->getVectorNumElements() == 128;
+    return ScalarBits < 64 &&
+           (ScalarBits * Ty->getVectorNumElements()) % 128 == 0;
   default:
     llvm_unreachable("Unhandled reduction opcode");
   }

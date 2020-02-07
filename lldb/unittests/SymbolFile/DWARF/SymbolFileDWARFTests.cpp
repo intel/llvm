@@ -1,4 +1,4 @@
-//===-- SymbolFileDWARFTests.cpp --------------------------------*- C++ -*-===//
+//===-- SymbolFileDWARFTests.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,6 +20,7 @@
 #include "Plugins/SymbolFile/DWARF/DWARFDebugAbbrev.h"
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
 #include "Plugins/SymbolFile/PDB/SymbolFilePDB.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
 #include "lldb/Core/Address.h"
@@ -27,7 +28,6 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -35,14 +35,12 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/StreamString.h"
 
-
-
 using namespace lldb;
 using namespace lldb_private;
 
 class SymbolFileDWARFTests : public testing::Test {
   SubsystemRAII<FileSystem, HostInfo, ObjectFilePECOFF, SymbolFileDWARF,
-                ClangASTContext, SymbolFilePDB>
+                TypeSystemClang, SymbolFilePDB>
       subsystems;
 
 public:

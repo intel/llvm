@@ -23,7 +23,7 @@ define i8* @test2(i8* nonnull %p) {
 ; Given an SCC where one of the functions can not be marked nonnull,
 ; can we still mark the other one which is trivially nonnull
 define i8* @scc_binder(i1 %c) {
-; ATTRIBUTOR: define noalias i8* @scc_binder
+; ATTRIBUTOR: define noalias align 536870912 i8* @scc_binder
   br i1 %c, label %rec, label %end
 rec:
   call i8* @test3(i1 %c)
@@ -57,7 +57,7 @@ define i8* @test4() {
 ; Given a mutual recursive set of functions which *can* return null
 ; make sure we haven't marked them as nonnull.
 define i8* @test5_helper(i1 %c) {
-; ATTRIBUTOR: define noalias i8* @test5_helper
+; ATTRIBUTOR: define noalias align 536870912 i8* @test5_helper
   br i1 %c, label %rec, label %end
 rec:
   %ret = call i8* @test5(i1 %c)
@@ -67,7 +67,7 @@ end:
 }
 
 define i8* @test5(i1 %c) {
-; ATTRIBUTOR: define noalias i8* @test5
+; ATTRIBUTOR: define noalias align 536870912 i8* @test5
   %ret = call i8* @test5_helper(i1 %c)
   ret i8* %ret
 }
@@ -167,7 +167,7 @@ define void @test13_helper() {
 }
 declare void @use_i8_ptr(i8* nofree) readnone nounwind
 define internal void @test13(i8* %a, i8* %b, i8* %c) {
-; ATTRIBUTOR: define internal void @test13(i8* nocapture nofree nonnull readnone %a, i8* nocapture nofree readnone %b, i8* nocapture nofree readnone %c)
+; ATTRIBUTOR: define internal void @test13(i8* noalias nocapture nofree nonnull readnone %a, i8* noalias nocapture nofree readnone %b, i8* noalias nocapture nofree readnone %c)
   call void @use_i8_ptr(i8* %a)
   call void @use_i8_ptr(i8* %b)
   call void @use_i8_ptr(i8* %c)
@@ -525,7 +525,7 @@ define i32 addrspace(3)* @as(i32 addrspace(3)* dereferenceable(4) %p) {
   ret i32 addrspace(3)* %p
 }
 
-; ATTRIBUTOR: define internal nonnull i32* @g2()
+; ATTRIBUTOR: define internal nonnull align 4 i32* @g2()
 define internal i32* @g2() {
   ret i32* inttoptr (i64 4 to i32*)
 }
@@ -536,7 +536,7 @@ define  i32* @g1() {
 }
 
 declare void @use_i32_ptr(i32*) readnone nounwind
-; ATTRIBUTOR: define internal void @called_by_weak(i32* nocapture nonnull readnone %a)
+; ATTRIBUTOR: define internal void @called_by_weak(i32* noalias nocapture nonnull readnone %a)
 define internal void @called_by_weak(i32* %a) {
   call void @use_i32_ptr(i32* %a)
   ret void
@@ -550,7 +550,7 @@ define weak_odr void @weak_caller(i32* nonnull %a) {
 }
 
 ; Expect nonnull
-; ATTRIBUTOR: define internal void @control(i32* nocapture nonnull readnone align 16 dereferenceable(8) %a)
+; ATTRIBUTOR: define internal void @control(i32* noalias nocapture nonnull readnone align 16 dereferenceable(8) %a)
 define internal void @control(i32* dereferenceable(4) %a) {
   call void @use_i32_ptr(i32* %a)
   ret void

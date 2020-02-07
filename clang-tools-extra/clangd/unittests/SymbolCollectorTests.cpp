@@ -115,8 +115,8 @@ public:
   void build(llvm::StringRef HeaderCode, llvm::StringRef Code = "") {
     File.HeaderFilename = HeaderName;
     File.Filename = FileName;
-    File.HeaderCode = HeaderCode;
-    File.Code = Code;
+    File.HeaderCode = std::string(HeaderCode);
+    File.Code = std::string(Code);
     AST = File.build();
   }
 
@@ -698,6 +698,41 @@ TEST_F(SymbolCollectorTest, MacrosWithRefFilter) {
   CollectorOpts.RefFilter = RefKind::Unknown;
   runSymbolCollector(Header.code(), Main.code());
   EXPECT_THAT(Refs, IsEmpty());
+}
+
+TEST_F(SymbolCollectorTest, SpelledReference) {
+  Annotations Header(R"cpp(
+  struct Foo;
+  #define MACRO Foo
+  )cpp");
+  Annotations Main(R"cpp(
+  struct $spelled[[Foo]] {
+    $spelled[[Foo]]();
+    ~$spelled[[Foo]]();
+  };
+  $spelled[[Foo]] Variable1;
+  $implicit[[MACRO]] Variable2;
+  )cpp");
+  CollectorOpts.RefFilter = RefKind::All;
+  CollectorOpts.RefsInHeaders = false;
+  runSymbolCollector(Header.code(), Main.code());
+  const auto SpelledRanges = Main.ranges("spelled");
+  const auto ImplicitRanges = Main.ranges("implicit");
+  RefSlab::Builder SpelledSlabBuilder, ImplicitSlabBuilder;
+  for (const auto &SymbolAndRefs : Refs) {
+    const auto Symbol = SymbolAndRefs.first;
+    for (const auto &Ref : SymbolAndRefs.second)
+      if ((Ref.Kind & RefKind::Spelled) != RefKind::Unknown)
+        SpelledSlabBuilder.insert(Symbol, Ref);
+      else
+        ImplicitSlabBuilder.insert(Symbol, Ref);
+  }
+  const auto SpelledRefs = std::move(SpelledSlabBuilder).build(),
+             ImplicitRefs = std::move(ImplicitSlabBuilder).build();
+  EXPECT_THAT(SpelledRefs, Contains(Pair(findSymbol(Symbols, "Foo").ID,
+                                         HaveRanges(SpelledRanges))));
+  EXPECT_THAT(ImplicitRefs, Contains(Pair(findSymbol(Symbols, "Foo").ID,
+                                          HaveRanges(ImplicitRanges))));
 }
 
 TEST_F(SymbolCollectorTest, NameReferences) {

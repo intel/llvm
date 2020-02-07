@@ -222,7 +222,7 @@ private:
         } else if (auto CI = dyn_cast<CallInst>(BlkUser)) {
           auto CallBindF = CI->getCalledFunction();
           auto Name = CallBindF->getName();
-          std::string DemangledName;
+          StringRef DemangledName;
           if (Name == SPIR_INTRINSIC_GET_BLOCK_INVOKE) {
             assert(CI->getArgOperand(0) == CallBlkBind);
             Changed |= lowerGetBlockInvoke(CI, cast<Function>(InvF));
@@ -231,7 +231,7 @@ private:
             // Handle context_ptr = spir_get_block_context(block)
             lowerGetBlockContext(CI, Ctx);
             Changed = true;
-          } else if (oclIsBuiltin(Name, &DemangledName)) {
+          } else if (oclIsBuiltin(Name, DemangledName)) {
             lowerBlockBuiltin(CI, InvF, Ctx, CtxLen, CtxAlign, DemangledName);
             Changed = true;
           } else
@@ -286,7 +286,7 @@ private:
 
   void lowerBlockBuiltin(CallInst *CI, Function *InvF, Value *Ctx,
                          Value *CtxLen, Value *CtxAlign,
-                         const std::string &DemangledName) {
+                         StringRef DemangledName) {
     mutateCallInstSPIRV(M, CI, [=](CallInst *CI, std::vector<Value *> &Args) {
       size_t I = 0;
       size_t E = Args.size();
@@ -316,7 +316,7 @@ private:
         if (!isOCLClkEventPtrType(Args[5]->getType()))
           Args.insert(Args.begin() + 5, getOCLNullClkEventPtr());
       }
-      return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(DemangledName));
+      return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(DemangledName.str()));
     });
   }
   /// Transform return of a block.

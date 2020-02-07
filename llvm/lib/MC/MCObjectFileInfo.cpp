@@ -610,6 +610,11 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
       COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
           COFF::IMAGE_SCN_MEM_READ,
       SectionKind::getMetadata(), "section_debug_loc");
+  DwarfLoclistsSection = Ctx->getCOFFSection(
+      ".debug_loclists",
+      COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
+          COFF::IMAGE_SCN_MEM_READ,
+      SectionKind::getMetadata(), "section_debug_loclists");
   DwarfARangesSection = Ctx->getCOFFSection(
       ".debug_aranges",
       COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
@@ -620,6 +625,11 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
       COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
           COFF::IMAGE_SCN_MEM_READ,
       SectionKind::getMetadata(), "debug_range");
+  DwarfRnglistsSection = Ctx->getCOFFSection(
+      ".debug_rnglists",
+      COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
+          COFF::IMAGE_SCN_MEM_READ,
+      SectionKind::getMetadata(), "debug_rnglists");
   DwarfMacinfoSection = Ctx->getCOFFSection(
       ".debug_macinfo",
       COFF::IMAGE_SCN_MEM_DISCARDABLE | COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
@@ -795,6 +805,13 @@ void MCObjectFileInfo::initXCOFFMCObjectFileInfo(const Triple &T) {
   ReadOnlySection = Ctx->getXCOFFSection(
       ".rodata", XCOFF::StorageMappingClass::XMC_RO, XCOFF::XTY_SD,
       XCOFF::C_HIDEXT, SectionKind::getReadOnly());
+
+  TOCBaseSection = Ctx->getXCOFFSection(
+      "TOC", XCOFF::StorageMappingClass::XMC_TC0, XCOFF::XTY_SD,
+      XCOFF::C_HIDEXT, SectionKind::getData());
+
+  // The TOC-base always has 0 size, but 4 byte alignment.
+  TOCBaseSection->setAlignment(Align(4));
 }
 
 void MCObjectFileInfo::InitMCObjectFileInfo(const Triple &TheTriple, bool PIC,

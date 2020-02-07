@@ -1,6 +1,6 @@
 //===-- GPUOps.td - GPU dialect operation definitions ------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -157,6 +157,16 @@ def GPU_GPUFuncOp : GPU_Op<"func", [FunctionLike, IsolatedFromAbove, Symbol]> {
           std::next(getBody().front().args_begin(), getType().getNumInputs());
       auto end = std::next(begin, getNumWorkgroupAttributions());
       return {begin, end};
+    }
+
+    // Adds a new block argument that corresponds to buffers located in
+    // workgroup memory.
+    BlockArgument addWorkgroupAttribution(Type type) {
+      auto attrName = getNumWorkgroupAttributionsAttrName();
+      auto attr = getAttrOfType<IntegerAttr>(attrName);
+      setAttr(attrName, IntegerAttr::get(attr.getType(), attr.getValue() + 1));
+      return getBody().front().insertArgument(
+          getType().getNumInputs() + attr.getInt(), type);
     }
 
     /// Returns a list of block arguments that correspond to buffers located in
@@ -325,42 +335,32 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func">,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
+def GPU_LaunchOp : GPU_Op<"launch">,
     Arguments<(ins Index:$gridSizeX, Index:$gridSizeY, Index:$gridSizeZ,
-               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ,
-               Variadic<AnyType>:$operands)>,
+               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)>,
     Results<(outs)> {
   let summary = "GPU kernel launch operation";
 
   let description = [{
     Launch a kernel on the specified grid of thread blocks. The body of the
     kernel is defined by the single region that this operation contains. The
-    operation takes at least six operands, with first three operands being grid
-    sizes along x,y,z dimensions, the following three arguments being block
-    sizes along x,y,z dimension, and the remaining operands are arguments of the
-    kernel. When a lower-dimensional kernel is required, unused sizes must be
-    explicitly set to `1`.
+    operation takes six operands, with first three operands being grid sizes
+    along x,y,z dimensions and the following three arguments being block sizes
+    along x,y,z dimension. When a lower-dimensional kernel is required,
+    unused sizes must be explicitly set to `1`.
 
-    The body region has at least _twelve_ arguments, grouped as follows:
+    The body region has _twelve_ arguments, grouped as follows:
 
     -   three arguments that contain block identifiers along x,y,z dimensions;
     -   three arguments that contain thread identifiers along x,y,z dimensions;
-    -   operands of the `gpu.launch` operation as is, including six leading
-        operands for grid and block sizes.
-
-    Operations inside the body region, and any operations in the nested regions,
-    are _not_ allowed to use values defined outside the _body_ region, as if
-    this region was a function. If necessary, values must be passed as kernel
-    arguments into the body region. Nested regions inside the kernel body are
-    allowed to use values defined in their ancestor regions as long as they
-    don't cross the kernel body region boundary.
+    -   operands of the `gpu.launch` operation as is (i.e. the operands for
+        grid and block sizes).
 
     Syntax:
 
     ```
     operation ::= `gpu.launch` `block` `(` ssa-id-list `)` `in` ssa-reassignment
                              `threads` `(` ssa-id-list `)` `in` ssa-reassignment
-                               (`args` ssa-reassignment `:` type-list)?
                                region attr-dict?
     ssa-reassignment ::= `(` ssa-id `=` ssa-use (`,` ssa-id `=` ssa-use)* `)`
     ```
@@ -369,32 +369,29 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
 
     ```mlir
     gpu.launch blocks(%bx, %by, %bz) in (%sz_bx = %0, %sz_by = %1, %sz_bz = %2)
-               threads(%tx, %ty, %tz) in (%sz_tx = %3, %sz_ty = %4, %sz_tz = %5)
-               args(%arg0 = %6, %arg1 = 7) : f32, memref<?xf32, 1> {
+               threads(%tx, %ty, %tz) in (%sz_tx = %3, %sz_ty = %4, %sz_tz = %5) {
       // Block and thread identifiers, as well as block/grid sizes are
       // immediately usable inside body region.
       "some_op"(%bx, %tx) : (index, index) -> ()
-      %42 = load %arg1[%bx] : memref<?xf32, 1>
+      // Assuming %val1 is defined outside the gpu.launch region.
+      %42 = load %val1[%bx] : memref<?xf32, 1>
     }
 
     // Generic syntax explains how the pretty syntax maps to the IR structure.
     "gpu.launch"(%cst, %cst, %c1,  // Grid sizes.
-                        %cst, %c1, %c1,   // Block sizes.
-                        %arg0, %arg1)     // Actual arguments.
+                 %cst, %c1, %c1)   // Block sizes.
+
         {/*attributes*/}
         // All sizes and identifiers have "index" size.
-        : (index, index, index, index, index, index, f32, memref<?xf32, 1>)
-            -> () {
+        : (index, index, index, index, index, index) -> () {
     // The operation passes block and thread identifiers, followed by grid and
-    // block sizes, followed by actual arguments to the entry block of the
-    // region.
+    // block sizes.
     ^bb0(%bx : index, %by : index, %bz : index,
          %tx : index, %ty : index, %tz : index,
          %num_bx : index, %num_by : index, %num_bz : index,
-         %num_tx : index, %num_ty : index, %num_tz : index,
-         %arg0 : f32, %arg1 : memref<?xf32, 1>):
+         %num_tx : index, %num_ty : index, %num_tz : index)
       "some_op"(%bx, %tx) : (index, index) -> ()
-      %3 = "std.load"(%arg1, %bx) : (memref<?xf32, 1>, index) -> f32
+      %3 = "std.load"(%val1, %bx) : (memref<?xf32, 1>, index) -> f32
     }
     ```
 
@@ -412,11 +409,8 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
   let builders = [
     OpBuilder<"Builder *builder, OperationState &result, Value gridSizeX,"
               "Value gridSizeY, Value gridSizeZ, Value blockSizeX,"
-              "Value blockSizeY, Value blockSizeZ,"
-              "ValueRange operands">
+              "Value blockSizeY, Value blockSizeZ">
   ];
-
-  let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
     /// Get the SSA values corresponding to kernel block identifiers.
@@ -427,26 +421,14 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
     KernelDim3 getGridSize();
     /// Get the SSA values corresponding to kernel block size.
     KernelDim3 getBlockSize();
-    /// Get the operand values passed as kernel arguments.
-    operand_range getKernelOperandValues();
-    /// Get the operand types passed as kernel arguments.
-    operand_type_range getKernelOperandTypes();
 
     /// Get the SSA values passed as operands to specify the grid size.
     KernelDim3 getGridSizeOperandValues();
     /// Get the SSA values passed as operands to specify the block size.
     KernelDim3 getBlockSizeOperandValues();
 
-    /// Get the SSA values of the kernel arguments.
-    iterator_range<Block::args_iterator> getKernelArguments();
-
-    /// Erase the `index`-th kernel argument.  Both the entry block argument and
-    /// the operand will be dropped.  The block argument must not have any uses.
-    void eraseKernelArgument(unsigned index);
-
     static StringRef getBlocksKeyword() { return "blocks"; }
     static StringRef getThreadsKeyword() { return "threads"; }
-    static StringRef getArgsKeyword() { return "args"; }
 
     /// The number of launch configuration operands, placed at the leading
     /// positions of the operand list.
@@ -462,8 +444,24 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_ReturnOp : GPU_Op<"return", [Terminator]>, Arguments<(ins)>,
-    Results<(outs)> {
+def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, Terminator]>,
+    Arguments<(ins Variadic<AnyType>:$operands)>, Results<(outs)> {
+  let summary = "Terminator for GPU functions.";
+  let description = [{
+    A terminator operation for regions that appear in the body of  `gpu.func`
+    functions. The operands to the `gpu.return` are the result values returned
+    by an incovation of the `gpu.func`.
+  }];
+
+  let builders = [OpBuilder<"Builder *builder, OperationState &result", " // empty">];
+
+  let parser = [{ return parseReturnOp(parser, result); }];
+  let printer = [{ p << getOperationName(); }];
+  let verifier = [{ return ::verify(*this); }];
+}
+
+def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">, Terminator]>,
+    Arguments<(ins)>, Results<(outs)> {
   let summary = "Terminator for GPU launch regions.";
   let description = [{
     A terminator operation for regions that appear in the body of `gpu.launch`
@@ -584,6 +582,58 @@ def GPU_BarrierOp : GPU_Op<"barrier"> {
     Either none or all work items of a workgroup need to execute this op
     in convergence.
   }];
+  let parser = [{ return success(); }];
+  let printer = [{ p << getOperationName(); }];
+}
+
+def GPU_GPUModuleOp : GPU_Op<"module", [
+  IsolatedFromAbove, SymbolTable, Symbol,
+  SingleBlockImplicitTerminator<"ModuleEndOp">
+]> {
+  let summary = "A top level compilation unit containing code to be run on a GPU.";
+  let description = [{
+    GPU module contains code that is intended to be run on a GPU. A host device
+    can launch this code through a gpu.launc_func that creates a fully
+    qualified symbol through the gpu.module's symbol and a gpu.func symbol
+    contained in the gpu.module.
+
+    The module's top-level scope is modeled by a single region with a single
+    block. GPU modules are required to have a name that is used for symbol
+    resolution by the gpu.launch_func operation.
+
+    Using an op with a region to define a GPU module enables "embedding" GPU
+    modules with SIMT execution models in other dialects in a clean manner and
+    allows filtering of code regions to execute passes on only code intended to
+    or not intended to be run on the separate device.
+
+    ```
+      gpu.module @symbol_name {
+      gpu.func {}
+        ...
+      gpu.module_end
+    }
+
+    ```
+  }];
+  let builders = [OpBuilder<"Builder *builder, OperationState &result, "
+                            "StringRef name">];
+  let parser = [{ return ::parseGPUModuleOp(parser, result); }];
+  let printer = [{ return ::print(p, *this); }];
+  let regions = (region SizedRegion<1>:$body);
+
+  // We need to ensure the block inside the region is properly terminated;
+  // the auto-generated builders do not guarantee that.
+  let skipDefaultBuilders = 1;
+}
+
+def GPU_ModuleEndOp : GPU_Op<"module_end", [
+  Terminator, HasParent<"GPUModuleOp">
+]> {
+  let summary = "A pseudo op that marks the end of a gpu.module.";
+  let description = [{
+    This op terminates the only block inside the only region of a `gpu.module`.
+  }];
+
   let parser = [{ return success(); }];
   let printer = [{ p << getOperationName(); }];
 }

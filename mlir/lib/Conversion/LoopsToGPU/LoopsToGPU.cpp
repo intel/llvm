@@ -1,6 +1,6 @@
 //===- LoopsToGPU.cpp - Convert an affine loop nest to a GPU kernel -------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -306,9 +306,9 @@ createLaunchBody(OpBuilder &builder, OpTy rootForOp, gpu::LaunchOp launchOp,
                  unsigned numBlockDims, unsigned numThreadDims) {
   OpBuilder::InsertionGuard bodyInsertionGuard(builder);
   builder.setInsertionPointToEnd(&launchOp.body().front());
-  auto returnOp = builder.create<gpu::ReturnOp>(launchOp.getLoc());
+  auto terminatorOp = builder.create<gpu::TerminatorOp>(launchOp.getLoc());
 
-  rootForOp.getOperation()->moveBefore(returnOp);
+  rootForOp.getOperation()->moveBefore(terminatorOp);
   SmallVector<Value, 3> workgroupID, numWorkGroups;
   packIdAndNumId(launchOp.getBlockIds(), launchOp.getGridSize(), numBlockDims,
                  workgroupID, numWorkGroups);
@@ -357,32 +357,15 @@ static LogicalResult createLaunchFromOp(OpTy rootForOp,
     workGroupSize3D[workGroupSize.index()] = workGroupSize.value();
   }
 
-  // Get the values used within the region of the rootForOp but defined above
-  // it.
-  llvm::SetVector<Value> valuesToForwardSet;
-  getUsedValuesDefinedAbove(rootForOp.region(), rootForOp.region(),
-                            valuesToForwardSet);
-  // Also add the values used for the lb, ub, and step of the rootForOp.
-  valuesToForwardSet.insert(rootForOp.getOperands().begin(),
-                            rootForOp.getOperands().end());
-  auto valuesToForward = valuesToForwardSet.takeVector();
   auto launchOp = builder.create<gpu::LaunchOp>(
       rootForOp.getLoc(), numWorkGroups3D[0], numWorkGroups3D[1],
       numWorkGroups3D[2], workGroupSize3D[0], workGroupSize3D[1],
-      workGroupSize3D[2], valuesToForward);
+      workGroupSize3D[2]);
   if (failed(createLaunchBody(builder, rootForOp, launchOp,
                               numWorkGroups.size(), workGroupSizes.size()))) {
     return failure();
   }
 
-  // Replace values that are used within the region of the launchOp but are
-  // defined outside. They all are replaced with kernel arguments.
-  for (auto pair :
-       llvm::zip_first(valuesToForward, launchOp.getKernelArguments())) {
-    Value from = std::get<0>(pair);
-    Value to = std::get<1>(pair);
-    replaceAllUsesInRegionWith(from, to, launchOp.body());
-  }
   return success();
 }
 
@@ -403,39 +386,28 @@ void LoopToGpuConverter::createLaunch(OpTy rootForOp, OpTy innermostForOp,
   Value constOne = (numBlockDims < 3 || numThreadDims < 3)
                        ? builder.create<ConstantIndexOp>(rootForOp.getLoc(), 1)
                        : nullptr;
-  Value gridSizeX = dims[0];
+  Value gridSizeX = numBlockDims > 0 ? dims[0] : constOne;
   Value gridSizeY = numBlockDims > 1 ? dims[1] : constOne;
   Value gridSizeZ = numBlockDims > 2 ? dims[2] : constOne;
-  Value blockSizeX = dims[numBlockDims];
+  Value blockSizeX = numThreadDims > 0 ? dims[numBlockDims] : constOne;
   Value blockSizeY = numThreadDims > 1 ? dims[numBlockDims + 1] : constOne;
   Value blockSizeZ = numThreadDims > 2 ? dims[numBlockDims + 2] : constOne;
 
   // Create a launch op and move the body region of the innermost loop to the
-  // launch op.  Pass the values defined outside the outermost loop and used
-  // inside the innermost loop and loop lower bounds as kernel data arguments.
-  // Still assuming perfect nesting so there are no values other than induction
-  // variables that are defined in one loop and used in deeper loops.
-  llvm::SetVector<Value> valuesToForwardSet;
-  getUsedValuesDefinedAbove(innermostForOp.region(), rootForOp.region(),
-                            valuesToForwardSet);
-  auto valuesToForward = valuesToForwardSet.takeVector();
-  auto originallyForwardedValues = valuesToForward.size();
-  valuesToForward.insert(valuesToForward.end(), lbs.begin(), lbs.end());
-  valuesToForward.insert(valuesToForward.end(), steps.begin(), steps.end());
+  // launch op.
   auto launchOp = builder.create<gpu::LaunchOp>(
       rootForOp.getLoc(), gridSizeX, gridSizeY, gridSizeZ, blockSizeX,
-      blockSizeY, blockSizeZ, valuesToForward);
-  valuesToForward.resize(originallyForwardedValues);
+      blockSizeY, blockSizeZ);
 
   // Replace the loop terminator (loops contain only a single block) with the
-  // gpu return and move the operations from the loop body block to the gpu
+  // gpu terminator and move the operations from the loop body block to the gpu
   // launch body block.  Do not move the entire block because of the difference
   // in block arguments.
   Operation &terminator = innermostForOp.getBody()->back();
   Location terminatorLoc = terminator.getLoc();
   terminator.erase();
   builder.setInsertionPointToEnd(innermostForOp.getBody());
-  builder.create<gpu::ReturnOp>(terminatorLoc);
+  builder.create<gpu::TerminatorOp>(terminatorLoc, llvm::None);
   launchOp.body().front().getOperations().splice(
       launchOp.body().front().begin(),
       innermostForOp.getBody()->getOperations());
@@ -445,9 +417,8 @@ void LoopToGpuConverter::createLaunch(OpTy rootForOp, OpTy innermostForOp,
   // from 0 to N with step 1.  Therefore, loop induction variables are replaced
   // with (gpu-thread/block-id * S) + LB.
   builder.setInsertionPointToStart(&launchOp.body().front());
-  auto lbArgumentIt = std::next(launchOp.getKernelArguments().begin(),
-                                originallyForwardedValues);
-  auto stepArgumentIt = std::next(lbArgumentIt, lbs.size());
+  auto lbArgumentIt = lbs.begin();
+  auto stepArgumentIt = steps.begin();
   for (auto en : llvm::enumerate(ivs)) {
     Value id =
         en.index() < numBlockDims
@@ -460,20 +431,8 @@ void LoopToGpuConverter::createLaunch(OpTy rootForOp, OpTy innermostForOp,
     Value ivReplacement =
         builder.create<AddIOp>(rootForOp.getLoc(), *lbArgumentIt, id);
     en.value().replaceAllUsesWith(ivReplacement);
-    replaceAllUsesInRegionWith(steps[en.index()], *stepArgumentIt,
-                               launchOp.body());
     std::advance(lbArgumentIt, 1);
     std::advance(stepArgumentIt, 1);
-  }
-
-  // Remap the values defined outside the body to use kernel arguments instead.
-  // The list of kernel arguments also contains the lower bounds for loops at
-  // trailing positions, make sure we don't touch those.
-  for (auto pair :
-       llvm::zip_first(valuesToForward, launchOp.getKernelArguments())) {
-    Value from = std::get<0>(pair);
-    Value to = std::get<1>(pair);
-    replaceAllUsesInRegionWith(from, to, launchOp.body());
   }
 
   // We are done and can erase the original outermost loop.

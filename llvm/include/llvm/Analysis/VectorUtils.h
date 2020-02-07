@@ -161,7 +161,12 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 ///
 /// \param MangledName -> input string in the format
 /// _ZGV<isa><mask><vlen><parameters>_<scalarname>[(<redirection>)].
-Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName);
+/// \param M -> Module used to retrive informations about the vector
+/// function that are not possible to retrieve from the mangled
+/// name. At the moment, this parameter is needed only to retrive the
+/// Vectorization Factor of scalable vector functions from their
+/// respective IR declarations.
+Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName, const Module &M);
 
 /// Retrieve the `VFParamKind` from a string token.
 VFParamKind getVFParamKindFromString(const StringRef Token);
@@ -200,7 +205,8 @@ class VFDatabase {
     SmallVector<std::string, 8> ListOfStrings;
     VFABI::getVectorVariantNames(CI, ListOfStrings);
     for (const auto &MangledName : ListOfStrings) {
-      const Optional<VFInfo> Shape = VFABI::tryDemangleForVFABI(MangledName);
+      const Optional<VFInfo> Shape =
+          VFABI::tryDemangleForVFABI(MangledName, *(CI.getModule()));
       // A match is found via scalar and vector names, and also by
       // ensuring that the variant described in the attribute has a
       // corresponding definition or declaration of the vector
@@ -295,16 +301,23 @@ Value *getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp);
 /// from the vector.
 Value *findScalarElement(Value *V, unsigned EltNo);
 
+/// If all non-negative \p Mask elements are the same value, return that value.
+/// If all elements are negative (undefined) or \p Mask contains different
+/// non-negative values, return -1.
+int getSplatIndex(ArrayRef<int> Mask);
+
 /// Get splat value if the input is a splat vector or return nullptr.
 /// The value may be extracted from a splat constants vector or from
 /// a sequence of instructions that broadcast a single value into a vector.
 const Value *getSplatValue(const Value *V);
 
-/// Return true if the input value is known to be a vector with all identical
-/// elements (potentially including undefined elements).
+/// Return true if each element of the vector value \p V is poisoned or equal to
+/// every other non-poisoned element. If an index element is specified, either
+/// every element of the vector is poisoned or the element at that index is not
+/// poisoned and equal to every other non-poisoned element.
 /// This may be more powerful than the related getSplatValue() because it is
 /// not limited by finding a scalar source value to a splatted vector.
-bool isSplatValue(const Value *V, unsigned Depth = 0);
+bool isSplatValue(const Value *V, int Index = -1, unsigned Depth = 0);
 
 /// Compute a map of integer instructions to their minimum legal type
 /// size.
@@ -509,6 +522,7 @@ public:
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
   uint32_t getAlignment() const { return Alignment.value(); }
+  Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 
   /// Try to insert a new member \p Instr with index \p Index and

@@ -27,9 +27,9 @@
 
 using namespace llvm;
 
-unsigned llvm::constrainRegToClass(MachineRegisterInfo &MRI,
+Register llvm::constrainRegToClass(MachineRegisterInfo &MRI,
                                    const TargetInstrInfo &TII,
-                                   const RegisterBankInfo &RBI, unsigned Reg,
+                                   const RegisterBankInfo &RBI, Register Reg,
                                    const TargetRegisterClass &RegClass) {
   if (!RBI.constrainGenericRegister(Reg, RegClass, MRI))
     return MRI.createVirtualRegister(&RegClass);
@@ -37,7 +37,7 @@ unsigned llvm::constrainRegToClass(MachineRegisterInfo &MRI,
   return Reg;
 }
 
-unsigned llvm::constrainOperandRegClass(
+Register llvm::constrainOperandRegClass(
     const MachineFunction &MF, const TargetRegisterInfo &TRI,
     MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
     const RegisterBankInfo &RBI, MachineInstr &InsertPt,
@@ -47,7 +47,7 @@ unsigned llvm::constrainOperandRegClass(
   // Assume physical registers are properly constrained.
   assert(Register::isVirtualRegister(Reg) && "PhysReg not implemented");
 
-  unsigned ConstrainedReg = constrainRegToClass(MRI, TII, RBI, Reg, RegClass);
+  Register ConstrainedReg = constrainRegToClass(MRI, TII, RBI, Reg, RegClass);
   // If we created a new virtual register because the class is not compatible
   // then create a copy between the new and the old register.
   if (ConstrainedReg != Reg) {
@@ -67,7 +67,7 @@ unsigned llvm::constrainOperandRegClass(
   return ConstrainedReg;
 }
 
-unsigned llvm::constrainOperandRegClass(
+Register llvm::constrainOperandRegClass(
     const MachineFunction &MF, const TargetRegisterInfo &TRI,
     MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
     const RegisterBankInfo &RBI, MachineInstr &InsertPt, const MCInstrDesc &II,
@@ -204,7 +204,7 @@ void llvm::reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
   reportGISelFailure(MF, TPC, MORE, R);
 }
 
-Optional<int64_t> llvm::getConstantVRegVal(unsigned VReg,
+Optional<int64_t> llvm::getConstantVRegVal(Register VReg,
                                            const MachineRegisterInfo &MRI) {
   Optional<ValueAndVReg> ValAndVReg =
       getConstantVRegValWithLookThrough(VReg, MRI, /*LookThroughInstrs*/ false);
@@ -216,7 +216,7 @@ Optional<int64_t> llvm::getConstantVRegVal(unsigned VReg,
 }
 
 Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
-    unsigned VReg, const MachineRegisterInfo &MRI, bool LookThroughInstrs,
+    Register VReg, const MachineRegisterInfo &MRI, bool LookThroughInstrs,
     bool HandleFConstant) {
   SmallVector<std::pair<unsigned, unsigned>, 4> SeenOpcodes;
   MachineInstr *MI;
@@ -292,28 +292,51 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
   return ValueAndVReg{Val.getSExtValue(), VReg};
 }
 
-const llvm::ConstantFP* llvm::getConstantFPVRegVal(unsigned VReg,
-                                       const MachineRegisterInfo &MRI) {
+const llvm::ConstantFP *
+llvm::getConstantFPVRegVal(Register VReg, const MachineRegisterInfo &MRI) {
   MachineInstr *MI = MRI.getVRegDef(VReg);
   if (TargetOpcode::G_FCONSTANT != MI->getOpcode())
     return nullptr;
   return MI->getOperand(1).getFPImm();
 }
 
-llvm::MachineInstr *llvm::getDefIgnoringCopies(Register Reg,
-                                               const MachineRegisterInfo &MRI) {
+namespace {
+struct DefinitionAndSourceRegister {
+  llvm::MachineInstr *MI;
+  Register Reg;
+};
+} // namespace
+
+static llvm::Optional<DefinitionAndSourceRegister>
+getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
+  Register DefSrcReg = Reg;
   auto *DefMI = MRI.getVRegDef(Reg);
   auto DstTy = MRI.getType(DefMI->getOperand(0).getReg());
   if (!DstTy.isValid())
-    return nullptr;
+    return None;
   while (DefMI->getOpcode() == TargetOpcode::COPY) {
     Register SrcReg = DefMI->getOperand(1).getReg();
     auto SrcTy = MRI.getType(SrcReg);
     if (!SrcTy.isValid() || SrcTy != DstTy)
       break;
     DefMI = MRI.getVRegDef(SrcReg);
+    DefSrcReg = SrcReg;
   }
-  return DefMI;
+  return DefinitionAndSourceRegister{DefMI, DefSrcReg};
+}
+
+llvm::MachineInstr *llvm::getDefIgnoringCopies(Register Reg,
+                                               const MachineRegisterInfo &MRI) {
+  Optional<DefinitionAndSourceRegister> DefSrcReg =
+      getDefSrcRegIgnoringCopies(Reg, MRI);
+  return DefSrcReg ? DefSrcReg->MI : nullptr;
+}
+
+Register llvm::getSrcRegIgnoringCopies(Register Reg,
+                                       const MachineRegisterInfo &MRI) {
+  Optional<DefinitionAndSourceRegister> DefSrcReg =
+      getDefSrcRegIgnoringCopies(Reg, MRI);
+  return DefSrcReg ? DefSrcReg->Reg : Register();
 }
 
 llvm::MachineInstr *llvm::getOpcodeDef(unsigned Opcode, Register Reg,

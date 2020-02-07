@@ -1357,53 +1357,53 @@ TEST(APIntTest, toString) {
   bool isSigned;
 
   APInt(8, 0).toString(S, 2, true, true);
-  EXPECT_EQ(S.str().str(), "0b0");
+  EXPECT_EQ(std::string(S), "0b0");
   S.clear();
   APInt(8, 0).toString(S, 8, true, true);
-  EXPECT_EQ(S.str().str(), "00");
+  EXPECT_EQ(std::string(S), "00");
   S.clear();
   APInt(8, 0).toString(S, 10, true, true);
-  EXPECT_EQ(S.str().str(), "0");
+  EXPECT_EQ(std::string(S), "0");
   S.clear();
   APInt(8, 0).toString(S, 16, true, true);
-  EXPECT_EQ(S.str().str(), "0x0");
+  EXPECT_EQ(std::string(S), "0x0");
   S.clear();
   APInt(8, 0).toString(S, 36, true, false);
-  EXPECT_EQ(S.str().str(), "0");
+  EXPECT_EQ(std::string(S), "0");
   S.clear();
 
   isSigned = false;
   APInt(8, 255, isSigned).toString(S, 2, isSigned, true);
-  EXPECT_EQ(S.str().str(), "0b11111111");
+  EXPECT_EQ(std::string(S), "0b11111111");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 8, isSigned, true);
-  EXPECT_EQ(S.str().str(), "0377");
+  EXPECT_EQ(std::string(S), "0377");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
-  EXPECT_EQ(S.str().str(), "255");
+  EXPECT_EQ(std::string(S), "255");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
-  EXPECT_EQ(S.str().str(), "0xFF");
+  EXPECT_EQ(std::string(S), "0xFF");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 36, isSigned, false);
-  EXPECT_EQ(S.str().str(), "73");
+  EXPECT_EQ(std::string(S), "73");
   S.clear();
 
   isSigned = true;
   APInt(8, 255, isSigned).toString(S, 2, isSigned, true);
-  EXPECT_EQ(S.str().str(), "-0b1");
+  EXPECT_EQ(std::string(S), "-0b1");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 8, isSigned, true);
-  EXPECT_EQ(S.str().str(), "-01");
+  EXPECT_EQ(std::string(S), "-01");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
-  EXPECT_EQ(S.str().str(), "-1");
+  EXPECT_EQ(std::string(S), "-1");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
-  EXPECT_EQ(S.str().str(), "-0x1");
+  EXPECT_EQ(std::string(S), "-0x1");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 36, isSigned, false);
-  EXPECT_EQ(S.str().str(), "-1");
+  EXPECT_EQ(std::string(S), "-1");
   S.clear();
 }
 
@@ -2604,31 +2604,36 @@ TEST(APIntTest, RoundingSDiv) {
       EXPECT_EQ(0, APIntOps::RoundingSDiv(Zero, A, APInt::Rounding::TOWARD_ZERO));
     }
 
-    for (uint64_t Bi = -128; Bi <= 127; Bi++) {
+    for (int64_t Bi = -128; Bi <= 127; Bi++) {
       if (Bi == 0)
         continue;
 
       APInt B(8, Bi);
+      APInt QuoTowardZero = A.sdiv(B);
       {
         APInt Quo = APIntOps::RoundingSDiv(A, B, APInt::Rounding::UP);
-        auto Prod = Quo.sext(16) * B.sext(16);
-        EXPECT_TRUE(Prod.uge(A));
-        if (Prod.ugt(A)) {
-          EXPECT_TRUE(((Quo - 1).sext(16) * B.sext(16)).ult(A));
+        if (A.srem(B).isNullValue()) {
+          EXPECT_EQ(QuoTowardZero, Quo);
+        } else if (A.isNegative() !=
+                   B.isNegative()) { // if the math quotient is negative.
+          EXPECT_EQ(QuoTowardZero, Quo);
+        } else {
+          EXPECT_EQ(QuoTowardZero + 1, Quo);
         }
       }
       {
         APInt Quo = APIntOps::RoundingSDiv(A, B, APInt::Rounding::DOWN);
-        auto Prod = Quo.sext(16) * B.sext(16);
-        EXPECT_TRUE(Prod.ule(A));
-        if (Prod.ult(A)) {
-          EXPECT_TRUE(((Quo + 1).sext(16) * B.sext(16)).ugt(A));
+        if (A.srem(B).isNullValue()) {
+          EXPECT_EQ(QuoTowardZero, Quo);
+        } else if (A.isNegative() !=
+                   B.isNegative()) { // if the math quotient is negative.
+          EXPECT_EQ(QuoTowardZero - 1, Quo);
+        } else {
+          EXPECT_EQ(QuoTowardZero, Quo);
         }
       }
-      {
-        APInt Quo = A.sdiv(B);
-        EXPECT_EQ(Quo, APIntOps::RoundingSDiv(A, B, APInt::Rounding::TOWARD_ZERO));
-      }
+      EXPECT_EQ(QuoTowardZero,
+                APIntOps::RoundingSDiv(A, B, APInt::Rounding::TOWARD_ZERO));
     }
   }
 }

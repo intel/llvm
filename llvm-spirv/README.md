@@ -26,7 +26,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 ```
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-10-dev llvm-10-tools clang-10 libclang-10-dev
+sudo apt-get install llvm-11-dev llvm-11-tools clang-11 libclang-11-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -83,7 +83,7 @@ Execute the following command inside the build directory to run translator tests
 make test
 ```
 This requires that the `-DLLVM_INCLUDE_TESTS=ON` and
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-10/build/utils/lit/lit.py"` arguments were
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-11/build/utils/lit/lit.py"` arguments were
 passed to CMake during the build step.
 
 The translator test suite can be disabled by passing

@@ -10,6 +10,7 @@
 #include "SystemInitializerTest.h"
 
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -18,7 +19,6 @@
 #include "lldb/Initialization/SystemLifetimeManager.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -596,12 +596,12 @@ Error opts::symbols::dumpAST(lldb_private::Module &Module) {
   llvm::Expected<TypeSystem &> type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
   if (!type_system_or_err)
-    return make_string_error("Can't retrieve ClangASTContext");
+    return make_string_error("Can't retrieve TypeSystemClang");
 
   auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<ClangASTContext>(&type_system_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
   if (!clang_ast_ctx)
-    return make_string_error("Retrieved TypeSystem was not a ClangASTContext");
+    return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
   clang::ASTContext &ast_ctx = clang_ast_ctx->getASTContext();
 
@@ -624,12 +624,12 @@ Error opts::symbols::dumpClangAST(lldb_private::Module &Module) {
   llvm::Expected<TypeSystem &> type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeObjC_plus_plus);
   if (!type_system_or_err)
-    return make_string_error("Can't retrieve ClangASTContext");
+    return make_string_error("Can't retrieve TypeSystemClang");
 
   auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<ClangASTContext>(&type_system_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
   if (!clang_ast_ctx)
-    return make_string_error("Retrieved TypeSystem was not a ClangASTContext");
+    return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
   StreamString Stream;
   clang_ast_ctx->DumpFromSymbolFile(Stream, Name);

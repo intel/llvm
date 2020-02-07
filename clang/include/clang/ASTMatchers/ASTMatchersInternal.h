@@ -149,7 +149,7 @@ public:
   ///
   /// The node's base type should be in NodeBaseType or it will be unaccessible.
   void addNode(StringRef ID, const ast_type_traits::DynTypedNode& DynNode) {
-    NodeMap[ID] = DynNode;
+    NodeMap[std::string(ID)] = DynNode;
   }
 
   /// Returns the AST node bound to \c ID.
@@ -1872,6 +1872,13 @@ CompoundStmtMatcher<StmtExpr>::get(const StmtExpr &Node) {
   return Node.getSubStmt();
 }
 
+/// If \p Loc is (transitively) expanded from macro \p MacroName, returns the
+/// location (in the chain of expansions) at which \p MacroName was
+/// expanded. Since the macro may have been expanded inside a series of
+/// expansions, that location may itself be a MacroID.
+llvm::Optional<SourceLocation>
+getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
+                       const ASTContext &Context);
 } // namespace internal
 
 } // namespace ast_matchers

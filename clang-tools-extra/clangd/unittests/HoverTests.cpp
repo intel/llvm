@@ -327,7 +327,6 @@ class Foo {})cpp";
          HI.Name = "X";
          HI.LocalScope = "X<T *>::"; // FIXME: X<T *, void>::
          HI.Kind = index::SymbolKind::Constructor;
-         HI.ReturnType = "X<T *>";
          HI.Definition = "X()";
          HI.Parameters.emplace();
        }},
@@ -337,8 +336,16 @@ class Foo {})cpp";
          HI.Name = "~X";
          HI.LocalScope = "X::";
          HI.Kind = index::SymbolKind::Destructor;
-         HI.ReturnType = "void";
          HI.Definition = "~X()";
+         HI.Parameters.emplace();
+       }},
+      {"class X { operator [[in^t]](); };",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "operator int";
+         HI.LocalScope = "X::";
+         HI.Kind = index::SymbolKind::ConversionFunction;
+         HI.Definition = "operator int()";
          HI.Parameters.emplace();
        }},
 
@@ -547,6 +554,25 @@ class Foo {})cpp";
             HI.Name = "Foo<X>";
             HI.Kind = index::SymbolKind::Class;
           }},
+      {// Falls back to primary template, when the type is not instantiated.
+       R"cpp(
+          // comment from primary
+          template <typename T> class Foo {};
+          // comment from specialization
+          template <typename T> class Foo<T*> {};
+          void foo() {
+            [[Fo^o]]<int*> *x = nullptr;
+          }
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "Foo<int *>";
+         HI.Kind = index::SymbolKind::Class;
+         HI.NamespaceScope = "";
+         HI.Definition = "template <> class Foo<int *>";
+         // FIXME: Maybe force instantiation to make use of real template
+         // pattern.
+         HI.Documentation = "comment from primary";
+       }},
   };
   for (const auto &Case : Cases) {
     SCOPED_TRACE(Case.Code);
@@ -554,9 +580,10 @@ class Foo {})cpp";
     Annotations T(Case.Code);
     TestTU TU = TestTU::withCode(T.code());
     TU.ExtraArgs.push_back("-std=c++17");
-    TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
+    // Types might be different depending on the target triplet, we chose a
+    // fixed one to make sure tests passes on different platform.
+    TU.ExtraArgs.push_back("--target=x86_64-pc-linux-gnu");
     auto AST = TU.build();
-    ASSERT_TRUE(AST.getDiagnostics().empty());
 
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
     ASSERT_TRUE(H);
@@ -623,8 +650,6 @@ TEST(Hover, NoHover) {
     TestTU TU = TestTU::withCode(T.code());
     TU.ExtraArgs.push_back("-std=c++17");
     auto AST = TU.build();
-    ASSERT_TRUE(AST.getDiagnostics().empty());
-
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
     ASSERT_FALSE(H);
   }
@@ -1564,6 +1589,42 @@ TEST(Hover, All) {
             HI.Parameters = {
                 {std::string("int"), std::string("x"), llvm::None}};
           }},
+      {
+          R"cpp(// sizeof expr
+          void foo() {
+            (void)[[size^of]](char);
+          })cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "expression";
+            HI.Type = "unsigned long";
+            HI.Value = "1";
+          }},
+      {
+          R"cpp(// alignof expr
+          void foo() {
+            (void)[[align^of]](char);
+          })cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "expression";
+            HI.Type = "unsigned long";
+            HI.Value = "1";
+          }},
+      {
+          R"cpp(
+          template <typename T = int>
+          void foo(const T& = T()) {
+            [[f^oo]]<>(3);
+          })cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "foo";
+            HI.Kind = index::SymbolKind::Function;
+            HI.Type = "void (const int &)";
+            HI.ReturnType = "void";
+            HI.Parameters = {
+                {std::string("const int &"), llvm::None, std::string("T()")}};
+            HI.Definition = "template <> void foo<int>(const int &)";
+            HI.NamespaceScope = "";
+          }},
   };
 
   // Create a tiny index, so tests above can verify documentation is fetched.
@@ -1581,10 +1642,10 @@ TEST(Hover, All) {
     TestTU TU = TestTU::withCode(T.code());
     TU.ExtraArgs.push_back("-std=c++17");
     TU.ExtraArgs.push_back("-Wno-gnu-designator");
+    // Types might be different depending on the target triplet, we chose a
+    // fixed one to make sure tests passes on different platform.
+    TU.ExtraArgs.push_back("--target=x86_64-pc-linux-gnu");
     auto AST = TU.build();
-    for (const auto &D : AST.getDiagnostics())
-      ADD_FAILURE() << D;
-    ASSERT_TRUE(AST.getDiagnostics().empty());
 
     auto H = getHover(AST, T.point(), format::getLLVMStyle(), Index.get());
     ASSERT_TRUE(H);
@@ -1619,10 +1680,6 @@ TEST(Hover, DocsFromIndex) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   Symbol IndexSym;
   IndexSym.ID = *getSymbolID(&findDecl(AST, "X"));
   IndexSym.Documentation = "comment from index";
@@ -1656,10 +1713,6 @@ TEST(Hover, DocsFromAST) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   for (const auto &P : T.points()) {
     auto H = getHover(AST, P, format::getLLVMStyle(), nullptr);
     ASSERT_TRUE(H);
@@ -1683,10 +1736,6 @@ TEST(Hover, DocsFromMostSpecial) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (const auto &D : AST.getDiagnostics())
-    ADD_FAILURE() << D;
-  ASSERT_TRUE(AST.getDiagnostics().empty());
-
   for (auto Comment : {"doc1", "doc2", "doc3"}) {
     for (const auto &P : T.points(Comment)) {
       auto H = getHover(AST, P, format::getLLVMStyle(), nullptr);
@@ -1755,7 +1804,7 @@ template <typename T, typename C = bool> class Foo {})",
           },
           R"(function foo
 
-🡺 ret_type
+→ ret_type
 Parameters:
 - 
 - type
@@ -1827,49 +1876,6 @@ Value = val
 
 def)pt";
   EXPECT_EQ(HI.present().asPlainText(), ExpectedPlaintext);
-}
-
-TEST(Hover, ExprTests) {
-  struct {
-    const char *const Code;
-    const std::function<void(HoverInfo &)> ExpectedBuilder;
-  } Cases[] = {
-      {
-          R"cpp(// sizeof expr
-          void foo() {
-            (void)[[size^of]](char);
-          })cpp",
-          [](HoverInfo &HI) {
-            HI.Name = "expression";
-            HI.Type = "unsigned long";
-            HI.Value = "1";
-          }},
-      {
-          R"cpp(// alignof expr
-          void foo() {
-            (void)[[align^of]](char);
-          })cpp",
-          [](HoverInfo &HI) {
-            HI.Name = "expression";
-            HI.Type = "unsigned long";
-            HI.Value = "1";
-          }},
-  };
-  for (const auto &C : Cases) {
-    Annotations T(C.Code);
-    TestTU TU = TestTU::withCode(T.code());
-    auto AST = TU.build();
-    for (const auto &D : AST.getDiagnostics())
-      ADD_FAILURE() << D;
-
-    auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
-    ASSERT_TRUE(H);
-    HoverInfo ExpectedHover;
-    C.ExpectedBuilder(ExpectedHover);
-    // We don't check for Type as it might differ on different platforms.
-    EXPECT_EQ(H->Name, ExpectedHover.Name);
-    EXPECT_EQ(H->Value, ExpectedHover.Value);
-  }
 }
 } // namespace
 } // namespace clangd

@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../Error.h"
 #include "../Target.h"
-#include "../Latency.h"
 #include "MCTargetDesc/MipsBaseInfo.h"
 #include "Mips.h"
 #include "MipsRegisterInfo.h"
@@ -14,12 +14,12 @@
 namespace llvm {
 namespace exegesis {
 
+#ifndef NDEBUG
 // Returns an error if we cannot handle the memory references in this
 // instruction.
 static Error isInvalidMemoryInstr(const Instruction &Instr) {
   switch (Instr.Description.TSFlags & MipsII::FormMask) {
   default:
-    return Error::success();
     llvm_unreachable("Unknown FormMask value");
   // These have no memory access.
   case MipsII::Pseudo:
@@ -36,6 +36,7 @@ static Error isInvalidMemoryInstr(const Instruction &Instr) {
     return make_error<Failure>("unsupported opcode: non uniform memory access");
   }
 }
+#endif
 
 // Helper to fill a memory operand with a value.
 static void setMemOp(InstructionTemplate &IT, int OpIdx,

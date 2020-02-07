@@ -90,8 +90,6 @@ public:
   static lldb_private::SymbolFile *
   CreateInstance(lldb::ObjectFileSP objfile_sp);
 
-  static lldb_private::FileSpecList GetSymlinkPaths();
-
   // Constructors and Destructors
 
   SymbolFileDWARF(lldb::ObjectFileSP objfile_sp,
@@ -224,11 +222,7 @@ public:
 
   DWARFDebugAbbrev *DebugAbbrev();
 
-  const DWARFDebugAbbrev *DebugAbbrev() const;
-
   DWARFDebugInfo *DebugInfo();
-
-  const DWARFDebugInfo *DebugInfo() const;
 
   DWARFDebugRanges *GetDebugRanges();
 
@@ -251,8 +245,6 @@ public:
   lldb_private::DebugMacrosSP ParseDebugMacros(lldb::offset_t *offset);
 
   static DWARFDIE GetParentSymbolContextDIE(const DWARFDIE &die);
-
-  virtual lldb::CompUnitSP ParseCompileUnit(DWARFCompileUnit &dwarf_cu);
 
   lldb::ModuleSP GetExternalModule(lldb_private::ConstString name);
 
@@ -282,11 +274,6 @@ public:
   GetDwoSymbolFileForCompileUnit(DWARFUnit &dwarf_cu,
                                  const DWARFDebugInfoEntry &cu_die);
 
-  // For regular SymbolFileDWARF instances the method returns nullptr,
-  // for the instances of the subclass SymbolFileDWARFDwo
-  // the method returns a pointer to the base compile unit.
-  virtual DWARFCompileUnit *GetBaseCompileUnit() { return nullptr; }
-
   virtual llvm::Optional<uint32_t> GetDwoNum() { return llvm::None; }
 
   /// If this is a DWARF object with a single CU, return its DW_AT_dwo_id.
@@ -307,6 +294,27 @@ public:
 
   lldb_private::FileSpec GetFile(DWARFUnit &unit, size_t file_idx);
 
+  static llvm::Expected<lldb_private::TypeSystem &>
+  GetTypeSystem(DWARFUnit &unit);
+
+  static DWARFASTParser *GetDWARFParser(DWARFUnit &unit);
+
+  // CompilerDecl related functions
+
+  static lldb_private::CompilerDecl GetDecl(const DWARFDIE &die);
+
+  static lldb_private::CompilerDeclContext GetDeclContext(const DWARFDIE &die);
+
+  static lldb_private::CompilerDeclContext
+  GetContainingDeclContext(const DWARFDIE &die);
+
+  static void GetDWARFDeclContext(const DWARFDIE &die,
+                                  DWARFDeclContext &dwarf_decl_ctx);
+
+  static lldb::LanguageType LanguageTypeFromDWARF(uint64_t val);
+
+  static lldb::LanguageType GetLanguage(DWARFUnit &unit);
+
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>
       DIEToTypePtr;
@@ -318,16 +326,7 @@ protected:
   typedef llvm::DenseMap<lldb::opaque_compiler_type_t, lldb::user_id_t>
       ClangTypeToDIE;
 
-  struct DWARFDataSegment {
-    llvm::once_flag m_flag;
-    lldb_private::DWARFDataExtractor m_data;
-  };
-
   DISALLOW_COPY_AND_ASSIGN(SymbolFileDWARF);
-
-  const lldb_private::DWARFDataExtractor &
-  GetCachedSectionData(lldb::SectionType sect_type,
-                       DWARFDataSegment &data_segment);
 
   virtual void LoadSectionData(lldb::SectionType sect_type,
                                lldb_private::DWARFDataExtractor &data);
@@ -340,6 +339,8 @@ protected:
   lldb::CompUnitSP ParseCompileUnitAtIndex(uint32_t index) override;
 
   lldb_private::TypeList &GetTypeList() override;
+
+  lldb::CompUnitSP ParseCompileUnit(DWARFCompileUnit &dwarf_cu);
 
   virtual DWARFUnit *
   GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit);
@@ -382,6 +383,13 @@ protected:
   // Given a die_offset, figure out the symbol context representing that die.
   bool ResolveFunction(const DWARFDIE &die, bool include_inlines,
                        lldb_private::SymbolContextList &sc_list);
+
+  /// Resolve functions and (possibly) blocks for the given file address and a
+  /// compile unit. The compile unit comes from the sc argument and it must be
+  /// set. The results of the lookup (if any) are written back to the symbol
+  /// context.
+  void ResolveFunctionAndBlock(lldb::addr_t file_vm_addr, bool lookup_block,
+                               lldb_private::SymbolContext &sc);
 
   virtual lldb::TypeSP
   FindDefinitionTypeForDWARFDeclContext(const DWARFDeclContext &die_decl_ctx);
@@ -478,11 +486,6 @@ protected:
 
   lldb_private::DWARFContext m_context;
 
-  DWARFDataSegment m_data_debug_loc;
-  DWARFDataSegment m_data_debug_loclists;
-
-  // The unique pointer items below are generated on demand if and when someone
-  // accesses them through a non const version of this class.
   std::unique_ptr<DWARFDebugAbbrev> m_abbr;
   std::unique_ptr<DWARFDebugInfo> m_info;
   std::unique_ptr<GlobalVariableMap> m_global_aranges_up;

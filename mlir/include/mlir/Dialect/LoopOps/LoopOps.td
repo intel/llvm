@@ -1,6 +1,6 @@
 //===- Ops.td - Loop operation definitions ---------------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -176,14 +176,28 @@ def ParallelOp : Loop_Op<"parallel",
                        Variadic<Index>:$upperBound,
                        Variadic<Index>:$step);
   let results = (outs Variadic<AnyType>:$results);
-  let regions = (region SizedRegion<1>:$body);
+  let regions = (region SizedRegion<1>:$region);
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<"Builder *builder, OperationState &result, "
+              "ValueRange lowerBounds, ValueRange upperBounds, "
+              "ValueRange steps">
+  ];
+
+  let extraClassDeclaration = [{
+    Block *getBody() { return &region().front(); }
+    iterator_range<Block::args_iterator> getInductionVars() {
+      return {getBody()->args_begin(), getBody()->args_end()};
+    }
+  }];
 }
 
 def ReduceOp : Loop_Op<"reduce", [HasParent<"ParallelOp">]> {
   let summary = "reduce operation for parallel for";
   let description = [{
-    "loop.reduce" is an operation occuring inside "loop.parallel" operations. It
-    consists of one block with two arguments which have the same type as the
+    "loop.reduce" is an operation occurring inside "loop.parallel" operations.
+    It consists of one block with two arguments which have the same type as the
     operand of "loop.reduce".
 
     "loop.reduce" is used to model the value for reduction computations of a

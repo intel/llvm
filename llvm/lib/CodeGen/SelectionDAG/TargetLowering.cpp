@@ -176,16 +176,9 @@ TargetLowering::makeLibCall(SelectionDAG &DAG, RTLIB::Libcall LC, EVT RetVT,
   return LowerCallTo(CLI);
 }
 
-bool
-TargetLowering::findOptimalMemOpLowering(std::vector<EVT> &MemOps,
-                                         unsigned Limit, uint64_t Size,
-                                         unsigned DstAlign, unsigned SrcAlign,
-                                         bool IsMemset,
-                                         bool ZeroMemset,
-                                         bool MemcpyStrSrc,
-                                         bool AllowOverlap,
-                                         unsigned DstAS, unsigned SrcAS,
-                                         const AttributeList &FuncAttributes) const {
+bool TargetLowering::findOptimalMemOpLowering(
+    std::vector<EVT> &MemOps, unsigned Limit, const MemOp &Op, unsigned DstAS,
+    unsigned SrcAS, const AttributeList &FuncAttributes) const {
   // If 'SrcAlign' is zero, that means the memory operation does not need to
   // load the value, i.e. memset or memcpy from constant string. Otherwise,
   // it's the inferred alignment of the source. 'DstAlign', on the other hand,
@@ -193,20 +186,18 @@ TargetLowering::findOptimalMemOpLowering(std::vector<EVT> &MemOps,
   // means it's possible to change the alignment of the destination.
   // 'MemcpyStrSrc' indicates whether the memcpy source is constant so it does
   // not need to be loaded.
-  if (!(SrcAlign == 0 || SrcAlign >= DstAlign))
+  if (!(Op.getSrcAlign() == 0 || Op.getSrcAlign() >= Op.getDstAlign()))
     return false;
 
-  EVT VT = getOptimalMemOpType(Size, DstAlign, SrcAlign,
-                               IsMemset, ZeroMemset, MemcpyStrSrc,
-                               FuncAttributes);
+  EVT VT = getOptimalMemOpType(Op, FuncAttributes);
 
   if (VT == MVT::Other) {
     // Use the largest integer type whose alignment constraints are satisfied.
     // We only need to check DstAlign here as SrcAlign is always greater or
     // equal to DstAlign (or zero).
     VT = MVT::i64;
-    while (DstAlign && DstAlign < VT.getSizeInBits() / 8 &&
-           !allowsMisalignedMemoryAccesses(VT, DstAS, DstAlign))
+    while (Op.getDstAlign() && Op.getDstAlign() < VT.getSizeInBits() / 8 &&
+           !allowsMisalignedMemoryAccesses(VT, DstAS, Op.getDstAlign()))
       VT = (MVT::SimpleValueType)(VT.getSimpleVT().SimpleTy - 1);
     assert(VT.isInteger());
 
@@ -223,6 +214,7 @@ TargetLowering::findOptimalMemOpLowering(std::vector<EVT> &MemOps,
   }
 
   unsigned NumMemOps = 0;
+  auto Size = Op.size();
   while (Size != 0) {
     unsigned VTSize = VT.getSizeInBits() / 8;
     while (VTSize > Size) {
@@ -257,8 +249,8 @@ TargetLowering::findOptimalMemOpLowering(std::vector<EVT> &MemOps,
       // If the new VT cannot cover all of the remaining bits, then consider
       // issuing a (or a pair of) unaligned and overlapping load / store.
       bool Fast;
-      if (NumMemOps && AllowOverlap && NewVTSize < Size &&
-          allowsMisalignedMemoryAccesses(VT, DstAS, DstAlign,
+      if (NumMemOps && Op.allowOverlap() && NewVTSize < Size &&
+          allowsMisalignedMemoryAccesses(VT, DstAS, Op.getDstAlign(),
                                          MachineMemOperand::MONone, &Fast) &&
           Fast)
         VTSize = Size;
@@ -757,6 +749,18 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
       return Vec;
     break;
   }
+  case ISD::INSERT_SUBVECTOR: {
+    // If we don't demand the inserted subvector, return the base vector.
+    SDValue Vec = Op.getOperand(0);
+    SDValue Sub = Op.getOperand(1);
+    auto *CIdx = dyn_cast<ConstantSDNode>(Op.getOperand(2));
+    unsigned NumVecElts = Vec.getValueType().getVectorNumElements();
+    unsigned NumSubElts = Sub.getValueType().getVectorNumElements();
+    if (CIdx && CIdx->getAPIntValue().ule(NumVecElts - NumSubElts))
+      if (DemandedElts.extractBits(NumSubElts, CIdx->getZExtValue()) == 0)
+        return Vec;
+    break;
+  }
   case ISD::VECTOR_SHUFFLE: {
     ArrayRef<int> ShuffleMask = cast<ShuffleVectorSDNode>(Op)->getMask();
 
@@ -877,6 +881,12 @@ bool TargetLowering::SimplifyDemandedBits(
     if (getTargetConstantFromLoad(LD)) {
       Known = TLO.DAG.computeKnownBits(Op, DemandedElts, Depth);
       return false; // Don't fall through, will infinitely loop.
+    } else if (ISD::isZEXTLoad(Op.getNode()) && Op.getResNo() == 0) {
+      // If this is a ZEXTLoad and we are looking at the loaded value.
+      EVT VT = LD->getMemoryVT();
+      unsigned MemBits = VT.getScalarSizeInBits();
+      Known.Zero.setBitsFrom(MemBits);
+      return false; // Don't fall through, will infinitely loop.
     }
     break;
   }
@@ -955,6 +965,22 @@ bool TargetLowering::SimplifyDemandedBits(
         Known.One &= KnownBase.One;
         Known.Zero &= KnownBase.Zero;
     }
+
+    // Attempt to avoid multi-use src if we don't need anything from it.
+    if (!DemandedBits.isAllOnesValue() || !SubElts.isAllOnesValue() ||
+        !BaseElts.isAllOnesValue()) {
+      SDValue NewSub = SimplifyMultipleUseDemandedBits(
+          Sub, DemandedBits, SubElts, TLO.DAG, Depth + 1);
+      SDValue NewBase = SimplifyMultipleUseDemandedBits(
+          Base, DemandedBits, BaseElts, TLO.DAG, Depth + 1);
+      if (NewSub || NewBase) {
+        NewSub = NewSub ? NewSub : Sub;
+        NewBase = NewBase ? NewBase : Base;
+        SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), dl, VT, NewBase, NewSub,
+                                        Op.getOperand(2));
+        return TLO.CombineTo(Op, NewOp);
+      }
+    }
     break;
   }
   case ISD::EXTRACT_SUBVECTOR: {
@@ -970,6 +996,17 @@ bool TargetLowering::SimplifyDemandedBits(
     }
     if (SimplifyDemandedBits(Src, DemandedBits, SrcElts, Known, TLO, Depth + 1))
       return true;
+
+    // Attempt to avoid multi-use src if we don't need anything from it.
+    if (!DemandedBits.isAllOnesValue() || !SrcElts.isAllOnesValue()) {
+      SDValue DemandedSrc = SimplifyMultipleUseDemandedBits(
+          Src, DemandedBits, SrcElts, TLO.DAG, Depth + 1);
+      if (DemandedSrc) {
+        SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), dl, VT, DemandedSrc,
+                                        Op.getOperand(1));
+        return TLO.CombineTo(Op, NewOp);
+      }
+    }
     break;
   }
   case ISD::CONCAT_VECTORS: {
@@ -1355,8 +1392,9 @@ bool TargetLowering::SimplifyDemandedBits(
         }
       }
 
-      if (SimplifyDemandedBits(Op0, DemandedBits.lshr(ShAmt), DemandedElts,
-                               Known, TLO, Depth + 1))
+      APInt InDemandedMask = DemandedBits.lshr(ShAmt);
+      if (SimplifyDemandedBits(Op0, InDemandedMask, DemandedElts, Known, TLO,
+                               Depth + 1))
         return true;
 
       // Try shrinking the operation as long as the shift amount will still be
@@ -1477,6 +1515,13 @@ bool TargetLowering::SimplifyDemandedBits(
     SDValue Op0 = Op.getOperand(0);
     SDValue Op1 = Op.getOperand(1);
 
+    // If we only want bits that already match the signbit then we don't need
+    // to shift.
+    unsigned NumHiDemandedBits = BitWidth - DemandedBits.countTrailingZeros();
+    if (TLO.DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1) >=
+        NumHiDemandedBits)
+      return TLO.CombineTo(Op, Op0);
+
     // If this is an arithmetic shift right and only the low-bit is set, we can
     // always convert this into a logical shr, even if the shift amount is
     // variable.  The low bit of the shift cannot be an input sign bit unless
@@ -1533,6 +1578,16 @@ bool TargetLowering::SimplifyDemandedBits(
       if (Known.One[BitWidth - ShAmt - 1])
         // New bits are known one.
         Known.One.setHighBits(ShAmt);
+
+      // Attempt to avoid multi-use ops if we don't need anything from them.
+      if (!InDemandedMask.isAllOnesValue() || !DemandedElts.isAllOnesValue()) {
+        SDValue DemandedOp0 = SimplifyMultipleUseDemandedBits(
+            Op0, InDemandedMask, DemandedElts, TLO.DAG, Depth + 1);
+        if (DemandedOp0) {
+          SDValue NewOp = TLO.DAG.getNode(ISD::SRA, dl, VT, DemandedOp0, Op1);
+          return TLO.CombineTo(Op, NewOp);
+        }
+      }
     }
     break;
   }
@@ -1575,6 +1630,15 @@ bool TargetLowering::SimplifyDemandedBits(
     }
     break;
   }
+  case ISD::ROTL:
+  case ISD::ROTR: {
+    SDValue Op0 = Op.getOperand(0);
+
+    // If we're rotating an 0/-1 value, then it stays an 0/-1 value.
+    if (BitWidth == TLO.DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1))
+      return TLO.CombineTo(Op, Op0);
+    break;
+  }
   case ISD::BITREVERSE: {
     SDValue Src = Op.getOperand(0);
     APInt DemandedSrcBits = DemandedBits.reverseBits();
@@ -1602,7 +1666,8 @@ bool TargetLowering::SimplifyDemandedBits(
 
     // If we only care about the highest bit, don't bother shifting right.
     if (DemandedBits.isSignMask()) {
-      unsigned NumSignBits = TLO.DAG.ComputeNumSignBits(Op0);
+      unsigned NumSignBits =
+          TLO.DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1);
       bool AlreadySignExtended = NumSignBits >= BitWidth - ExVTBits + 1;
       // However if the input is already sign extended we expect the sign
       // extension to be dropped altogether later and do not simplify.
@@ -1778,6 +1843,11 @@ bool TargetLowering::SimplifyDemandedBits(
     assert(!Known.hasConflict() && "Bits known to be one AND zero?");
     assert(Known.getBitWidth() == InBits && "Src width has changed?");
     Known = Known.zext(BitWidth, false /* => any extend */);
+
+    // Attempt to avoid multi-use ops if we don't need anything from them.
+    if (SDValue NewSrc = SimplifyMultipleUseDemandedBits(
+            Src, InDemandedBits, InDemandedElts, TLO.DAG, Depth + 1))
+      return TLO.CombineTo(Op, TLO.DAG.getNode(Op.getOpcode(), dl, VT, NewSrc));
     break;
   }
   case ISD::TRUNCATE: {
@@ -6548,7 +6618,6 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
   // The type of data as saved in memory.
   EVT MemSclVT = StVT.getScalarType();
 
-  EVT IdxVT = getVectorIdxTy(DAG.getDataLayout());
   unsigned NumElem = StVT.getVectorNumElements();
 
   // A vector must always be stored in memory as-is, i.e. without any padding
@@ -6565,7 +6634,7 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
 
     for (unsigned Idx = 0; Idx < NumElem; ++Idx) {
       SDValue Elt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, RegSclVT, Value,
-                                DAG.getConstant(Idx, SL, IdxVT));
+                                DAG.getVectorIdxConstant(Idx, SL));
       SDValue Trunc = DAG.getNode(ISD::TRUNCATE, SL, MemSclVT, Elt);
       SDValue ExtElt = DAG.getNode(ISD::ZERO_EXTEND, SL, IntVT, Trunc);
       unsigned ShiftIntoIdx =
@@ -6590,7 +6659,7 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
   SmallVector<SDValue, 8> Stores;
   for (unsigned Idx = 0; Idx < NumElem; ++Idx) {
     SDValue Elt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, RegSclVT, Value,
-                              DAG.getConstant(Idx, SL, IdxVT));
+                              DAG.getVectorIdxConstant(Idx, SL));
 
     SDValue Ptr = DAG.getObjectPtrOffset(SL, BasePtr, Idx * Stride);
 

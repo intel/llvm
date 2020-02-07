@@ -70,6 +70,30 @@ TEST_F(FormatTestCSharp, CSharpClass) {
                "            f();\n"
                "    }\n"
                "}");
+
+  // Ensure that small and empty classes are handled correctly with condensed
+  // (Google C++-like) brace-breaking style.
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.BreakBeforeBraces = FormatStyle::BS_Attach;
+
+  verifyFormat("public class SomeEmptyClass {}", Style);
+
+  verifyFormat("public class SomeTinyClass {\n"
+               "  int X;\n"
+               "}",
+               Style);
+  verifyFormat("private class SomeTinyClass {\n"
+               "  int X;\n"
+               "}",
+               Style);
+  verifyFormat("protected class SomeTinyClass {\n"
+               "  int X;\n"
+               "}",
+               Style);
+  verifyFormat("internal class SomeTinyClass {\n"
+               "  int X;\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, AccessModifiers) {
@@ -228,6 +252,20 @@ TEST_F(FormatTestCSharp, Attributes) {
                "    set;\n"
                "    get;\n"
                "}");
+
+  verifyFormat(
+      "[DllImport(\"Hello\", EntryPoint = \"hello_world\")]\n"
+      "// The const char* returned by hello_world must not be deleted.\n"
+      "private static extern IntPtr HelloFromCpp();)");
+
+  //  Unwrappable lines go on a line of their own.
+  // 'target:' is not treated as a label.
+  // Modify Style to enforce a column limit.
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.ColumnLimit = 10;
+  verifyFormat(R"([assembly:InternalsVisibleTo(
+    "SomeAssembly, PublicKey=SomePublicKeyThatExceedsTheColumnLimit")])",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpUsing) {
@@ -235,19 +273,45 @@ TEST_F(FormatTestCSharp, CSharpUsing) {
   Style.SpaceBeforeParens = FormatStyle::SBPO_Always;
   verifyFormat("public void foo () {\n"
                "  using (StreamWriter sw = new StreamWriter (filenameA)) {}\n"
+               "  using () {}\n"
                "}",
                Style);
 
+  // Ensure clang-format affects top-level snippets correctly.
   verifyFormat("using (StreamWriter sw = new StreamWriter (filenameB)) {}",
                Style);
 
   Style.SpaceBeforeParens = FormatStyle::SBPO_Never;
   verifyFormat("public void foo() {\n"
                "  using(StreamWriter sw = new StreamWriter(filenameB)) {}\n"
+               "  using() {}\n"
                "}",
                Style);
 
+  // Ensure clang-format affects top-level snippets correctly.
   verifyFormat("using(StreamWriter sw = new StreamWriter(filenameB)) {}",
+               Style);
+
+  Style.SpaceBeforeParens = FormatStyle::SBPO_ControlStatements;
+  verifyFormat("public void foo() {\n"
+               "  using (StreamWriter sw = new StreamWriter(filenameA)) {}\n"
+               "  using () {}\n"
+               "}",
+               Style);
+
+  // Ensure clang-format affects top-level snippets correctly.
+  verifyFormat("using (StreamWriter sw = new StreamWriter(filenameB)) {}",
+               Style);
+
+  Style.SpaceBeforeParens = FormatStyle::SBPO_NonEmptyParentheses;
+  verifyFormat("public void foo() {\n"
+               "  using (StreamWriter sw = new StreamWriter (filenameA)) {}\n"
+               "  using() {}\n"
+               "}",
+               Style);
+
+  // Ensure clang-format affects top-level snippets correctly.
+  verifyFormat("using (StreamWriter sw = new StreamWriter (filenameB)) {}",
                Style);
 }
 
@@ -371,6 +435,92 @@ TEST_F(FormatTestCSharp, CSharpSpaceBefore) {
   verifyFormat("switch(x) {}", Style);
   verifyFormat("do {\n"
                "} while(x);",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpSpaceAfterCStyleCast) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("(int)x / y;", Style);
+
+  Style.SpaceAfterCStyleCast = true;
+  verifyFormat("(int) x / y;", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpEscapedQuotesInVerbatimStrings) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(string str = @"""";)", Style);
+  verifyFormat(R"(string str = @"""Hello world""";)", Style);
+  verifyFormat(R"(string str = $@"""Hello {friend}""";)", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpQuotesInInterpolatedStrings) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(string str1 = $"{null ?? "null"}";)", Style);
+  verifyFormat(R"(string str2 = $"{{{braceCount} braces";)", Style);
+  verifyFormat(R"(string str3 = $"{braceCount}}} braces";)", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpNewlinesInVerbatimStrings) {
+  // Use MS style as Google Style inserts a line break before multiline strings.
+
+  // verifyFormat does not understand multiline C# string-literals
+  // so check the format explicitly.
+
+  FormatStyle Style = getMicrosoftStyle(FormatStyle::LK_CSharp);
+
+  std::string Code = R"(string s1 = $@"some code:
+  class {className} {{
+    {className}() {{}}
+  }}";)";
+
+  EXPECT_EQ(Code, format(Code, Style));
+
+  // Multiline string in the middle of a function call.
+  Code = R"(
+var x = foo(className, $@"some code:
+  class {className} {{
+    {className}() {{}}
+  }}",
+            y);)"; // y aligned with `className` arg.
+
+  EXPECT_EQ(Code, format(Code, Style));
+
+  // Interpolated string with embedded multiline string.
+  Code = R"(Console.WriteLine($"{string.Join(@",
+		", values)}");)";
+
+  EXPECT_EQ(Code, format(Code, Style));
+}
+
+TEST_F(FormatTestCSharp, CSharpObjectInitializers) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  // Start code fragemnts with a comment line so that C++ raw string literals
+  // as seen are identical to expected formatted code.
+
+  verifyFormat(R"(//
+Shape[] shapes = new[] {
+    new Circle {
+        Radius = 2.7281,
+        Colour = Colours.Red,
+    },
+    new Square {
+        Side = 101.1,
+        Colour = Colours.Yellow,
+    },
+};)",
+               Style);
+
+  // Omitted final `,`s will change the formatting.
+  verifyFormat(R"(//
+Shape[] shapes = new[] {new Circle {Radius = 2.7281, Colour = Colours.Red},
+                        new Square {
+                            Side = 101.1,
+                            Colour = Colours.Yellow,
+                        }};)",
                Style);
 }
 

@@ -347,6 +347,9 @@ protected:
     /// When ResultKind == RSK_APValue. Wether the ASTContext will cleanup the
     /// destructor on the trail-allocated APValue.
     unsigned HasCleanup : 1;
+
+    /// Whether this ConstantExpr was created for immediate invocation.
+    unsigned IsImmediateInvocation : 1;
   };
 
   class PredefinedExprBitfields {
@@ -530,7 +533,7 @@ protected:
 
     /// This is only meaningful for operations on floating point
     /// types and 0 otherwise.
-    unsigned FPFeatures : 3;
+    unsigned FPFeatures : 8;
 
     SourceLocation OpLoc;
   };
@@ -601,7 +604,7 @@ protected:
     unsigned OperatorKind : 6;
 
     // Only meaningful for floating point types.
-    unsigned FPFeatures : 3;
+    unsigned FPFeatures : 8;
   };
 
   class CXXRewrittenBinaryOperatorBitfields {
@@ -910,6 +913,17 @@ protected:
     SourceLocation NameLoc;
   };
 
+  class RequiresExprBitfields {
+    friend class ASTStmtReader;
+    friend class ASTStmtWriter;
+    friend class RequiresExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned IsSatisfied : 1;
+    SourceLocation RequiresKWLoc;
+  };
+
   //===--- C++ Coroutines TS bitfields classes ---===//
 
   class CoawaitExprBitfields {
@@ -1008,6 +1022,7 @@ protected:
     UnresolvedMemberExprBitfields UnresolvedMemberExprBits;
     CXXNoexceptExprBitfields CXXNoexceptExprBits;
     SubstNonTypeTemplateParmExprBitfields SubstNonTypeTemplateParmExprBits;
+    RequiresExprBitfields RequiresExprBits;
 
     // C++ Coroutines TS expressions
     CoawaitExprBitfields CoawaitBits;

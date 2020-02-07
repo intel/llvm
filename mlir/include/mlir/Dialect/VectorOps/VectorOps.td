@@ -1,6 +1,6 @@
 //===- VectorOps.td - Vector op definitions ---------------*- tablegen -*-====//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -38,18 +38,25 @@ class Vector_Op<string mnemonic, list<OpTrait> traits = []> :
 // TODO(andydavis, ntv) Add an attribute to specify a different algebra
 // with operators other than the current set: {*, +}.
 def Vector_ContractionOp :
-  Vector_Op<"contract", [NoSideEffect]>,
-    Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyVector:$acc,
+  Vector_Op<"contract", [NoSideEffect,
+     PredOpTrait<"first operand lhs and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 0>>,
+     PredOpTrait<"second operand rhs and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 1>>,
+     PredOpTrait<"third operand acc and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 1>>]>,
+    Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyType:$acc,
                Variadic<VectorOf<[I1]>>:$masks,
                AffineMapArrayAttr:$indexing_maps, ArrayAttr:$iterator_types)>,
-    Results<(outs AnyVector)> {
+    Results<(outs AnyType)> {
   let summary = "vector contraction operation";
   let description = [{
     Computes the sum of products of vector elements along contracting
     dimension pairs from 2 vectors of rank M and N respectively, adds this
     intermediate result to the accumulator argument of rank K, and returns a
     vector result of rank K (where K = num_lhs_free_dims + num_rhs_free_dims +
-    num_batch_dims (see dimension type descriptions below)).
+    num_batch_dims (see dimension type descriptions below)). For K = 0 (no
+    free or batch dimensions), the accumulator and output are a scalar.
 
     Optional vector mask arguments (produced by CreateMaskOp or ConstantMaskOp)
     specify the dynamic dimension sizes of valid data within the lhs/rhs vector
@@ -59,7 +66,7 @@ def Vector_ContractionOp :
     the list represents an iterator with one of the following types:
 
     *) "reduction": reduction dimensions are present in the lhs and rhs
-                    arguments but not in the output (or optional accumulator
+                    arguments but not in the output (and accumulator
                     argument). These are the dimensions along which the vector
                     contraction op computes the sum of products, and
                     contracting dimension pair dimension sizes must match
@@ -81,30 +88,44 @@ def Vector_ContractionOp :
 
     Examples:
 
-      // 2D vector contraction with one contracting dimension (matmul).
+      // Simple dot product (K = 0).
       #contraction_accesses = [
-        (i, j, k) -> (i, k),
-        (i, j, k) -> (k, j),
-        (i, j, k) -> (i, j)
+       affine_map<(i) -> (i)>,
+       affine_map<(i) -> (i)>,
+       affine_map<(i) -> ()>
       ]
       #contraction_trait = {
         indexing_maps = #contraction_accesses,
-        iterator_types = [parallel, parallel, reduction]
+        iterator_types = ["reduction"]
+      }
+      %3 = vector.contract #contraction_trait %0, %1, %2
+        : vector<10xf32>, vector<10xf32> into f32
+
+      // 2D vector contraction with one contracting dimension (matmul, K = 2).
+      #contraction_accesses = [
+        affine_map<(i, j, k) -> (i, k)>,
+        affine_map<(i, j, k) -> (k, j)>,
+        affine_map<(i, j, k) -> (i, j)>
+      ]
+      #contraction_trait = {
+        indexing_maps = #contraction_accesses,
+        iterator_types = ["parallel", "parallel", "reduction"]
       }
 
       %3 = vector.contract #contraction_trait %0, %1, %2
         : vector<4x3xf32>, vector<3x7xf32> into vector<4x7xf32>
 
       // 4D to 3D vector contraction with two contracting dimensions and
-      // one batch dimension.
+      // one batch dimension (K = 3).
       #contraction_accesses = [
-        (b0, f0, f1, c0, c1) -> (c0, b0, c1, f0),
-        (b0, f0, f1, c0, c1) -> (b0, c1, c0, f1),
-        (b0, f0, f1, c0, c1) -> (b0, f0, f1)
+        affine_map<(b0, f0, f1, c0, c1) -> (c0, b0, c1, f0)>,
+        affine_map<(b0, f0, f1, c0, c1) -> (b0, c1, c0, f1)>,
+        affine_map<(b0, f0, f1, c0, c1) -> (b0, f0, f1)>
       ]
       #contraction_trait = {
         indexing_maps = #contraction_accesses,
-        iterator_types = [parallel, parallel, parallel reduction, reduction]
+        iterator_types = ["parallel", "parallel", "parallel",
+                          "reduction", "reduction"]
       }
 
       %4 = vector.contract #contraction_trait %0, %1, %2
@@ -128,9 +149,7 @@ def Vector_ContractionOp :
     VectorType getRhsType() {
       return rhs().getType().cast<VectorType>();
     }
-    VectorType getAccType() {
-      return acc().getType().cast<VectorType>();
-    }
+    Type getAccType() { return acc().getType(); }
     VectorType getLHSVectorMaskType() {
       if (llvm::size(masks()) != 2) return VectorType();
       return getOperand(3).getType().cast<VectorType>();
@@ -139,9 +158,7 @@ def Vector_ContractionOp :
       if (llvm::size(masks()) != 2) return VectorType();
       return getOperand(4).getType().cast<VectorType>();
     }
-    VectorType getResultType() {
-      return getResult().getType().cast<VectorType>();
-    }
+    Type getResultType() { return getResult().getType(); }
     ArrayRef<StringRef> getTraitAttrNames();
     SmallVector<AffineMap, 4> getIndexingMaps();
     static unsigned getAccOperandIndex() { return 2; }
@@ -203,6 +220,7 @@ def Vector_BroadcastOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($vector)";
 }
 
 def Vector_ShuffleOp :
@@ -364,6 +382,10 @@ def Vector_ExtractSlicesOp :
     static StringRef getSizesAttrName() { return "sizes"; }
     static StringRef getStridesAttrName() { return "strides"; }
   }];
+  let assemblyFormat = [{
+    $vector `,` $sizes `,` $strides attr-dict `:` type($vector) `into`
+    type(results)
+  }];
 }
 
 def Vector_InsertElementOp :
@@ -402,10 +424,9 @@ def Vector_InsertOp :
   Vector_Op<"insert", [NoSideEffect,
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>,
-     PredOpTrait<"dest operand and result have same type",
-                 TCresIsSameAsOpBase<0, 1>>]>,
+     AllTypesMatch<["dest", "res"]>]>,
      Arguments<(ins AnyType:$source, AnyVector:$dest, I64ArrayAttr:$position)>,
-     Results<(outs AnyVector)> {
+     Results<(outs AnyVector:$res)> {
   let summary = "insert operation";
   let description = [{
     Takes an n-D source vector, an (n+k)-D destination vector and a k-D position
@@ -420,6 +441,10 @@ def Vector_InsertOp :
         f32 into vector<4x8x16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $source `,` $dest $position attr-dict `:` type($source) `into` type($dest)
+  }];
+
   let builders = [OpBuilder<
     "Builder *builder, OperationState &result, Value source, " #
     "Value dest, ArrayRef<int64_t>">];
@@ -482,23 +507,26 @@ def Vector_InsertSlicesOp :
     static StringRef getSizesAttrName() { return "sizes"; }
     static StringRef getStridesAttrName() { return "strides"; }
   }];
+  let assemblyFormat = [{
+    $vectors `,` $sizes `,` $strides attr-dict `:` type($vectors) `into`
+    type(results)
+  }];
 }
 
 def Vector_InsertStridedSliceOp :
   Vector_Op<"insert_strided_slice", [NoSideEffect,
     PredOpTrait<"operand #0 and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>,
-    PredOpTrait<"dest operand and result have same type",
-                 TCresIsSameAsOpBase<0, 1>>]>,
+    AllTypesMatch<["dest", "res"]>]>,
     Arguments<(ins AnyVector:$source, AnyVector:$dest, I64ArrayAttr:$offsets,
                I64ArrayAttr:$strides)>,
-    Results<(outs AnyVector)> {
+    Results<(outs AnyVector:$res)> {
   let summary = "strided_slice operation";
   let description = [{
-    Takes a k-D source vector, an n-D destination vector (n >= k), n-D `offsets`
-    integer array attribute, a k-D `strides` integer array attribute and inserts
-    the k-D source vector as a strided subvector at the proper offset into the
-    n-D destination vector.
+    Takes a k-D source vector, an n-D destination vector (n >= k), n-sized
+    `offsets` integer array attribute, a k-sized `strides` integer array attribute
+    and inserts the k-D source vector as a strided subvector at the proper offset
+    into the n-D destination vector.
 
     At the moment strides must contain only 1s.
 
@@ -509,10 +537,15 @@ def Vector_InsertStridedSliceOp :
     Examples:
     ```
       %2 = vector.insert_strided_slice %0, %1
-          {offsets : [0, 0, 2], strides : [1, 1]}:
+          {offsets = [0, 0, 2], strides = [1, 1]}:
         vector<2x4xf32> into vector<16x4x8xf32>
     ```
   }];
+
+  let assemblyFormat = [{
+    $source `,` $dest attr-dict `:` type($source) `into` type($dest)
+  }];
+
   let builders = [OpBuilder<
     "Builder *builder, OperationState &result, Value source, Value dest, " #
     "ArrayRef<int64_t> offsets, ArrayRef<int64_t> strides">];
@@ -693,9 +726,9 @@ def Vector_StridedSliceOp :
     Results<(outs AnyVector)> {
   let summary = "strided_slice operation";
   let description = [{
-    Takes an n-D vector, k-D `offsets` integer array attribute, a k-D `sizes`
-    integer array attribute, a k-D `strides` integer array attribute and
-    extracts the n-D subvector at the proper offset.
+    Takes an n-D vector, k-D `offsets` integer array attribute, a k-sized
+    `sizes` integer array attribute, a k-sized `strides` integer array
+    attribute and extracts the n-D subvector at the proper offset.
 
     At the moment strides must contain only 1s.
     // TODO(ntv) support non-1 strides.
@@ -707,7 +740,7 @@ def Vector_StridedSliceOp :
     Examples:
     ```
       %1 = vector.strided_slice %0
-          {offsets : [0, 2], sizes : [2, 4], strides : [1, 1]}:
+          {offsets = [0, 2], sizes = [2, 4], strides = [1, 1]}:
         vector<4x8x16xf32> to vector<2x4x16xf32>
     ```
 
@@ -727,6 +760,7 @@ def Vector_StridedSliceOp :
     void getOffsets(SmallVectorImpl<int64_t> &results);
   }];
   let hasCanonicalizer = 1;
+  let assemblyFormat = "$vector attr-dict `:` type($vector) `to` type(results)";
 }
 
 def Vector_TransferReadOp :
@@ -939,6 +973,53 @@ def Vector_TransferWriteOp :
       return memref().getType().cast<MemRefType>();
     }
   }];
+  let assemblyFormat = [{
+    $vector `,` $memref `[` $indices `]` attr-dict `:` type($vector) `,`
+    type($memref)
+  }];
+}
+
+def Vector_ShapeCastOp :
+  Vector_Op<"shape_cast", [NoSideEffect]>,
+    Arguments<(ins AnyTypeOf<[AnyVector, TupleOf<[AnyVector]>]>:$source)>,
+    Results<(outs AnyTypeOf<[AnyVector, TupleOf<[AnyVector]>]>:$result)> {
+  let summary = "shape_cast casts between vector shapes";
+  let description = [{
+    The shape_cast operation casts between an n-D source vector shape and
+    a k-D result vector shape (the element type remains the same).
+
+    If reducing rank (n > k), result dimension sizes must be a product
+    of contiguous source dimension sizes.
+    If expanding rank (n < k), source dimensions must factor into a
+    contiguous sequence of destination dimension sizes.
+    Each source dim is expanded (or contiguous sequence of source dims combined)
+    in source dimension list order (i.e. 0 <= i < n), to produce a contiguous
+    sequence of result dims (or a single result dim), in result dimension list
+    order (i.e. 0 <= j < k). The product of all source dimension sizes and all
+    result dimension sizes must match.
+
+    If the source/result types are a tuple of vectors, the casting operation
+    described above is applied to each source/result tuple element pair.
+
+    It is currently assumed that this operation does not require moving data,
+    and that it will be canonicalized away before lowering vector operations.
+
+    Examples:
+
+    ```mlir
+    // Example casting to a lower vector rank.
+    %1 = vector.shape_cast %0 : vector<5x1x4x3xf32> to vector<20x3xf32>
+
+    // Example casting to a higher vector rank.
+    %3 = vector.shape_cast %2 : vector<10x12x8xf32> to vector<5x2x3x4x8xf32>
+
+    // Example casting a tuple of vectors of same rank, where tuple elements
+    // may have different shapes.
+    %5 = vector.shape_cast %4 : tuple<vector<3x4x2xf32>, vector<3x3x2xf32>> to
+                                tuple<vector<12x2xf32>, vector<9x2xf32>>
+    ```
+  }];
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
 }
 
 def Vector_TypeCastOp :
@@ -1017,6 +1098,7 @@ def Vector_ConstantMaskOp :
   let extraClassDeclaration = [{
     static StringRef getMaskDimSizesAttrName() { return "mask_dim_sizes"; }
   }];
+  let assemblyFormat = "$mask_dim_sizes attr-dict `:` type(results)";
 }
 
 def Vector_CreateMaskOp :
@@ -1048,6 +1130,7 @@ def Vector_CreateMaskOp :
   }];
 
   let hasCanonicalizer = 1;
+  let assemblyFormat = "$operands attr-dict `:` type(results)";
 }
 
 def Vector_TupleOp :
@@ -1115,6 +1198,7 @@ def Vector_TupleGetOp :
     }
     static StringRef getIndexAttrName() { return "index"; }
   }];
+  let hasFolder = 1;
 }
 
 def Vector_PrintOp :
@@ -1147,6 +1231,7 @@ def Vector_PrintOp :
       return source().getType();
     }
   }];
+  let assemblyFormat = "$source attr-dict `:` type($source)";
 }
 
 #endif // VECTOR_OPS

@@ -97,11 +97,11 @@ static void collectKernelModuleMap(
   for (auto &F : M.functions()) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       if (OneKernelPerModule) {
-        ResKernelModuleMap[F.getName()].push_back(&F);
+        ResKernelModuleMap[std::string(F.getName())].push_back(&F);
       } else if (F.hasFnAttribute("sycl-module-id")) {
         auto Id = F.getFnAttribute("sycl-module-id");
         auto Val = Id.getValueAsString();
-        ResKernelModuleMap[Val].push_back(&F);
+        ResKernelModuleMap[std::string(Val)].push_back(&F);
       }
     }
   }
@@ -238,7 +238,8 @@ static void saveResultSymbolsLists(std::vector<std::string> &ResSymbolsLists) {
   if (!OutputTxtFilesList.empty()) {
     if (TxtFilesList.empty()) {
       // Just create an empty temporary file if there was nothing to split.
-      std::string TempFileNameBase = sys::path::stem(BaseOutputFilename);
+      std::string TempFileNameBase =
+          std::string(sys::path::stem(BaseOutputFilename));
       SmallString<128> Path;
       std::error_code EC =
           sys::fs::createTemporaryFile(TempFileNameBase, "txt", Path);

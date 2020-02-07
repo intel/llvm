@@ -60,7 +60,7 @@ private:
   SDValue lowerImage(SDValue Op, const AMDGPU::ImageDimIntrinsicInfo *Intr,
                      SelectionDAG &DAG) const;
   SDValue lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc, SDValue Offset,
-                       SDValue GLC, SDValue DLC, SelectionDAG &DAG) const;
+                       SDValue CachePolicy, SelectionDAG &DAG) const;
 
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
@@ -199,6 +199,10 @@ public:
   /// global value \p GV, false otherwise.
   bool shouldEmitPCReloc(const GlobalValue *GV) const;
 
+  /// \returns true if this should use a literal constant for an LDS address,
+  /// and not emit a relocation for an LDS global.
+  bool shouldUseLDSConstAddress(const GlobalValue *GV) const;
+
 private:
   // Analyze a combined offset from an amdgcn_buffer_ intrinsic and store the
   // three offsets (voffset, soffset and instoffset) into the SDValue[3] array
@@ -253,10 +257,7 @@ public:
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *IsFast = nullptr) const override;
 
-  EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign,
-                          unsigned SrcAlign, bool IsMemset,
-                          bool ZeroMemset,
-                          bool MemcpyStrSrc,
+  EVT getOptimalMemOpType(const MemOp &Op,
                           const AttributeList &FuncAttributes) const override;
 
   bool isMemOpUniform(const SDNode *N) const;

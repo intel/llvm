@@ -1,4 +1,4 @@
-//===-- ASTResultSynthesizer.cpp --------------------------------*- C++ -*-===//
+//===-- ASTResultSynthesizer.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,10 +8,10 @@
 
 #include "ASTResultSynthesizer.h"
 
+#include "ClangASTImporter.h"
 #include "ClangPersistentVariables.h"
 
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTImporter.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Log.h"
@@ -453,13 +453,13 @@ void ASTResultSynthesizer::CommitPersistentDecls() {
     return;
 
   auto *persistent_vars = llvm::cast<ClangPersistentVariables>(state);
-  ClangASTContext *scratch_ctx = ClangASTContext::GetScratch(m_target);
+  TypeSystemClang *scratch_ctx = TypeSystemClang::GetScratch(m_target);
 
   for (clang::NamedDecl *decl : m_decls) {
     StringRef name = decl->getName();
     ConstString name_cs(name.str().c_str());
 
-    Decl *D_scratch = m_target.GetClangASTImporter()->DeportDecl(
+    Decl *D_scratch = persistent_vars->GetClangASTImporter()->DeportDecl(
         &scratch_ctx->getASTContext(), decl);
 
     if (!D_scratch) {

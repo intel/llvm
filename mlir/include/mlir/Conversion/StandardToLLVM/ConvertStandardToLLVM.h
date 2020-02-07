@@ -1,6 +1,6 @@
 //===- ConvertStandardToLLVM.h - Convert to the LLVM dialect ----*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -26,6 +26,7 @@ class Type;
 
 namespace mlir {
 
+class LLVMTypeConverter;
 class UnrankedMemRefType;
 
 namespace LLVM {
@@ -33,12 +34,42 @@ class LLVMDialect;
 class LLVMType;
 } // namespace LLVM
 
+/// Set of callbacks that allows the customization of LLVMTypeConverter.
+struct LLVMTypeConverterCustomization {
+  using CustomCallback =
+      std::function<LLVM::LLVMType(LLVMTypeConverter &, Type)>;
+
+  /// Customize the type conversion of function arguments.
+  CustomCallback funcArgConverter;
+
+  /// Initialize customization to default callbacks.
+  LLVMTypeConverterCustomization();
+};
+
+/// Callback to convert function argument types. It converts a MemRef function
+/// argument to a struct that contains the descriptor information. Converted
+/// types are promoted to a pointer to the converted type.
+LLVM::LLVMType structFuncArgTypeConverter(LLVMTypeConverter &converter,
+                                          Type type);
+
+/// Callback to convert function argument types. It converts MemRef function
+/// arguments to bare pointers to the MemRef element type. Converted types are
+/// not promoted to pointers.
+LLVM::LLVMType barePtrFuncArgTypeConverter(LLVMTypeConverter &converter,
+                                           Type type);
+
 /// Conversion from types in the Standard dialect to the LLVM IR dialect.
 class LLVMTypeConverter : public TypeConverter {
 public:
   using TypeConverter::convertType;
 
+  /// Create an LLVMTypeConverter using the default
+  /// LLVMTypeConverterCustomization.
   LLVMTypeConverter(MLIRContext *ctx);
+
+  /// Create an LLVMTypeConverter using 'custom' customizations.
+  LLVMTypeConverter(MLIRContext *ctx,
+                    const LLVMTypeConverterCustomization &custom);
 
   /// Convert types to LLVM IR.  This calls `convertAdditionalType` to convert
   /// non-standard or non-builtin types.
@@ -121,8 +152,8 @@ private:
   // pointer as defined by the data layout of the module.
   LLVM::LLVMType getIndexType();
 
-  // Extract an LLVM IR dialect type.
-  LLVM::LLVMType unwrap(Type type);
+  /// Callbacks for customizing the type conversion.
+  LLVMTypeConverterCustomization customizations;
 };
 
 /// Helper class to produce LLVM dialect operations extracting or inserting

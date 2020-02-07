@@ -1,6 +1,6 @@
 //===- Fusion.cpp - Implementation of linalg Fusion -----------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,7 +15,6 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/Linalg/Utils/Intrinsics.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/EDSC/Helpers.h"
 #include "mlir/IR/AffineExpr.h"
@@ -35,7 +34,6 @@ using namespace mlir;
 using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
-using namespace mlir::linalg::intrinsics;
 
 using llvm::dbgs;
 
@@ -334,16 +332,22 @@ static void fuseLinalgOpsGreedily(FuncOp f) {
       linalgOps.push_back(op);
   });
 
-  Aliases aliases;
-  LinalgDependenceGraph G(aliases, linalgOps);
+  // TODO(pifon, ntv): LinalgDependenceGraph should be able to update itself.
+  // The current naive and expensive reconstruction of the graph should be
+  // removed.
   for (auto *op : llvm::reverse(linalgOps)) {
-    for (unsigned consumerIdx = 0, e = LinalgOp(op).getNumInputs();
-         consumerIdx < e; ++consumerIdx) {
-      if (auto fusionInfo = fuseProducerOf(b, op, consumerIdx, G, &folder))
-        eraseSet.insert(fusionInfo->originalProducer.getOperation());
+    for (unsigned id = 0, e = LinalgOp(op).getNumInputs(); id < e; ++id) {
+      linalg::Aliases aliases;
+      linalg::LinalgDependenceGraph graph(aliases, linalgOps);
+      if (auto info = fuseProducerOf(b, op, id, graph, &folder)) {
+        auto *originalOp = info->originalProducer.getOperation();
+        eraseSet.insert(originalOp);
+        auto *originalOpInLinalgOpsVector =
+            std::find(linalgOps.begin(), linalgOps.end(), originalOp);
+        *originalOpInLinalgOpsVector = info->fusedProducer.getOperation();
+      }
     }
   }
-
   // The `fuseProducerOf` function performs structural checks and in particular
   // that no covering read or write exist between the consumer and the producer.
   // As a consequence, the only fusions that may occur preserve subsequent

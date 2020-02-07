@@ -27,6 +27,12 @@ if(LLVM_ENABLE_RUNTIMES STREQUAL "all" )
   set(LLVM_ENABLE_RUNTIMES ${LLVM_ALL_RUNTIMES})
 endif()
 foreach(proj ${LLVM_ENABLE_RUNTIMES})
+  # TODO: libunwind and libcxxabi don't currently build on Windows so filter them out.
+  if(MSVC AND ("${proj}" MATCHES "libunwind|libcxxabi"))
+    message(WARNING "Skipping ${proj} which is not supported in MSVC yet")
+    continue()
+  endif()
+
   set(proj_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../${proj}")
   if(IS_DIRECTORY ${proj_dir} AND EXISTS ${proj_dir}/CMakeLists.txt)
     list(APPEND runtimes ${proj_dir})
@@ -245,6 +251,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_TARGET=${TARGET_TRIPLE}
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES COMPILER_RT
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
@@ -266,7 +273,8 @@ else() # if this is included from LLVM's CMake
       string(FIND "${variableName}" "BUILTINS_${target}" out)
       if("${out}" EQUAL 0)
         string(REPLACE "BUILTINS_${target}_" "" new_name ${variableName})
-        list(APPEND ${target}_extra_args "-D${new_name}=${${variableName}}")
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${target}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
 
@@ -389,6 +397,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_CXX_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
@@ -430,8 +439,9 @@ else() # if this is included from LLVM's CMake
 
     foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
       set(${component}-${name} ${component})
-      set(install-${component}-${name} ${component})
-      list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name})
+      set(install-${component}-${name} install-${component})
+      set(install-${component}-${name}-stripped install-${component}-stripped)
+      list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name} install-${component}-${name}-stripped)
     endforeach()
 
     if(LLVM_INCLUDE_TESTS)
@@ -451,18 +461,20 @@ else() # if this is included from LLVM's CMake
       string(FIND "${variableName}" "RUNTIMES_${target}_" out)
       if("${out}" EQUAL 0)
         string(REPLACE "RUNTIMES_${target}_" "" new_name ${variableName})
-        list(APPEND ${name}_extra_args "-D${new_name}=${${variableName}}")
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
     foreach(variableName ${variableNames})
       string(FIND "${variableName}" "RUNTIMES_${name}_" out)
       if("${out}" EQUAL 0)
         string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
-        list(APPEND ${name}_extra_args "-D${new_name}=${${variableName}}")
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
 
-    if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES)
+    if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES AND NOT RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
       string(REPLACE ";" "|" LLVM_ENABLE_RUNTIMES_PASSTHROUGH "${LLVM_ENABLE_RUNTIMES}")
       list(APPEND ${name}_extra_args -DLLVM_ENABLE_RUNTIMES=${LLVM_ENABLE_RUNTIMES_PASSTHROUGH})
     endif()
@@ -525,6 +537,7 @@ else() # if this is included from LLVM's CMake
           foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
             add_custom_target(${component})
             add_custom_target(install-${component})
+            add_custom_target(install-${component}-stripped)
           endforeach()
         endif()
       endif()

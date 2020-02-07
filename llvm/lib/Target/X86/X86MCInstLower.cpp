@@ -72,6 +72,27 @@ private:
 
 } // end anonymous namespace
 
+/// A RAII helper which defines a region of instructions which can't have
+/// padding added between them for correctness.
+struct NoAutoPaddingScope {
+  MCStreamer &OS;
+  const bool OldAllowAutoPadding;
+  NoAutoPaddingScope(MCStreamer &OS)
+      : OS(OS), OldAllowAutoPadding(OS.getAllowAutoPadding()) {
+    changeAndComment(false);
+  }
+  ~NoAutoPaddingScope() { changeAndComment(OldAllowAutoPadding); }
+  void changeAndComment(bool b) {
+    if (b == OS.getAllowAutoPadding())
+      return;
+    OS.setAllowAutoPadding(b);
+    if (b)
+      OS.emitRawComment("autopadding");
+    else
+      OS.emitRawComment("noautopadding");
+  }
+};
+
 // Emit a minimal sequence of nops spanning NumBytes bytes.
 static void EmitNops(MCStreamer &OS, unsigned NumBytes, bool Is64Bit,
                      const MCSubtargetInfo &STI);
@@ -116,6 +137,10 @@ MachineModuleInfoMachO &X86MCInstLower::getMachOMMI() const {
 /// GetSymbolFromOperand - Lower an MO_GlobalAddress or MO_ExternalSymbol
 /// operand to an MCSymbol.
 MCSymbol *X86MCInstLower::GetSymbolFromOperand(const MachineOperand &MO) const {
+  const Triple &TT = TM.getTargetTriple();
+  if (MO.isGlobal() && TT.isOSBinFormatELF())
+    return AsmPrinter.getSymbolPreferLocal(*MO.getGlobal());
+
   const DataLayout &DL = MF.getDataLayout();
   assert((MO.isGlobal() || MO.isSymbol() || MO.isMBB()) &&
          "Isn't a symbol reference");
@@ -929,6 +954,7 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
 
 void X86AsmPrinter::LowerTlsAddr(X86MCInstLower &MCInstLowering,
                                  const MachineInstr &MI) {
+  NoAutoPaddingScope NoPadScope(*OutStreamer);
   bool Is64Bits = MI.getOpcode() == X86::TLS_addr64 ||
                   MI.getOpcode() == X86::TLS_base_addr64;
   MCContext &Ctx = OutStreamer->getContext();
@@ -1160,29 +1186,6 @@ static void EmitNops(MCStreamer &OS, unsigned NumBytes, bool Is64Bit,
     assert(NopsToEmit >= NumBytes && "Emitted more than I asked for!");
   }
 }
-
-/// A RAII helper which defines a region of instructions which can't have
-/// padding added between them for correctness.
-struct NoAutoPaddingScope {
-  MCStreamer &OS;
-  const bool OldAllowAutoPadding;
-  NoAutoPaddingScope(MCStreamer &OS)
-    : OS(OS), OldAllowAutoPadding(OS.getAllowAutoPadding()) {
-    changeAndComment(false);
-  }
-  ~NoAutoPaddingScope() {
-    changeAndComment(OldAllowAutoPadding);
-  }
-  void changeAndComment(bool b) {
-    if (b == OS.getAllowAutoPadding())
-      return;
-    OS.setAllowAutoPadding(b);
-    if (b)
-      OS.emitRawComment("autopadding");
-    else
-      OS.emitRawComment("noautopadding");
-  }
-};
 
 void X86AsmPrinter::LowerSTATEPOINT(const MachineInstr &MI,
                                     X86MCInstLower &MCIL) {
@@ -1999,6 +2002,25 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
   case X86::CATCHRET: {
     // Lower these as normal, but add some comments.
     OutStreamer->AddComment("CATCHRET");
+    break;
+  }
+
+  case X86::ENDBR32:
+  case X86::ENDBR64: {
+    // CurrentPatchableFunctionEntrySym can be CurrentFnBegin only for
+    // -fpatchable-function-entry=N,0. The entry MBB is guaranteed to be
+    // non-empty. If MI is the initial ENDBR, place the
+    // __patchable_function_entries label after ENDBR.
+    if (CurrentPatchableFunctionEntrySym &&
+        CurrentPatchableFunctionEntrySym == CurrentFnBegin &&
+        MI == &MF->front().front()) {
+      MCInst Inst;
+      MCInstLowering.Lower(MI, Inst);
+      EmitAndCountInstruction(Inst);
+      CurrentPatchableFunctionEntrySym = createTempSymbol("patch");
+      OutStreamer->EmitLabel(CurrentPatchableFunctionEntrySym);
+      return;
+    }
     break;
   }
 

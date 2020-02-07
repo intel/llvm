@@ -188,7 +188,9 @@ public:
   virtual Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) = 0;
 
   /// Sets a base name for temporary filename generation.
-  void SetTempFileNameBase(StringRef Base) { TempFileNameBase = Base; }
+  void SetTempFileNameBase(StringRef Base) {
+    TempFileNameBase = std::string(Base);
+  }
 
 protected:
   /// Serves as a base name for temporary filename generation.
@@ -401,6 +403,41 @@ public:
     return Error::success();
   }
 };
+
+namespace {
+
+// This class implements a list of temporary files that are removed upon
+// object destruction.
+class TempFileHandlerRAII {
+public:
+  ~TempFileHandlerRAII() {
+    for (const auto &File : Files)
+      sys::fs::remove(File);
+  }
+
+  // Creates temporary file with given contents.
+  Expected<StringRef> Create(Optional<ArrayRef<char>> Contents) {
+    SmallString<128u> File;
+    if (std::error_code EC =
+            sys::fs::createTemporaryFile("clang-offload-bundler", "tmp", File))
+      return createFileError(File, EC);
+    Files.push_back(File);
+
+    if (Contents) {
+      std::error_code EC;
+      raw_fd_ostream OS(File, EC);
+      if (EC)
+        return createFileError(File, EC);
+      OS.write(Contents->data(), Contents->size());
+    }
+    return Files.back();
+  }
+
+private:
+  SmallVector<SmallString<128u>, 4u> Files;
+};
+
+} // end anonymous namespace
 
 /// Handler for object files. The bundles are organized by sections with a
 /// designated name.
@@ -631,13 +668,16 @@ public:
     // Iterate through individual objects and extract them
     for (size_t I = 0; I < NumObjects; ++I) {
       uint64_t ObjSize = SizeVec[I];
+      // Flag for the special case used to "unbundle" host target object.
+      bool HostTriple = ObjSize == 1;
+
       StringRef ObjFileName = OutName;
       SmallString<128> Path;
 
       // If not in file list mode there is no need in a temporary file - output
       // goes directly to what was specified in -outputs. The same is true for
       // the host triple.
-      if (FileListMode) {
+      if (FileListMode && !HostTriple) {
         std::error_code EC =
             sys::fs::createTemporaryFile(TempFileNameBase, "devo", Path);
         ObjFileName = Path.data();
@@ -650,6 +690,19 @@ public:
 
       if (EC)
         return createFileError(ObjFileName, EC);
+
+      if (HostTriple) {
+        // Copy fat object contents to the output when extracting host bundle.
+
+        // In the partially linked fat object multiple dummy host bundles were
+        // concatenated - check all of them were of size 1
+        for (size_t II = I; II < NumObjects; ++II)
+          if (SizeVec[II] != 1)
+            return createStringError(inconvertibleErrorCode(),
+                                     "inconsistent host triple bundle");
+        OS.write(Input.getBufferStart(), Input.getBufferSize());
+        break;
+      }
       OS.write(ObjData, ObjSize);
 
       if (FileListMode) {
@@ -682,7 +735,8 @@ public:
 
     // And input sizes.
     for (unsigned I = 0; I < NumberOfInputs; ++I)
-      InputSizes.push_back(Inputs[I]->getBufferSize());
+      InputSizes.push_back(I == HostInputIndex ? 1u
+                                               : Inputs[I]->getBufferSize());
     return Error::success();
   }
 
@@ -700,6 +754,15 @@ public:
     if (NumberOfProcessedInputs != NumberOfInputs)
       return Error::success();
 
+    // We will use llvm-objcopy to add target objects sections to the output
+    // fat object. These sections should have 'exclude' flag set which tells
+    // link editor to remove them from linker inputs when linking executable or
+    // shared library. llvm-objcopy currently does not support adding new
+    // section and changing flags for the added section in one invocation, and
+    // because of that we have to run it two times. First run adds sections and
+    // the second changes flags.
+    // TODO: change it to one run once llvm-objcopy starts supporting that.
+
     // Find llvm-objcopy in order to create the bundle binary.
     ErrorOr<std::string> Objcopy = sys::findProgramByName(
         "llvm-objcopy", sys::path::parent_path(BundlerExecutable));
@@ -713,43 +776,39 @@ public:
     // to pass down to llvm-objcopy.
     OS.close();
 
-    // Temp files that need to be removed.
-    struct Dummy : public SmallVector<std::string, 8u> {
-      ~Dummy() {
-        for (const auto &File : *this)
-          sys::fs::remove(File);
-        clear();
-      }
-    } TempFiles;
+    // Temporary files that need to be removed.
+    TempFileHandlerRAII TempFiles;
 
-    // Helper lambda that creates temporary file with given contents.
-    auto CreateTempFile =
-        [&TempFiles](ArrayRef<char> Contents) -> Expected<std::string> {
-      SmallString<128u> FileName;
-      if (std::error_code EC = sys::fs::createTemporaryFile(
-              "clang-offload-bundler", "tmp", FileName))
-        return createFileError(FileName, EC);
-      TempFiles.push_back(FileName.c_str());
+    // Create an intermediate temporary file to save object after the first
+    // llvm-objcopy run.
+    Expected<StringRef> IntermediateObjOrErr = TempFiles.Create(None);
+    if (!IntermediateObjOrErr)
+      return IntermediateObjOrErr.takeError();
+    StringRef IntermediateObj = *IntermediateObjOrErr;
 
-      std::error_code EC;
-      raw_fd_ostream HostFile(FileName, EC);
-      if (EC)
-        return createFileError(FileName, EC);
-      HostFile.write(Contents.data(), Contents.size());
-      return TempFiles.back();
-    };
-
-    // Compose command line for the objcopy tool.
+    // Compose llvm-objcopy command line for add target objects' sections.
     BumpPtrAllocator Alloc;
     StringSaver SS{Alloc};
     SmallVector<StringRef, 8u> ObjcopyArgs{"llvm-objcopy"};
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      StringRef InputFile = InputFileNames[I];
+      if (I == HostInputIndex) {
+        // Special handling for the host bundle. We do not need to add a
+        // standard bundle for the host object since we are going to use fat
+        // object as a host object. Therefore use dummy contents (one zero byte)
+        // when creating section for the host bundle.
+        Expected<StringRef> TempFileOrErr = TempFiles.Create(ArrayRef<char>(0));
+        if (!TempFileOrErr)
+          return TempFileOrErr.takeError();
+        InputFile = *TempFileOrErr;
+      }
+
       ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
-                                    "=" + InputFileNames[I]));
+                                    "=" + InputFile));
 
       // Create temporary file with the section size contents.
-      Expected<std::string> SizeFileOrErr = CreateTempFile(makeArrayRef(
+      Expected<StringRef> SizeFileOrErr = TempFiles.Create(makeArrayRef(
           reinterpret_cast<char *>(&InputSizes[I]), sizeof(InputSizes[I])));
       if (!SizeFileOrErr)
         return SizeFileOrErr.takeError();
@@ -760,25 +819,48 @@ public:
                                     *SizeFileOrErr));
     }
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
+    ObjcopyArgs.push_back(IntermediateObj);
+
+    if (Error Err = executeObjcopy(*Objcopy, ObjcopyArgs))
+      return Err;
+
+    // And run llvm-objcopy for the second time to update section flags.
+    ObjcopyArgs.resize(1);
+    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
+                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
+                                    "=readonly,exclude"));
+      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
+                                    SIZE_SECTION_PREFIX + TargetNames[I] +
+                                    "=readonly,exclude"));
+    }
+    ObjcopyArgs.push_back(IntermediateObj);
     ObjcopyArgs.push_back(OutputFileNames.front());
 
-    // If the user asked for the commands to be printed out, we do that instead
-    // of executing it.
-    if (PrintExternalCommands) {
-      errs() << "\"" << *Objcopy << "\"";
-      for (StringRef Arg : drop_begin(ObjcopyArgs, 1))
-        errs() << " \"" << Arg << "\"";
-      errs() << "\n";
-    } else {
-      if (sys::ExecuteAndWait(*Objcopy, ObjcopyArgs))
-        return createStringError(inconvertibleErrorCode(),
-                                 "'llvm-objcopy' tool failed");
-    }
+    if (Error Err = executeObjcopy(*Objcopy, ObjcopyArgs))
+      return Err;
 
     return Error::success();
   }
 
   Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {
+    return Error::success();
+  }
+
+private:
+  static Error executeObjcopy(StringRef Objcopy, ArrayRef<StringRef> Args) {
+    // If the user asked for the commands to be printed out, we do that
+    // instead of executing it.
+    if (PrintExternalCommands) {
+      errs() << "\"" << Objcopy << "\"";
+      for (StringRef Arg : drop_begin(Args, 1))
+        errs() << " \"" << Arg << "\"";
+      errs() << "\n";
+    } else {
+      if (sys::ExecuteAndWait(Objcopy, Args))
+        return createStringError(inconvertibleErrorCode(),
+                                 "'llvm-objcopy' tool failed");
+    }
     return Error::success();
   }
 };
@@ -1395,9 +1477,9 @@ int main(int argc, const char **argv) {
   else {
     if (OutputFileNames.size() != 1) {
       Error = true;
-      reportError(createStringError(
-          errc::invalid_argument,
-          "only one output file supported in bundling mode"));
+      reportError(
+          createStringError(errc::invalid_argument,
+                            "only one output file supported in bundling mode"));
     }
     if (InputFileNames.size() != TargetNames.size()) {
       Error = true;

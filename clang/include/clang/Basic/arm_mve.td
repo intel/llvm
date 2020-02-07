@@ -116,6 +116,78 @@ def vmulqf: Intrinsic<Vector, (args Vector:$a, Vector:$b), (fmul $a, $b)>,
             NameOverride<"vmulq">;
 }
 
+let params = !listconcat(T.Int16, T.Int32) in {
+  let pnt = PNT_None in {
+    def vmvnq_n: Intrinsic<Vector, (args imm_simd_vmvn:$imm),
+                           (not (splat (Scalar $imm)))>;
+  }
+  defm vmvnq: IntrinsicMX<Vector, (args imm_simd_vmvn:$imm, Predicate:$pred),
+                     (select $pred, (not (splat (Scalar $imm))), $inactive),
+                     1, "_n", PNT_NType, PNT_None>;
+  let pnt = PNT_NType in {
+    def vbicq_n: Intrinsic<Vector, (args Vector:$v, imm_simd_restrictive:$imm),
+                           (and $v, (not (splat (Scalar $imm))))>;
+    def vorrq_n: Intrinsic<Vector, (args Vector:$v, imm_simd_restrictive:$imm),
+                           (or $v, (splat (Scalar $imm)))>;
+  }
+  def vbicq_m_n: Intrinsic<
+    Vector, (args Vector:$v, imm_simd_restrictive:$imm, Predicate:$pred),
+    (select $pred, (and $v, (not (splat (Scalar $imm)))), $v)>;
+  def vorrq_m_n: Intrinsic<
+    Vector, (args Vector:$v, imm_simd_restrictive:$imm, Predicate:$pred),
+    (select $pred, (or $v, (splat (Scalar $imm))), $v)>;
+}
+
+let params = T.Usual in {
+  let pnt = PNT_None in
+    def vdupq_n: Intrinsic<Vector, (args unpromoted<Scalar>:$s), (splat $s)>;
+
+  defm vdupq: IntrinsicMX<
+      Vector, (args unpromoted<Scalar>:$s, Predicate:$pred),
+      (select $pred, (splat $s), $inactive), 1, "_n", PNT_NType, PNT_None>;
+}
+
+multiclass vxdup_mc<dag paramsIn, dag paramsOut> {
+  defvar UnpredInt     = IRInt<NAME, [Vector]>;
+  defvar PredInt       = IRInt<NAME # "_predicated", [Vector, Predicate]>;
+  defvar UnpredIntCall = !con((UnpredInt $base), paramsOut);
+  defvar PredIntCall   = !con((PredInt $inactive, $base), paramsOut, (? $pred));
+
+  // Straightforward case with neither writeback nor predication
+  let pnt = PNT_N in
+    def q_n: Intrinsic<Vector, !con((args u32:$base), paramsIn),
+                       (xval UnpredIntCall, 0)>;
+
+  // Predicated form without writeback
+  defm q: IntrinsicMX<
+      Vector, !con((args u32:$base), paramsIn, (? Predicate:$pred)),
+      (xval PredIntCall, 0), 1, "_n", PNT_NType, PNT_N>;
+
+  // Writeback without predication
+  let pnt = PNT_WB in
+    def q_wb: Intrinsic<
+      Vector, !con((args Ptr<u32>:$baseaddr), paramsIn),
+      (seq (load $baseaddr):$base,
+           UnpredIntCall:$pair,
+           (store (xval $pair, 1), $baseaddr),
+           (xval $pair, 0))>;
+
+  // Both writeback and predicated
+  defm q: IntrinsicMX<
+      Vector, !con((args Ptr<u32>:$baseaddr), paramsIn, (? Predicate:$pred)),
+      (seq (load $baseaddr):$base,
+           PredIntCall:$pair,
+           (store (xval $pair, 1), $baseaddr),
+           (xval $pair, 0)), 1, "_wb", PNT_WBType, PNT_WB>;
+}
+
+let params = T.Unsigned in {
+  defm vidup:  vxdup_mc<(?             imm_1248:$step), (?         $step)>;
+  defm vddup:  vxdup_mc<(?             imm_1248:$step), (?         $step)>;
+  defm viwdup: vxdup_mc<(? u32:$limit, imm_1248:$step), (? $limit, $step)>;
+  defm vdwdup: vxdup_mc<(? u32:$limit, imm_1248:$step), (? $limit, $step)>;
+}
+
 // The bitcasting below is not overcomplicating the IR because while
 // Vector and UVector may be different vector types at the C level i.e.
 // vectors of same size signed/unsigned ints. Once they're lowered
@@ -307,10 +379,12 @@ let params = T.Float in {
                                  (IRIntBase<"maxnum", [Vector]> $a, $b)>;
   def vminnmaq: Intrinsic<Vector, (args Vector:$a, Vector:$b),
                                   (IRIntBase<"minnum", [Vector]>
-                                   $a, (IRIntBase<"fabs", [Vector]> $b))>;
+                                   (IRIntBase<"fabs", [Vector]> $a),
+                                   (IRIntBase<"fabs", [Vector]> $b))>;
   def vmaxnmaq: Intrinsic<Vector, (args Vector:$a, Vector:$b),
                                   (IRIntBase<"maxnum", [Vector]>
-                                   $a, (IRIntBase<"fabs", [Vector]> $b))>;
+                                   (IRIntBase<"fabs", [Vector]> $a),
+                                   (IRIntBase<"fabs", [Vector]> $b))>;
 }
 
 def vpselq: Intrinsic<Vector, (args Vector:$t, Vector:$f, Predicate:$pred),
@@ -989,7 +1063,7 @@ foreach desttype = T.All in {
       !if(!eq(!cast<string>(desttype),!cast<string>(srctype)),[],[srctype])))
   in {
     def "vreinterpretq_" # desttype: Intrinsic<
-        VecOf<desttype>, (args Vector:$x), (bitcast $x, VecOf<desttype>)>;
+        VecOf<desttype>, (args Vector:$x), (vreinterpret $x, VecOf<desttype>)>;
   }
 }
 

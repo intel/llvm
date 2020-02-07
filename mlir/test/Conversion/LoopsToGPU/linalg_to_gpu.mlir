@@ -14,7 +14,6 @@ func @foo(%arg0: memref<?xf32>, %arg1 : index) {
       // CHECK:      gpu.launch
       // CHECK-SAME: blocks
       // CHECK-SAME: threads
-      // CHECK-SAME: args
 
       // Replacements of loop induction variables.  Take a product with the
       // step and add the lower bound.
@@ -23,7 +22,7 @@ func @foo(%arg0: memref<?xf32>, %arg1 : index) {
       // CHECK: %[[prod_j:.*]] = muli %{{.*}}, %{{.*}} : index
       // CHECK: addi %{{.*}}, %[[prod_j]] : index
 
-      // CHECK: gpu.return
+      // CHECK: gpu.terminator
     }
   }
   return

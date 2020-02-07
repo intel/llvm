@@ -1,7 +1,7 @@
 // RUN: mlir-opt -split-input-file -verify-diagnostics %s
 
 func @not_enough_sizes(%sz : index) {
-  // expected-error@+1 {{expected 6 or more operands}}
+  // expected-error@+1 {{expected 6 operands, but found 5}}
   "gpu.launch"(%sz, %sz, %sz, %sz, %sz) ({
     gpu.return
   }) : (index, index, index, index, index) -> ()
@@ -15,59 +15,6 @@ func @no_region_attrs(%sz : index) {
  "gpu.launch"(%sz, %sz, %sz, %sz, %sz, %sz) ({
   ^bb1(%bx: index, %by: index, %bz: index,
        %tx: index, %ty: index, %tz: index):
-    gpu.return
-  }) : (index, index, index, index, index, index) -> ()
-  return
-}
-
-// -----
-
-func @isolation_arg(%sz : index) {
- // expected-note@+1 {{required by region isolation constraints}}
- "gpu.launch"(%sz, %sz, %sz, %sz, %sz, %sz) ({
-  ^bb1(%bx: index, %by: index, %bz: index,
-       %tx: index, %ty: index, %tz: index,
-       %szbx: index, %szby: index, %szbz: index,
-       %sztx: index, %szty: index, %sztz: index):
-    // expected-error@+1 {{using value defined outside the region}}
-    "use"(%sz) : (index) -> ()
-    gpu.return
-  }) : (index, index, index, index, index, index) -> ()
-  return
-}
-
-// -----
-
-func @isolation_op(%sz : index) {
- %val = "produce"() : () -> (index)
- // expected-note@+1 {{required by region isolation constraints}}
- "gpu.launch"(%sz, %sz, %sz, %sz, %sz, %sz) ({
-  ^bb1(%bx: index, %by: index, %bz: index,
-       %tx: index, %ty: index, %tz: index,
-       %szbx: index, %szby: index, %szbz: index,
-       %sztx: index, %szty: index, %sztz: index):
-    // expected-error@+1 {{using value defined outside the region}}
-    "use"(%val) : (index) -> ()
-    gpu.return
-  }) : (index, index, index, index, index, index) -> ()
-  return
-}
-
-// -----
-
-func @nested_isolation(%sz : index) {
-  // expected-note@+1 {{required by region isolation constraints}}
-  "gpu.launch"(%sz, %sz, %sz, %sz, %sz, %sz) ({
-  ^bb1(%bx: index, %by: index, %bz: index,
-       %tx: index, %ty: index, %tz: index,
-       %szbx: index, %szby: index, %szbz: index,
-       %sztx: index, %szty: index, %sztz: index):
-    "region"() ({
-      "region"() ({
-        // expected-error@+1 {{using value defined outside the region}}
-        "use"(%sz) : (index) -> ()
-      }) : () -> ()
-    }) : () -> ()
     gpu.return
   }) : (index, index, index, index, index, index) -> ()
   return
@@ -167,7 +114,7 @@ module attributes {gpu.container_module} {
   }
 
   func @launch_func_missing_module_attribute(%sz : index) {
-    // expected-error@+1 {{module 'kernels' is missing the 'gpu.kernel_module' attribute}}
+    // expected-error@+1 {{kernel module 'kernels' is undefined}}
     "gpu.launch_func"(%sz, %sz, %sz, %sz, %sz, %sz)
     { kernel = "kernel_1", kernel_module = @kernels }
         : (index, index, index, index, index, index) -> ()
@@ -178,8 +125,7 @@ module attributes {gpu.container_module} {
 // -----
 
 module attributes {gpu.container_module} {
-  module @kernels attributes {gpu.kernel_module} {
-  }
+  gpu.module @kernels { }
 
   func @launch_func_undefined_function(%sz : index) {
     // expected-error@+1 {{kernel function 'kernel_1' is undefined}}
@@ -193,7 +139,7 @@ module attributes {gpu.container_module} {
 // -----
 
 module attributes {gpu.container_module} {
-  module @kernels attributes {gpu.kernel_module} {
+  gpu.module @kernels {
     gpu.func @kernel_1(%arg1 : !llvm<"float*">) kernel {
       gpu.return
     }
@@ -211,7 +157,7 @@ module attributes {gpu.container_module} {
 // -----
 
 module attributes {gpu.container_module} {
-  module @kernels attributes {gpu.kernel_module} {
+  gpu.module @kernels {
     gpu.func @kernel_1(%arg1 : !llvm<"float*">) attributes { gpu.kernel } {
       gpu.return
     }
@@ -229,7 +175,7 @@ module attributes {gpu.container_module} {
 
 // -----
 
-module @kernels attributes {gpu.kernel_module} {
+gpu.module @kernels {
   gpu.func @kernel_1(%arg1 : !llvm<"float*">) attributes { gpu.kernel } {
     gpu.return
   }
@@ -377,7 +323,7 @@ func @shuffle_unsupported_type(%arg0 : index, %arg1 : i32, %arg2 : i32) {
 // -----
 
 module {
-  module @gpu_funcs attributes {gpu.kernel_module} {
+  gpu.module @gpu_funcs {
     // expected-error @+1 {{custom op 'gpu.func' gpu.func requires named arguments}}
     gpu.func @kernel_1(f32, f32) {
     ^bb0(%arg0: f32):
@@ -425,6 +371,42 @@ module {
   module @gpu_funcs attributes {gpu.kernel_module} {
     // expected-error @+1 {{expected memory space 5 in attribution}}
     gpu.func @kernel() private(%0: memref<4xf32>) {
+      gpu.return
+    }
+  }
+}
+
+// -----
+
+module {
+  module @gpu_funcs attributes {gpu.kernel_module} {
+    // expected-error @+1 {{expected memory space 5 in attribution}}
+    gpu.func @kernel() private(%0: memref<4xf32>) {
+      gpu.return
+    }
+  }
+}
+
+// -----
+
+module {
+  gpu.module @gpu_funcs {
+    // expected-note @+1 {{return type declared here}}
+    gpu.func @kernel() {
+      %0 = constant 0 : index
+      // expected-error @+1 {{'gpu.return' op expected 0 result operands}}
+      gpu.return %0 : index
+    }
+  }
+}
+
+// -----
+
+module {
+  gpu.module @gpu_funcs {
+    // expected-error @+1 {{'gpu.func' op expected void return type for kernel function}}
+    gpu.func @kernel() -> index kernel {
+      %0 = constant 0 : index
       gpu.return
     }
   }

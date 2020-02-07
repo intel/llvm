@@ -518,6 +518,11 @@ public:
   /// \return The newly created instruction.
   MachineInstrBuilder buildSExt(const DstOp &Res, const SrcOp &Op);
 
+  /// Build and insert \p Res = G_SEXT_INREG \p Op, ImmOp
+  MachineInstrBuilder buildSExtInReg(const DstOp &Res, const SrcOp &Op, int64_t ImmOp) {
+    return buildInstr(TargetOpcode::G_SEXT_INREG, {Res}, {Op, SrcOp(ImmOp)});
+  }
+
   /// Build and insert \p Res = G_FPEXT \p Op
   MachineInstrBuilder buildFPExt(const DstOp &Res, const SrcOp &Op,
                                  Optional<unsigned> Flags = None) {
@@ -847,8 +852,8 @@ public:
   MachineInstrBuilder buildConcatVectors(const DstOp &Res,
                                          ArrayRef<Register> Ops);
 
-  MachineInstrBuilder buildInsert(Register Res, Register Src,
-                                  Register Op, unsigned Index);
+  MachineInstrBuilder buildInsert(const DstOp &Res, const SrcOp &Src,
+                                  const SrcOp &Op, unsigned Index);
 
   /// Build and insert either a G_INTRINSIC (if \p HasSideEffects is false) or
   /// G_INTRINSIC_W_SIDE_EFFECTS instruction. Its first operand will be the
@@ -1280,6 +1285,30 @@ public:
     return buildInstr(TargetOpcode::G_FMUL, {Dst}, {Src0, Src1}, Flags);
   }
 
+  MachineInstrBuilder buildFMinNum(const DstOp &Dst, const SrcOp &Src0,
+                                   const SrcOp &Src1,
+                                   Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FMINNUM, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  MachineInstrBuilder buildFMaxNum(const DstOp &Dst, const SrcOp &Src0,
+                                   const SrcOp &Src1,
+                                   Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FMAXNUM, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  MachineInstrBuilder buildFMinNumIEEE(const DstOp &Dst, const SrcOp &Src0,
+                                       const SrcOp &Src1,
+                                       Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FMINNUM_IEEE, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  MachineInstrBuilder buildFMaxNumIEEE(const DstOp &Dst, const SrcOp &Src0,
+                                       const SrcOp &Src1,
+                                       Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FMAXNUM_IEEE, {Dst}, {Src0, Src1}, Flags);
+  }
+
   MachineInstrBuilder buildShl(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1,
                                Optional<unsigned> Flags = None) {
@@ -1418,6 +1447,30 @@ public:
   MachineInstrBuilder buildIntrinsicTrunc(const DstOp &Dst, const SrcOp &Src0,
                                          Optional<unsigned> Flags = None) {
     return buildInstr(TargetOpcode::G_INTRINSIC_TRUNC, {Dst}, {Src0}, Flags);
+  }
+
+  /// Build and insert \p Res = GFFLOOR \p Op0, \p Op1
+  MachineInstrBuilder buildFFloor(const DstOp &Dst, const SrcOp &Src0,
+                                          Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FFLOOR, {Dst}, {Src0}, Flags);
+  }
+
+  /// Build and insert \p Dst = G_FLOG \p Src
+  MachineInstrBuilder buildFLog(const DstOp &Dst, const SrcOp &Src,
+                                Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FLOG, {Dst}, {Src}, Flags);
+  }
+
+  /// Build and insert \p Dst = G_FLOG2 \p Src
+  MachineInstrBuilder buildFLog2(const DstOp &Dst, const SrcOp &Src,
+                                Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FLOG2, {Dst}, {Src}, Flags);
+  }
+
+  /// Build and insert \p Dst = G_FEXP2 \p Src
+  MachineInstrBuilder buildFExp2(const DstOp &Dst, const SrcOp &Src,
+                                Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FEXP2, {Dst}, {Src}, Flags);
   }
 
   /// Build and insert \p Res = G_FCOPYSIGN \p Op0, \p Op1

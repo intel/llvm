@@ -18,6 +18,9 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#if __cplusplus > 201402L
+#include <string_view>
+#endif
 #include <type_traits>
 #include <utility>
 
@@ -77,7 +80,8 @@ namespace llvm {
     static constexpr size_t strLen(const char *Str) {
 #if __cplusplus > 201402L
       return std::char_traits<char>::length(Str);
-#elif __has_builtin(__builtin_strlen) || defined(__GNUC__) || defined(_MSC_VER)
+#elif __has_builtin(__builtin_strlen) || defined(__GNUC__) || \
+    (defined(_MSC_VER) && _MSC_VER >= 1920)
       return __builtin_strlen(Str);
 #else
       const char *Begin = Str;
@@ -109,6 +113,12 @@ namespace llvm {
     /// Construct a string ref from an std::string.
     /*implicit*/ StringRef(const std::string &Str)
       : Data(Str.data()), Length(Str.length()) {}
+
+#if __cplusplus > 201402L
+    /// Construct a string ref from an std::string_view.
+    /*implicit*/ constexpr StringRef(std::string_view Str)
+        : Data(Str.data()), Length(Str.size()) {}
+#endif
 
     static StringRef withNullAsEmpty(const char *data) {
       return StringRef(data ? data : "");
@@ -263,9 +273,13 @@ namespace llvm {
     /// @name Type Conversions
     /// @{
 
-    operator std::string() const {
-      return str();
+    explicit operator std::string() const { return str(); }
+
+#if __cplusplus > 201402L
+    operator std::string_view() const {
+      return std::string_view(data(), size());
     }
+#endif
 
     /// @}
     /// @name String Predicates

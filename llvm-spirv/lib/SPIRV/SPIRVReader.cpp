@@ -980,7 +980,7 @@ Instruction *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB,
 }
 
 bool SPIRVToLLVM::postProcessOCL() {
-  std::string DemangledName;
+  StringRef DemangledName;
   SPIRVWord SrcLangVer = 0;
   BM->getSourceLanguage(&SrcLangVer);
   bool IsCpp = SrcLangVer == kOCLVer::CL21;
@@ -989,7 +989,7 @@ bool SPIRVToLLVM::postProcessOCL() {
     if (F->hasName() && F->isDeclaration()) {
       LLVM_DEBUG(dbgs() << "[postProcessOCL sret] " << *F << '\n');
       if (F->getReturnType()->isStructTy() &&
-          oclIsBuiltin(F->getName(), &DemangledName, IsCpp)) {
+          oclIsBuiltin(F->getName(), DemangledName, IsCpp)) {
         if (!postProcessOCLBuiltinReturnStruct(&(*F)))
           return false;
       }
@@ -1000,7 +1000,7 @@ bool SPIRVToLLVM::postProcessOCL() {
     if (F->hasName() && F->isDeclaration()) {
       LLVM_DEBUG(dbgs() << "[postProcessOCL array arg] " << *F << '\n');
       if (hasArrayArg(&(*F)) &&
-          oclIsBuiltin(F->getName(), &DemangledName, IsCpp))
+          oclIsBuiltin(F->getName(), DemangledName, IsCpp))
         if (!postProcessOCLBuiltinWithArrayArguments(&(*F), DemangledName))
           return false;
     }
@@ -1009,7 +1009,7 @@ bool SPIRVToLLVM::postProcessOCL() {
 }
 
 bool SPIRVToLLVM::postProcessOCLBuiltinReturnStruct(Function *F) {
-  std::string Name = F->getName();
+  std::string Name = F->getName().str();
   F->setName(Name + ".old");
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     if (auto CI = dyn_cast<CallInst>(*I++)) {
@@ -1035,7 +1035,7 @@ bool SPIRVToLLVM::postProcessOCLBuiltinReturnStruct(Function *F) {
 }
 
 bool SPIRVToLLVM::postProcessOCLBuiltinWithArrayArguments(
-    Function *F, const std::string &DemangledName) {
+    Function *F, StringRef DemangledName) {
   LLVM_DEBUG(dbgs() << "[postProcessOCLBuiltinWithArrayArguments] " << *F
                     << '\n');
   auto Attrs = F->getAttributes();
@@ -1056,7 +1056,7 @@ bool SPIRVToLLVM::postProcessOCLBuiltinWithArrayArguments(
           Value *Index[] = {Zero, Zero};
           I = GetElementPtrInst::CreateInBounds(Alloca, Index, "", CI);
         }
-        return Name;
+        return Name.str();
       },
       nullptr, &Attrs);
   return true;
@@ -3539,7 +3539,7 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
                RetTy = Int32Ty;
-               return CI->getCalledFunction()->getName();
+               return CI->getCalledFunction()->getName().str();
              },
              [=](CallInst *NewCI) -> Instruction * {
                return CastInst::CreateTruncOrBitCast(
@@ -3571,7 +3571,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                  RetTy = VectorType::get(IntTy,
                                          CI->getType()->getVectorNumElements());
                }
-               return CI->getCalledFunction()->getName();
+               return CI->getCalledFunction()->getName().str();
              },
              [=](CallInst *NewCI) -> Instruction * {
                Type *RetTy = Type::getInt1Ty(*Context);
@@ -3650,7 +3650,7 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
   return true;
 }
 
-void llvm::getSpecConstInfo(std::istream &IS,
+bool llvm::getSpecConstInfo(std::istream &IS,
                             std::vector<SpecConstInfoTy> &SpecConstInfo) {
   std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
   BM->setAutoAddExtensions(false);
@@ -3659,7 +3659,7 @@ void llvm::getSpecConstInfo(std::istream &IS,
   D >> Magic;
   if (!BM->getErrorLog().checkError(Magic == MagicNumber, SPIRVEC_InvalidModule,
                                     "invalid magic number")) {
-    return;
+    return false;
   }
   // Skip the rest of the header
   D.ignore(4);
@@ -3693,4 +3693,5 @@ void llvm::getSpecConstInfo(std::istream &IS,
       D.ignoreInstruction();
     }
   }
+  return !IS.fail();
 }
