@@ -25,24 +25,18 @@
 
 // CHECK-BOTH: @llvm.global.annotations
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
-// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}i32 38
-// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
+// CHECK-DEVICE-SAME: [[ANN_numbanks_4]], i32 0
+// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*) 
 // CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ15attrs_on_staticvE15static_annotate to i8*)
-// CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}}i32 42
+// CHECK-BOTH-SAME: [[ANN_annotate]], i32 0
 
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
 
 void attrs_on_static() {
   int a = 42;
-  static int static_numbanks [[intelfpga::numbanks(4)]];
-  // CHECK-BOTH: load{{.*}}static_numbanks
-  // CHECK-BOTH: store{{.*}}static_numbanks
-  static_numbanks = static_numbanks + a;
-  static int static_annotate [[clang::annotate("foobar")]];
-  // CHECK-BOTH: load{{.*}}static_annotate
-  // CHECK-BOTH: store{{.*}}static_annotate
-  static_annotate = static_annotate + a;
+  const static int static_numbanks [[intelfpga::numbanks(4)]] = 20;
+  const static int static_annotate [[clang::annotate("foobar")]] = 30;
 }
 
 void attrs_on_var() {
