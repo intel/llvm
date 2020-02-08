@@ -100,16 +100,19 @@ pi_result cuda_piEventRetain(pi_event event);
 } // extern "C"
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
-    : commandType_{type}, refCount_{1}, isCompleted_{false},
-      isRecorded_{false},
-      isStarted_{false}, event_{nullptr}, queue_{queue}, context_{context} {
+    : commandType_{type}, refCount_{1}, isCompleted_{false}, isRecorded_{false},
+      isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
+      queue_{queue}, context_{context} {
 
   if (is_native_event()) {
-    PI_CHECK_ERROR(cuEventCreate(&event_, 0));
-    PI_CHECK_ERROR(cuEventCreate(&evStart_, 0));
+    PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+
+    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+      PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
+      PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
+    }
   }
 
-  
   if (queue_ != nullptr) {
     cuda_piQueueRetain(queue_);
   }
@@ -130,7 +133,9 @@ pi_result _pi_event::start() {
   pi_result result;
 
   try {
-    if (is_native_event()) {
+    if (is_native_event() && queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+      // NOTE: This relies on the default stream to be unused.
+      result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
       result = PI_CHECK_ERROR(cuEventRecord(evStart_, queue_->get()));
     }
   } catch (pi_result error) {
@@ -141,11 +146,28 @@ pi_result _pi_event::start() {
   return result;
 }
 
+pi_uint64 _pi_event::get_queued_time() const {
+  float miliSeconds = 0.0f;
+  assert(is_started());
+
+  PI_CHECK_ERROR(
+      cuEventElapsedTime(&miliSeconds, context_->evBase_, evQueued_));
+  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+}
+
+pi_uint64 _pi_event::get_start_time() const {
+  float miliSeconds = 0.0f;
+  assert(is_started());
+
+  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, context_->evBase_, evStart_));
+  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
+}
+
 pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
 
-  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evStart_, event_));
+  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, context_->evBase_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -166,7 +188,7 @@ pi_result _pi_event::record() {
     CUstream cuStream = queue_->get();
 
     try {
-      result = PI_CHECK_ERROR(cuEventRecord(event_, cuStream));
+      result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
     } catch (pi_result error) {
       result = error;
     }
@@ -186,7 +208,7 @@ pi_result _pi_event::wait() {
   pi_result retErr;
   if (is_native_event()) {
     try {
-      retErr = PI_CHECK_ERROR(cuEventSynchronize(event_));
+      retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
     } catch (pi_result error) {
       retErr = error;
     }
@@ -1241,6 +1263,10 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       }
     }
 
+    // Use default stream to record base event counter
+    PI_CHECK_ERROR(cuEventCreate(&piContextPtr->evBase_, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventRecord(piContextPtr->evBase_, 0));
+
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {
     errcode_ret = err;
@@ -1260,6 +1286,8 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
   ctxt->invoke_callback();
 
   std::unique_ptr<_pi_context> context{ctxt};
+
+  PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
 
   if (!ctxt->is_primary()) {
     CUcontext cuCtxt = ctxt->get();
@@ -2307,7 +2335,7 @@ pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
 
 pi_result cuda_piEventGetProfilingInfo(
     pi_event event,
-    cl_profiling_info param_name, // TODO: untie from OpenCL
+    pi_profiling_info param_name, // TODO: untie from OpenCL
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
 
   assert(event != nullptr);
@@ -2315,10 +2343,14 @@ pi_result cuda_piEventGetProfilingInfo(
   // TODO: CUDA only implements elapsed time, PI interface requires changing
   //
   switch (param_name) {
-  case CL_PROFILING_COMMAND_START:
+  case PI_PROFILING_INFO_COMMAND_QUEUED:
+  case PI_PROFILING_INFO_COMMAND_SUBMIT:
     return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, 0);
-  case CL_PROFILING_COMMAND_END:
+                              param_value_size_ret, event->get_queued_time());
+  case PI_PROFILING_INFO_COMMAND_START:
+    return getInfo<pi_uint64>(param_value_size, param_value,
+                              param_value_size_ret, event->get_start_time());
+  case PI_PROFILING_INFO_COMMAND_END:
     return getInfo<pi_uint64>(param_value_size, param_value,
                               param_value_size_ret, event->get_end_time());
   default:

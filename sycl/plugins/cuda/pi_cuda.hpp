@@ -72,11 +72,13 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
+  CUevent evBase_; // CUDA event used as base counter
+
   _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1} {
+      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
+        evBase_(nullptr) {
     cuda_piDeviceRetain(deviceId_);
   };
-
 
   ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
 
@@ -238,7 +240,7 @@ public:
 
   pi_result start();
 
-  native_type get() const noexcept { return event_; };
+  native_type get() const noexcept { return evEnd_; };
 
   pi_result set_user_event_complete() noexcept {
 
@@ -280,8 +282,15 @@ public:
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
 
-  // Returns the elapsed time in nano-seconds since the command(s)
-  // associated with the event have completed
+  // Returns the counter time when the associated command(s) were enqueued
+  //
+  pi_uint64 get_queued_time() const;
+
+  // Returns the counter time when the associated command(s) started execution
+  //
+  pi_uint64 get_start_time() const;
+
+  // Returns the counter time when the associated command(s) completed
   //
   pi_uint64 get_end_time() const;
 
@@ -315,10 +324,13 @@ private:
   bool isStarted_; // Signifies wether the operation associated with the
                    // PI event has started or not
 
-  native_type event_; // CUDA event handle. If this _pi_event represents a user
+  native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
                       // event, this will be nullptr.
 
   native_type evStart_; // CUDA event handle associated with the start
+
+  native_type evQueued_; // CUDA event handle associated with the time
+                         // the command was enqueued
 
   pi_queue queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
