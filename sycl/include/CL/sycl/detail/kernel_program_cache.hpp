@@ -25,6 +25,11 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
+  struct BuildResultT {
+    std::string Msg;
+    cl_int Code;
+  };
+
   /// Denotes pointer to some entity with its state.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
@@ -33,6 +38,7 @@ public:
   struct EntityWithState {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
+    std::unique_ptr<BuildResultT> BuildResult;
 
     EntityWithState(T* P, int S)
       : Ptr{P}, State{S}

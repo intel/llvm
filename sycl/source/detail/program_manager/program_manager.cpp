@@ -121,11 +121,16 @@ waitUntilBuilt(KernelProgramCache &Cache,
     return State == BS_Done || State == BS_Failed;
   });
 
+  if (WithBuildState->BuildResult.get()) {
+    using BuildResult = KernelProgramCache::BuildResultT;
+    const BuildResult &Res = *WithBuildState->BuildResult.get();
+    throw ExceptionT(Res.Msg, Res.Code);
+  }
+
   RetT *Result = WithBuildState->Ptr.load();
 
   if (!Result)
-    throw ExceptionT("The other thread tried to build the program/kernel but "
-                     "did not succeed.");
+    throw ExceptionT("Build of the program/kernel did not succeed previously.");
 
   return Result;
 }
@@ -190,6 +195,14 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
     KPCache.notifyAllBuild();
 
     return Desired;
+  } catch (const exception &Ex) {
+    using BuildResultT = KernelProgramCache::BuildResultT;
+    WithState->BuildResult.reset(new BuildResultT{Ex.what(), Ex.get_cl_code()});
+    WithState->State.store(BS_Failed);
+
+    KPCache.notifyAllBuild();
+
+    std::rethrow_exception(std::current_exception());
   } catch (...) {
     WithState->State.store(BS_Failed);
 
