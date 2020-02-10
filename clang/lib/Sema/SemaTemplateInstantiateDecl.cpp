@@ -506,6 +506,65 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
+static void instantiateIntelFPGABankWidthAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGABankWidthAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    return S.AddOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGANumBanksAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGANumBanksAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    return S.AddOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGAPrivateCopiesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAPrivateCopiesAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    return S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGAMaxReplicatesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAMaxReplicatesAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    return S.AddOneConstantValueAttr<IntelFPGAMaxReplicatesAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGABankBitsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGABankBitsAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 8> Args;
+  for (auto I : Attr->args()) {
+    ExprResult Result = S.SubstExpr(I, TemplateArgs);
+    if (Result.isInvalid())
+      return;
+    Args.push_back(Result.getAs<Expr>());
+  }
+  S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
+}
+
 void Sema::InstantiateAttrsForDecl(
     const MultiLevelTemplateArgumentList &TemplateArgs, const Decl *Tmpl,
     Decl *New, LateInstantiatedAttrVec *LateAttrs,
@@ -612,6 +671,32 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<AMDGPUWavesPerEUAttr>(TmplAttr)) {
       instantiateDependentAMDGPUWavesPerEUAttr(*this, TemplateArgs,
                                                *AMDGPUFlatWorkGroupSize, New);
+    }
+
+    if (const auto *IntelFPGABankWidth =
+            dyn_cast<IntelFPGABankWidthAttr>(TmplAttr)) {
+      instantiateIntelFPGABankWidthAttr(*this, TemplateArgs, IntelFPGABankWidth,
+                                        New);
+    }
+    if (const auto *IntelFPGANumBanks =
+            dyn_cast<IntelFPGANumBanksAttr>(TmplAttr)) {
+      instantiateIntelFPGANumBanksAttr(*this, TemplateArgs, IntelFPGANumBanks,
+                                       New);
+    }
+    if (const auto *IntelFPGAPrivateCopies =
+            dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
+      instantiateIntelFPGAPrivateCopiesAttr(*this, TemplateArgs,
+                                            IntelFPGAPrivateCopies, New);
+    }
+    if (const auto *IntelFPGAMaxReplicates =
+            dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
+      instantiateIntelFPGAMaxReplicatesAttr(*this, TemplateArgs,
+                                            IntelFPGAMaxReplicates, New);
+    }
+    if (const auto *IntelFPGABankBits =
+            dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
+      instantiateIntelFPGABankBitsAttr(*this, TemplateArgs, IntelFPGABankBits,
+                                       New);
     }
 
     // Existing DLL attribute on the instantiation takes precedence.

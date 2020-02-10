@@ -1716,6 +1716,7 @@ def IntelFPGABankWidth : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Documentation = [IntelFPGABankWidthAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1733,6 +1734,7 @@ def IntelFPGANumBanks : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Documentation = [IntelFPGANumBanksAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1748,6 +1750,7 @@ def IntelFPGAPrivateCopies : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","private_copies">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [IntelFPGAPrivateCopiesAttrDocs];
   let AdditionalMembers = [{
@@ -1776,6 +1779,7 @@ def IntelFPGAMaxReplicates : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1809,6 +1813,7 @@ def IntelFPGABankBits : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Documentation = [IntelFPGABankBitsDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {

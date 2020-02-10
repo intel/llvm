@@ -573,6 +573,67 @@ struct foo {
   [[intelfpga::bank_bits(2,3)]] unsigned int bankbits[64];
 };
 
+//CHECK: FunctionDecl{{.*}}used check_template_parameters
+template<int A, int B, int C, int D>
+void check_template_parameters() {
+  //CHECK: VarDecl{{.*}}numbanks
+  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: IntelFPGANumBanksAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+  [[intelfpga::numbanks(C)]] unsigned int numbanks;
+
+  //CHECK: VarDecl{{.*}}private_copies
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+  [[intelfpga::private_copies(C)]] unsigned int private_copies;
+
+  //CHECK: VarDecl{{.*}}bank_bits_width
+  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
+  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  //CHECK: IntelFPGABankWidthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+  [[intelfpga::bank_bits(A,3), intelfpga::bankwidth(C)]]
+  unsigned int bank_bits_width;
+
+  //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK: IntegerLiteral{{.*}}2{{$}}
+  [[intelfpga::max_replicates(A)]]
+  unsigned int max_replicates;
+
+  //expected-error@+1{{'numbanks' attribute takes one argument}}
+  [[intelfpga::numbanks(A,B)]]
+  int numbanks_negative;
+
+  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576}}
+  [[intelfpga::max_replicates(D)]]
+  [[intelfpga::max_replicates(C)]]
+  //expected-warning@-1{{attribute 'max_replicates' is already applied}}
+  unsigned int max_replicates_duplicate;
+
+  //expected-error@+3{{'max_replicates' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::max_replicates(C)]]
+  unsigned int maxrepl_reg;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -583,6 +644,8 @@ int main() {
     check_ast();
     diagnostics();
     check_gnu_style();
+    check_template_parameters<2, 4, 8, -1>();
+    //expected-note@-1 +{{in instantiation of function template specialization}}
   });
   return 0;
 }
