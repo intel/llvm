@@ -19,8 +19,6 @@ if(UNIX)
   add_clang_subdirectory(clang-shlib)
 endif()
 
-add_clang_subdirectory(clc-spirv-mapping-generator)
-
 if(CLANG_ENABLE_ARCMT)
   add_clang_subdirectory(arcmt-test)
   add_clang_subdirectory(c-arcmt-test)
