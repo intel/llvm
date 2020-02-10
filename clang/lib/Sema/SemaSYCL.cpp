@@ -1500,9 +1500,9 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
 
   for (const Decl *Redecl : Callee->redecls()) {
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if ((!FD->hasAttr<SYCLDeviceAttr>() ||
-           FD->getAttr<SYCLDeviceAttr>()->isImplicit()) &&
-          !FD->getAttr<SYCLKernelAttr>()) {
+      if ((FD->hasAttr<SYCLDeviceAttr>() &&
+           !FD->getAttr<SYCLDeviceAttr>()->isImplicit()) ||
+          FD->getAttr<SYCLKernelAttr>()) {
         RedeclHasAttr = true;
         break;
       }

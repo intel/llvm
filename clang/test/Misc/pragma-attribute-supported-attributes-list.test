@@ -137,6 +137,7 @@
 // CHECK-NEXT: ReturnTypestate (SubjectMatchRule_function, SubjectMatchRule_variable_is_parameter)
 // CHECK-NEXT: ReturnsNonNull (SubjectMatchRule_objc_method, SubjectMatchRule_function)
 // CHECK-NEXT: ReturnsTwice (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLAllowRawPointerInKernel (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDevice (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelKernelArgsRestrict (SubjectMatchRule_function)
