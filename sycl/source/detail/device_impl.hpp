@@ -11,6 +11,8 @@
 #include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/platform_impl.hpp>
+
 #include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
