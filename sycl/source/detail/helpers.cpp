@@ -8,9 +8,9 @@
 
 #include <CL/sycl/detail/helpers.hpp>
 
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/event.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/event_impl.hpp>
 
 #include <memory>
 

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/ordered_queue.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 

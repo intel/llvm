@@ -8,7 +8,6 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
@@ -16,6 +15,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 #include <algorithm>
+#include <detail/context_impl.hpp>
 #include <memory>
 #include <utility>
 

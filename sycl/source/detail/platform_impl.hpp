@@ -30,13 +30,15 @@ public:
   /// Constructs platform_impl for a SYCL host platform.
   platform_impl() : MHostPlatform(true) {}
 
-  /// Constructs platform_impl from a plug-in interoperability platform handle.
+  /// Constructs platform_impl from a plug-in interoperability platform
+  /// handle.
   ///
   /// @param Platform is a raw plug-in platform handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
       : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
 
-  explicit platform_impl(RT::PiPlatform APlatform, std::shared_ptr<plugin> APlugin)
+  explicit platform_impl(RT::PiPlatform APlatform,
+                          std::shared_ptr<plugin> APlugin)
       : MPlatform(APlatform), MPlugin(APlugin) {}
 
   ~platform_impl() = default;

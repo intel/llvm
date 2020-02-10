@@ -55,24 +55,26 @@ enum DeviceLibExt {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
-  // Returns the single instance of the program manager for the entire process.
-  // Can only be called after staticInit is done.
+  // Returns the single instance of the program manager for the entire
+  // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  DeviceImage &getDeviceImage(OSModuleHandle M, const string_class &KernelName,
+  DeviceImage &getDeviceImage(OSModuleHandle M,
+                              const string_class &KernelName,
                               const context &Context);
-  RT::PiProgram createPIProgram(const DeviceImage &Img, const context &Context);
+  RT::PiProgram createPIProgram(const DeviceImage &Img,
+                                const context &Context);
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                 const string_class &KernelName);
+                                  const string_class &KernelName);
   RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel,
-                                         const ContextImplPtr Context);
+                                          const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
   static string_class getProgramBuildLog(const RT::PiProgram &Program,
-                                         const ContextImplPtr Context);
+                                          const ContextImplPtr Context);
 
 private:
   ProgramManager();
@@ -85,17 +87,17 @@ private:
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const string_class &CompileOptions,
-                   const string_class &LinkOptions,
-                   const std::vector<RT::PiDevice> &Devices,
-                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   bool LinkDeviceLibs = false);
+                    const string_class &CompileOptions,
+                    const string_class &LinkOptions,
+                    const std::vector<RT::PiDevice> &Devices,
+                    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                    bool LinkDeviceLibs = false);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
   /// cases (when reading images from file or using images with no entry info)
   KernelSetId getKernelSetId(OSModuleHandle M,
-                             const string_class &KernelName) const;
+                              const string_class &KernelName) const;
   /// Returns the format of the binary image
   RT::PiDeviceBinaryType getFormat(const DeviceImage &Img) const;
   /// Dumps image to current directory
@@ -104,17 +106,16 @@ private:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
   /// kernels with identical names in different OS modules. The following
-  /// assumption is made: for any two device images in a SYCL application their
-  /// kernel sets are either identical or disjoint.
-  /// Based on this assumption, m_KernelSets is used to group kernels together
-  /// into sets by assigning a set ID to them during device image registration.
-  /// This ID is then mapped to a vector of device images containing kernels
-  /// from the set (m_DeviceImages).
-  /// An exception is made for device images with no entry information: a
-  /// special kernel set ID is used for them which is assigned to just the OS
-  /// module. These kernel set ids are stored in m_OSModuleKernelSets and device
-  /// images associated with them are assumed to contain all kernels coming from
-  /// that OS module.
+  /// assumption is made: for any two device images in a SYCL application
+  /// their kernel sets are either identical or disjoint. Based on this
+  /// assumption, m_KernelSets is used to group kernels together into sets by
+  /// assigning a set ID to them during device image registration. This ID is
+  /// then mapped to a vector of device images containing kernels from the set
+  /// (m_DeviceImages). An exception is made for device images with no entry
+  /// information: a special kernel set ID is used for them which is assigned
+  /// to just the OS module. These kernel set ids are stored in
+  /// m_OSModuleKernelSets and device images associated with them are assumed
+  /// to contain all kernels coming from that OS module.
 
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a kernel set id to the vector of images
@@ -137,7 +138,8 @@ private:
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
   /// No image can out-live the Program manager.
-  std::vector<std::unique_ptr<DeviceImage, ImageDeleter>> m_OrphanDeviceImages;
+  std::vector<std::unique_ptr<DeviceImage, ImageDeleter>>
+      m_OrphanDeviceImages;
 
   /// True iff a SPIRV file has been specified with an environment variable
   bool m_UseSpvFile = false;

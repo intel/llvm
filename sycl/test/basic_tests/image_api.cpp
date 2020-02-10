@@ -9,7 +9,7 @@
 #include <CL/sycl.hpp>
 // FIXME do not use internal methods in tests.
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
+#include <detail/kernel_impl.hpp>
 
 #include <algorithm>
 #include <array>

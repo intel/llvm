@@ -9,8 +9,8 @@
 #pragma once
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 

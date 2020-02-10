@@ -9,11 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/plugin.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -21,6 +17,10 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,33 +39,33 @@ public:
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
-  /// the queue.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// to the queue.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
-             QueueOrder Order, const property_list &PropList)
+              QueueOrder Order, const property_list &PropList)
       : queue_impl(Device,
-                   detail::getSyclObjImpl(
-                       context(createSyclObjFromImpl<device>(Device))),
-                   AsyncHandler, Order, PropList){};
+                    detail::getSyclObjImpl(
+                        context(createSyclObjFromImpl<device>(Device))),
+                    AsyncHandler, Order, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
-  /// the queue.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// to the queue.
   /// @param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
-             async_handler AsyncHandler, QueueOrder Order,
-             const property_list &PropList)
+              async_handler AsyncHandler, QueueOrder Order,
+              const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
@@ -85,7 +85,7 @@ public:
   /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
-             const async_handler &AsyncHandler)
+              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
         MOpenCLInterop(true) {
 
@@ -138,7 +138,8 @@ public:
   ///
   /// The return type depends on information being queried.
   template <info::queue param>
-  typename info::param_traits<info::queue, param>::return_type get_info() const;
+  typename info::param_traits<info::queue, param>::return_type
+  get_info() const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -151,8 +152,8 @@ public:
   /// @return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const function_class<void(handler &)> &CGF,
-               shared_ptr_class<queue_impl> Self,
-               shared_ptr_class<queue_impl> SecondQueue) {
+                shared_ptr_class<queue_impl> Self,
+                shared_ptr_class<queue_impl> SecondQueue) {
     try {
       return submit_impl(CGF, Self);
     } catch (...) {
@@ -171,7 +172,7 @@ public:
   /// @param Self is a shared_ptr to this queue.
   /// @return a SYCL event object for the submitted command group.
   event submit(const function_class<void(handler &)> &CGF,
-               shared_ptr_class<queue_impl> Self) {
+                shared_ptr_class<queue_impl> Self) {
     return submit_impl(CGF, std::move(Self));
   }
 
@@ -197,10 +198,10 @@ public:
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
-  /// Synchronous errors will be reported through SYCL exceptions. Asynchronous
-  /// errors will be passed to the async_handler passed to the queue on
-  /// construction. If no async_handler was provided then asynchronous
-  /// exceptions will be lost.
+  /// Synchronous errors will be reported through SYCL exceptions.
+  /// Asynchronous errors will be passed to the async_handler passed to the
+  /// queue on construction. If no async_handler was provided then
+  /// asynchronous exceptions will be lost.
   void throw_asynchronous() {
     std::unique_lock<mutex_class> lock(MMutex);
 
@@ -220,8 +221,8 @@ public:
 
   /// Creates PI queue.
   ///
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
@@ -264,8 +265,8 @@ public:
       return MQueues.back();
     }
 
-    // If the limit of OpenCL queues is going to be exceeded - take the earliest
-    // used queue, wait until it finished and then reuse it.
+    // If the limit of OpenCL queues is going to be exceeded - take the
+    // earliest used queue, wait until it finished and then reuse it.
     MQueueNumber %= MaxNumQueues;
     size_t FreeQueueNum = MQueueNumber++;
 
@@ -273,8 +274,8 @@ public:
     return MQueues[FreeQueueNum];
   }
 
-  /// @return a raw PI queue handle. The returned handle is not retained. It is
-  /// caller responsibility to make sure queue is still alive.
+  /// @return a raw PI queue handle. The returned handle is not retained. It
+  /// is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getHandleRef() {
     if (MSupportOOO) {
       return MCommandQueue;
@@ -315,7 +316,7 @@ public:
   /// @param Count is a number of bytes to fill.
   /// @return an event representing fill operation.
   event memset(shared_ptr_class<queue_impl> Impl, void *Ptr, int Value,
-               size_t Count);
+                size_t Count);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -324,7 +325,7 @@ public:
   /// @param Src is a USM pointer to the source memory.
   /// @param Count is a number of bytes to copy.
   event memcpy(shared_ptr_class<queue_impl> Impl, void *Dest, const void *Src,
-               size_t Count);
+                size_t Count);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///

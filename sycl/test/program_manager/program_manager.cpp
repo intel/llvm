@@ -14,7 +14,7 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/program_manager/program_manager.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <cassert>
 

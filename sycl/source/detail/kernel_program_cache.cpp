@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/kernel_program_cache.hpp>
 #include <CL/sycl/detail/plugin.hpp>
+#include <detail/kernel_program_cache.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

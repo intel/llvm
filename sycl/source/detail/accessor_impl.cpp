@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

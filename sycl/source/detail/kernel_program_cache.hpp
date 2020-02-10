@@ -41,15 +41,12 @@ public:
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template<typename T>
-  struct BuildResult {
+  template<typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
 
-    BuildResult(T* P, int S)
-      : Ptr{P}, State{S}, Error{"", 0, false}
-    {}
+    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0, false} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -66,7 +63,9 @@ public:
 
   ~KernelProgramCache();
 
-  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
+  void setContextPtr(const ContextPtr &AContext) {
+    MParentContext = AContext;
+  }
 
   Locked<ProgramCacheT> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
@@ -76,16 +75,13 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  template<class Predicate>
-  void waitUntilBuilt(Predicate Pred) const {
+  template <class Predicate> void waitUntilBuilt(Predicate Pred) const {
     std::unique_lock<std::mutex> Lock(MBuildCVMutex);
 
     MBuildCV.wait(Lock, Pred);
   }
 
-  void notifyAllBuild() const {
-    MBuildCV.notify_all();
-  }
+  void notifyAllBuild() const { MBuildCV.notify_all(); }
 
 private:
   std::mutex MProgramCacheMutex;
@@ -98,6 +94,6 @@ private:
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
 };
-}
-}
+} // namespace detail
+} // namespace sycl
 }
