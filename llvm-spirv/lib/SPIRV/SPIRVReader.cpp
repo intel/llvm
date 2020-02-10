@@ -3046,8 +3046,17 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     SmallString<256> AnnotStr;
     generateIntelFPGAAnnotation(BV, AnnotStr);
 
-    if (AnnotStr.empty())
+    if (AnnotStr.empty()) {
+      // Check if IO pipe decoration is applied to the global
+      SPIRVWord ID;
+      if (BV->hasDecorate(DecorationIOPipeStorageINTEL, 0, &ID)) {
+        auto Literals = BV->getDecorationLiterals(DecorationIOPipeStorageINTEL);
+        assert(Literals.size() == 1 &&
+               "IO PipeStorage decoration shall have 1 ID literal");
+        GV->setMetadata("io_pipe_id", getMDNodeStringIntVec(Context, Literals));
+      }
       return;
+    }
 
     Constant *StrConstant =
         ConstantDataArray::getString(*Context, StringRef(AnnotStr));

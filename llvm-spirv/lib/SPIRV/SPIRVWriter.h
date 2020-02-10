@@ -113,6 +113,7 @@ public:
   void transGlobalAnnotation(GlobalVariable *V);
   SPIRVValue *transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                           bool CreateForward = true);
+  void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;

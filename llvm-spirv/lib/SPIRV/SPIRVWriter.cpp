@@ -1902,10 +1902,23 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
   }
 }
 
+void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
+  SPIRVDBG(dbgs() << "[transGlobalIOPipeStorage] " << *V << '\n');
+  SPIRVValue *SV = transValue(V, nullptr);
+  assert(SV && "Failed to process OCL PipeStorage object");
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
+    BM->addCapability(CapabilityIOPipeINTEL);
+    unsigned ID = getMDOperandAsInt(IO, 0);
+    SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
+  }
+}
+
 bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
+    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+      transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
   }
