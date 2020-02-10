@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
+#include <detail/platform_impl.hpp>
 
 #include <atomic>
 #include <condition_variable>
