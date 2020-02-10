@@ -34,6 +34,8 @@ namespace sycl {
 class context;
 namespace detail {
 
+class context_impl;
+using ContextImplPtr = std::shared_ptr<context_impl>;
 using DeviceImage = pi_device_binary_struct;
 
 // Custom deleter for the DeviceImage. Must only be called for "orphan" images
@@ -58,13 +60,15 @@ public:
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                  const string_class &KernelName);
-  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel);
+                                 const string_class &KernelName);
+  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel,
+                                         const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
-  static string_class getProgramBuildLog(const RT::PiProgram &Program);
+  static string_class getProgramBuildLog(const RT::PiProgram &Program,
+                                         const ContextImplPtr Context);
 
 private:
   ProgramManager();
@@ -76,7 +80,7 @@ private:
                               const context &Context);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
                    const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,

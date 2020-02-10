@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
@@ -22,8 +23,8 @@ cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
 }
 namespace intel {
 
-// This is a preview extension implementation, intended to provide early access
-// to a feature for review and community feedback.
+// This is a preview extension implementation, intended to provide early
+// access to a feature for review and community feedback.
 //
 // Because the interfaces defined by this header file are not final and are
 // subject to change they are not intended to be used by shipping software
@@ -48,17 +49,15 @@ using enable_if_is_function_pointer_t = typename std::enable_if<
         std::is_function<typename std::remove_pointer<FuncType>::type>::value,
     int>::type;
 
-/// \brief this function can be used only on host side to obtain device function
-/// pointer for the specified function.
+/// \brief this function can be used only on host side to obtain device
+/// function pointer for the specified function.
 ///
 /// \param F - pointer to function to make it work for SYCL Host device
-/// \param FuncName - name of the function. Please note that by default names of
-/// functions are mangled since SYCL is a C++. To avoid the need ot specifying
-/// mangled name here, use `extern "C"`
-/// \param P - sycl::program object which will be used to extract device
-/// function pointer
-/// \param D - sycl::device object which will be used to extract device
-/// function pointer
+/// \param FuncName - name of the function. Please note that by default names
+/// of functions are mangled since SYCL is a C++. To avoid the need ot
+/// specifying mangled name here, use `extern "C"` \param P - sycl::program
+/// object which will be used to extract device function pointer \param D -
+/// sycl::device object which will be used to extract device function pointer
 ///
 /// \returns device_func_ptr_holder_t object which can be used inside a device
 /// code. This object must be converted back to a function pointer using
@@ -70,8 +69,8 @@ using enable_if_is_function_pointer_t = typename std::enable_if<
 template <class FuncType, enable_if_is_function_pointer_t<FuncType> = 0>
 device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
                                              program &P, device &D) {
-  // TODO: drop function name argument and map host function pointer directly to
-  // a device function pointer
+  // TODO: drop function name argument and map host function pointer directly
+  // to a device function pointer
   if (D.is_host()) {
     return reinterpret_cast<device_func_ptr_holder_t>(F);
   }
@@ -83,7 +82,6 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
 
   return detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
-
 } // namespace intel
 } // namespace sycl
 } // namespace cl

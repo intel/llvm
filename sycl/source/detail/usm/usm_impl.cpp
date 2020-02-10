@@ -43,12 +43,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
 
     switch (Kind) {
     case alloc::host: {
-      Error = PI_CALL_NOCHECK(piextUSMHostAlloc)(&RetVal, C, nullptr, Size,
-                                                 Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMHostAlloc>(
+          &RetVal, C, nullptr, Size, Alignment);
       break;
     }
     case alloc::device:
@@ -91,20 +92,21 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
     pi_device Id;
 
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piextUSMDeviceAlloc)(&RetVal, C, Id, nullptr,
-                                                   Size, Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+          &RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piextUSMSharedAlloc)(&RetVal, C, Id, nullptr,
-                                                   Size, Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+          &RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::host:
@@ -130,7 +132,8 @@ void free(void *Ptr, const context &Ctxt) {
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    PI_CALL(piextUSMFree)(C, Ptr);
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
+    Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
 }
 
@@ -247,8 +250,9 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   pi_usm_type AllocTy;
 
   // query type using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_TYPE,
-                                   sizeof(pi_usm_type), &AllocTy, nullptr);
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy, nullptr);
 
   alloc ResultAlloc;
   switch (AllocTy) {
@@ -294,8 +298,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   pi_device DeviceId;
 
   // query device using PI function
-  PI_CALL(piextUSMGetMemAllocInfo)(PICtx, Ptr, PI_MEM_ALLOC_DEVICE,
-                                   sizeof(pi_device), &DeviceId, nullptr);
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
 
   for (const device &Dev : CtxImpl->getDevices()) {
     // Try to find the real sycl device used in the context

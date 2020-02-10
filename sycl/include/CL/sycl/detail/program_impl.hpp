@@ -234,6 +234,12 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
+  // @return the Plugin associated withh the context of this program.
+  const plugin &getPlugin() const {
+    assert(!is_host() && "Plugin is not available for Host.");
+    return MContext->getPlugin();
+  }
+
   /// @return a vector of devices that are associated with this program.
   vector_class<device> get_devices() const { return MDevices; }
 

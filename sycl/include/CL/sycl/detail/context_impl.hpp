@@ -59,7 +59,10 @@ public:
   ///
   /// @param PiContext is an instance of a valid plug-in context handle.
   /// @param AsyncHandler is an instance of async_handler.
-  context_impl(RT::PiContext PiContext, async_handler AsyncHandler);
+  /// @param &Plugin is the reference to the underlying Plugin that this context
+  /// is associated with.
+  context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
+               const plugin &Plugin);
 
   ~context_impl();
 
@@ -77,6 +80,12 @@ public:
   ///
   /// @return an instance of SYCL async_handler.
   const async_handler &get_async_handler() const;
+
+  /// @return the Plugin associated with the platform of this context.
+  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+
+  /// @return the PlatformImpl associated with this context.
+  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
   ///

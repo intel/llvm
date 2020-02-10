@@ -13,6 +13,7 @@
 #include "error_handling.hpp"
 
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
@@ -20,24 +21,27 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
-bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
+bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
   size_t VerSize = 0;
-  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_VERSION, 0, nullptr,
-                           &VerSize);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION, 0,
+                                          nullptr, &VerSize);
   assert(VerSize >= 10 &&
          "Unexpected device version string"); // strlen("OpenCL X.Y")
   string_class VerStr(VerSize, '\0');
-  PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_VERSION, VerSize,
-                           &VerStr.front(), nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION,
+                                          VerSize, &VerStr.front(), nullptr);
   const char *Ver = &VerStr[7]; // strlen("OpenCL ")
 
   size_t CompileWGSize[3] = {0};
-  PI_CALL(piKernelGetGroupInfo)(Kernel, Device,
-                                CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-                                sizeof(size_t) * 3, CompileWGSize, nullptr);
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, Device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE, sizeof(size_t) * 3,
+      CompileWGSize, nullptr);
 
   if (CompileWGSize[0] != 0) {
     // OpenCL 1.x && 2.0:
@@ -70,8 +74,9 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
     // than the value specified by CL_DEVICE_MAX_WORK_GROUP_SIZE in
     // table 4.3
     size_t MaxWGSize = 0;
-    PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                             sizeof(size_t), &MaxWGSize, nullptr);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t), &MaxWGSize,
+        nullptr);
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
     if (TotalNumberOfWIs > MaxWGSize)
@@ -87,8 +92,9 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
     // than the value specified by CL_KERNEL_WORK_GROUP_SIZE in table 5.21.
     size_t KernelWGSize = 0;
-    PI_CALL(piKernelGetGroupInfo)(Kernel, Device, CL_KERNEL_WORK_GROUP_SIZE,
-                                  sizeof(size_t), &KernelWGSize, nullptr);
+    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+        Kernel, Device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t),
+        &KernelWGSize, nullptr);
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
     if (TotalNumberOfWIs > KernelWGSize)
@@ -126,14 +132,15 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
       // given by local_work_size
 
       pi_program Program = nullptr;
-      PI_CALL(piKernelGetInfo)(Kernel, CL_KERNEL_PROGRAM, sizeof(pi_program),
-                               &Program, nullptr);
+      Plugin.call<PiApiKind::piKernelGetInfo>(
+          Kernel, CL_KERNEL_PROGRAM, sizeof(pi_program), &Program, nullptr);
       size_t OptsSize = 0;
-      PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS,
-                                     0, nullptr, &OptsSize);
+      Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+          Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &OptsSize);
       string_class Opts(OptsSize, '\0');
-      PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS,
-                                     OptsSize, &Opts.front(), nullptr);
+      Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+          Program, Device, CL_PROGRAM_BUILD_OPTIONS, OptsSize, &Opts.front(),
+          nullptr);
       if (NonUniformWGs) {
         const bool HasStd20 = Opts.find("-cl-std=CL2.0") != string_class::npos;
         if (!HasStd20)
@@ -163,13 +170,13 @@ bool handleInvalidWorkGroupSize(pi_device Device, pi_kernel Kernel,
       "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
 }
 
-bool handleError(pi_result Error, pi_device Device, pi_kernel Kernel,
-                 const NDRDescT &NDRDesc) {
+bool handleError(pi_result Error, const device_impl &DeviceImpl,
+                 pi_kernel Kernel, const NDRDescT &NDRDesc) {
   assert(Error != PI_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
   case PI_INVALID_WORK_GROUP_SIZE:
-    return handleInvalidWorkGroupSize(Device, Kernel, NDRDesc);
+    return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
   // TODO: Handle other error codes
   default:
     throw runtime_error(

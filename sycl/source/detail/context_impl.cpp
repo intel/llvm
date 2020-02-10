@@ -23,7 +23,9 @@ namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPluginInterop(false), MHostContext(true) {}
+      MPlatform(), MPluginInterop(false), MHostContext(true) {
+  MKernelProgramCache.setContextPtr(this);
+}
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
                            async_handler AsyncHandler)
@@ -35,39 +37,46 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  PI_CALL(piContextCreate)(nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
-                           nullptr, &MContext);
+  getPlugin().call<PiApiKind::piContextCreate>(
+      nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
+
+  MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
+context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
+                           const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
       MPluginInterop(true), MHostContext(false) {
 
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)(MContext, PI_CONTEXT_INFO_NUM_DEVICES,
-                            sizeof(DevicesNum), &DevicesNum, nullptr);
+  Plugin.call<PiApiKind::piContextGetInfo>(
+      MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+      nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)(MContext, PI_CONTEXT_INFO_DEVICES,
-                            sizeof(RT::PiDevice) * DevicesNum, &DeviceIds[0],
-                            nullptr);
+  Plugin.call<PiApiKind::piContextGetInfo>(MContext, PI_CONTEXT_INFO_DEVICES,
+                                           sizeof(RT::PiDevice) * DevicesNum,
+                                           &DeviceIds[0], nullptr);
 
   for (auto Dev : DeviceIds) {
-    MDevices.emplace_back(
-        createSyclObjFromImpl<device>(std::make_shared<device_impl>(Dev)));
+    MDevices.emplace_back(createSyclObjFromImpl<device>(
+        std::make_shared<device_impl>(Dev, Plugin)));
   }
   // TODO What if m_Devices if empty? m_Devices[0].get_platform()
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextRetain)(MContext);
+  // getPlugin() will be the same as the Plugin passed. This should be taken
+  // care of when creating device object.
+  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
   if (MPluginInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRetain)(MContext);
+    getPlugin().call<PiApiKind::piContextRetain>(MContext);
     return pi::cast<cl_context>(MContext);
   }
   throw invalid_object_error(
@@ -79,11 +88,11 @@ bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }
 context_impl::~context_impl() {
   if (MPluginInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRelease)(MContext);
+    getPlugin().call<PiApiKind::piContextRelease>(MContext);
   }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
-    PI_CALL(piProgramRelease)(LibProg.second);
+    getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
   }
 }
 
@@ -96,7 +105,7 @@ cl_uint context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
   return get_context_info<info::context::reference_count>::get(
-      this->getHandleRef());
+      this->getHandleRef(), this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())

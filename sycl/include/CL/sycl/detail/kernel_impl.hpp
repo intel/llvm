@@ -76,7 +76,7 @@ public:
   cl_kernel get() const {
     if (is_host())
       throw invalid_object_error("This instance of kernel is a host instance");
-    PI_CALL(piKernelRetain)(MKernel);
+    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
 
@@ -84,6 +84,8 @@ public:
   ///
   /// @return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext->is_host(); }
+
+  const plugin &getPlugin() const { return MContext->getPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.

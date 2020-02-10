@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 __SYCL_INLINE namespace cl {
@@ -19,11 +20,12 @@ template <info::context param> struct get_context_info {
   using RetType =
       typename info::param_traits<info::context, param>::return_type;
 
-  static RetType get(RT::PiContext ctx) {
+  static RetType get(RT::PiContext ctx, const plugin &Plugin) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextGetInfo)(ctx, pi::cast<pi_context_info>(param),
-                              sizeof(Result), &Result, nullptr);
+    Plugin.call<PiApiKind::piContextGetInfo>(ctx,
+                                             pi::cast<pi_context_info>(param),
+                                             sizeof(Result), &Result, nullptr);
     return Result;
   }
 };

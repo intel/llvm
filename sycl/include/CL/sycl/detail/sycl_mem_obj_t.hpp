@@ -9,7 +9,9 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
@@ -81,6 +83,11 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
+  const plugin &getPlugin() const {
+    assert((MInteropContext != nullptr) &&
+           "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
+    return (MInteropContext->getPlugin());
+  }
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     size_t AllocatorValueSize = MAllocator->getValueSize();

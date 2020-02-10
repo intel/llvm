@@ -60,7 +60,8 @@ context::context(const vector_class<device> &DeviceList,
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   impl = std::make_shared<detail::context_impl>(
-          detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler);
+      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler,
+      *RT::GlobalPlugin);
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \

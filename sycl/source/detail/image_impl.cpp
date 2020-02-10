@@ -240,30 +240,32 @@ image_impl<Dimensions>::image_impl(
             std::move(Allocator)),
       MRange(InitializedVal<Dimensions, range>::template get<0>()) {
   RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-  PI_CALL(piMemGetInfo)(Mem, CL_MEM_SIZE, sizeof(size_t),
-                        &(BaseT::MSizeInBytes), nullptr);
+  const ContextImplPtr Context = getSyclObjImpl(SyclContext);
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_SIZE, sizeof(size_t),
+                                       &(BaseT::MSizeInBytes), nullptr);
 
   RT::PiMemImageFormat Format;
-  getImageInfo(PI_IMAGE_INFO_FORMAT, Format);
+  getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format);
   MOrder = detail::convertChannelOrder(Format.image_channel_order);
   MType = detail::convertChannelType(Format.image_channel_data_type);
   MNumChannels = getImageNumberChannels(MOrder);
 
-  getImageInfo(PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize);
+  getImageInfo(Context, PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize);
   assert(getImageElementSize(MNumChannels, MType) == MElementSize);
 
-  getImageInfo(PI_IMAGE_INFO_ROW_PITCH, MRowPitch);
-  getImageInfo(PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch);
+  getImageInfo(Context, PI_IMAGE_INFO_ROW_PITCH, MRowPitch);
+  getImageInfo(Context, PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch);
 
   switch (Dimensions) {
   case 3:
-    getImageInfo(PI_IMAGE_INFO_DEPTH, MRange[2]);
+    getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2]);
     // fall through
   case 2:
-    getImageInfo(PI_IMAGE_INFO_HEIGHT, MRange[1]);
+    getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1]);
     // fall through
   case 1:
-    getImageInfo(PI_IMAGE_INFO_WIDTH, MRange[0]);
+    getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0]);
   }
 }
 

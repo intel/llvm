@@ -131,9 +131,9 @@ protected:
   QueueImplPtr MQueue;
   std::vector<EventImplPtr> MDepsEvents;
 
-  void waitForEvents(QueueImplPtr Queue, std::vector<RT::PiEvent> &RawEvents,
+  void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
-  std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
+  std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
 
   // Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;

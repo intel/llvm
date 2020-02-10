@@ -32,13 +32,14 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
 
   RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;
-  PI_CALL(piMemGetInfo)(Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
-                        nullptr);
+  const plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
+                                         &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem");
-  PI_CALL(piMemRetain)(Mem);
+  Plugin.call<PiApiKind::piMemRetain>(Mem);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -74,8 +75,11 @@ void SYCLMemObjT::updateHostMemory() {
     Scheduler::getInstance().removeMemoryObject(this);
   releaseHostMem(MShadowCopy);
 
-  if (MOpenCLInterop)
-    PI_CALL(piMemRelease)(pi::cast<RT::PiMem>(MInteropMemObject));
+  if (MOpenCLInterop) {
+    const plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piMemRelease>(
+        pi::cast<RT::PiMem>(MInteropMemObject));
+  }
 }
 } // namespace detail
 } // namespace sycl
