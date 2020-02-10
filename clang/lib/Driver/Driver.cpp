@@ -3270,13 +3270,19 @@ class OffloadingActionBuilder final {
         for (Action *&A : SYCLDeviceActions) {
           DeviceCompilerInput =
               C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
+          A = C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
         }
         DA.add(*DeviceCompilerInput, *ToolChains.front(), /*BoundArch=*/nullptr,
                Action::OFK_SYCL);
         // Clear the input file, it is already a dependence to a host
         // action.
         DeviceCompilerInput = nullptr;
+        return ABRT_Success;
       }
+
+      // Backend/Assemble actions are obsolete for the SYCL device side
+      if (CurPhase == phases::Backend || CurPhase == phases::Assemble)
+        return ABRT_Inactive;
 
       // The host only depends on device action in the linking phase, when all
       // the device images have to be embedded in the host image.
