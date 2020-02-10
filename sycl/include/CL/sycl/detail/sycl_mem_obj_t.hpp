@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
@@ -27,6 +26,7 @@ namespace detail {
 
 // Forward declarations
 class event_impl;
+class context_impl;
 
 using ContextImplPtr = shared_ptr_class<context_impl>;
 using EventImplPtr = shared_ptr_class<event_impl>;
