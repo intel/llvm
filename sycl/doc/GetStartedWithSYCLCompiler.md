@@ -126,8 +126,10 @@ the CMake command when building the SYCL compiler.
 
 ```
 -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc"
--DSYCL_BUILD_PI_CUDA=ON 
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc"\
+-DSYCL_BUILD_PI_CUDA=ON\ 
+-DLLVM_TARGETS_TO_BUILD="X86;NVPTX"\
+-DLIBCLC_TARGETS_TO_BUILD="nvptx64--;nvptx64--nvidiacl"
 ```
 
 Enabling this flag requires an installation of 
