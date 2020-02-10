@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/event_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
+#include <CL/sycl/detail/host_profiling_info.hpp>
 
 #include <cassert>
 
@@ -23,27 +24,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
-
-/// Profiling info for the host execution.
-class HostProfilingInfo {
-  cl_ulong StartTime = 0;
-  cl_ulong EndTime = 0;
-
-public:
-  /// Returns event's start time.
-  ///
-  /// @return event's start time in nanoseconds.
-  cl_ulong getStartTime() const { return StartTime; }
-  /// Returns event's end time.
-  ///
-  /// @return event's end time in nanoseconds.
-  cl_ulong getEndTime() const { return EndTime; }
-
-  /// Measures event's start time.
-  void start();
-  /// Measures event's end time.
-  void end();
-};
 
 class event_impl {
 public:

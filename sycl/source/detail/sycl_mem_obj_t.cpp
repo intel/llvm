@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/detail/context_impl.hpp>
+#include <CL/sycl/detail/event_impl.hpp>
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
