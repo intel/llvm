@@ -7228,10 +7228,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Twine(Opt) + Twine("\"") + AL + Twine("\"")));
       }
     };
-    SYCL::TranslateBackendTargetArgs(getToolChain(), TCArgs, BuildArgs);
+    const toolchains::SYCLToolChain &TC =
+              static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+
     createArgString("-compile-opts=");
     BuildArgs.clear();
-    SYCL::TranslateLinkerTargetArgs(getToolChain(), TCArgs, BuildArgs);
+    TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
     createArgString("-link-opts=");
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));

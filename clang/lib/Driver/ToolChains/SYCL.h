@@ -26,11 +26,6 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output, const Tool *T,
                                  StringRef Ext);
 
-void TranslateBackendTargetArgs(const ToolChain &TC,
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs);
-
-void TranslateLinkerTargetArgs(const ToolChain &TC,
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs);
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -136,6 +131,10 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args,
                          Action::OffloadKind DeviceOffloadKind) const override;
+  void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CmdArgs) const;
+  void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CmdArgs) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
@@ -156,6 +155,11 @@ public:
 protected:
   Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
+
+private:
+  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CmdArgs, llvm::opt::OptSpecifier Opt,
+      llvm::opt::OptSpecifier Opt_EQ) const;
 };
 
 } // end namespace toolchains
