@@ -12310,7 +12310,9 @@ public:
   /// \return false if Callee is not a device function
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 
-  /// Emit diagnostic that can't be emitted with deferred diagnostics mechanism
+  /// Emit diagnostic that can't be emitted with deferred diagnostics mechanism.
+  /// At this step we imply that all device functions are marked with
+  /// sycl_device attribute.
   void finalizeSYCLDelayedAnalysis();
 };
 

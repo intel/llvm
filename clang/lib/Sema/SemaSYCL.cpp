@@ -1493,7 +1493,8 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
       if ((FD->hasAttr<SYCLDeviceAttr>() &&
            !FD->getAttr<SYCLDeviceAttr>()->isImplicit()) ||
-          FD->getAttr<SYCLKernelAttr>()) {
+          FD->hasAttr<SYCLKernelAttr>() ||
+          FD->hasAttr<SYCLHasDefinitionAttr>()) {
         RedeclHasAttr = true;
         break;
       }

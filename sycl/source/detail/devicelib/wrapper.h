@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 
-SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+SYCL_EXTERNAL
 extern "C" void __devicelib_assert_fail(
     const char *expr, const char *file,
     int32_t line, const char *func,

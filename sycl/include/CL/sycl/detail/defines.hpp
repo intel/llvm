@@ -28,8 +28,8 @@
 #define SYCL_EXTERNAL
 #endif
 
-#ifndef SYCL_ALLOW_RAW_POINTER_IN_KERNEL
-#define SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+#ifndef __SYCL_HAS_DEFINITION__
+#define __SYCL_HAS_DEFINITION__
 #endif
 
 #if __cplusplus >= 201402

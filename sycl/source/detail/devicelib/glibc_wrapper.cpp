@@ -12,7 +12,7 @@
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
 
-extern "C" SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+extern "C" SYCL_EXTERNAL
 void __assert_fail(const char *expr, const char *file,
                    unsigned int line, const char *func) {
   __devicelib_assert_fail(expr, file, line, func,

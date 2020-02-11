@@ -1082,11 +1082,11 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
-def SYCLAllowRawPointerInKernel : Attr {
-  let Spellings = [Clang<"sycl_allow_raw_pointer_in_kernel">];
+def SYCLHasDefinition : Attr {
+  let Spellings = [Clang<"sycl_has_definition">];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
-  let Documentation = [SYCLDeviceDocs];
+  let Documentation = [SYCLHasDefinitionDocs];
 }
 
 def SYCLKernel : InheritableAttr {

@@ -25,7 +25,7 @@ static void __truncate_wchar_char_str(const wchar_t *wstr, char *str,
   *str = '\0';
 }
 
-extern "C" SYCL_EXTERNAL SYCL_ALLOW_RAW_POINTER_IN_KERNEL
+extern "C" SYCL_EXTERNAL
 void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
   // Paths and expressions that are longer than 256 characters are going to be
   // truncated.
@@ -42,4 +42,5 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
                           __spirv_BuiltInLocalInvocationId.y,
                           __spirv_BuiltInLocalInvocationId.z);
 }
+
 #endif // __SYCL_DEVICE_ONLY__
