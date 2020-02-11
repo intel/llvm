@@ -7213,25 +7213,24 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // Grab any Target specific options that need to be added to the wrapper
     // information.
     ArgStringList BuildArgs;
-    auto createArgString = [&](const char * Opt) {
-      if (!BuildArgs.empty()) {
-        SmallString<128> AL;
-        for (const auto A : BuildArgs) {
-          if (AL.empty()) {
-            AL = A;
-            continue;
-          }
-          AL += " ";
-          AL += A;
+    auto createArgString = [&](const char *Opt) {
+      if (BuildArgs.empty())
+        return;
+      SmallString<128> AL;
+      for (const char *A : BuildArgs) {
+        if (AL.empty()) {
+          AL = A;
+          continue;
         }
-        WrapperArgs.push_back(C.getArgs().MakeArgString(
-            Twine(Opt) + Twine("\"") + AL + Twine("\"")));
+        AL += " ";
+        AL += A;
       }
+      WrapperArgs.push_back(C.getArgs().MakeArgString(
+          Twine(Opt) + Twine("\"") + AL + Twine("\"")));
     };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
-
     createArgString("-compile-opts=");
     BuildArgs.clear();
     TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
