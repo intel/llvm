@@ -19,7 +19,6 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
-#include <cstring> // std::memcpy
 #include <numeric> // std::bit_cast
 #include <type_traits>
 
@@ -86,7 +85,7 @@ template <typename To, typename From> To bit_cast(const From &from) {
   return __builtin_bit_cast(To, from);
 #else
   To to;
-  std::memcpy(&to, &from, sizeof(To));
+  detail::memcpy(&to, &from, sizeof(To));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 #endif // __cpp_lib_bit_cast

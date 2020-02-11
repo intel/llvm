@@ -212,7 +212,7 @@ public:
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
     cl_float ResVal;
-    std::memcpy(&ResVal, &TmpVal, sizeof TmpVal);
+    detail::memcpy(&ResVal, &TmpVal, sizeof(TmpVal));
     return ResVal;
   }
 #else
