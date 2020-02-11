@@ -1418,11 +1418,6 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-// Do we know that we will eventually codegen the given function?
-static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
-  return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
-}
-
 Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
                                                    unsigned DiagID) {
   assert(getLangOpts().SYCLIsDevice &&
@@ -1431,7 +1426,7 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
     if (ConstructingOpenCLKernel || !FD)
       return DeviceDiagBuilder::K_Nop;
-    if (isKnownEmitted(*this, FD))
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
     return DeviceDiagBuilder::K_Deferred;
   }();
@@ -1453,10 +1448,15 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   if (!Caller)
     return true;
 
+  bool CallerKnownEmitted =
+      getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted;
+
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
-  if (isKnownEmitted(*this, Caller))
-    markKnownEmitted(*this, Caller, Callee, Loc, isKnownEmitted);
+  if (CallerKnownEmitted)
+    markKnownEmitted(*this, Caller, Callee, Loc, [](Sema &S, FunctionDecl *FD) {
+      return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
+    });
   else
     DeviceCallGraph[Caller].insert({Callee, Loc});
 
