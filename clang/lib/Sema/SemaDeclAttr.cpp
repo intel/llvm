@@ -4511,6 +4511,11 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
 }
 
+static void handleSYCLHasDefinitionAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  handleSimpleAttribute<SYCLHasDefinitionAttr>(S, D, AL);
+}
+
 static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
@@ -7458,7 +7463,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLDeviceAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLHasDefinition:
-    handleSimpleAttribute<SYCLHasDefinitionAttr>(S, D, AL);
+    handleSYCLHasDefinitionAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);

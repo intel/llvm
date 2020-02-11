@@ -17825,7 +17825,7 @@ Decl *Sema::getObjCDeclContext() const {
 }
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
-  // due to SYCL functions are template we check if they have appropriate
+  // Due to SYCL functions are template we check if they have appropriate
   // attribute prior to checking if it is a template
   if (LangOpts.SYCLIsDevice && (FD->hasAttr<SYCLDeviceAttr>() ||
                                 FD->hasAttr<SYCLKernelAttr>()))
@@ -17890,8 +17890,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
     FunctionDecl *Def = FD->getDefinition();
 
     if (Def &&
-        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
-        && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
       return FunctionEmissionStatus::Emitted;
   }
 

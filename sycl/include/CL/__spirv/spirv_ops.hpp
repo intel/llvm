@@ -259,8 +259,8 @@ extern __SYCL_HAS_DEFINITION__ void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-extern int __spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt,
-                              ...);
+extern __SYCL_HAS_DEFINITION__ int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...);
 
 #define __SPIRV_COMPARISON(Order, Cmp)                                         \
   template <typename RetT, typename T>                                         \

@@ -2112,7 +2112,8 @@ def SYCLHasDefinitionDocs : Documentation {
   let Heading = "sycl_has_definition";
   let Content = [{
 This attribute can only be applied to declarations of functions and indicates
-that the function's definition is somehow available at JIT.
+that the function's definition is somehow available at JIT. Use of this
+attribute in user code is not recommended.
   }];
 }
 
@@ -4913,15 +4914,15 @@ def CFGuardDocs : Documentation {
   let Content = [{
 Code can indicate CFG checks are not wanted with the ``__declspec(guard(nocf))``
 attribute. This directs the compiler to not insert any CFG checks for the entire
-function. This approach is typically used only sparingly in specific situations
-where the programmer has manually inserted "CFG-equivalent" protection. The
-programmer knows that they are calling through some read-only function table
-whose address is obtained through read-only memory references and for which the
-index is masked to the function table limit. This approach may also be applied
-to small wrapper functions that are not inlined and that do nothing more than
-make a call through a function pointer. Since incorrect usage of this directive
-can compromise the security of CFG, the programmer must be very careful using
-the directive. Typically, this usage is limited to very small functions that
+function. This approach is typically used only sparingly in specific situations 
+where the programmer has manually inserted "CFG-equivalent" protection. The 
+programmer knows that they are calling through some read-only function table 
+whose address is obtained through read-only memory references and for which the 
+index is masked to the function table limit. This approach may also be applied 
+to small wrapper functions that are not inlined and that do nothing more than 
+make a call through a function pointer. Since incorrect usage of this directive 
+can compromise the security of CFG, the programmer must be very careful using 
+the directive. Typically, this usage is limited to very small functions that 
 only call one function.
 
 `Control Flow Guard documentation <https://docs.microsoft.com/en-us/windows/win32/secbp/pe-metadata>`

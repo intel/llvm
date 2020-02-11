@@ -1463,8 +1463,8 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
   // TODO Diagnostics that must be emitted if and only if callee is emitted
-  // must be put here with setting DiagKind to either K_ImmediateWithCallStack
-  // or K_Deferred
+  //      must be put here with setting DiagKind to either
+  //      K_ImmediateWithCallStack or K_Deferred
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
@@ -1504,9 +1504,7 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
   // Disallow functions with neither definition nor SYCL_EXTERNAL mark
   bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
 
-  if (!SemaRef.isKnownGoodSYCLDecl(Callee) &&
-      NotDefinedNoAttr &&
-      !Callee->getBuiltinID()) {
+  if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
     SemaRef.Diag(Loc, diag::err_sycl_restrict)
         << Sema::KernelCallUndefinedFunction;
     SemaRef.Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
@@ -1517,15 +1515,6 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
 void Sema::finalizeSYCLDelayedAnalysis() {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-
-  for (const auto &CallerCallees : DeviceCallGraph) {
-    const FunctionDecl* Caller = CallerCallees.getFirst();
-    const auto &Callees = CallerCallees.getSecond();
-
-    for (const auto &CalleeWithLoc: Callees)
-      emitCallToUndefinedFnDiag(*this, CalleeWithLoc.first, Caller,
-                                CalleeWithLoc.second);
-  }
 
   llvm::DenseSet<const FunctionDecl *> Checked;
 
