@@ -215,8 +215,7 @@ void PreprocessMetadata::visit(Module *M) {
     }
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 no_global_work_offset}
-    if (MDNode *NoGlobalOffsetINTEL =
-            Kernel.getMetadata(kSPIR2MD::NoGlobalOffset)) {
+    if (Kernel.getMetadata(kSPIR2MD::NoGlobalOffset)) {
       EM.addOp().add(&Kernel).add(spv::ExecutionModeNoGlobalOffsetINTEL).done();
     }
 
