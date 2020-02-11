@@ -12253,11 +12253,6 @@ private:
   // useful notes that shows where the kernel was called.
   bool ConstructingOpenCLKernel = false;
 
-  /// FunctionDecls and SourceLocations for which checkSYCLDeviceFunction has
-  /// emitted a (maybe deferred) "bad call" diagnostic.  We use this to avoid
-  /// emitting the same deferred diag twice.
-  llvm::DenseSet<FunctionDeclAndLoc> LocsWithSYCLCallDiags;
-
 public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
   SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
@@ -12312,10 +12307,10 @@ public:
   /// diagnostics if it is known that it is a device function, adds this
   /// function to the DeviceCallGraph otherwise.
   ///
-  /// \return false if check fails
+  /// \return false if Callee is not a device function
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 
-  /// Emit diagnostic that can't be emitted with deferred diagnostics mechnism
+  /// Emit diagnostic that can't be emitted with deferred diagnostics mechanism
   void finalizeSYCLDelayedAnalysis();
 };
 

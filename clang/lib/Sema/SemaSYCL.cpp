@@ -1420,11 +1420,6 @@ void Sema::MarkDevice(void) {
 
 // Do we know that we will eventually codegen the given function?
 static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
-  assert(FD && "Given function may not be null.");
-
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
-    return true;
-
   return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
 }
 
@@ -1470,10 +1465,6 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   // TODO Diagnostics that must be emitted if and only if callee is emitted
   // must be put here with setting DiagKind to either K_ImmediateWithCallStack
   // or K_Deferred
-
-  // Don't emit the same diagnostic for the second time
-  if (!LocsWithSYCLCallDiags.insert({Caller, Loc}).second)
-    return true;
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
