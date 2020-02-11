@@ -20,13 +20,15 @@
 // CHECK-DEVICE:  [[ANN_bankbits_bankwidth:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10,2}{bankwidth:16}{numbanks:2}{bank_bits:0}
 // CHECK-DEVICE:  [[ANN_memory_blockram:@.str.[0-9]*]] = {{.*}}{memory:BLOCK_RAM}{sizeinfo:4}
 // CHECK-DEVICE:  [[ANN_memory_mlab:@.str.[0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:4}
+// CHECK-DEVICE:  [[ANN_private_copies_4:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{private_copies:4}
+// CHECK-DEVICE:  [[ANN_max_replicates_4:@.str.[0-9]*]] = {{.*}}{max_replicates:4}
 
 // CHECK-BOTH: @llvm.global.annotations
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
-// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}i32 36
+// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}i32 38
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
 // CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ15attrs_on_staticvE15static_annotate to i8*)
-// CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}}i32 40
+// CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}}i32 42
 
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
@@ -175,6 +177,49 @@ void attrs_on_struct() {
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
 
+template <int A, int B>
+void attrs_with_template_param() {
+  // CHECK-DEVICE: %[[TEMPL_NUMBANKS:numbanks[0-9]+]] = bitcast{{.*}}%numbanks
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
+  int numbanks [[intelfpga::numbanks(A)]];
+  // CHECK-DEVICE: %[[TEMPL_BANKWIDTH:bankwidth[a-z0-9]+]] = bitcast{{.*}}%bankwidth
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
+  int bankwidth [[intelfpga::bankwidth(A)]];
+  // CHECK-DEVICE: %[[TEMPL_PRIV_COPIES:priv_copies[0-9]+]] = bitcast{{.*}}%priv_copies
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_PRIV_COPIES]],{{.*}}[[ANN_private_copies_4]]
+  int priv_copies [[intelfpga::private_copies(A)]];
+  // CHECK-DEVICE: %[[TEMPL_MAXREPL:max_repl[0-9]+]] = bitcast{{.*}}%max_repl
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_MAXREPL]],{{.*}}[[ANN_max_replicates_4]]
+  int max_repl [[intelfpga::max_replicates(A)]];
+  // CHECK-DEVICE: %[[TEMPL_BANKBITS:bankbits[0-9]+]] = bitcast{{.*}}%bankbits
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
+  int bankbits [[intelfpga::bank_bits(A, B)]];
+
+  struct templ_on_struct_fields {
+    int numbanks [[intelfpga::numbanks(A)]] ;
+    int bankwidth [[intelfpga::bankwidth(A)]];
+    int privatecopies [[intelfpga::private_copies(A)]];
+    int maxreplicates [[intelfpga::max_replicates(A)]];
+    int bankbits [[intelfpga::bank_bits(A, B)]];
+  } s;
+
+  // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_NUMBANKS]]{{.*}}[[ANN_numbanks_4]]
+  s.numbanks = 0;
+  // CHECK-DEVICE: %[[FIELD_BANKWIDTH:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_BANKWIDTH]]{{.*}}[[ANN_bankwidth_4]]
+  s.bankwidth = 0;
+  // CHECK-DEVICE: %[[FIELD_PRIV_COPIES:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_PRIV_COPIES]]{{.*}}[[ANN_private_copies_4]]
+  s.privatecopies = 0;
+  // CHECK-DEVICE: %[[FIELD_MAX_REPLICATES:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_MAX_REPLICATES]]{{.*}}[[ANN_max_replicates_4]]
+  s.maxreplicates = 0;
+  // CHECK-DEVICE: %[[FIELD_BANKBITS:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD_BANKBITS]]{{.*}}[[ANN_bankbits_4_5]]
+  s.bankbits = 0;
+}
+
 void field_addrspace_cast() {
   struct state {
     [[intelfpga::numbanks(2)]] int mem[8];
@@ -206,6 +251,7 @@ int main() {
     attrs_on_var();
     attrs_on_struct();
     field_addrspace_cast();
+    attrs_with_template_param<4,5>();
   });
   return 0;
 }
