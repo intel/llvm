@@ -35,25 +35,25 @@ public:
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
   template<typename T>
-  struct EntityWithState {
+  struct EntityWithBuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     std::unique_ptr<BuildResultT> BuildResult;
 
-    EntityWithState(T* P, int S)
+    EntityWithBuildResult(T* P, int S)
       : Ptr{P}, State{S}
     {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
   using PiProgramPtrT = std::atomic<PiProgramT *>;
-  using ProgramWithBuildStateT = EntityWithState<PiProgramT>;
+  using ProgramWithBuildStateT = EntityWithBuildResult<PiProgramT>;
   using ProgramCacheT = std::map<OSModuleHandle, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
   using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = EntityWithState<PiKernelT>;
+  using KernelWithBuildStateT = EntityWithBuildResult<PiKernelT>;
   using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 

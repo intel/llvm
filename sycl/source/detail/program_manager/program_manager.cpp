@@ -110,9 +110,9 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 }
 
 template <typename ExceptionT, typename RetT>
-RetT *
-waitUntilBuilt(KernelProgramCache &Cache,
-               KernelProgramCache::EntityWithState<RetT> *WithBuildState) {
+RetT *waitUntilBuilt(
+    KernelProgramCache &Cache,
+    KernelProgramCache::EntityWithBuildResult<RetT> *WithBuildState) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
   Cache.waitUntilBuilt([WithBuildState]() {
@@ -129,8 +129,7 @@ waitUntilBuilt(KernelProgramCache &Cache,
 
   RetT *Result = WithBuildState->Ptr.load();
 
-  if (!Result)
-    throw ExceptionT("Build of the program/kernel did not succeed previously.");
+  assert(Result && "An exception should have been thrown");
 
   return Result;
 }
@@ -157,7 +156,7 @@ template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
 RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
                  AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
   bool InsertionTookPlace;
-  KernelProgramCache::EntityWithState<RetT> *WithState;
+  KernelProgramCache::EntityWithBuildResult<RetT> *WithState;
 
   {
     auto LockedCache = Acquire(KPCache);
