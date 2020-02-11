@@ -6941,10 +6941,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // Input files consist of fat libraries and the object(s) to be unbundled.
     bool IsWholeArchive = false;
     for (const auto &I : Inputs) {
-      if (I.getType() == types::TY_WholeArchive && IsWholeArchive == false) {
+      if (I.getType() == types::TY_WholeArchive && !IsWholeArchive) {
         LinkArgs.push_back("--whole-archive");
         IsWholeArchive = true;
-      } else if (I.getType() == types::TY_Archive && IsWholeArchive == true) {
+      } else if (I.getType() == types::TY_Archive && IsWholeArchive) {
         LinkArgs.push_back("--no-whole-archive");
         IsWholeArchive = false;
       }
