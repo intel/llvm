@@ -1558,7 +1558,7 @@ void __assert_fail(const char *expr, const char *file,
 #elif defined(_MSC_VER)
 extern "C" {
 extern __SYCL_HAS_DEFINITION__
-void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line)
+void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line);
 }
 #endif // defined(_MSC_VER_)
 #endif // __SYCL_DEVICE_ONLY__

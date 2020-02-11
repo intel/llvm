@@ -11,7 +11,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
-void foo();
+SYCL_EXTERNAL void foo();
   // expected-error@+2 {{SYCL kernel cannot call a recursive function}}
   // expected-note@+1 2{{function implemented using recursion declared here}}
 void fum() { return fum(); };

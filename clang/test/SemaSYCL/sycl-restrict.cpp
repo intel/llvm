@@ -7,6 +7,10 @@ namespace std {
   class type_info;
   typedef __typeof__(sizeof(int)) size_t;
 }
+
+__SYCL_HAS_DEFINITION__
+void* operator new(std::size_t);
+
 namespace Check_User_Operators {
 class Fraction
 {

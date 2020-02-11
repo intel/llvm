@@ -15,6 +15,11 @@ void kernel3(void) {
 
 using myFuncDef = int(int,int);
 
+typedef __typeof__(sizeof(int)) size_t;
+
+__SYCL_HAS_DEFINITION__
+void* operator new(size_t);
+
 void usage3(myFuncDef functionPtr) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
