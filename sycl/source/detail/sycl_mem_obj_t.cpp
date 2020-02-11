@@ -81,6 +81,11 @@ void SYCLMemObjT::updateHostMemory() {
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
+const plugin &SYCLMemObjT::getPlugin() const {
+  assert((MInteropContext != nullptr) &&
+          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
+  return (MInteropContext->getPlugin());
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

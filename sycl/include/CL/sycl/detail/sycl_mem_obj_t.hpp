@@ -83,11 +83,8 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const plugin &getPlugin() const {
-    assert((MInteropContext != nullptr) &&
-           "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
-    return (MInteropContext->getPlugin());
-  }
+  const plugin &getPlugin() const;
+
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     size_t AllocatorValueSize = MAllocator->getValueSize();
