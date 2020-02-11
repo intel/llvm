@@ -11,7 +11,6 @@
 /// as input and creates wrapper bitcode file containing target binaries
 /// packaged as data. Wrapper bitcode also includes initialization code which
 /// registers target binaries in offloading runtime at program startup.
-/// TODO Add Windows support.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -132,12 +131,19 @@ static cl::list<std::string> Targets("target", cl::ZeroOrMore,
                                      cl::cat(ClangOffloadWrapperCategory),
                                      cl::cat(ClangOffloadWrapperCategory));
 
-/// Sets build options for device binary image.
+/// Sets compile options for device binary image.
 static cl::list<std::string>
-    Options("build-opts", cl::ZeroOrMore,
-            cl::desc("build options passed to the offload runtime"),
-            cl::cat(ClangOffloadWrapperCategory),
-            cl::cat(ClangOffloadWrapperCategory));
+    CompileOptions("compile-opts", cl::ZeroOrMore,
+                   cl::desc("compile options passed to the offload runtime"),
+                   cl::cat(ClangOffloadWrapperCategory),
+                   cl::cat(ClangOffloadWrapperCategory));
+
+/// Sets link options for device binary image.
+static cl::list<std::string>
+    LinkOptions("link-opts", cl::ZeroOrMore,
+                cl::desc("link options passed to the offload runtime"),
+                cl::cat(ClangOffloadWrapperCategory),
+                cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets the name of the file containing offload function entries
 static cl::list<std::string> Entries(
@@ -155,17 +161,6 @@ static cl::opt<bool> EmitRegFuncs("emit-reg-funcs", cl::NotHidden,
                                   cl::init(true), cl::Optional,
                                   cl::desc("Emit [un-]registration functions"),
                                   cl::cat(ClangOffloadWrapperCategory));
-
-static cl::opt<std::string>
-    RegFuncName("reg-func-name", cl::Optional, cl::init("__tgt_register_lib"),
-                cl::desc("Offload descriptor registration function name"),
-                cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
-
-static cl::opt<std::string>
-    UnregFuncName("unreg-func-name", cl::Optional,
-                  cl::init("__tgt_unregister_lib"),
-                  cl::desc("Offload descriptor un-registration function name"),
-                  cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<std::string> DescriptorName(
     "desc-name", cl::Optional, cl::init("descriptor"),
@@ -226,8 +221,10 @@ public:
   public:
     Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
           const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef Opts_, const llvm::StringRef EntriesFile_)
-        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_),
+          const llvm::StringRef CompileOpts_, const llvm::StringRef LinkOpts_,
+          const llvm::StringRef EntriesFile_)
+        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_),
+          CompileOpts(CompileOpts_), LinkOpts(LinkOpts_),
           EntriesFile(EntriesFile_) {}
 
     /// Name of the file with actual contents
@@ -238,8 +235,10 @@ public:
     const llvm::StringRef Tgt;
     /// Format
     const BinaryImageFormat Fmt;
-    /// Build options
-    const llvm::StringRef Opts;
+    /// Compile options
+    const llvm::StringRef CompileOpts;
+    /// Link options
+    const llvm::StringRef LinkOpts;
     /// File listing contained entries
     const llvm::StringRef EntriesFile;
 
@@ -270,13 +269,13 @@ private:
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
                 llvm::StringRef Manif, llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, llvm::StringRef Opts,
-                llvm::StringRef EntriesFile) {
+                const BinaryImageFormat Fmt, llvm::StringRef CompileOpts,
+                llvm::StringRef LinkOpts, llvm::StringRef EntriesFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
-    Pack->emplace_back(
-        std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts, EntriesFile));
+    Pack->emplace_back(std::make_unique<Image>(
+        File, Manif, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile));
   }
 
 private:
@@ -359,8 +358,11 @@ private:
   //    /// architecture
   //    const char *DeviceTargetSpec;
   //    /// a null-terminated string; target- and compiler-specific options
-  //    /// which are suggested to use to "build" program at runtime
-  //    const char *BuildOptions;
+  //    /// which are suggested to use to "compile" program at runtime
+  //    const char *CompileOptions;
+  //    /// a null-terminated string; target- and compiler-specific options
+  //    /// which are suggested to use to "link" program at runtime
+  //    const char *LinkOptions;
   //    /// Pointer to the manifest data start
   //    const unsigned char *ManifestStart;
   //    /// Pointer to the manifest data end
@@ -382,7 +384,8 @@ private:
               Type::getInt8Ty(C),    // OffloadKind
               Type::getInt8Ty(C),    // Format
               Type::getInt8PtrTy(C), // DeviceTargetSpec
-              Type::getInt8PtrTy(C), // BuildOptions
+              Type::getInt8PtrTy(C), // CompileOptions
+              Type::getInt8PtrTy(C), // LinkOptions
               Type::getInt8PtrTy(C), // ManifestStart
               Type::getInt8PtrTy(C), // ManifestEnd
               Type::getInt8PtrTy(C), // ImageStart
@@ -670,8 +673,12 @@ private:
       auto *Ffmt = ConstantInt::get(Type::getInt8Ty(C), Img.Fmt);
       auto *Ftgt = addStringToModule(
           Img.Tgt, Twine(OffloadKindTag) + Twine("target.") + Twine(ImgId));
-      auto *Fopt = addStringToModule(
-          Img.Opts, Twine(OffloadKindTag) + Twine("opts.") + Twine(ImgId));
+      auto *Foptcompile = addStringToModule(
+          Img.CompileOpts,
+          Twine(OffloadKindTag) + Twine("opts.compile.") + Twine(ImgId));
+      auto *Foptlink = addStringToModule(Img.LinkOpts, Twine(OffloadKindTag) +
+                                                           Twine("opts.link.") +
+                                                           Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
 
       if (Img.Manif.empty()) {
@@ -706,9 +713,9 @@ private:
           return EntriesOrErr.takeError();
         std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
         ImagesInits.push_back(ConstantStruct::get(
-            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first,
-            FMnf.second, Fbin.first, Fbin.second, ImageEntriesPtrs.first,
-            ImageEntriesPtrs.second));
+            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Foptcompile,
+            Foptlink, FMnf.first, FMnf.second, Fbin.first, Fbin.second,
+            ImageEntriesPtrs.first, ImageEntriesPtrs.second));
       } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
@@ -768,14 +775,18 @@ private:
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
-                                        /*isVarArg*/ false);
-    FunctionCallee RegFuncC = M.getOrInsertFunction(RegFuncName, RegFuncTy);
+    auto *RegFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
+        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
+        /*isVarArg=*/false);
+    FunctionCallee RegFuncC =
+        M.getOrInsertFunction(Kind == OffloadKind::SYCL ? "__sycl_register_lib"
+                                                        : "__tgt_register_lib",
+                              RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(RegFuncC,
-                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
+    Builder.CreateCall(RegFuncC, BinDesc);
     Builder.CreateRetVoid();
 
     // Add this function to constructors.
@@ -790,15 +801,18 @@ private:
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
-                                          /*isVarArg*/ false);
-    FunctionCallee UnRegFuncC =
-        M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
+    auto *UnRegFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
+        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
+        /*isVarArg=*/false);
+    FunctionCallee UnRegFuncC = M.getOrInsertFunction(
+        Kind == OffloadKind::SYCL ? "__sycl_unregister_lib"
+                                  : "__tgt_unregister_lib",
+        UnRegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(UnRegFuncC,
-                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
+    Builder.CreateCall(UnRegFuncC, BinDesc);
     Builder.CreateRetVoid();
 
     // Add this function to global destructors.
@@ -835,7 +849,10 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
   Out << "  manifest = " << (Img.Manif.empty() ? "-" : Img.Manif) << "\n";
   Out << "  format   = " << formatToString(Img.Fmt) << "\n";
   Out << "  target   = " << (Img.Tgt.empty() ? "-" : Img.Tgt) << "\n";
-  Out << "  options  = " << (Img.Opts.empty() ? "-" : Img.Opts) << "\n";
+  Out << "  compile options  = "
+      << (Img.CompileOpts.empty() ? "-" : Img.CompileOpts) << "\n";
+  Out << "  link options     = " << (Img.LinkOpts.empty() ? "-" : Img.LinkOpts)
+      << "\n";
   Out << "}\n";
   return Out;
 }
@@ -874,6 +891,9 @@ private:
   int Cur = -1;
 
   /// Class IDs of all options from all lists. Filled in the constructor.
+  /// Can also be seen as a map from command line position to the option class
+  /// ID. If there is no option participating in one of the sequenced lists at
+  /// given position, then it is mapped to -1 marker value.
   std::unique_ptr<std::vector<int>> OptListIDs;
 
   using tuple_of_iters_t = std::tuple<typename Tys::iterator...>;
@@ -894,8 +914,11 @@ public:
   /// Args - the cl::list objects to sequence elements of
   ListArgsSequencer(size_t Sz, Tys &... Args)
       : Prevs(Args.end()...), Iters(Args.begin()...) {
-    assert(Sz >= sizeof...(Tys));
+    // make OptListIDs big enough to hold IDs of all options coming from the
+    // command line and initialize all IDs to default class -1
     OptListIDs.reset(new std::vector<int>(Sz, -1));
+    // map command line positions where sequenced options occur to appropriate
+    // class IDs
     addLists<sizeof...(Tys) - 1, 0>(Args...);
   }
 
@@ -942,9 +965,12 @@ private:
 
   /// Does the actual sequencing of options found in given list.
   template <int ID, typename T> void addListImpl(T &L) {
+    // iterate via all occurences of an option of given list class
     for (auto It = L.begin(); It != L.end(); It++) {
+      // calculate its sequential position in the command line
       unsigned Pos = L.getPosition(It - L.begin());
       assert((*OptListIDs)[Pos] == -1);
+      // ... and fill the corresponding spot in the list with the class ID
       (*OptListIDs)[Pos] = ID;
     }
   }
@@ -986,21 +1012,35 @@ int main(int argc, const char **argv) {
       "runtime for that device. When present, manifest file name should\n"
       "immediately follow the corresponding device image filename on the\n"
       "command line. Options annotating a device binary have effect on all\n"
-      "subsequent input, until redefined. For example:\n"
-      "$clang-offload-wrapper -host x86_64-pc-linux-gnu \\\n"
-      "  -kind=sycl -target=spir64 -format=spirv -build-opts=-g \\\n"
-      "  a.spv a_mf.txt \\\n"
-      "             -target=xxx -format=native -build-opts=\"\"  \\\n"
-      "  b.bin b_mf.txt \\\n"
-      "  -kind=openmp \\\n"
-      "  c.bin\n"
-      "will generate an x86 wrapper object (.bc) enclosing the following\n"
-      "tuples describing a single device binary each ('-' means 'none')\n\n"
+      "subsequent input, until redefined.\n"
+      "\n"
+      "For example:\n"
+      "  clang-offload-wrapper                   \\\n"
+      "      -host x86_64-pc-linux-gnu           \\\n"
+      "      -kind=sycl                          \\\n"
+      "        -target=spir64                    \\\n"
+      "          -format=spirv                   \\\n"
+      "          -compile-opts=-g                \\\n"
+      "          -link-opts=-cl-denorms-are-zero \\\n"
+      "          a.spv                           \\\n"
+      "          a_mf.txt                        \\\n"
+      "        -target=xxx                       \\\n"
+      "          -format=native                  \\\n"
+      "          -compile-opts=\"\"              \\\n"
+      "          -link-opts=\"\"                 \\\n"
+      "          b.bin                           \\\n"
+      "          b_mf.txt                        \\\n"
+      "      -kind=openmp                        \\\n"
+      "        c.bin\\n"
+      "\n"
+      "This command generates an x86 wrapper object (.bc) enclosing the\n"
+      "following tuples describing a single device binary each:\n"
+      "\n"
       "offload kind | target | data format | data | manifest | build options:\n"
       "----------------------------------------------------------------------\n"
       "    sycl     | spir64 | spirv       | a.spv| a_mf.txt | -g\n"
       "    sycl     | xxx    | native      | b.bin| b_mf.txt | -\n"
-      "    openmp   | xxx    | native      | c.bin| -        | -\n");
+      "    openmp   | xxx    | native      | c.bin| n/a      | -\n");
 
   if (Help) {
     cl::PrintHelpMessage();
@@ -1024,13 +1064,16 @@ int main(int argc, const char **argv) {
   OffloadKind Knd = OffloadKind::Unknown;
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;
-  llvm::StringRef Opts = "";
+  llvm::StringRef CompileOpts = "";
+  llvm::StringRef LinkOpts = "";
   llvm::StringRef EntriesFile = "";
   llvm::SmallVector<llvm::StringRef, 2> CurInputPair;
 
   ListArgsSequencer<decltype(Inputs), decltype(Kinds), decltype(Formats),
-                    decltype(Targets), decltype(Options), decltype(Entries)>
-      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options, Entries);
+                    decltype(Targets), decltype(CompileOptions),
+                    decltype(LinkOptions), decltype(Entries)>
+      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, CompileOptions,
+             LinkOptions, Entries);
   int ID = -1;
 
   do {
@@ -1054,7 +1097,8 @@ int main(int argc, const char **argv) {
         }
         StringRef File = CurInputPair[0];
         StringRef Manif = CurInputPair.size() > 1 ? CurInputPair[1] : "";
-        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts, EntriesFile);
+        Wr.addImage(Knd, File, Manif, Tgt, Fmt, CompileOpts, LinkOpts,
+                    EntriesFile);
         CurInputPair.clear();
       }
     }
@@ -1073,11 +1117,14 @@ int main(int argc, const char **argv) {
     case 3: // Targets
       Tgt = *(ArgSeq.template get<3>());
       break;
-    case 4: // Options
-      Opts = *(ArgSeq.template get<4>());
+    case 4: // CompileOptions
+      CompileOpts = *(ArgSeq.template get<4>());
       break;
-    case 5: // Entries
-      EntriesFile = *(ArgSeq.template get<5>());
+    case 5: // LinkOptions
+      LinkOpts = *(ArgSeq.template get<5>());
+      break;
+    case 6: // Entries
+      EntriesFile = *(ArgSeq.template get<6>());
       break;
     default:
       llvm_unreachable("bad option class ID");

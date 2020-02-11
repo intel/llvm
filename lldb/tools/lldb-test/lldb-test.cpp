@@ -10,6 +10,7 @@
 #include "SystemInitializerTest.h"
 
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -18,7 +19,6 @@
 #include "lldb/Initialization/SystemLifetimeManager.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -529,7 +529,7 @@ Error opts::symbols::findTypes(lldb_private::Module &Module) {
     Symfile.FindTypes(ConstString(Name), ContextPtr, UINT32_MAX, SearchedFiles,
                       Map);
   else
-    Module.FindTypes(parseCompilerContext(), languages, Map);
+    Module.FindTypes(parseCompilerContext(), languages, SearchedFiles, Map);
 
   outs() << formatv("Found {0} types:\n", Map.GetSize());
   StreamString Stream;
@@ -549,7 +549,8 @@ Error opts::symbols::findVariables(lldb_private::Module &Module) {
     CompUnitSP CU;
     for (size_t Ind = 0; !CU && Ind < Module.GetNumCompileUnits(); ++Ind) {
       CompUnitSP Candidate = Module.GetCompileUnitAtIndex(Ind);
-      if (!Candidate || Candidate->GetFilename().GetStringRef() != File)
+      if (!Candidate ||
+          Candidate->GetPrimaryFile().GetFilename().GetStringRef() != File)
         continue;
       if (CU)
         return make_string_error("Multiple compile units for file `{0}` found.",
@@ -595,18 +596,16 @@ Error opts::symbols::dumpAST(lldb_private::Module &Module) {
   llvm::Expected<TypeSystem &> type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
   if (!type_system_or_err)
-    return make_string_error("Can't retrieve ClangASTContext");
+    return make_string_error("Can't retrieve TypeSystemClang");
 
   auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<ClangASTContext>(&type_system_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
   if (!clang_ast_ctx)
-    return make_string_error("Retrieved TypeSystem was not a ClangASTContext");
+    return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
-  auto ast_ctx = clang_ast_ctx->getASTContext();
-  if (!ast_ctx)
-    return make_string_error("Can't retrieve AST context.");
+  clang::ASTContext &ast_ctx = clang_ast_ctx->getASTContext();
 
-  clang::TranslationUnitDecl *tu = ast_ctx->getTranslationUnitDecl();
+  clang::TranslationUnitDecl *tu = ast_ctx.getTranslationUnitDecl();
   if (!tu)
     return make_string_error("Can't retrieve translation unit declaration.");
 
@@ -623,14 +622,14 @@ Error opts::symbols::dumpClangAST(lldb_private::Module &Module) {
     return make_string_error("Module has no symbol file.");
 
   llvm::Expected<TypeSystem &> type_system_or_err =
-      symfile->GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
+      symfile->GetTypeSystemForLanguage(eLanguageTypeObjC_plus_plus);
   if (!type_system_or_err)
-    return make_string_error("Can't retrieve ClangASTContext");
+    return make_string_error("Can't retrieve TypeSystemClang");
 
   auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<ClangASTContext>(&type_system_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
   if (!clang_ast_ctx)
-    return make_string_error("Retrieved TypeSystem was not a ClangASTContext");
+    return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
   StreamString Stream;
   clang_ast_ctx->DumpFromSymbolFile(Stream, Name);
@@ -653,7 +652,8 @@ Error opts::symbols::verify(lldb_private::Module &Module) {
     if (!comp_unit)
       return make_string_error("Connot parse compile unit {0}.", i);
 
-    outs() << "Processing '" << comp_unit->GetFilename().AsCString()
+    outs() << "Processing '"
+           << comp_unit->GetPrimaryFile().GetFilename().AsCString()
            << "' compile unit.\n";
 
     LineTable *lt = comp_unit->GetLineTable();

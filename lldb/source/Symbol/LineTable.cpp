@@ -1,4 +1,4 @@
-//===-- LineTable.cpp -------------------------------------------*- C++ -*-===//
+//===-- LineTable.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,6 +21,18 @@ using namespace lldb_private;
 LineTable::LineTable(CompileUnit *comp_unit)
     : m_comp_unit(comp_unit), m_entries() {}
 
+LineTable::LineTable(CompileUnit *comp_unit,
+                     std::vector<std::unique_ptr<LineSequence>> &&sequences)
+    : m_comp_unit(comp_unit), m_entries() {
+  LineTable::Entry::LessThanBinaryPredicate less_than_bp(this);
+  llvm::stable_sort(sequences, less_than_bp);
+  for (const auto &sequence : sequences) {
+    LineSequenceImpl *seq = static_cast<LineSequenceImpl *>(sequence.get());
+    m_entries.insert(m_entries.end(), seq->m_entries.begin(),
+                     seq->m_entries.end());
+  }
+}
+
 // Destructor
 LineTable::~LineTable() {}
 
@@ -34,11 +46,9 @@ void LineTable::InsertLineEntry(lldb::addr_t file_addr, uint32_t line,
               is_start_of_basic_block, is_prologue_end, is_epilogue_begin,
               is_terminal_entry);
 
-  entry_collection::iterator begin_pos = m_entries.begin();
-  entry_collection::iterator end_pos = m_entries.end();
   LineTable::Entry::LessThanBinaryPredicate less_than_bp(this);
   entry_collection::iterator pos =
-      upper_bound(begin_pos, end_pos, entry, less_than_bp);
+      llvm::upper_bound(m_entries, entry, less_than_bp);
 
   //  Stream s(stdout);
   //  s << "\n\nBefore:\n";
@@ -52,8 +62,8 @@ LineSequence::LineSequence() {}
 
 void LineTable::LineSequenceImpl::Clear() { m_entries.clear(); }
 
-LineSequence *LineTable::CreateLineSequenceContainer() {
-  return new LineTable::LineSequenceImpl();
+std::unique_ptr<LineSequence> LineTable::CreateLineSequenceContainer() {
+  return std::make_unique<LineTable::LineSequenceImpl>();
 }
 
 void LineTable::AppendLineEntryToSequence(
@@ -154,6 +164,14 @@ operator()(const LineTable::Entry &a, const LineTable::Entry &b) const {
   LT_COMPARE(a.file_idx, b.file_idx);
   return false;
 #undef LT_COMPARE
+}
+
+bool LineTable::Entry::LessThanBinaryPredicate::
+operator()(const std::unique_ptr<LineSequence> &sequence_a,
+           const std::unique_ptr<LineSequence> &sequence_b) const {
+  auto *seq_a = static_cast<const LineSequenceImpl *>(sequence_a.get());
+  auto *seq_b = static_cast<const LineSequenceImpl *>(sequence_b.get());
+  return (*this)(seq_a->m_entries.front(), seq_b->m_entries.front());
 }
 
 uint32_t LineTable::GetSize() const { return m_entries.size(); }
@@ -289,8 +307,6 @@ uint32_t LineTable::FindLineEntryIndexByFileIndex(
     uint32_t line, bool exact, LineEntry *line_entry_ptr) {
 
   const size_t count = m_entries.size();
-  std::vector<uint32_t>::const_iterator begin_pos = file_indexes.begin();
-  std::vector<uint32_t>::const_iterator end_pos = file_indexes.end();
   size_t best_match = UINT32_MAX;
 
   for (size_t idx = start_idx; idx < count; ++idx) {
@@ -299,7 +315,7 @@ uint32_t LineTable::FindLineEntryIndexByFileIndex(
     if (m_entries[idx].is_terminal_entry)
       continue;
 
-    if (find(begin_pos, end_pos, m_entries[idx].file_idx) == end_pos)
+    if (llvm::find(file_indexes, m_entries[idx].file_idx) == file_indexes.end())
       continue;
 
     // Exact match always wins.  Otherwise try to find the closest line > the

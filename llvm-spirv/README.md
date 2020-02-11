@@ -26,7 +26,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 ```
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-10-dev llvm-10-tools clang-10 libclang-10-dev
+sudo apt-get install llvm-11-dev llvm-11-tools clang-11 libclang-11-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -38,27 +38,37 @@ make llvm-spirv -j`nproc`
 
 ### Build with pre-built LLVM
 
-If you have a custom build(based on the latest version) of LLVM libraries you can link the translator against it. 
+If you have a custom build (based on the latest version) of LLVM libraries you
+can link the translator against it.
+
 ```
 git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 mkdir SPIRV-LLVM-Translator/build && cd SPIRV-LLVM-Translator/build
 cmake .. -DLLVM_DIR=<llvm_build_dir>/lib/cmake/llvm/
 make llvm-spirv -j`nproc`
 ```
+
+If the translator is used as part of another CMake project, you will need
+to define `LLVM_SPIRV_BUILD_EXTERNAL`:
+
+```
+cmake .. -DLLVM_DIR=<llvm_build_dir>/lib/cmake/llvm/ -DLLVM_SPIRV_BUILD_EXTERNAL=YES
+```
+
 Where `llvm_build_dir` is the LLVM build directory.
 
 ### LLVM in-tree build
 
-The translator can be built as a regular LLVM subproject. To do that you need to clone it to `llvm/projects` or `llvm/tools` directory. 
+The translator can be built as a regular LLVM subproject. To do that you need to clone it into the `llvm/projects` or `llvm/tools` directory.
 ```
-git clone http://llvm.org/git/llvm.git
-cd llvm/projects
+git clone https://github.com/llvm/llvm-project.git
+cd llvm-project/llvm/projects
 git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 ```
-Run(re-run) cmake as usually for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
+Run (or re-run) cmake as usual for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
 ```
-mkdir llvm/build && cd llvm/build 
-cmake ..
+mkdir llvm-project/build && cd llvm-project/build
+cmake ../llvm
 make llvm-spirv -j`nproc`
 ```
 
@@ -73,7 +83,7 @@ Execute the following command inside the build directory to run translator tests
 make test
 ```
 This requires that the `-DLLVM_INCLUDE_TESTS=ON` and
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-10/build/utils/lit/lit.py"` arguments were
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-11/build/utils/lit/lit.py"` arguments were
 passed to CMake during the build step.
 
 The translator test suite can be disabled by passing

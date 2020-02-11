@@ -18,6 +18,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -39,7 +40,7 @@ static bool runImpl(Function &F, const SimplifyQuery &SQ,
       if (!SQ.DT->isReachableFromEntry(&BB))
         continue;
 
-      SmallVector<Instruction *, 8> DeadInstsInBB;
+      SmallVector<WeakTrackingVH, 8> DeadInstsInBB;
       for (Instruction &I : BB) {
         // The first time through the loop, ToSimplify is empty and we try to
         // simplify all instructions. On later iterations, ToSimplify is not

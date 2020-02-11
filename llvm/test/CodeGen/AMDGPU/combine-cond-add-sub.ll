@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -march=amdgcn -mcpu=gfx902  -verify-machineinstrs < %s | FileCheck -check-prefix=GFX9 %s
+; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=gfx902  -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GFX9 %s
 
 ; GCN-LABEL: {{^}}add1:
 ; GCN: v_cmp_gt_u32_e{{32|64}} [[CC:[^,]+]], v{{[0-9]+}}, v{{[0-9]+}}
@@ -130,16 +130,18 @@ bb:
 ; GCN-LABEL: {{^}}sub_sube_commuted:
 ; GCN-DAG: v_cmp_gt_u32_e{{32|64}} [[CC:[^,]+]], v{{[0-9]+}}, v{{[0-9]+}}
 ; GCN-DAG: buffer_load_dword [[V:v[0-9]+]],
-; GCN:     v_subbrev_u32_e{{32|64}} [[SUBB:v[0-9]+]], {{[^,]+}}, 0, [[V]], [[CC]]
-; GCN:     v_sub_i32_e32 [[SUB:v[0-9]+]], vcc, s{{[0-9]+}}, [[SUBB]]
-; GCN:     v_add_i32_e32 {{.*}}, 0x64, [[SUB]]
+; GCN: v_cndmask_b32_e64 [[CCZEXT:v[0-9]+]], 0, 1, [[CC]]
+; GCN: v_sub_i32_e32 [[SUB:v[0-9]+]], vcc, [[CCZEXT]], v4
+; GCN: v_add_i32_e32 [[ADD:v[0-9]+]], vcc, {{.*}}, [[SUB]]
+; GCN: v_add_i32_e32 {{.*}}, 0x64, [[ADD]]
 
 ; GFX9-LABEL: {{^}}sub_sube_commuted:
 ; GFX9-DAG: v_cmp_gt_u32_e{{32|64}} [[CC:[^,]+]], v{{[0-9]+}}, v{{[0-9]+}}
 ; GFX9-DAG: global_load_dword [[V:v[0-9]+]],
-; GFX9:     v_subbrev_co_u32_e{{32|64}} [[SUBB:v[0-9]+]], {{[^,]+}}, 0, [[V]], [[CC]]
-; GFX9:     v_sub_u32_e32 [[SUB:v[0-9]+]], s{{[0-9]+}}, [[SUBB]]
-; GFX9:     v_add_u32_e32 {{.*}}, 0x64, [[SUB]]
+; GFX9-DAG: v_cndmask_b32_e64 [[CCZEXT:v[0-9]+]], 0, 1, [[CC]]
+; GFX9: v_sub_u32_e32 {{.*}}, [[CCZEXT]]
+; GFX9: v_add_u32_e32
+; GFX9: v_add_u32_e32 {{.*}}, 0x64,
 define amdgpu_kernel void @sub_sube_commuted(i32 addrspace(1)* nocapture %arg, i32 %a) {
 bb:
   %x = tail call i32 @llvm.amdgcn.workitem.id.x()
@@ -234,6 +236,124 @@ bb:
   %ext = zext i1 %cmp to i32
   %add = add i32 %v, %ext
   store i32 %add, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; sub x, sext (setcc) => addcarry x, 0, setcc
+; GCN-LABEL: {{^}}cmp_sub_sext:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN-NOT: vcc
+; GCN: v_addc_u32_e32 [[RESULT:v[0-9]+]], vcc, 0, v{{[0-9]+}}, vcc
+define amdgpu_kernel void @cmp_sub_sext(i32 addrspace(1)* nocapture %arg) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = sext i1 %cmp to i32
+  %add = sub i32 %v, %ext
+  store i32 %add, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; sub x, zext (setcc) => subcarry x, 0, setcc
+; GCN-LABEL: {{^}}cmp_sub_zext:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN-NOT: vcc
+; GCN: v_subbrev_u32_e32 [[RESULT:v[0-9]+]], vcc, 0, v{{[0-9]+}}, vcc
+define amdgpu_kernel void @cmp_sub_zext(i32 addrspace(1)* nocapture %arg) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = zext i1 %cmp to i32
+  %add = sub i32 %v, %ext
+  store i32 %add, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; GCN-LABEL: {{^}}sub_addcarry:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN-NOT: vcc
+; GCN: v_addc_u32_e32 [[ADDC:v[0-9]+]], vcc, 0, v{{[0-9]+}}, vcc
+; GCN-NOT: vcc
+; GCN: v_subrev_i32_e32 [[RESULT:v[0-9]+]], vcc,
+define amdgpu_kernel void @sub_addcarry(i32 addrspace(1)* nocapture %arg, i32 %a) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = zext i1 %cmp to i32
+  %adde = add i32 %v, %ext
+  %add2 = sub i32 %adde, %a
+  store i32 %add2, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; GCN-LABEL: {{^}}sub_subcarry:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN-NOT: vcc
+; GCN: v_subb_u32_e32 [[RESULT:v[0-9]+]], vcc, v{{[0-9]+}}, v{{[0-9]+}}, vcc
+define amdgpu_kernel void @sub_subcarry(i32 addrspace(1)* nocapture %arg, i32 %a) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = zext i1 %cmp to i32
+  %adde = sub i32 %v, %ext
+  %add2 = sub i32 %adde, %a
+  store i32 %add2, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; Check case where sub is commuted with zext
+; GCN-LABEL: {{^}}sub_zext_setcc_commute:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN: v_cndmask
+; GCN: v_sub_i32_e32
+; GCN: v_add_i32_e32 [[ADD:v[0-9]+]], vcc,
+; GCN: v_subrev_i32_e32 [[RESULT:v[0-9]+]], vcc, s{{[0-9]+}}, [[ADD]]
+define amdgpu_kernel void @sub_zext_setcc_commute(i32 addrspace(1)* nocapture %arg, i32 %a, i32%b) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = zext i1 %cmp to i32
+  %adde = sub i32 %v, %ext
+  %sub = sub i32 %a, %adde
+  %sub2 = sub i32 %sub, %b
+  store i32 %sub2, i32 addrspace(1)* %gep, align 4
+  ret void
+}
+
+; Check case where sub is commuted with sext
+; GCN-LABEL: {{^}}sub_sext_setcc_commute:
+; GCN: v_cmp_gt_u32_e32 vcc, v
+; GCN: v_cndmask
+; GCN: v_sub_i32_e32
+; GCN: v_add_i32_e32 [[ADD:v[0-9]+]], vcc,
+; GCN: v_subrev_i32_e32 [[RESULT:v[0-9]+]], vcc, s{{[0-9]+}}, [[ADD]]
+define amdgpu_kernel void @sub_sext_setcc_commute(i32 addrspace(1)* nocapture %arg, i32 %a, i32%b) {
+bb:
+  %x = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %y = tail call i32 @llvm.amdgcn.workitem.id.y()
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %arg, i32 %x
+  %v = load i32, i32 addrspace(1)* %gep, align 4
+  %cmp = icmp ugt i32 %x, %y
+  %ext = sext i1 %cmp to i32
+  %adde = sub i32 %v, %ext
+  %sub = sub i32 %a, %adde
+  %sub2 = sub i32 %sub, %b
+  store i32 %sub2, i32 addrspace(1)* %gep, align 4
   ret void
 }
 

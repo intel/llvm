@@ -13,6 +13,8 @@
 #include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include <functional>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -173,6 +175,9 @@ public:
   /// build it again.
   std::shared_ptr<FailedModulesSet> FailedModules;
 
+  /// A prefix map for __FILE__ and __BASE_FILE__.
+  std::map<std::string, std::string, std::greater<std::string>> MacroPrefixMap;
+
   /// Contains the currently active skipped range mappings for skipping excluded
   /// conditional directives.
   ///
@@ -187,15 +192,19 @@ public:
 public:
   PreprocessorOptions() : PrecompiledPreambleBytes(0, false) {}
 
-  void addMacroDef(StringRef Name) { Macros.emplace_back(Name, false); }
-  void addMacroUndef(StringRef Name) { Macros.emplace_back(Name, true); }
+  void addMacroDef(StringRef Name) {
+    Macros.emplace_back(std::string(Name), false);
+  }
+  void addMacroUndef(StringRef Name) {
+    Macros.emplace_back(std::string(Name), true);
+  }
 
   void addRemappedFile(StringRef From, StringRef To) {
-    RemappedFiles.emplace_back(From, To);
+    RemappedFiles.emplace_back(std::string(From), std::string(To));
   }
 
   void addRemappedFile(StringRef From, llvm::MemoryBuffer *To) {
-    RemappedFileBuffers.emplace_back(From, To);
+    RemappedFileBuffers.emplace_back(std::string(From), To);
   }
 
   void clearRemappedFiles() {

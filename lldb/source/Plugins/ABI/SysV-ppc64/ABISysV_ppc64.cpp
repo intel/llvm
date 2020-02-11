@@ -1,4 +1,4 @@
-//===-- ABISysV_ppc64.cpp ---------------------------------------*- C++ -*-===//
+//===-- ABISysV_ppc64.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "Utility/PPC64LE_DWARF_Registers.h"
 #include "Utility/PPC64_DWARF_Registers.h"
 #include "lldb/Core/Module.h"
@@ -19,7 +20,6 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Core/ValueObjectRegister.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/UnwindPlan.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -806,10 +806,10 @@ private:
     // case 3: get from GPRs
 
     // first, check if this is a packed struct or not
-    ClangASTContext *ast =
-        llvm::dyn_cast<ClangASTContext>(m_type.GetTypeSystem());
+    TypeSystemClang *ast =
+        llvm::dyn_cast<TypeSystemClang>(m_type.GetTypeSystem());
     if (ast) {
-      clang::RecordDecl *record_decl = ClangASTContext::GetAsRecordDecl(m_type);
+      clang::RecordDecl *record_decl = TypeSystemClang::GetAsRecordDecl(m_type);
 
       if (record_decl) {
         auto attrs = record_decl->attrs();

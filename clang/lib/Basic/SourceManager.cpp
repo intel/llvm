@@ -577,13 +577,15 @@ FileID SourceManager::createFileID(const ContentCache *File, StringRef Filename,
     SLocEntryLoaded[Index] = true;
     return FileID::get(LoadedID);
   }
+  unsigned FileSize = File->getSize();
+  if (!(NextLocalOffset + FileSize + 1 > NextLocalOffset &&
+        NextLocalOffset + FileSize + 1 <= CurrentLoadedOffset)) {
+    Diag.Report(IncludePos, diag::err_include_too_large);
+    return FileID();
+  }
   LocalSLocEntryTable.push_back(
       SLocEntry::get(NextLocalOffset,
                      FileInfo::get(IncludePos, File, FileCharacter, Filename)));
-  unsigned FileSize = File->getSize();
-  assert(NextLocalOffset + FileSize + 1 > NextLocalOffset &&
-         NextLocalOffset + FileSize + 1 <= CurrentLoadedOffset &&
-         "Ran out of source locations!");
   // We do a +1 here because we want a SourceLocation that means "the end of the
   // file", e.g. for the "no newline at the end of the file" diagnostic.
   NextLocalOffset += FileSize + 1;
@@ -1250,23 +1252,18 @@ static void ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
 
   const unsigned char *Buf = (const unsigned char *)Buffer->getBufferStart();
   const unsigned char *End = (const unsigned char *)Buffer->getBufferEnd();
+  const std::size_t BufLen = End - Buf;
   unsigned I = 0;
-  while (true) {
-    // Skip over the contents of the line.
-    while (Buf[I] != '\n' && Buf[I] != '\r' && Buf[I] != '\0')
-      ++I;
-
-    if (Buf[I] == '\n' || Buf[I] == '\r') {
+  while (I < BufLen) {
+    if (Buf[I] == '\n') {
+      LineOffsets.push_back(I + 1);
+    } else if (Buf[I] == '\r') {
       // If this is \r\n, skip both characters.
-      if (Buf[I] == '\r' && Buf[I+1] == '\n')
+      if (I + 1 < BufLen && Buf[I + 1] == '\n')
         ++I;
-      ++I;
-      LineOffsets.push_back(I);
-    } else {
-      // Otherwise, this is a NUL. If end of file, exit.
-      if (Buf+I == End) break;
-      ++I;
+      LineOffsets.push_back(I + 1);
     }
+    ++I;
   }
 
   // Copy the offsets into the FileInfo structure.

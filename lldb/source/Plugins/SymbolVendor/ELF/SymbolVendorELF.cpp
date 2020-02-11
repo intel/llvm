@@ -1,4 +1,4 @@
-//===-- SymbolVendorELF.cpp ----------------------------------*- C++ -*-===//
+//===-- SymbolVendorELF.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -119,14 +119,17 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
   SectionList *objfile_section_list = dsym_objfile_sp->GetSectionList();
 
   static const SectionType g_sections[] = {
-      eSectionTypeDWARFDebugAbbrev,   eSectionTypeDWARFDebugAddr,
-      eSectionTypeDWARFDebugAranges,  eSectionTypeDWARFDebugCuIndex,
-      eSectionTypeDWARFDebugFrame,    eSectionTypeDWARFDebugInfo,
-      eSectionTypeDWARFDebugLine,     eSectionTypeDWARFDebugLoc,
-      eSectionTypeDWARFDebugMacInfo,  eSectionTypeDWARFDebugPubNames,
-      eSectionTypeDWARFDebugPubTypes, eSectionTypeDWARFDebugRanges,
-      eSectionTypeDWARFDebugStr,      eSectionTypeDWARFDebugStrOffsets,
-      eSectionTypeELFSymbolTable,     eSectionTypeDWARFGNUDebugAltLink,
+      eSectionTypeDWARFDebugAbbrev,     eSectionTypeDWARFDebugAddr,
+      eSectionTypeDWARFDebugAranges,    eSectionTypeDWARFDebugCuIndex,
+      eSectionTypeDWARFDebugFrame,      eSectionTypeDWARFDebugInfo,
+      eSectionTypeDWARFDebugLine,       eSectionTypeDWARFDebugLineStr,
+      eSectionTypeDWARFDebugLoc,        eSectionTypeDWARFDebugLocLists,
+      eSectionTypeDWARFDebugMacInfo,    eSectionTypeDWARFDebugMacro,
+      eSectionTypeDWARFDebugNames,      eSectionTypeDWARFDebugPubNames,
+      eSectionTypeDWARFDebugPubTypes,   eSectionTypeDWARFDebugRanges,
+      eSectionTypeDWARFDebugRngLists,   eSectionTypeDWARFDebugStr,
+      eSectionTypeDWARFDebugStrOffsets, eSectionTypeDWARFDebugTypes,
+      eSectionTypeELFSymbolTable,       eSectionTypeDWARFGNUDebugAltLink,
   };
   for (SectionType section_type : g_sections) {
     if (SectionSP section_sp =

@@ -1,5 +1,5 @@
 ; RUN: opt -verify-loop-info -irce-print-changed-loops -irce -S < %s 2>&1 | FileCheck %s
-; RUN: opt -verify-loop-info -irce-print-changed-loops -passes='require<branch-prob>,loop(irce)' -S < %s 2>&1 | FileCheck %s
+; RUN: opt -verify-loop-info -irce-print-changed-loops -passes='require<branch-prob>,irce' -S < %s 2>&1 | FileCheck %s
 
 ; Make sure we can eliminate range check with signed latch, unsigned IRC and
 ; positive offset. The safe iteration space is:
@@ -84,9 +84,7 @@ define void @test_02(i32* %arr, i32* %a_len_ptr) #0 {
 ; CHECK-NEXT:      [[SMAX1:%[^ ]+]] = select i1 [[CMP1]], i32 [[LEN_MINUS_SMAX]], i32 -13
 ; CHECK-NEXT:      [[SUB1:%[^ ]+]] = sub i32 %len, [[SMAX1]]
 ; CHECK-NEXT:      [[CMP2:%[^ ]+]] = icmp slt i32 [[SUB1]], 101
-; CHECK-NEXT:      [[SMAX2:%[^ ]+]] = select i1 [[CMP2]], i32 [[SUB1]], i32 101
-; CHECK-NEXT:      [[CMP3:%[^ ]+]] = icmp sgt i32 [[SMAX2]], 0
-; CHECK-NEXT:      %exit.mainloop.at = select i1 [[CMP3]], i32 [[SMAX2]], i32 0
+; CHECK-NEXT:      %exit.mainloop.at = select i1 [[CMP2]], i32 [[SUB1]], i32 101
 ; CHECK-NEXT:      br i1 true, label %loop.preloop.preheader
 ; CHECK:         loop.preloop:
 ; CHECK-NEXT:      %idx.preloop = phi i32 [ %idx.next.preloop, %in.bounds.preloop ], [ 0, %loop.preloop.preheader ]
@@ -291,9 +289,7 @@ define void @test_06(i32* %arr, i32* %a_len_ptr) #0 {
 ; CHECK-NEXT:      [[SMAX1:%[^ ]+]] = select i1 [[CMP1]], i32 [[LEN_MINUS_SMAX]], i32 -13
 ; CHECK-NEXT:      [[SUB1:%[^ ]+]] = sub i32 %len, [[SMAX1]]
 ; CHECK-NEXT:      [[CMP2:%[^ ]+]] = icmp slt i32 [[SUB1]], 101
-; CHECK-NEXT:      [[SMAX2:%[^ ]+]] = select i1 [[CMP2]], i32 [[SUB1]], i32 101
-; CHECK-NEXT:      [[CMP3:%[^ ]+]] = icmp sgt i32 [[SMAX2]], 0
-; CHECK-NEXT:      %exit.mainloop.at = select i1 [[CMP3]], i32 [[SMAX2]], i32 0
+; CHECK-NEXT:      %exit.mainloop.at = select i1 [[CMP2]], i32 [[SUB1]], i32 101
 ; CHECK-NEXT:      br i1 true, label %loop.preloop.preheader
 ; CHECK:         in.bounds.preloop:
 ; CHECK-NEXT:      %addr.preloop = getelementptr i32, i32* %arr, i32 %idx.preloop

@@ -77,7 +77,6 @@ public:
   bool requiresFrameIndexReplacementScavenging(
     const MachineFunction &MF) const override;
   bool requiresVirtualBaseRegisters(const MachineFunction &Fn) const override;
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
 
   int64_t getMUBUFInstrOffset(const MachineInstr *MI) const;
 
@@ -142,6 +141,11 @@ public:
     else
       RC = getPhysRegClass(Reg);
     return isSGPRClass(RC);
+  }
+
+  /// \returns true if this class contains only AGPR registers
+  bool isAGPRClass(const TargetRegisterClass *RC) const {
+    return hasAGPRs(RC) && !hasVGPRs(RC);
   }
 
   /// \returns true if this class contains VGPR registers.

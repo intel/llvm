@@ -154,7 +154,7 @@ public:
 
   /// Should be called when starting to process new translation unit.
   void setCurrentBuildDirectory(StringRef BuildDirectory) {
-    CurrentBuildDirectory = BuildDirectory;
+    CurrentBuildDirectory = std::string(BuildDirectory);
   }
 
   /// Returns build directory of the current translation unit.
@@ -174,7 +174,8 @@ public:
     return DiagLevelAndFormatString(
         static_cast<DiagnosticIDs::Level>(
             DiagEngine->getDiagnosticLevel(DiagnosticID, Loc)),
-        DiagEngine->getDiagnosticIDs()->getDescription(DiagnosticID));
+        std::string(
+            DiagEngine->getDiagnosticIDs()->getDescription(DiagnosticID)));
   }
 
 private:
@@ -217,7 +218,7 @@ private:
 /// examining source files other than the one in which the diagnostic is
 /// located, and in some use cases we cannot rely on such other files being
 /// mapped in the SourceMapper.
-bool ShouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
+bool shouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
                               const Diagnostic &Info, ClangTidyContext &Context,
                               bool CheckMacroExpansion = true);
 

@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace usm {
 

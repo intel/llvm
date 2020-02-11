@@ -1,4 +1,4 @@
-//===-- SymbolVendorMacOSX.cpp ----------------------------------*- C++ -*-===//
+//===-- SymbolVendorMacOSX.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,7 +42,7 @@ static bool UUIDsMatch(Module *module, ObjectFile *ofile,
       if (feedback_strm) {
         feedback_strm->PutCString(
             "warning: failed to get the uuid for object file: '");
-        ofile->GetFileSpec().Dump(feedback_strm);
+        ofile->GetFileSpec().Dump(feedback_strm->AsRawOstream());
         feedback_strm->PutCString("\n");
       }
       return false;
@@ -57,11 +57,11 @@ static bool UUIDsMatch(Module *module, ObjectFile *ofile,
           "warning: UUID mismatch detected between modules:\n    ");
       module->GetUUID().Dump(feedback_strm);
       feedback_strm->PutChar(' ');
-      module->GetFileSpec().Dump(feedback_strm);
+      module->GetFileSpec().Dump(feedback_strm->AsRawOstream());
       feedback_strm->PutCString("\n    ");
       dsym_uuid.Dump(feedback_strm);
       feedback_strm->PutChar(' ');
-      ofile->GetFileSpec().Dump(feedback_strm);
+      ofile->GetFileSpec().Dump(feedback_strm->AsRawOstream());
       feedback_strm->EOL();
     }
   }
@@ -199,9 +199,9 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
                             DBGSourcePath;
                         if (plist_sp->GetAsDictionary()->HasKey("DBGVersion")) {
                           std::string version_string =
-                              plist_sp->GetAsDictionary()
-                                  ->GetValueForKey("DBGVersion")
-                                  ->GetStringValue("");
+                              std::string(plist_sp->GetAsDictionary()
+                                              ->GetValueForKey("DBGVersion")
+                                              ->GetStringValue(""));
                           if (!version_string.empty() &&
                               isdigit(version_string[0])) {
                             int version_number = atoi(version_string.c_str());
@@ -228,7 +228,7 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
                                 // key is DBGBuildSourcePath
                                 // object is DBGSourcePath
                                 std::string DBGSourcePath =
-                                    object->GetStringValue();
+                                    std::string(object->GetStringValue());
                                 if (!new_style_source_remapping_dictionary &&
                                     !original_DBGSourcePath_value.empty()) {
                                   DBGSourcePath = original_DBGSourcePath_value;

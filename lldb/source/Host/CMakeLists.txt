@@ -52,7 +52,7 @@ add_host_subdirectory(common
   common/XML.cpp
   )
 
-if (NOT LLDB_DISABLE_LIBEDIT)
+if (LLDB_ENABLE_LIBEDIT)
   add_host_subdirectory(common
     common/Editline.cpp
     )
@@ -80,7 +80,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
 else()
   add_host_subdirectory(posix
     posix/DomainSocket.cpp
-    posix/FileSystem.cpp
+    posix/FileSystemPosix.cpp
     posix/HostInfoPosix.cpp
     posix/HostProcessPosix.cpp
     posix/HostThreadPosix.cpp
@@ -155,15 +155,18 @@ endif ()
 if (HAVE_LIBDL)
   list(APPEND EXTRA_LIBS ${CMAKE_DL_LIBS})
 endif()
-if (NOT LLDB_DISABLE_LIBEDIT)
-  list(APPEND EXTRA_LIBS ${libedit_LIBRARIES})
+if (LLDB_ENABLE_LIBEDIT)
+  list(APPEND EXTRA_LIBS ${LibEdit_LIBRARIES})
 endif()
 if (LLDB_ENABLE_LZMA)
   list(APPEND EXTRA_LIBS ${LIBLZMA_LIBRARIES})
 endif()
+if (WIN32)
+  list(APPEND LLDB_SYSTEM_LIBS psapi)
+endif ()
 
-if (NOT LLDB_DISABLE_LIBEDIT)
-  list(APPEND LLDB_LIBEDIT_LIBS ${libedit_LIBRARIES})
+if (LLDB_ENABLE_LIBEDIT)
+  list(APPEND LLDB_LIBEDIT_LIBS ${LibEdit_LIBRARIES})
   if (LLVM_BUILD_STATIC)
     list(APPEND LLDB_SYSTEM_LIBS gpm)
   endif()
@@ -183,6 +186,6 @@ add_lldb_library(lldbHost
     Support
   )
 
-if (NOT LLDB_DISABLE_LIBEDIT)
-  target_include_directories(lldbHost PUBLIC ${libedit_INCLUDE_DIRS})
+if (LLDB_ENABLE_LIBEDIT)
+  target_include_directories(lldbHost PUBLIC ${LibEdit_INCLUDE_DIRS})
 endif()

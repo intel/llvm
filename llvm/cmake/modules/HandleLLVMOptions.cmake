@@ -57,7 +57,10 @@ if( LLVM_ENABLE_ASSERTIONS )
   # On non-Debug builds cmake automatically defines NDEBUG, so we
   # explicitly undefine it:
   if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
-    add_definitions( -UNDEBUG )
+    # NOTE: use `add_compile_options` rather than `add_definitions` since
+    # `add_definitions` does not support generator expressions.
+    add_compile_options($<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:-UNDEBUG>)
+
     # Also remove /D NDEBUG to avoid MSVC warnings about conflicting defines.
     foreach (flags_var_to_scrub
         CMAKE_CXX_FLAGS_RELEASE
@@ -133,6 +136,28 @@ if(APPLE)
   endif()
   # Darwin-specific linker flags for loadable modules.
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  # RHEL7 has ar and ranlib being non-deterministic by default. The D flag forces determinism,
+  # however only GNU version of ar and ranlib (2.27) have this option. 
+  # RHEL DTS7 is also affected by this, which uses GNU binutils 2.28
+  execute_process(COMMAND ${CMAKE_AR} rD t.a
+                  WORKING_DIRECTORY ${CMAKE_BINARY_DIR} RESULT_VARIABLE AR_RESULT OUTPUT_VARIABLE RANLIB_OUTPUT)
+  if(${AR_RESULT} EQUAL 0)
+    execute_process(COMMAND ${CMAKE_RANLIB} -D t.a
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR} RESULT_VARIABLE RANLIB_RESULT OUTPUT_VARIABLE RANLIB_OUTPUT)
+    if(${RANLIB_RESULT} EQUAL 0)
+      set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> Dqc <TARGET> <LINK_FLAGS> <OBJECTS>")
+      set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> Dq  <TARGET> <LINK_FLAGS> <OBJECTS>")
+      set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -D <TARGET>")
+
+      set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> Dqc <TARGET> <LINK_FLAGS> <OBJECTS>")
+      set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> Dq  <TARGET> <LINK_FLAGS> <OBJECTS>")
+      set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -D <TARGET>")
+    endif()
+    file(REMOVE ${CMAKE_BINARY_DIR}/t.a)
+  endif()
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
@@ -588,6 +613,16 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
   check_cxx_compiler_flag("-Wclass-memaccess" CXX_SUPPORTS_CLASS_MEMACCESS_FLAG)
   append_if(CXX_SUPPORTS_CLASS_MEMACCESS_FLAG "-Wno-class-memaccess" CMAKE_CXX_FLAGS)
 
+  # Disable -Wredundant-move on GCC>=9. GCC wants to remove std::move in code
+  # like "A foo(ConvertibleToA a) { return std::move(a); }", but this code does
+  # not compile (or uses the copy constructor instead) on clang<=3.8. Clang also
+  # has a -Wredundant-move, but it only fires when the types match exactly, so
+  # we can keep it here.
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    check_cxx_compiler_flag("-Wredundant-move" CXX_SUPPORTS_REDUNDANT_MOVE_FLAG)
+    append_if(CXX_SUPPORTS_REDUNDANT_MOVE_FLAG "-Wno-redundant-move" CMAKE_CXX_FLAGS)
+  endif()
+
   # The LLVM libraries have no stable C++ API, so -Wnoexcept-type is not useful.
   check_cxx_compiler_flag("-Wnoexcept-type" CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG)
   append_if(CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG "-Wno-noexcept-type" CMAKE_CXX_FLAGS)
@@ -744,15 +779,17 @@ endif()
 # Add flags for add_dead_strip().
 # FIXME: With MSVS, consider compiling with /Gy and linking with /OPT:REF?
 # But MinSizeRel seems to add that automatically, so maybe disable these
-# flags instead if LLVM_SUPPORT_PLUGINS is set.
+# flags instead if LLVM_NO_DEAD_STRIP is set.
 if(NOT CYGWIN AND NOT WIN32)
   if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin" AND
      NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     check_c_compiler_flag("-Werror -fno-function-sections" C_SUPPORTS_FNO_FUNCTION_SECTIONS)
     if (C_SUPPORTS_FNO_FUNCTION_SECTIONS)
-      # Don't add -ffunction-section if it can be disabled with -fno-function-sections.
+      # Don't add -ffunction-sections if it can't be disabled with -fno-function-sections.
       # Doing so will break sanitizers.
       add_flag_if_supported("-ffunction-sections" FFUNCTION_SECTIONS)
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "XL")
+      append("-qfuncsect" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     endif()
     add_flag_if_supported("-fdata-sections" FDATA_SECTIONS)
   endif()
@@ -869,6 +906,9 @@ if(uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(LLVM_USE_LINKER STREQUAL "gold")
     append("-Wl,--plugin-opt,cache-dir=${PROJECT_BINARY_DIR}/lto.cache"
+           CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+  elseif(LINKER_IS_LLD_LINK)
+    append("/lldltocache:${PROJECT_BINARY_DIR}/lto.cache"
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 elseif(uppercase_LLVM_ENABLE_LTO STREQUAL "FULL")

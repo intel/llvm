@@ -58,6 +58,7 @@ namespace llvm {
 
 class AAResults;
 class BlockAddress;
+class BlockFrequencyInfo;
 class Constant;
 class ConstantFP;
 class ConstantInt;
@@ -71,6 +72,7 @@ class MachineBasicBlock;
 class MachineConstantPoolValue;
 class MCSymbol;
 class OptimizationRemarkEmitter;
+class ProfileSummaryInfo;
 class SDDbgValue;
 class SDDbgLabel;
 class SelectionDAG;
@@ -234,6 +236,9 @@ class SelectionDAG {
   /// The function-level optimization remark emitter.  Used to emit remarks
   /// whenever manipulating the DAG.
   OptimizationRemarkEmitter *ORE;
+
+  ProfileSummaryInfo *PSI = nullptr;
+  BlockFrequencyInfo *BFI = nullptr;
 
   /// The starting token.
   SDNode EntryNode;
@@ -401,7 +406,8 @@ public:
   /// Prepare this SelectionDAG to process code in the given MachineFunction.
   void init(MachineFunction &NewMF, OptimizationRemarkEmitter &NewORE,
             Pass *PassPtr, const TargetLibraryInfo *LibraryInfo,
-            LegacyDivergenceAnalysis * Divergence);
+            LegacyDivergenceAnalysis * Divergence,
+            ProfileSummaryInfo *PSIin, BlockFrequencyInfo *BFIin);
 
   void setFunctionLoweringInfo(FunctionLoweringInfo * FuncInfo) {
     FLI = FuncInfo;
@@ -421,8 +427,10 @@ public:
   const TargetLibraryInfo &getLibInfo() const { return *LibInfo; }
   const SelectionDAGTargetInfo &getSelectionDAGInfo() const { return *TSI; }
   const LegacyDivergenceAnalysis *getDivergenceAnalysis() const { return DA; }
-  LLVMContext *getContext() const {return Context; }
+  LLVMContext *getContext() const { return Context; }
   OptimizationRemarkEmitter &getORE() const { return *ORE; }
+  ProfileSummaryInfo *getPSI() const { return PSI; }
+  BlockFrequencyInfo *getBFI() const { return BFI; }
 
   /// Pop up a GraphViz/gv window with the DAG rendered using 'dot'.
   void viewGraph(const std::string &Title);
@@ -592,6 +600,8 @@ public:
                             bool isTarget = false);
   SDValue getShiftAmountConstant(uint64_t Val, EVT VT, const SDLoc &DL,
                                  bool LegalTypes = true);
+  SDValue getVectorIdxConstant(uint64_t Val, const SDLoc &DL,
+                               bool isTarget = false);
 
   SDValue getTargetConstant(uint64_t Val, const SDLoc &DL, EVT VT,
                             bool isOpaque = false) {
@@ -779,6 +789,20 @@ public:
     return getNode(ISD::BUILD_VECTOR, DL, VT, Ops);
   }
 
+  // Return a splat ISD::SPLAT_VECTOR node, consisting of Op splatted to all
+  // elements.
+  SDValue getSplatVector(EVT VT, const SDLoc &DL, SDValue Op) {
+    if (Op.getOpcode() == ISD::UNDEF) {
+      assert((VT.getVectorElementType() == Op.getValueType() ||
+              (VT.isInteger() &&
+               VT.getVectorElementType().bitsLE(Op.getValueType()))) &&
+             "A splatted value must have a width equal or (for integers) "
+             "greater than the vector element type!");
+      return getNode(ISD::UNDEF, SDLoc(), VT);
+    }
+    return getNode(ISD::SPLAT_VECTOR, DL, VT, Op);
+  }
+
   /// Returns an ISD::VECTOR_SHUFFLE node semantically equivalent to
   /// the shuffle node in input but with swapped operands.
   ///
@@ -788,6 +812,11 @@ public:
   /// Convert Op, which must be of float type, to the
   /// float type VT, by either extending or rounding (by truncation).
   SDValue getFPExtendOrRound(SDValue Op, const SDLoc &DL, EVT VT);
+
+  /// Convert Op, which must be a STRICT operation of float type, to the
+  /// float type VT, by either extending or rounding (by truncation).
+  std::pair<SDValue, SDValue>
+  getStrictFPExtendOrRound(SDValue Op, SDValue Chain, const SDLoc &DL, EVT VT);
 
   /// Convert Op, which must be of integer type, to the
   /// integer type VT, by either any-extending or truncating it.
@@ -826,22 +855,28 @@ public:
   /// Create a logical NOT operation as (XOR Val, BooleanOne).
   SDValue getLogicalNOT(const SDLoc &DL, SDValue Val, EVT VT);
 
+  /// Returns sum of the base pointer and offset.
+  /// Unlike getObjectPtrOffset this does not set NoUnsignedWrap by default.
+  SDValue getMemBasePlusOffset(SDValue Base, int64_t Offset, const SDLoc &DL,
+                               const SDNodeFlags Flags = SDNodeFlags());
+  SDValue getMemBasePlusOffset(SDValue Base, SDValue Offset, const SDLoc &DL,
+                               const SDNodeFlags Flags = SDNodeFlags());
+
   /// Create an add instruction with appropriate flags when used for
   /// addressing some offset of an object. i.e. if a load is split into multiple
   /// components, create an add nuw from the base pointer to the offset.
-  SDValue getObjectPtrOffset(const SDLoc &SL, SDValue Op, int64_t Offset) {
-    EVT VT = Op.getValueType();
-    return getObjectPtrOffset(SL, Op, getConstant(Offset, SL, VT));
+  SDValue getObjectPtrOffset(const SDLoc &SL, SDValue Ptr, int64_t Offset) {
+    SDNodeFlags Flags;
+    Flags.setNoUnsignedWrap(true);
+    return getMemBasePlusOffset(Ptr, Offset, SL, Flags);
   }
 
-  SDValue getObjectPtrOffset(const SDLoc &SL, SDValue Op, SDValue Offset) {
-    EVT VT = Op.getValueType();
-
+  SDValue getObjectPtrOffset(const SDLoc &SL, SDValue Ptr, SDValue Offset) {
     // The object itself can't wrap around the address space, so it shouldn't be
     // possible for the adds of the offsets to the split parts to overflow.
     SDNodeFlags Flags;
     Flags.setNoUnsignedWrap(true);
-    return getNode(ISD::ADD, SL, VT, Op, Offset, Flags);
+    return getMemBasePlusOffset(Ptr, Offset, SL, Flags);
   }
 
   /// Return a new CALLSEQ_START node, that starts new call frame, in which
@@ -877,6 +912,13 @@ public:
   /// Return an UNDEF node. UNDEF does not have a useful SDLoc.
   SDValue getUNDEF(EVT VT) {
     return getNode(ISD::UNDEF, SDLoc(), VT);
+  }
+
+  /// Return a node that represents the runtime scaling 'MulImm * RuntimeVL'.
+  SDValue getVScale(const SDLoc &DL, EVT VT, APInt MulImm) {
+    assert(MulImm.getMinSignedBits() <= VT.getSizeInBits() &&
+           "Immediate does not fit VT");
+    return getNode(ISD::VSCALE, DL, VT, getConstant(MulImm, DL, VT));
   }
 
   /// Return a GLOBAL_OFFSET_TABLE node. This does not have a useful SDLoc.
@@ -927,18 +969,50 @@ public:
   /// stack arguments from being clobbered.
   SDValue getStackArgumentTokenFactor(SDValue Chain);
 
+  LLVM_ATTRIBUTE_DEPRECATED(SDValue getMemcpy(SDValue Chain, const SDLoc &dl,
+                                              SDValue Dst, SDValue Src,
+                                              SDValue Size, unsigned Align,
+                                              bool isVol, bool AlwaysInline,
+                                              bool isTailCall,
+                                              MachinePointerInfo DstPtrInfo,
+                                              MachinePointerInfo SrcPtrInfo),
+                            "Use the version that takes Align instead") {
+    return getMemcpy(Chain, dl, Dst, Src, Size, llvm::Align(Align), isVol,
+                     AlwaysInline, isTailCall, DstPtrInfo, SrcPtrInfo);
+  }
+
   SDValue getMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
-                    SDValue Size, unsigned Align, bool isVol, bool AlwaysInline,
-                    bool isTailCall, MachinePointerInfo DstPtrInfo,
+                    SDValue Size, Align Alignment, bool isVol,
+                    bool AlwaysInline, bool isTailCall,
+                    MachinePointerInfo DstPtrInfo,
                     MachinePointerInfo SrcPtrInfo);
 
+  LLVM_ATTRIBUTE_DEPRECATED(SDValue getMemmove(SDValue Chain, const SDLoc &dl,
+                                               SDValue Dst, SDValue Src,
+                                               SDValue Size, unsigned Align,
+                                               bool isVol, bool isTailCall,
+                                               MachinePointerInfo DstPtrInfo,
+                                               MachinePointerInfo SrcPtrInfo),
+                            "Use the version that takes Align instead") {
+    return getMemmove(Chain, dl, Dst, Src, Size, llvm::Align(Align), isVol,
+                      isTailCall, DstPtrInfo, SrcPtrInfo);
+  }
   SDValue getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
-                     SDValue Size, unsigned Align, bool isVol, bool isTailCall,
+                     SDValue Size, Align Alignment, bool isVol, bool isTailCall,
                      MachinePointerInfo DstPtrInfo,
                      MachinePointerInfo SrcPtrInfo);
 
+  LLVM_ATTRIBUTE_DEPRECATED(SDValue getMemset(SDValue Chain, const SDLoc &dl,
+                                              SDValue Dst, SDValue Src,
+                                              SDValue Size, unsigned Align,
+                                              bool isVol, bool isTailCall,
+                                              MachinePointerInfo DstPtrInfo),
+                            "Use the version that takes Align instead") {
+    return getMemset(Chain, dl, Dst, Src, Size, llvm::Align(Align), isVol,
+                     isTailCall, DstPtrInfo);
+  }
   SDValue getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
-                    SDValue Size, unsigned Align, bool isVol, bool isTailCall,
+                    SDValue Size, Align Alignment, bool isVol, bool isTailCall,
                     MachinePointerInfo DstPtrInfo);
 
   SDValue getAtomicMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
@@ -961,13 +1035,17 @@ public:
   /// Helper function to make it easier to build SetCC's if you just have an
   /// ISD::CondCode instead of an SDValue.
   SDValue getSetCC(const SDLoc &DL, EVT VT, SDValue LHS, SDValue RHS,
-                   ISD::CondCode Cond) {
+                   ISD::CondCode Cond, SDValue Chain = SDValue(),
+                   bool IsSignaling = false) {
     assert(LHS.getValueType().isVector() == RHS.getValueType().isVector() &&
            "Cannot compare scalars to vectors");
     assert(LHS.getValueType().isVector() == VT.isVector() &&
            "Cannot compare scalars to vectors");
     assert(Cond != ISD::SETCC_INVALID &&
            "Cannot create a setCC of an invalid node.");
+    if (Chain)
+      return getNode(IsSignaling ? ISD::STRICT_FSETCCS : ISD::STRICT_FSETCC, DL,
+                     {VT, MVT::Other}, {Chain, LHS, RHS, getCondCode(Cond)});
     return getNode(ISD::SETCC, DL, VT, LHS, RHS, getCondCode(Cond));
   }
 
@@ -1111,17 +1189,19 @@ public:
   SDValue getIndexedStore(SDValue OrigStore, const SDLoc &dl, SDValue Base,
                           SDValue Offset, ISD::MemIndexedMode AM);
 
-  /// Returns sum of the base pointer and offset.
-  SDValue getMemBasePlusOffset(SDValue Base, unsigned Offset, const SDLoc &DL);
-
-  SDValue getMaskedLoad(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Ptr,
-                        SDValue Mask, SDValue Src0, EVT MemVT,
-                        MachineMemOperand *MMO, ISD::LoadExtType,
-                        bool IsExpanding = false);
+  SDValue getMaskedLoad(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Base,
+                        SDValue Offset, SDValue Mask, SDValue Src0, EVT MemVT,
+                        MachineMemOperand *MMO, ISD::MemIndexedMode AM,
+                        ISD::LoadExtType, bool IsExpanding = false);
+  SDValue getIndexedMaskedLoad(SDValue OrigLoad, const SDLoc &dl, SDValue Base,
+                               SDValue Offset, ISD::MemIndexedMode AM);
   SDValue getMaskedStore(SDValue Chain, const SDLoc &dl, SDValue Val,
-                         SDValue Ptr, SDValue Mask, EVT MemVT,
-                         MachineMemOperand *MMO, bool IsTruncating = false,
-                         bool IsCompressing = false);
+                         SDValue Base, SDValue Offset, SDValue Mask, EVT MemVT,
+                         MachineMemOperand *MMO, ISD::MemIndexedMode AM,
+                         bool IsTruncating = false, bool IsCompressing = false);
+  SDValue getIndexedMaskedStore(SDValue OrigStore, const SDLoc &dl,
+                                SDValue Base, SDValue Offset,
+                                ISD::MemIndexedMode AM);
   SDValue getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
                           ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
                           ISD::MemIndexType IndexType);
@@ -1428,7 +1508,7 @@ public:
                            const SDNode *N2);
 
   SDValue FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
-                                 SDNode *N1, SDNode *N2);
+                                 ArrayRef<SDValue> Ops);
 
   SDValue FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
                                  const ConstantSDNode *C1,
@@ -1696,6 +1776,14 @@ public:
       return nullptr;
     return It->second.HeapAllocSite;
   }
+
+  /// Return the current function's default denormal handling kind for the given
+  /// floating point type.
+  DenormalMode getDenormalMode(EVT VT) const {
+    return MF->getDenormalMode(EVTToAPFloatSemantics(VT));
+  }
+
+  bool shouldOptForSize() const;
 
 private:
   void InsertNode(SDNode *N);

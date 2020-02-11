@@ -410,8 +410,8 @@ unsigned FastISel::materializeConstant(const Value *V, MVT VT) {
   else if (isa<ConstantPointerNull>(V))
     // Translate this as an integer zero so that it can be
     // local-CSE'd with actual integer zeros.
-    Reg = getRegForValue(
-        Constant::getNullValue(DL.getIntPtrType(V->getContext())));
+    Reg =
+        getRegForValue(Constant::getNullValue(DL.getIntPtrType(V->getType())));
   else if (const auto *CF = dyn_cast<ConstantFP>(V)) {
     if (CF->isNullValue())
       Reg = fastMaterializeFloatZero(CF);
@@ -1190,6 +1190,8 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       Flags.setSwiftSelf();
     if (Arg.IsSwiftError)
       Flags.setSwiftError();
+    if (Arg.IsCFGuardTarget)
+      Flags.setCFGuardTarget();
     if (Arg.IsByVal)
       Flags.setByVal();
     if (Arg.IsInAlloca) {
@@ -1236,10 +1238,9 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
     updateValueMap(CLI.CS->getInstruction(), CLI.ResultReg, CLI.NumResultRegs);
 
   // Set labels for heapallocsite call.
-  if (CLI.CS && CLI.CS->getInstruction()->hasMetadata("heapallocsite")) {
-    const MDNode *MD = CLI.CS->getInstruction()->getMetadata("heapallocsite");
-    MF->addCodeViewHeapAllocSite(CLI.Call, MD);
-  }
+  if (CLI.CS)
+    if (MDNode *MD = CLI.CS->getInstruction()->getMetadata("heapallocsite"))
+      CLI.Call->setHeapAllocMarker(*MF, MD);
 
   return true;
 }
@@ -1274,6 +1275,10 @@ bool FastISel::lowerCall(const CallInst *CI) {
   // Target-dependent constraints are checked within fastLowerCall.
   bool IsTailCall = CI->isTailCall();
   if (IsTailCall && !isInTailCallPosition(CS, TM))
+    IsTailCall = false;
+  if (IsTailCall && MF->getFunction()
+                            .getFnAttribute("disable-tail-calls")
+                            .getValueAsString() == "true")
     IsTailCall = false;
 
   CallLoweringInfo CLI;
@@ -1407,9 +1412,9 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const Value *V = DI->getValue();
     assert(DI->getVariable()->isValidLocationForIntrinsic(DbgLoc) &&
            "Expected inlined-at fields to agree");
-    if (!V) {
+    if (!V || isa<UndefValue>(V)) {
       // Currently the optimizer can produce this; insert an undef to
-      // help debugging.  Probably the optimizer should not do this.
+      // help debugging.
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, false, 0U,
               DI->getVariable(), DI->getExpression());
     } else if (const auto *CI = dyn_cast<ConstantInt>(V)) {
@@ -1437,8 +1442,7 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, IsIndirect, Reg,
               DI->getVariable(), DI->getExpression());
     } else {
-      // We can't yet handle anything else here because it would require
-      // generating code, thus altering codegen because of debug info.
+      // We don't know how to handle other cases, so we drop.
       LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
     }
     return true;
@@ -1926,7 +1930,8 @@ FastISel::FastISel(FunctionLoweringInfo &FuncInfo,
       TII(*MF->getSubtarget().getInstrInfo()),
       TLI(*MF->getSubtarget().getTargetLowering()),
       TRI(*MF->getSubtarget().getRegisterInfo()), LibInfo(LibInfo),
-      SkipTargetIndependentISel(SkipTargetIndependentISel) {}
+      SkipTargetIndependentISel(SkipTargetIndependentISel),
+      LastLocalValue(nullptr), EmitStartPt(nullptr) {}
 
 FastISel::~FastISel() = default;
 

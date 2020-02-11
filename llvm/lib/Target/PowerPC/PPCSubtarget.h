@@ -57,6 +57,7 @@ namespace PPC {
     DIR_PWR7,
     DIR_PWR8,
     DIR_PWR9,
+    DIR_PWR_FUTURE,
     DIR_64
   };
 }
@@ -84,7 +85,7 @@ protected:
   InstrItineraryData InstrItins;
 
   /// Which cpu directive was used.
-  unsigned DarwinDirective;
+  unsigned CPUDirective;
 
   /// Used by the ISel to turn in optimizations for POWER4-derived architectures
   bool HasMFOCRF;
@@ -104,6 +105,8 @@ protected:
   bool HasP8Crypto;
   bool HasP9Vector;
   bool HasP9Altivec;
+  bool HasPrefixInstrs;
+  bool HasPCRelativeMemops;
   bool HasFCPSGN;
   bool HasFSQRT;
   bool HasFRE, HasFRES, HasFRSQRTE, HasFRSQRTES;
@@ -123,8 +126,8 @@ protected:
   bool IsPPC4xx;
   bool IsPPC6xx;
   bool FeatureMFTB;
+  bool AllowsUnalignedFPAccess;
   bool DeprecatedDST;
-  bool HasLazyResolverStubs;
   bool IsLittleEndian;
   bool HasICBT;
   bool HasInvariantFunctionDescriptors;
@@ -169,8 +172,11 @@ public:
   Align getStackAlignment() const { return StackAlignment; }
 
   /// getDarwinDirective - Returns the -m directive specified for the cpu.
+  unsigned getDarwinDirective() const { return CPUDirective; }
+
+  /// getCPUDirective - Returns the -m directive specified for the cpu.
   ///
-  unsigned getDarwinDirective() const { return DarwinDirective; }
+  unsigned getCPUDirective() const { return CPUDirective; }
 
   /// getInstrItins - Return the instruction itineraries based on subtarget
   /// selection.
@@ -225,11 +231,6 @@ public:
   /// the individual condition register bits.
   bool useCRBits() const { return UseCRBits; }
 
-  /// hasLazyResolverStub - Return true if accesses to the specified global have
-  /// to go through a dyld lazy resolution stub.  This means that an extra load
-  /// is required to get the address of the global.
-  bool hasLazyResolverStub(const GlobalValue *GV) const;
-
   // isLittleEndian - True if generating little-endian code
   bool isLittleEndian() const { return IsLittleEndian; }
 
@@ -256,6 +257,8 @@ public:
   bool hasP8Crypto() const { return HasP8Crypto; }
   bool hasP9Vector() const { return HasP9Vector; }
   bool hasP9Altivec() const { return HasP9Altivec; }
+  bool hasPrefixInstrs() const { return HasPrefixInstrs; }
+  bool hasPCRelativeMemops() const { return HasPCRelativeMemops; }
   bool hasMFOCRF() const { return HasMFOCRF; }
   bool hasISEL() const { return HasISEL; }
   bool hasBPERMD() const { return HasBPERMD; }
@@ -270,6 +273,7 @@ public:
   bool vectorsUseTwoUnits() const {return VectorsUseTwoUnits; }
   bool isE500() const { return IsE500; }
   bool isFeatureMFTB() const { return FeatureMFTB; }
+  bool allowsUnalignedFPAccess() const { return AllowsUnalignedFPAccess; }
   bool isDeprecatedDST() const { return DeprecatedDST; }
   bool hasICBT() const { return HasICBT; }
   bool hasInvariantFunctionDescriptors() const {
@@ -288,11 +292,8 @@ public:
     return Align(16);
   }
 
-  // DarwinABI has a 224-byte red zone. PPC32 SVR4ABI(Non-DarwinABI) has no
-  // red zone and PPC64 SVR4ABI has a 288-byte red zone.
-  unsigned  getRedZoneSize() const {
-    return isDarwinABI() ? 224 : (isPPC64() ? 288 : 0);
-  }
+  // PPC32 SVR4ABI has no red zone and PPC64 SVR4ABI has a 288-byte red zone.
+  unsigned getRedZoneSize() const { return isPPC64() ? 288 : 0; }
 
   bool hasHTM() const { return HasHTM; }
   bool hasFloat128() const { return HasFloat128; }
@@ -306,8 +307,6 @@ public:
 
   const Triple &getTargetTriple() const { return TargetTriple; }
 
-  /// isDarwin - True if this is any darwin platform.
-  bool isDarwin() const { return TargetTriple.isMacOSX(); }
   /// isBGQ - True if this is a BG/Q platform.
   bool isBGQ() const { return TargetTriple.getVendor() == Triple::BGQ; }
 
@@ -315,9 +314,8 @@ public:
   bool isTargetMachO() const { return TargetTriple.isOSBinFormatMachO(); }
   bool isTargetLinux() const { return TargetTriple.isOSLinux(); }
 
-  bool isDarwinABI() const { return isTargetMachO() || isDarwin(); }
   bool isAIXABI() const { return TargetTriple.isOSAIX(); }
-  bool isSVR4ABI() const { return !isDarwinABI() && !isAIXABI(); }
+  bool isSVR4ABI() const { return !isAIXABI(); }
   bool isELFv2ABI() const;
 
   bool is64BitELFABI() const { return  isSVR4ABI() && isPPC64(); }
@@ -346,6 +344,41 @@ public:
 
   /// True if the GV will be accessed via an indirect symbol.
   bool isGVIndirectSymbol(const GlobalValue *GV) const;
+
+  /// True if the ABI is descriptor based.
+  bool usesFunctionDescriptors() const {
+    // Both 32-bit and 64-bit AIX are descriptor based. For ELF only the 64-bit
+    // v1 ABI uses descriptors.
+    return isAIXABI() || (is64BitELFABI() && !isELFv2ABI());
+  }
+
+  unsigned descriptorTOCAnchorOffset() const {
+    assert(usesFunctionDescriptors() &&
+           "Should only be called when the target uses descriptors.");
+    return IsPPC64 ? 8 : 4;
+  }
+
+  unsigned descriptorEnvironmentPointerOffset() const {
+    assert(usesFunctionDescriptors() &&
+           "Should only be called when the target uses descriptors.");
+    return IsPPC64 ? 16 : 8;
+  }
+
+  MCRegister getEnvironmentPointerRegister() const {
+    assert(usesFunctionDescriptors() &&
+           "Should only be called when the target uses descriptors.");
+     return IsPPC64 ? PPC::X11 : PPC::R11;
+  }
+
+  MCRegister getTOCPointerRegister() const {
+    assert((is64BitELFABI() || isAIXABI()) &&
+           "Should only be called when the target is a TOC based ABI.");
+    return IsPPC64 ? PPC::X2 : PPC::R2;
+  }
+
+  MCRegister getStackPointerRegister() const {
+    return IsPPC64 ? PPC::X1 : PPC::R1;
+  }
 
   bool isXRaySupported() const override { return IsPPC64 && IsLittleEndian; }
 };

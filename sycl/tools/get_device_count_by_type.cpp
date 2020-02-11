@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
-#include <vector>
-#include <string>
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+
+#include <iostream>
+#include <string>
+#include <vector>
 
 static const std::string help =
 "   Help\n"

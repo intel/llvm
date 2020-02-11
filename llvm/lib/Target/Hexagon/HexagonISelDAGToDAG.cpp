@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Hexagon.h"
 #include "HexagonISelDAGToDAG.h"
+#include "Hexagon.h"
 #include "HexagonISelLowering.h"
 #include "HexagonMachineFunctionInfo.h"
 #include "HexagonTargetMachine.h"
@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 using namespace llvm;
@@ -786,10 +787,18 @@ void HexagonDAGToDAGISel::SelectVAlign(SDNode *N) {
                                        MVT::i64, Ops);
 
     // Shift right by "(Addr & 0x3) * 8" bytes.
+    SDNode *C;
     SDValue M0 = CurDAG->getTargetConstant(0x18, dl, MVT::i32);
     SDValue M1 = CurDAG->getTargetConstant(0x03, dl, MVT::i32);
-    SDNode *C = CurDAG->getMachineNode(Hexagon::S4_andi_asl_ri, dl, MVT::i32,
-                                       M0, N->getOperand(2), M1);
+    if (HST->useCompound()) {
+      C = CurDAG->getMachineNode(Hexagon::S4_andi_asl_ri, dl, MVT::i32,
+                                 M0, N->getOperand(2), M1);
+    } else {
+      SDNode *T = CurDAG->getMachineNode(Hexagon::S2_asl_i_r, dl, MVT::i32,
+                                         N->getOperand(2), M1);
+      C = CurDAG->getMachineNode(Hexagon::A2_andir, dl, MVT::i32,
+                                 SDValue(T, 0), M0);
+    }
     SDNode *S = CurDAG->getMachineNode(Hexagon::S2_lsr_r_p, dl, MVT::i64,
                                        SDValue(R, 0), SDValue(C, 0));
     SDValue E = CurDAG->getTargetExtractSubreg(Hexagon::isub_lo, dl, ResTy,
@@ -915,7 +924,6 @@ SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
   switch (ConstraintID) {
   default:
     return true;
-  case InlineAsm::Constraint_i:
   case InlineAsm::Constraint_o: // Offsetable.
   case InlineAsm::Constraint_v: // Not offsetable.
   case InlineAsm::Constraint_m: // Memory.
@@ -1261,7 +1269,7 @@ void HexagonDAGToDAGISel::PreprocessISelDAG() {
 }
 
 void HexagonDAGToDAGISel::EmitFunctionEntryCode() {
-  auto &HST = static_cast<const HexagonSubtarget&>(MF->getSubtarget());
+  auto &HST = MF->getSubtarget<HexagonSubtarget>();
   auto &HFI = *HST.getFrameLowering();
   if (!HFI.needsAligna(*MF))
     return;
@@ -1269,10 +1277,21 @@ void HexagonDAGToDAGISel::EmitFunctionEntryCode() {
   MachineFrameInfo &MFI = MF->getFrameInfo();
   MachineBasicBlock *EntryBB = &MF->front();
   unsigned AR = FuncInfo->CreateReg(MVT::i32);
-  unsigned MaxA = MFI.getMaxAlignment();
+  unsigned EntryMaxA = MFI.getMaxAlignment();
   BuildMI(EntryBB, DebugLoc(), HII->get(Hexagon::PS_aligna), AR)
-      .addImm(MaxA);
+      .addImm(EntryMaxA);
   MF->getInfo<HexagonMachineFunctionInfo>()->setStackAlignBaseVReg(AR);
+}
+
+void HexagonDAGToDAGISel::updateAligna() {
+  auto &HFI = *MF->getSubtarget<HexagonSubtarget>().getFrameLowering();
+  if (!HFI.needsAligna(*MF))
+    return;
+  auto *AlignaI = const_cast<MachineInstr*>(HFI.getAlignaInstr(*MF));
+  assert(AlignaI != nullptr);
+  unsigned MaxA = MF->getFrameInfo().getMaxAlignment();
+  if (AlignaI->getOperand(1).getImm() < MaxA)
+    AlignaI->getOperand(1).setImm(MaxA);
 }
 
 // Match a frame index that can be used in an addressing mode.

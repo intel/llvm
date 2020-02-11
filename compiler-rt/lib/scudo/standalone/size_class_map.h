@@ -49,7 +49,7 @@ public:
   static const uptr MaxSize = 1UL << MaxSizeLog;
   static const uptr NumClasses =
       MidClass + ((MaxSizeLog - MidSizeLog) << S) + 1;
-  COMPILER_CHECK(NumClasses <= 256);
+  static_assert(NumClasses <= 256, "");
   static const uptr LargestClassId = NumClasses - 1;
   static const uptr BatchClassId = 0;
 
@@ -66,11 +66,11 @@ public:
     DCHECK_LE(Size, MaxSize);
     if (Size <= MidSize)
       return (Size + MinSize - 1) >> MinSizeLog;
+    Size -= 1;
     const uptr L = getMostSignificantSetBitIndex(Size);
-    const uptr HBits = (Size >> (L - S)) & M;
-    const uptr LBits = Size & ((1UL << (L - S)) - 1);
-    const uptr L1 = L - MidSizeLog;
-    return MidClass + (L1 << S) + HBits + (LBits > 0);
+    const uptr LBits = (Size >> (L - S)) - (1 << S);
+    const uptr HBits = (L - MidSizeLog) << S;
+    return MidClass + 1 + HBits + LBits;
   }
 
   static u32 getMaxCachedHint(uptr Size) {
@@ -120,7 +120,8 @@ public:
       if (C < LargestClassId)
         CHECK_EQ(getClassIdBySize(S + 1), C + 1);
       CHECK_EQ(getClassIdBySize(S - 1), C);
-      CHECK_GT(getSizeByClassId(C), getSizeByClassId(C - 1));
+      if (C - 1 != BatchClassId)
+        CHECK_GT(getSizeByClassId(C), getSizeByClassId(C - 1));
     }
     // Do not perform the loop if the maximum size is too large.
     if (MaxSizeLog > 19)
@@ -129,7 +130,7 @@ public:
       const uptr C = getClassIdBySize(S);
       CHECK_LT(C, NumClasses);
       CHECK_GE(getSizeByClassId(C), S);
-      if (C > 0)
+      if (C - 1 != BatchClassId)
         CHECK_LT(getSizeByClassId(C - 1), S);
     }
   }
@@ -140,10 +141,10 @@ typedef SizeClassMap<3, 5, 8, 17, 8, 10> DefaultSizeClassMap;
 // TODO(kostyak): further tune class maps for Android & Fuchsia.
 #if SCUDO_WORDSIZE == 64U
 typedef SizeClassMap<4, 4, 8, 14, 4, 10> SvelteSizeClassMap;
-typedef SizeClassMap<3, 5, 8, 17, 14, 14> AndroidSizeClassMap;
+typedef SizeClassMap<2, 5, 9, 16, 14, 14> AndroidSizeClassMap;
 #else
 typedef SizeClassMap<4, 3, 7, 14, 5, 10> SvelteSizeClassMap;
-typedef SizeClassMap<3, 5, 8, 17, 14, 14> AndroidSizeClassMap;
+typedef SizeClassMap<2, 5, 9, 16, 14, 14> AndroidSizeClassMap;
 #endif
 
 } // namespace scudo

@@ -19,7 +19,7 @@
 
 cl::sycl::detail::usm::CLUSM *gCLUSM = nullptr;
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {

@@ -87,7 +87,7 @@ if(WIN32)
   endforeach()
 else()
   # It is difficult to create a dummy assembly file that compiles into an
-  # exectuable for every architecture and then check the C compiler to
+  # executable for every architecture and then check the C compiler to
   # see if -x assembler-with-cpp exists and works, so we assume it does for non-Windows.
   set(LIBOMP_HAVE_X_ASSEMBLER_WITH_CPP_FLAG TRUE)
 endif()
@@ -105,7 +105,6 @@ elseif(NOT APPLE)
   libomp_check_linker_flag("-Wl,--version-script=${LIBOMP_SRC_DIR}/exports_so.txt" LIBOMP_HAVE_VERSION_SCRIPT_FLAG)
   libomp_check_linker_flag(-static-libgcc LIBOMP_HAVE_STATIC_LIBGCC_FLAG)
   libomp_check_linker_flag(-Wl,-z,noexecstack LIBOMP_HAVE_Z_NOEXECSTACK_FLAG)
-  libomp_check_linker_flag(-Wl,-fini=__kmp_internal_end_fini LIBOMP_HAVE_FINI_FLAG)
 endif()
 
 # Check Intel(R) C Compiler specific flags

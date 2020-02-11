@@ -1,4 +1,4 @@
-//===-- CommandObjectStats.cpp ----------------------------------*- C++ -*-===//
+//===-- CommandObjectStats.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "CommandObjectStats.h"
-#include "lldb/Host/Host.h"
-#include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Target/Target.h"
 
@@ -81,7 +79,8 @@ protected:
     for (auto &stat : target.GetStatistics()) {
       result.AppendMessageWithFormat(
           "%s : %u\n",
-          lldb_private::GetStatDescription(static_cast<lldb_private::StatisticKind>(i))
+          lldb_private::GetStatDescription(
+              static_cast<lldb_private::StatisticKind>(i))
               .c_str(),
           stat);
       i += 1;

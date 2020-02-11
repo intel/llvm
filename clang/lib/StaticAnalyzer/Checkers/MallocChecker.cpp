@@ -57,6 +57,7 @@
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
@@ -782,7 +783,7 @@ private:
       os << "Reallocation of " << ArgIndex << llvm::getOrdinalSuffix(ArgIndex)
          << " parameter failed";
 
-      return os.str();
+      return std::string(os.str());
     }
 
     std::string getMessageForReturn(const CallExpr *CallExpr) override {
@@ -1402,15 +1403,16 @@ ProgramStateRef MallocChecker::addExtentSize(CheckerContext &C,
   CharUnits TypeSize = AstContext.getTypeSizeInChars(ElementType);
 
   if (ElementCount.getAs<NonLoc>()) {
-    DefinedOrUnknownSVal Extent = Region->getExtent(svalBuilder);
+    DefinedOrUnknownSVal DynSize = getDynamicSize(State, Region, svalBuilder);
+
     // size in Bytes = ElementCount*TypeSize
     SVal SizeInBytes = svalBuilder.evalBinOpNN(
         State, BO_Mul, ElementCount.castAs<NonLoc>(),
         svalBuilder.makeArrayIndex(TypeSize.getQuantity()),
         svalBuilder.getArrayIndexType());
-    DefinedOrUnknownSVal extentMatchesSize = svalBuilder.evalEQ(
-        State, Extent, SizeInBytes.castAs<DefinedOrUnknownSVal>());
-    State = State->assume(extentMatchesSize, true);
+    DefinedOrUnknownSVal DynSizeMatchesSize = svalBuilder.evalEQ(
+        State, DynSize, SizeInBytes.castAs<DefinedOrUnknownSVal>());
+    State = State->assume(DynSizeMatchesSize, true);
   }
   return State;
 }
@@ -1468,6 +1470,9 @@ void MallocChecker::checkPostObjCMessage(const ObjCMethodCall &Call,
   if (Optional<bool> FreeWhenDone = getFreeWhenDoneArg(Call))
     if (!*FreeWhenDone)
       return;
+
+  if (Call.hasNonZeroCallbackArg())
+    return;
 
   bool IsKnownToBeAllocatedMemory;
   ProgramStateRef State =
@@ -1539,12 +1544,12 @@ ProgramStateRef MallocChecker::MallocMemAux(CheckerContext &C,
     return nullptr;
   if (Optional<DefinedOrUnknownSVal> DefinedSize =
           Size.getAs<DefinedOrUnknownSVal>()) {
-    SValBuilder &svalBuilder = C.getSValBuilder();
-    DefinedOrUnknownSVal Extent = R->getExtent(svalBuilder);
-    DefinedOrUnknownSVal extentMatchesSize =
-        svalBuilder.evalEQ(State, Extent, *DefinedSize);
+    DefinedOrUnknownSVal DynSize = getDynamicSize(State, R, svalBuilder);
 
-    State = State->assume(extentMatchesSize, true);
+    DefinedOrUnknownSVal DynSizeMatchesSize =
+        svalBuilder.evalEQ(State, DynSize, *DefinedSize);
+
+    State = State->assume(DynSizeMatchesSize, true);
     assert(State);
   }
 
@@ -2525,19 +2530,18 @@ MallocChecker::LeakInfo MallocChecker::getAllocationSite(const ExplodedNode *N,
 
     // Find the most recent expression bound to the symbol in the current
     // context.
-      if (!ReferenceRegion) {
-        if (const MemRegion *MR = C.getLocationRegionIfPostStore(N)) {
-          SVal Val = State->getSVal(MR);
-          if (Val.getAsLocSymbol() == Sym) {
-            const VarRegion* VR = MR->getBaseRegion()->getAs<VarRegion>();
-            // Do not show local variables belonging to a function other than
-            // where the error is reported.
-            if (!VR ||
-                (VR->getStackFrame() == LeakContext->getStackFrame()))
-              ReferenceRegion = MR;
-          }
+    if (!ReferenceRegion) {
+      if (const MemRegion *MR = C.getLocationRegionIfPostStore(N)) {
+        SVal Val = State->getSVal(MR);
+        if (Val.getAsLocSymbol() == Sym) {
+          const VarRegion *VR = MR->getBaseRegion()->getAs<VarRegion>();
+          // Do not show local variables belonging to a function other than
+          // where the error is reported.
+          if (!VR || (VR->getStackFrame() == LeakContext->getStackFrame()))
+            ReferenceRegion = MR;
         }
       }
+    }
 
     // Allocation node, is the last node in the current or parent context in
     // which the symbol was tracked.

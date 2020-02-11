@@ -55,6 +55,7 @@ std::vector<HighlightingToken> getExpectedTokens(Annotations &Test) {
       {HighlightingKind::DependentType, "DependentType"},
       {HighlightingKind::DependentName, "DependentName"},
       {HighlightingKind::TemplateParameter, "TemplateParameter"},
+      {HighlightingKind::Concept, "Concept"},
       {HighlightingKind::Primitive, "Primitive"},
       {HighlightingKind::Macro, "Macro"}};
   std::vector<HighlightingToken> ExpectedTokens;
@@ -89,8 +90,9 @@ std::string annotate(llvm::StringRef Input,
     assert(NextChar <= StartOffset);
 
     Result += Input.substr(NextChar, StartOffset - NextChar);
-    Result += llvm::formatv("${0}[[{1}]]", T.Kind,
-                            Input.substr(StartOffset, EndOffset - StartOffset));
+    Result += std::string(
+        llvm::formatv("${0}[[{1}]]", T.Kind,
+                      Input.substr(StartOffset, EndOffset - StartOffset)));
     NextChar = EndOffset;
   }
   Result += Input.substr(NextChar);
@@ -103,14 +105,15 @@ void checkHighlightings(llvm::StringRef Code,
                             AdditionalFiles = {}) {
   Annotations Test(Code);
   TestTU TU;
-  TU.Code = Test.code();
+  TU.Code = std::string(Test.code());
 
   // FIXME: Auto-completion in a template requires disabling delayed template
   // parsing.
   TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
+  TU.ExtraArgs.push_back("-std=c++2a");
 
   for (auto File : AdditionalFiles)
-    TU.AdditionalFiles.insert({File.first, File.second});
+    TU.AdditionalFiles.insert({File.first, std::string(File.second)});
   auto AST = TU.build();
 
   EXPECT_EQ(Code, annotate(Test.code(), getSemanticHighlightings(AST)));
@@ -140,7 +143,7 @@ void checkDiffedHighlights(llvm::StringRef OldCode, llvm::StringRef NewCode) {
   }
   for (auto &LineTokens : ExpectedLines)
     ExpectedLinePairHighlighting.push_back(
-        {LineTokens.first, LineTokens.second});
+        {LineTokens.first, LineTokens.second, /*IsInactive = */ false});
 
   std::vector<LineHighlightings> ActualDiffed =
       diffHighlightings(NewTokens, OldTokens);
@@ -153,26 +156,26 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
   const char *TestCases[] = {
       R"cpp(
       struct $Class[[AS]] {
-        $Primitive[[double]] $Field[[SomeMember]];
+        double $Field[[SomeMember]];
       };
       struct {
       } $Variable[[S]];
-      $Primitive[[void]] $Function[[foo]]($Primitive[[int]] $Parameter[[A]], $Class[[AS]] $Parameter[[As]]) {
+      void $Function[[foo]](int $Parameter[[A]], $Class[[AS]] $Parameter[[As]]) {
         $Primitive[[auto]] $LocalVariable[[VeryLongVariableName]] = 12312;
         $Class[[AS]]     $LocalVariable[[AA]];
         $Primitive[[auto]] $LocalVariable[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
-        auto $LocalVariable[[FN]] = [ $LocalVariable[[AA]]]($Primitive[[int]] $Parameter[[A]]) -> $Primitive[[void]] {};
+        auto $LocalVariable[[FN]] = [ $LocalVariable[[AA]]](int $Parameter[[A]]) -> void {};
         $LocalVariable[[FN]](12312);
       }
     )cpp",
       R"cpp(
-      $Primitive[[void]] $Function[[foo]]($Primitive[[int]]);
-      $Primitive[[void]] $Function[[Gah]]();
-      $Primitive[[void]] $Function[[foo]]() {
+      void $Function[[foo]](int);
+      void $Function[[Gah]]();
+      void $Function[[foo]]() {
         auto $LocalVariable[[Bou]] = $Function[[Gah]];
       }
       struct $Class[[A]] {
-        $Primitive[[void]] $Method[[abc]]();
+        void $Method[[abc]]();
       };
     )cpp",
       R"cpp(
@@ -186,17 +189,17 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       struct $Class[[C]] : $Namespace[[abc]]::$Class[[A]]<$TemplateParameter[[T]]> {
         typename $TemplateParameter[[T]]::$DependentType[[A]]* $Field[[D]];
       };
-      $Namespace[[abc]]::$Class[[A]]<$Primitive[[int]]> $Variable[[AA]];
-      typedef $Namespace[[abc]]::$Class[[A]]<$Primitive[[int]]> $Class[[AAA]];
+      $Namespace[[abc]]::$Class[[A]]<int> $Variable[[AA]];
+      typedef $Namespace[[abc]]::$Class[[A]]<int> $Class[[AAA]];
       struct $Class[[B]] {
         $Class[[B]]();
         ~$Class[[B]]();
-        $Primitive[[void]] operator<<($Class[[B]]);
+        void operator<<($Class[[B]]);
         $Class[[AAA]] $Field[[AA]];
       };
       $Class[[B]]::$Class[[B]]() {}
       $Class[[B]]::~$Class[[B]]() {}
-      $Primitive[[void]] $Function[[f]] () {
+      void $Function[[f]] () {
         $Class[[B]] $LocalVariable[[BB]] = $Class[[B]]();
         $LocalVariable[[BB]].~$Class[[B]]();
         $Class[[B]]();
@@ -214,7 +217,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
         $Enum[[E]] $Field[[EEE]];
         $Enum[[EE]] $Field[[EEEE]];
       };
-      $Primitive[[int]] $Variable[[I]] = $EnumConstant[[Hi]];
+      int $Variable[[I]] = $EnumConstant[[Hi]];
       $Enum[[E]] $Variable[[L]] = $Enum[[E]]::$EnumConstant[[B]];
     )cpp",
       R"cpp(
@@ -242,14 +245,14 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
     )cpp",
       R"cpp(
       struct $Class[[D]] {
-        $Primitive[[double]] $Field[[C]];
+        double $Field[[C]];
       };
       struct $Class[[A]] {
-        $Primitive[[double]] $Field[[B]];
+        double $Field[[B]];
         $Class[[D]] $Field[[E]];
-        static $Primitive[[double]] $StaticField[[S]];
-        static $Primitive[[void]] $StaticMethod[[bar]]() {}
-        $Primitive[[void]] $Method[[foo]]() {
+        static double $StaticField[[S]];
+        static void $StaticMethod[[bar]]() {}
+        void $Method[[foo]]() {
           $Field[[B]] = 123;
           this->$Field[[B]] = 156;
           this->$Method[[foo]]();
@@ -258,7 +261,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
           $StaticField[[S]] = 90.1;
         }
       };
-      $Primitive[[void]] $Function[[foo]]() {
+      void $Function[[foo]]() {
         $Class[[A]] $LocalVariable[[AA]];
         $LocalVariable[[AA]].$Field[[B]] += 2;
         $LocalVariable[[AA]].$Method[[foo]]();
@@ -268,15 +271,15 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
     )cpp",
       R"cpp(
       struct $Class[[AA]] {
-        $Primitive[[int]] $Field[[A]];
-      }
-      $Primitive[[int]] $Variable[[B]];
+        int $Field[[A]];
+      };
+      int $Variable[[B]];
       $Class[[AA]] $Variable[[A]]{$Variable[[B]]};
     )cpp",
       R"cpp(
       namespace $Namespace[[a]] {
         struct $Class[[A]] {};
-        typedef $Primitive[[char]] $Primitive[[C]];
+        typedef char $Primitive[[C]];
       }
       typedef $Namespace[[a]]::$Class[[A]] $Class[[B]];
       using $Class[[BB]] = $Namespace[[a]]::$Class[[A]];
@@ -287,10 +290,10 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Enum[[CC]] $Function[[f]]($Class[[B]]);
       $Enum[[CD]] $Function[[f]]($Class[[BB]]);
       typedef $Namespace[[a]]::$Primitive[[C]] $Primitive[[PC]];
-      typedef $Primitive[[float]] $Primitive[[F]];
+      typedef float $Primitive[[F]];
     )cpp",
       R"cpp(
-      template<typename $TemplateParameter[[T]], typename = $Primitive[[void]]>
+      template<typename $TemplateParameter[[T]], typename = void>
       class $Class[[A]] {
         $TemplateParameter[[T]] $Field[[AA]];
         $TemplateParameter[[T]] $Method[[foo]]();
@@ -302,7 +305,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       template<class $TemplateParameter[[TT]], class $TemplateParameter[[GG]]>
       class $Class[[BB]] {};
       template<class $TemplateParameter[[T]]>
-      class $Class[[BB]]<$TemplateParameter[[T]], $Primitive[[int]]> {};
+      class $Class[[BB]]<$TemplateParameter[[T]], int> {};
       template<class $TemplateParameter[[T]]>
       class $Class[[BB]]<$TemplateParameter[[T]], $TemplateParameter[[T]]*> {};
 
@@ -313,13 +316,13 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       class $Class[[Foo]] {};
 
       template<typename $TemplateParameter[[T]]>
-      $Primitive[[void]] $Function[[foo]]($TemplateParameter[[T]] ...);
+      void $Function[[foo]]($TemplateParameter[[T]] ...);
     )cpp",
       R"cpp(
       template <class $TemplateParameter[[T]]>
       struct $Class[[Tmpl]] {$TemplateParameter[[T]] $Field[[x]] = 0;};
-      extern template struct $Class[[Tmpl]]<$Primitive[[float]]>;
-      template struct $Class[[Tmpl]]<$Primitive[[double]]>;
+      extern template struct $Class[[Tmpl]]<float>;
+      template struct $Class[[Tmpl]]<double>;
     )cpp",
       // This test is to guard against highlightings disappearing when using
       // conversion operators as their behaviour in the clang AST differ from
@@ -328,14 +331,14 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       class $Class[[Foo]] {};
       struct $Class[[Bar]] {
         explicit operator $Class[[Foo]]*() const;
-        explicit operator $Primitive[[int]]() const;
+        explicit operator int() const;
         operator $Class[[Foo]]();
       };
-      $Primitive[[void]] $Function[[f]]() {
+      void $Function[[f]]() {
         $Class[[Bar]] $LocalVariable[[B]];
         $Class[[Foo]] $LocalVariable[[F]] = $LocalVariable[[B]];
         $Class[[Foo]] *$LocalVariable[[FP]] = ($Class[[Foo]]*)$LocalVariable[[B]];
-        $Primitive[[int]] $LocalVariable[[I]] = ($Primitive[[int]])$LocalVariable[[B]];
+        int $LocalVariable[[I]] = (int)$LocalVariable[[B]];
       }
     )cpp"
       R"cpp(
@@ -353,9 +356,10 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       };
       class $Class[[Foo]] {};
       class $Class[[Bar]] {
+      public:
         $Class[[Foo]] $Field[[Fo]];
         $Enum[[En]] $Field[[E]];
-        $Primitive[[int]] $Field[[I]];
+        int $Field[[I]];
         $Class[[Bar]] ($Class[[Foo]] $Parameter[[F]],
                 $Enum[[En]] $Parameter[[E]])
         : $Field[[Fo]] ($Parameter[[F]]), $Field[[E]] ($Parameter[[E]]),
@@ -377,7 +381,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Enum[[auto]] &$Variable[[AER]] = $Variable[[AE]];
       $Primitive[[auto]] $Variable[[Form]] = 10.2 + 2 * 4;
       $Primitive[[decltype]]($Variable[[Form]]) $Variable[[F]] = 10;
-      auto $Variable[[Fun]] = []()->$Primitive[[void]]{};
+      auto $Variable[[Fun]] = []()->void{};
     )cpp",
       R"cpp(
       class $Class[[G]] {};
@@ -385,51 +389,52 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       class $Class[[GP]] {};
       template<$Class[[G]] &$TemplateParameter[[U]]>
       class $Class[[GR]] {};
-      template<$Primitive[[int]] *$TemplateParameter[[U]]>
+      template<int *$TemplateParameter[[U]]>
       class $Class[[IP]] {
-        $Primitive[[void]] $Method[[f]]() {
+        void $Method[[f]]() {
           *$TemplateParameter[[U]] += 5;
         }
       };
-      template<$Primitive[[unsigned]] $TemplateParameter[[U]] = 2>
+      template<unsigned $TemplateParameter[[U]] = 2>
       class $Class[[Foo]] {
-        $Primitive[[void]] $Method[[f]]() {
-          for($Primitive[[int]] $LocalVariable[[I]] = 0;
+        void $Method[[f]]() {
+          for(int $LocalVariable[[I]] = 0;
             $LocalVariable[[I]] < $TemplateParameter[[U]];) {}
         }
       };
 
       $Class[[G]] $Variable[[L]];
-      $Primitive[[void]] $Function[[f]]() {
+      void $Function[[f]]() {
         $Class[[Foo]]<123> $LocalVariable[[F]];
         $Class[[GP]]<&$Variable[[L]]> $LocalVariable[[LL]];
         $Class[[GR]]<$Variable[[L]]> $LocalVariable[[LLL]];
       }
     )cpp",
       R"cpp(
-      template<typename $TemplateParameter[[T]], 
-        $Primitive[[void]] (T::*$TemplateParameter[[method]])($Primitive[[int]])>
+      template<typename $TemplateParameter[[T]],
+        void ($TemplateParameter[[T]]::*$TemplateParameter[[method]])(int)>
       struct $Class[[G]] {
-        $Primitive[[void]] $Method[[foo]](
+        void $Method[[foo]](
             $TemplateParameter[[T]] *$Parameter[[O]]) {
           ($Parameter[[O]]->*$TemplateParameter[[method]])(10);
         }
       };
       struct $Class[[F]] {
-        $Primitive[[void]] $Method[[f]]($Primitive[[int]]);
+        void $Method[[f]](int);
       };
-      template<$Primitive[[void]] (*$TemplateParameter[[Func]])()>
+      template<void (*$TemplateParameter[[Func]])()>
       struct $Class[[A]] {
-        $Primitive[[void]] $Method[[f]]() {
+        void $Method[[f]]() {
           (*$TemplateParameter[[Func]])();
         }
       };
 
-      $Primitive[[void]] $Function[[foo]]() {
+      void $Function[[foo]]() {
         $Class[[F]] $LocalVariable[[FF]];
         $Class[[G]]<$Class[[F]], &$Class[[F]]::$Method[[f]]> $LocalVariable[[GG]];
         $LocalVariable[[GG]].$Method[[foo]](&$LocalVariable[[FF]]);
         $Class[[A]]<$Function[[foo]]> $LocalVariable[[AA]];
+      }
     )cpp",
       // Tokens that share a source range but have conflicting Kinds are not
       // highlighted.
@@ -449,22 +454,22 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       #define $Macro[[SOME_NAME]] variable
       #define $Macro[[SOME_NAME_SET]] variable2 = 123
       #define $Macro[[INC_VAR]](X) X += 2
-      $Primitive[[void]] $Function[[foo]]() {
+      void $Function[[foo]]() {
         $Macro[[DEF_VAR]]($LocalVariable[[X]],  123);
         $Macro[[DEF_VAR_REV]](908, $LocalVariable[[XY]]);
-        $Primitive[[int]] $Macro[[CPY]]( $LocalVariable[[XX]] );
+        int $Macro[[CPY]]( $LocalVariable[[XX]] );
         $Macro[[DEF_VAR_TYPE]]($Class[[A]], $LocalVariable[[AA]]);
-        $Primitive[[double]] $Macro[[SOME_NAME]];
-        $Primitive[[int]] $Macro[[SOME_NAME_SET]];
+        double $Macro[[SOME_NAME]];
+        int $Macro[[SOME_NAME_SET]];
         $LocalVariable[[variable]] = 20.1;
-        $Macro[[MACRO_CONCAT]](var, 2, $Primitive[[float]]);
+        $Macro[[MACRO_CONCAT]](var, 2, float);
         $Macro[[DEF_VAR_T]]($Class[[A]], $Macro[[CPY]](
               $Macro[[CPY]]($LocalVariable[[Nested]])),
             $Macro[[CPY]]($Class[[A]]()));
         $Macro[[INC_VAR]]($LocalVariable[[variable]]);
       }
-      $Primitive[[void]] $Macro[[SOME_NAME]]();
-      $Macro[[DEF_VAR]]($Variable[[XYZ]], 567);
+      void $Macro[[SOME_NAME]]();
+      $Macro[[DEF_VAR]]($Variable[[MMMMM]], 567);
       $Macro[[DEF_VAR_REV]](756, $Variable[[AB]]);
 
       #define $Macro[[CALL_FN]](F) F();
@@ -477,10 +482,10 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       #define $Macro[[fail]](expr) expr
       #define $Macro[[assert]](COND) if (!(COND)) { fail("assertion failed" #COND); }
       // Preamble ends.
-      $Primitive[[int]] $Variable[[x]];
-      $Primitive[[int]] $Variable[[y]];
-      $Primitive[[int]] $Function[[f]]();
-      $Primitive[[void]] $Function[[foo]]() {
+      int $Variable[[x]];
+      int $Variable[[y]];
+      int $Function[[f]]();
+      void $Function[[foo]]() {
         $Macro[[assert]]($Variable[[x]] != $Variable[[y]]);
         $Macro[[assert]]($Variable[[x]] != $Function[[f]]());
       }
@@ -493,20 +498,20 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
 
       #define $Macro[[test]]
       #undef $Macro[[test]]
-      #ifdef $Macro[[test]]
-      #endif
+$InactiveCode[[]]      #ifdef $Macro[[test]]
+$InactiveCode[[]]      #endif
 
-      #if defined($Macro[[test]])
-      #endif
+$InactiveCode[[]]      #if defined($Macro[[test]])
+$InactiveCode[[]]      #endif
     )cpp",
       R"cpp(
       struct $Class[[S]] {
-        $Primitive[[float]] $Field[[Value]];
+        float $Field[[Value]];
         $Class[[S]] *$Field[[Next]];
       };
       $Class[[S]] $Variable[[Global]][2] = {$Class[[S]](), $Class[[S]]()};
-      $Primitive[[void]] $Function[[f]]($Class[[S]] $Parameter[[P]]) {
-        $Primitive[[int]] $LocalVariable[[A]][2] = {1,2};
+      void $Function[[f]]($Class[[S]] $Parameter[[P]]) {
+        int $LocalVariable[[A]][2] = {1,2};
         auto [$Variable[[B1]], $Variable[[B2]]] = $LocalVariable[[A]];
         auto [$Variable[[G1]], $Variable[[G2]]] = $Variable[[Global]];
         $Class[[auto]] [$Variable[[P1]], $Variable[[P2]]] = $Parameter[[P]];
@@ -519,25 +524,25 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       class $Class[[A]] {
         using $TemplateParameter[[TemplateParam1]] = $TemplateParameter[[T]];
         typedef $TemplateParameter[[T]] $TemplateParameter[[TemplateParam2]];
-        using $Primitive[[IntType]] = $Primitive[[int]];
+        using $Primitive[[IntType]] = int;
 
         using $Typedef[[Pointer]] = $TemplateParameter[[T]] *;
         using $Typedef[[LVReference]] = $TemplateParameter[[T]] &;
         using $Typedef[[RVReference]] = $TemplateParameter[[T]]&&;
         using $Typedef[[Array]] = $TemplateParameter[[T]]*[3];
-        using $Typedef[[MemberPointer]] = $Primitive[[int]] (A::*)($Primitive[[int]]);
+        using $Typedef[[MemberPointer]] = int ($Class[[A]]::*)(int);
 
         // Use various previously defined typedefs in a function type.
-        $Primitive[[void]] $Method[[func]](
+        void $Method[[func]](
           $Typedef[[Pointer]], $Typedef[[LVReference]], $Typedef[[RVReference]],
           $Typedef[[Array]], $Typedef[[MemberPointer]]);
       };
     )cpp",
       R"cpp(
       template <class $TemplateParameter[[T]]>
-      $Primitive[[void]] $Function[[phase1]]($TemplateParameter[[T]]);
+      void $Function[[phase1]]($TemplateParameter[[T]]);
       template <class $TemplateParameter[[T]]>
-      $Primitive[[void]] $Function[[foo]]($TemplateParameter[[T]] $Parameter[[P]]) {
+      void $Function[[foo]]($TemplateParameter[[T]] $Parameter[[P]]) {
         $Function[[phase1]]($Parameter[[P]]);
         $DependentName[[phase2]]($Parameter[[P]]);
       }
@@ -545,45 +550,123 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       R"cpp(
       class $Class[[A]] {
         template <class $TemplateParameter[[T]]>
-        $Primitive[[void]] $Method[[bar]]($TemplateParameter[[T]]);
+        void $Method[[bar]]($TemplateParameter[[T]]);
       };
 
       template <class $TemplateParameter[[U]]>
-      $Primitive[[void]] $Function[[foo]]($TemplateParameter[[U]] $Parameter[[P]]) {
+      void $Function[[foo]]($TemplateParameter[[U]] $Parameter[[P]]) {
         $Class[[A]]().$Method[[bar]]($Parameter[[P]]);
       }
     )cpp",
       R"cpp(
       struct $Class[[A]] {
         template <class $TemplateParameter[[T]]>
-        static $Primitive[[void]] $StaticMethod[[foo]]($TemplateParameter[[T]]);
+        static void $StaticMethod[[foo]]($TemplateParameter[[T]]);
       };
 
       template <class $TemplateParameter[[T]]>
       struct $Class[[B]] {
-        $Primitive[[void]] $Method[[bar]]() {
+        void $Method[[bar]]() {
           $Class[[A]]::$StaticMethod[[foo]]($TemplateParameter[[T]]());
         }
       };
     )cpp",
       R"cpp(
       template <class $TemplateParameter[[T]]>
-      $Primitive[[void]] $Function[[foo]](typename $TemplateParameter[[T]]::$DependentType[[Type]]
+      void $Function[[foo]](typename $TemplateParameter[[T]]::$DependentType[[Type]]
                                             = $TemplateParameter[[T]]::$DependentName[[val]]);
     )cpp",
       R"cpp(
       template <class $TemplateParameter[[T]]>
-      $Primitive[[void]] $Function[[foo]]($TemplateParameter[[T]] $Parameter[[P]]) {
+      void $Function[[foo]]($TemplateParameter[[T]] $Parameter[[P]]) {
         $Parameter[[P]].$DependentName[[Field]];
       }
     )cpp",
       R"cpp(
       template <class $TemplateParameter[[T]]>
       class $Class[[A]] {
-        $Primitive[[int]] $Method[[foo]]() {
+        int $Method[[foo]]() {
           return $TemplateParameter[[T]]::$DependentName[[Field]];
         }
       };
+    )cpp",
+      // Highlighting the using decl as the underlying using shadow decl.
+      R"cpp(
+      void $Function[[foo]]();
+      using ::$Function[[foo]];
+    )cpp",
+      // Highlighting of template template arguments.
+      R"cpp(
+      template <template <class> class $TemplateParameter[[TT]],
+                template <class> class ...$TemplateParameter[[TTs]]>
+      struct $Class[[Foo]] {
+        $Class[[Foo]]<$TemplateParameter[[TT]], $TemplateParameter[[TTs]]...>
+          *$Field[[t]];
+      };
+    )cpp",
+      // Inactive code highlighting
+      R"cpp(
+      // Code in the preamble.
+      // Inactive lines get an empty InactiveCode token at the beginning.
+$InactiveCode[[]]      #ifdef $Macro[[test]]
+$InactiveCode[[]]      #endif
+
+      // A declaration to cause the preamble to end.
+      int $Variable[[EndPreamble]];
+
+      // Code after the preamble.
+      // Code inside inactive blocks does not get regular highlightings
+      // because it's not part of the AST.
+$InactiveCode[[]]      #ifdef $Macro[[test]]
+$InactiveCode[[]]      int Inactive2;
+$InactiveCode[[]]      #endif
+
+      #ifndef $Macro[[test]]
+      int $Variable[[Active1]];
+      #endif
+
+$InactiveCode[[]]      #ifdef $Macro[[test]]
+$InactiveCode[[]]      int Inactive3;
+$InactiveCode[[]]      #else
+      int $Variable[[Active2]];
+      #endif
+    )cpp",
+      // Argument to 'sizeof...'
+      R"cpp(
+      template <typename... $TemplateParameter[[Elements]]>
+      struct $Class[[TupleSize]] {
+        static const int $StaticField[[size]] =
+sizeof...($TemplateParameter[[Elements]]);
+      };
+    )cpp",
+      // More dependent types
+      R"cpp(
+      template <typename $TemplateParameter[[T]]>
+      struct $Class[[Waldo]] {
+        using $Typedef[[Location1]] = typename $TemplateParameter[[T]]
+            ::$DependentType[[Resolver]]::$DependentType[[Location]];
+        using $Typedef[[Location2]] = typename $TemplateParameter[[T]]
+            ::template $DependentType[[Resolver]]<$TemplateParameter[[T]]>
+            ::$DependentType[[Location]];
+        using $Typedef[[Location3]] = typename $TemplateParameter[[T]]
+            ::$DependentType[[Resolver]]
+            ::template $DependentType[[Location]]<$TemplateParameter[[T]]>;
+        static const int $StaticField[[Value]] = $TemplateParameter[[T]]
+            ::$DependentType[[Resolver]]::$DependentName[[Value]];
+      };
+    )cpp",
+      // Concepts
+      R"cpp(
+      template <typename $TemplateParameter[[T]]>
+      concept $Concept[[Fooable]] = 
+          requires($TemplateParameter[[T]] $Parameter[[F]]) {
+            $Parameter[[F]].$DependentName[[foo]]();
+          };
+      template <typename $TemplateParameter[[T]]>
+          requires $Concept[[Fooable]]<$TemplateParameter[[T]]>
+      void $Function[[bar]]($TemplateParameter[[T]] $Parameter[[F]]) {
+        $Parameter[[F]].$DependentName[[foo]]();
+      }
     )cpp"};
   for (const auto &TestCase : TestCases) {
     checkHighlightings(TestCase);
@@ -593,7 +676,6 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
     class $Class[[A]] {
       #include "imp.h"
     };
-    #endif
   )cpp",
                      {{"imp.h", R"cpp(
     int someMethod();
@@ -615,11 +697,10 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
 }
 
 TEST(SemanticHighlighting, GeneratesHighlightsWhenFileChange) {
-  class HighlightingsCounterDiagConsumer : public DiagnosticsConsumer {
+  class HighlightingsCounter : public ClangdServer::Callbacks {
   public:
     std::atomic<int> Count = {0};
 
-    void onDiagnosticsReady(PathRef, std::vector<Diag>) override {}
     void onHighlightingsReady(
         PathRef File, std::vector<HighlightingToken> Highlightings) override {
       ++Count;
@@ -631,11 +712,11 @@ TEST(SemanticHighlighting, GeneratesHighlightsWhenFileChange) {
   FS.Files[FooCpp] = "";
 
   MockCompilationDatabase MCD;
-  HighlightingsCounterDiagConsumer DiagConsumer;
-  ClangdServer Server(MCD, FS, DiagConsumer, ClangdServer::optsForTest());
+  HighlightingsCounter Counter;
+  ClangdServer Server(MCD, FS, ClangdServer::optsForTest(), &Counter);
   Server.addDocument(FooCpp, "int a;");
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for server";
-  ASSERT_EQ(DiagConsumer.Count, 1);
+  ASSERT_EQ(Counter.Count, 1);
 }
 
 TEST(SemanticHighlighting, toSemanticHighlightingInformation) {
@@ -651,10 +732,12 @@ TEST(SemanticHighlighting, toSemanticHighlightingInformation) {
        {{HighlightingKind::Variable,
          Range{CreatePosition(3, 8), CreatePosition(3, 12)}},
         {HighlightingKind::Function,
-         Range{CreatePosition(3, 4), CreatePosition(3, 7)}}}},
+         Range{CreatePosition(3, 4), CreatePosition(3, 7)}}},
+       /* IsInactive = */ false},
       {1,
        {{HighlightingKind::Variable,
-         Range{CreatePosition(1, 1), CreatePosition(1, 5)}}}}};
+         Range{CreatePosition(1, 1), CreatePosition(1, 5)}}},
+       /* IsInactive = */ true}};
   std::vector<SemanticHighlightingInformation> ActualResults =
       toSemanticHighlightingInformation(Tokens);
   std::vector<SemanticHighlightingInformation> ExpectedResults = {

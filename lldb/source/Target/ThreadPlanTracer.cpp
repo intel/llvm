@@ -1,4 +1,4 @@
-//===-- ThreadPlanTracer.cpp ------------------------------------*- C++ -*-===//
+//===-- ThreadPlanTracer.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -115,10 +115,6 @@ TypeFromUser ThreadPlanAssemblyTracer::GetIntPointerType() {
 ThreadPlanAssemblyTracer::~ThreadPlanAssemblyTracer() = default;
 
 void ThreadPlanAssemblyTracer::TracingStarted() {
-  RegisterContext *reg_ctx = m_thread.GetRegisterContext().get();
-
-  if (m_register_values.empty())
-    m_register_values.resize(reg_ctx->GetRegisterCount());
 }
 
 void ThreadPlanAssemblyTracer::TracingEnded() { m_register_values.clear(); }
@@ -206,6 +202,11 @@ void ThreadPlanAssemblyTracer::Log() {
           stream->PutCString(", ");
       }
     }
+  }
+
+  if (m_register_values.empty()) {
+    RegisterContext *reg_ctx = m_thread.GetRegisterContext().get();
+    m_register_values.resize(reg_ctx->GetRegisterCount());
   }
 
   RegisterValue reg_value;

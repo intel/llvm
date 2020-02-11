@@ -14,6 +14,7 @@
 #include "flags.h"
 #include "primary32.h"
 #include "primary64.h"
+#include "secondary.h"
 #include "size_class_map.h"
 #include "tsd_exclusive.h"
 #include "tsd_shared.h"
@@ -31,18 +32,23 @@ struct DefaultConfig {
   // 512KB regions
   typedef SizeClassAllocator32<SizeClassMap, 19U> Primary;
 #endif
+  typedef MapAllocator<MapAllocatorCache<>> Secondary;
   template <class A> using TSDRegistryT = TSDRegistryExT<A>; // Exclusive
 };
 
 struct AndroidConfig {
   using SizeClassMap = AndroidSizeClassMap;
 #if SCUDO_CAN_USE_PRIMARY64
-  // 1GB regions
-  typedef SizeClassAllocator64<SizeClassMap, 30U> Primary;
+  // 256MB regions
+  typedef SizeClassAllocator64<SizeClassMap, 28U,
+                               /*MaySupportMemoryTagging=*/true>
+      Primary;
 #else
-  // 512KB regions
-  typedef SizeClassAllocator32<SizeClassMap, 19U> Primary;
+  // 256KB regions
+  typedef SizeClassAllocator32<SizeClassMap, 18U> Primary;
 #endif
+  // Cache blocks up to 2MB
+  typedef MapAllocator<MapAllocatorCache<32U, 2UL << 20>> Secondary;
   template <class A>
   using TSDRegistryT = TSDRegistrySharedT<A, 2U>; // Shared, max 2 TSDs.
 };
@@ -50,22 +56,26 @@ struct AndroidConfig {
 struct AndroidSvelteConfig {
   using SizeClassMap = SvelteSizeClassMap;
 #if SCUDO_CAN_USE_PRIMARY64
-  // 512MB regions
-  typedef SizeClassAllocator64<SizeClassMap, 29U> Primary;
+  // 128MB regions
+  typedef SizeClassAllocator64<SizeClassMap, 27U> Primary;
 #else
   // 64KB regions
   typedef SizeClassAllocator32<SizeClassMap, 16U> Primary;
 #endif
+  typedef MapAllocator<MapAllocatorCache<4U, 1UL << 18>> Secondary;
   template <class A>
   using TSDRegistryT = TSDRegistrySharedT<A, 1U>; // Shared, only 1 TSD.
 };
 
+#if SCUDO_CAN_USE_PRIMARY64
 struct FuchsiaConfig {
   // 1GB Regions
   typedef SizeClassAllocator64<DefaultSizeClassMap, 30U> Primary;
+  typedef MapAllocator<MapAllocatorNoCache> Secondary;
   template <class A>
   using TSDRegistryT = TSDRegistrySharedT<A, 8U>; // Shared, max 8 TSDs.
 };
+#endif
 
 #if SCUDO_ANDROID
 typedef AndroidConfig Config;

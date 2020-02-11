@@ -24,9 +24,10 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/LLVMBitCodes.h"
 #include "llvm/Bitstream/BitCodes.h"
 #include "llvm/Bitstream/BitstreamWriter.h"
-#include "llvm/Bitcode/LLVMBitCodes.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -1005,6 +1006,7 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   RawFlags |= (Flags.NoRecurse << 2);
   RawFlags |= (Flags.ReturnDoesNotAlias << 3);
   RawFlags |= (Flags.NoInline << 4);
+  RawFlags |= (Flags.AlwaysInline << 5);
   return RawFlags;
 }
 
@@ -1026,7 +1028,8 @@ static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
 }
 
 static uint64_t getEncodedGVarFlags(GlobalVarSummary::GVarFlags Flags) {
-  uint64_t RawFlags = Flags.MaybeReadOnly | (Flags.MaybeWriteOnly << 1);
+  uint64_t RawFlags = Flags.MaybeReadOnly | (Flags.MaybeWriteOnly << 1) |
+                      (Flags.Constant << 2) | Flags.VCallVisibility << 3;
   return RawFlags;
 }
 
@@ -1171,7 +1174,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
     MaxGlobalType = std::max(MaxGlobalType, VE.getTypeID(GV.getValueType()));
     if (GV.hasSection()) {
       // Give section names unique ID's.
-      unsigned &Entry = SectionMap[GV.getSection()];
+      unsigned &Entry = SectionMap[std::string(GV.getSection())];
       if (!Entry) {
         writeStringRecord(Stream, bitc::MODULE_CODE_SECTIONNAME, GV.getSection(),
                           0 /*TODO*/);
@@ -1183,7 +1186,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
     MaxAlignment = std::max(MaxAlignment, F.getAlignment());
     if (F.hasSection()) {
       // Give section names unique ID's.
-      unsigned &Entry = SectionMap[F.getSection()];
+      unsigned &Entry = SectionMap[std::string(F.getSection())];
       if (!Entry) {
         writeStringRecord(Stream, bitc::MODULE_CODE_SECTIONNAME, F.getSection(),
                           0 /*TODO*/);
@@ -1273,7 +1276,8 @@ void ModuleBitcodeWriter::writeModuleInfo() {
                    (VE.getValueID(GV.getInitializer()) + 1));
     Vals.push_back(getEncodedLinkage(GV));
     Vals.push_back(Log2_32(GV.getAlignment())+1);
-    Vals.push_back(GV.hasSection() ? SectionMap[GV.getSection()] : 0);
+    Vals.push_back(GV.hasSection() ? SectionMap[std::string(GV.getSection())]
+                                   : 0);
     if (GV.isThreadLocal() ||
         GV.getVisibility() != GlobalValue::DefaultVisibility ||
         GV.getUnnamedAddr() != GlobalValue::UnnamedAddr::None ||
@@ -1318,7 +1322,8 @@ void ModuleBitcodeWriter::writeModuleInfo() {
     Vals.push_back(getEncodedLinkage(F));
     Vals.push_back(VE.getAttributeListID(F.getAttributes()));
     Vals.push_back(Log2_32(F.getAlignment())+1);
-    Vals.push_back(F.hasSection() ? SectionMap[F.getSection()] : 0);
+    Vals.push_back(F.hasSection() ? SectionMap[std::string(F.getSection())]
+                                  : 0);
     Vals.push_back(getEncodedVisibility(F));
     Vals.push_back(F.hasGC() ? GCMap[F.getGC()] : 0);
     Vals.push_back(getEncodedUnnamedAddr(F));
@@ -1659,6 +1664,8 @@ void ModuleBitcodeWriter::writeDICompileUnit(const DICompileUnit *N,
   Record.push_back(N->getSplitDebugInlining());
   Record.push_back(N->getDebugInfoForProfiling());
   Record.push_back((unsigned)N->getNameTableKind());
+  Record.push_back(N->getRangesBaseAddress());
+  Record.push_back(VE.getMetadataOrNullID(N->getRawSysRoot()));
 
   Stream.EmitRecord(bitc::METADATA_COMPILE_UNIT, Record, Abbrev);
   Record.clear();
@@ -3033,6 +3040,10 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     pushValue(I.getOperand(0), InstID, Vals);                   // valist.
     Vals.push_back(VE.getTypeID(I.getType())); // restype.
     break;
+  case Instruction::Freeze:
+    Code = bitc::FUNC_CODE_INST_FREEZE;
+    pushValueAndType(I.getOperand(0), InstID, Vals);
+    break;
   }
 
   Stream.EmitRecord(Code, Vals, AbbrevToUse);
@@ -3720,11 +3731,6 @@ void ModuleBitcodeWriterBase::writeModuleLevelReferences(
   NameVals.clear();
 }
 
-// Current version for the summary.
-// This is bumped whenever we introduce changes in the way some record are
-// interpreted, like flags for instance.
-static const uint64_t INDEX_VERSION = 7;
-
 /// Emit the per-module summary section alongside the rest of
 /// the module's bitcode.
 void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
@@ -3738,7 +3744,9 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
                                  : bitc::FULL_LTO_GLOBALVAL_SUMMARY_BLOCK_ID,
                        4);
 
-  Stream.EmitRecord(bitc::FS_VERSION, ArrayRef<uint64_t>{INDEX_VERSION});
+  Stream.EmitRecord(
+      bitc::FS_VERSION,
+      ArrayRef<uint64_t>{ModuleSummaryIndex::BitcodeSummaryVersion});
 
   // Write the index flags.
   uint64_t Flags = 0;
@@ -3885,7 +3893,9 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
 /// Emit the combined summary section into the combined index file.
 void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
   Stream.EnterSubblock(bitc::GLOBALVAL_SUMMARY_BLOCK_ID, 3);
-  Stream.EmitRecord(bitc::FS_VERSION, ArrayRef<uint64_t>{INDEX_VERSION});
+  Stream.EmitRecord(
+      bitc::FS_VERSION,
+      ArrayRef<uint64_t>{ModuleSummaryIndex::BitcodeSummaryVersion});
 
   // Write the index flags.
   uint64_t Flags = 0;
@@ -3899,6 +3909,8 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     Flags |= 0x8;
   if (Index.partiallySplitLTOUnits())
     Flags |= 0x10;
+  if (Index.withAttributePropagation())
+    Flags |= 0x20;
   Stream.EmitRecord(bitc::FS_FLAGS, ArrayRef<uint64_t>{Flags});
 
   for (const auto &GVI : valueIds()) {
@@ -4670,4 +4682,126 @@ void llvm::WriteThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
   Writer.writeStrtab();
 
   Out.write((char *)&Buffer.front(), Buffer.size());
+}
+
+static const char *getSectionNameForBitcode(const Triple &T) {
+  switch (T.getObjectFormat()) {
+  case Triple::MachO:
+    return "__LLVM,__bitcode";
+  case Triple::COFF:
+  case Triple::ELF:
+  case Triple::Wasm:
+  case Triple::UnknownObjectFormat:
+    return ".llvmbc";
+  case Triple::XCOFF:
+    llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  }
+  llvm_unreachable("Unimplemented ObjectFormatType");
+}
+
+static const char *getSectionNameForCommandline(const Triple &T) {
+  switch (T.getObjectFormat()) {
+  case Triple::MachO:
+    return "__LLVM,__cmdline";
+  case Triple::COFF:
+  case Triple::ELF:
+  case Triple::Wasm:
+  case Triple::UnknownObjectFormat:
+    return ".llvmcmd";
+  case Triple::XCOFF:
+    llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  }
+  llvm_unreachable("Unimplemented ObjectFormatType");
+}
+
+void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
+                                bool EmbedBitcode, bool EmbedMarker,
+                                const std::vector<uint8_t> *CmdArgs) {
+  // Save llvm.compiler.used and remove it.
+  SmallVector<Constant *, 2> UsedArray;
+  SmallPtrSet<GlobalValue *, 4> UsedGlobals;
+  Type *UsedElementType = Type::getInt8Ty(M.getContext())->getPointerTo(0);
+  GlobalVariable *Used = collectUsedGlobalVariables(M, UsedGlobals, true);
+  for (auto *GV : UsedGlobals) {
+    if (GV->getName() != "llvm.embedded.module" &&
+        GV->getName() != "llvm.cmdline")
+      UsedArray.push_back(
+          ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
+  }
+  if (Used)
+    Used->eraseFromParent();
+
+  // Embed the bitcode for the llvm module.
+  std::string Data;
+  ArrayRef<uint8_t> ModuleData;
+  Triple T(M.getTargetTriple());
+  // Create a constant that contains the bitcode.
+  // In case of embedding a marker, ignore the input Buf and use the empty
+  // ArrayRef. It is also legal to create a bitcode marker even Buf is empty.
+  if (EmbedBitcode) {
+    if (!isBitcode((const unsigned char *)Buf.getBufferStart(),
+                   (const unsigned char *)Buf.getBufferEnd())) {
+      // If the input is LLVM Assembly, bitcode is produced by serializing
+      // the module. Use-lists order need to be preserved in this case.
+      llvm::raw_string_ostream OS(Data);
+      llvm::WriteBitcodeToFile(M, OS, /* ShouldPreserveUseListOrder */ true);
+      ModuleData =
+          ArrayRef<uint8_t>((const uint8_t *)OS.str().data(), OS.str().size());
+    } else
+      // If the input is LLVM bitcode, write the input byte stream directly.
+      ModuleData = ArrayRef<uint8_t>((const uint8_t *)Buf.getBufferStart(),
+                                     Buf.getBufferSize());
+  }
+  llvm::Constant *ModuleConstant =
+      llvm::ConstantDataArray::get(M.getContext(), ModuleData);
+  llvm::GlobalVariable *GV = new llvm::GlobalVariable(
+      M, ModuleConstant->getType(), true, llvm::GlobalValue::PrivateLinkage,
+      ModuleConstant);
+  GV->setSection(getSectionNameForBitcode(T));
+  UsedArray.push_back(
+      ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
+  if (llvm::GlobalVariable *Old =
+          M.getGlobalVariable("llvm.embedded.module", true)) {
+    assert(Old->hasOneUse() &&
+           "llvm.embedded.module can only be used once in llvm.compiler.used");
+    GV->takeName(Old);
+    Old->eraseFromParent();
+  } else {
+    GV->setName("llvm.embedded.module");
+  }
+
+  // Skip if only bitcode needs to be embedded.
+  if (EmbedMarker) {
+    // Embed command-line options.
+    ArrayRef<uint8_t> CmdData(const_cast<uint8_t *>(CmdArgs->data()),
+                              CmdArgs->size());
+    llvm::Constant *CmdConstant =
+        llvm::ConstantDataArray::get(M.getContext(), CmdData);
+    GV = new llvm::GlobalVariable(M, CmdConstant->getType(), true,
+                                  llvm::GlobalValue::PrivateLinkage,
+                                  CmdConstant);
+    GV->setSection(getSectionNameForCommandline(T));
+    UsedArray.push_back(
+        ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
+    if (llvm::GlobalVariable *Old = M.getGlobalVariable("llvm.cmdline", true)) {
+      assert(Old->hasOneUse() &&
+             "llvm.cmdline can only be used once in llvm.compiler.used");
+      GV->takeName(Old);
+      Old->eraseFromParent();
+    } else {
+      GV->setName("llvm.cmdline");
+    }
+  }
+
+  if (UsedArray.empty())
+    return;
+
+  // Recreate llvm.compiler.used.
+  ArrayType *ATy = ArrayType::get(UsedElementType, UsedArray.size());
+  auto *NewUsed = new GlobalVariable(
+      M, ATy, false, llvm::GlobalValue::AppendingLinkage,
+      llvm::ConstantArray::get(ATy, UsedArray), "llvm.compiler.used");
+  NewUsed->setSection("llvm.metadata");
 }

@@ -2,7 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -100,10 +99,11 @@ class PrintObjectArrayTestCase(TestBase):
             'expr --element-count 3 -d run --ptr-depth=1 -- objects',
             substrs=[
                 '3 elements',
-                '2 elements',
-                '2 key/value pairs',
                 '3735928559',
                 '4276993775',
                 '3203398366',
+                '2 elements',
                 '"Hello"',
-                '"World"'])
+                '"World"',
+                '2 key/value pairs',
+            ])

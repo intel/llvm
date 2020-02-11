@@ -12,7 +12,7 @@
 #include <CL/sycl/stl.hpp>
 // 4.6.1 Device selection class
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();

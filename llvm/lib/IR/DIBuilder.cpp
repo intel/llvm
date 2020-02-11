@@ -11,15 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DIBuilder.h"
-#include "llvm/IR/IRBuilder.h"
 #include "LLVMContextImpl.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -139,7 +140,8 @@ DICompileUnit *DIBuilder::createCompileUnit(
     StringRef Flags, unsigned RunTimeVer, StringRef SplitName,
     DICompileUnit::DebugEmissionKind Kind, uint64_t DWOId,
     bool SplitDebugInlining, bool DebugInfoForProfiling,
-    DICompileUnit::DebugNameTableKind NameTableKind, bool RangesBaseAddress) {
+    DICompileUnit::DebugNameTableKind NameTableKind, bool RangesBaseAddress,
+    StringRef SysRoot) {
 
   assert(((Lang <= dwarf::DW_LANG_Fortran08 && Lang >= dwarf::DW_LANG_C89) ||
           (Lang <= dwarf::DW_LANG_hi_user && Lang >= dwarf::DW_LANG_lo_user)) &&
@@ -150,7 +152,7 @@ DICompileUnit *DIBuilder::createCompileUnit(
       VMContext, Lang, File, Producer, isOptimized, Flags, RunTimeVer,
       SplitName, Kind, nullptr, nullptr, nullptr, nullptr, nullptr, DWOId,
       SplitDebugInlining, DebugInfoForProfiling, NameTableKind,
-      RangesBaseAddress);
+      RangesBaseAddress, SysRoot);
 
   // Create a named metadata so that it is easier to find cu in a module.
   NamedMDNode *NMD = M.getOrInsertNamedMetadata("llvm.dbg.cu");
@@ -305,10 +307,11 @@ DIDerivedType *DIBuilder::createReferenceType(
 
 DIDerivedType *DIBuilder::createTypedef(DIType *Ty, StringRef Name,
                                         DIFile *File, unsigned LineNo,
-                                        DIScope *Context) {
+                                        DIScope *Context,
+                                        uint32_t AlignInBits) {
   return DIDerivedType::get(VMContext, dwarf::DW_TAG_typedef, Name, File,
-                            LineNo, getNonCompileUnitScope(Context), Ty, 0, 0,
-                            0, None, DINode::FlagZero);
+                            LineNo, getNonCompileUnitScope(Context), Ty, 0,
+                            AlignInBits, 0, None, DINode::FlagZero);
 }
 
 DIDerivedType *DIBuilder::createFriend(DIType *Ty, DIType *FriendTy) {
@@ -638,14 +641,15 @@ static void checkGlobalVariableScope(DIScope *Context) {
 
 DIGlobalVariableExpression *DIBuilder::createGlobalVariableExpression(
     DIScope *Context, StringRef Name, StringRef LinkageName, DIFile *F,
-    unsigned LineNumber, DIType *Ty, bool isLocalToUnit, DIExpression *Expr,
-    MDNode *Decl, MDTuple *templateParams, uint32_t AlignInBits) {
+    unsigned LineNumber, DIType *Ty, bool IsLocalToUnit,
+    bool isDefined, DIExpression *Expr,
+    MDNode *Decl, MDTuple *TemplateParams, uint32_t AlignInBits) {
   checkGlobalVariableScope(Context);
 
   auto *GV = DIGlobalVariable::getDistinct(
       VMContext, cast_or_null<DIScope>(Context), Name, LinkageName, F,
-      LineNumber, Ty, isLocalToUnit, true, cast_or_null<DIDerivedType>(Decl),
-      templateParams, AlignInBits);
+      LineNumber, Ty, IsLocalToUnit, isDefined, cast_or_null<DIDerivedType>(Decl),
+      TemplateParams, AlignInBits);
   if (!Expr)
     Expr = createExpression();
   auto *N = DIGlobalVariableExpression::get(VMContext, GV, Expr);
@@ -655,14 +659,14 @@ DIGlobalVariableExpression *DIBuilder::createGlobalVariableExpression(
 
 DIGlobalVariable *DIBuilder::createTempGlobalVariableFwdDecl(
     DIScope *Context, StringRef Name, StringRef LinkageName, DIFile *F,
-    unsigned LineNumber, DIType *Ty, bool isLocalToUnit, MDNode *Decl,
-    MDTuple *templateParams, uint32_t AlignInBits) {
+    unsigned LineNumber, DIType *Ty, bool IsLocalToUnit, MDNode *Decl,
+    MDTuple *TemplateParams, uint32_t AlignInBits) {
   checkGlobalVariableScope(Context);
 
   return DIGlobalVariable::getTemporary(
              VMContext, cast_or_null<DIScope>(Context), Name, LinkageName, F,
-             LineNumber, Ty, isLocalToUnit, false,
-             cast_or_null<DIDerivedType>(Decl), templateParams, AlignInBits)
+             LineNumber, Ty, IsLocalToUnit, false,
+             cast_or_null<DIDerivedType>(Decl), TemplateParams, AlignInBits)
       .release();
 }
 
@@ -826,10 +830,9 @@ DINamespace *DIBuilder::createNameSpace(DIScope *Scope, StringRef Name,
 
 DIModule *DIBuilder::createModule(DIScope *Scope, StringRef Name,
                                   StringRef ConfigurationMacros,
-                                  StringRef IncludePath,
-                                  StringRef ISysRoot) {
- return DIModule::get(VMContext, getNonCompileUnitScope(Scope), Name,
-                      ConfigurationMacros, IncludePath, ISysRoot);
+                                  StringRef IncludePath) {
+  return DIModule::get(VMContext, getNonCompileUnitScope(Scope), Name,
+                       ConfigurationMacros, IncludePath);
 }
 
 DILexicalBlockFile *DIBuilder::createLexicalBlockFile(DIScope *Scope,

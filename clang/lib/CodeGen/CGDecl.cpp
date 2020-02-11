@@ -23,6 +23,7 @@
 #include "PatternInit.h"
 #include "TargetInfo.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
@@ -31,6 +32,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -39,6 +41,9 @@
 
 using namespace clang;
 using namespace CodeGen;
+
+static_assert(clang::Sema::MaximumAlignment <= llvm::Value::MaximumAlignment,
+              "Clang max alignment greater than what LLVM supports?");
 
 void CodeGenFunction::EmitDecl(const Decl &D) {
   switch (D.getKind()) {
@@ -110,6 +115,8 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::OMPRequires:
   case Decl::Empty:
   case Decl::Concept:
+  case Decl::LifetimeExtendedTemporary:
+  case Decl::RequiresExprBody:
     // None of these decls require codegen support.
     return;
 
@@ -207,9 +214,9 @@ static std::string getStaticDeclName(CodeGenModule &CGM, const VarDecl &D) {
   if (auto *CD = dyn_cast<CapturedDecl>(DC))
     DC = cast<DeclContext>(CD->getNonClosureContext());
   if (const auto *FD = dyn_cast<FunctionDecl>(DC))
-    ContextName = CGM.getMangledName(FD);
+    ContextName = std::string(CGM.getMangledName(FD));
   else if (const auto *BD = dyn_cast<BlockDecl>(DC))
-    ContextName = CGM.getBlockMangledName(GlobalDecl(), BD);
+    ContextName = std::string(CGM.getBlockMangledName(GlobalDecl(), BD));
   else if (const auto *OMD = dyn_cast<ObjCMethodDecl>(DC))
     ContextName = OMD->getSelector().getAsString();
   else
@@ -234,7 +241,7 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   // Use the label if the variable is renamed with the asm-label extension.
   std::string Name;
   if (D.hasAttr<AsmLabelAttr>())
-    Name = getMangledName(&D);
+    Name = std::string(getMangledName(&D));
   else
     Name = getStaticDeclName(*this, D);
 
@@ -387,7 +394,8 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
 
   emitter.finalize(GV);
 
-  if (D.needsDestruction(getContext()) && HaveInsertPoint()) {
+  if (D.needsDestruction(getContext()) == QualType::DK_cxx_destructor &&
+      HaveInsertPoint()) {
     // We have a constant initializer, but a nontrivial destructor. We still
     // need to perform a guarded "initialization" in order to register the
     // destructor.
@@ -470,8 +478,7 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
 
   // Emit global variable debug descriptor for static vars.
   CGDebugInfo *DI = getDebugInfo();
-  if (DI &&
-      CGM.getCodeGenOpts().getDebugInfo() >= codegenoptions::LimitedDebugInfo) {
+  if (DI && CGM.getCodeGenOpts().hasReducedDebugInfo()) {
     DI->setLocation(D.getLocation());
     DI->EmitGlobalVariable(var, &D);
   }
@@ -596,7 +603,7 @@ namespace {
                       Var.getType(), VK_LValue, SourceLocation());
       // Compute the address of the local variable, in case it's a byref
       // or something.
-      llvm::Value *Addr = CGF.EmitDeclRefLValue(&DRE).getPointer();
+      llvm::Value *Addr = CGF.EmitDeclRefLValue(&DRE).getPointer(CGF);
 
       // In some cases, the type of the function argument will be different from
       // the type of the pointer. An example of this is
@@ -711,18 +718,18 @@ static bool tryEmitARCCopyWeakInit(CodeGenFunction &CGF,
       LValue srcLV = CGF.EmitLValue(srcExpr);
 
       // Handle a formal type change to avoid asserting.
-      auto srcAddr = srcLV.getAddress();
+      auto srcAddr = srcLV.getAddress(CGF);
       if (needsCast) {
-        srcAddr = CGF.Builder.CreateElementBitCast(srcAddr,
-                                         destLV.getAddress().getElementType());
+        srcAddr = CGF.Builder.CreateElementBitCast(
+            srcAddr, destLV.getAddress(CGF).getElementType());
       }
 
       // If it was an l-value, use objc_copyWeak.
       if (srcExpr->getValueKind() == VK_LValue) {
-        CGF.EmitARCCopyWeak(destLV.getAddress(), srcAddr);
+        CGF.EmitARCCopyWeak(destLV.getAddress(CGF), srcAddr);
       } else {
         assert(srcExpr->getValueKind() == VK_XValue);
-        CGF.EmitARCMoveWeak(destLV.getAddress(), srcAddr);
+        CGF.EmitARCMoveWeak(destLV.getAddress(CGF), srcAddr);
       }
       return true;
     }
@@ -740,7 +747,7 @@ static bool tryEmitARCCopyWeakInit(CodeGenFunction &CGF,
 static void drillIntoBlockVariable(CodeGenFunction &CGF,
                                    LValue &lvalue,
                                    const VarDecl *var) {
-  lvalue.setAddress(CGF.emitBlockByrefAddress(lvalue.getAddress(), var));
+  lvalue.setAddress(CGF.emitBlockByrefAddress(lvalue.getAddress(CGF), var));
 }
 
 void CodeGenFunction::EmitNullabilityCheck(LValue LHS, llvm::Value *RHS,
@@ -800,17 +807,18 @@ void CodeGenFunction::EmitScalarInit(const Expr *init, const ValueDecl *D,
     if (capturedByInit) {
       // We can use a simple GEP for this because it can't have been
       // moved yet.
-      tempLV.setAddress(emitBlockByrefAddress(tempLV.getAddress(),
+      tempLV.setAddress(emitBlockByrefAddress(tempLV.getAddress(*this),
                                               cast<VarDecl>(D),
                                               /*follow*/ false));
     }
 
-    auto ty = cast<llvm::PointerType>(tempLV.getAddress().getElementType());
+    auto ty =
+        cast<llvm::PointerType>(tempLV.getAddress(*this).getElementType());
     llvm::Value *zero = CGM.getNullPointer(ty, tempLV.getType());
 
     // If __weak, we want to use a barrier under certain conditions.
     if (lifetime == Qualifiers::OCL_Weak)
-      EmitARCInitWeak(tempLV.getAddress(), zero);
+      EmitARCInitWeak(tempLV.getAddress(*this), zero);
 
     // Otherwise just do a simple store.
     else
@@ -853,9 +861,9 @@ void CodeGenFunction::EmitScalarInit(const Expr *init, const ValueDecl *D,
 
     if (capturedByInit) drillIntoBlockVariable(*this, lvalue, cast<VarDecl>(D));
     if (accessedByInit)
-      EmitARCStoreWeak(lvalue.getAddress(), value, /*ignored*/ true);
+      EmitARCStoreWeak(lvalue.getAddress(*this), value, /*ignored*/ true);
     else
-      EmitARCInitWeak(lvalue.getAddress(), value);
+      EmitARCInitWeak(lvalue.getAddress(*this), value);
     return;
   }
 
@@ -1110,7 +1118,7 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
         return CC->getNameAsString();
       if (const auto *CD = dyn_cast<CXXDestructorDecl>(FD))
         return CD->getNameAsString();
-      return getMangledName(FD);
+      return std::string(getMangledName(FD));
     } else if (const auto *OM = dyn_cast<ObjCMethodDecl>(DC)) {
       return OM->getNameAsString();
     } else if (isa<BlockDecl>(DC)) {
@@ -1421,8 +1429,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     EmitVariablyModifiedType(Ty);
 
   auto *DI = getDebugInfo();
-  bool EmitDebugInfo = DI && CGM.getCodeGenOpts().getDebugInfo() >=
-                                 codegenoptions::LimitedDebugInfo;
+  bool EmitDebugInfo = DI && CGM.getCodeGenOpts().hasReducedDebugInfo();
 
   Address address = Address::invalid();
   Address AllocaAddr = Address::invalid();
@@ -1939,11 +1946,10 @@ void CodeGenFunction::EmitExprAsInit(const Expr *init, const ValueDecl *D,
       else if (auto *FD = dyn_cast<FieldDecl>(D))
         Overlap = getOverlapForFieldInit(FD);
       // TODO: how can we delay here if D is captured by its initializer?
-      EmitAggExpr(init, AggValueSlot::forLValue(lvalue,
-                                              AggValueSlot::IsDestructed,
-                                         AggValueSlot::DoesNotNeedGCBarriers,
-                                              AggValueSlot::IsNotAliased,
-                                              Overlap));
+      EmitAggExpr(init, AggValueSlot::forLValue(
+                            lvalue, *this, AggValueSlot::IsDestructed,
+                            AggValueSlot::DoesNotNeedGCBarriers,
+                            AggValueSlot::IsNotAliased, Overlap));
     }
     return;
   }
@@ -2499,7 +2505,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
             // objc_storeStrong attempts to release its old value.
             llvm::Value *Null = CGM.EmitNullConstant(D.getType());
             EmitStoreOfScalar(Null, lv, /* isInitialization */ true);
-            EmitARCStoreStrongCall(lv.getAddress(), ArgVal, true);
+            EmitARCStoreStrongCall(lv.getAddress(*this), ArgVal, true);
             DoStore = false;
           }
           else
@@ -2536,9 +2542,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
 
   // Emit debug info for param declarations in non-thunk functions.
   if (CGDebugInfo *DI = getDebugInfo()) {
-    if (CGM.getCodeGenOpts().getDebugInfo() >=
-            codegenoptions::LimitedDebugInfo &&
-        !CurFuncIsThunk) {
+    if (CGM.getCodeGenOpts().hasReducedDebugInfo() && !CurFuncIsThunk) {
       DI->EmitDeclareOfArgVariable(&D, DeclPtr.getPointer(), ArgNo, Builder);
     }
   }

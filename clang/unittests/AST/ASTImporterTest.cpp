@@ -10,9 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/ASTMatchers/ASTMatchers.h"
 #include "llvm/ADT/StringMap.h"
 
 #include "clang/AST/DeclContextInternals.h"
+#include "gtest/gtest.h"
 
 #include "ASTImporterFixtures.h"
 #include "MatchVerifier.h"
@@ -243,6 +245,11 @@ public:
 template <typename T> RecordDecl *getRecordDecl(T *D) {
   auto *ET = cast<ElaboratedType>(D->getType().getTypePtr());
   return cast<RecordType>(ET->getNamedType().getTypePtr())->getDecl();
+}
+
+static const RecordDecl *getRecordDeclOfFriend(FriendDecl *FD) {
+  QualType Ty = FD->getFriendType()->getType().getCanonicalType();
+  return cast<RecordType>(Ty)->getDecl();
 }
 
 struct ImportExpr : TestImportBase {};
@@ -2705,7 +2712,7 @@ TEST_P(ImportFriendFunctions, Lookup) {
   EXPECT_FALSE(To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
 }
 
-TEST_P(ImportFriendFunctions, DISABLED_LookupWithProtoAfter) {
+TEST_P(ImportFriendFunctions, LookupWithProtoAfter) {
   auto FunctionPattern = functionDecl(hasName("f"));
   auto ClassPattern = cxxRecordDecl(hasName("X"));
 
@@ -3776,6 +3783,44 @@ TEST_P(ImportFriendClasses, ImportOfRecursiveFriendClass) {
   EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToD, Pattern));
 }
 
+TEST_P(ImportFriendClasses, UndeclaredFriendClassShouldNotBeVisible) {
+  Decl *FromTu = getTuDecl("class X { friend class Y; };", Lang_CXX, "from.cc");
+  auto *FromX = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTu, cxxRecordDecl(hasName("X")));
+  auto *FromFriend = FirstDeclMatcher<FriendDecl>().match(FromTu, friendDecl());
+  RecordDecl *FromRecordOfFriend =
+      const_cast<RecordDecl *>(getRecordDeclOfFriend(FromFriend));
+
+  ASSERT_EQ(FromRecordOfFriend->getDeclContext(), cast<DeclContext>(FromTu));
+  ASSERT_EQ(FromRecordOfFriend->getLexicalDeclContext(),
+            cast<DeclContext>(FromX));
+  ASSERT_FALSE(
+      FromRecordOfFriend->getDeclContext()->containsDecl(FromRecordOfFriend));
+  ASSERT_FALSE(FromRecordOfFriend->getLexicalDeclContext()->containsDecl(
+      FromRecordOfFriend));
+  ASSERT_FALSE(FromRecordOfFriend->getLookupParent()
+                   ->lookup(FromRecordOfFriend->getDeclName())
+                   .empty());
+
+  auto *ToX = Import(FromX, Lang_CXX);
+  ASSERT_TRUE(ToX);
+
+  Decl *ToTu = ToX->getTranslationUnitDecl();
+  auto *ToFriend = FirstDeclMatcher<FriendDecl>().match(ToTu, friendDecl());
+  RecordDecl *ToRecordOfFriend =
+      const_cast<RecordDecl *>(getRecordDeclOfFriend(ToFriend));
+
+  ASSERT_EQ(ToRecordOfFriend->getDeclContext(), cast<DeclContext>(ToTu));
+  ASSERT_EQ(ToRecordOfFriend->getLexicalDeclContext(), cast<DeclContext>(ToX));
+  EXPECT_FALSE(
+      ToRecordOfFriend->getDeclContext()->containsDecl(ToRecordOfFriend));
+  EXPECT_FALSE(ToRecordOfFriend->getLexicalDeclContext()->containsDecl(
+      ToRecordOfFriend));
+  EXPECT_FALSE(ToRecordOfFriend->getLookupParent()
+                   ->lookup(ToRecordOfFriend->getDeclName())
+                   .empty());
+}
+
 TEST_P(ImportFriendClasses, ImportOfRecursiveFriendClassTemplate) {
   Decl *FromTu = getTuDecl(
       R"(
@@ -4473,11 +4518,6 @@ TEST_P(ASTImporterLookupTableTest, LookupDeclNamesFromDifferentTUs) {
   // FromPlus have a different TU, thus its DeclarationName is different too.
   Res = LT.lookup(ToTU, FromPlus->getDeclName());
   ASSERT_EQ(Res.size(), 0u);
-}
-
-static const RecordDecl *getRecordDeclOfFriend(FriendDecl *FD) {
-  QualType Ty = FD->getFriendType()->getType().getCanonicalType();
-  return cast<RecordType>(Ty)->getDecl();
 }
 
 TEST_P(ASTImporterLookupTableTest,
@@ -5599,6 +5639,212 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDefaultConstructibleLambdas) {
             2u);
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase, ImplicitlyDeclareSelf) {
+  Decl *FromTU = getTuDecl(R"(
+                           __attribute__((objc_root_class))
+                           @interface Root
+                           @end
+                           @interface C : Root
+                             -(void)method;
+                           @end
+                           @implementation C
+                             -(void)method {}
+                           @end
+                           )",
+                           Lang_OBJCXX, "input.mm");
+  auto *FromMethod = LastDeclMatcher<ObjCMethodDecl>().match(
+      FromTU, namedDecl(hasName("method")));
+  ASSERT_TRUE(FromMethod);
+  auto ToMethod = Import(FromMethod, Lang_OBJCXX);
+  ASSERT_TRUE(ToMethod);
+
+  // Both methods should have their implicit parameters.
+  EXPECT_TRUE(FromMethod->getSelfDecl() != nullptr);
+  EXPECT_TRUE(ToMethod->getSelfDecl() != nullptr);
+}
+
+struct ImportAutoFunctions : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(ImportAutoFunctions, ReturnWithTypedefDeclaredInside) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto X = [](long l) {
+        using int_type = long;
+        auto dur = 13;
+        return static_cast<int_type>(dur);
+      };
+      )",
+      Lang_CXX14, "input0.cc");
+  CXXMethodDecl *From =
+      FirstDeclMatcher<CXXMethodDecl>().match(FromTU, cxxMethodDecl());
+
+  // Explicitly set the return type of the lambda's operator() to the TypeAlias.
+  // Normally the return type would be the built-in 'long' type. However, there
+  // are cases when Clang does not use the canonical type and the TypeAlias is
+  // used. I could not create such an AST from regular source code, it requires
+  // some special state in the preprocessor. I've found such an AST when Clang
+  // parsed libcxx/src/filesystem/directory_iterator.cpp, but could not reduce
+  // that with creduce, because after preprocessing, the AST no longer
+  // contained the TypeAlias as a return type of the lambda.
+  ASTContext &Ctx = From->getASTContext();
+  TypeAliasDecl *FromTA =
+      FirstDeclMatcher<TypeAliasDecl>().match(FromTU, typeAliasDecl());
+  QualType TT = Ctx.getTypedefType(FromTA);
+  const FunctionProtoType *FPT = cast<FunctionProtoType>(From->getType());
+  QualType NewFunType =
+      Ctx.getFunctionType(TT, FPT->getParamTypes(), FPT->getExtProtoInfo());
+  From->setType(NewFunType);
+
+  CXXMethodDecl *To = Import(From, Lang_CXX14);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<TypedefType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithStructDeclaredInside) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto foo() {
+        struct X {};
+        return X();
+      }
+      )",
+      Lang_CXX14, "input0.cc");
+  FunctionDecl *From =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+
+  FunctionDecl *To = Import(From, Lang_CXX14);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithStructDeclaredInside2) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto foo() {
+        struct X {};
+        return X();
+      }
+      )",
+      Lang_CXX14, "input0.cc");
+  FunctionDecl *From =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+
+  // This time import the type directly.
+  QualType ToT = ImportType(From->getType(), From, Lang_CXX14);
+  const FunctionProtoType *FPT = cast<FunctionProtoType>(ToT);
+  EXPECT_TRUE(isa<AutoType>(FPT->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithTypedefToStructDeclaredInside) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto foo() {
+        struct X {};
+        using Y = X;
+        return Y();
+      }
+      )",
+      Lang_CXX14, "input0.cc");
+  FunctionDecl *From =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+
+  FunctionDecl *To = Import(From, Lang_CXX14);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithStructDeclaredNestedInside) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto foo() {
+        struct X { struct Y{}; };
+        return X::Y();
+      }
+      )",
+      Lang_CXX14, "input0.cc");
+  FunctionDecl *From =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+
+  FunctionDecl *To = Import(From, Lang_CXX14);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithInternalLambdaType) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto f() {
+        auto l = []() {
+          struct X {};
+          return X();
+        };
+        return l();
+      }
+      )",
+      Lang_CXX17, "input0.cc");
+  FunctionDecl *From = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+
+  FunctionDecl *To = Import(From, Lang_CXX17);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithTypeInIf) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto f() {
+        if (struct X {} x; true)
+          return X();
+        else
+          return X();
+      }
+      )",
+      Lang_CXX17, "input0.cc");
+  FunctionDecl *From = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+
+  FunctionDecl *To = Import(From, Lang_CXX17);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithTypeInFor) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto f() {
+        for (struct X {} x;;)
+          return X();
+      }
+      )",
+      Lang_CXX17, "input0.cc");
+  FunctionDecl *From = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+
+  FunctionDecl *To = Import(From, Lang_CXX17);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
+TEST_P(ImportAutoFunctions, ReturnWithTypeInSwitch) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      auto f() {
+        switch (struct X {} x; 10) {
+        case 10:
+          return X();
+        }
+      }
+      )",
+      Lang_CXX17, "input0.cc");
+  FunctionDecl *From = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+
+  FunctionDecl *To = Import(From, Lang_CXX17);
+  EXPECT_TRUE(To);
+  EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
+}
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
@@ -5624,6 +5870,9 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedirectingImporterTest,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctions,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportAutoFunctions,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctionTemplates,

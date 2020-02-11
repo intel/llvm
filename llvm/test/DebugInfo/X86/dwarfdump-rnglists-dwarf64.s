@@ -109,6 +109,7 @@ CU_split_5_64_version:
         .byte 5                # DWARF Unit Type
         .byte 4                # Address Size (in bytes)
         .quad 0                # Offset Into Abbrev Section
+        .quad 0xdeadbeefbaadf00d  # DWO id
 # The compile-unit DIE, which has DW_AT_rnglists_base and DW_AT_ranges.
         .byte 1                # Abbreviation code
         .uleb128 1             # DW_AT_ranges
@@ -196,16 +197,16 @@ Range1_end:
 # CHECK-NOT:  Compile Unit:
 # CHECK:      DW_TAG_compile_unit
 # CHECK-NEXT: DW_AT_rnglists_base [DW_FORM_sec_offset]  (0x00000014)
-# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000020
+# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000034
 # CHECK-NEXT: [0x0000002a, 0x00000034) ".text")
 
 # CHECK:      .debug_info.dwo contents:
 # CHECK:      Compile Unit:
 # CHECK-NOT:  contents:
 # CHECK:      DW_TAG_compile_unit
-# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000011
+# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000025
 # CHECK-NEXT: [0x0000002a, 0x00000034))
 
-#ERR: error: parsing a range list table: Did not detect a valid range list table with base = 0x8
+#ERR: error: parsing a range list table: did not detect a valid list table with base = 0x8
 #ERR: error: decoding address ranges: missing or invalid range list table
 #ERR: error: decoding address ranges: invalid range list offset 0xfa0

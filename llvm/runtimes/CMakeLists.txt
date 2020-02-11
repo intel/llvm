@@ -27,6 +27,12 @@ if(LLVM_ENABLE_RUNTIMES STREQUAL "all" )
   set(LLVM_ENABLE_RUNTIMES ${LLVM_ALL_RUNTIMES})
 endif()
 foreach(proj ${LLVM_ENABLE_RUNTIMES})
+  # TODO: libunwind and libcxxabi don't currently build on Windows so filter them out.
+  if(MSVC AND ("${proj}" MATCHES "libunwind|libcxxabi"))
+    message(WARNING "Skipping ${proj} which is not supported in MSVC yet")
+    continue()
+  endif()
+
   set(proj_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../${proj}")
   if(IS_DIRECTORY ${proj_dir} AND EXISTS ${proj_dir}/CMakeLists.txt)
     list(APPEND runtimes ${proj_dir})
@@ -245,6 +251,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_TARGET=${TARGET_TRIPLE}
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES COMPILER_RT
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
@@ -266,7 +273,8 @@ else() # if this is included from LLVM's CMake
       string(FIND "${variableName}" "BUILTINS_${target}" out)
       if("${out}" EQUAL 0)
         string(REPLACE "BUILTINS_${target}_" "" new_name ${variableName})
-        list(APPEND ${target}_extra_args "-D${new_name}=${${variableName}}")
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${target}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
 
@@ -283,7 +291,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
                                         -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
                                         ${${target}_extra_args}
-                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
+                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
   endfunction()
@@ -389,6 +397,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_CXX_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
@@ -430,8 +439,9 @@ else() # if this is included from LLVM's CMake
 
     foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
       set(${component}-${name} ${component})
-      set(install-${component}-${name} ${component})
-      list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name})
+      set(install-${component}-${name} install-${component})
+      set(install-${component}-${name}-stripped install-${component}-stripped)
+      list(APPEND ${name}_extra_targets ${component}-${name} install-${component}-${name} install-${component}-${name}-stripped)
     endforeach()
 
     if(LLVM_INCLUDE_TESTS)
@@ -448,19 +458,23 @@ else() # if this is included from LLVM's CMake
 
     get_cmake_property(variableNames VARIABLES)
     foreach(variableName ${variableNames})
-      string(FIND "${variableName}" "RUNTIMES_${name}_" out)
-      if("${out}" EQUAL 0)
-        string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
-        list(APPEND ${name}_extra_args "-D${new_name}=${${variableName}}")
-      endif()
       string(FIND "${variableName}" "RUNTIMES_${target}_" out)
       if("${out}" EQUAL 0)
         string(REPLACE "RUNTIMES_${target}_" "" new_name ${variableName})
-        list(APPEND ${name}_extra_args "-D${new_name}=${${variableName}}")
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
+      endif()
+    endforeach()
+    foreach(variableName ${variableNames})
+      string(FIND "${variableName}" "RUNTIMES_${name}_" out)
+      if("${out}" EQUAL 0)
+        string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
+        string(REPLACE ";" "|" new_value "${${variableName}}")
+        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
 
-    if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES)
+    if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES AND NOT RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
       string(REPLACE ";" "|" LLVM_ENABLE_RUNTIMES_PASSTHROUGH "${LLVM_ENABLE_RUNTIMES}")
       list(APPEND ${name}_extra_args -DLLVM_ENABLE_RUNTIMES=${LLVM_ENABLE_RUNTIMES_PASSTHROUGH})
     endif()
@@ -487,7 +501,7 @@ else() # if this is included from LLVM's CMake
                                         -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
                                         -DLLVM_RUNTIMES_TARGET=${name}
                                         ${${name}_extra_args}
-                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
+                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
                              EXTRA_TARGETS ${${name}_extra_targets}
                                            ${${name}_test_targets}
                              USE_TOOLCHAIN
@@ -523,6 +537,7 @@ else() # if this is included from LLVM's CMake
           foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
             add_custom_target(${component})
             add_custom_target(install-${component})
+            add_custom_target(install-${component}-stripped)
           endforeach()
         endif()
       endif()
@@ -555,13 +570,16 @@ else() # if this is included from LLVM's CMake
       endforeach()
     endif()
 
-    # TODO: This is a hack needed because the libcxx headers are copied into the
-    # build directory during configuration. Without that step the clang in the
-    # build directory cannot find the C++ headers in certain configurations.
-    # I need to build a mechanism for runtime projects to provide CMake code
-    # that executes at LLVM configuration time to handle this case.
     if(NOT LLVM_BUILD_INSTRUMENTED AND CLANG_ENABLE_BOOTSTRAP)
+      # TODO: This is a hack needed because the libcxx headers are copied into the
+      # build directory during configuration. Without that step the clang in the
+      # build directory cannot find the C++ headers in certain configurations.
+      # I need to build a mechanism for runtime projects to provide CMake code
+      # that executes at LLVM configuration time to handle this case.
       add_dependencies(clang-bootstrap-deps runtimes-configure)
+      # We need to add the runtimes as a dependency because compiler-rt can be
+      # built as part of runtimes and we need the profile runtime for PGO
+      add_dependencies(clang-bootstrap-deps runtimes)
     endif()
 
     if(LLVM_INCLUDE_TESTS)

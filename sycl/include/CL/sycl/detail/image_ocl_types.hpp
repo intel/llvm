@@ -100,7 +100,7 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

@@ -12,8 +12,10 @@
 #include "SymbolMap.h"
 
 #include "llvm/ADT/Twine.h"
+#include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Support/WithColor.h"
 
+#include "llvm/DWARFLinker/DWARFLinker.h"
 #include <string>
 
 namespace llvm {
@@ -22,13 +24,6 @@ namespace dsymutil {
 enum class OutputFileType {
   Object,
   Assembly,
-};
-
-/// The kind of accelerator tables we should emit.
-enum class AccelTableKind {
-  Apple,   ///< .apple_names, .apple_namespaces, .apple_types, .apple_objc.
-  Dwarf,   ///< DWARF v5 .debug_names.
-  Default, ///< Dwarf for DWARF5 or later, Apple otherwise.
 };
 
 struct LinkOptions {
@@ -67,6 +62,21 @@ struct LinkOptions {
 
   /// Symbol map translator.
   SymbolMapTranslator Translator;
+
+  /// Fields used for linking and placing remarks into the .dSYM bundle.
+  /// @{
+
+  /// Number of debug maps processed in total.
+  unsigned NumDebugMaps = 0;
+
+  /// -remarks-prepend-path: prepend a path to all the external remark file
+  /// paths found in remark metadata.
+  std::string RemarksPrependPath;
+
+  /// The output format of the remarks.
+  remarks::Format RemarksFormat = remarks::Format::Bitstream;
+
+  /// @}
 
   LinkOptions() = default;
 };

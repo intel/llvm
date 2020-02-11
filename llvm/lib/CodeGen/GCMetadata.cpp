@@ -10,11 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/GCMetadata.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/GCStrategy.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -152,7 +153,7 @@ GCStrategy *GCModuleInfo::getGCStrategy(const StringRef Name) {
   for (auto& Entry : GCRegistry::entries()) {
     if (Name == Entry.getName()) {
       std::unique_ptr<GCStrategy> S = Entry.instantiate();
-      S->Name = Name;
+      S->Name = std::string(Name);
       GCStrategyMap[Name] = S.get();
       GCStrategyList.push_back(std::move(S));
       return GCStrategyList.back().get();

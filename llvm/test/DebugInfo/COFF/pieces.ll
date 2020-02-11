@@ -76,6 +76,7 @@
 ; ASM: [[pad_right_tmp:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: pad_right:o <- [DW_OP_LLVM_fragment 32 32] $eax
 ; ASM:         retq
+; ASM: [[pad_right_end:\.Lfunc_end1]]:
 
 
 ; ASM-LABEL: pad_left: # @pad_left
@@ -84,6 +85,7 @@
 ; ASM: [[pad_left_tmp:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: pad_left:o <- [DW_OP_LLVM_fragment 0 32] $eax
 ; ASM:         retq
+; ASM: [[pad_left_end:\.Lfunc_end2]]:
 
 
 ; ASM-LABEL: nested: # @nested
@@ -146,7 +148,7 @@
 ; ASM:        .asciz  "pad_right"             # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[pad_right_tmp]] [[pad_right_tmp]], subfield_reg, 17, 4
+; ASM:        .cv_def_range    [[pad_right_tmp]] [[pad_right_end]], subfield_reg, 17, 4
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -169,7 +171,7 @@
 ; ASM:        .asciz  "pad_left"              # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[pad_left_tmp]] [[pad_left_tmp]], subfield_reg, 17, 0
+; ASM:        .cv_def_range    [[pad_left_tmp]] [[pad_left_end]], subfield_reg, 17, 0
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -351,11 +353,11 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #4 = { nounwind readonly uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #4 = { nounwind readonly uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #5 = { nounwind }
 
 !llvm.dbg.cu = !{!0}

@@ -22,8 +22,9 @@ entry:
   %i28 = alloca i32, align 4
   store i32 0, i32* %i, align 4
   br label %for.cond
+; Per SPIR-V spec, LoopControlDependencyInfiniteMask = 0x00000004
 ; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
-; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond:                                         ; preds = %for.inc, %entry
   %0 = load i32, i32* %i, align 4
   %cmp = icmp ne i32 %0, 10
@@ -46,8 +47,9 @@ for.end:                                          ; preds = %for.cond
   store i32 0, i32* %i1, align 4
   br label %for.cond2
 
+; Per SPIR-V spec, LoopControlDependencyLengthMask = 0x00000008
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 8 2
-; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond2:                                        ; preds = %for.inc7, %for.end
   %3 = load i32, i32* %i1, align 4
   %cmp3 = icmp ne i32 %3, 10
@@ -70,8 +72,10 @@ for.end9:                                         ; preds = %for.cond2
   store i32 0, i32* %i10, align 4
   br label %for.cond11
 
-; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 2147483648 5889 2
-; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; InitiationIntervalINTEL = 0x10000 (65536)
+; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond11:                                       ; preds = %for.inc16, %for.end9
   %6 = load i32, i32* %i10, align 4
   %cmp12 = icmp ne i32 %6, 10
@@ -94,8 +98,10 @@ for.end18:                                        ; preds = %for.cond11
   store i32 0, i32* %i19, align 4
   br label %for.cond20
 
-; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 2147483648 5890 2
-; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; MaxConcurrencyINTEL = 0x20000 (131072)
+; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 2
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond20:                                       ; preds = %for.inc25, %for.end18
   %9 = load i32, i32* %i19, align 4
   %cmp21 = icmp ne i32 %9, 10
@@ -118,7 +124,9 @@ for.end27:                                        ; preds = %for.cond20
   store i32 0, i32* %i28, align 4
   br label %for.cond29
 
-; CHECK-SPIRV: 8 LoopMerge {{[0-9]+}} {{[0-9]+}} 2147483648 5889 2 5890 2
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; InitiationIntervalINTEL & MaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
+; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 ; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond29:                                       ; preds = %for.inc34, %for.end27
   %12 = load i32, i32* %i28, align 4

@@ -236,6 +236,11 @@ struct VTableSlotSummary {
   uint64_t ByteOffset;
 };
 
+void updateVCallVisibilityInModule(Module &M,
+                                   bool WholeProgramVisibilityEnabledInLTO);
+void updateVCallVisibilityInIndex(ModuleSummaryIndex &Index,
+                                  bool WholeProgramVisibilityEnabledInLTO);
+
 /// Perform index-based whole program devirtualization on the \p Summary
 /// index. Any devirtualized targets used by a type test in another module
 /// are added to the \p ExportedGUIDs set. For any local devirtualized targets
@@ -251,7 +256,7 @@ void runWholeProgramDevirtOnIndex(
 /// devirt target names for any locals that were exported.
 void updateIndexWPDForExports(
     ModuleSummaryIndex &Summary,
-    function_ref<bool(StringRef, GlobalValue::GUID)> isExported,
+    function_ref<bool(StringRef, ValueInfo)> isExported,
     std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap);
 
 } // end namespace llvm

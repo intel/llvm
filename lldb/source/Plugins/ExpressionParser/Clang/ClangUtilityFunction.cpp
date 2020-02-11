@@ -1,4 +1,4 @@
-//===-- ClangUtilityFunction.cpp ---------------------------------*- C++-*-===//
+//===-- ClangUtilityFunction.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,6 +12,7 @@
 #include "ClangExpressionDeclMap.h"
 #include "ClangExpressionParser.h"
 #include "ClangExpressionSourceCode.h"
+#include "ClangPersistentVariables.h"
 
 #include <stdio.h>
 #if HAVE_SYS_TYPES_H
@@ -31,6 +32,8 @@
 
 using namespace lldb_private;
 
+char ClangUtilityFunction::ID;
+
 /// Constructor
 ///
 /// \param[in] text
@@ -40,7 +43,7 @@ using namespace lldb_private;
 ///     The name of the function, as used in the text.
 ClangUtilityFunction::ClangUtilityFunction(ExecutionContextScope &exe_scope,
                                            const char *text, const char *name)
-    : UtilityFunction(exe_scope, text, name, eKindClangUtilityFunction) {
+    : UtilityFunction(exe_scope, text, name) {
   m_function_text.assign(ClangExpressionSourceCode::g_expression_prefix);
   if (text && text[0])
     m_function_text.append(text);
@@ -157,7 +160,14 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 
 void ClangUtilityFunction::ClangUtilityFunctionHelper::ResetDeclMap(
     ExecutionContext &exe_ctx, bool keep_result_in_memory) {
+  std::shared_ptr<ClangASTImporter> ast_importer;
+  auto *state = exe_ctx.GetTargetSP()->GetPersistentExpressionStateForLanguage(
+      lldb::eLanguageTypeC);
+  if (state) {
+    auto *persistent_vars = llvm::cast<ClangPersistentVariables>(state);
+    ast_importer = persistent_vars->GetClangASTImporter();
+  }
   m_expr_decl_map_up.reset(
-      new ClangExpressionDeclMap(keep_result_in_memory, nullptr, exe_ctx,
-                                 nullptr));
+      new ClangExpressionDeclMap(keep_result_in_memory, nullptr,
+                                 exe_ctx.GetTargetSP(), ast_importer, nullptr));
 }

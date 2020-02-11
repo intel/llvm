@@ -93,7 +93,7 @@ class ARMTargetAsmStreamer : public ARMTargetStreamer {
   void emitIntTextAttribute(unsigned Attribute, unsigned IntValue,
                             StringRef StringValue) override;
   void emitArch(ARM::ArchKind Arch) override;
-  void emitArchExtension(unsigned ArchExt) override;
+  void emitArchExtension(uint64_t ArchExt) override;
   void emitObjectArch(ARM::ArchKind Arch) override;
   void emitFPU(unsigned FPU) override;
   void emitInst(uint32_t Inst, char Suffix = '\0') override;
@@ -222,7 +222,7 @@ void ARMTargetAsmStreamer::emitArch(ARM::ArchKind Arch) {
   OS << "\t.arch\t" << ARM::getArchName(Arch) << "\n";
 }
 
-void ARMTargetAsmStreamer::emitArchExtension(unsigned ArchExt) {
+void ARMTargetAsmStreamer::emitArchExtension(uint64_t ArchExt) {
   OS << "\t.arch_extension\t" << ARM::getArchExtName(ArchExt) << "\n";
 }
 
@@ -238,7 +238,7 @@ void ARMTargetAsmStreamer::finishAttributeSection() {}
 
 void
 ARMTargetAsmStreamer::AnnotateTLSDescriptorSequence(const MCSymbolRefExpr *S) {
-  OS << "\t.tlsdescseq\t" << S->getSymbol().getName();
+  OS << "\t.tlsdescseq\t" << S->getSymbol().getName() << "\n";
 }
 
 void ARMTargetAsmStreamer::emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) {
@@ -328,12 +328,8 @@ private:
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::NumericAttribute,
-      Attribute,
-      Value,
-      StringRef("")
-    };
+    AttributeItem Item = {AttributeItem::NumericAttribute, Attribute, Value,
+                          std::string(StringRef(""))};
     Contents.push_back(Item);
   }
 
@@ -344,17 +340,13 @@ private:
       if (!OverwriteExisting)
         return;
       Item->Type = AttributeItem::TextAttribute;
-      Item->StringValue = Value;
+      Item->StringValue = std::string(Value);
       return;
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::TextAttribute,
-      Attribute,
-      0,
-      Value
-    };
+    AttributeItem Item = {AttributeItem::TextAttribute, Attribute, 0,
+                          std::string(Value)};
     Contents.push_back(Item);
   }
 
@@ -366,17 +358,13 @@ private:
         return;
       Item->Type = AttributeItem::NumericAndTextAttributes;
       Item->IntValue = IntValue;
-      Item->StringValue = StringValue;
+      Item->StringValue = std::string(StringValue);
       return;
     }
 
     // Create new attribute item
-    AttributeItem Item = {
-      AttributeItem::NumericAndTextAttributes,
-      Attribute,
-      IntValue,
-      StringValue
-    };
+    AttributeItem Item = {AttributeItem::NumericAndTextAttributes, Attribute,
+                          IntValue, std::string(StringValue)};
     Contents.push_back(Item);
   }
 
@@ -441,10 +429,12 @@ public:
   friend class ARMTargetELFStreamer;
 
   ARMELFStreamer(MCContext &Context, std::unique_ptr<MCAsmBackend> TAB,
-                 std::unique_ptr<MCObjectWriter> OW, std::unique_ptr<MCCodeEmitter> Emitter,
-                 bool IsThumb)
-      : MCELFStreamer(Context, std::move(TAB), std::move(OW), std::move(Emitter)),
-        IsThumb(IsThumb) {
+                 std::unique_ptr<MCObjectWriter> OW,
+                 std::unique_ptr<MCCodeEmitter> Emitter, bool IsThumb,
+                 bool IsAndroid)
+      : MCELFStreamer(Context, std::move(TAB), std::move(OW),
+                      std::move(Emitter)),
+        IsThumb(IsThumb), IsAndroid(IsAndroid) {
     EHReset();
   }
 
@@ -657,11 +647,10 @@ private:
                          uint64_t Offset) {
     auto *Symbol = cast<MCSymbolELF>(getContext().getOrCreateSymbol(
         Name + "." + Twine(MappingSymbolCounter++)));
-    EmitLabel(Symbol, Loc, F);
+    EmitLabelAtPos(Symbol, Loc, F, Offset);
     Symbol->setType(ELF::STT_NOTYPE);
     Symbol->setBinding(ELF::STB_LOCAL);
     Symbol->setExternal(false);
-    Symbol->setOffset(Offset);
   }
 
   void EmitThumbFunc(MCSymbol *Func) override {
@@ -687,6 +676,7 @@ private:
   void EmitFixup(const MCExpr *Expr, MCFixupKind Kind);
 
   bool IsThumb;
+  bool IsAndroid;
   int64_t MappingSymbolCounter = 0;
 
   DenseMap<const MCSection *, std::unique_ptr<ElfMappingSymbolInfo>>
@@ -1269,7 +1259,12 @@ void ARMELFStreamer::emitFnEnd() {
   // Emit the exception index table entry
   SwitchToExIdxSection(*FnStart);
 
-  if (PersonalityIndex < ARM::EHABI::NUM_PERSONALITY_INDEX)
+  // The EHABI requires a dependency preserving R_ARM_NONE relocation to the
+  // personality routine to protect it from an arbitrary platform's static
+  // linker garbage collection. We disable this for Android where the unwinder
+  // is either dynamically linked or directly references the personality
+  // routine.
+  if (PersonalityIndex < ARM::EHABI::NUM_PERSONALITY_INDEX && !IsAndroid)
     EmitPersonalityFixup(GetAEABIUnwindPersonalityName(PersonalityIndex));
 
   const MCSymbolRefExpr *FnStartRef =
@@ -1504,9 +1499,11 @@ MCELFStreamer *createARMELFStreamer(MCContext &Context,
                                     std::unique_ptr<MCAsmBackend> TAB,
                                     std::unique_ptr<MCObjectWriter> OW,
                                     std::unique_ptr<MCCodeEmitter> Emitter,
-                                    bool RelaxAll, bool IsThumb) {
-  ARMELFStreamer *S = new ARMELFStreamer(Context, std::move(TAB), std::move(OW),
-                                         std::move(Emitter), IsThumb);
+                                    bool RelaxAll, bool IsThumb,
+                                    bool IsAndroid) {
+  ARMELFStreamer *S =
+      new ARMELFStreamer(Context, std::move(TAB), std::move(OW),
+                         std::move(Emitter), IsThumb, IsAndroid);
   // FIXME: This should eventually end up somewhere else where more
   // intelligent flag decisions can be made. For now we are just maintaining
   // the status quo for ARM and setting EF_ARM_EABI_VER5 as the default.

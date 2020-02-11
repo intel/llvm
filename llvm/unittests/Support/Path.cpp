@@ -849,7 +849,7 @@ TEST_F(FileSystemTest, DirectoryIteration) {
     }
     if (path::filename(i->path()) == "dontlookhere")
       i.no_push();
-    visited.push_back(path::filename(i->path()));
+    visited.push_back(std::string(path::filename(i->path())));
   }
   v_t::const_iterator a0 = find(visited, "a0");
   v_t::const_iterator aa1 = find(visited, "aa1");
@@ -939,10 +939,10 @@ TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
     ASSERT_NO_ERROR(ec);
     if (i->status().getError() ==
         std::make_error_code(std::errc::no_such_file_or_directory)) {
-      VisitedBrokenSymlinks.push_back(path::filename(i->path()));
+      VisitedBrokenSymlinks.push_back(std::string(path::filename(i->path())));
       continue;
     }
-    VisitedNonBrokenSymlinks.push_back(path::filename(i->path()));
+    VisitedNonBrokenSymlinks.push_back(std::string(path::filename(i->path())));
   }
   EXPECT_THAT(VisitedNonBrokenSymlinks, UnorderedElementsAre("b", "d"));
   VisitedNonBrokenSymlinks.clear();
@@ -956,10 +956,10 @@ TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
     ASSERT_NO_ERROR(ec);
     if (i->status().getError() ==
         std::make_error_code(std::errc::no_such_file_or_directory)) {
-      VisitedBrokenSymlinks.push_back(path::filename(i->path()));
+      VisitedBrokenSymlinks.push_back(std::string(path::filename(i->path())));
       continue;
     }
-    VisitedNonBrokenSymlinks.push_back(path::filename(i->path()));
+    VisitedNonBrokenSymlinks.push_back(std::string(path::filename(i->path())));
   }
   EXPECT_THAT(VisitedNonBrokenSymlinks,
               UnorderedElementsAre("b", "bb", "d", "da", "dd", "ddd", "ddd"));
@@ -975,10 +975,10 @@ TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
     ASSERT_NO_ERROR(ec);
     if (i->status().getError() ==
         std::make_error_code(std::errc::no_such_file_or_directory)) {
-      VisitedBrokenSymlinks.push_back(path::filename(i->path()));
+      VisitedBrokenSymlinks.push_back(std::string(path::filename(i->path())));
       continue;
     }
-    VisitedNonBrokenSymlinks.push_back(path::filename(i->path()));
+    VisitedNonBrokenSymlinks.push_back(std::string(path::filename(i->path())));
   }
   EXPECT_THAT(VisitedNonBrokenSymlinks,
               UnorderedElementsAreArray({"a", "b", "ba", "bb", "bc", "c", "d",
@@ -1187,7 +1187,7 @@ static std::string remove_dots(StringRef path, bool remove_dot_dot,
                                path::Style style) {
   SmallString<256> buffer(path);
   path::remove_dots(buffer, remove_dot_dot, style);
-  return buffer.str();
+  return std::string(buffer.str());
 }
 
 TEST(Support, RemoveDots) {
@@ -1230,7 +1230,9 @@ TEST(Support, RemoveDots) {
 TEST(Support, ReplacePathPrefix) {
   SmallString<64> Path1("/foo");
   SmallString<64> Path2("/old/foo");
+  SmallString<64> Path3("/oldnew/foo");
   SmallString<64> OldPrefix("/old");
+  SmallString<64> OldPrefixSep("/old/");
   SmallString<64> NewPrefix("/new");
   SmallString<64> NewPrefix2("/longernew");
   SmallString<64> EmptyPrefix("");
@@ -1250,6 +1252,39 @@ TEST(Support, ReplacePathPrefix) {
   Path = Path2;
   path::replace_path_prefix(Path, OldPrefix, EmptyPrefix);
   EXPECT_EQ(Path, "/foo");
+  Path = Path2;
+  path::replace_path_prefix(Path, OldPrefix, EmptyPrefix, path::Style::native,
+                            true);
+  EXPECT_EQ(Path, "foo");
+  Path = Path3;
+  path::replace_path_prefix(Path, OldPrefix, NewPrefix, path::Style::native,
+                            false);
+  EXPECT_EQ(Path, "/newnew/foo");
+  Path = Path3;
+  path::replace_path_prefix(Path, OldPrefix, NewPrefix, path::Style::native,
+                            true);
+  EXPECT_EQ(Path, "/oldnew/foo");
+  Path = Path3;
+  path::replace_path_prefix(Path, OldPrefixSep, NewPrefix, path::Style::native,
+                            true);
+  EXPECT_EQ(Path, "/oldnew/foo");
+  Path = Path1;
+  path::replace_path_prefix(Path, EmptyPrefix, NewPrefix);
+  EXPECT_EQ(Path, "/new/foo");
+  Path = OldPrefix;
+  path::replace_path_prefix(Path, OldPrefix, NewPrefix);
+  EXPECT_EQ(Path, "/new");
+  Path = OldPrefixSep;
+  path::replace_path_prefix(Path, OldPrefix, NewPrefix);
+  EXPECT_EQ(Path, "/new/");
+  Path = OldPrefix;
+  path::replace_path_prefix(Path, OldPrefixSep, NewPrefix, path::Style::native,
+                            false);
+  EXPECT_EQ(Path, "/old");
+  Path = OldPrefix;
+  path::replace_path_prefix(Path, OldPrefixSep, NewPrefix, path::Style::native,
+                            true);
+  EXPECT_EQ(Path, "/new");
 }
 
 TEST_F(FileSystemTest, OpenFileForRead) {

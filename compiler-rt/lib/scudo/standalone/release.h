@@ -149,7 +149,7 @@ private:
 
 template <class TransferBatchT, class ReleaseRecorderT>
 NOINLINE void
-releaseFreeMemoryToOS(const IntrusiveList<TransferBatchT> *FreeList, uptr Base,
+releaseFreeMemoryToOS(const IntrusiveList<TransferBatchT> &FreeList, uptr Base,
                       uptr AllocatedPagesCount, uptr BlockSize,
                       ReleaseRecorderT *Recorder) {
   const uptr PageSize = getPageSizeCached();
@@ -199,18 +199,28 @@ releaseFreeMemoryToOS(const IntrusiveList<TransferBatchT> *FreeList, uptr Base,
   // allocated page.
   if (BlockSize <= PageSize && PageSize % BlockSize == 0) {
     // Each chunk affects one page only.
-    for (auto It = FreeList->begin(); It != FreeList->end(); ++It) {
-      for (u32 I = 0; I < (*It).getCount(); I++) {
-        const uptr P = reinterpret_cast<uptr>((*It).get(I));
+    for (const auto &It : FreeList) {
+      // If dealing with a TransferBatch, the first pointer of the batch will
+      // point to the batch itself, we do not want to mark this for release as
+      // the batch is in use, so skip the first entry.
+      const bool IsTransferBatch =
+          (It.getCount() != 0) &&
+          (reinterpret_cast<uptr>(It.get(0)) == reinterpret_cast<uptr>(&It));
+      for (u32 I = IsTransferBatch ? 1 : 0; I < It.getCount(); I++) {
+        const uptr P = reinterpret_cast<uptr>(It.get(I));
         if (P >= Base && P < End)
           Counters.inc((P - Base) >> PageSizeLog);
       }
     }
   } else {
     // In all other cases chunks might affect more than one page.
-    for (auto It = FreeList->begin(); It != FreeList->end(); ++It) {
-      for (u32 I = 0; I < (*It).getCount(); I++) {
-        const uptr P = reinterpret_cast<uptr>((*It).get(I));
+    for (const auto &It : FreeList) {
+      // See TransferBatch comment above.
+      const bool IsTransferBatch =
+          (It.getCount() != 0) &&
+          (reinterpret_cast<uptr>(It.get(0)) == reinterpret_cast<uptr>(&It));
+      for (u32 I = IsTransferBatch ? 1 : 0; I < It.getCount(); I++) {
+        const uptr P = reinterpret_cast<uptr>(It.get(I));
         if (P >= Base && P < End)
           Counters.incRange((P - Base) >> PageSizeLog,
                             (P - Base + BlockSize - 1) >> PageSizeLog);

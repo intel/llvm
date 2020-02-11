@@ -67,7 +67,7 @@ FileRange syntax::Token::range(const SourceManager &SM,
   auto F = First.range(SM);
   auto L = Last.range(SM);
   assert(F.file() == L.file() && "tokens from different files");
-  assert(F.endOffset() <= L.beginOffset() && "wrong order of tokens");
+  assert((F == L || F.endOffset() <= L.beginOffset()) && "wrong order of tokens");
   return FileRange(F.file(), F.beginOffset(), L.endOffset());
 }
 
@@ -119,6 +119,28 @@ llvm::StringRef FileRange::text(const SourceManager &SM) const {
   return Text.substr(Begin, length());
 }
 
+llvm::ArrayRef<syntax::Token> TokenBuffer::expandedTokens(SourceRange R) const {
+  if (R.isInvalid())
+    return {};
+  const Token *Begin =
+      llvm::partition_point(expandedTokens(), [&](const syntax::Token &T) {
+        return SourceMgr->isBeforeInTranslationUnit(T.location(), R.getBegin());
+      });
+  const Token *End =
+      llvm::partition_point(expandedTokens(), [&](const syntax::Token &T) {
+        return !SourceMgr->isBeforeInTranslationUnit(R.getEnd(), T.location());
+      });
+  if (Begin > End)
+    return {};
+  return {Begin, End};
+}
+
+CharSourceRange FileRange::toCharRange(const SourceManager &SM) const {
+  return CharSourceRange(
+      SourceRange(SM.getComposedLoc(File, Begin), SM.getComposedLoc(File, End)),
+      /*IsTokenRange=*/false);
+}
+
 std::pair<const syntax::Token *, const TokenBuffer::Mapping *>
 TokenBuffer::spelledForExpandedToken(const syntax::Token *Expanded) const {
   assert(Expanded);
@@ -161,8 +183,9 @@ llvm::ArrayRef<syntax::Token> TokenBuffer::spelledTokens(FileID FID) const {
 }
 
 std::string TokenBuffer::Mapping::str() const {
-  return llvm::formatv("spelled tokens: [{0},{1}), expanded tokens: [{2},{3})",
-                       BeginSpelled, EndSpelled, BeginExpanded, EndExpanded);
+  return std::string(
+      llvm::formatv("spelled tokens: [{0},{1}), expanded tokens: [{2},{3})",
+                    BeginSpelled, EndSpelled, BeginExpanded, EndExpanded));
 }
 
 llvm::Optional<llvm::ArrayRef<syntax::Token>>
@@ -230,6 +253,43 @@ TokenBuffer::expansionStartingAt(const syntax::Token *Spelled) const {
   E.Expanded = llvm::makeArrayRef(ExpandedTokens.data() + M->BeginExpanded,
                                   ExpandedTokens.data() + M->EndExpanded);
   return E;
+}
+llvm::ArrayRef<syntax::Token>
+syntax::spelledTokensTouching(SourceLocation Loc,
+                              llvm::ArrayRef<syntax::Token> Tokens) {
+  assert(Loc.isFileID());
+
+  auto *Right = llvm::partition_point(
+      Tokens, [&](const syntax::Token &Tok) { return Tok.location() < Loc; });
+  bool AcceptRight = Right != Tokens.end() && Right->location() <= Loc;
+  bool AcceptLeft =
+      Right != Tokens.begin() && (Right - 1)->endLocation() >= Loc;
+  return llvm::makeArrayRef(Right - (AcceptLeft ? 1 : 0),
+                            Right + (AcceptRight ? 1 : 0));
+}
+
+llvm::ArrayRef<syntax::Token>
+syntax::spelledTokensTouching(SourceLocation Loc,
+                              const syntax::TokenBuffer &Tokens) {
+  return spelledTokensTouching(
+      Loc, Tokens.spelledTokens(Tokens.sourceManager().getFileID(Loc)));
+}
+
+const syntax::Token *
+syntax::spelledIdentifierTouching(SourceLocation Loc,
+                                  llvm::ArrayRef<syntax::Token> Tokens) {
+  for (const syntax::Token &Tok : spelledTokensTouching(Loc, Tokens)) {
+    if (Tok.kind() == tok::identifier)
+      return &Tok;
+  }
+  return nullptr;
+}
+
+const syntax::Token *
+syntax::spelledIdentifierTouching(SourceLocation Loc,
+                                  const syntax::TokenBuffer &Tokens) {
+  return spelledIdentifierTouching(
+      Loc, Tokens.spelledTokens(Tokens.sourceManager().getFileID(Loc)));
 }
 
 std::vector<const syntax::Token *>
@@ -558,19 +618,20 @@ TokenBuffer TokenCollector::consume() && {
 }
 
 std::string syntax::Token::str() const {
-  return llvm::formatv("Token({0}, length = {1})", tok::getTokenName(kind()),
-                       length());
+  return std::string(llvm::formatv("Token({0}, length = {1})",
+                                   tok::getTokenName(kind()), length()));
 }
 
 std::string syntax::Token::dumpForTests(const SourceManager &SM) const {
-  return llvm::formatv("{0}   {1}", tok::getTokenName(kind()), text(SM));
+  return std::string(
+      llvm::formatv("{0}   {1}", tok::getTokenName(kind()), text(SM)));
 }
 
 std::string TokenBuffer::dumpForTests() const {
   auto PrintToken = [this](const syntax::Token &T) -> std::string {
     if (T.kind() == tok::eof)
       return "<eof>";
-    return T.text(*SourceMgr);
+    return std::string(T.text(*SourceMgr));
   };
 
   auto DumpTokens = [this, &PrintToken](llvm::raw_ostream &OS,

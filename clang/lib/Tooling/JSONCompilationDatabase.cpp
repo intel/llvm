@@ -29,6 +29,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
@@ -168,7 +169,8 @@ class JSONCompilationDatabasePlugin : public CompilationDatabasePlugin {
     auto Base = JSONCompilationDatabase::loadFromFile(
         JSONDatabasePath, ErrorMessage, JSONCommandLineSyntax::AutoDetect);
     return Base ? inferTargetAndDriverMode(
-                      inferMissingCompileCommands(std::move(Base)))
+                      inferMissingCompileCommands(expandResponseFiles(
+                          std::move(Base), llvm::vfs::getRealFileSystem())))
                 : nullptr;
   }
 };
@@ -303,7 +305,7 @@ nodeToCommandLine(JSONCommandLineSyntax Syntax,
     Arguments = unescapeCommandLine(Syntax, Nodes[0]->getValue(Storage));
   else
     for (const auto *Node : Nodes)
-      Arguments.push_back(Node->getValue(Storage));
+      Arguments.push_back(std::string(Node->getValue(Storage)));
   // There may be multiple wrappers: using distcc and ccache together is common.
   while (unwrapCommand(Arguments))
     ;

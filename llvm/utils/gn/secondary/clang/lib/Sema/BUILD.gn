@@ -21,6 +21,7 @@ static_library("Sema") {
     "//clang/lib/Basic",
     "//clang/lib/Edit",
     "//clang/lib/Lex",
+    "//llvm/lib/Frontend/OpenMP",
     "//llvm/lib/Support",
   ]
   sources = [
@@ -37,6 +38,7 @@ static_library("Sema") {
     "Sema.cpp",
     "SemaAccess.cpp",
     "SemaAttr.cpp",
+    "SemaAvailability.cpp",
     "SemaCUDA.cpp",
     "SemaCXXScopeSpec.cpp",
     "SemaCast.cpp",

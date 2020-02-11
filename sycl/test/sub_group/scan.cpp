@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %clangxx -fsycl -D SG_GPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -std=c++14 %s -o %t.out
+// RUN: %clangxx -fsycl -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
@@ -81,39 +81,52 @@ template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
   }
 
   check_op<T>(Queue, T(L), intel::plus<T>(), false, G, L);
-  check_op<T>(Queue, T(L), intel::plus<>(), false, G, L);
   check_op<T>(Queue, T(0), intel::plus<T>(), true, G, L);
-  check_op<T>(Queue, T(0), intel::plus<>(), true, G, L);
 
   check_op<T>(Queue, T(0), intel::minimum<T>(), false, G, L);
-  check_op<T>(Queue, T(0), intel::minimum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<T>(),
                 true, G, L);
-    check_op<T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<>(),
-                true, G, L);
   } else {
     check_op<T>(Queue, std::numeric_limits<T>::max(), intel::minimum<T>(), true,
-                G, L);
-    check_op<T>(Queue, std::numeric_limits<T>::max(), intel::minimum<>(), true,
                 G, L);
   }
 
   check_op<T>(Queue, T(G), intel::maximum<T>(), false, G, L);
-  check_op<T>(Queue, T(G), intel::maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<T>(),
                 true, G, L);
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<>(),
-                true, G, L);
   } else {
     check_op<T>(Queue, std::numeric_limits<T>::min(), intel::maximum<T>(), true,
                 G, L);
+  }
+
+#if __cplusplus >= 201402L
+  check_op<T>(Queue, T(L), intel::plus<>(), false, G, L);
+  check_op<T>(Queue, T(0), intel::plus<>(), true, G, L);
+
+  check_op<T>(Queue, T(0), intel::minimum<>(), false, G, L);
+  if (std::is_floating_point<T>::value ||
+      std::is_same<T, cl::sycl::half>::value) {
+    check_op<T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<>(),
+                true, G, L);
+  } else {
+    check_op<T>(Queue, std::numeric_limits<T>::max(), intel::minimum<>(), true,
+                G, L);
+  }
+
+  check_op<T>(Queue, T(G), intel::maximum<>(), false, G, L);
+  if (std::is_floating_point<T>::value ||
+      std::is_same<T, cl::sycl::half>::value) {
+    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<>(),
+                true, G, L);
+  } else {
     check_op<T>(Queue, std::numeric_limits<T>::min(), intel::maximum<>(), true,
                 G, L);
   }
+#endif
 }
 
 int main() {

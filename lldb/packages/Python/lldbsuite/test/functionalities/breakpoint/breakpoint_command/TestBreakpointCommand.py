@@ -2,7 +2,6 @@
 Test lldb breakpoint command add/list/delete.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -23,6 +22,7 @@ class BreakpointCommandTestCase(TestBase):
         self.build()
         self.breakpoint_command_sequence()
 
+    @skipIf(oslist=["windows"], bugnumber="llvm.org/pr44431")
     def test_script_parameters(self):
         """Test a sequence of breakpoint command add, list, and delete."""
         self.build()

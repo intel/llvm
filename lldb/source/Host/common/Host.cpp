@@ -1,4 +1,4 @@
-//===-- Host.cpp ------------------------------------------------*- C++ -*-===//
+//===-- Host.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -293,10 +293,21 @@ void Host::SystemLog(SystemLogType type, const char *format, va_list args) {
 #endif
 
 void Host::SystemLog(SystemLogType type, const char *format, ...) {
-  va_list args;
-  va_start(args, format);
-  SystemLog(type, format, args);
-  va_end(args);
+  {
+    va_list args;
+    va_start(args, format);
+    SystemLog(type, format, args);
+    va_end(args);
+  }
+
+  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST));
+  if (log && log->GetVerbose()) {
+    // Log to log channel. This allows testcases to grep for log output.
+    va_list args;
+    va_start(args, format);
+    log->VAPrintf(format, args);
+    va_end(args);
+  }
 }
 
 lldb::pid_t Host::GetCurrentProcessID() { return ::getpid(); }

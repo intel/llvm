@@ -2,7 +2,6 @@
 Test some target commands: create, list, select, variable.
 """
 
-from __future__ import print_function
 import os
 import stat
 import tempfile
@@ -104,13 +103,13 @@ class targetCommandTestCase(TestBase):
 
         self.runCmd("target select %d" % (base + 2))
         self.expect("thread backtrace", STOPPED_DUE_TO_BREAKPOINT,
-                    substrs=['c.c:%d' % self.line_c,
-                             'stop reason = breakpoint'])
+                    substrs=['stop reason = breakpoint' ,'c.c:%d' % self.line_c
+                             ])
 
         self.runCmd("target select %d" % (base + 1))
         self.expect("thread backtrace", STOPPED_DUE_TO_BREAKPOINT,
-                    substrs=['b.c:%d' % self.line_b,
-                             'stop reason = breakpoint'])
+                    substrs=['stop reason = breakpoint', 'b.c:%d' % self.line_b
+                             ])
 
         self.runCmd("target list")
 
@@ -246,10 +245,12 @@ class targetCommandTestCase(TestBase):
         # It will find all the global and static variables in the current
         # compile unit.
         self.expect("target variable",
+                    ordered=False,
                     substrs=['my_global_char',
+                             'my_static_int',
                              'my_global_str',
                              'my_global_str_ptr',
-                             'my_static_int'])
+                             ])
 
         self.expect(
             "target variable my_global_str",

@@ -9,15 +9,17 @@
 #pragma once
 
 #include <CL/sycl/detail/cg.hpp>
+#include <CL/sycl/detail/circular_buffer.hpp>
 #include <CL/sycl/detail/scheduler/commands.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -32,21 +34,25 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // The MemObjRecord is created for each memory object used in command
 // groups. There should be only one MemObjRecord for SYCL memory object.
 struct MemObjRecord {
+  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
+      : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
+                                                             CurContext} {}
+
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
   // Contains latest read only commands working with memory object.
-  std::vector<Command *> MReadLeafs;
+  CircularBuffer<Command *> MReadLeaves;
 
   // Contains latest write commands working with memory object.
-  std::vector<Command *> MWriteLeafs;
+  CircularBuffer<Command *> MWriteLeaves;
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
   // The flag indicates that the content of the memory object was/will be
   // modified. Used while deciding if copy back needed.
-  bool MMemModified;
+  bool MMemModified = false;
 };
 
 class Scheduler {
@@ -71,7 +77,16 @@ public:
   // sycl::image destructors.
   void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
+  // Creates nodes in the graph, that update Req with the pointer to the host
+  // memory which contains the latest data of the memory object. New operations
+  // with the same memory object that have side effects are blocked until
+  // releaseHostAccessor is called.
+  // Returns an event which indicates when these nodes are completed and host
+  // accessor is ready for using.
   EventImplPtr addHostAccessor(Requirement *Req);
+
+  // Unblocks operations with the memory object.
+  void releaseHostAccessor(Requirement *Req);
 
   // Returns an instance of the scheduler object.
   static Scheduler &getInstance();
@@ -101,7 +116,7 @@ protected:
                              QueueImplPtr HostQueue);
 
     Command *addCopyBack(Requirement *Req);
-    Command *addHostAccessor(Requirement *Req, EventImplPtr &RetEvent);
+    Command *addHostAccessor(Requirement *Req);
 
     // [Provisional] Optimizes the whole graph.
     void optimize();
@@ -131,29 +146,33 @@ protected:
     // Removes MemObjRecord for memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
 
-    // Add new command to leafs if needed.
-    void AddNodeToLeafs(MemObjRecord *Record, Command *Cmd,
-                        access::mode AccessMode);
+    // Add new command to leaves if needed.
+    void AddNodeToLeaves(MemObjRecord *Record, Command *Cmd,
+                         access::mode AccessMode);
 
-    // Removes commands from leafs.
-    void UpdateLeafs(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                     access::mode AccessMode);
+    // Removes commands from leaves.
+    void UpdateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
+                      access::mode AccessMode);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
-    // The method inserts memory copy operation from the context where the
-    // memory current lives to the context bound to Queue.
-    MemCpyCommand *insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
-                                   const QueueImplPtr &Queue,
-                                   bool UseExclusiveQueue = false);
+    // The method inserts required command to make so the latest state for the
+    // memory object Record refers to resides in the context which is bound to
+    // the Queue. Can insert copy/map/unmap operations depending on the source
+    // and destination.
+    Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
+                              const QueueImplPtr &Queue);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
                            const QueueImplPtr &Queue);
 
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
-                                       QueueImplPtr Context);
+                                       const ContextImplPtr &Context);
+
+    // Finds a command dependency corresponding to the record
+    DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
 
     // Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,

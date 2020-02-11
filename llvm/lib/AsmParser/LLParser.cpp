@@ -1636,6 +1636,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_nest:            B.addAttribute(Attribute::Nest); break;
     case lltok::kw_noalias:         B.addAttribute(Attribute::NoAlias); break;
     case lltok::kw_nocapture:       B.addAttribute(Attribute::NoCapture); break;
+    case lltok::kw_nofree:          B.addAttribute(Attribute::NoFree); break;
     case lltok::kw_nonnull:         B.addAttribute(Attribute::NonNull); break;
     case lltok::kw_readnone:        B.addAttribute(Attribute::ReadNone); break;
     case lltok::kw_readonly:        B.addAttribute(Attribute::ReadOnly); break;
@@ -1921,6 +1922,7 @@ void LLParser::ParseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'fastcc'
 ///   ::= 'intel_ocl_bicc'
 ///   ::= 'coldcc'
+///   ::= 'cfguard_checkcc'
 ///   ::= 'x86_stdcallcc'
 ///   ::= 'x86_fastcallcc'
 ///   ::= 'x86_thiscallcc'
@@ -1929,6 +1931,7 @@ void LLParser::ParseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'arm_aapcscc'
 ///   ::= 'arm_aapcs_vfpcc'
 ///   ::= 'aarch64_vector_pcs'
+///   ::= 'aarch64_sve_vector_pcs'
 ///   ::= 'msp430_intrcc'
 ///   ::= 'avr_intrcc'
 ///   ::= 'avr_signalcc'
@@ -1965,6 +1968,7 @@ bool LLParser::ParseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_ccc:            CC = CallingConv::C; break;
   case lltok::kw_fastcc:         CC = CallingConv::Fast; break;
   case lltok::kw_coldcc:         CC = CallingConv::Cold; break;
+  case lltok::kw_cfguard_checkcc: CC = CallingConv::CFGuard_Check; break;
   case lltok::kw_x86_stdcallcc:  CC = CallingConv::X86_StdCall; break;
   case lltok::kw_x86_fastcallcc: CC = CallingConv::X86_FastCall; break;
   case lltok::kw_x86_regcallcc:  CC = CallingConv::X86_RegCall; break;
@@ -1974,6 +1978,9 @@ bool LLParser::ParseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_arm_aapcscc:    CC = CallingConv::ARM_AAPCS; break;
   case lltok::kw_arm_aapcs_vfpcc:CC = CallingConv::ARM_AAPCS_VFP; break;
   case lltok::kw_aarch64_vector_pcs:CC = CallingConv::AArch64_VectorCall; break;
+  case lltok::kw_aarch64_sve_vector_pcs:
+    CC = CallingConv::AArch64_SVE_VectorCall;
+    break;
   case lltok::kw_msp430_intrcc:  CC = CallingConv::MSP430_INTR; break;
   case lltok::kw_avr_intrcc:     CC = CallingConv::AVR_INTR; break;
   case lltok::kw_avr_signalcc:   CC = CallingConv::AVR_SIGNAL; break;
@@ -3688,7 +3695,7 @@ bool LLParser::parseOptionalComdat(StringRef GlobalName, Comdat *&C) {
   } else {
     if (GlobalName.empty())
       return TokError("comdat cannot be unnamed");
-    C = getComdat(GlobalName, KwLoc);
+    C = getComdat(std::string(GlobalName), KwLoc);
   }
 
   return false;
@@ -4626,7 +4633,8 @@ bool LLParser::ParseDIFile(MDNode *&Result, bool IsDistinct) {
 ///                      isOptimized: true, flags: "-O2", runtimeVersion: 1,
 ///                      splitDebugFilename: "abc.debug",
 ///                      emissionKind: FullDebug, enums: !1, retainedTypes: !2,
-///                      globals: !4, imports: !5, macros: !6, dwoId: 0x0abcd)
+///                      globals: !4, imports: !5, macros: !6, dwoId: 0x0abcd,
+///                      sysroot: "/")
 bool LLParser::ParseDICompileUnit(MDNode *&Result, bool IsDistinct) {
   if (!IsDistinct)
     return Lex.Error("missing 'distinct', required for !DICompileUnit");
@@ -4649,7 +4657,8 @@ bool LLParser::ParseDICompileUnit(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(splitDebugInlining, MDBoolField, = true);                           \
   OPTIONAL(debugInfoForProfiling, MDBoolField, = false);                       \
   OPTIONAL(nameTableKind, NameTableKindField, );                               \
-  OPTIONAL(debugBaseAddress, MDBoolField, = false);
+  OPTIONAL(debugBaseAddress, MDBoolField, = false);                            \
+  OPTIONAL(sysroot, MDStringField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4658,7 +4667,7 @@ bool LLParser::ParseDICompileUnit(MDNode *&Result, bool IsDistinct) {
       runtimeVersion.Val, splitDebugFilename.Val, emissionKind.Val, enums.Val,
       retainedTypes.Val, globals.Val, imports.Val, macros.Val, dwoId.Val,
       splitDebugInlining.Val, debugInfoForProfiling.Val, nameTableKind.Val,
-      debugBaseAddress.Val);
+      debugBaseAddress.Val, sysroot.Val);
   return false;
 }
 
@@ -4814,19 +4823,18 @@ bool LLParser::ParseDIMacroFile(MDNode *&Result, bool IsDistinct) {
 
 /// ParseDIModule:
 ///   ::= !DIModule(scope: !0, name: "SomeModule", configMacros: "-DNDEBUG",
-///                 includePath: "/usr/include", isysroot: "/")
+///                 includePath: "/usr/include")
 bool LLParser::ParseDIModule(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   REQUIRED(scope, MDField, );                                                  \
   REQUIRED(name, MDStringField, );                                             \
   OPTIONAL(configMacros, MDStringField, );                                     \
-  OPTIONAL(includePath, MDStringField, );                                      \
-  OPTIONAL(isysroot, MDStringField, );
+  OPTIONAL(includePath, MDStringField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
   Result = GET_OR_DISTINCT(DIModule, (Context, scope.Val, name.Val,
-                           configMacros.Val, includePath.Val, isysroot.Val));
+                           configMacros.Val, includePath.Val));
   return false;
 }
 
@@ -5538,7 +5546,7 @@ bool LLParser::PerFunctionState::resolveForwardRefBlockAddresses() {
   ValID ID;
   if (FunctionNumber == -1) {
     ID.Kind = ValID::t_GlobalName;
-    ID.StrVal = F.getName();
+    ID.StrVal = std::string(F.getName());
   } else {
     ID.Kind = ValID::t_GlobalID;
     ID.UIntVal = FunctionNumber;
@@ -5797,7 +5805,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
     if (Res != 0)
       return Res;
     if (FMF.any()) {
-      if (!Inst->getType()->isFPOrFPVectorTy())
+      if (!isa<FPMathOperator>(Inst))
         return Error(Loc, "fast-math-flags specified for select without "
                           "floating-point scalar or vector return type");
       Inst->setFastMathFlags(FMF);
@@ -5814,7 +5822,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
     if (Res != 0)
       return Res;
     if (FMF.any()) {
-      if (!Inst->getType()->isFPOrFPVectorTy())
+      if (!isa<FPMathOperator>(Inst))
         return Error(Loc, "fast-math-flags specified for phi without "
                           "floating-point scalar or vector return type");
       Inst->setFastMathFlags(FMF);
@@ -5822,6 +5830,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
     return 0;
   }
   case lltok::kw_landingpad:     return ParseLandingPad(Inst, PFS);
+  case lltok::kw_freeze:         return ParseFreeze(Inst, PFS);
   // Call.
   case lltok::kw_call:     return ParseCall(Inst, PFS, CallInst::TCK_None);
   case lltok::kw_tail:     return ParseCall(Inst, PFS, CallInst::TCK_Tail);
@@ -6745,6 +6754,18 @@ bool LLParser::ParseLandingPad(Instruction *&Inst, PerFunctionState &PFS) {
   return false;
 }
 
+/// ParseFreeze
+///   ::= 'freeze' Type Value
+bool LLParser::ParseFreeze(Instruction *&Inst, PerFunctionState &PFS) {
+  LocTy Loc;
+  Value *Op;
+  if (ParseTypeAndValue(Op, Loc, PFS))
+    return true;
+
+  Inst = new FreezeInst(Op);
+  return false;
+}
+
 /// ParseCall
 ///   ::= 'call' OptionalFastMathFlags OptionalCallingConv
 ///           OptionalAttrs Type Value ParameterList OptionalAttrs
@@ -6784,10 +6805,6 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
       ParseFnAttributeValuePairs(FnAttrs, FwdRefAttrGrps, false, BuiltinLoc) ||
       ParseOptionalOperandBundles(BundleList, PFS))
     return true;
-
-  if (FMF.any() && !RetType->isFPOrFPVectorTy())
-    return Error(CallLoc, "fast-math-flags specified for call without "
-                          "floating-point scalar or vector return type");
 
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
@@ -6851,8 +6868,12 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
   CallInst *CI = CallInst::Create(Ty, Callee, Args, BundleList);
   CI->setTailCallKind(TCK);
   CI->setCallingConv(CC);
-  if (FMF.any())
+  if (FMF.any()) {
+    if (!isa<FPMathOperator>(CI))
+      return Error(CallLoc, "fast-math-flags specified for call without "
+                   "floating-point scalar or vector return type");
     CI->setFastMathFlags(FMF);
+  }
   CI->setAttributes(PAL);
   ForwardRefAttrGroups[CI] = FwdRefAttrGrps;
   Inst = CI;
@@ -7203,8 +7224,8 @@ int LLParser::ParseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   bool AteExtraComma = false;
   // GEP returns a vector of pointers if at least one of parameters is a vector.
   // All vector parameters should have the same vector width.
-  unsigned GEPWidth = BaseType->isVectorTy() ?
-    BaseType->getVectorNumElements() : 0;
+  ElementCount GEPWidth = BaseType->isVectorTy() ?
+    BaseType->getVectorElementCount() : ElementCount(0, false);
 
   while (EatIfPresent(lltok::comma)) {
     if (Lex.getKind() == lltok::MetadataVar) {
@@ -7216,8 +7237,8 @@ int LLParser::ParseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
       return Error(EltLoc, "getelementptr index must be an integer");
 
     if (Val->getType()->isVectorTy()) {
-      unsigned ValNumEl = Val->getType()->getVectorNumElements();
-      if (GEPWidth && GEPWidth != ValNumEl)
+      ElementCount ValNumEl = Val->getType()->getVectorElementCount();
+      if (GEPWidth != ElementCount(0, false) && GEPWidth != ValNumEl)
         return Error(EltLoc,
           "getelementptr vector index has a wrong number of elements");
       GEPWidth = ValNumEl;
@@ -8019,12 +8040,10 @@ bool LLParser::ParseGVEntry(unsigned ID) {
 
   // Have a list of summaries
   if (ParseToken(lltok::kw_summaries, "expected 'summaries' here") ||
-      ParseToken(lltok::colon, "expected ':' here"))
+      ParseToken(lltok::colon, "expected ':' here") ||
+      ParseToken(lltok::lparen, "expected '(' here"))
     return true;
-
   do {
-    if (ParseToken(lltok::lparen, "expected '(' here"))
-      return true;
     switch (Lex.getKind()) {
     case lltok::kw_function:
       if (ParseFunctionSummary(Name, GUID, ID))
@@ -8041,11 +8060,10 @@ bool LLParser::ParseGVEntry(unsigned ID) {
     default:
       return Error(Lex.getLoc(), "expected summary type");
     }
-    if (ParseToken(lltok::rparen, "expected ')' here"))
-      return true;
   } while (EatIfPresent(lltok::comma));
 
-  if (ParseToken(lltok::rparen, "expected ')' here"))
+  if (ParseToken(lltok::rparen, "expected ')' here") ||
+      ParseToken(lltok::rparen, "expected ')' here"))
     return true;
 
   return false;
@@ -8135,7 +8153,9 @@ bool LLParser::ParseVariableSummary(std::string Name, GlobalValue::GUID GUID,
       /*Linkage=*/GlobalValue::ExternalLinkage, /*NotEligibleToImport=*/false,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false);
   GlobalVarSummary::GVarFlags GVarFlags(/*ReadOnly*/ false,
-                                        /* WriteOnly */ false);
+                                        /* WriteOnly */ false,
+                                        /* Constant */ false,
+                                        GlobalObject::VCallVisibilityPublic);
   std::vector<ValueInfo> Refs;
   VTableFuncList VTableFuncs;
   if (ParseToken(lltok::colon, "expected ':' here") ||
@@ -8243,6 +8263,8 @@ bool LLParser::ParseFlag(unsigned &Val) {
 ///        [',' 'readOnly' ':' Flag]? [',' 'noRecurse' ':' Flag]?
 ///        [',' 'returnDoesNotAlias' ':' Flag]? ')'
 ///        [',' 'noInline' ':' Flag]? ')'
+///        [',' 'alwaysInline' ':' Flag]? ')'
+
 bool LLParser::ParseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
   assert(Lex.getKind() == lltok::kw_funcFlags);
   Lex.Lex();
@@ -8283,6 +8305,12 @@ bool LLParser::ParseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
       if (ParseToken(lltok::colon, "expected ':'") || ParseFlag(Val))
         return true;
       FFlags.NoInline = Val;
+      break;
+    case lltok::kw_alwaysInline:
+      Lex.Lex();
+      if (ParseToken(lltok::colon, "expected ':'") || ParseFlag(Val))
+        return true;
+      FFlags.AlwaysInline = Val;
       break;
     default:
       return Error(Lex.getLoc(), "expected function flag type");
@@ -8799,7 +8827,8 @@ bool LLParser::ParseGVFlags(GlobalValueSummary::GVFlags &GVFlags) {
 
 /// GVarFlags
 ///   ::= 'varFlags' ':' '(' 'readonly' ':' Flag
-///                      ',' 'writeonly' ':' Flag ')'
+///                      ',' 'writeonly' ':' Flag
+///                      ',' 'constant' ':' Flag ')'
 bool LLParser::ParseGVarFlags(GlobalVarSummary::GVarFlags &GVarFlags) {
   assert(Lex.getKind() == lltok::kw_varFlags);
   Lex.Lex();
@@ -8827,6 +8856,16 @@ bool LLParser::ParseGVarFlags(GlobalVarSummary::GVarFlags &GVarFlags) {
       if (ParseRest(Flag))
         return true;
       GVarFlags.MaybeWriteOnly = Flag;
+      break;
+    case lltok::kw_constant:
+      if (ParseRest(Flag))
+        return true;
+      GVarFlags.Constant = Flag;
+      break;
+    case lltok::kw_vcall_visibility:
+      if (ParseRest(Flag))
+        return true;
+      GVarFlags.VCallVisibility = Flag;
       break;
     default:
       return Error(Lex.getLoc(), "expected gvar flag type");

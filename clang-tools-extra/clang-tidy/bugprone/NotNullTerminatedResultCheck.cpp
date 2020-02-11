@@ -393,7 +393,7 @@ static bool isDestExprFix(const MatchFinder::MatchResult &Result,
 }
 
 // If the destination array is the same length as the given length we have to
-// increase the capacity by one to create space for the the null terminator.
+// increase the capacity by one to create space for the null terminator.
 static bool isDestCapacityFix(const MatchFinder::MatchResult &Result,
                               DiagnosticBuilder &Diag) {
   bool IsOverflows = isDestCapacityOverflows(Result);
@@ -652,9 +652,10 @@ void NotNullTerminatedResultCheck::registerMatchers(MatchFinder *Finder) {
             anyOf(DestUnknownDecl, hasDescendant(DestUnknownDecl))));
 
   auto NullTerminatorExpr = binaryOperator(
-      hasLHS(anyOf(hasDescendant(declRefExpr(
-                       to(varDecl(equalsBoundNode(DestVarDeclName))))),
-                   hasDescendant(declRefExpr(equalsBoundNode(DestExprName))))),
+      hasLHS(anyOf(hasDescendant(declRefExpr(to(varDecl(
+                       equalsBoundNode(std::string(DestVarDeclName)))))),
+                   hasDescendant(declRefExpr(
+                       equalsBoundNode(std::string(DestExprName)))))),
       hasRHS(ignoringImpCasts(
           anyOf(characterLiteral(equals(0U)), integerLiteral(equals(0))))));
 

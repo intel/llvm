@@ -13,7 +13,10 @@ set(LLVM_LINK_COMPONENTS
   Mips
   )
 
-add_llvm_unittest(LLVMExegesisMipsTests
+add_llvm_target_unittest(LLVMExegesisMipsTests
+  BenchmarkResultTest.cpp
+  RegisterAliasingTest.cpp
+  SnippetGeneratorTest.cpp
   TargetTest.cpp
   )
 target_link_libraries(LLVMExegesisMipsTests PRIVATE

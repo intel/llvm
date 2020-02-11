@@ -5,7 +5,7 @@
 // RUN: %clang_cc1 -std=c++2a -fcxx-exceptions -fsized-deallocation -verify %s
 //
 // RUN: %clang_cc1 -std=c++17 -fcxx-exceptions -fsized-deallocation -frelaxed-template-template-args -DRELAXED_TEMPLATE_TEMPLATE_ARGS=1 -verify %s
-// RUN: %clang_cc1 -std=c++17 -fcxx-exceptions -fsized-deallocation -fconcepts-ts -DCONCEPTS_TS=1 -verify %s
+// RUN: %clang_cc1 -std=c++17 -fcxx-exceptions -fsized-deallocation -DCONCEPTS_TS=1 -verify %s
 // RUN: %clang_cc1 -std=c++14 -fno-rtti -fno-threadsafe-statics -verify %s -DNO_EXCEPTIONS -DNO_RTTI -DNO_THREADSAFE_STATICS -fsized-deallocation
 // RUN: %clang_cc1 -std=c++14 -fcoroutines-ts -DNO_EXCEPTIONS -DCOROUTINES -verify -fsized-deallocation %s
 // RUN: %clang_cc1 -std=c++14 -fchar8_t -DNO_EXCEPTIONS -DCHAR8_T -verify -fsized-deallocation %s
@@ -34,16 +34,42 @@
 #error "wrong value for __cpp_char8_t"
 #endif
 
+#if check(conditional_explicit, 0, 0, 0, 0, 201806)
+#error "wrong value for __cpp_conditional_explicit"
+#endif
+
+// constexpr checked below
+
 #if check(constexpr_dynamic_alloc, 0, 0, 0, 0, 201907)
 #error "wrong value for __cpp_constexpr_dynamic_alloc"
+#endif
+
+#if check(constexpr_in_decltype, 0, 201711, 201711, 201711, 201711)
+#error "wrong value for __cpp_constexpr_in_decltype"
 #endif
 
 #if check(constinit, 0, 0, 0, 0, 201907)
 #error "wrong value for __cpp_constinit"
 #endif
 
+#if check(designated_initializers, 0, 0, 0, 0, 201707)
+#error "wrong value for __cpp_designated_initializers"
+#endif
+
+// generic_lambdas checked below
+
 #if check(impl_destroying_delete, 201806, 201806, 201806, 201806, 201806)
 #error "wrong value for __cpp_impl_destroying_delete"
+#endif
+
+#if check(impl_three_way_comparison, 0, 0, 0, 0, 201907)
+#error "wrong value for __cpp_impl_three_way_comparison"
+#endif
+
+// init_captures checked below
+
+#if check(concepts, 0, 0, 0, 0, 201907)
+#error "wrong value for __cpp_concepts"
 #endif
 
 // --- C++17 features ---
@@ -150,11 +176,11 @@
 #error "wrong value for __cpp_digit_separators"
 #endif
 
-#if check(init_captures, 0, 0, 201304, 201304, 201304)
+#if check(init_captures, 0, 0, 201304, 201304, 201803)
 #error "wrong value for __cpp_init_captures"
 #endif
 
-#if check(generic_lambdas, 0, 0, 201304, 201304, 201304)
+#if check(generic_lambdas, 0, 0, 201304, 201304, 201707)
 #error "wrong value for __cpp_generic_lambdas"
 #endif
 
@@ -274,10 +300,6 @@
 #endif
 
 // --- TS features --
-
-#if check(experimental_concepts, 0, 0, CONCEPTS_TS, CONCEPTS_TS, CONCEPTS_TS)
-#error "wrong value for __cpp_experimental_concepts"
-#endif
 
 #if defined(COROUTINES) ? check(coroutines, 201703L, 201703L, 201703L, 201703L, 201703L) : check(coroutines, 0, 0, 0, 0, 201703L)
 #error "wrong value for __cpp_coroutines"

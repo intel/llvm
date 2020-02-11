@@ -42,6 +42,13 @@ public:
   ///     The compile unit to which this line table belongs.
   LineTable(CompileUnit *comp_unit);
 
+  /// Construct with entries found in \a sequences.
+  ///
+  /// \param[in] sequences
+  ///     Unsorted list of line sequences.
+  LineTable(CompileUnit *comp_unit,
+            std::vector<std::unique_ptr<LineSequence>> &&sequences);
+
   /// Destructor.
   ~LineTable();
 
@@ -64,11 +71,11 @@ public:
                        bool is_epilogue_begin, bool is_terminal_entry);
 
   // Used to instantiate the LineSequence helper class
-  LineSequence *CreateLineSequenceContainer();
+  static std::unique_ptr<LineSequence> CreateLineSequenceContainer();
 
   // Append an entry to a caller-provided collection that will later be
   // inserted in this line table.
-  void AppendLineEntryToSequence(LineSequence *sequence, lldb::addr_t file_addr,
+  static void AppendLineEntryToSequence(LineSequence *sequence, lldb::addr_t file_addr,
                                  uint32_t line, uint16_t column,
                                  uint16_t file_idx, bool is_start_of_statement,
                                  bool is_start_of_basic_block,
@@ -135,8 +142,8 @@ public:
   ///     If true, match only if you find a line entry exactly matching \a line.
   ///     If false, return the closest line entry greater than \a line.
   ///
-  /// \param[out] line_entry
-  ///     A reference to a line entry object that will get a copy of
+  /// \param[out] line_entry_ptr
+  ///     A pointer to a line entry object that will get a copy of
   ///     the line entry if \b true is returned, otherwise \a
   ///     line_entry is left untouched.
   ///
@@ -194,16 +201,6 @@ public:
   size_t GetContiguousFileAddressRanges(FileAddressRanges &file_ranges,
                                         bool append);
 
-  /// Given a file range link map, relink the current line table and return a
-  /// fixed up line table.
-  ///
-  /// \param[out] file_range_map
-  ///     A collection of file ranges that maps to new file ranges
-  ///     that will be used when linking the line table.
-  ///
-  /// \return
-  ///     A new line table if at least one line table entry was able
-  ///     to be mapped.
   typedef RangeDataVector<lldb::addr_t, lldb::addr_t, lldb::addr_t>
       FileRangeMap;
 
@@ -269,6 +266,8 @@ protected:
     public:
       LessThanBinaryPredicate(LineTable *line_table);
       bool operator()(const LineTable::Entry &, const LineTable::Entry &) const;
+      bool operator()(const std::unique_ptr<LineSequence> &,
+                      const std::unique_ptr<LineSequence> &) const;
 
     protected:
       LineTable *m_line_table;

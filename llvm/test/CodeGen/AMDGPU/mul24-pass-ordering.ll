@@ -58,9 +58,8 @@ define void @lsr_order_mul24_1(i32 %arg, i32 %arg1, i32 %arg2, float addrspace(3
 ; GFX9-NEXT:    v_cmp_eq_u32_e32 vcc, 1, v5
 ; GFX9-NEXT:    v_cmp_lt_u32_e64 s[4:5], v0, v1
 ; GFX9-NEXT:    s_and_saveexec_b64 s[10:11], s[4:5]
-; GFX9-NEXT:    ; mask branch BB1_4
 ; GFX9-NEXT:    s_cbranch_execz BB1_4
-; GFX9-NEXT:  BB1_1: ; %bb19
+; GFX9-NEXT:  ; %bb.1: ; %bb19
 ; GFX9-NEXT:    v_cvt_f32_u32_e32 v7, v6
 ; GFX9-NEXT:    v_and_b32_e32 v5, 0xffffff, v6
 ; GFX9-NEXT:    v_add_u32_e32 v6, v4, v0
@@ -113,7 +112,7 @@ bb:
 
 bb19:                                             ; preds = %bb
   %tmp20 = uitofp i32 %arg6 to float
-  %tmp21 = fdiv float 1.000000e+00, %tmp20
+  %tmp21 = fdiv float 1.000000e+00, %tmp20, !fpmath !0
   %tmp22 = and i32 %arg6, 16777215
   br label %bb23
 
@@ -199,10 +198,10 @@ define void @slsr1_1(i32 %b.arg, i32 %s.arg) #0 {
 ; GFX9-NEXT:    buffer_store_dword v33, off, s[0:3], s34 offset:4 ; 4-byte Folded Spill
 ; GFX9-NEXT:    buffer_store_dword v34, off, s[0:3], s34 ; 4-byte Folded Spill
 ; GFX9-NEXT:    v_writelane_b32 v35, s36, 0
-; GFX9-NEXT:    v_writelane_b32 v35, s37, 1
 ; GFX9-NEXT:    s_getpc_b64 s[4:5]
 ; GFX9-NEXT:    s_add_u32 s4, s4, foo@gotpcrel32@lo+4
 ; GFX9-NEXT:    s_addc_u32 s5, s5, foo@gotpcrel32@hi+4
+; GFX9-NEXT:    v_writelane_b32 v35, s37, 1
 ; GFX9-NEXT:    s_load_dwordx2 s[36:37], s[4:5], 0x0
 ; GFX9-NEXT:    v_mov_b32_e32 v32, v1
 ; GFX9-NEXT:    v_mov_b32_e32 v33, v0
@@ -259,3 +258,5 @@ declare float @llvm.fmuladd.f32(float, float, float) #1
 
 attributes #0 = { nounwind willreturn }
 attributes #1 = { nounwind readnone speculatable }
+
+!0 = !{float 2.500000e+00}

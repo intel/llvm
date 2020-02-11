@@ -1,4 +1,4 @@
-//===----------------- SocketTestUtilities.cpp ------------------*- C++ -*-===//
+//===-- SocketTestUtilities.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SocketTestUtilities.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Utility/StreamString.h"
 
 #ifdef _WIN32
@@ -82,7 +83,7 @@ bool lldb_private::CreateTCPConnectedSockets(
   return true;
 }
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 void lldb_private::CreateDomainConnectedSockets(
     llvm::StringRef path, std::unique_ptr<DomainSocket> *socket_a_up,
     std::unique_ptr<DomainSocket> *socket_b_up) {

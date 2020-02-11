@@ -42,6 +42,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/User.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BlockFrequency.h"
 #include "llvm/Support/BranchProbability.h"
@@ -701,7 +702,7 @@ PartialInlinerImpl::computeOutliningInfo(Function *F) {
   return OutliningInfo;
 }
 
-// Check if there is PGO data or user annoated branch data:
+// Check if there is PGO data or user annotated branch data:
 static bool hasProfileData(Function *F, FunctionOutliningInfo *OI) {
   if (F->hasProfileData())
     return true;
@@ -768,7 +769,7 @@ bool PartialInlinerImpl::shouldPartialInline(
   assert(Callee == Cloner.ClonedFunc);
 
   if (SkipCostAnalysis)
-    return isInlineViable(*Callee);
+    return isInlineViable(*Callee).isSuccess();
 
   Function *Caller = CS.getCaller();
   auto &CalleeTTI = (*GetTTI)(*Callee);
@@ -1410,7 +1411,8 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     // bail on vararg functions.
     if (!InlineFunction(CS, IFI, nullptr, true,
                         (Cloner.ClonedOI ? Cloner.OutlinedFunctions.back().first
-                                         : nullptr)))
+                                         : nullptr))
+             .isSuccess())
       continue;
 
     CallerORE.emit(OR);

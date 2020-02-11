@@ -139,7 +139,7 @@ std::vector<Symbol *> SymbolTable::findByVersion(SymbolVersion ver) {
 
 std::vector<Symbol *> SymbolTable::findAllByVersion(SymbolVersion ver) {
   std::vector<Symbol *> res;
-  StringMatcher m(ver.name);
+  SingleStringMatcher m(ver.name);
 
   if (ver.isExternCpp) {
     for (auto &p : getDemangledSyms())
@@ -215,7 +215,7 @@ void SymbolTable::assignExactVersion(SymbolVersion ver, uint16_t versionId,
 }
 
 void SymbolTable::assignWildcardVersion(SymbolVersion ver, uint16_t versionId) {
-  // Exact matching takes precendence over fuzzy matching,
+  // Exact matching takes precedence over fuzzy matching,
   // so we set a version to a symbol only if no version has been assigned
   // to the symbol. This behavior is compatible with GNU.
   for (Symbol *sym : findAllByVersion(ver))

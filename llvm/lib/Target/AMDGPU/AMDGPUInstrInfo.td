@@ -244,9 +244,9 @@ def AMDGPUdiv_fmas : SDNode<"AMDGPUISD::DIV_FMAS", AMDGPUFmasOp,
 // Single or double precision division fixup.
 // Special case divide fixup and flags(src0 = Quotient, src1 =
 // Denominator, src2 = Numerator).
-def AMDGPUdiv_fixup : SDNode<"AMDGPUISD::DIV_FIXUP", SDTFPTernaryOp>;
+def AMDGPUdiv_fixup_impl : SDNode<"AMDGPUISD::DIV_FIXUP", SDTFPTernaryOp>;
 
-def AMDGPUfmad_ftz : SDNode<"AMDGPUISD::FMAD_FTZ", SDTFPTernaryOp>;
+def AMDGPUfmad_ftz_impl : SDNode<"AMDGPUISD::FMAD_FTZ", SDTFPTernaryOp>;
 
 // Look Up 2.0 / pi src0 with segment select src1[4:0]
 def AMDGPUtrig_preop : SDNode<"AMDGPUISD::TRIG_PREOP", AMDGPUTrigPreOp>;
@@ -290,10 +290,10 @@ def AMDGPUffbl_b32 : SDNode<"AMDGPUISD::FFBL_B32", SDTIntUnaryOp>;
 
 // Signed and unsigned 24-bit multiply. The highest 8-bits are ignore
 // when performing the mulitply. The result is a 32-bit value.
-def AMDGPUmul_u24 : SDNode<"AMDGPUISD::MUL_U24", SDTIntBinOp,
+def AMDGPUmul_u24_impl : SDNode<"AMDGPUISD::MUL_U24", SDTIntBinOp,
   [SDNPCommutative, SDNPAssociative]
 >;
-def AMDGPUmul_i24 : SDNode<"AMDGPUISD::MUL_I24", SDTIntBinOp,
+def AMDGPUmul_i24_impl : SDNode<"AMDGPUISD::MUL_I24", SDTIntBinOp,
   [SDNPCommutative, SDNPAssociative]
 >;
 
@@ -329,18 +329,6 @@ def AMDGPUfdot2 : SDNode<"AMDGPUISD::FDOT2",
 
 def AMDGPUperm : SDNode<"AMDGPUISD::PERM", AMDGPUDTIntTernaryOp, []>;
 
-def AMDGPUinterp_p1ll_f16 : SDNode<"AMDGPUISD::INTERP_P1LL_F16",
-                            SDTypeProfile<1, 7, [SDTCisFP<0>]>,
-                            [SDNPInGlue, SDNPOutGlue]>;
-
-def AMDGPUinterp_p1lv_f16 : SDNode<"AMDGPUISD::INTERP_P1LV_F16",
-                            SDTypeProfile<1, 9, [SDTCisFP<0>]>,
-                            [SDNPInGlue, SDNPOutGlue]>;
-
-def AMDGPUinterp_p2_f16 : SDNode<"AMDGPUISD::INTERP_P2_F16",
-                          SDTypeProfile<1, 8, [SDTCisFP<0>]>,
-                          [SDNPInGlue]>;
-
 def AMDGPUkill : SDNode<"AMDGPUISD::KILL", AMDGPUKillSDT,
   [SDNPHasChain, SDNPSideEffect]>;
 
@@ -357,12 +345,6 @@ def AMDGPUExportOp : SDTypeProfile<0, 8, [
   SDTCisInt<1>        // i1 vm
 
 ]>;
-
-def AMDGPUexport: SDNode<"AMDGPUISD::EXPORT", AMDGPUExportOp,
-  [SDNPHasChain, SDNPMayStore]>;
-
-def AMDGPUexport_done: SDNode<"AMDGPUISD::EXPORT_DONE", AMDGPUExportOp,
-  [SDNPHasChain, SDNPMayLoad, SDNPMayStore]>;
 
 
 def R600ExportOp : SDTypeProfile<0, 7, [SDTCisFP<0>, SDTCisInt<1>]>;
@@ -434,6 +416,10 @@ def AMDGPUfmed3 : PatFrags<(ops node:$src0, node:$src1, node:$src2),
   [(int_amdgcn_fmed3 node:$src0, node:$src1, node:$src2),
    (AMDGPUfmed3_impl node:$src0, node:$src1, node:$src2)]>;
 
+def AMDGPUdiv_fixup : PatFrags<(ops node:$src0, node:$src1, node:$src2),
+  [(int_amdgcn_div_fixup node:$src0, node:$src1, node:$src2),
+   (AMDGPUdiv_fixup_impl node:$src0, node:$src1, node:$src2)]>;
+
 def AMDGPUffbh_i32 : PatFrags<(ops node:$src),
   [(int_amdgcn_sffbh node:$src),
    (AMDGPUffbh_i32_impl node:$src)]>;
@@ -457,3 +443,15 @@ def AMDGPUpk_i16_i32 : PatFrags<(ops node:$src0, node:$src1),
 def AMDGPUpk_u16_u32 : PatFrags<(ops node:$src0, node:$src1),
   [(int_amdgcn_cvt_pk_u16 node:$src0, node:$src1),
   (AMDGPUpk_u16_u32_impl node:$src0, node:$src1)]>;
+
+def AMDGPUfmad_ftz : PatFrags<(ops node:$src0, node:$src1, node:$src2),
+  [(int_amdgcn_fmad_ftz node:$src0, node:$src1, node:$src2),
+   (AMDGPUfmad_ftz_impl node:$src0, node:$src1, node:$src2)]>;
+
+def AMDGPUmul_u24 : PatFrags<(ops node:$src0, node:$src1),
+  [(int_amdgcn_mul_u24 node:$src0, node:$src1),
+   (AMDGPUmul_u24_impl node:$src0, node:$src1)]>;
+
+def AMDGPUmul_i24 : PatFrags<(ops node:$src0, node:$src1),
+  [(int_amdgcn_mul_i24 node:$src0, node:$src1),
+   (AMDGPUmul_i24_impl node:$src0, node:$src1)]>;

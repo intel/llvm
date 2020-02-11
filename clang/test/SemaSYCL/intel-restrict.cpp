@@ -1,5 +1,5 @@
-// RUN: %clang %s -fsyntax-only --sycl -DCHECKDIAG -Xclang -verify
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump --sycl | FileCheck %s
+// RUN: %clang %s -fsyntax-only -fsycl-device-only -DCHECKDIAG -Xclang -verify
+// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
 
 [[intel::kernel_args_restrict]] // expected-warning{{'kernel_args_restrict' attribute ignored}}
 void func_ignore() {}

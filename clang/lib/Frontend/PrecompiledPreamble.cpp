@@ -269,8 +269,9 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
 
   // Tell the compiler invocation to generate a temporary precompiled header.
   FrontendOpts.ProgramAction = frontend::GeneratePCH;
-  FrontendOpts.OutputFile = StoreInMemory ? getInMemoryPreamblePath()
-                                          : Storage.asFile().getFilePath();
+  FrontendOpts.OutputFile =
+      std::string(StoreInMemory ? getInMemoryPreamblePath()
+                                : Storage.asFile().getFilePath());
   PreprocessorOpts.PrecompiledPreambleBytes.first = 0;
   PreprocessorOpts.PrecompiledPreambleBytes.second = false;
   // Inform preprocessor to record conditional stack when building the preamble.
@@ -535,31 +536,20 @@ PrecompiledPreamble::TempPCHFile::CreateNewPreamblePCHFile() {
   // FIXME: This is a hack so that we can override the preamble file during
   // crash-recovery testing, which is the only case where the preamble files
   // are not necessarily cleaned up.
-  const char *TmpFile = ::getenv("CINDEXTEST_PREAMBLE_FILE");
-  if (TmpFile)
-    return TempPCHFile::createFromCustomPath(TmpFile);
-  return TempPCHFile::createInSystemTempDir("preamble", "pch");
-}
+  if (const char *TmpFile = ::getenv("CINDEXTEST_PREAMBLE_FILE"))
+    return TempPCHFile(TmpFile);
 
-llvm::ErrorOr<PrecompiledPreamble::TempPCHFile>
-PrecompiledPreamble::TempPCHFile::createInSystemTempDir(const Twine &Prefix,
-                                                        StringRef Suffix) {
   llvm::SmallString<64> File;
   // Using a version of createTemporaryFile with a file descriptor guarantees
   // that we would never get a race condition in a multi-threaded setting
   // (i.e., multiple threads getting the same temporary path).
   int FD;
-  auto EC = llvm::sys::fs::createTemporaryFile(Prefix, Suffix, FD, File);
+  auto EC = llvm::sys::fs::createTemporaryFile("preamble", "pch", FD, File);
   if (EC)
     return EC;
   // We only needed to make sure the file exists, close the file right away.
   llvm::sys::Process::SafelyCloseFileDescriptor(FD);
-  return TempPCHFile(std::move(File).str());
-}
-
-llvm::ErrorOr<PrecompiledPreamble::TempPCHFile>
-PrecompiledPreamble::TempPCHFile::createFromCustomPath(const Twine &Path) {
-  return TempPCHFile(Path.str());
+  return TempPCHFile(std::string(std::move(File).str()));
 }
 
 PrecompiledPreamble::TempPCHFile::TempPCHFile(std::string FilePath)
@@ -726,7 +716,7 @@ void PrecompiledPreamble::setupPreambleStorage(
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS) {
   if (Storage.getKind() == PCHStorage::Kind::TempFile) {
     const TempPCHFile &PCHFile = Storage.asFile();
-    PreprocessorOpts.ImplicitPCHInclude = PCHFile.getFilePath();
+    PreprocessorOpts.ImplicitPCHInclude = std::string(PCHFile.getFilePath());
 
     // Make sure we can access the PCH file even if we're using a VFS
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> RealFS =
@@ -750,7 +740,7 @@ void PrecompiledPreamble::setupPreambleStorage(
     // For in-memory preamble, we have to provide a VFS overlay that makes it
     // accessible.
     StringRef PCHPath = getInMemoryPreamblePath();
-    PreprocessorOpts.ImplicitPCHInclude = PCHPath;
+    PreprocessorOpts.ImplicitPCHInclude = std::string(PCHPath);
 
     auto Buf = llvm::MemoryBuffer::getMemBuffer(Storage.asMemory().Data);
     VFS = createVFSOverlayForPreamblePCH(PCHPath, std::move(Buf), VFS);

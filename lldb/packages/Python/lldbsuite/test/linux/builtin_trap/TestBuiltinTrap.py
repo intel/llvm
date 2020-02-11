@@ -3,7 +3,6 @@ Test lldb ability to unwind a stack with a function containing a call to the
 '__builtin_trap' intrinsic, which GCC (4.6) encodes to an illegal opcode.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -24,7 +23,7 @@ class BuiltinTrapTestCase(TestBase):
 
     # gcc generates incorrect linetable
     @expectedFailureAll(archs="arm", compiler="gcc", triple=".*-android")
-    @expectedFailureAll(oslist=['linux'], archs=['arm'])
+    @expectedFailureAll(oslist=['linux'], archs=['arm', 'aarch64'])
     @skipIfWindows
     def test_with_run_command(self):
         """Test that LLDB handles a function with __builtin_trap correctly."""

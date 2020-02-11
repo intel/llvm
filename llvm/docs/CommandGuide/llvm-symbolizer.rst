@@ -28,6 +28,12 @@ Object files can be specified together with the addresses either on standard
 input or as positional arguments on the command-line, following any "DATA" or
 "CODE" prefix.
 
+:program:`llvm-symbolizer` parses options from the environment variable
+``LLVM_SYMBOLIZER_OPTS`` after parsing options from the command line.
+``LLVM_SYMBOLIZER_OPTS`` is primarily useful for supplementing the command-line
+options when :program:`llvm-symbolizer` is invoked by another program or
+runtime.
+
 EXAMPLES
 --------
 
@@ -221,6 +227,9 @@ OPTIONS
     topmost caller when inlined frames are not shown and :option:`--use-symbol-table`
     is on.
 
+  * Prints an address's debug-data discriminator when it is non-zero. One way to
+    produce discriminators is to compile with clang's -fdebug-info-for-profiling.
+
   .. code-block:: console
 
     $ llvm-symbolizer --obj=inlined.elf 0x4004be 0x400486 -p
@@ -237,6 +246,10 @@ OPTIONS
     $ llvm-symbolizer --output-style=GNU --obj=inlined.elf 0x4004be 0x400486 -p -i=0
     baz() at /tmp/test.cpp:11
     foo() at /tmp/test.cpp:6
+
+    $ clang -g -fdebug-info-for-profiling test.cpp -o profiling.elf
+    $ llvm-symbolizer --output-style=GNU --obj=profiling.elf 0x401167 -p -i=0
+    main at /tmp/test.cpp:15 (discriminator 2)
 
 .. option:: --pretty-print, -p
 

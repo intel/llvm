@@ -56,7 +56,7 @@ MATCHER_P(WithTemplateArgs, ArgName, "") {
       LangOptions LO;
       PrintingPolicy Policy(LO);
       Policy.adjustForCPlusPlus();
-      for (const auto Arg : Args->asArray()) {
+      for (const auto &Arg : Args->asArray()) {
         if (SpecializationArgs.size() > 0)
           SpecializationArgs += ",";
         SpecializationArgs += Arg.getAsType().getAsString(Policy);
@@ -173,6 +173,7 @@ TEST(ParsedASTTest, TokensAfterPreamble) {
       #include "foo.h"
       first_token;
       void test() {
+        // error-ok: invalid syntax, just examining token stream
       }
       last_token
 )cpp";
@@ -236,30 +237,41 @@ TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
     // - preamble ends
     ^ID(int A);
     // Macro arguments included.
-    ^MACRO_ARGS(^MACRO_ARGS(^MACRO_EXP(int), A), ^ID(= 2));
+    ^MACRO_ARGS(^MACRO_ARGS(^MACRO_EXP(int), E), ^ID(= 2));
 
     // Macro names inside other macros not included.
     #define ^MACRO_ARGS2(X, Y) X Y
     #define ^FOO BAR
     #define ^BAR 1
-    int A = ^FOO;
+    int F = ^FOO;
 
     // Macros from token concatenations not included.
     #define ^CONCAT(X) X##A()
     #define ^PREPEND(X) MACRO##X()
     #define ^MACROA() 123
-    int B = ^CONCAT(MACRO);
-    int D = ^PREPEND(A)
+    int G = ^CONCAT(MACRO);
+    int H = ^PREPEND(A);
 
     // Macros included not from preamble not included.
     #include "foo.inc"
 
+    int printf(const char*, ...);
+    void exit(int);
     #define ^assert(COND) if (!(COND)) { printf("%s", #COND); exit(0); }
 
     void test() {
       // Includes macro expansions in arguments that are expressions
       ^assert(0 <= ^BAR);
     }
+
+    #ifdef ^UNDEFINED
+    #endif
+
+    #define ^MULTIPLE_DEFINITION 1
+    #undef ^MULTIPLE_DEFINITION
+
+    #define ^MULTIPLE_DEFINITION 2
+    #undef ^MULTIPLE_DEFINITION
   )cpp");
   auto TU = TestTU::withCode(TestCase.code());
   TU.HeaderCode = R"cpp(
@@ -274,7 +286,11 @@ TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
   )cpp";
   ParsedAST AST = TU.build();
   std::vector<Position> MacroExpansionPositions;
-  for (const auto &R : AST.getMacros().Ranges)
+  for (const auto &SIDToRefs : AST.getMacros().MacroRefs) {
+    for (const auto &R : SIDToRefs.second)
+      MacroExpansionPositions.push_back(R.start);
+  }
+  for (const auto &R : AST.getMacros().UnknownMacros)
     MacroExpansionPositions.push_back(R.start);
   EXPECT_THAT(MacroExpansionPositions,
               testing::UnorderedElementsAreArray(TestCase.points()));

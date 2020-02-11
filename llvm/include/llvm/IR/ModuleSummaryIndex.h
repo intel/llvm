@@ -29,6 +29,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/ScaledNumber.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -172,7 +173,7 @@ struct ValueInfo {
     RefAndFlags.setInt(HaveGVs);
   }
 
-  operator bool() const { return getRef(); }
+  explicit operator bool() const { return getRef(); }
 
   GlobalValue::GUID getGUID() const { return getRef()->first; }
   const GlobalValue *getValue() const {
@@ -547,6 +548,8 @@ public:
 
     // Indicate if the global value cannot be inlined.
     unsigned NoInline : 1;
+    // Indicate if function should be always inlined.
+    unsigned AlwaysInline : 1;
   };
 
   /// Create an empty FunctionSummary (with specified call edges).
@@ -754,14 +757,33 @@ private:
 
 public:
   struct GVarFlags {
-    GVarFlags(bool ReadOnly, bool WriteOnly)
-        : MaybeReadOnly(ReadOnly), MaybeWriteOnly(WriteOnly) {}
+    GVarFlags(bool ReadOnly, bool WriteOnly, bool Constant,
+              GlobalObject::VCallVisibility Vis)
+        : MaybeReadOnly(ReadOnly), MaybeWriteOnly(WriteOnly),
+          Constant(Constant), VCallVisibility(Vis) {}
 
-    // In permodule summaries both MaybeReadOnly and MaybeWriteOnly
-    // bits are set, because attribute propagation occurs later on
-    // thin link phase.
+    // If true indicates that this global variable might be accessed
+    // purely by non-volatile load instructions. This in turn means
+    // it can be internalized in source and destination modules during
+    // thin LTO import because it neither modified nor its address
+    // is taken.
     unsigned MaybeReadOnly : 1;
+    // If true indicates that variable is possibly only written to, so
+    // its value isn't loaded and its address isn't taken anywhere.
+    // False, when 'Constant' attribute is set.
     unsigned MaybeWriteOnly : 1;
+    // Indicates that value is a compile-time constant. Global variable
+    // can be 'Constant' while not being 'ReadOnly' on several occasions:
+    // - it is volatile, (e.g mapped device address)
+    // - its address is taken, meaning that unlike 'ReadOnly' vars we can't
+    //   internalize it.
+    // Constant variables are always imported thus giving compiler an
+    // opportunity to make some extra optimizations. Readonly constants
+    // are also internalized.
+    unsigned Constant : 1;
+    // Set from metadata on vtable definitions during the module summary
+    // analysis.
+    unsigned VCallVisibility : 2;
   } VarFlags;
 
   GlobalVarSummary(GVFlags Flags, GVarFlags VarFlags,
@@ -779,6 +801,13 @@ public:
   void setWriteOnly(bool WO) { VarFlags.MaybeWriteOnly = WO; }
   bool maybeReadOnly() const { return VarFlags.MaybeReadOnly; }
   bool maybeWriteOnly() const { return VarFlags.MaybeWriteOnly; }
+  bool isConstant() const { return VarFlags.Constant; }
+  void setVCallVisibility(GlobalObject::VCallVisibility Vis) {
+    VarFlags.VCallVisibility = Vis;
+  }
+  GlobalObject::VCallVisibility getVCallVisibility() const {
+    return (GlobalObject::VCallVisibility)VarFlags.VCallVisibility;
+  }
 
   void setVTableFuncs(VTableFuncList Funcs) {
     assert(!VTableFuncs);
@@ -941,6 +970,11 @@ private:
   /// considered live.
   bool WithGlobalValueDeadStripping = false;
 
+  /// Indicates that summary-based attribute propagation has run and
+  /// GVarFlags::MaybeReadonly / GVarFlags::MaybeWriteonly are really
+  /// read/write only.
+  bool WithAttributePropagation = false;
+
   /// Indicates that summary-based synthetic entry count propagation has run
   bool HasSyntheticEntryCounts = false;
 
@@ -985,6 +1019,18 @@ public:
   // See HaveGVs variable comment.
   ModuleSummaryIndex(bool HaveGVs, bool EnableSplitLTOUnit = false)
       : HaveGVs(HaveGVs), EnableSplitLTOUnit(EnableSplitLTOUnit), Saver(Alloc) {
+  }
+
+  // Current version for the module summary in bitcode files.
+  // The BitcodeSummaryVersion should be bumped whenever we introduce changes
+  // in the way some record are interpreted, like flags for instance.
+  // Note that incrementing this may require changes in both BitcodeReader.cpp
+  // and BitcodeWriter.cpp.
+  static constexpr uint64_t BitcodeSummaryVersion = 8;
+
+  // Regular LTO module name for ASM writer
+  static constexpr const char *getRegularLTOModuleName() {
+    return "[Regular LTO]";
   }
 
   bool haveGVs() const { return HaveGVs; }
@@ -1063,6 +1109,18 @@ public:
   }
   void setWithGlobalValueDeadStripping() {
     WithGlobalValueDeadStripping = true;
+  }
+
+  bool withAttributePropagation() const { return WithAttributePropagation; }
+  void setWithAttributePropagation() {
+    WithAttributePropagation = true;
+  }
+
+  bool isReadOnly(const GlobalVarSummary *GVS) const {
+    return WithAttributePropagation && GVS->maybeReadOnly();
+  }
+  bool isWriteOnly(const GlobalVarSummary *GVS) const {
+    return WithAttributePropagation && GVS->maybeWriteOnly();
   }
 
   bool hasSyntheticEntryCounts() const { return HasSyntheticEntryCounts; }
@@ -1237,13 +1295,15 @@ public:
     NewName += ".llvm.";
     NewName += utostr((uint64_t(ModHash[0]) << 32) |
                       ModHash[1]); // Take the first 64 bits
-    return NewName.str();
+    return std::string(NewName.str());
   }
 
   /// Helper to obtain the unpromoted name for a global value (or the original
-  /// name if not promoted).
+  /// name if not promoted). Split off the rightmost ".llvm.${hash}" suffix,
+  /// because it is possible in certain clients (not clang at the moment) for
+  /// two rounds of ThinLTO optimization and therefore promotion to occur.
   static StringRef getOriginalNameBeforePromote(StringRef Name) {
-    std::pair<StringRef, StringRef> Pair = Name.split(".llvm.");
+    std::pair<StringRef, StringRef> Pair = Name.rsplit(".llvm.");
     return Pair.first;
   }
 
@@ -1281,7 +1341,7 @@ public:
       if (It->second.first == TypeId)
         return It->second.second;
     auto It = TypeIdMap.insert(
-        {GlobalValue::getGUID(TypeId), {TypeId, TypeIdSummary()}});
+        {GlobalValue::getGUID(TypeId), {std::string(TypeId), TypeIdSummary()}});
     return It->second.second;
   }
 
@@ -1311,14 +1371,14 @@ public:
   /// the ThinLTO backends.
   TypeIdCompatibleVtableInfo &
   getOrInsertTypeIdCompatibleVtableSummary(StringRef TypeId) {
-    return TypeIdCompatibleVtableMap[TypeId];
+    return TypeIdCompatibleVtableMap[std::string(TypeId)];
   }
 
   /// For the given \p TypeId, this returns the TypeIdCompatibleVtableMap
   /// entry if present in the summary map. This may be used when importing.
   Optional<TypeIdCompatibleVtableInfo>
   getTypeIdCompatibleVtableSummary(StringRef TypeId) const {
-    auto I = TypeIdCompatibleVtableMap.find(TypeId);
+    auto I = TypeIdCompatibleVtableMap.find(std::string(TypeId));
     if (I == TypeIdCompatibleVtableMap.end())
       return None;
     return I->second;
@@ -1349,13 +1409,18 @@ public:
   void dump() const;
 
   /// Export summary to dot file for GraphViz.
-  void exportToDot(raw_ostream& OS) const;
+  void
+  exportToDot(raw_ostream &OS,
+              const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) const;
 
   /// Print out strongly connected components for debugging.
   void dumpSCCs(raw_ostream &OS);
 
   /// Analyze index and detect unmodified globals
   void propagateAttributes(const DenseSet<GlobalValue::GUID> &PreservedSymbols);
+
+  /// Checks if we can import global variable from another module.
+  bool canImportGlobalVar(GlobalValueSummary *S, bool AnalyzeRefs) const;
 };
 
 /// GraphTraits definition to build SCC for the index
@@ -1427,15 +1492,6 @@ struct GraphTraits<ModuleSummaryIndex *> : public GraphTraits<ValueInfo> {
     return ValueInfo(I->haveGVs(), &P);
   }
 };
-
-static inline bool canImportGlobalVar(GlobalValueSummary *S) {
-  assert(isa<GlobalVarSummary>(S->getBaseObject()));
-
-  // We don't import GV with references, because it can result
-  // in promotion of local variables in the source module.
-  return !GlobalValue::isInterposableLinkage(S->linkage()) &&
-         !S->notEligibleToImport() && S->refs().empty();
-}
 } // end namespace llvm
 
 #endif // LLVM_IR_MODULESUMMARYINDEX_H

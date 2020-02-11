@@ -8,6 +8,9 @@
 // This file includes some utilities that are used by image accessors on host
 // device
 //
+
+#pragma once
+
 #ifndef __SYCL_DEVICE_ONLY__
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
@@ -18,7 +21,7 @@
 #include <cmath>
 #include <iostream>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -533,11 +536,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
                  const image_channel_type ImageChannelType) {
 
   vec<ChannelType, 4> PixelData;
-  vec<cl_float, 4> Temp;
-  vec<cl_int, 4> TempInInt;
-  vec<cl_int, 4> TempInIntSaturated;
-  cl_int MinVal;
-  cl_int MaxVal;
 
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:

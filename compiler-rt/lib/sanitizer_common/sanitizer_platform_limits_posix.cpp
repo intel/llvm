@@ -179,6 +179,7 @@ namespace __sanitizer {
   unsigned struct_group_sz = sizeof(struct group);
   unsigned siginfo_t_sz = sizeof(siginfo_t);
   unsigned struct_sigaction_sz = sizeof(struct sigaction);
+  unsigned struct_stack_t_sz = sizeof(stack_t);
   unsigned struct_itimerval_sz = sizeof(struct itimerval);
   unsigned pthread_t_sz = sizeof(pthread_t);
   unsigned pthread_mutex_t_sz = sizeof(pthread_mutex_t);
@@ -1128,11 +1129,9 @@ CHECK_SIZE_AND_OFFSET(ipc_perm, uid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, gid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, cuid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, cgid);
-#if (!defined(__aarch64__) || !SANITIZER_LINUX || __GLIBC_PREREQ (2, 21)) && \
-    !defined(__arm__)
-/* On aarch64 glibc 2.20 and earlier provided incorrect mode field.  */
-/* On Arm newer glibc provide a different mode field, it's hard to detect
-   so just disable the check.  */
+#if !SANITIZER_LINUX || __GLIBC_PREREQ (2, 31)
+/* glibc 2.30 and earlier provided 16-bit mode field instead of 32-bit
+   on many architectures.  */
 CHECK_SIZE_AND_OFFSET(ipc_perm, mode);
 #endif
 

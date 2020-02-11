@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/platform_info.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

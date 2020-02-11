@@ -1,4 +1,4 @@
-//===-- ScriptInterpreterPython.cpp -----------------------------*- C++ -*-===//
+//===-- ScriptInterpreterPython.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef LLDB_DISABLE_PYTHON
+#include "lldb/Host/Config.h"
 
-// Python is disabled in this build
-
-#else
+#if LLDB_ENABLE_PYTHON
 
 // LLDB Python header must be included first
 #include "lldb-python.h"
 
 #include "PythonDataObjects.h"
+#include "PythonReadline.h"
 #include "ScriptInterpreterPythonImpl.h"
 
 #include "lldb/API/SBFrame.h"
@@ -72,11 +71,28 @@ extern "C" void init_lldb(void);
 // These prototypes are the Pythonic implementations of the required callbacks.
 // Although these are scripting-language specific, their definition depends on
 // the public API.
-extern "C" bool LLDBSwigPythonBreakpointCallbackFunction(
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+
+// Disable warning C4190: 'LLDBSwigPythonBreakpointCallbackFunction' has
+// C-linkage specified, but returns UDT 'llvm::Expected<bool>' which is
+// incompatible with C
+#if _MSC_VER
+#pragma warning (push)
+#pragma warning (disable : 4190)
+#endif
+
+extern "C" llvm::Expected<bool> LLDBSwigPythonBreakpointCallbackFunction(
     const char *python_function_name, const char *session_dictionary_name,
     const lldb::StackFrameSP &sb_frame,
-    const lldb::BreakpointLocationSP &sb_bp_loc,
-    StructuredDataImpl *args_impl);
+    const lldb::BreakpointLocationSP &sb_bp_loc, StructuredDataImpl *args_impl);
+
+#if _MSC_VER
+#pragma warning (pop)
+#endif
+
+#pragma clang diagnostic pop
 
 extern "C" bool LLDBSwigPythonWatchpointCallbackFunction(
     const char *python_function_name, const char *session_dictionary_name,
@@ -211,6 +227,22 @@ public:
     m_stdin_tty_state.Save(STDIN_FILENO, false);
 
     InitializePythonHome();
+
+#ifdef LLDB_USE_LIBEDIT_READLINE_COMPAT_MODULE
+    // Python's readline is incompatible with libedit being linked into lldb.
+    // Provide a patched version local to the embedded interpreter.
+    bool ReadlinePatched = false;
+    for (auto *p = PyImport_Inittab; p->name != NULL; p++) {
+      if (strcmp(p->name, "readline") == 0) {
+        p->initfunc = initlldb_readline;
+        break;
+      }
+    }
+    if (!ReadlinePatched) {
+      PyImport_AppendInittab("readline", initlldb_readline);
+      ReadlinePatched = true;
+    }
+#endif
 
     // Register _lldb as a built-in module.
     PyImport_AppendInittab("_lldb", LLDBSwigPyInit);
@@ -782,10 +814,9 @@ PythonDictionary &ScriptInterpreterPythonImpl::GetSysModuleDictionary() {
   return m_sys_module_dict;
 }
 
-llvm::Expected<size_t>
-ScriptInterpreterPythonImpl::GetNumFixedArgumentsForCallable(
-    const llvm::StringRef &callable_name)
-{
+llvm::Expected<unsigned>
+ScriptInterpreterPythonImpl::GetMaxPositionalArgumentsForCallable(
+    const llvm::StringRef &callable_name) {
   if (callable_name.empty()) {
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
@@ -796,16 +827,17 @@ ScriptInterpreterPythonImpl::GetNumFixedArgumentsForCallable(
                  Locker::NoSTDIN);
   auto dict = PythonModule::MainModule()
       .ResolveName<PythonDictionary>(m_dictionary_name);
-  auto pfunc 
-     = PythonObject::ResolveNameWithDictionary<PythonCallable>(callable_name, 
-                                                               dict);
+  auto pfunc = PythonObject::ResolveNameWithDictionary<PythonCallable>(
+      callable_name, dict);
   if (!pfunc.IsAllocated()) {
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
         "can't find callable: %s", callable_name.str().c_str());
   }
-  PythonCallable::ArgInfo arg_info = pfunc.GetNumArguments();
-  return arg_info.count;
+  llvm::Expected<PythonCallable::ArgInfo> arg_info = pfunc.GetArgInfo();
+  if (!arg_info)
+    return arg_info.takeError();
+  return arg_info.get().max_positional_args;
 }
 
 static std::string GenerateUniqueName(const char *base_name_wanted,
@@ -821,7 +853,7 @@ static std::string GenerateUniqueName(const char *base_name_wanted,
   else
     sstr.Printf("%s_%p", base_name_wanted, name_token);
 
-  return sstr.GetString();
+  return std::string(sstr.GetString());
 }
 
 bool ScriptInterpreterPythonImpl::GetEmbeddedInterpreterModuleObjects() {
@@ -1032,7 +1064,7 @@ void ScriptInterpreterPythonImpl::ExecuteInterpreterLoop() {
 
   IOHandlerSP io_handler_sp(new IOHandlerPythonInterpreter(debugger, this));
   if (io_handler_sp) {
-    debugger.PushIOHandler(io_handler_sp);
+    debugger.RunIOHandlerAsync(io_handler_sp);
   }
 }
 
@@ -1168,6 +1200,7 @@ bool ScriptInterpreterPythonImpl::ExecuteOneLineWithReturn(
     return true;
   }
   }
+  llvm_unreachable("Fully covered switch!");
 }
 
 Status ScriptInterpreterPythonImpl::ExecuteMultipleLines(
@@ -1215,14 +1248,14 @@ void ScriptInterpreterPythonImpl::CollectDataForBreakpointCommandCallback(
     CommandReturnObject &result) {
   m_active_io_handler = eIOHandlerBreakpoint;
   m_debugger.GetCommandInterpreter().GetPythonCommandsFromIOHandler(
-      "    ", *this, true, &bp_options_vec);
+      "    ", *this, &bp_options_vec);
 }
 
 void ScriptInterpreterPythonImpl::CollectDataForWatchpointCommandCallback(
     WatchpointOptions *wp_options, CommandReturnObject &result) {
   m_active_io_handler = eIOHandlerWatchpoint;
   m_debugger.GetCommandInterpreter().GetPythonCommandsFromIOHandler(
-      "    ", *this, true, wp_options);
+      "    ", *this, wp_options);
 }
 
 Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
@@ -1232,22 +1265,22 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
   // For now just cons up a oneliner that calls the provided function.
   std::string oneliner("return ");
   oneliner += function_name;
-  
-  llvm::Expected<size_t> maybe_args 
-      = GetNumFixedArgumentsForCallable(function_name);
+
+  llvm::Expected<unsigned> maybe_args =
+      GetMaxPositionalArgumentsForCallable(function_name);
   if (!maybe_args) {
-    error.SetErrorStringWithFormat("could not get num args: %s", 
+    error.SetErrorStringWithFormat(
+        "could not get num args: %s",
         llvm::toString(maybe_args.takeError()).c_str());
     return error;
   }
-  size_t num_args = *maybe_args;
-  
+  size_t max_args = *maybe_args;
+
   bool uses_extra_args = false;
-  if (num_args == 4) {
+  if (max_args >= 4) {
     uses_extra_args = true;
     oneliner += "(frame, bp_loc, extra_args, internal_dict)";
-  }
-  else if (num_args == 3) {
+  } else if (max_args >= 3) {
     if (extra_args_sp) {
       error.SetErrorString("cannot pass extra_args to a three argument callback"
                           );
@@ -1257,12 +1290,12 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
     oneliner += "(frame, bp_loc, internal_dict)";
   } else {
     error.SetErrorStringWithFormat("expected 3 or 4 argument "
-                                   "function, %s has %d",
-                                   function_name, num_args);
+                                   "function, %s can only take %zu",
+                                   function_name, max_args);
     return error;
   }
-  
-  SetBreakpointCommandCallback(bp_options, oneliner.c_str(), extra_args_sp, 
+
+  SetBreakpointCommandCallback(bp_options, oneliner.c_str(), extra_args_sp,
                                uses_extra_args);
   return error;
 }
@@ -1840,8 +1873,7 @@ StructuredData::DictionarySP ScriptInterpreterPythonImpl::OSPlugin_CreateThread(
 
 StructuredData::ObjectSP ScriptInterpreterPythonImpl::CreateScriptedThreadPlan(
     const char *class_name, StructuredDataImpl *args_data,
-    std::string &error_str, 
-    lldb::ThreadPlanSP thread_plan_sp) {
+    std::string &error_str, lldb::ThreadPlanSP thread_plan_sp) {
   if (class_name == nullptr || class_name[0] == '\0')
     return StructuredData::ObjectSP();
 
@@ -2025,8 +2057,7 @@ ScriptInterpreterPythonImpl::LoadPluginModule(const FileSpec &file_spec,
 
   StructuredData::ObjectSP module_sp;
 
-  if (LoadScriptingModule(file_spec.GetPath().c_str(), true, true, error,
-                          &module_sp))
+  if (LoadScriptingModule(file_spec.GetPath().c_str(), true, error, &module_sp))
     return module_sp;
 
   return StructuredData::ObjectSP();
@@ -2145,7 +2176,7 @@ Status ScriptInterpreterPythonImpl::GenerateBreakpointCommandCallbackData(
 
   std::string auto_generated_function_name(GenerateUniqueName(
       "lldb_autogen_python_bp_callback_func_", num_created_functions));
-  if (has_extra_args) 
+  if (has_extra_args)
     sstr.Printf("def %s (frame, bp_loc, extra_args, internal_dict):",
                 auto_generated_function_name.c_str());
   else
@@ -2267,11 +2298,26 @@ bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
           Locker py_lock(python_interpreter, Locker::AcquireLock |
                                                  Locker::InitSession |
                                                  Locker::NoSTDIN);
-          ret_val = LLDBSwigPythonBreakpointCallbackFunction(
-              python_function_name,
-              python_interpreter->m_dictionary_name.c_str(), stop_frame_sp,
-              bp_loc_sp,
-              bp_option_data->m_extra_args_up.get());
+          Expected<bool> maybe_ret_val =
+              LLDBSwigPythonBreakpointCallbackFunction(
+                  python_function_name,
+                  python_interpreter->m_dictionary_name.c_str(), stop_frame_sp,
+                  bp_loc_sp, bp_option_data->m_extra_args_up.get());
+
+          if (!maybe_ret_val) {
+
+            llvm::handleAllErrors(
+                maybe_ret_val.takeError(),
+                [&](PythonException &E) {
+                  debugger.GetErrorStream() << E.ReadBacktrace();
+                },
+                [&](const llvm::ErrorInfoBase &E) {
+                  debugger.GetErrorStream() << E.message();
+                });
+
+          } else {
+            ret_val = maybe_ret_val.get();
+          }
         }
         return ret_val;
       }
@@ -2690,8 +2736,8 @@ uint64_t replace_all(std::string &str, const std::string &oldStr,
 }
 
 bool ScriptInterpreterPythonImpl::LoadScriptingModule(
-    const char *pathname, bool can_reload, bool init_session,
-    lldb_private::Status &error, StructuredData::ObjectSP *module_sp) {
+    const char *pathname, bool init_session, lldb_private::Status &error,
+    StructuredData::ObjectSP *module_sp) {
   if (!pathname || !pathname[0]) {
     error.SetErrorString("invalid pathname");
     return false;
@@ -2790,11 +2836,6 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
                                     .IsAllocated();
 
     bool was_imported = (was_imported_globally || was_imported_locally);
-
-    if (was_imported && !can_reload) {
-      error.SetErrorString("module already imported");
-      return false;
-    }
 
     // now actually do the import
     command_stream.Clear();
@@ -2994,7 +3035,7 @@ bool ScriptInterpreterPythonImpl::GetDocumentationForItem(const char *item,
     StreamString str_stream;
     str_stream.Printf(
         "Function %s was not found. Containing module might be missing.", item);
-    dest = str_stream.GetString();
+    dest = std::string(str_stream.GetString());
     return false;
   }
 }
@@ -3246,4 +3287,4 @@ void ScriptInterpreterPythonImpl::AddToSysPath(AddLocation location,
 //
 // void ScriptInterpreterPythonImpl::Terminate() { Py_Finalize (); }
 
-#endif // LLDB_DISABLE_PYTHON
+#endif

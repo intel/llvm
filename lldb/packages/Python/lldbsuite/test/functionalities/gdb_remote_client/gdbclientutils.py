@@ -109,13 +109,15 @@ class MockGDBServerResponder:
         if packet[0] == "g":
             return self.readRegisters()
         if packet[0] == "G":
-            return self.writeRegisters(packet[1:])
+            # Gxxxxxxxxxxx
+            # Gxxxxxxxxxxx;thread:1234;
+            return self.writeRegisters(packet[1:].split(';')[0])
         if packet[0] == "p":
             regnum = packet[1:].split(';')[0]
             return self.readRegister(int(regnum, 16))
         if packet[0] == "P":
             register, value = packet[1:].split("=")
-            return self.readRegister(int(register, 16), value)
+            return self.writeRegister(int(register, 16), value)
         if packet[0] == "m":
             addr, length = [int(x, 16) for x in packet[1:].split(',')]
             return self.readMemory(addr, length)

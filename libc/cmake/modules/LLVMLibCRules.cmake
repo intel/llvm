@@ -54,7 +54,7 @@ function(add_gen_header target_name)
     "ADD_GEN_HDR"
     "" # No optional arguments
     "DEF_FILE;GEN_HDR" # Single value arguments
-    "PARAMS;DATA_FILES"     # Multi value arguments
+    "PARAMS;DATA_FILES;DEPENDS"     # Multi value arguments
     ${ARGN}
   )
   if(NOT ADD_GEN_HDR_DEF_FILE)
@@ -76,21 +76,21 @@ function(add_gen_header target_name)
 
   set(replacement_params "")
   if(ADD_GEN_HDR_PARAMS)
-    list(APPEND replacement_params "-P" ${ADD_GEN_HDR_PARAMS})
+    list(APPEND replacement_params "--args" ${ADD_GEN_HDR_PARAMS})
   endif()
 
   set(gen_hdr_script "${LIBC_BUILD_SCRIPTS_DIR}/gen_hdr.py")
 
   add_custom_command(
     OUTPUT ${out_file}
-    COMMAND ${gen_hdr_script} -o ${out_file} ${in_file} ${replacement_params}
+    COMMAND $<TARGET_FILE:libc-hdrgen> -o ${out_file} --header ${ADD_GEN_HDR_GEN_HDR} --def ${in_file} ${replacement_params} -I ${LIBC_SOURCE_DIR} ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS ${in_file} ${fq_data_files} ${gen_hdr_script}
+    DEPENDS ${in_file} ${fq_data_files} ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td libc-hdrgen
   )
 
   add_custom_target(
     ${target_name}
-    DEPENDS ${out_file}
+    DEPENDS ${out_file} ${ADD_GEN_HDR_DEPENDS}
   )
 endfunction(add_gen_header)
 
@@ -100,6 +100,7 @@ set(ENTRYPOINT_OBJ_TARGET_TYPE "ENTRYPOINT_OBJ")
 # Usage:
 #     add_entrypoint_object(
 #       <target_name>
+#       [REDIRECTED] # Specified if the entrypoint is redirected.
 #       SRCS <list of .cpp files>
 #       HDRS <list of .h files>
 #       DEPENDS <list of dependencies>
@@ -107,7 +108,7 @@ set(ENTRYPOINT_OBJ_TARGET_TYPE "ENTRYPOINT_OBJ")
 function(add_entrypoint_object target_name)
   cmake_parse_arguments(
     "ADD_ENTRYPOINT_OBJ"
-    "" # No optional arguments
+    "REDIRECTED" # Optional argument
     "" # No single value arguments
     "SRCS;HDRS;DEPENDS"  # Multi value arguments
     ${ARGN}
@@ -131,7 +132,7 @@ function(add_entrypoint_object target_name)
     ${target_name}_objects
     BEFORE
     PRIVATE
-      -fpie -std=${LLVM_CXX_STD_default}
+      -fpie ${LLVM_CXX_STD_default}
   )
   target_include_directories(
     ${target_name}_objects
@@ -158,10 +159,16 @@ function(add_entrypoint_object target_name)
     COMMAND ${CMAKE_LINKER} -r $<TARGET_OBJECTS:${target_name}_objects> -o ${object_file_raw}
   )
 
+  set(alias_attributes "0,function,global")
+  if(ADD_ENTRYPOINT_OBJ_REDIRECTED)
+    set(alias_attributes "${alias_attributes},hidden")
+  endif()
+
   add_custom_command(
     OUTPUT ${object_file}
-    DEPENDS ${object_file_raw}
-    COMMAND ${CMAKE_OBJCOPY} --add-symbol "${target_name}=.llvm.libc.entrypoint.${target_name}:0,function,weak,global" ${object_file_raw} ${object_file}
+    # We llvm-objcopy here as GNU-binutils objcopy does not support the 'hidden' flag.
+    DEPENDS ${object_file_raw} ${llvm-objcopy}
+    COMMAND $<TARGET_FILE:llvm-objcopy> --add-symbol "${target_name}=.llvm.libc.entrypoint.${target_name}:${alias_attributes}" ${object_file_raw} ${object_file}
   )
 
   add_custom_target(
@@ -219,6 +226,76 @@ function(add_entrypoint_library target_name)
   )
 endfunction(add_entrypoint_library)
 
+# Rule build a redirector object file.
+function(add_redirector_object target_name)
+  cmake_parse_arguments(
+    "REDIRECTOR_OBJECT"
+    "" # No optional arguments
+    "SRC" # The cpp file in which the redirector is defined.
+    "" # No multivalue arguments
+    ${ARGN}
+  )
+  if(NOT REDIRECTOR_OBJECT_SRC)
+    message(FATAL_ERROR "'add_redirector_object' rule requires SRC option listing one source file.")
+  endif()
+
+  add_library(
+    ${target_name}
+    OBJECT
+    ${REDIRECTOR_OBJECT_SRC}
+  )
+  target_compile_options(
+    ${target_name}
+    BEFORE PRIVATE -fPIC
+  )
+endfunction(add_redirector_object)
+
+# Rule to build a shared library of redirector objects.
+function(add_redirector_library target_name)
+  cmake_parse_arguments(
+    "REDIRECTOR_LIBRARY"
+    ""
+    ""
+    "DEPENDS"
+    ${ARGN}
+  )
+
+  set(obj_files "")
+  foreach(dep IN LISTS REDIRECTOR_LIBRARY_DEPENDS)
+    # TODO: Ensure that each dep is actually a add_redirector_object target.
+    list(APPEND obj_files $<TARGET_OBJECTS:${dep}>)
+  endforeach(dep)
+
+  # TODO: Call the linker explicitly instead of calling the compiler driver to
+  # prevent DT_NEEDED on C++ runtime.
+  add_library(
+    ${target_name}
+    SHARED
+    ${obj_files}
+  )
+  set_target_properties(${target_name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+  target_link_libraries(
+    ${target_name}
+    -nostdlib -lc -lm
+  )
+
+  set_target_properties(
+    ${target_name}
+    PROPERTIES
+      LINKER_LANGUAGE "C"
+  )
+endfunction(add_redirector_library)
+
+# Rule to add a libc unittest.
+# Usage
+#    add_libc_unittest(
+#      <target name>
+#      SUITE <name of the suite this test belongs to>
+#      SRCS  <list of .cpp files for the test>
+#      HDRS  <list of .h files for the test>
+#      DEPENDS <list of dependencies>
+#    )
 function(add_libc_unittest target_name)
   if(NOT LLVM_INCLUDE_TESTS)
     return()
@@ -238,15 +315,19 @@ function(add_libc_unittest target_name)
     message(FATAL_ERROR "'add_libc_unittest' target requires a DEPENDS list of 'add_entrypoint_object' targets.")
   endif()
 
-  set(entrypoint_objects "")
+  set(library_deps "")
   foreach(dep IN LISTS LIBC_UNITTEST_DEPENDS)
     get_target_property(dep_type ${dep} "TARGET_TYPE")
-    string(COMPARE EQUAL ${dep_type} ${ENTRYPOINT_OBJ_TARGET_TYPE} dep_is_entrypoint)
-    if(NOT dep_is_entrypoint)
-      message(FATAL_ERROR "Dependency '${dep}' of 'add_entrypoint_unittest' is not an 'add_entrypoint_object' target.")
+    if (dep_type)
+      string(COMPARE EQUAL ${dep_type} ${ENTRYPOINT_OBJ_TARGET_TYPE} dep_is_entrypoint)
+      if(dep_is_entrypoint)
+        get_target_property(obj_file ${dep} "OBJECT_FILE_RAW")
+        list(APPEND library_deps ${obj_file})
+        continue()
+      endif()
     endif()
-    get_target_property(obj_file ${dep} "OBJECT_FILE_RAW")
-    list(APPEND entrypoint_objects "${obj_file}")
+    # TODO: Check if the dep is a normal CMake library target. If yes, then add it
+    # to the list of library_deps.
   endforeach(dep)
 
   add_executable(
@@ -258,18 +339,24 @@ function(add_libc_unittest target_name)
   target_include_directories(
     ${target_name}
     PRIVATE
-      ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
-      ${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
       ${LIBC_SOURCE_DIR}
+      ${LIBC_BUILD_DIR}
+      ${LIBC_BUILD_DIR}/include
   )
-  target_link_libraries(${target_name} PRIVATE ${entrypoint_objects} gtest_main gtest)
+
+  if(library_deps)
+    target_link_libraries(${target_name} PRIVATE ${library_deps})
+  endif()
+
   set_target_properties(${target_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
   add_dependencies(
     ${target_name}
     ${LIBC_UNITTEST_DEPENDS}
-    gtest
   )
+
+  target_link_libraries(${target_name} PRIVATE LibcUnitTest)
+
   add_custom_command(
     TARGET ${target_name}
     POST_BUILD
@@ -282,3 +369,52 @@ function(add_libc_unittest target_name)
     )
   endif()
 endfunction(add_libc_unittest)
+
+function(add_libc_testsuite suite_name)
+  add_custom_target(${suite_name})
+  add_dependencies(check-libc ${suite_name})
+endfunction(add_libc_testsuite)
+
+# Rule to add header only libraries.
+# Usage
+#    add_header_library(
+#      <target name>
+#      HDRS  <list of .h files part of the library>
+#      DEPENDS <list of dependencies>
+#    )
+function(add_header_library target_name)
+  cmake_parse_arguments(
+    "ADD_HEADER"
+    "" # No optional arguments
+    "" # No Single value arguments
+    "HDRS;DEPENDS" # Multi-value arguments
+    ${ARGN}
+  )
+
+  if(NOT ADD_HEADER_HDRS)
+    message(FATAL_ERROR "'add_header_library' target requires a HDRS list of .h files.")
+  endif()
+
+  set(FULL_HDR_PATHS "")
+  # TODO: Remove this foreach block when we can switch to the new
+  # version of the CMake policy CMP0076.
+  foreach(hdr IN LISTS ADD_HEADER_HDRS)
+    list(APPEND FULL_HDR_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/${hdr})
+  endforeach()
+
+  set(interface_target_name "${target_name}_header_library__")
+
+  add_library(${interface_target_name} INTERFACE)
+  target_sources(${interface_target_name} INTERFACE ${FULL_HDR_PATHS})
+  if(ADD_HEADER_DEPENDS)
+    add_dependencies(${interface_target_name} ${ADD_HEADER_DEPENDS})
+  endif()
+
+  add_custom_target(${target_name})
+  add_dependencies(${target_name} ${interface_target_name})
+  set_target_properties(
+    ${target_name}
+    PROPERTIES
+      "TARGET_TYPE" "HDR_LIBRARY"
+  )
+endfunction(add_header_library)

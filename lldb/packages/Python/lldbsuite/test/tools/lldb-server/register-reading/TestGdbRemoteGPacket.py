@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 
 import gdbremote_testcase
@@ -138,6 +137,7 @@ class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.assertEqual(
             ['0x727476787a7c7e71', '0x737577797b7d7f70'], get_reg_value('xmm15'))
 
+    @expectedFailureNetBSD
     @llgs_test
     def test_g_returns_correct_data_with_suffix_llgs(self):
         self.init_llgs_test()
@@ -145,6 +145,7 @@ class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.set_inferior_startup_launch()
         self.g_returns_correct_data(True)
 
+    @expectedFailureNetBSD
     @llgs_test
     def test_g_returns_correct_data_no_suffix_llgs(self):
         self.init_llgs_test()

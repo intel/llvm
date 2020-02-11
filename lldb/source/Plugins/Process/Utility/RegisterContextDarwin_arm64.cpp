@@ -1,5 +1,4 @@
-//===-- RegisterContextDarwin_arm64.cpp ---------------------------*- C++
-//-*-===//
+//===-- RegisterContextDarwin_arm64.cpp -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,12 +27,6 @@
 #if defined(__APPLE__) && (defined(__arm64__) || defined(__aarch64__))
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
-
-// Support building against older versions of LLVM, this macro was added
-// recently.
-#ifndef LLVM_EXTENSION
-#define LLVM_EXTENSION
 #endif
 
 #include "Utility/ARM64_DWARF_Registers.h"

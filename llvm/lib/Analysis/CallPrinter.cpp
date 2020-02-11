@@ -16,6 +16,7 @@
 #include "llvm/Analysis/CallPrinter.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/DOTGraphTraitsPass.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
@@ -28,7 +29,7 @@ template <> struct DOTGraphTraits<CallGraph *> : public DefaultDOTGraphTraits {
 
   std::string getNodeLabel(CallGraphNode *Node, CallGraph *Graph) {
     if (Function *Func = Node->getFunction())
-      return Func->getName();
+      return std::string(Func->getName());
 
     return "external node";
   }

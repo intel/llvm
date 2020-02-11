@@ -9,11 +9,9 @@
 #ifndef LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHON_H
 #define LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHON_H
 
-#ifdef LLDB_DISABLE_PYTHON
+#include "lldb/Host/Config.h"
 
-// Python is disabled in this build
-
-#else
+#if LLDB_ENABLE_PYTHON
 
 #include "lldb/Breakpoint/BreakpointOptions.h"
 #include "lldb/Core/IOHandler.h"
@@ -60,5 +58,5 @@ protected:
 };
 } // namespace lldb_private
 
-#endif // LLDB_DISABLE_PYTHON
+#endif // LLDB_ENABLE_PYTHON
 #endif // LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHON_H

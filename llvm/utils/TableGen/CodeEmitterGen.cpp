@@ -313,8 +313,8 @@ std::string CodeEmitterGen::getInstructionCaseForEncoding(Record *R, Record *Enc
     //    bits<5> RST = { ?, ?, ?, ?, ? };
     if (RV.getPrefix() || RV.getValue()->isComplete())
       continue;
-    
-    AddCodeToMergeInOperand(R, BI, RV.getName(), NumberedOp,
+
+    AddCodeToMergeInOperand(R, BI, std::string(RV.getName()), NumberedOp,
                             NamedOpIndices, Case, Target);
   }
 
@@ -563,7 +563,7 @@ void CodeEmitterGen::run(raw_ostream &o) {
       return true;
     if (A.size() > B.size())
       return false;
-    for (const auto &Pair : zip(A, B)) {
+    for (auto Pair : zip(A, B)) {
       if (std::get<0>(Pair)->getName() < std::get<1>(Pair)->getName())
         return true;
       if (std::get<0>(Pair)->getName() > std::get<1>(Pair)->getName())

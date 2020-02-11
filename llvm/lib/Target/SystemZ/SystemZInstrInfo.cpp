@@ -532,8 +532,9 @@ bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
 
 bool SystemZInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
                                        ArrayRef<MachineOperand> Pred,
-                                       unsigned TrueReg, unsigned FalseReg,
-                                       int &CondCycles, int &TrueCycles,
+                                       unsigned DstReg, unsigned TrueReg,
+                                       unsigned FalseReg, int &CondCycles,
+                                       int &TrueCycles,
                                        int &FalseCycles) const {
   // Not all subtargets have LOCR instructions.
   if (!STI.hasLoadStoreOnCond())
@@ -765,8 +766,8 @@ bool SystemZInstrInfo::PredicateInstruction(
 
 void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MBBI,
-                                   const DebugLoc &DL, unsigned DestReg,
-                                   unsigned SrcReg, bool KillSrc) const {
+                                   const DebugLoc &DL, MCRegister DestReg,
+                                   MCRegister SrcReg, bool KillSrc) const {
   // Split 128-bit GPR moves into two 64-bit moves. Add implicit uses of the
   // super register in case one of the subregs is undefined.
   // This handles ADDR128 too.
@@ -791,12 +792,12 @@ void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Move 128-bit floating-point values between VR128 and FP128.
   if (SystemZ::VR128BitRegClass.contains(DestReg) &&
       SystemZ::FP128BitRegClass.contains(SrcReg)) {
-    unsigned SrcRegHi =
-      RI.getMatchingSuperReg(RI.getSubReg(SrcReg, SystemZ::subreg_h64),
-                             SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
-    unsigned SrcRegLo =
-      RI.getMatchingSuperReg(RI.getSubReg(SrcReg, SystemZ::subreg_l64),
-                             SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
+    MCRegister SrcRegHi =
+        RI.getMatchingSuperReg(RI.getSubReg(SrcReg, SystemZ::subreg_h64),
+                               SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
+    MCRegister SrcRegLo =
+        RI.getMatchingSuperReg(RI.getSubReg(SrcReg, SystemZ::subreg_l64),
+                               SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
 
     BuildMI(MBB, MBBI, DL, get(SystemZ::VMRHG), DestReg)
       .addReg(SrcRegHi, getKillRegState(KillSrc))
@@ -805,12 +806,12 @@ void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   }
   if (SystemZ::FP128BitRegClass.contains(DestReg) &&
       SystemZ::VR128BitRegClass.contains(SrcReg)) {
-    unsigned DestRegHi =
-      RI.getMatchingSuperReg(RI.getSubReg(DestReg, SystemZ::subreg_h64),
-                             SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
-    unsigned DestRegLo =
-      RI.getMatchingSuperReg(RI.getSubReg(DestReg, SystemZ::subreg_l64),
-                             SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
+    MCRegister DestRegHi =
+        RI.getMatchingSuperReg(RI.getSubReg(DestReg, SystemZ::subreg_h64),
+                               SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
+    MCRegister DestRegLo =
+        RI.getMatchingSuperReg(RI.getSubReg(DestReg, SystemZ::subreg_l64),
+                               SystemZ::subreg_h64, &SystemZ::VR128BitRegClass);
 
     if (DestRegHi != SrcReg)
       copyPhysReg(MBB, MBBI, DL, DestRegHi, SrcReg, false);
@@ -869,7 +870,7 @@ void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 }
 
 void SystemZInstrInfo::storeRegToStackSlot(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, unsigned SrcReg,
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, Register SrcReg,
     bool isKill, int FrameIdx, const TargetRegisterClass *RC,
     const TargetRegisterInfo *TRI) const {
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
@@ -884,7 +885,7 @@ void SystemZInstrInfo::storeRegToStackSlot(
 }
 
 void SystemZInstrInfo::loadRegFromStackSlot(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, unsigned DestReg,
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, Register DestReg,
     int FrameIdx, const TargetRegisterClass *RC,
     const TargetRegisterInfo *TRI) const {
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
@@ -943,6 +944,12 @@ static void transferDeadCC(MachineInstr *OldMI, MachineInstr *NewMI) {
     if (CCDef != nullptr)
       CCDef->setIsDead(true);
   }
+}
+
+static void transferMIFlag(MachineInstr *OldMI, MachineInstr *NewMI,
+                           MachineInstr::MIFlag Flag) {
+  if (OldMI->getFlag(Flag))
+    NewMI->setFlag(Flag);
 }
 
 MachineInstr *SystemZInstrInfo::convertToThreeAddress(
@@ -1050,6 +1057,7 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
             .addImm(0)
             .addImm(MI.getOperand(2).getImm());
     transferDeadCC(&MI, BuiltMI);
+    transferMIFlag(&MI, BuiltMI, MachineInstr::NoSWrap);
     return BuiltMI;
   }
 
@@ -1200,6 +1208,7 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
       if (MemDesc.TSFlags & SystemZII::HasIndex)
         MIB.addReg(0);
       transferDeadCC(&MI, MIB);
+      transferMIFlag(&MI, MIB, MachineInstr::NoSWrap);
       return MIB;
     }
   }
@@ -1746,6 +1755,28 @@ void SystemZInstrInfo::loadImmediate(MachineBasicBlock &MBB,
     Opcode = SystemZ::LGFI;
   }
   BuildMI(MBB, MBBI, DL, get(Opcode), Reg).addImm(Value);
+}
+
+bool SystemZInstrInfo::verifyInstruction(const MachineInstr &MI,
+                                         StringRef &ErrInfo) const {
+  const MCInstrDesc &MCID = MI.getDesc();
+  for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
+    if (I >= MCID.getNumOperands())
+      break;
+    const MachineOperand &Op = MI.getOperand(I);
+    const MCOperandInfo &MCOI = MCID.OpInfo[I];
+    // Addressing modes have register and immediate operands. Op should be a
+    // register (or frame index) operand if MCOI.RegClass contains a valid
+    // register class, or an immediate otherwise.
+    if (MCOI.OperandType == MCOI::OPERAND_MEMORY &&
+        ((MCOI.RegClass != -1 && !Op.isReg() && !Op.isFI()) ||
+         (MCOI.RegClass == -1 && !Op.isImm()))) {
+      ErrInfo = "Addressing mode operands corrupt!";
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool SystemZInstrInfo::

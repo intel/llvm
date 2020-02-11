@@ -17,7 +17,6 @@
 #include "CodeGenTypeCache.h"
 #include "CodeGenTypes.h"
 #include "SanitizerMetadata.h"
-#include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclOpenMP.h"
@@ -45,6 +44,7 @@ class GlobalValue;
 class DataLayout;
 class FunctionType;
 class LLVMContext;
+class OpenMPIRBuilder;
 class IndexedInstrProfReader;
 }
 
@@ -77,6 +77,9 @@ class AnnotateAttr;
 class CXXDestructorDecl;
 class Module;
 class CoverageSourceInfo;
+class TargetAttr;
+class InitSegAttr;
+struct ParsedTargetAttr;
 
 namespace CodeGen {
 
@@ -320,6 +323,7 @@ private:
   std::unique_ptr<CGObjCRuntime> ObjCRuntime;
   std::unique_ptr<CGOpenCLRuntime> OpenCLRuntime;
   std::unique_ptr<CGOpenMPRuntime> OpenMPRuntime;
+  std::unique_ptr<llvm::OpenMPIRBuilder> OMPBuilder;
   std::unique_ptr<CGCUDARuntime> CUDARuntime;
   std::unique_ptr<CGSYCLRuntime> SYCLRuntime;
   std::unique_ptr<CGDebugInfo> DebugInfo;
@@ -526,17 +530,17 @@ private:
     int GlobalUniqueCount;
   } Block;
 
+  GlobalDecl initializedGlobalDecl;
+
+  /// @}
+
   /// void @llvm.lifetime.start(i64 %size, i8* nocapture <ptr>)
   llvm::Function *LifetimeStartFn = nullptr;
 
   /// void @llvm.lifetime.end(i64 %size, i8* nocapture <ptr>)
   llvm::Function *LifetimeEndFn = nullptr;
 
-  GlobalDecl initializedGlobalDecl;
-
   std::unique_ptr<SanitizerMetadata> SanitizerMD;
-
-  /// @}
 
   llvm::MapVector<const Decl *, bool> DeferredEmptyCoverageMappingDecls;
 
@@ -587,6 +591,9 @@ public:
     assert(OpenMPRuntime != nullptr);
     return *OpenMPRuntime;
   }
+
+  /// Return a pointer to the configured OpenMPIRBuilder, if any.
+  llvm::OpenMPIRBuilder *getOpenMPIRBuilder() { return OMPBuilder.get(); }
 
   /// Return a reference to the configured CUDA runtime.
   CGCUDARuntime &getCUDARuntime() {
@@ -870,6 +877,17 @@ public:
   /// Returns the assumed alignment of an opaque pointer to the given class.
   CharUnits getClassPointerAlignment(const CXXRecordDecl *CD);
 
+  /// Returns the minimum object size for an object of the given class type
+  /// (or a class derived from it).
+  CharUnits getMinimumClassObjectSize(const CXXRecordDecl *CD);
+
+  /// Returns the minimum object size for an object of the given type.
+  CharUnits getMinimumObjectSize(QualType Ty) {
+    if (CXXRecordDecl *RD = Ty->getAsCXXRecordDecl())
+      return getMinimumClassObjectSize(RD);
+    return getContext().getTypeSizeInChars(Ty);
+  }
+
   /// Returns the assumed alignment of a virtual base of a class.
   CharUnits getVBaseAlignment(CharUnits DerivedAlign,
                               const CXXRecordDecl *Derived,
@@ -1040,11 +1058,22 @@ public:
   }
 
   /// Create or return a runtime function declaration with the specified type
-  /// and name.
+  /// and name. If \p AssumeConvergent is true, the call will have the
+  /// convergent attribute added.
   llvm::FunctionCallee
   CreateRuntimeFunction(llvm::FunctionType *Ty, StringRef Name,
                         llvm::AttributeList ExtraAttrs = llvm::AttributeList(),
-                        bool Local = false);
+                        bool Local = false, bool AssumeConvergent = false);
+
+  /// Create or return a runtime function declaration with the specified type
+  /// and name. This will automatically add the convergent attribute to the
+  /// function declaration.
+  llvm::FunctionCallee CreateConvergentRuntimeFunction(
+      llvm::FunctionType *Ty, StringRef Name,
+      llvm::AttributeList ExtraAttrs = llvm::AttributeList(),
+      bool Local = false) {
+    return CreateRuntimeFunction(Ty, Name, ExtraAttrs, Local, true);
+  }
 
   /// Create a new runtime global variable with the specified type and name.
   llvm::Constant *CreateRuntimeVariable(llvm::Type *Ty,
@@ -1152,18 +1181,12 @@ public:
   /// It's up to you to ensure that this is safe.
   void AddDefaultFnAttrs(llvm::Function &F);
 
-  /// Parses the target attributes passed in, and returns only the ones that are
-  /// valid feature names.
-  TargetAttr::ParsedTargetAttr filterFunctionTargetAttrs(const TargetAttr *TD);
-
-  // Fills in the supplied string map with the set of target features for the
-  // passed in function.
-  void getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap, GlobalDecl GD);
-
   StringRef getMangledName(GlobalDecl GD);
   StringRef getBlockMangledName(GlobalDecl GD, const BlockDecl *BD);
 
   void EmitTentativeDefinition(const VarDecl *D);
+
+  void EmitExternalDeclaration(const VarDecl *D);
 
   void EmitVTable(CXXRecordDecl *Class);
 
@@ -1293,6 +1316,11 @@ public:
   /// optimization.
   bool HasHiddenLTOVisibility(const CXXRecordDecl *RD);
 
+  /// Returns whether the given record has public std LTO visibility
+  /// and therefore may not participate in (single-module) CFI and whole-program
+  /// vtable optimization.
+  bool HasLTOVisibilityPublicStd(const CXXRecordDecl *RD);
+
   /// Returns the vcall visibility of the given type. This is the scope in which
   /// a virtual function call could be made which ends up being dispatched to a
   /// member function of this class. This scope can be wider than the visibility
@@ -1400,6 +1428,7 @@ private:
   void EmitMultiVersionFunctionDefinition(GlobalDecl GD, llvm::GlobalValue *GV);
 
   void EmitGlobalVarDefinition(const VarDecl *D, bool IsTentative = false);
+  void EmitExternalVarDeclaration(const VarDecl *D);
   void EmitAliasDefinition(GlobalDecl GD);
   void emitIFuncDefinition(GlobalDecl GD);
   void emitCPUDispatchDefinition(GlobalDecl GD);

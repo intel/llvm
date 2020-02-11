@@ -1,5 +1,4 @@
-//===-- CommandObjectApropos.cpp ---------------------------------*- C++
-//-*-===//
+//===-- CommandObjectApropos.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +9,6 @@
 #include "CommandObjectApropos.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Interpreter/Options.h"
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Utility/Args.h"
 

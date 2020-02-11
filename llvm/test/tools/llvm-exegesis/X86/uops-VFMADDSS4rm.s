@@ -5,3 +5,5 @@ CHECK:      mode:            uops
 CHECK-NEXT: key:
 CHECK-NEXT:   instructions:
 CHECK-NEXT:     VFMADDSS4rm
+CHECK:      register_initial_values:
+CHECK:      MXCSR

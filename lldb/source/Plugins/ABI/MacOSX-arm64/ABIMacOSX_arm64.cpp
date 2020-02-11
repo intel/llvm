@@ -1,4 +1,4 @@
-//===-- ABIMacOSX_arm64.cpp -------------------------------------*- C++ -*-===//
+//===-- ABIMacOSX_arm64.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -2020,6 +2020,8 @@ bool ABIMacOSX_arm64::CreateDefaultUnwindPlan(UnwindPlan &unwind_plan) {
 // registers x19 through x28 and sp are callee preserved. v8-v15 are non-
 // volatile (and specifically only the lower 8 bytes of these regs), the rest
 // of the fp/SIMD registers are volatile.
+//
+// v. https://github.com/ARM-software/software-standards/blob/master/abi/aapcs64/
 
 // We treat x29 as callee preserved also, else the unwinder won't try to
 // retrieve fp saves.

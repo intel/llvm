@@ -13,11 +13,16 @@ unittest("UtilsTests") {
     "BasicBlockUtilsTest.cpp",
     "CloningTest.cpp",
     "CodeExtractorTest.cpp",
+    "CodeMoverUtilsTest.cpp",
     "FunctionComparatorTest.cpp",
     "IntegerDivisionTest.cpp",
     "LocalTest.cpp",
+    "LoopRotationUtilsTest.cpp",
+    "LoopUtilsTest.cpp",
     "SSAUpdaterBulkTest.cpp",
+    "SizeOptsTest.cpp",
     "UnrollLoopTest.cpp",
+    "VFABIUtils.cpp",
     "ValueMapperTest.cpp",
   ]
 }

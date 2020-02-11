@@ -18,7 +18,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -462,7 +462,7 @@ using common_rel_ret_t =
 template <int N> struct Boolean;
 
 // Try to get vector element count or 1 otherwise
-template <typename T, typename Enable = void> class TryToGetNumElements;
+template <typename T, typename Enable = void> struct TryToGetNumElements;
 
 template <typename T>
 struct TryToGetNumElements<
@@ -483,18 +483,6 @@ template <typename T> struct RelationalReturnType {
   using type = common_rel_ret_t<T>;
 #endif
 };
-
-// Used for select built-in function
-template <typename T> struct SelectWrapperTypeArgC {
-#ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
-#else
-  using type = T;
-#endif
-};
-
-template <typename T>
-using select_arg_c_t = typename SelectWrapperTypeArgC<T>::type;
 
 template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
 
@@ -567,6 +555,39 @@ template <typename T> static constexpr T min_v() {
 
 template <typename T> static constexpr T quiet_NaN() {
   return std::numeric_limits<T>::quiet_NaN();
+}
+
+// is_same_vector_size
+template <int FirstSize, typename... Args> class is_same_vector_size_impl;
+
+template <int FirstSize, typename T, typename... Args>
+class is_same_vector_size_impl<FirstSize, T, Args...> {
+  using CurrentT = detail::remove_pointer_t<T>;
+  static constexpr int Size = vector_size<CurrentT>::value;
+  static constexpr bool IsSizeEqual = (Size == FirstSize);
+
+public:
+  static constexpr bool value =
+      IsSizeEqual ? is_same_vector_size_impl<FirstSize, Args...>::value
+                   : false;
+};
+
+template <int FirstSize>
+class is_same_vector_size_impl<FirstSize> : public std::true_type {};
+
+template <typename T, typename... Args> class is_same_vector_size {
+  using CurrentT = remove_pointer_t<T>;
+  static constexpr int Size = vector_size<CurrentT>::value;
+
+public:
+  static constexpr bool value = is_same_vector_size_impl<Size, Args...>::value;
+};
+
+// check_vector_size
+template <typename... Args> inline void check_vector_size() {
+  static_assert(is_same_vector_size<Args...>::value,
+                "The built-in function arguments must [point to|have] types "
+                "with the same number of elements.");
 }
 
 } // namespace detail

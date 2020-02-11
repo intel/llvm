@@ -14,7 +14,7 @@ add_llvm_tool(llvm-spirv
   NO_INSTALL_RPATH
 )
 
-if (BUILD_EXTERNAL)
+if (LLVM_SPIRV_BUILD_EXTERNAL)
   target_link_libraries(llvm-spirv PRIVATE LLVMSPIRVLib)
 endif()
 

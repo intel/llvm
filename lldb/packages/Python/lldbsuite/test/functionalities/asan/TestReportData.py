@@ -2,7 +2,6 @@
 Test the AddressSanitizer runtime support for report breakpoint and data extraction.
 """
 
-from __future__ import print_function
 
 
 import json
@@ -17,7 +16,7 @@ class AsanTestReportDataCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIfFreeBSD  # llvm.org/pr21136 runtimes not yet available by default
-    @skipIfRemote
+    @expectedFailureNetBSD
     @skipUnlessAddressSanitizer
     @skipIf(archs=['i386'], bugnumber="llvm.org/PR36710")
     def test(self):
@@ -36,9 +35,11 @@ class AsanTestReportDataCase(TestBase):
 
     def asan_tests(self):
         exe = self.getBuildArtifact("a.out")
-        self.expect(
-            "file " + exe,
-            patterns=["Current executable set to .*a.out"])
+        target = self.dbg.CreateTarget(exe)
+        self.assertTrue(target, VALID_TARGET)
+
+        self.registerSanitizerLibrariesWithTarget(target)
+
         self.runCmd("run")
 
         stop_reason = self.dbg.GetSelectedTarget().process.GetSelectedThread().GetStopReason()
@@ -68,9 +69,10 @@ class AsanTestReportDataCase(TestBase):
                 "access_size",
                 "access_type",
                 "address",
-                "pc",
                 "description",
-                "heap-use-after-free"])
+                "heap-use-after-free",
+                "pc",
+            ])
 
         output_lines = self.res.GetOutput().split('\n')
         json_line = '\n'.join(output_lines[2:])

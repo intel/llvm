@@ -49,7 +49,7 @@ database for LLVM, any project built by CMake should follow similar steps.
   $ ninja clang-include-fixer // build clang-include-fixer tool.
   $ ls compile_commands.json # Make sure compile_commands.json exists.
     compile_commands.json
-  $ path/to/llvm/source/tools/clang/tools/extra/clang-include-fixer/find-all-symbols/tool/run-find-all-symbols.py
+  $ path/to/llvm/source/clang-tools-extra/clang-include-fixer/find-all-symbols/tool/run-find-all-symbols.py
     ... wait as clang indexes the code base ...
   $ ln -s $PWD/find_all_symbols_db.yaml path/to/llvm/source/ # Link database into the source tree.
   $ ln -s $PWD/compile_commands.json path/to/llvm/source/ # Also link compilation database if it's not there already.
@@ -64,7 +64,7 @@ following key binding to your ``.vimrc``:
 
 .. code-block:: console
 
-  noremap <leader>cf :pyf path/to/llvm/source/tools/clang/tools/extra/clang-include-fixer/tool/clang-include-fixer.py<cr>
+  noremap <leader>cf :pyf path/to/llvm/source/clang-tools-extra/clang-include-fixer/tool/clang-include-fixer.py<cr>
 
 This enables `clang-include-fixer` for NORMAL and VISUAL mode. Change
 `<leader>cf` to another binding if you need clang-include-fixer on a different
@@ -105,7 +105,7 @@ Customized settings in `.vimrc`:
 
   Set to 1 if you want to insert ``#include`` for the symbol under the cursor.
   Default is 0. Compared to normal mode, this mode won't parse the source file
-  and only search the sysmbol from database, which is faster than normal mode.
+  and only search the symbol from database, which is faster than normal mode.
 
 See ``clang-include-fixer.py`` for more details.
 
@@ -118,7 +118,7 @@ in your ``.emacs``:
 
 .. code-block:: console
 
- (add-to-list 'load-path "path/to/llvm/source/tools/clang/tools/extra/clang-include-fixer/tool/"
+ (add-to-list 'load-path "path/to/llvm/source/clang-tools-extra/clang-include-fixer/tool/"
  (require 'clang-include-fixer)
 
 Within Emacs the tool can be invoked with the command

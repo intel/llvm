@@ -8,7 +8,7 @@
 
 #include <CL/sycl/stream.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)

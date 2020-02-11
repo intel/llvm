@@ -63,7 +63,8 @@ enum LLVMConstants : uint32_t {
   DWARF_VENDOR_GNU = 3,
   DWARF_VENDOR_GOOGLE = 4,
   DWARF_VENDOR_LLVM = 5,
-  DWARF_VENDOR_MIPS = 6
+  DWARF_VENDOR_MIPS = 6,
+  DWARF_VENDOR_WASM = 7
 };
 
 /// Constants that define the DWARF format as 32 or 64 bit.
@@ -458,6 +459,7 @@ StringRef AttributeEncodingString(unsigned Encoding);
 StringRef DecimalSignString(unsigned Sign);
 StringRef EndianityString(unsigned Endian);
 StringRef AccessibilityString(unsigned Access);
+StringRef DefaultedMemberString(unsigned DefaultedEncodings);
 StringRef VisibilityString(unsigned Visibility);
 StringRef VirtualityString(unsigned Virtuality);
 StringRef LanguageString(unsigned Language);
@@ -530,6 +532,17 @@ unsigned LanguageVendor(SourceLanguage L);
 
 Optional<unsigned> LanguageLowerBound(SourceLanguage L);
 
+/// The size of a reference determined by the DWARF 32/64-bit format.
+inline uint8_t getDwarfOffsetByteSize(DwarfFormat Format) {
+  switch (Format) {
+  case DwarfFormat::DWARF32:
+    return 4;
+  case DwarfFormat::DWARF64:
+    return 8;
+  }
+  llvm_unreachable("Invalid Format value");
+}
+
 /// A helper struct providing information about the byte size of DW_FORM
 /// values that vary in size depending on the DWARF version, address byte
 /// size, or DWARF32/DWARF64.
@@ -549,13 +562,7 @@ struct FormParams {
 
   /// The size of a reference is determined by the DWARF 32/64-bit format.
   uint8_t getDwarfOffsetByteSize() const {
-    switch (Format) {
-    case DwarfFormat::DWARF32:
-      return 4;
-    case DwarfFormat::DWARF64:
-      return 8;
-    }
-    llvm_unreachable("Invalid Format value");
+    return dwarf::getDwarfOffsetByteSize(Format);
   }
 
   explicit operator bool() const { return Version && AddrSize; }
@@ -651,6 +658,11 @@ template <> struct EnumTraits<Index> : public std::true_type {
 template <> struct EnumTraits<Tag> : public std::true_type {
   static constexpr char Type[4] = "TAG";
   static constexpr StringRef (*StringFn)(unsigned) = &TagString;
+};
+
+template <> struct EnumTraits<LineNumberOps> : public std::true_type {
+  static constexpr char Type[4] = "LNS";
+  static constexpr StringRef (*StringFn)(unsigned) = &LNStandardString;
 };
 } // End of namespace dwarf
 

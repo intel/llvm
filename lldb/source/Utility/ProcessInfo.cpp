@@ -1,4 +1,4 @@
-//===-- ProcessInfo.cpp -----------------------------------------*- C++ -*-===//
+//===-- ProcessInfo.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -49,7 +49,7 @@ llvm::StringRef ProcessInfo::GetNameAsStringRef() const {
 void ProcessInfo::Dump(Stream &s, Platform *platform) const {
   s << "Executable: " << GetName() << "\n";
   s << "Triple: ";
-  m_arch.DumpTriple(s);
+  m_arch.DumpTriple(s.AsRawOstream());
   s << "\n";
 
   s << "Arguments:\n";
@@ -75,7 +75,7 @@ void ProcessInfo::SetExecutableFile(const FileSpec &exe_file,
 
 llvm::StringRef ProcessInfo::GetArg0() const { return m_arg0; }
 
-void ProcessInfo::SetArg0(llvm::StringRef arg) { m_arg0 = arg; }
+void ProcessInfo::SetArg0(llvm::StringRef arg) { m_arg0 = std::string(arg); }
 
 void ProcessInfo::SetArguments(char const **argv,
                                bool first_arg_is_executable) {
@@ -119,7 +119,7 @@ void ProcessInstanceInfo::Dump(Stream &s, UserIDResolver &resolver) const {
   if (m_executable) {
     s.Printf("   name = %s\n", m_executable.GetFilename().GetCString());
     s.PutCString("   file = ");
-    m_executable.Dump(&s);
+    m_executable.Dump(s.AsRawOstream());
     s.EOL();
   }
   const uint32_t argc = m_arguments.GetArgumentCount();
@@ -137,7 +137,7 @@ void ProcessInstanceInfo::Dump(Stream &s, UserIDResolver &resolver) const {
 
   if (m_arch.IsValid()) {
     s.Printf("   arch = ");
-    m_arch.DumpTriple(s);
+    m_arch.DumpTriple(s.AsRawOstream());
     s.EOL();
   }
 
@@ -189,7 +189,7 @@ void ProcessInstanceInfo::DumpAsTableRow(Stream &s, UserIDResolver &resolver,
 
     StreamString arch_strm;
     if (m_arch.IsValid())
-      m_arch.DumpTriple(arch_strm);
+      m_arch.DumpTriple(arch_strm.AsRawOstream());
 
     auto print = [&](bool (ProcessInstanceInfo::*isValid)() const,
                      uint32_t (ProcessInstanceInfo::*getID)() const,

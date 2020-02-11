@@ -65,7 +65,9 @@ enum {
   NewDef_Shift = 6,
 
   /// This instruction is an X-Form memory operation.
-  XFormMemOp = 0x1 << (NewDef_Shift+1)
+  XFormMemOp = 0x1 << NewDef_Shift,
+  /// This instruction is prefixed.
+  Prefixed = 0x1 << (NewDef_Shift+1)
 };
 } // end namespace PPCII
 
@@ -187,6 +189,10 @@ public:
   bool isXFormMemOp(unsigned Opcode) const {
     return get(Opcode).TSFlags & PPCII::XFormMemOp;
   }
+  bool isPrefixed(unsigned Opcode) const {
+    return get(Opcode).TSFlags & PPCII::Prefixed;
+  }
+
   static bool isSameClassPhysRegCopy(unsigned Opcode) {
     unsigned CopyOpcodes[] =
       { PPC::OR, PPC::OR8, PPC::FMR, PPC::VOR, PPC::XXLOR, PPC::XXLORf,
@@ -273,25 +279,26 @@ public:
 
   // Select analysis.
   bool canInsertSelect(const MachineBasicBlock &, ArrayRef<MachineOperand> Cond,
-                       unsigned, unsigned, int &, int &, int &) const override;
+                       unsigned, unsigned, unsigned, int &, int &,
+                       int &) const override;
   void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                     const DebugLoc &DL, unsigned DstReg,
                     ArrayRef<MachineOperand> Cond, unsigned TrueReg,
                     unsigned FalseReg) const override;
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                   const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+                   const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
                    bool KillSrc) const override;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIndex,
+                            Register DestReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
@@ -345,8 +352,6 @@ public:
 
   bool DefinesPredicate(MachineInstr &MI,
                         std::vector<MachineOperand> &Pred) const override;
-
-  bool isPredicable(const MachineInstr &MI) const override;
 
   // Comparison optimization.
 

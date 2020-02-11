@@ -292,7 +292,7 @@ Notes for frontends
 Notes for optimizers
   Optimizers not aware of atomics can treat this like a nothrow call.  It is
   also possible to move loads from after a Release store or read-modify-write
-  operation to before it, and move non-Release stores from after an Release
+  operation to before it, and move non-Release stores from after a Release
   operation to before it.
 
 Notes for code generation
@@ -562,7 +562,7 @@ various reasons, it is not practical to emit the instructions inline.
 
 There's two typical examples of this.
 
-Some CPUs support multiple instruction sets which can be swiched back and forth
+Some CPUs support multiple instruction sets which can be switched back and forth
 on function-call boundaries. For example, MIPS supports the MIPS16 ISA, which
 has a smaller instruction encoding than the usual MIPS32 ISA. ARM, similarly,
 has the Thumb ISA. In MIPS16 and earlier versions of Thumb, the atomic

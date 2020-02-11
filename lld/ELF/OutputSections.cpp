@@ -89,7 +89,7 @@ static bool canMergeToProgbits(unsigned type) {
 // InputSection post finalizeInputSections(), then you must do the following:
 //
 // 1. Find or create an InputSectionDescription to hold InputSection.
-// 2. Add the InputSection to the InputSectionDesciption::sections.
+// 2. Add the InputSection to the InputSectionDescription::sections.
 // 3. Call commitSection(isec).
 void OutputSection::recordSection(InputSectionBase *isec) {
   partition = isec->partition;
@@ -272,7 +272,12 @@ template <class ELFT> void OutputSection::maybeCompress() {
   // Write section contents to a temporary buffer and compress it.
   std::vector<uint8_t> buf(size);
   writeTo<ELFT>(buf.data());
-  if (Error e = zlib::compress(toStringRef(buf), compressedData))
+  // We chose 1 as the default compression level because it is the fastest. If
+  // -O2 is given, we use level 6 to compress debug info more by ~15%. We found
+  // that level 7 to 9 doesn't make much difference (~1% more compression) while
+  // they take significant amount of time (~2x), so level 6 seems enough.
+  if (Error e = zlib::compress(toStringRef(buf), compressedData,
+                               config->optimize >= 2 ? 6 : 1))
     fatal("compress failed: " + llvm::toString(std::move(e)));
 
   // Update section headers.
@@ -297,7 +302,7 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
   if (type == SHT_NOBITS)
     return;
 
-  // If -compress-debug-section is specified and if this is a debug seciton,
+  // If -compress-debug-section is specified and if this is a debug section,
   // we've already compressed section contents. If that's the case,
   // just write it down.
   if (!compressedData.empty()) {
@@ -352,8 +357,7 @@ static void finalizeShtGroup(OutputSection *os,
 }
 
 void OutputSection::finalize() {
-  std::vector<InputSection *> v = getInputSections(this);
-  InputSection *first = v.empty() ? nullptr : v[0];
+  InputSection *first = getFirstInputSection(this);
 
   if (flags & SHF_LINK_ORDER) {
     // We must preserve the link order dependency of sections with the
@@ -461,7 +465,15 @@ int getPriority(StringRef s) {
   return v;
 }
 
-std::vector<InputSection *> getInputSections(OutputSection *os) {
+InputSection *getFirstInputSection(const OutputSection *os) {
+  for (BaseCommand *base : os->sectionCommands)
+    if (auto *isd = dyn_cast<InputSectionDescription>(base))
+      if (!isd->sections.empty())
+        return isd->sections[0];
+  return nullptr;
+}
+
+std::vector<InputSection *> getInputSections(const OutputSection *os) {
   std::vector<InputSection *> ret;
   for (BaseCommand *base : os->sectionCommands)
     if (auto *isd = dyn_cast<InputSectionDescription>(base))

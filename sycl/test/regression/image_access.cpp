@@ -24,7 +24,7 @@ int main() {
     cl::sycl::queue Queue;
 
     Queue.submit([&](cl::sycl::handler &CGH) {
-      cl::sycl::accessor<cl_int4, 1, cl::sycl::access::mode::read,
+      cl::sycl::accessor<cl::sycl::cl_int4, 1, cl::sycl::access::mode::read,
                          cl::sycl::access::target::image,
                          cl::sycl::access::placeholder::false_t>
           A(Image, CGH);
@@ -32,7 +32,7 @@ int main() {
     });
     Queue.wait_and_throw();
 
-    cl::sycl::accessor<cl_int4, 1, cl::sycl::access::mode::read,
+    cl::sycl::accessor<cl::sycl::cl_int4, 1, cl::sycl::access::mode::read,
                        cl::sycl::access::target::host_image,
                        cl::sycl::access::placeholder::false_t>
         A(Image);
@@ -42,5 +42,5 @@ int main() {
   return 0;
 }
 
-// CHECK: PI ---> (NewMem = RT::piMemImageCreate(TargetContext->getHandleRef(), CreationFlags, &Format, &Desc, UserPtr, &Error), Error)
-// CHECK: PI ---> RT::piEnqueueMemImageRead( Queue, SrcMem, CL_FALSE, &SrcOffset[0], &SrcAccessRange[0], RowPitch, SlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent)
+// CHECK:---> piMemImageCreate
+// CHECK:---> piEnqueueMemImageRead

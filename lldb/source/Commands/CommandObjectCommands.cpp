@@ -1,4 +1,4 @@
-//===-- CommandObjectCommands.cpp -------------------------------*- C++ -*-===//
+//===-- CommandObjectCommands.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,6 @@
 #include "CommandObjectHelp.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
-#include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandHistory.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandObjectRegexCommand.h"
@@ -653,8 +652,8 @@ protected:
     }
 
     // Save these in std::strings since we're going to shift them off.
-    const std::string alias_command(args[0].ref());
-    const std::string actual_command(args[1].ref());
+    const std::string alias_command(std::string(args[0].ref()));
+    const std::string actual_command(std::string(args[1].ref()));
 
     args.Shift(); // Shift the alias command word off the argument vector.
     args.Shift(); // Shift the old command word off the argument vector.
@@ -900,9 +899,10 @@ class CommandObjectCommandsAddRegex : public CommandObjectParsed,
 public:
   CommandObjectCommandsAddRegex(CommandInterpreter &interpreter)
       : CommandObjectParsed(
-            interpreter, "command regex", "Define a custom command in terms of "
-                                          "existing commands by matching "
-                                          "regular expressions.",
+            interpreter, "command regex",
+            "Define a custom command in terms of "
+            "existing commands by matching "
+            "regular expressions.",
             "command regex <cmd-name> [s/<regex>/<subst>/ ...]"),
         IOHandlerDelegateMultiline("",
                                    IOHandlerDelegate::Completion::LLDBCommand),
@@ -1007,7 +1007,7 @@ protected:
           *this, nullptr));
 
       if (io_handler_sp) {
-        debugger.PushIOHandler(io_handler_sp);
+        debugger.RunIOHandlerAsync(io_handler_sp);
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       }
     } else {
@@ -1114,12 +1114,12 @@ protected:
     }
 
     if (!check_only) {
-      std::string regex(regex_sed.substr(first_separator_char_pos + 1,
-                                         second_separator_char_pos -
-                                             first_separator_char_pos - 1));
-      std::string subst(regex_sed.substr(second_separator_char_pos + 1,
-                                         third_separator_char_pos -
-                                             second_separator_char_pos - 1));
+      std::string regex(std::string(regex_sed.substr(
+          first_separator_char_pos + 1,
+          second_separator_char_pos - first_separator_char_pos - 1)));
+      std::string subst(std::string(regex_sed.substr(
+          second_separator_char_pos + 1,
+          third_separator_char_pos - second_separator_char_pos - 1)));
       m_regex_cmd_up->AddRegexCommand(regex.c_str(), subst.c_str());
     }
     return error;
@@ -1150,10 +1150,10 @@ private:
 
       switch (short_option) {
       case 'h':
-        m_help.assign(option_arg);
+        m_help.assign(std::string(option_arg));
         break;
       case 's':
-        m_syntax.assign(option_arg);
+        m_syntax.assign(std::string(option_arg));
         break;
       default:
         llvm_unreachable("Unimplemented option");
@@ -1197,8 +1197,8 @@ public:
   CommandObjectPythonFunction(CommandInterpreter &interpreter, std::string name,
                               std::string funct, std::string help,
                               ScriptedCommandSynchronicity synch)
-      : CommandObjectRaw(interpreter, name),
-        m_function_name(funct), m_synchro(synch), m_fetched_help_long(false) {
+      : CommandObjectRaw(interpreter, name), m_function_name(funct),
+        m_synchro(synch), m_fetched_help_long(false) {
     if (!help.empty())
       SetHelp(help);
     else {
@@ -1241,10 +1241,9 @@ protected:
 
     result.SetStatus(eReturnStatusInvalid);
 
-    if (!scripter ||
-        !scripter->RunScriptBasedCommand(m_function_name.c_str(),
-                                         raw_command_line, m_synchro, result,
-                                         error, m_exe_ctx)) {
+    if (!scripter || !scripter->RunScriptBasedCommand(
+                         m_function_name.c_str(), raw_command_line, m_synchro,
+                         result, error, m_exe_ctx)) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);
     } else {
@@ -1272,8 +1271,8 @@ public:
                                std::string name,
                                StructuredData::GenericSP cmd_obj_sp,
                                ScriptedCommandSynchronicity synch)
-      : CommandObjectRaw(interpreter, name),
-        m_cmd_obj_sp(cmd_obj_sp), m_synchro(synch), m_fetched_help_short(false),
+      : CommandObjectRaw(interpreter, name), m_cmd_obj_sp(cmd_obj_sp),
+        m_synchro(synch), m_fetched_help_short(false),
         m_fetched_help_long(false) {
     StreamString stream;
     stream.Printf("For more information run 'help %s'", name.c_str());
@@ -1404,7 +1403,7 @@ protected:
 
       switch (short_option) {
       case 'r':
-        m_allow_reload = true;
+        // NO-OP
         break;
       default:
         llvm_unreachable("Unimplemented option");
@@ -1414,26 +1413,14 @@ protected:
     }
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
-      m_allow_reload = true;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
       return llvm::makeArrayRef(g_script_import_options);
     }
-
-    // Instance variables to hold the values for command options.
-
-    bool m_allow_reload;
   };
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
-    if (GetDebugger().GetScriptLanguage() != lldb::eScriptLanguagePython) {
-      result.AppendError("only scripting language supported for module "
-                         "importing is currently Python");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
-    }
-
     if (command.empty()) {
       result.AppendError("command script import needs one or more arguments");
       result.SetStatus(eReturnStatusFailed);
@@ -1454,7 +1441,7 @@ protected:
       // more)
       m_exe_ctx.Clear();
       if (GetDebugger().GetScriptInterpreter()->LoadScriptingModule(
-              entry.c_str(), m_options.m_allow_reload, init_session, error)) {
+              entry.c_str(), init_session, error)) {
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendErrorWithFormat("module importing failed: %s",
@@ -1539,15 +1526,15 @@ protected:
       switch (short_option) {
       case 'f':
         if (!option_arg.empty())
-          m_funct_name = option_arg;
+          m_funct_name = std::string(option_arg);
         break;
       case 'c':
         if (!option_arg.empty())
-          m_class_name = option_arg;
+          m_class_name = std::string(option_arg);
         break;
       case 'h':
         if (!option_arg.empty())
-          m_short_help = option_arg;
+          m_short_help = std::string(option_arg);
         break;
       case 's':
         m_synchronicity =
@@ -1656,18 +1643,15 @@ protected:
     }
 
     // Store the options in case we get multi-line input
-    m_cmd_name = command[0].ref();
+    m_cmd_name = std::string(command[0].ref());
     m_short_help.assign(m_options.m_short_help);
     m_synchronicity = m_options.m_synchronicity;
 
     if (m_options.m_class_name.empty()) {
       if (m_options.m_funct_name.empty()) {
         m_interpreter.GetPythonCommandsFromIOHandler(
-            "     ",  // Prompt
-            *this,    // IOHandlerDelegate
-            true,     // Run IOHandler in async mode
-            nullptr); // Baton for the "io_handler" that will be passed back
-                      // into our IOHandlerDelegate functions
+            "     ", // Prompt
+            *this);  // IOHandlerDelegate
       } else {
         CommandObjectSP new_cmd(new CommandObjectPythonFunction(
             m_interpreter, m_cmd_name, m_options.m_funct_name,
@@ -1821,9 +1805,10 @@ class CommandObjectMultiwordCommandsScript : public CommandObjectMultiword {
 public:
   CommandObjectMultiwordCommandsScript(CommandInterpreter &interpreter)
       : CommandObjectMultiword(
-            interpreter, "command script", "Commands for managing custom "
-                                           "commands implemented by "
-                                           "interpreter scripts.",
+            interpreter, "command script",
+            "Commands for managing custom "
+            "commands implemented by "
+            "interpreter scripts.",
             "command script <subcommand> [<subcommand-options>]") {
     LoadSubCommand("add", CommandObjectSP(
                               new CommandObjectCommandsScriptAdd(interpreter)));

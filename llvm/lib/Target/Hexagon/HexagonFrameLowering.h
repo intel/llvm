@@ -29,8 +29,10 @@ class TargetRegisterClass;
 
 class HexagonFrameLowering : public TargetFrameLowering {
 public:
+  // First register which could possibly hold a variable argument.
+  int FirstVarArgSavedReg;
   explicit HexagonFrameLowering()
-      : TargetFrameLowering(StackGrowsDown, Align(8), 0, Align::None(), true) {}
+      : TargetFrameLowering(StackGrowsDown, Align(8), 0, Align(1), true) {}
 
   // All of the prolog/epilog functionality, including saving and restoring
   // callee-saved registers is handled in emitPrologue. This is to have the

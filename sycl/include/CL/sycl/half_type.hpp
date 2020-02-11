@@ -8,13 +8,15 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
+
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <iostream>
 #include <limits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace half_impl {

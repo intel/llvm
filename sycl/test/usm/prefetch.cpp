@@ -20,70 +20,72 @@ int main() {
     for (auto &e : el)
       throw e;
   });
-  float *src = (float*)malloc_shared(sizeof(float) * count, q.get_device(),
-      q.get_context());
-  float *dest = (float*)malloc_shared(sizeof(float) * count, q.get_device(),
-      q.get_context());
-  for (int i = 0; i < count; i++)
-    src[i] = i;
+  if (q.get_device().get_info<info::device::usm_shared_allocations>()) {
+    float *src = (float *)malloc_shared(sizeof(float) * count, q.get_device(),
+                                        q.get_context());
+    float *dest = (float *)malloc_shared(sizeof(float) * count, q.get_device(),
+                                         q.get_context());
+    for (int i = 0; i < count; i++)
+      src[i] = i;
 
-  // Test handler::prefetch
-  {
-    event init_prefetch = q.submit([&](handler &cgh) {
-        cgh.prefetch(src, sizeof(float) * count);
+    // Test handler::prefetch
+    {
+      event init_prefetch = q.submit(
+          [&](handler &cgh) { cgh.prefetch(src, sizeof(float) * count); });
+
+      q.submit([&](handler &cgh) {
+        cgh.depends_on(init_prefetch);
+        cgh.single_task<class double_dest>([=]() {
+          for (int i = 0; i < count; i++)
+            dest[i] = 2 * src[i];
         });
-
-    q.submit([&](handler &cgh) {
-      cgh.depends_on(init_prefetch);
-      cgh.single_task<class double_dest>([=]() {
-        for (int i = 0; i < count; i++)
-          dest[i] = 2 * src[i];
       });
-    });
-    q.wait_and_throw();
+      q.wait_and_throw();
 
-    for (int i = 0; i < count; i++) {
-      assert(dest[i] == i * 2);
+      for (int i = 0; i < count; i++) {
+        assert(dest[i] == i * 2);
+      }
+    }
+
+    // Test queue::prefetch
+    {
+      event init_prefetch = q.prefetch(src, sizeof(float) * count);
+
+      q.submit([&](handler &cgh) {
+        cgh.depends_on(init_prefetch);
+        cgh.single_task<class double_dest3>([=]() {
+          for (int i = 0; i < count; i++)
+            dest[i] = 3 * src[i];
+        });
+      });
+      q.wait_and_throw();
+
+      for (int i = 0; i < count; i++) {
+        assert(dest[i] == i * 3);
+      }
+    }
+
+    // Test ordered_queue::prefetch
+    {
+      ordered_queue oq([](exception_list el) {
+        for (auto &e : el)
+          throw e;
+      });
+      event init_prefetch = oq.prefetch(src, sizeof(float) * count);
+
+      oq.submit([&](handler &cgh) {
+        cgh.depends_on(init_prefetch);
+        cgh.single_task<class double_dest4>([=]() {
+          for (int i = 0; i < count; i++)
+            dest[i] = 4 * src[i];
+        });
+      });
+      oq.wait_and_throw();
+
+      for (int i = 0; i < count; i++) {
+        assert(dest[i] == i * 4);
+      }
     }
   }
-
-  // Test queue::prefetch
-  {
-    event init_prefetch = q.prefetch(src, sizeof(float) * count);
-
-    q.submit([&](handler &cgh) {
-      cgh.depends_on(init_prefetch);
-      cgh.single_task<class double_dest3>([=]() {
-        for (int i = 0; i < count; i++)
-          dest[i] = 3 * src[i];
-      });
-    });
-    q.wait_and_throw();
-
-    for (int i = 0; i < count; i++) {
-      assert(dest[i] == i * 3);
-    }
-  }
-
-  // Test ordered_queue::prefetch
-  {
-    ordered_queue oq([](exception_list el) {
-      for (auto &e : el)
-        throw e;
-    });
-    event init_prefetch = oq.prefetch(src, sizeof(float) * count);
-
-    oq.submit([&](handler &cgh) {
-      cgh.depends_on(init_prefetch);
-      cgh.single_task<class double_dest4>([=]() {
-        for (int i = 0; i < count; i++)
-          dest[i] = 4 * src[i];
-      });
-    });
-    oq.wait_and_throw();
-
-    for (int i = 0; i < count; i++) {
-      assert(dest[i] == i * 4);
-    }
-  }
+  return 0;
 }

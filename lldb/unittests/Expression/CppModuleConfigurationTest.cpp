@@ -1,4 +1,4 @@
-//===-- CppModuleConfigurationTest.cpp ---------------------------*- C++-*-===//
+//===-- CppModuleConfigurationTest.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 
 #include "Plugins/ExpressionParser/Clang/CppModuleConfiguration.h"
 #include "Plugins/ExpressionParser/Clang/ClangHost.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 
@@ -18,16 +19,7 @@ using namespace lldb_private;
 
 namespace {
 struct CppModuleConfigurationTest : public testing::Test {
-  static void SetUpTestCase() {
-    // Getting the resource directory uses those subsystems, so we should
-    // initialize them.
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-  }
-  static void TearDownTestCase() {
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
 };
 } // namespace
 
@@ -36,7 +28,7 @@ static std::string ResourceInc() {
   llvm::SmallString<256> resource_dir;
   llvm::sys::path::append(resource_dir, GetClangResourceDir().GetPath(),
                           "include");
-  return resource_dir.str().str();
+  return std::string(resource_dir);
 }
 
 /// Utility function turningn a list of paths into a FileSpecList.

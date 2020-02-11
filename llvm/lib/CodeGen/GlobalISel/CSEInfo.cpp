@@ -10,11 +10,16 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/InitializePasses.h"
 
 #define DEBUG_TYPE "cseinfo"
 
 using namespace llvm;
 char llvm::GISelCSEAnalysisWrapperPass::ID = 0;
+GISelCSEAnalysisWrapperPass::GISelCSEAnalysisWrapperPass()
+    : MachineFunctionPass(ID) {
+  initializeGISelCSEAnalysisWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 INITIALIZE_PASS_BEGIN(GISelCSEAnalysisWrapperPass, DEBUG_TYPE,
                       "Analysis containing CSE Info", false, true)
 INITIALIZE_PASS_END(GISelCSEAnalysisWrapperPass, DEBUG_TYPE,
@@ -47,19 +52,20 @@ bool CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   case TargetOpcode::G_SREM:
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_FCONSTANT:
+  case TargetOpcode::G_IMPLICIT_DEF:
   case TargetOpcode::G_ZEXT:
   case TargetOpcode::G_SEXT:
   case TargetOpcode::G_ANYEXT:
   case TargetOpcode::G_UNMERGE_VALUES:
   case TargetOpcode::G_TRUNC:
-  case TargetOpcode::G_GEP:
+  case TargetOpcode::G_PTR_ADD:
     return true;
   }
   return false;
 }
 
 bool CSEConfigConstantOnly::shouldCSEOpc(unsigned Opc) {
-  return Opc == TargetOpcode::G_CONSTANT;
+  return Opc == TargetOpcode::G_CONSTANT || Opc == TargetOpcode::G_IMPLICIT_DEF;
 }
 
 std::unique_ptr<CSEConfigBase>

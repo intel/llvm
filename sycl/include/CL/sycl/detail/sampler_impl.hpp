@@ -13,7 +13,7 @@
 
 #include <unordered_map>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class addressing_mode : unsigned int;

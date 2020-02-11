@@ -1,4 +1,4 @@
-// RUN: %clangxx --sycl -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll
 // RUN: FileCheck %s --input-file %t.ll
 //
 // Check the address space of the pointer in accessor class.

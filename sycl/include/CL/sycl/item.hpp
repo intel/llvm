@@ -14,7 +14,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 class Builder;

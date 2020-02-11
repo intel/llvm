@@ -195,8 +195,11 @@ static void ParseFlags(const Vector<std::string> &Args,
   }
 
   // Disable len_control by default, if LLVMFuzzerCustomMutator is used.
-  if (EF->LLVMFuzzerCustomMutator)
+  if (EF->LLVMFuzzerCustomMutator) {
     Flags.len_control = 0;
+    Printf("INFO: found LLVMFuzzerCustomMutator (%p). "
+           "Disabling -len_control by default.\n", EF->LLVMFuzzerCustomMutator);
+  }
 
   Inputs = new Vector<std::string>;
   for (size_t A = 1; A < Args.size(); A++) {
@@ -280,7 +283,8 @@ static void RssThread(Fuzzer *F, size_t RssLimitMb) {
 }
 
 static void StartRssThread(Fuzzer *F, size_t RssLimitMb) {
-  if (!RssLimitMb) return;
+  if (!RssLimitMb)
+    return;
   std::thread T(RssThread, F, RssLimitMb);
   T.detach();
 }
@@ -737,7 +741,11 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
     if (U.size() <= Word::GetMaxSize())
       MD->AddWordToManualDictionary(Word(U.data(), U.size()));
 
+      // Threads are only supported by Chrome. Don't use them with emscripten
+      // for now.
+#if !LIBFUZZER_EMSCRIPTEN
   StartRssThread(F, Flags.rss_limit_mb);
+#endif // LIBFUZZER_EMSCRIPTEN
 
   Options.HandleAbrt = Flags.handle_abrt;
   Options.HandleBus = Flags.handle_bus;

@@ -17,7 +17,7 @@ struct TypeNameVisitor : TestVisitor<TypeNameVisitor> {
 
   // ValueDecls are the least-derived decl with both a qualtype and a
   // name.
-  bool traverseDecl(Decl *D) {
+  bool TraverseDecl(Decl *D) {
     return true;  // Always continue
   }
 
@@ -222,6 +222,17 @@ TEST(QualTypeNameTest, getFullyQualifiedName) {
       "  }\n"
       "}\n"
   );
+
+  TypeNameVisitor InlineNamespace;
+  InlineNamespace.ExpectedQualTypeNames["c"] = "B::C";
+  InlineNamespace.runOver("inline namespace A {\n"
+                          "  namespace B {\n"
+                          "    class C {};\n"
+                          "  }\n"
+                          "}\n"
+                          "using namespace A::B;\n"
+                          "C c;\n",
+                          TypeNameVisitor::Lang_CXX11);
 
   TypeNameVisitor AnonStrucs;
   AnonStrucs.ExpectedQualTypeNames["a"] = "short";

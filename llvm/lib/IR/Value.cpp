@@ -13,8 +13,8 @@
 #include "llvm/IR/Value.h"
 #include "LLVMContextImpl.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -29,6 +29,7 @@
 #include "llvm/IR/Statepoint.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/ValueSymbolTable.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -727,6 +728,17 @@ MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
       return MaybeAlign(CI->getLimitedValue());
+    }
+  } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
+    if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
+            const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
+            /*OnlyIfReduced=*/true))) {
+      size_t TrailingZeros = CstInt->getValue().countTrailingZeros();
+      // While the actual alignment may be large, elsewhere we have
+      // an arbitrary upper alignmet limit, so let's clamp to it.
+      return Align(TrailingZeros < Value::MaxAlignmentExponent
+                       ? uint64_t(1) << TrailingZeros
+                       : Value::MaximumAlignment);
     }
   }
   return llvm::None;

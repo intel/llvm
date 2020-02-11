@@ -40,7 +40,7 @@ TEST(AlignmentTest, AlignConstant) {
 
 TEST(AlignmentTest, AlignConstexprConstant) {
   constexpr Align kConstantAlign = Align::Of<uint64_t>();
-  EXPECT_EQ(Align(8), kConstantAlign);
+  EXPECT_EQ(Align(alignof(uint64_t)), kConstantAlign);
 }
 
 std::vector<uint64_t> getValidAlignments() {
@@ -52,7 +52,6 @@ std::vector<uint64_t> getValidAlignments() {
 
 TEST(AlignmentTest, AlignDefaultCTor) {
   EXPECT_EQ(Align().value(), 1ULL);
-  EXPECT_EQ(Align::None().value(), 1ULL);
 }
 
 TEST(AlignmentTest, MaybeAlignDefaultCTor) {

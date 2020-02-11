@@ -17,12 +17,16 @@ class MTCSimpleTestCase(TestBase):
     @skipUnlessDarwin
     def test(self):
         self.mtc_dylib_path = findMainThreadCheckerDylib()
-        self.assertTrue(self.mtc_dylib_path != "")
+        if self.mtc_dylib_path == "":
+            self.skipTest("This test requires libMainThreadChecker.dylib")
+
         self.build()
         self.mtc_tests()
 
     @skipIf(archs=['i386'])
     def mtc_tests(self):
+        self.assertTrue(self.mtc_dylib_path != "")
+
         # Load the test
         exe = self.getBuildArtifact("a.out")
         self.expect("file " + exe, patterns=["Current executable set to .*a.out"])
@@ -42,7 +46,13 @@ class MTCSimpleTestCase(TestBase):
 
         self.expect(
             "thread info -s",
-            substrs=["instrumentation_class", "api_name", "class_name", "selector", "description"])
+            substrs=[
+                "api_name",
+                "class_name",
+                "description",
+                "instrumentation_class",
+                "selector"
+            ])
         self.assertEqual(thread.GetStopReason(), lldb.eStopReasonInstrumentation)
         output_lines = self.res.GetOutput().split('\n')
         json_line = '\n'.join(output_lines[2:])

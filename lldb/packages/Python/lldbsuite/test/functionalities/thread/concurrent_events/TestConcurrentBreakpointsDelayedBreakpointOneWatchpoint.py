@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import unittest2
 
@@ -16,7 +15,6 @@ class ConcurrentBreakpointsDelayedBreakpointOneWatchpoint(
     @skipIfFreeBSD  # timing out on buildbot
     # Atomic sequences are not supported yet for MIPS in LLDB.
     @skipIf(triple='^mips')
-    @expectedFailureNetBSD
     @add_test_categories(["watchpoint"])
     def test(self):
         """Test a breakpoint, a delayed breakpoint, and one watchpoint thread. """

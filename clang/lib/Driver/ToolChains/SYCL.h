@@ -15,6 +15,8 @@
 namespace clang {
 namespace driver {
 
+class Command;
+
 namespace tools {
 namespace SYCL {
 
@@ -25,6 +27,12 @@ void TranslateSYCLTargetArgs(Compilation &C,
 // Gather command line arguments for device specific link
 void TranslateSYCLLinkerArgs(Compilation &C,
               const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
+
+void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
+                                 std::unique_ptr<Command> InputCommand,
+                                 const InputInfoList &InputFiles,
+                                 const InputInfo &Output, const Tool *T,
+                                 StringRef Ext);
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -51,7 +59,7 @@ private:
                              const InputInfo &Output,
                              const llvm::opt::ArgList &Args,
                              llvm::StringRef SubArchName,
-                             llvm::StringRef OutputFilePrefix, bool isBc,
+                             llvm::StringRef OutputFilePrefix,
                              const InputInfoList &InputFiles) const;
   void constructLlcCommand(Compilation &C, const JobAction &JA,
                            const InputInfo &Output,

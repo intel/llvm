@@ -12,6 +12,7 @@
 
 #include "MipsMCTargetDesc.h"
 #include "MipsAsmBackend.h"
+#include "MipsBaseInfo.h"
 #include "MipsELFStreamer.h"
 #include "MipsInstPrinter.h"
 #include "MipsMCAsmInfo.h"
@@ -44,7 +45,6 @@ using namespace llvm;
 #include "MipsGenRegisterInfo.inc"
 
 /// Select the Mips CPU for the given triple and cpu name.
-/// FIXME: Merge with the copy in MipsSubtarget.cpp
 StringRef MIPS_MC::selectMipsCPU(const Triple &TT, StringRef CPU) {
   if (CPU.empty() || CPU == "generic") {
     if (TT.getSubArch() == llvm::Triple::MipsSubArch_r6) {
@@ -166,7 +166,7 @@ static MCInstrAnalysis *createMipsMCInstrAnalysis(const MCInstrInfo *Info) {
   return new MipsMCInstrAnalysis(Info);
 }
 
-extern "C" void LLVMInitializeMipsTargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMipsTargetMC() {
   for (Target *T : {&getTheMipsTarget(), &getTheMipselTarget(),
                     &getTheMips64Target(), &getTheMips64elTarget()}) {
     // Register the MC asm info.

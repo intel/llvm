@@ -74,8 +74,6 @@ class TestVSCode_variables(lldbvscode_testcase.VSCodeTestCaseBase):
             self.verify_values(verify_dict[name], variable, varref_dict)
 
     @skipIfWindows
-    @skipIfDarwin # Skip this test for now until we can figure out why tings aren't working on build bots
-    @no_debug_info_test
     def test_scopes_variables_setVariable_evaluate(self):
         '''
             Tests the "scopes", "variables", "setVariable", and "evaluate"
@@ -86,7 +84,7 @@ class TestVSCode_variables(lldbvscode_testcase.VSCodeTestCaseBase):
         source = 'main.cpp'
         breakpoint1_line = line_number(source, '// breakpoint 1')
         lines = [breakpoint1_line]
-        # Set breakoint in the thread function so we can step the threads
+        # Set breakpoint in the thread function so we can step the threads
         breakpoint_ids = self.set_source_breakpoints(source, lines)
         self.assertTrue(len(breakpoint_ids) == len(lines),
                         "expect correct number of breakpoints")

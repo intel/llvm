@@ -1,4 +1,4 @@
-// RUN: %clang --sycl %s -S -I %S/Inputs -emit-llvm -g -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only %s -S -I %S/Inputs -emit-llvm -g -o - | FileCheck %s
 //
 // Verify the SYCL kernel routine is marked artificial and has no source
 // correlation.
@@ -27,7 +27,7 @@ int main() {
 // CHECK: getelementptr inbounds %"class.{{.*}}.anon"{{.*}} !dbg [[LINE_A0:![0-9]+]]
 // CHECK: call spir_func void {{.*}}6__init{{.*}} !dbg [[LINE_A0]]
 // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"{{.*}} !dbg [[LINE_B0:![0-9]+]]
-// CHECK: ret void, !dbg [[LINE_A0]]
+// CHECK: ret void
 // CHECK: [[FILE:![0-9]+]] = !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
 // CHECK: [[KERNEL]] = {{.*}}!DISubprogram(name: "{{.*}}19use_kernel_for_test"
 // CHECK-SAME: scope: [[FILE]]

@@ -30,8 +30,8 @@ struct c2 {
 
 template <class T>
 struct x1 {
-//CHECK: -CXXMethodDecl {{.*}} operator= 'x1<T> &(const x1<T> &){{( __attribute__.*)?}} __generic'
-//CHECK: -CXXMethodDecl {{.*}} operator= '__generic x1<int> &(const __generic x1<int> &){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} operator= 'x1<T> &(const x1<T> &__private){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} operator= '__generic x1<int> &(const __generic x1<int> &__private){{( __attribute__.*)?}} __generic'
   x1<T>& operator=(const x1<T>& xx) {
     y = xx.y;
     return *this;
@@ -41,8 +41,8 @@ struct x1 {
 
 template <class T>
 struct x2 {
-//CHECK: -CXXMethodDecl {{.*}} foo 'void (x1<T> *){{( __attribute__.*)?}} __generic'
-//CHECK: -CXXMethodDecl {{.*}} foo 'void (__generic x1<int> *){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} foo 'void (x1<T> *__private){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} foo 'void (__generic x1<int> *__private){{( __attribute__.*)?}} __generic'
   void foo(x1<T>* xx) {
     m[0] = *xx;
   }
@@ -57,38 +57,50 @@ void bar(__global x1<int> *xx, __global x2<int> *bar) {
 template <typename T>
 class x3 : public T {
 public:
-  //CHECK: -CXXConstructorDecl {{.*}} x3<T> 'void (const x3<T> &){{( __attribute__.*)?}} __generic'
+  //CHECK: -CXXConstructorDecl {{.*}} x3<T> 'void (const x3<T> &__private){{( __attribute__.*)?}} __generic'
   x3(const x3 &t);
 };
-//CHECK: -CXXConstructorDecl {{.*}} x3<T> 'void (const x3<T> &){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXConstructorDecl {{.*}} x3<T> 'void (const x3<T> &__private){{( __attribute__.*)?}} __generic'
 template <typename T>
 x3<T>::x3(const x3<T> &t) {}
 
 template <class T>
-T xxx(T *in) {
+T xxx(T *in1, T in2) {
   // This pointer can't be deduced to generic because addr space
   // will be taken from the template argument.
-  //CHECK: `-VarDecl {{.*}} i 'T *' cinit
-  T *i = in;
+  //CHECK: `-VarDecl {{.*}} '__private T *__private' cinit
+  T *i = in1;
   T ii;
+  __private T *ptr = &ii;
+  ptr = &in2;
   return *i;
 }
 
 __kernel void test() {
   int foo[10];
-  xxx(&foo[0]);
+  xxx<__private int>(&foo[0], foo[0]);
+  // FIXME: Template param deduction fails here because
+  // temporaries are not in the __private address space.
+  // It is probably reasonable to put them in __private
+  // considering that stack and function params are
+  // implicitly in __private.
+  // However, if temporaries are left in default addr
+  // space we should at least pretty print the __private
+  // addr space. Otherwise diagnostic apprears to be
+  // confusing.
+  //xxx(&foo[0], foo[0]);
 }
 
 // Addr space for pointer/reference to an array
-//CHECK: FunctionDecl {{.*}} t1 'void (const __generic float (&)[2])'
+//CHECK: FunctionDecl {{.*}} t1 'void (const float (__generic &__private)[2])'
 void t1(const float (&fYZ)[2]);
-//CHECK: FunctionDecl {{.*}} t2 'void (const __generic float (*)[2])'
+//CHECK: FunctionDecl {{.*}} t2 'void (const float (__generic *__private)[2])'
 void t2(const float (*fYZ)[2]);
-//CHECK: FunctionDecl {{.*}} t3 'void (__generic float (((*)))[2])'
+//CHECK: FunctionDecl {{.*}} t3 'void (float (((__generic *__private)))[2])'
 void t3(float(((*fYZ)))[2]);
-//CHECK: FunctionDecl {{.*}} t4 'void (__generic float (((*__generic *)))[2])'
+//CHECK: FunctionDecl {{.*}} t4 'void (float (((__generic *__generic *__private)))[2])'
 void t4(float(((**fYZ)))[2]);
-//CHECK: FunctionDecl {{.*}} t5 'void (__generic float (*__generic (*))[2])'
+//CHECK: FunctionDecl {{.*}} t5 'void (float (__generic *(__generic *__private))[2])'
 void t5(float (*(*fYZ))[2]);
 
 __kernel void k() {

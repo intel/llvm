@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   Coroutines
   Coverage
+  FrontendOpenMP
   IPO
   IRReader
   AggressiveInstCombine
@@ -24,7 +25,6 @@ set(LLVM_LINK_COMPONENTS
   Support
   Target
   TransformUtils
-  ASFixer
   )
 
 # In a standard Clang+LLVM build, we need to generate intrinsics before
@@ -98,6 +98,8 @@ add_clang_library(clangCodeGen
   SwiftCallingConv.cpp
   TargetInfo.cpp
   VarBypassDetector.cpp
+
+  ENABLE_PLUGINS
 
   DEPENDS
   ${codegen_deps}

@@ -312,7 +312,7 @@ const static char TypePrefix[] = "opencl.intel_sub_group_avc_";
 ///   not empty.
 /// \return instruction index of extended instruction if the OpenCL builtin
 ///   function is translated to an extended instruction, otherwise ~0U.
-unsigned getExtOp(StringRef MangledName, const std::string &DemangledName = "");
+unsigned getExtOp(StringRef MangledName, StringRef DemangledName = "");
 
 /// Get literal arguments of call of atomic_work_item_fence.
 AtomicWorkItemFenceLiterals getAtomicWorkItemFenceLiterals(CallInst *CI);
@@ -747,6 +747,10 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+  // Intel media_block_io builtins
+  _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
+  _SPIRV_OP(intel_sub_group_media_block_write,
+            SubgroupImageMediaBlockWriteINTEL)
 #undef _SPIRV_OP
 }
 
@@ -760,6 +764,8 @@ template <> inline void SPIRVMap<std::string, Op, OCL12Builtin>::init() {
   _SPIRV_OP(dec, AtomicIDecrement)
   _SPIRV_OP(min, AtomicSMin)
   _SPIRV_OP(max, AtomicSMax)
+  _SPIRV_OP(umin, AtomicUMin)
+  _SPIRV_OP(umax, AtomicUMax)
   _SPIRV_OP(and, AtomicAnd)
   _SPIRV_OP(or, AtomicOr)
   _SPIRV_OP(xor, AtomicXor)

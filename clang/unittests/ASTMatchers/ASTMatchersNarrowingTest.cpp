@@ -18,6 +18,129 @@
 namespace clang {
 namespace ast_matchers {
 
+TEST(IsExpandedFromMacro, ShouldMatchInFile) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+    void Test() { MY_MACRO(4); }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("MY_MACRO"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchNested) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+#define WRAPPER(a) MY_MACRO(a)
+    void Test() { WRAPPER(4); }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("MY_MACRO"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchIntermediate) {
+  std::string input = R"cc(
+#define IMPL(a) (4 + (a))
+#define MY_MACRO(a) IMPL(a)
+#define WRAPPER(a) MY_MACRO(a)
+    void Test() { WRAPPER(4); }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("MY_MACRO"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchTransitive) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+#define WRAPPER(a) MY_MACRO(a)
+    void Test() { WRAPPER(4); }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("WRAPPER"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchArgument) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+    void Test() {
+      int x = 5;
+      MY_MACRO(x);
+    }
+  )cc";
+  EXPECT_TRUE(matches(input, declRefExpr(isExpandedFromMacro("MY_MACRO"))));
+}
+
+// Like IsExpandedFromMacroShouldMatchArgumentMacro, but the argument is itself
+// a macro.
+TEST(IsExpandedFromMacro, ShouldMatchArgumentMacroExpansion) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+#define IDENTITY(a) (a)
+    void Test() {
+      IDENTITY(MY_MACRO(2));
+    }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("IDENTITY"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchWhenInArgument) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+#define IDENTITY(a) (a)
+    void Test() {
+      IDENTITY(MY_MACRO(2));
+    }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("MY_MACRO"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchObjectMacro) {
+  std::string input = R"cc(
+#define PLUS (2 + 2)
+    void Test() {
+      PLUS;
+    }
+  )cc";
+  EXPECT_TRUE(matches(input, binaryOperator(isExpandedFromMacro("PLUS"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldMatchFromCommandLine) {
+  std::string input = R"cc(
+    void Test() { FOUR_PLUS_FOUR; }
+  )cc";
+  EXPECT_TRUE(matchesConditionally(input,
+                                   binaryOperator(isExpandedFromMacro("FOUR_PLUS_FOUR")),
+                                   true, {"-std=c++11", "-DFOUR_PLUS_FOUR=4+4"}));
+}
+
+TEST(IsExpandedFromMacro, ShouldNotMatchBeginOnly) {
+  std::string input = R"cc(
+#define ONE_PLUS 1+
+  void Test() { ONE_PLUS 4; }
+  )cc";
+  EXPECT_TRUE(
+      notMatches(input, binaryOperator(isExpandedFromMacro("ONE_PLUS"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldNotMatchEndOnly) {
+  std::string input = R"cc(
+#define PLUS_ONE +1
+  void Test() { 4 PLUS_ONE; }
+  )cc";
+  EXPECT_TRUE(
+      notMatches(input, binaryOperator(isExpandedFromMacro("PLUS_ONE"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldNotMatchDifferentMacro) {
+  std::string input = R"cc(
+#define MY_MACRO(a) (4 + (a))
+    void Test() { MY_MACRO(4); }
+  )cc";
+  EXPECT_TRUE(notMatches(input, binaryOperator(isExpandedFromMacro("OTHER"))));
+}
+
+TEST(IsExpandedFromMacro, ShouldNotMatchDifferentInstances) {
+  std::string input = R"cc(
+#define FOUR 4
+    void Test() { FOUR + FOUR; }
+  )cc";
+  EXPECT_TRUE(notMatches(input, binaryOperator(isExpandedFromMacro("FOUR"))));
+}
 
 TEST(AllOf, AllOverloadsWork) {
   const char Program[] =
@@ -1071,6 +1194,35 @@ TEST(isConstexpr, MatchesConstexprDeclarations) {
                          LanguageMode::Cxx17OrLater));
 }
 
+TEST(hasInitStatement, MatchesSelectionInitializers) {
+  EXPECT_TRUE(matches("void baz() { if (int i = 1; i > 0) {} }",
+                      ifStmt(hasInitStatement(anything())),
+                      LanguageMode::Cxx17OrLater));
+  EXPECT_TRUE(notMatches("void baz() { if (int i = 1) {} }",
+                         ifStmt(hasInitStatement(anything()))));
+  EXPECT_TRUE(notMatches("void baz() { if (1 > 0) {} }",
+                         ifStmt(hasInitStatement(anything()))));
+  EXPECT_TRUE(matches(
+      "void baz(int i) { switch (int j = i; j) { default: break; } }",
+      switchStmt(hasInitStatement(anything())), LanguageMode::Cxx17OrLater));
+  EXPECT_TRUE(notMatches("void baz(int i) { switch (i) { default: break; } }",
+                         switchStmt(hasInitStatement(anything()))));
+}
+
+TEST(hasInitStatement, MatchesRangeForInitializers) {
+  EXPECT_TRUE(matches("void baz() {"
+                      "int items[] = {};"
+                      "for (auto &arr = items; auto &item : arr) {}"
+                      "}",
+                      cxxForRangeStmt(hasInitStatement(anything())),
+                      LanguageMode::Cxx2aOrLater));
+  EXPECT_TRUE(notMatches("void baz() {"
+                         "int items[] = {};"
+                         "for (auto &item : items) {}"
+                         "}",
+                         cxxForRangeStmt(hasInitStatement(anything()))));
+}
+
 TEST(TemplateArgumentCountIs, Matches) {
   EXPECT_TRUE(
     matches("template<typename T> struct C {}; C<int> c;",
@@ -1837,6 +1989,27 @@ TEST(EachOf, BehavesLikeAnyOfUnlessBothMatch) {
                       has(fieldDecl(hasName("b")).bind("v"))))));
 }
 
+TEST(Optionally, SubmatchersDoNotMatch) {
+  EXPECT_TRUE(matchAndVerifyResultFalse(
+      "class A { int a; int b; };",
+      recordDecl(optionally(has(fieldDecl(hasName("c")).bind("v")),
+                            has(fieldDecl(hasName("d")).bind("v")))),
+      std::make_unique<VerifyIdIsBoundTo<FieldDecl>>("v")));
+}
+
+TEST(Optionally, SubmatchersMatch) {
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "class A { int a; int c; };",
+      recordDecl(optionally(has(fieldDecl(hasName("a")).bind("v")),
+                            has(fieldDecl(hasName("b")).bind("v")))),
+      std::make_unique<VerifyIdIsBoundTo<FieldDecl>>("v", 1)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "class A { int c; int b; };",
+      recordDecl(optionally(has(fieldDecl(hasName("c")).bind("v")),
+                            has(fieldDecl(hasName("b")).bind("v")))),
+      std::make_unique<VerifyIdIsBoundTo<FieldDecl>>("v", 2)));
+}
+
 TEST(IsTemplateInstantiation, MatchesImplicitClassTemplateInstantiation) {
   // Make sure that we can both match the class by name (::X) and by the type
   // the template was instantiated with (via a field).
@@ -2452,6 +2625,13 @@ TEST(HasDefinition, MatchesUnionDefinition) {
 TEST(IsScopedEnum, MatchesScopedEnum) {
   EXPECT_TRUE(matches("enum class X {};", enumDecl(isScoped())));
   EXPECT_TRUE(notMatches("enum X {};", enumDecl(isScoped())));
+}
+
+TEST(TagDeclKind, MatchesTagDeclKind) {
+  EXPECT_TRUE(matches("struct X {};", tagDecl(isStruct())));
+  EXPECT_TRUE(matches("class C {};", tagDecl(isClass())));
+  EXPECT_TRUE(matches("union U {};", tagDecl(isUnion())));
+  EXPECT_TRUE(matches("enum E {};", tagDecl(isEnum())));
 }
 
 TEST(HasTrailingReturn, MatchesTrailingReturn) {

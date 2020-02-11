@@ -116,6 +116,7 @@ public:
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
+  typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;
 
 private:
   Module *M;
@@ -123,6 +124,7 @@ private:
   SPIRVModule *BM;
   LLVMToSPIRVTypeMap TypeMap;
   LLVMToSPIRVValueMap ValueMap;
+  LLVMToSPIRVMetadataMap IndexGroupArrayMap;
   SPIRVWord SrcLang;
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
@@ -159,9 +161,9 @@ private:
                                SmallVectorImpl<std::string> *Dec = nullptr);
   bool oclIsKernel(Function *F);
   bool transOCLKernelMetadata();
-  SPIRVInstruction *transBuiltinToInst(const std::string &DemangledName,
-                                       const std::string &MangledName,
-                                       CallInst *CI, SPIRVBasicBlock *BB);
+  SPIRVInstruction *transBuiltinToInst(StringRef DemangledName, CallInst *CI,
+                                       SPIRVBasicBlock *BB);
+  SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);
   SPIRVInstruction *transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                                         SPIRVBasicBlock *BB);
   void mutateFuncArgType(const std::map<unsigned, Type *> &ChangedType,

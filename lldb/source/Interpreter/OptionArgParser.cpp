@@ -1,4 +1,4 @@
-//===-- OptionArgParser.cpp -------------------------------------*- C++ -*-===//
+//===-- OptionArgParser.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -127,6 +127,8 @@ lldb::ScriptLanguage OptionArgParser::ToScriptLanguage(
 
   if (s.equals_lower("python"))
     return eScriptLanguagePython;
+  if (s.equals_lower("lua"))
+    return eScriptLanguageLua;
   if (s.equals_lower("default"))
     return eScriptLanguageDefault;
   if (s.equals_lower("none"))

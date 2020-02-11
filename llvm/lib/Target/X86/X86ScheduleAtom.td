@@ -244,6 +244,7 @@ defm : AtomWriteResPair<WriteFCmp64X,       [AtomPort01], [AtomPort01],  6,  7, 
 defm : X86WriteResPairUnsupported<WriteFCmp64Y>;
 defm : X86WriteResPairUnsupported<WriteFCmp64Z>;
 defm : AtomWriteResPair<WriteFCom,           [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
+defm : AtomWriteResPair<WriteFComX,          [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
 defm : AtomWriteResPair<WriteFMul,           [AtomPort0],  [AtomPort0],  4,  4,  [4],  [4]>;
 defm : AtomWriteResPair<WriteFMulX,          [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
 defm : X86WriteResPairUnsupported<WriteFMulY>;
@@ -888,8 +889,7 @@ def AtomWrite01_174 : SchedWriteRes<[AtomPort01]> {
   let Latency = 174;
   let ResourceCycles = [174];
 }
-def : InstRW<[AtomWrite01_174], (instrs FSINCOS)>;
-def : InstRW<[AtomWrite01_174], (instregex "(COS|SIN)_F")>;
+def : InstRW<[AtomWrite01_174], (instrs FSINCOS, FSIN, FCOS)>;
 
 def AtomWrite01_183 : SchedWriteRes<[AtomPort01]> {
   let Latency = 183;

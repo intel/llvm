@@ -1,6 +1,5 @@
 """Test that corefiles with an LC_NOTE "kern ver str" load command is used."""
 
-from __future__ import print_function
 
 
 import os
@@ -18,7 +17,7 @@ class TestKernVerStrLCNOTE(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIf(debug_info=no_match(["dsym"]), bugnumber="This test is looking explicitly for a dSYM")
-    @skipIfDarwinEmbedded
+    @skipIf(archs=no_match(['amd64']))
     @skipUnlessDarwin
     def test_lc_note(self):
         self.build()

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUBaseInfo.h"
-#include "AMDGPUTargetTransformInfo.h"
 #include "AMDGPU.h"
-#include "SIDefines.h"
 #include "AMDGPUAsmUtils.h"
+#include "AMDGPUTargetTransformInfo.h"
+#include "SIDefines.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -20,6 +20,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
@@ -312,7 +314,8 @@ unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI) {
 }
 
 unsigned getMaxFlatWorkGroupSize(const MCSubtargetInfo *STI) {
-  return 2048;
+  // Some subtargets allow encoding 2048, but this isn't tested or supported.
+  return 1024;
 }
 
 unsigned getWavesPerWorkGroup(const MCSubtargetInfo *STI,
@@ -542,20 +545,21 @@ amdhsa::kernel_descriptor_t getDefaultAmdhsaKernelDescriptor(
 }
 
 bool isGroupSegment(const GlobalValue *GV) {
-  return GV->getType()->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
+  return GV->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
 }
 
 bool isGlobalSegment(const GlobalValue *GV) {
-  return GV->getType()->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
+  return GV->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
 }
 
 bool isReadOnlySegment(const GlobalValue *GV) {
-  return GV->getType()->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS ||
-         GV->getType()->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS_32BIT;
+  unsigned AS = GV->getAddressSpace();
+  return AS == AMDGPUAS::CONSTANT_ADDRESS ||
+         AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT;
 }
 
 bool shouldEmitConstantsToTextSection(const Triple &TT) {
-  return TT.getOS() == Triple::AMDPAL;
+  return TT.getOS() == Triple::AMDPAL || TT.getArch() == Triple::r600;
 }
 
 int getIntegerAttribute(const Function &F, StringRef Name, int Default) {
@@ -1243,16 +1247,43 @@ static bool hasSMEMByteOffset(const MCSubtargetInfo &ST) {
   return isGCN3Encoding(ST) || isGFX10(ST);
 }
 
-int64_t getSMRDEncodedOffset(const MCSubtargetInfo &ST, int64_t ByteOffset) {
+static bool isLegalSMRDEncodedImmOffset(const MCSubtargetInfo &ST,
+                                        int64_t EncodedOffset) {
+  return hasSMEMByteOffset(ST) ? isUInt<20>(EncodedOffset)
+                               : isUInt<8>(EncodedOffset);
+}
+
+static bool isDwordAligned(uint64_t ByteOffset) {
+  return (ByteOffset & 3) == 0;
+}
+
+uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST,
+                                uint64_t ByteOffset) {
   if (hasSMEMByteOffset(ST))
     return ByteOffset;
+
+  assert(isDwordAligned(ByteOffset));
   return ByteOffset >> 2;
 }
 
-bool isLegalSMRDImmOffset(const MCSubtargetInfo &ST, int64_t ByteOffset) {
-  int64_t EncodedOffset = getSMRDEncodedOffset(ST, ByteOffset);
-  return (hasSMEMByteOffset(ST)) ?
-    isUInt<20>(EncodedOffset) : isUInt<8>(EncodedOffset);
+Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
+                                       int64_t ByteOffset) {
+  if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
+    return None;
+
+  int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
+  return isLegalSMRDEncodedImmOffset(ST, EncodedOffset) ?
+    Optional<int64_t>(EncodedOffset) : None;
+}
+
+Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
+                                                int64_t ByteOffset) {
+  if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
+    return None;
+
+  assert(isCI(ST));
+  int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
+  return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset) : None;
 }
 
 // Given Imm, split it into the values to put into the SOffset and ImmOffset
@@ -1301,7 +1332,8 @@ bool splitMUBUFOffset(uint32_t Imm, uint32_t &SOffset, uint32_t &ImmOffset,
   return true;
 }
 
-SIModeRegisterDefaults::SIModeRegisterDefaults(const Function &F) {
+SIModeRegisterDefaults::SIModeRegisterDefaults(const Function &F,
+                                               const GCNSubtarget &ST) {
   *this = getDefaultForCallingConv(F.getCallingConv());
 
   StringRef IEEEAttr = F.getFnAttribute("amdgpu-ieee").getValueAsString();
@@ -1312,6 +1344,12 @@ SIModeRegisterDefaults::SIModeRegisterDefaults(const Function &F) {
     = F.getFnAttribute("amdgpu-dx10-clamp").getValueAsString();
   if (!DX10ClampAttr.empty())
     DX10Clamp = DX10ClampAttr == "true";
+
+  // FIXME: Split this when denormal-fp-math is used
+  FP32InputDenormals = ST.hasFP32Denormals(F);
+  FP32OutputDenormals = FP32InputDenormals;
+  FP64FP16InputDenormals = ST.hasFP64FP16Denormals(F);
+  FP64FP16OutputDenormals = FP64FP16InputDenormals;
 }
 
 namespace {
@@ -1322,12 +1360,30 @@ struct SourceOfDivergence {
 const SourceOfDivergence *lookupSourceOfDivergence(unsigned Intr);
 
 #define GET_SourcesOfDivergence_IMPL
+#define GET_Gfx9BufferFormat_IMPL
+#define GET_Gfx10PlusBufferFormat_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 } // end anonymous namespace
 
 bool isIntrinsicSourceOfDivergence(unsigned IntrID) {
   return lookupSourceOfDivergence(IntrID);
+}
+
+const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t BitsPerComp,
+                                                  uint8_t NumComponents,
+                                                  uint8_t NumFormat,
+                                                  const MCSubtargetInfo &STI) {
+  return isGFX10(STI)
+             ? getGfx10PlusBufferFormatInfo(BitsPerComp, NumComponents,
+                                            NumFormat)
+             : getGfx9BufferFormatInfo(BitsPerComp, NumComponents, NumFormat);
+}
+
+const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t Format,
+                                                  const MCSubtargetInfo &STI) {
+  return isGFX10(STI) ? getGfx10PlusBufferFormatInfo(Format)
+                      : getGfx9BufferFormatInfo(Format);
 }
 
 } // namespace AMDGPU

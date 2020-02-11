@@ -137,7 +137,8 @@ namespace HexagonISD {
     /// instructions. fmuladd intrinsics will be expanded to FMAs when this
     /// method returns true (and FMAs are legal), otherwise fmuladd is
     /// expanded to mul + add.
-    bool isFMAFasterThanFMulAndFAdd(EVT) const override;
+    bool isFMAFasterThanFMulAndFAdd(const MachineFunction &,
+                                    EVT) const override;
 
     // Should we expand the build vector with shuffles?
     bool shouldExpandBuildVectorWithShuffles(EVT VT,
@@ -229,7 +230,7 @@ namespace HexagonISD {
 
     bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
 
-    Register getRegisterByName(const char* RegName, EVT VT,
+    Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
@@ -247,6 +248,7 @@ namespace HexagonISD {
     }
 
     SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
 
@@ -300,9 +302,8 @@ namespace HexagonISD {
     /// the immediate into a register.
     bool isLegalICmpImmediate(int64_t Imm) const override;
 
-    EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign,
-        unsigned SrcAlign, bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
-        const AttributeList &FuncAttributes) const override;
+    EVT getOptimalMemOpType(const MemOp &Op,
+                            const AttributeList &FuncAttributes) const override;
 
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
         unsigned Align, MachineMemOperand::Flags Flags, bool *Fast)

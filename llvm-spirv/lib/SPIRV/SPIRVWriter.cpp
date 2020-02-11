@@ -131,11 +131,12 @@ bool LLVMToSPIRV::oclIsKernel(Function *F) {
 }
 
 bool LLVMToSPIRV::isBuiltinTransToInst(Function *F) {
-  std::string DemangledName;
-  if (!oclIsBuiltin(F->getName(), &DemangledName) &&
-      !isDecoratedSPIRVFunc(F, &DemangledName))
+  StringRef DemangledName;
+  if (!oclIsBuiltin(F->getName(), DemangledName) &&
+      !isDecoratedSPIRVFunc(F, DemangledName))
     return false;
-  SPIRVDBG(spvdbgs() << "CallInst: demangled name: " << DemangledName << '\n');
+  SPIRVDBG(spvdbgs() << "CallInst: demangled name: " << DemangledName.str()
+                     << '\n');
   return getSPIRVFuncOC(DemangledName) != OpNop;
 }
 
@@ -143,9 +144,8 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
                                           SPIRVExtInstSetKind *ExtSet,
                                           SPIRVWord *ExtOp,
                                           SmallVectorImpl<std::string> *Dec) {
-  std::string OrigName = F->getName();
-  std::string DemangledName;
-  if (!oclIsBuiltin(OrigName, &DemangledName))
+  StringRef DemangledName;
+  if (!oclIsBuiltin(F->getName(), DemangledName))
     return false;
   LLVM_DEBUG(dbgs() << "[oclIsBuiltinTransToExtInst] CallInst: demangled name: "
                     << DemangledName << '\n');
@@ -156,7 +156,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   auto Loc = S.find(kSPIRVPostfix::Divider);
   auto ExtSetName = S.substr(0, Loc);
   SPIRVExtInstSetKind Set = SPIRVEIS_Count;
-  if (!SPIRVExtSetShortNameMap::rfind(ExtSetName, &Set))
+  if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
     return false;
   assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_Debug) &&
          "Unsupported extended instruction set");
@@ -164,7 +164,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   auto ExtOpName = S.substr(Loc + 1);
   auto Splited = ExtOpName.split(kSPIRVPostfix::ExtDivider);
   OCLExtOpKind EOC;
-  if (!OCLExtOpMap::rfind(Splited.first, &EOC))
+  if (!OCLExtOpMap::rfind(Splited.first.str(), &EOC))
     return false;
 
   if (ExtSet)
@@ -257,8 +257,17 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
   if (T->isIntegerTy(1))
     return mapType(T, BM->addBoolType());
 
-  if (T->isIntegerTy())
-    return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
+  if (T->isIntegerTy()) {
+    unsigned BitWidth = T->getIntegerBitWidth();
+    // SPIR-V 2.16.1. Universal Validation Rules: Scalar integer types can be
+    // parameterized only as 32 bit, plus any additional sizes enabled by
+    // capabilities.
+    if (BM->getErrorLog().checkError(
+            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
+            SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
+      return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
+    }
+  }
 
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
@@ -300,11 +309,11 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
         return transSPIRVOpaqueType(T);
 
       if (STName.startswith(kOCLSubgroupsAVCIntel::TypePrefix))
-        return mapType(T,
-                       BM->addSubgroupAvcINTELType(
-                           OCLSubgroupINTELTypeOpCodeMap::map(ST->getName())));
+        return mapType(
+            T, BM->addSubgroupAvcINTELType(
+                   OCLSubgroupINTELTypeOpCodeMap::map(ST->getName().str())));
 
-      if (OCLOpaqueTypeOpCodeMap::find(STName, &OpCode)) {
+      if (OCLOpaqueTypeOpCodeMap::find(STName.str(), &OpCode)) {
         switch (OpCode) {
         default:
           return mapType(T, BM->addOpaqueGenericType(OpCode));
@@ -356,13 +365,13 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     assert(!ST->getName().startswith(kSPR2TypeName::PipeRO));
     assert(!ST->getName().startswith(kSPR2TypeName::PipeWO));
     assert(!ST->getName().startswith(kSPR2TypeName::ImagePrefix));
-    return mapType(T, BM->addOpaqueType(T->getStructName()));
+    return mapType(T, BM->addOpaqueType(T->getStructName().str()));
   }
 
   if (auto ST = dyn_cast<StructType>(T)) {
     assert(ST->isSized());
 
-    std::string Name;
+    StringRef Name;
     if (ST->hasName())
       Name = ST->getName();
 
@@ -371,7 +380,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
       return transType(getPipeStorageType(M));
 
-    auto *Struct = BM->openStructType(T->getStructNumElements(), Name);
+    auto *Struct = BM->openStructType(T->getStructNumElements(), Name.str());
     mapType(T, Struct);
 
     SmallVector<unsigned, 4> ForwardRefs;
@@ -480,7 +489,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
   if (F->hasName())
-    BM->setName(BF, F->getName());
+    BM->setName(BF, F->getName().str());
   if (oclIsKernel(F))
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
   else if (F->getLinkage() != GlobalValue::InternalLinkage)
@@ -491,7 +500,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
     if (I->hasName())
-      BM->setName(BA, I->getName());
+      BM->setName(BA, I->getName().str());
     if (I->hasByValAttr())
       BA->addAttr(FunctionParameterAttributeByVal);
     if (I->hasNoAliasAttr())
@@ -646,9 +655,9 @@ SPIRVValue *LLVMToSPIRV::transValue(Value *V, SPIRVBasicBlock *BB,
   auto BV = transValueWithoutDecoration(V, BB, CreateForward);
   if (!BV || !transDecoration(V, BV))
     return nullptr;
-  std::string Name = V->getName();
+  StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
-    BM->setName(BV, Name);
+    BM->setName(BV, Name.str());
   return BV;
 }
 
@@ -705,6 +714,153 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
                           BB);
 }
 
+/// This helper class encapsulates information extraction from
+/// "llvm.loop.parallel_access_indices" metadata hints. Initialize
+/// with a pointer to an MDNode with the following structure:
+/// !<Node> = !{!"llvm.loop.parallel_access_indices", !<Node>, !<Node>, ...}
+/// OR:
+/// !<Node> = !{!"llvm.loop.parallel_access_indices", !<Nodes...>, i32 <value>}
+///
+/// All of the MDNode-type operands mark the index groups for particular
+/// array variables. An optional i32 value indicates the safelen (safe
+/// number of iterations) for the optimization application to these
+/// array variables. If the safelen value is absent, an infinite
+/// number of iterations is implied.
+class LLVMParallelAccessIndices {
+public:
+  LLVMParallelAccessIndices(
+      MDNode *Node, LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap)
+      : Node(Node), IndexGroupArrayMap(IndexGroupArrayMap) {}
+
+  void initialize() {
+    assert(isValid() &&
+           "LLVMParallelAccessIndices initialized from an invalid MDNode");
+
+    unsigned NumOperands = Node->getNumOperands();
+    auto *SafeLenExpression = mdconst::dyn_extract_or_null<ConstantInt>(
+        Node->getOperand(NumOperands - 1));
+    // If no safelen value is specified and the last operand
+    // casts to an MDNode* rather than an int, 0 will be stored
+    SafeLen = SafeLenExpression ? SafeLenExpression->getZExtValue() : 0;
+
+    // Count MDNode operands that refer to index groups:
+    // - operand [0] is a string literal and should be ignored;
+    // - depending on whether a particular safelen is specified as the
+    //   last operand, we may or may not want to extract the latter
+    //   as an index group
+    unsigned NumIdxGroups = SafeLen ? NumOperands - 2 : NumOperands - 1;
+    for (unsigned I = 1; I <= NumIdxGroups; ++I) {
+      MDNode *IdxGroupNode = getMDOperandAsMDNode(Node, I);
+      assert(IdxGroupNode &&
+             "Invalid operand in the MDNode for LLVMParallelAccessIndices");
+      auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
+      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
+             "Absent entry for this index group node");
+      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+    }
+  }
+
+  bool isValid() {
+    bool IsNamedCorrectly = getMDOperandAsString(Node, 0) == ExpectedName;
+    return Node && IsNamedCorrectly;
+  }
+
+  unsigned getSafeLen() { return SafeLen; }
+  const std::vector<SPIRVId> &getArrayVariables() { return ArrayVariablesVec; }
+
+private:
+  MDNode *Node;
+  LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap;
+  const std::string ExpectedName = "llvm.loop.parallel_access_indices";
+  std::vector<SPIRVId> ArrayVariablesVec;
+  unsigned SafeLen;
+};
+
+/// Go through the operands !llvm.loop metadata attached to the branch
+/// instruction, fill the Loop Control mask and possible parameters for its
+/// fields.
+static spv::LoopControlMask
+getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
+               LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap) {
+  if (!Branch)
+    return spv::LoopControlMaskNone;
+  MDNode *LoopMD = Branch->getMetadata("llvm.loop");
+  if (!LoopMD)
+    return spv::LoopControlMaskNone;
+
+  size_t LoopControl = spv::LoopControlMaskNone;
+
+  // Unlike with most of the cases, some loop metadata specifications
+  // can occur multiple times - for these, all correspondent tokens
+  // need to be collected first, and only then added to SPIR-V loop
+  // parameters in a separate routine
+  std::vector<std::pair<SPIRVWord, SPIRVWord>> DependencyArrayParameters;
+
+  for (const MDOperand &MDOp : LoopMD->operands()) {
+    if (MDNode *Node = dyn_cast<MDNode>(MDOp)) {
+      std::string S = getMDOperandAsString(Node, 0);
+      // Set the loop control bits. Parameters are set in the order described
+      // in 3.23 SPIR-V Spec. rev. 1.4:
+      // Bits that are set can indicate whether an additional operand follows,
+      // as described by the table. If there are multiple following operands
+      // indicated, they are ordered: Those indicated by smaller-numbered bits
+      // appear first.
+      if (S == "llvm.loop.unroll.disable")
+        LoopControl |= spv::LoopControlDontUnrollMask;
+      else if (S == "llvm.loop.unroll.full" || S == "llvm.loop.unroll.enable")
+        LoopControl |= spv::LoopControlUnrollMask;
+      // PartialCount must not be used with the DontUnroll bit
+      else if (S == "llvm.loop.unroll.count" &&
+               !(LoopControl & LoopControlDontUnrollMask)) {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlPartialCountMask;
+      } else if (S == "llvm.loop.ivdep.enable")
+        LoopControl |= spv::LoopControlDependencyInfiniteMask;
+      else if (S == "llvm.loop.ivdep.safelen") {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::LoopControlDependencyLengthMask;
+      } else if (S == "llvm.loop.ii.count") {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::InitiationIntervalINTEL;
+      } else if (S == "llvm.loop.max_concurrency.count") {
+        size_t I = getMDOperandAsInt(Node, 1);
+        Parameters.push_back(I);
+        LoopControl |= spv::MaxConcurrencyINTEL;
+      } else if (S == "llvm.loop.parallel_access_indices") {
+        // Intel FPGA IVDep loop attribute
+        LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
+        IVDep.initialize();
+        // Store IVDep-specific parameters into an intermediate
+        // container to address the case when there're multiple
+        // IVDep metadata nodes and this condition gets entered multiple
+        // times. The update of the main parameters vector & the loop control
+        // mask will be done later, in the main scope of the function
+        unsigned SafeLen = IVDep.getSafeLen();
+        for (auto &ArrayId : IVDep.getArrayVariables())
+          DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+      }
+    }
+  }
+
+  // If any loop control parameters were held back until fully collected,
+  // now is the time to move the information to the main parameters collection
+  if (!DependencyArrayParameters.empty()) {
+    // The first parameter states the number of <array, safelen> pairs to be
+    // listed
+    Parameters.push_back(DependencyArrayParameters.size());
+    for (auto &ArraySflnPair : DependencyArrayParameters) {
+      Parameters.push_back(ArraySflnPair.first);
+      Parameters.push_back(ArraySflnPair.second);
+    }
+    LoopControl |= spv::DependencyArrayINTEL;
+  }
+
+  return static_cast<spv::LoopControlMask>(LoopControl);
+}
+
 /// An instruction may use an instruction from another BB which has not been
 /// translated. SPIRVForward should be created as place holder for these
 /// instructions and replaced later by the real instructions.
@@ -717,7 +873,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
         static_cast<SPIRVFunction *>(getTranslatedValue(LBB->getParent()));
     assert(BF && "Function not translated");
     BB = static_cast<SPIRVBasicBlock *>(mapValue(V, BM->addBasicBlock(BF)));
-    BM->setName(BB, LBB->getName());
+    BM->setName(BB, LBB->getName().str());
     return BB;
   }
 
@@ -764,7 +920,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
 
     auto BVar = static_cast<SPIRVVariable *>(BM->addVariable(
         transType(Ty), GV->isConstant(), transLinkageType(GV), BVarInit,
-        GV->getName(),
+        GV->getName().str(),
         SPIRSPIRVAddrSpaceMap::map(
             static_cast<SPIRAddressSpace>(Ty->getAddressSpace())),
         nullptr));
@@ -867,7 +1023,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
-                           Alc->getName(), StorageClassFunction, BB));
+                           Alc->getName().str(), StorageClassFunction, BB));
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -910,7 +1066,8 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     /// with true edge going to the header and the false edge going out of
     /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
     std::vector<SPIRVWord> Parameters;
-    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
+    spv::LoopControlMask LoopControl =
+        getLoopControl(Branch, Parameters, IndexGroupArrayMap);
 
     if (Branch->isUnconditional()) {
       // For "for" and "while" loops llvm.loop metadata is attached to
@@ -995,10 +1152,36 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     std::vector<SPIRVValue *> Indices;
     for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
       Indices.push_back(transValue(GEP->getOperand(I + 1), BB));
-    return mapValue(
-        V, BM->addPtrAccessChainInst(transType(GEP->getType()),
-                                     transValue(GEP->getPointerOperand(), BB),
-                                     Indices, BB, GEP->isInBounds()));
+    auto *TransPointerOperand = transValue(GEP->getPointerOperand(), BB);
+
+    // Certain array-related optimization hints can be expressed via
+    // LLVM metadata. For the purpose of linking this metadata with
+    // the accessed array variables, our GEP may have been marked into
+    // a so-called index group, an MDNode by itself.
+    if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
+      // When where we work with embedded loops, it's natural that
+      // the outer loop's hints apply to all code contained within.
+      // The inner loop's specific hints, however, should stay private
+      // to the inner loop's scope.
+      // Consequently, the following division of the index group metadata
+      // nodes emerges:
+      // 1) The metadata node has no operands. It will be directly referenced
+      //    from within the optimization hint metadata.
+      // 2) The metadata node has several operands. It serves to link an index
+      //    group specific to some embedded loop with other index groups that
+      //    mark the same array variable for the outer loop(s).
+      unsigned NumOperands = IndexGroup->getNumOperands();
+      if (NumOperands > 0)
+        // The index group for this particular "embedded loop depth" is always
+        // signalled by the last variable. We'll want to associate this loop's
+        // control parameters with this inner-loop-specific index group
+        IndexGroup = getMDOperandAsMDNode(IndexGroup, NumOperands - 1);
+      IndexGroupArrayMap[IndexGroup] = TransPointerOperand->getId();
+    }
+
+    return mapValue(V, BM->addPtrAccessChainInst(transType(GEP->getType()),
+                                                 TransPointerOperand, Indices,
+                                                 BB, GEP->isInBounds()));
   }
 
   if (auto Ext = dyn_cast<ExtractElementInst>(V)) {
@@ -1194,8 +1377,9 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
                 .Case("memory", DecorationMemoryINTEL)
                 .Case("numbanks", DecorationNumbanksINTEL)
                 .Case("bankwidth", DecorationBankwidthINTEL)
-                .Case("max_private_copies", DecorationMaxPrivateCopiesINTEL)
+                .Case("private_copies", DecorationMaxPrivateCopiesINTEL)
                 .Case("max_replicates", DecorationMaxReplicatesINTEL)
+                .Case("bank_bits", DecorationBankBitsINTEL)
                 .Case("merge", DecorationMergeINTEL)
                 .Default(DecorationUserSemantic);
       if (Dec == DecorationUserSemantic)
@@ -1204,10 +1388,22 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
         Value = S;
     }
 
-    Decorates.push_back({Dec, Value});
+    Decorates.emplace_back(Dec, Value.str());
     AnnotatedCode = AnnotatedCode.drop_front(To + 1);
   }
   return Decorates;
+}
+
+std::vector<SPIRVWord> getBankBitsFromString(StringRef S) {
+  SmallVector<StringRef, 4> BitsString;
+  S.split(BitsString, ',');
+
+  std::vector<SPIRVWord> Bits(BitsString.size());
+  for (size_t J = 0; J < BitsString.size(); ++J)
+    if (BitsString[J].getAsInteger(10, Bits[J]))
+      return {};
+
+  return Bits;
 }
 
 void addIntelFPGADecorations(
@@ -1236,6 +1432,10 @@ void addIntelFPGADecorations(
       E->addDecorate(
           new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
     } break;
+    case DecorationBankBitsINTEL:
+      E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
+          E, getBankBitsFromString(I.second)));
+      break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
@@ -1286,6 +1486,10 @@ void addIntelFPGADecorationsForStructMember(
       E->addMemberDecorate(new SPIRVMemberDecorateMergeINTELAttr(
           E, MemberNumber, Name.str(), Direction.str()));
     } break;
+    case DecorationBankBitsINTEL:
+      E->addMemberDecorate(new SPIRVMemberDecorateBankBitsINTELAttr(
+          E, MemberNumber, getBankBitsFromString(I.second)));
+      break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
@@ -1456,7 +1660,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // If we didn't find any IntelFPGA-specific decorations, let's add the whole
     // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
-      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
+      SV->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
     } else {
       addIntelFPGADecorations(SV, Decorations);
     }
@@ -1492,7 +1697,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       // whole annotation string as UserSemantic Decoration
       if (Decorations.empty()) {
         Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            Ty, MemberNumber, AnnotationString));
+            Ty, MemberNumber, AnnotationString.str()));
       } else {
         addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
       }
@@ -1536,15 +1741,18 @@ SPIRVValue *LLVMToSPIRV::transDirectCallInst(CallInst *CI,
   SPIRVWord ExtOp = SPIRVWORD_MAX;
   llvm::Function *F = CI->getCalledFunction();
   auto MangledName = F->getName();
-  std::string DemangledName;
+  StringRef DemangledName;
 
   if (MangledName.startswith(SPCV_CAST) || MangledName == SAMPLER_INIT)
     return oclTransSpvcCastSampler(CI, BB);
 
-  if (oclIsBuiltin(MangledName, &DemangledName) ||
-      isDecoratedSPIRVFunc(F, &DemangledName))
-    if (auto BV = transBuiltinToInst(DemangledName, MangledName, CI, BB))
+  if (oclIsBuiltin(MangledName, DemangledName) ||
+      isDecoratedSPIRVFunc(F, DemangledName)) {
+    if (auto BV = transBuiltinToConstant(DemangledName, CI))
       return BV;
+    if (auto BV = transBuiltinToInst(DemangledName, CI, BB))
+      return BV;
+  }
 
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
@@ -1649,7 +1857,8 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
     // If we didn't find any IntelFPGA-specific decorations, let's
     // add the whole annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
-      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
+      SV->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
     } else {
       addIntelFPGADecorations(SV, Decorations);
     }
@@ -1825,9 +2034,8 @@ llvm::IntegerType *LLVMToSPIRV::getSizetType(unsigned AS) {
 void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(
     llvm::FunctionType *FT, std::map<unsigned, Type *> &ChangedType,
     Function *F) {
-  auto Name = F->getName();
-  std::string Demangled;
-  if (!oclIsBuiltin(Name, &Demangled))
+  StringRef Demangled;
+  if (!oclIsBuiltin(F->getName(), Demangled))
     return;
   if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos)
     return;
@@ -1835,10 +2043,30 @@ void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(
     ChangedType[1] = getSamplerType(F->getParent());
 }
 
-SPIRVInstruction *
-LLVMToSPIRV::transBuiltinToInst(const std::string &DemangledName,
-                                const std::string &MangledName, CallInst *CI,
-                                SPIRVBasicBlock *BB) {
+SPIRVValue *LLVMToSPIRV::transBuiltinToConstant(StringRef DemangledName,
+                                                CallInst *CI) {
+  Op OC = getSPIRVFuncOC(DemangledName);
+  if (!isSpecConstantOpCode(OC))
+    return nullptr;
+  Value *V = CI->getArgOperand(1);
+  Type *Ty = V->getType();
+  assert(Ty == CI->getType() && "Type mismatch!");
+  uint64_t Val = 0;
+  if (Ty->isIntegerTy())
+    Val = cast<ConstantInt>(V)->getZExtValue();
+  else if (Ty->isFloatingPointTy())
+    Val = cast<ConstantFP>(V)->getValueAPF().bitcastToAPInt().getZExtValue();
+  else
+    return nullptr;
+  SPIRVValue *SC = BM->addSpecConstant(transType(Ty), Val);
+  uint64_t SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+  SC->addDecorate(DecorationSpecId, SpecId);
+  return SC;
+}
+
+SPIRVInstruction *LLVMToSPIRV::transBuiltinToInst(StringRef DemangledName,
+                                                  CallInst *CI,
+                                                  SPIRVBasicBlock *BB) {
   SmallVector<std::string, 2> Dec;
   auto OC = getSPIRVFuncOC(DemangledName, &Dec);
 
@@ -1881,6 +2109,16 @@ bool LLVMToSPIRV::transExecutionMode() {
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
       } break;
+      case spv::ExecutionModeMaxWorkgroupSizeINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X, Y, Z;
+          N.get(X).get(Y).get(Z);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+          BM->addCapability(CapabilityKernelAttributesINTEL);
+        }
+      } break;
       case spv::ExecutionModeVecTypeHint:
       case spv::ExecutionModeSubgroupSize:
       case spv::ExecutionModeSubgroupsPerWorkgroup: {
@@ -1888,6 +2126,26 @@ bool LLVMToSPIRV::transExecutionMode() {
         N.get(X);
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode), X)));
+      } break;
+      case spv::ExecutionModeNumSIMDWorkitemsINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X;
+          N.get(X);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X)));
+          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
+        }
+      } break;
+      case spv::ExecutionModeMaxWorkDimINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          unsigned X;
+          N.get(X);
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              BF, static_cast<ExecutionMode>(EMode), X)));
+          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
+        }
       } break;
       default:
         llvm_unreachable("invalid execution mode");
@@ -2154,7 +2412,9 @@ bool llvm::writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts,
 
   legacy::PassManager PassMgr;
   addPassesForSPIRV(PassMgr);
-  if (hasLoopUnrollMetadata(M))
+  // Run loop simplify pass in order to avoid duplicate OpLoopMerge
+  // instruction. It can happen in case of continue operand in the loop.
+  if (hasLoopMetadata(M))
     PassMgr.add(createLoopSimplifyPass());
   PassMgr.add(createLLVMToSPIRV(BM.get()));
   PassMgr.run(*M);

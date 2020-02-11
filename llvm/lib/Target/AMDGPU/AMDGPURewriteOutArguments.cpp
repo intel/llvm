@@ -43,12 +43,12 @@
 
 #include "AMDGPU.h"
 #include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -64,6 +64,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -452,9 +453,8 @@ bool AMDGPURewriteOutArguments::runOnFunction(Function &F) {
     PointerType *ArgType = cast<PointerType>(Arg.getType());
 
     auto *EltTy = ArgType->getElementType();
-    unsigned Align = Arg.getParamAlignment();
-    if (Align == 0)
-      Align = DL->getABITypeAlignment(EltTy);
+    const auto Align =
+        DL->getValueOrABITypeAlignment(Arg.getParamAlign(), EltTy);
 
     Value *Val = B.CreateExtractValue(StubCall, RetIdx++);
     Type *PtrTy = Val->getType()->getPointerTo(ArgType->getAddressSpace());

@@ -1,4 +1,4 @@
-// RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
+// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks if the SYCL device compiler is able to generate correct

@@ -649,7 +649,8 @@ inline bool isBool(StringRef S) {
 inline QuotingType needsQuotes(StringRef S) {
   if (S.empty())
     return QuotingType::Single;
-  if (isspace(S.front()) || isspace(S.back()))
+  if (isspace(static_cast<unsigned char>(S.front())) ||
+      isspace(static_cast<unsigned char>(S.back())))
     return QuotingType::Single;
   if (isNull(S))
     return QuotingType::Single;
@@ -1530,7 +1531,7 @@ private:
   document_iterator                   DocIterator;
   std::vector<bool>                   BitValuesUsed;
   HNode *CurrentNode = nullptr;
-  bool                                ScalarMatchFound;
+  bool                                ScalarMatchFound = false;
 };
 
 ///
@@ -1935,7 +1936,7 @@ template <typename T> struct StdMapStringCustomMappingTraitsImpl {
   using map_type = std::map<std::string, T>;
 
   static void inputOne(IO &io, StringRef key, map_type &v) {
-    io.mapRequired(key.str().c_str(), v[key]);
+    io.mapRequired(key.str().c_str(), v[std::string(key)]);
   }
 
   static void output(IO &io, map_type &v) {
@@ -2033,5 +2034,10 @@ template <typename T> struct StdMapStringCustomMappingTraitsImpl {
       : public StdMapStringCustomMappingTraitsImpl<_type> {};                  \
   }                                                                            \
   }
+
+LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(llvm::yaml::Hex64)
+LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(llvm::yaml::Hex32)
+LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(llvm::yaml::Hex16)
+LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(llvm::yaml::Hex8)
 
 #endif // LLVM_SUPPORT_YAMLTRAITS_H

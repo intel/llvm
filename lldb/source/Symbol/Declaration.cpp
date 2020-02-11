@@ -1,4 +1,4 @@
-//===-- Declaration.cpp -----------------------------------------*- C++ -*-===//
+//===-- Declaration.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -90,12 +90,9 @@ bool Declaration::FileAndLineEqual(const Declaration &declaration) const {
 
 bool lldb_private::operator==(const Declaration &lhs, const Declaration &rhs) {
 #ifdef LLDB_ENABLE_DECLARATION_COLUMNS
-  if (lhs.GetColumn() == rhs.GetColumn())
-    if (lhs.GetLine() == rhs.GetLine())
-      return lhs.GetFile() == rhs.GetFile();
+  if (lhs.GetColumn() != rhs.GetColumn())
+    return false;
 #else
-  if (lhs.GetLine() == rhs.GetLine())
-    return FileSpec::Equal(lhs.GetFile(), rhs.GetFile(), true);
+  return lhs.GetLine() == rhs.GetLine() && lhs.GetFile() == rhs.GetFile();
 #endif
-  return false;
 }

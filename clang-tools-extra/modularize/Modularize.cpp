@@ -20,7 +20,7 @@
 // map.
 //
 // Modularize takes as input either one or more module maps (by default,
-// "module.modulemap") or one or more text files contatining lists of headers
+// "module.modulemap") or one or more text files containing lists of headers
 // to check.
 //
 // In the case of a module map, the module map must be well-formed in
@@ -585,8 +585,6 @@ public:
       LinkageLabel = "extern \"C\" {}";
       break;
     case LinkageSpecDecl::lang_cxx:
-    case LinkageSpecDecl::lang_cxx_11:
-    case LinkageSpecDecl::lang_cxx_14:
       LinkageLabel = "extern \"C++\" {}";
       break;
     }
@@ -815,7 +813,7 @@ int main(int Argc, const char **Argv) {
   Argv0 = Argv[0];
 
   // Save program arguments for use in module.modulemap comment.
-  CommandLine = sys::path::stem(sys::path::filename(Argv0));
+  CommandLine = std::string(sys::path::stem(sys::path::filename(Argv0)));
   for (int ArgIndex = 1; ArgIndex < Argc; ArgIndex++) {
     CommandLine.append(" ");
     CommandLine.append(Argv[ArgIndex]);
@@ -950,7 +948,7 @@ int main(int Argc, const char **Argv) {
       for (LocationArray::iterator FE = DI->end(); FI != FE; ++FI) {
         errs() << "    " << FI->File->getName() << ":" << FI->Line << ":"
                << FI->Column << "\n";
-        ModUtil->addUniqueProblemFile(FI->File->getName());
+        ModUtil->addUniqueProblemFile(std::string(FI->File->getName()));
       }
       HadErrors = 1;
     }
@@ -980,7 +978,7 @@ int main(int Argc, const char **Argv) {
     }
 
     HadErrors = 1;
-    ModUtil->addUniqueProblemFile(H->first->getName());
+    ModUtil->addUniqueProblemFile(std::string(H->first->getName()));
     errs() << "error: header '" << H->first->getName()
            << "' has different contents depending on how it was included.\n";
     for (unsigned I = 0, N = H->second.size(); I != N; ++I) {

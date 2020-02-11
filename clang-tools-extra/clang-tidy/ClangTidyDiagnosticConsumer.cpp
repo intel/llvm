@@ -19,6 +19,7 @@
 #include "ClangTidyOptions.h"
 #include "GlobList.h"
 #include "clang/AST/ASTDiagnostic.h"
+#include "clang/AST/Attr.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
@@ -171,7 +172,7 @@ void ClangTidyContext::setSourceManager(SourceManager *SourceMgr) {
 }
 
 void ClangTidyContext::setCurrentFile(StringRef File) {
-  CurrentFile = File;
+  CurrentFile = std::string(File);
   CurrentOptions = getOptionsForFile(CurrentFile);
   CheckFilter = std::make_unique<CachedGlobList>(*getOptions().Checks);
   WarningAsErrorFilter =
@@ -201,7 +202,7 @@ ClangTidyOptions ClangTidyContext::getOptionsForFile(StringRef File) const {
 void ClangTidyContext::setEnableProfiling(bool P) { Profile = P; }
 
 void ClangTidyContext::setProfileStoragePrefix(StringRef Prefix) {
-  ProfilePrefix = Prefix;
+  ProfilePrefix = std::string(Prefix);
 }
 
 llvm::Optional<ClangTidyProfiling::StorageParams>
@@ -223,8 +224,8 @@ bool ClangTidyContext::treatAsError(StringRef CheckName) const {
 }
 
 std::string ClangTidyContext::getCheckName(unsigned DiagnosticID) const {
-  std::string ClangWarningOption =
-      DiagEngine->getDiagnosticIDs()->getWarningOptionForDiag(DiagnosticID);
+  std::string ClangWarningOption = std::string(
+      DiagEngine->getDiagnosticIDs()->getWarningOptionForDiag(DiagnosticID));
   if (!ClangWarningOption.empty())
     return "clang-diagnostic-" + ClangWarningOption;
   llvm::DenseMap<unsigned, std::string>::const_iterator I =
@@ -354,7 +355,7 @@ static bool LineIsMarkedWithNOLINTinMacro(const SourceManager &SM,
 namespace clang {
 namespace tidy {
 
-bool ShouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
+bool shouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
                               const Diagnostic &Info, ClangTidyContext &Context,
                               bool CheckMacroExpansion) {
   return Info.getLocation().isValid() &&
@@ -374,7 +375,7 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
   if (LastErrorWasIgnored && DiagLevel == DiagnosticsEngine::Note)
     return;
 
-  if (ShouldSuppressDiagnostic(DiagLevel, Info, Context)) {
+  if (shouldSuppressDiagnostic(DiagLevel, Info, Context)) {
     ++Context.Stats.ErrorsIgnoredNOLINT;
     // Ignored a warning, should ignore related notes as well
     LastErrorWasIgnored = true;
@@ -470,55 +471,58 @@ void ClangTidyDiagnosticConsumer::forwardDiagnostic(const Diagnostic &Info) {
       DiagLevelAndFormatString.first, DiagLevelAndFormatString.second);
 
   // Forward the details.
-  auto builder = ExternalDiagEngine->Report(Info.getLocation(), ExternalID);
+  auto Builder = ExternalDiagEngine->Report(Info.getLocation(), ExternalID);
   for (auto Hint : Info.getFixItHints())
-    builder << Hint;
+    Builder << Hint;
   for (auto Range : Info.getRanges())
-    builder << Range;
+    Builder << Range;
   for (unsigned Index = 0; Index < Info.getNumArgs(); ++Index) {
-    DiagnosticsEngine::ArgumentKind kind = Info.getArgKind(Index);
-    switch (kind) {
+    DiagnosticsEngine::ArgumentKind Kind = Info.getArgKind(Index);
+    switch (Kind) {
     case clang::DiagnosticsEngine::ak_std_string:
-      builder << Info.getArgStdStr(Index);
+      Builder << Info.getArgStdStr(Index);
       break;
     case clang::DiagnosticsEngine::ak_c_string:
-      builder << Info.getArgCStr(Index);
+      Builder << Info.getArgCStr(Index);
       break;
     case clang::DiagnosticsEngine::ak_sint:
-      builder << Info.getArgSInt(Index);
+      Builder << Info.getArgSInt(Index);
       break;
     case clang::DiagnosticsEngine::ak_uint:
-      builder << Info.getArgUInt(Index);
+      Builder << Info.getArgUInt(Index);
       break;
     case clang::DiagnosticsEngine::ak_tokenkind:
-      builder << static_cast<tok::TokenKind>(Info.getRawArg(Index));
+      Builder << static_cast<tok::TokenKind>(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_identifierinfo:
-      builder << Info.getArgIdentifier(Index);
+      Builder << Info.getArgIdentifier(Index);
       break;
     case clang::DiagnosticsEngine::ak_qual:
-      builder << Qualifiers::fromOpaqueValue(Info.getRawArg(Index));
+      Builder << Qualifiers::fromOpaqueValue(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_qualtype:
-      builder << QualType::getFromOpaquePtr((void *)Info.getRawArg(Index));
+      Builder << QualType::getFromOpaquePtr((void *)Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_declarationname:
-      builder << DeclarationName::getFromOpaqueInteger(Info.getRawArg(Index));
+      Builder << DeclarationName::getFromOpaqueInteger(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_nameddecl:
-      builder << reinterpret_cast<const NamedDecl *>(Info.getRawArg(Index));
+      Builder << reinterpret_cast<const NamedDecl *>(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_nestednamespec:
-      builder << reinterpret_cast<NestedNameSpecifier *>(Info.getRawArg(Index));
+      Builder << reinterpret_cast<NestedNameSpecifier *>(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_declcontext:
-      builder << reinterpret_cast<DeclContext *>(Info.getRawArg(Index));
+      Builder << reinterpret_cast<DeclContext *>(Info.getRawArg(Index));
       break;
     case clang::DiagnosticsEngine::ak_qualtype_pair:
       assert(false); // This one is not passed around.
       break;
     case clang::DiagnosticsEngine::ak_attr:
-      builder << reinterpret_cast<Attr *>(Info.getRawArg(Index));
+      Builder << reinterpret_cast<Attr *>(Info.getRawArg(Index));
+      break;
+    case clang::DiagnosticsEngine::ak_addrspace:
+      Builder << static_cast<LangAS>(Info.getRawArg(Index));
       break;
     }
   }
@@ -657,7 +661,7 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
       for (const auto &Replace : FileAndReplace.second) {
         unsigned Begin = Replace.getOffset();
         unsigned End = Begin + Replace.getLength();
-        const std::string &FilePath = Replace.getFilePath();
+        const std::string &FilePath = std::string(Replace.getFilePath());
         // FIXME: Handle empty intervals, such as those from insertions.
         if (Begin == End)
           continue;

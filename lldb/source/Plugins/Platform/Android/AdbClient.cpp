@@ -1,4 +1,4 @@
-//===-- AdbClient.cpp -------------------------------------------*- C++ -*-===//
+//===-- AdbClient.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -165,8 +165,8 @@ Status AdbClient::GetDevices(DeviceIDList &device_list) {
   llvm::SmallVector<llvm::StringRef, 4> devices;
   response.split(devices, "\n", -1, false);
 
-  for (const auto device : devices)
-    device_list.push_back(device.split('\t').first);
+  for (const auto &device : devices)
+    device_list.push_back(std::string(device.split('\t').first));
 
   // Force disconnect since ADB closes connection after host:devices response
   // is sent.
@@ -365,7 +365,7 @@ Status AdbClient::internalShell(const char *command, milliseconds timeout,
 
   StreamString adb_command;
   adb_command.Printf("shell:%s", command);
-  error = SendMessage(adb_command.GetString(), false);
+  error = SendMessage(std::string(adb_command.GetString()), false);
   if (error.Fail())
     return error;
 
@@ -595,7 +595,7 @@ Status AdbClient::SyncService::SendSyncRequest(const char *request_id,
   const DataBufferSP data_sp(new DataBufferHeap(kSyncPacketLen, 0));
   DataEncoder encoder(data_sp, eByteOrderLittle, sizeof(void *));
   auto offset = encoder.PutData(0, request_id, strlen(request_id));
-  encoder.PutU32(offset, data_len);
+  encoder.PutUnsigned(offset, 4, data_len);
 
   Status error;
   ConnectionStatus status;

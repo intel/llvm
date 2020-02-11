@@ -10,3 +10,8 @@ using B = int ** __ptr32 *[3];
 // FIXME: Too many parens here!
 // CHECK: using C = int ((*))() __attribute__((cdecl));
 using C = int (*)() [[gnu::cdecl]];
+
+// CHECK: int fun_asm() asm("test");
+int fun_asm() asm("test");
+// CHECK: int var_asm asm("test");
+int var_asm asm("test");

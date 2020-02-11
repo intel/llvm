@@ -83,7 +83,7 @@ protected:
 
 // Represents a WebAssembly data segment which can be included as part of
 // an output data segments.  Note that in WebAssembly, unlike ELF and other
-// formats, used the term "data segment" to refer to the continous regions of
+// formats, used the term "data segment" to refer to the continuous regions of
 // memory that make on the data section. See:
 // https://webassembly.github.io/spec/syntax/modules.html#syntax-data
 //
@@ -130,6 +130,9 @@ public:
   void writeTo(uint8_t *sectionStart) const override;
   StringRef getName() const override { return function->SymbolName; }
   StringRef getDebugName() const override { return function->DebugName; }
+  StringRef getExportName() const {
+    return function ? function->ExportName : "";
+  }
   uint32_t getComdat() const override { return function->Comdat; }
   uint32_t getFunctionInputOffset() const { return getInputSectionOffset(); }
   uint32_t getFunctionCodeOffset() const { return function->CodeOffset; }
@@ -153,7 +156,7 @@ public:
 
   // The size of a given input function can depend on the values of the
   // LEB relocations within it.  This finalizeContents method is called after
-  // all the symbol values have be calcualted but before getSize() is ever
+  // all the symbol values have be calculated but before getSize() is ever
   // called.
   void calculateSize();
 

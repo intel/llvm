@@ -598,6 +598,37 @@ namespace llvm {
       // For avx512-vp2intersect
       VP2INTERSECT,
 
+      /// X86 strict FP compare instructions.
+      STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
+      STRICT_FCMPS,
+
+      // Vector packed double/float comparison.
+      STRICT_CMPP,
+
+      /// Vector comparison generating mask bits for fp and
+      /// integer signed and unsigned data types.
+      STRICT_CMPM,
+
+      // Vector float/double to signed/unsigned integer with truncation.
+      STRICT_CVTTP2SI, STRICT_CVTTP2UI,
+
+      // Vector FP extend.
+      STRICT_VFPEXT,
+
+      // Vector FP round.
+      STRICT_VFPROUND,
+
+      // RndScale - Round FP Values To Include A Given Number Of Fraction Bits.
+      // Also used by the legacy (V)ROUND intrinsics where we mask out the
+      // scaling part of the immediate.
+      STRICT_VRNDSCALE,
+
+      // Vector signed/unsigned integer to float/double.
+      STRICT_CVTSI2P, STRICT_CVTUI2P,
+
+      // Strict FMA nodes.
+      STRICT_FNMADD, STRICT_FMSUB, STRICT_FNMSUB,
+
       // Compare and swap.
       LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
       LCMPXCHG8_DAG,
@@ -631,10 +662,9 @@ namespace llvm {
       /// This instruction implements SINT_TO_FP with the
       /// integer source in memory and FP reg result.  This corresponds to the
       /// X86::FILD*m instructions. It has two inputs (token chain and address)
-      /// and two outputs (FP value and token chain). FILD_FLAG also produces a
-      /// flag). The integer source type is specified by the memory VT.
+      /// and two outputs (FP value and token chain). The integer source type is
+      /// specified by the memory VT.
       FILD,
-      FILD_FLAG,
 
       /// This instruction implements a fp->int store from FP stack
       /// slots. This corresponds to the fist instruction. It takes a
@@ -728,19 +758,7 @@ namespace llvm {
     unsigned getByValTypeAlignment(Type *Ty,
                                    const DataLayout &DL) const override;
 
-    /// Returns the target specific optimal type for load
-    /// and store operations as a result of memset, memcpy, and memmove
-    /// lowering. If DstAlign is zero that means it's safe to destination
-    /// alignment can satisfy any constraint. Similarly if SrcAlign is zero it
-    /// means there isn't a need to check it against alignment requirement,
-    /// probably because the source does not need to be loaded. If 'IsMemset' is
-    /// true, that means it's expanding a memset. If 'ZeroMemset' is true, that
-    /// means it's a memset of zero. 'MemcpyStrSrc' indicates whether the memcpy
-    /// source is constant so it does not need to be loaded.
-    /// It returns EVT::Other if the type should be determined using generic
-    /// target-independent logic.
-    EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign, unsigned SrcAlign,
-                            bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
+    EVT getOptimalMemOpType(const MemOp &Op,
                             const AttributeList &FuncAttributes) const override;
 
     /// Returns true if it's safe to use load / store of the
@@ -969,9 +987,7 @@ namespace llvm {
 
     unsigned
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
-      if (ConstraintCode == "i")
-        return InlineAsm::Constraint_i;
-      else if (ConstraintCode == "o")
+      if (ConstraintCode == "o")
         return InlineAsm::Constraint_o;
       else if (ConstraintCode == "v")
         return InlineAsm::Constraint_v;
@@ -1056,7 +1072,8 @@ namespace llvm {
     /// Return true if an FMA operation is faster than a pair of fmul and fadd
     /// instructions. fmuladd intrinsics will be expanded to FMAs when this
     /// method returns true, otherwise fmuladd is expanded to fmul + fadd.
-    bool isFMAFasterThanFMulAndFAdd(EVT VT) const override;
+    bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                    EVT VT) const override;
 
     /// Return true if it's profitable to narrow
     /// operations of type VT1 to VT2. e.g. on x86, it's profitable to narrow
@@ -1125,9 +1142,6 @@ namespace llvm {
     bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
                                 SDValue C) const override;
 
-    bool shouldUseStrictFP_TO_INT(EVT FpVT, EVT IntVT,
-                                  bool IsSigned) const override;
-
     /// Return true if EXTRACT_SUBVECTOR is cheap for this result type
     /// with this index.
     bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
@@ -1165,7 +1179,7 @@ namespace llvm {
       return nullptr; // nothing to do, move along.
     }
 
-    Register getRegisterByName(const char* RegName, EVT VT,
+    Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
@@ -1203,13 +1217,16 @@ namespace llvm {
     /// offset as appropriate.
     Value *getSafeStackPointerLocation(IRBuilder<> &IRB) const override;
 
-    SDValue BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain, SDValue StackSlot,
-                      SelectionDAG &DAG) const;
+    std::pair<SDValue, SDValue> BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
+                                          SDValue StackSlot,
+                                          SelectionDAG &DAG) const;
 
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 
     /// Customize the preferred legalization strategy for certain types.
     LegalizeTypeAction getPreferredVectorAction(MVT VT) const override;
+
+    bool softPromoteHalfType() const override { return true; }
 
     MVT getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC,
                                       EVT VT) const override;
@@ -1315,7 +1332,9 @@ namespace llvm {
 
     unsigned getAddressSpace(void) const;
 
-    SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool isSigned) const;
+    SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool isSigned,
+                            SDValue &Chain) const;
+    SDValue LRINT_LLRINTHelper(SDNode *N, SelectionDAG &DAG) const;
 
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVSELECT(SDValue Op, SelectionDAG &DAG) const;
@@ -1339,7 +1358,9 @@ namespace llvm {
     SDValue LowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerLRINT_LLRINT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSTRICT_FSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
@@ -1358,8 +1379,7 @@ namespace llvm {
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGC_TRANSITION_START(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGC_TRANSITION_END(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerGC_TRANSITION(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerFaddFsub(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
@@ -1444,9 +1464,6 @@ namespace llvm {
     MachineBasicBlock *EmitLoweredCatchRet(MachineInstr &MI,
                                            MachineBasicBlock *BB) const;
 
-    MachineBasicBlock *EmitLoweredCatchPad(MachineInstr &MI,
-                                           MachineBasicBlock *BB) const;
-
     MachineBasicBlock *EmitLoweredSegAlloca(MachineInstr &MI,
                                             MachineBasicBlock *BB) const;
 
@@ -1477,20 +1494,15 @@ namespace llvm {
     MachineBasicBlock *EmitSjLjDispatchBlock(MachineInstr &MI,
                                              MachineBasicBlock *MBB) const;
 
-    /// Emit nodes that will be selected as "cmp Op0,Op1", or something
-    /// equivalent, for use with the given x86 condition code.
-    SDValue EmitCmp(SDValue Op0, SDValue Op1, unsigned X86CC, const SDLoc &dl,
-                    SelectionDAG &DAG) const;
-
     /// Convert a comparison if required by the subtarget.
     SDValue ConvertCmpIfNecessary(SDValue Cmp, SelectionDAG &DAG) const;
 
     /// Emit flags for the given setcc condition and operands. Also returns the
     /// corresponding X86 condition code constant in X86CC.
-    SDValue emitFlagsForSetcc(SDValue Op0, SDValue Op1,
-                              ISD::CondCode CC, const SDLoc &dl,
-                              SelectionDAG &DAG,
-                              SDValue &X86CC) const;
+    SDValue emitFlagsForSetcc(SDValue Op0, SDValue Op1, ISD::CondCode CC,
+                              const SDLoc &dl, SelectionDAG &DAG,
+                              SDValue &X86CC, SDValue &Chain,
+                              bool IsSignaling) const;
 
     /// Check if replacement of SQRT with RSQRT should be disabled.
     bool isFsqrtCheap(SDValue Operand, SelectionDAG &DAG) const override;
@@ -1663,6 +1675,21 @@ namespace llvm {
       int Pos = (i % NumEltsInLane) / 2 + LaneStart;
       Pos += (Unary ? 0 : NumElts * (i % 2));
       Pos += (Lo ? 0 : NumEltsInLane / 2);
+      Mask.push_back(Pos);
+    }
+  }
+
+  /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation
+  /// imposed by AVX and specific to the unary pattern. Example:
+  /// v8iX Lo --> <0, 0, 1, 1, 2, 2, 3, 3>
+  /// v8iX Hi --> <4, 4, 5, 5, 6, 6, 7, 7>
+  template <typename T = int>
+  void createSplat2ShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo) {
+    assert(Mask.empty() && "Expected an empty shuffle mask vector");
+    int NumElts = VT.getVectorNumElements();
+    for (int i = 0; i < NumElts; ++i) {
+      int Pos = i / 2;
+      Pos += (Lo ? 0 : NumElts / 2);
       Mask.push_back(Pos);
     }
   }

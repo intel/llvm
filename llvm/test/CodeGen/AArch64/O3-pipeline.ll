@@ -10,8 +10,8 @@
 ; CHECK-NEXT: Assumption Cache Tracker
 ; CHECK-NEXT: Type-Based Alias Analysis
 ; CHECK-NEXT: Scoped NoAlias Alias Analysis
-; CHECK-NEXT: Create Garbage Collector Module Metadata
 ; CHECK-NEXT: Profile summary info
+; CHECK-NEXT: Create Garbage Collector Module Metadata
 ; CHECK-NEXT: Machine Branch Probability Analysis
 ; CHECK-NEXT:   ModulePass Manager
 ; CHECK-NEXT:     Pre-ISel Intrinsic Lowering
@@ -35,6 +35,9 @@
 ; CHECK-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:       Merge contiguous icmps into a memcmp
+; CHECK-NEXT:       Natural Loop Information
+; CHECK-NEXT:       Lazy Branch Probability Analysis
+; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       Expand memcmp() to load/stores
 ; CHECK-NEXT:       Lower Garbage Collection Instructions
 ; CHECK-NEXT:       Shadow Stack GC Lowering
@@ -66,7 +69,8 @@
 ; CHECK-NEXT:       Dominator Tree Construction
 ; CHECK-NEXT:       Exception handling preparation
 ; CHECK-NEXT:     AArch64 Promote Constant
-; CHECK-NEXT:       Unnamed pass: implement Pass::getPassName()
+; CHECK-NEXT:       FunctionPass Manager
+; CHECK-NEXT:         Dominator Tree Construction
 ; CHECK-NEXT:     FunctionPass Manager
 ; CHECK-NEXT:       Merge internal globals
 ; CHECK-NEXT:       Safe Stack instrumentation pass
@@ -77,10 +81,13 @@
 ; CHECK-NEXT:       Function Alias Analysis Results
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       Branch Probability Analysis
+; CHECK-NEXT:       Lazy Branch Probability Analysis
+; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       AArch64 Instruction Selection
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       AArch64 Local Dynamic TLS Access Clean-up
 ; CHECK-NEXT:       Finalize ISel and expand pseudo-instructions
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Early Tail Duplication
 ; CHECK-NEXT:       Optimize machine instruction PHIs
 ; CHECK-NEXT:       Slot index numbering
@@ -92,6 +99,7 @@
 ; CHECK-NEXT:       Machine Natural Loop Construction
 ; CHECK-NEXT:       Machine Trace Metrics
 ; CHECK-NEXT:       AArch64 Conditional Compares
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine InstCombiner
 ; CHECK-NEXT:       AArch64 Conditional Branch Tuning
 ; CHECK-NEXT:       Machine Trace Metrics
@@ -148,6 +156,7 @@
 ; CHECK-NEXT:       Shrink Wrapping analysis
 ; CHECK-NEXT:       Prologue/Epilogue Insertion & Frame Finalization
 ; CHECK-NEXT:       Control Flow Optimizer
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Tail Duplication
 ; CHECK-NEXT:       Machine Copy Propagation Pass
 ; CHECK-NEXT:       Post-RA pseudo instruction expansion pass
@@ -162,16 +171,16 @@
 ; CHECK-NEXT:       Machine Block Frequency Analysis
 ; CHECK-NEXT:       MachinePostDominator Tree Construction
 ; CHECK-NEXT:       Branch Probability Basic Block Placement
+; CHECK-NEXT:       Insert fentry calls
+; CHECK-NEXT:       Insert XRay ops
+; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:       AArch64 load / store optimization pass
-; CHECK-NEXT:       Branch relaxation pass
 ; CHECK-NEXT:       AArch64 Branch Targets
+; CHECK-NEXT:       Branch relaxation pass
 ; CHECK-NEXT:       AArch64 Compress Jump Tables
 ; CHECK-NEXT:       Contiguously Lay Out Funclets
 ; CHECK-NEXT:       StackMap Liveness Analysis
 ; CHECK-NEXT:       Live DEBUG_VALUE analysis
-; CHECK-NEXT:       Insert fentry calls
-; CHECK-NEXT:       Insert XRay ops
-; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:     Machine Outliner
 ; CHECK-NEXT:     FunctionPass Manager
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis

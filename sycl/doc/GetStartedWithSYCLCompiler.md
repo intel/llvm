@@ -87,13 +87,18 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
 -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
 -DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%SYCL_HOME%\llvm\sycl" ^
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%SYCL_HOME%\llvm\llvm-spirv" ^
--DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_FLAGS="/GS" ^
--DCMAKE_CXX_FLAGS="/GS" -DCMAKE_EXE_LINKER_FLAGS="/NXCompat /DynamicBase" ^
--DCMAKE_SHARED_LINKER_FLAGS="/NXCompat /DynamicBase" ^
+-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
 "%SYCL_HOME%\llvm\llvm"
 
 ninja sycl-toolchain
 ```
+
+To use ahead-of-time compilation for the Intel&reg; processors, additionally build opencl-aot target:
+  
+1. add ```opencl-aot``` to ```-DLLVM_EXTERNAL_PROJECTS``` and ```-DLLVM_ENABLE_PROJECTS``` variables above
+2. add ```opencl-aot``` to ```make``` (for Linux) or ```ninja``` (for Windows) commands above
+
+For more, see [opencl-aot documentation](../../opencl-aot/README.md).
 
 TODO: add instructions how to deploy built SYCL toolchain.
 
@@ -135,22 +140,58 @@ asset/archive should be downloaded from
 [SYCL Compiler and Runtime updates](../ReleaseNotes.md) and installed using
 the following procedure.
 
+Intel `CPU` runtime for OpenCL depends on Threading Building Blocks library
+which should be downloaded from [Threading Building Blocks (TBB)
+ GitHub repository](https://github.com/intel/tbb) and installed following
+procedure below.
+
+Intel `CPU` runtime for OpenCL devices can be switched into Intel FPGA
+Emulation device for OpenCL. The following parameter should be set in `cl.cfg`
+file (available in directory containing CPU runtime for OpenCL) to switch
+OpenCL device mode:
+```
+CL_CONFIG_DEVICES = fpga-emu
+```
+
 **Linux**
 
 1) Extract the archive. For example, for the archive
-`oclcpu_rt_<new_version>.tar.gz` you would run the following commands
+`oclcpu_rt_<cpu_version>.tar.gz` you would run the following commands
 ```bash
-mkdir -p /opt/intel/oclcpuexp
-cd /opt/intel/oclcpuexp
-tar -zxvf oclcpu_rt_<new_version>.tar.gz
+mkdir -p /opt/intel/oclcpuexp_<cpu_version>
+cd /opt/intel/oclcpuexp_<cpu_version>
+tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
 ```
 2) Create ICD file pointing to the new runtime
 ```bash
-echo /opt/intel/oclcpuexp/x64/libintelocl.so > /etc/OpenCL/vendors/intel_expcpu.icd
+echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
+  /etc/OpenCL/vendors/intel_expcpu.icd
 ```
-3) Configure library paths
+
+3) Extract TBB libraries. For example, for the archive tbb-<tbb_version>-lin.tgz
+
 ```bash
-echo /opt/intel/oclcpuexp/x64 > /etc/ld.so.conf.d/libintelopenclexp.conf
+mkdir -p /opt/intel/tbb_<tbb_version>
+cd /opt/intel/tbb_<tbb_version>
+tar -zxvf tbb*lin.tgz
+```
+
+4) Copy files from or create symbolic links to TBB libraries in OpenCL RT folder:
+```bash
+ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+  /opt/intel/oclcpuexp/x64/libtbb.so
+ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+  /opt/intel/oclcpuexp/x64/libtbbmalloc.so
+ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
+  /opt/intel/oclcpuexp/x64/libtbb.so.2
+ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+  /opt/intel/oclcpuexp/x64/libtbbmalloc.so.2
+```
+
+5) Configure library paths
+```bash
+echo /opt/intel/oclcpuexp_<cpu_version>/x64 > 
+  /etc/ld.so.conf.d/libintelopenclexp.conf
 ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
 ```
 **Windows (64-bit)**
@@ -158,7 +199,8 @@ ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
 installing `CPU` runtime as `GPU` runtime installer may re-write some important
 files or settings and make existing `CPU` runtime not working properly.
 
-2) Extract the archive to some folder. For example, to `c:\oclcpu_rt_<new_version>`.
+2) Extract the archive to some folder. For example, to `c:\oclcpu_rt_<cpu_version>`
+and `c:\tbb_<tbb_version>`.
 
 3) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
 type `Command Prompt`, click the Right mouse button on it, then click
@@ -166,8 +208,11 @@ type `Command Prompt`, click the Right mouse button on it, then click
 
 4) In the opened windows run `install.bat` provided with the extracted files
 to install runtime to the system and setup environment variables. So, if the
-extracted files are in `c:\oclcpu_rt_<new_version>\` folder, then type the
-command: `c:\oclcpu_rt_<new_version>\install.bat`
+extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
+command:
+```bash
+c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+```
 
 ## Test SYCL toolchain
 
@@ -210,6 +255,22 @@ cmake -DIntel_SYCL_ROOT=$SYCL_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```bat
 cmake -DIntel_SYCL_ROOT=%SYCL_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
+
+### Build Doxygen documentation
+
+Building Doxygen documentation is similar to building the product itself. First,
+the following tools need to be installed:
+- doxygen
+- graphviz
+
+Then you'll need to add the following options to your CMake configuration
+command:
+```
+-DLLVM_ENABLE_DOXYGEN=ON
+```
+
+After CMake cache is generated, build the documentation with `doxygen-sycl`
+target. It will be put to `/path/to/build/tools/sycl/doc/html` directory.
 
 ## Run simple SYCL application
 

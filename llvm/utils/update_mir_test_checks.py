@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Updates FileCheck checks in MIR tests.
 
@@ -94,22 +94,6 @@ def find_triple_in_ir(lines, verbose=False):
         if m:
             return m.group(1)
     return None
-
-
-def find_run_lines(test, lines, verbose=False):
-    raw_lines = [m.group(1)
-                 for m in [common.RUN_LINE_RE.match(l) for l in lines] if m]
-    run_lines = [raw_lines[0]] if len(raw_lines) > 0 else []
-    for l in raw_lines[1:]:
-        if run_lines[-1].endswith("\\"):
-            run_lines[-1] = run_lines[-1].rstrip("\\") + " " + l
-        else:
-            run_lines.append(l)
-    if verbose:
-        log('Found {} RUN lines:'.format(len(run_lines)))
-        for l in run_lines:
-            log('  RUN: {}'.format(l))
-    return run_lines
 
 
 def build_run_list(test, run_lines, verbose=False):
@@ -296,7 +280,6 @@ def should_add_line_to_output(input_line, prefix_set):
 
 
 def update_test_file(args, test):
-    log('Scanning for RUN lines in test file: {}'.format(test), args.verbose)
     with open(test) as fd:
         input_lines = [l.rstrip() for l in fd]
 
@@ -313,7 +296,7 @@ def update_test_file(args, test):
         return
 
     triple_in_ir = find_triple_in_ir(input_lines, args.verbose)
-    run_lines = find_run_lines(test, input_lines, args.verbose)
+    run_lines = common.find_run_lines(test, input_lines)
     run_list, common_prefixes = build_run_list(test, run_lines, args.verbose)
 
     simple_functions = find_functions_with_one_bb(input_lines, args.verbose)
@@ -430,17 +413,13 @@ def update_test_file(args, test):
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Show verbose output')
     parser.add_argument('--llc-binary', dest='llc', default='llc', type=LLC,
                         help='The "llc" binary to generate the test case with')
     parser.add_argument('--remove-common-prefixes', action='store_true',
                         help='Remove existing check lines whose prefixes are '
                              'shared between multiple commands')
-    parser.add_argument('-u', '--update-only', action='store_true',
-                        help='Only update test if it was already autogened')
     parser.add_argument('tests', nargs='+')
-    args = parser.parse_args()
+    args = common.parse_commandline_args(parser)
 
     test_paths = [test for pattern in args.tests for test in glob.glob(pattern)]
     for test in test_paths:

@@ -18,8 +18,10 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LegacyPassNameParser.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/LinkAllIR.h"
 #include "llvm/LinkAllPasses.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -108,7 +110,7 @@ public:
   void add(Pass *P) override {
     const void *ID = P->getPassID();
     const PassInfo *PI = PassRegistry::getPassRegistry()->getPassInfo(ID);
-    D.addPass(PI->getPassArgument());
+    D.addPass(std::string(PI->getPassArgument()));
   }
 };
 }
@@ -133,11 +135,9 @@ static void AddOptimizationPasses(legacy::FunctionPassManager &FPM,
   Builder.populateModulePassManager(FPM);
 }
 
-#ifdef LINK_POLLY_INTO_TOOLS
-namespace polly {
-void initializePollyPasses(llvm::PassRegistry &Registry);
-}
-#endif
+#define HANDLE_EXTENSION(Ext)                                                  \
+  llvm::PassPluginLibraryInfo get##Ext##PluginInfo();
+#include "llvm/Support/Extension.def"
 
 int main(int argc, char **argv) {
 #ifndef DEBUG_BUGPOINT
@@ -157,10 +157,6 @@ int main(int argc, char **argv) {
   initializeAggressiveInstCombine(Registry);
   initializeInstrumentation(Registry);
   initializeTarget(Registry);
-
-#ifdef LINK_POLLY_INTO_TOOLS
-  polly::initializePollyPasses(Registry);
-#endif
 
   if (std::getenv("bar") == (char*) -1) {
     InitializeAllTargets();
@@ -225,13 +221,20 @@ int main(int argc, char **argv) {
     AddOptimizationPasses(PM, 2, 2);
 
   for (const PassInfo *PI : PassList)
-    D.addPass(PI->getPassArgument());
+    D.addPass(std::string(PI->getPassArgument()));
 
 // Bugpoint has the ability of generating a plethora of core files, so to
 // avoid filling up the disk, we prevent it
 #ifndef DEBUG_BUGPOINT
   sys::Process::PreventCoreFiles();
 #endif
+
+// Needed to pull in symbols from statically linked extensions, including static
+// registration. It is unused otherwise because bugpoint has no support for
+// NewPM.
+#define HANDLE_EXTENSION(Ext)                                                  \
+  (void)get##Ext##PluginInfo();
+#include "llvm/Support/Extension.def"
 
   if (Error E = D.run()) {
     errs() << toString(std::move(E));

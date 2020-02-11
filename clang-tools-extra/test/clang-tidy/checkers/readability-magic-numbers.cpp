@@ -2,6 +2,7 @@
 // RUN: -config='{CheckOptions: \
 // RUN:  [{key: readability-magic-numbers.IgnoredIntegerValues, value: "0;1;2;10;100;"}, \
 // RUN:   {key: readability-magic-numbers.IgnoredFloatingPointValues, value: "3.14;2.71828;9.81;10000.0;101.0;0x1.2p3"}, \
+// RUN:   {key: readability-magic-numbers.IgnoreBitFieldsWidths, value: 0}, \
 // RUN:   {key: readability-magic-numbers.IgnorePowersOf2IntegerValues, value: 1}]}' \
 // RUN: --
 
@@ -58,7 +59,7 @@ private:
   const int anotherConstant;
 };
 
-int ValueArray[] = {3, 5};
+int ValueArray[] = {3, 5, 0, 0, 0};
 // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: 3 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
 // CHECK-MESSAGES: :[[@LINE-2]]:24: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
 
@@ -78,6 +79,23 @@ int getAnswer() {
   return -3; // FILENOTFOUND
   // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: 3 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
 }
+
+struct HardwareGateway {
+   unsigned int Some: 5;
+   // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   unsigned int Bits: 7;
+   // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   unsigned int: 6;
+   // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   unsigned int Flag: 1; // no warning since this is suppressed by IgnoredIntegerValues rule
+   unsigned int: 0;      // no warning since this is suppressed by IgnoredIntegerValues rule
+   unsigned int Rest: 13;
+   // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: 13 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   //
+   unsigned int Another[3];
+   // CHECK-MESSAGES: :[[@LINE-1]]:25: warning: 3 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+};
+
 
 /*
  * Clean code
@@ -165,7 +183,7 @@ struct Rectangle {
 
 const geometry::Rectangle<double> mandelbrotCanvas{geometry::Point<double>{-2.5, -1}, geometry::Dimension<double>{3.5, 2}};
 
-// Simulate the macro magic in Google Test internal headers
+// Simulate the macro magic in Google Test internal headers.
 class AssertionHelper {
 public:
   AssertionHelper(const char *Message, int LineNumber) : Message(Message), LineNumber(LineNumber) {}
@@ -183,7 +201,7 @@ void FunctionWithCompilerDefinedSymbol(void) {
   ASSERTION_HELPER("here and now");
 }
 
-// prove that integer literals introduced by the compiler are accepted silently
+// Prove that integer literals introduced by the compiler are accepted silently.
 extern int ConsumeString(const char *Input);
 
 const char *SomeStrings[] = {"alpha", "beta", "gamma"};
@@ -197,3 +215,14 @@ int TestCheckerOverreach() {
 
   return Total;
 }
+
+// Prove that using enumerations values don't produce warnings.
+enum class Letter : unsigned {
+    A, B, C, D, E, F, G, H, I, J
+};
+
+template<Letter x> struct holder  { Letter letter = x;  };
+template<Letter x> struct wrapper { using h_type = holder<x>;  };
+
+template struct wrapper<Letter::A>;
+template struct wrapper<Letter::J>;

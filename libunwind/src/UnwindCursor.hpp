@@ -929,7 +929,7 @@ private:
     return DwarfInstructions<A, R>::stepWithDwarf(_addressSpace,
                                               (pint_t)this->getReg(UNW_REG_IP),
                                               (pint_t)_info.unwind_info,
-                                              _registers);
+                                              _registers, _isSignalFrame);
   }
 #endif
 
@@ -993,6 +993,12 @@ private:
 
 #if defined(_LIBUNWIND_TARGET_SPARC)
   int stepWithCompactEncoding(Registers_sparc &) { return UNW_EINVAL; }
+#endif
+
+#if defined (_LIBUNWIND_TARGET_RISCV)
+  int stepWithCompactEncoding(Registers_riscv &) {
+    return UNW_EINVAL;
+  }
 #endif
 
   bool compactSaysUseDwarf(uint32_t *offset=NULL) const {
@@ -1061,6 +1067,12 @@ private:
   bool compactSaysUseDwarf(Registers_sparc &, uint32_t *) const { return true; }
 #endif
 
+#if defined (_LIBUNWIND_TARGET_RISCV)
+  bool compactSaysUseDwarf(Registers_riscv &, uint32_t *) const {
+    return true;
+  }
+#endif
+
 #endif // defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND)
 
 #if defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
@@ -1125,6 +1137,12 @@ private:
 
 #if defined(_LIBUNWIND_TARGET_SPARC)
   compact_unwind_encoding_t dwarfEncoding(Registers_sparc &) const { return 0; }
+#endif
+
+#if defined (_LIBUNWIND_TARGET_RISCV)
+  compact_unwind_encoding_t dwarfEncoding(Registers_riscv &) const {
+    return 0;
+  }
 #endif
 
 #endif // defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
@@ -1335,7 +1353,8 @@ bool UnwindCursor<A, R>::getInfoFromEHABISection(
 
   // If the high bit is set, the exception handling table entry is inline inside
   // the index table entry on the second word (aka |indexDataAddr|). Otherwise,
-  // the table points at an offset in the exception handling table (section 5 EHABI).
+  // the table points at an offset in the exception handling table (section 5
+  // EHABI).
   pint_t exceptionTableAddr;
   uint32_t exceptionTableData;
   bool isSingleWordEHT;
@@ -1434,7 +1453,7 @@ bool UnwindCursor<A, R>::getInfoFromEHABISection(
   _info.unwind_info = exceptionTableAddr;
   _info.lsda = lsda;
   // flags is pr_cache.additional. See EHABI #7.2 for definition of bit 0.
-  _info.flags = isSingleWordEHT ? 1 : 0 | scope32 ? 0x2 : 0;  // Use enum?
+  _info.flags = (isSingleWordEHT ? 1 : 0) | (scope32 ? 0x2 : 0);  // Use enum?
 
   return true;
 }

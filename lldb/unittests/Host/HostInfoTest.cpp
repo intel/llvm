@@ -1,4 +1,4 @@
-//===-- HostInfoTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- HostInfoTest.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/HostInfo.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/lldb-defines.h"
@@ -17,15 +18,7 @@ using namespace llvm;
 
 namespace {
 class HostInfoTest : public ::testing::Test {
-public:
-  void SetUp() override {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-  }
-  void TearDown() override {
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
 };
 } // namespace
 

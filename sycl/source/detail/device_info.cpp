@@ -19,25 +19,25 @@
   (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #endif
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
 // Specialization for parent device
 template <>
-device get_device_info<device, info::device::parent_device>::_(
-  RT::PiDevice dev) {
+device get_device_info<device, info::device::parent_device>::get(
+    RT::PiDevice dev, const plugin &Plugin) {
 
   typename sycl_to_pi<device>::type result;
-  PI_CALL(RT::piDeviceGetInfo(
-    dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
-    sizeof(result), &result, NULL));
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
+      sizeof(result), &result, nullptr);
   if (result == nullptr)
     throw invalid_object_error(
         "No parent for device because it is not a subdevice");
 
   return createSyclObjFromImpl<device>(
-    std::make_shared<device_impl_pi>(result));
+      std::make_shared<device_impl>(result, Plugin));
 }
 
 vector_class<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
@@ -495,6 +495,32 @@ bool get_device_info_host<
     info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.");
+}
+
+template <>
+bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
+  return false;
+}
+
+template <> bool get_device_info_host<info::device::usm_device_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_host_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_shared_allocations>() {
+  return true;
+}
+
+template <>
+bool get_device_info_host<info::device::usm_restricted_shared_allocations>() {
+  return true;
+}
+
+template <> bool get_device_info_host<info::device::usm_system_allocator>() {
+  return true;
 }
 
 } // namespace detail

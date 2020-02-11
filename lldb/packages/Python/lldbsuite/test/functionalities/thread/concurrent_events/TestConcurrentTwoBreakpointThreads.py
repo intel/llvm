@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import unittest2
 
@@ -15,7 +14,6 @@ class ConcurrentTwoBreakpointThreads(ConcurrentEventsBase):
     @skipIfFreeBSD  # timing out on buildbot
     # Atomic sequences are not supported yet for MIPS in LLDB.
     @skipIf(triple='^mips')
-    @expectedFailureNetBSD
     def test(self):
         """Test two threads that trigger a breakpoint. """
         self.build(dictionary=self.getBuildFlags())

@@ -138,7 +138,7 @@ static Value *convertStrToNumber(CallInst *CI, StringRef &Str, int64_t Base) {
   return ConstantInt::get(CI->getType(), Result);
 }
 
-static bool isLocallyOpenedFile(Value *File, CallInst *CI, IRBuilder<> &B,
+static bool isLocallyOpenedFile(Value *File, CallInst *CI,
                                 const TargetLibraryInfo *TLI) {
   CallInst *FOpen = dyn_cast<CallInst>(File);
   if (!FOpen)
@@ -177,8 +177,7 @@ static bool canTransformToMemCmp(CallInst *CI, Value *Str, uint64_t Len,
   if (!isOnlyUsedInComparisonWithZero(CI))
     return false;
 
-  if (!isDereferenceableAndAlignedPointer(Str, Align::None(), APInt(64, Len),
-                                          DL))
+  if (!isDereferenceableAndAlignedPointer(Str, Align(1), APInt(64, Len), DL))
     return false;
 
   if (CI->getFunction()->hasFnAttribute(Attribute::SanitizeMemory))
@@ -288,8 +287,9 @@ Value *LibCallSimplifier::emitStrLenMemCpy(Value *Src, Value *Dst, uint64_t Len,
 
   // We have enough information to now generate the memcpy call to do the
   // concatenation for us.  Make a memcpy to copy the nul byte with align = 1.
-  B.CreateMemCpy(CpyDst, 1, Src, 1,
-                 ConstantInt::get(DL.getIntPtrType(Src->getContext()), Len + 1));
+  B.CreateMemCpy(
+      CpyDst, Align(1), Src, Align(1),
+      ConstantInt::get(DL.getIntPtrType(Src->getContext()), Len + 1));
   return Dst;
 }
 
@@ -364,8 +364,8 @@ Value *LibCallSimplifier::optimizeStrChr(CallInst *CI, IRBuilder<> &B) {
   StringRef Str;
   if (!getConstantStringInfo(SrcStr, Str)) {
     if (CharC->isZero()) // strchr(p, 0) -> p + strlen(p)
-      return B.CreateGEP(B.getInt8Ty(), SrcStr, emitStrLen(SrcStr, B, DL, TLI),
-                         "strchr");
+      if (Value *StrLen = emitStrLen(SrcStr, B, DL, TLI))
+        return B.CreateGEP(B.getInt8Ty(), SrcStr, StrLen, "strchr");
     return nullptr;
   }
 
@@ -561,7 +561,7 @@ Value *LibCallSimplifier::optimizeStrCpy(CallInst *CI, IRBuilder<> &B) {
   // We have enough information to now generate the memcpy call to do the
   // copy for us.  Make a memcpy to copy the nul byte with align = 1.
   CallInst *NewCI =
-      B.CreateMemCpy(Dst, 1, Src, 1,
+      B.CreateMemCpy(Dst, Align(1), Src, Align(1),
                      ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len));
   NewCI->setAttributes(CI->getAttributes());
   return Dst;
@@ -589,7 +589,7 @@ Value *LibCallSimplifier::optimizeStpCpy(CallInst *CI, IRBuilder<> &B) {
 
   // We have enough information to now generate the memcpy call to do the
   // copy for us.  Make a memcpy to copy the nul byte with align = 1.
-  CallInst *NewCI = B.CreateMemCpy(Dst, 1, Src, 1, LenV);
+  CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1), LenV);
   NewCI->setAttributes(CI->getAttributes());
   return DstEnd;
 }
@@ -624,7 +624,7 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilder<> &B) {
 
   if (SrcLen == 0) {
     // strncpy(x, "", y) -> memset(align 1 x, '\0', y)
-    CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, 1);
+    CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, Align(1));
     AttrBuilder ArgAttrs(CI->getAttributes().getParamAttributes(0));
     NewCI->setAttributes(NewCI->getAttributes().addParamAttributes(
         CI->getContext(), 0, ArgAttrs));
@@ -637,7 +637,8 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilder<> &B) {
 
   Type *PT = Callee->getFunctionType()->getParamType(0);
   // strncpy(x, s, c) -> memcpy(align 1 x, align 1 s, c) [s and c are constant]
-  CallInst *NewCI = B.CreateMemCpy(Dst, 1, Src, 1, ConstantInt::get(DL.getIntPtrType(PT), Len));
+  CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
+                                   ConstantInt::get(DL.getIntPtrType(PT), Len));
   NewCI->setAttributes(CI->getAttributes());
   return Dst;
 }
@@ -1113,17 +1114,57 @@ Value *LibCallSimplifier::optimizeMemCpy(CallInst *CI, IRBuilder<> &B) {
     return nullptr;
 
   // memcpy(x, y, n) -> llvm.memcpy(align 1 x, align 1 y, n)
-  CallInst *NewCI =
-      B.CreateMemCpy(CI->getArgOperand(0), 1, CI->getArgOperand(1), 1, Size);
+  CallInst *NewCI = B.CreateMemCpy(CI->getArgOperand(0), Align(1),
+                                   CI->getArgOperand(1), Align(1), Size);
   NewCI->setAttributes(CI->getAttributes());
   return CI->getArgOperand(0);
+}
+
+Value *LibCallSimplifier::optimizeMemCCpy(CallInst *CI, IRBuilder<> &B) {
+  Value *Dst = CI->getArgOperand(0);
+  Value *Src = CI->getArgOperand(1);
+  ConstantInt *StopChar = dyn_cast<ConstantInt>(CI->getArgOperand(2));
+  ConstantInt *N = dyn_cast<ConstantInt>(CI->getArgOperand(3));
+  StringRef SrcStr;
+  if (CI->use_empty() && Dst == Src)
+    return Dst;
+  // memccpy(d, s, c, 0) -> nullptr
+  if (N) {
+    if (N->isNullValue())
+      return Constant::getNullValue(CI->getType());
+    if (!getConstantStringInfo(Src, SrcStr, /*Offset=*/0,
+                               /*TrimAtNul=*/false) ||
+        !StopChar)
+      return nullptr;
+  } else {
+    return nullptr;
+  }
+
+  // Wrap arg 'c' of type int to char
+  size_t Pos = SrcStr.find(StopChar->getSExtValue() & 0xFF);
+  if (Pos == StringRef::npos) {
+    if (N->getZExtValue() <= SrcStr.size()) {
+      B.CreateMemCpy(Dst, Align(1), Src, Align(1), CI->getArgOperand(3));
+      return Constant::getNullValue(CI->getType());
+    }
+    return nullptr;
+  }
+
+  Value *NewN =
+      ConstantInt::get(N->getType(), std::min(uint64_t(Pos + 1), N->getZExtValue()));
+  // memccpy -> llvm.memcpy
+  B.CreateMemCpy(Dst, Align(1), Src, Align(1), NewN);
+  return Pos + 1 <= N->getZExtValue()
+             ? B.CreateInBoundsGEP(B.getInt8Ty(), Dst, NewN)
+             : Constant::getNullValue(CI->getType());
 }
 
 Value *LibCallSimplifier::optimizeMemPCpy(CallInst *CI, IRBuilder<> &B) {
   Value *Dst = CI->getArgOperand(0);
   Value *N = CI->getArgOperand(2);
   // mempcpy(x, y, n) -> llvm.memcpy(align 1 x, align 1 y, n), x + n
-  CallInst *NewCI = B.CreateMemCpy(Dst, 1, CI->getArgOperand(1), 1, N);
+  CallInst *NewCI =
+      B.CreateMemCpy(Dst, Align(1), CI->getArgOperand(1), Align(1), N);
   NewCI->setAttributes(CI->getAttributes());
   return B.CreateInBoundsGEP(B.getInt8Ty(), Dst, N);
 }
@@ -1135,8 +1176,8 @@ Value *LibCallSimplifier::optimizeMemMove(CallInst *CI, IRBuilder<> &B) {
     return nullptr;
 
   // memmove(x, y, n) -> llvm.memmove(align 1 x, align 1 y, n)
-  CallInst *NewCI =
-      B.CreateMemMove(CI->getArgOperand(0), 1, CI->getArgOperand(1), 1, Size);
+  CallInst *NewCI = B.CreateMemMove(CI->getArgOperand(0), Align(1),
+                                    CI->getArgOperand(1), Align(1), Size);
   NewCI->setAttributes(CI->getAttributes());
   return CI->getArgOperand(0);
 }
@@ -1196,7 +1237,7 @@ Value *LibCallSimplifier::optimizeMemSet(CallInst *CI, IRBuilder<> &B) {
 
   // memset(p, v, n) -> llvm.memset(align 1 p, v, n)
   Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
-  CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val, Size, 1);
+  CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val, Size, Align(1));
   NewCI->setAttributes(CI->getAttributes());
   return CI->getArgOperand(0);
 }
@@ -1599,6 +1640,11 @@ Value *LibCallSimplifier::replacePowWithSqrt(CallInst *Pow, IRBuilder<> &B) {
       (!ExpoF->isExactlyValue(0.5) && !ExpoF->isExactlyValue(-0.5)))
     return nullptr;
 
+  // Converting pow(X, -0.5) to 1/sqrt(X) may introduce an extra rounding step,
+  // so that requires fast-math-flags (afn or reassoc).
+  if (ExpoF->isNegative() && (!Pow->hasApproxFunc() && !Pow->hasAllowReassoc()))
+    return nullptr;
+
   Sqrt = getSqrtCall(Base, Attrs, Pow->doesNotAccessMemory(), Mod, B, TLI);
   if (!Sqrt)
     return nullptr;
@@ -1696,7 +1742,7 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilder<> &B) {
     // TODO: This whole transformation should be backend specific (e.g. some
     //       backends might prefer libcalls or the limit for the exponent might
     //       be different) and it should also consider optimizing for size.
-    APFloat LimF(ExpoF->getSemantics(), 33.0),
+    APFloat LimF(ExpoF->getSemantics(), 33),
             ExpoA(abs(*ExpoF));
     if (ExpoA.compare(LimF) == APFloat::cmpLessThan) {
       // This transformation applies to integer or integer+0.5 exponents only.
@@ -2426,9 +2472,10 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI, IRBuilder<> &B) {
       return nullptr; // we found a format specifier, bail out.
 
     // sprintf(str, fmt) -> llvm.memcpy(align 1 str, align 1 fmt, strlen(fmt)+1)
-    B.CreateMemCpy(CI->getArgOperand(0), 1, CI->getArgOperand(1), 1,
-                   ConstantInt::get(DL.getIntPtrType(CI->getContext()),
-                                    FormatStr.size() + 1)); // Copy the null byte.
+    B.CreateMemCpy(
+        CI->getArgOperand(0), Align(1), CI->getArgOperand(1), Align(1),
+        ConstantInt::get(DL.getIntPtrType(CI->getContext()),
+                         FormatStr.size() + 1)); // Copy the null byte.
     return ConstantInt::get(CI->getType(), FormatStr.size());
   }
 
@@ -2463,7 +2510,8 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI, IRBuilder<> &B) {
       return nullptr;
     Value *IncLen =
         B.CreateAdd(Len, ConstantInt::get(Len->getType(), 1), "leninc");
-    B.CreateMemCpy(CI->getArgOperand(0), 1, CI->getArgOperand(2), 1, IncLen);
+    B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(2),
+                   Align(1), IncLen);
 
     // The sprintf result is the unincremented number of bytes in the string.
     return B.CreateIntCast(Len, CI->getType(), false);
@@ -2534,7 +2582,7 @@ Value *LibCallSimplifier::optimizeSnPrintFString(CallInst *CI, IRBuilder<> &B) {
     // snprintf(dst, size, fmt) -> llvm.memcpy(align 1 dst, align 1 fmt,
     // strlen(fmt)+1)
     B.CreateMemCpy(
-        CI->getArgOperand(0), 1, CI->getArgOperand(2), 1,
+        CI->getArgOperand(0), Align(1), CI->getArgOperand(2), Align(1),
         ConstantInt::get(DL.getIntPtrType(CI->getContext()),
                          FormatStr.size() + 1)); // Copy the null byte.
     return ConstantInt::get(CI->getType(), FormatStr.size());
@@ -2575,8 +2623,8 @@ Value *LibCallSimplifier::optimizeSnPrintFString(CallInst *CI, IRBuilder<> &B) {
       else if (N < Str.size() + 1)
         return nullptr;
 
-      B.CreateMemCpy(CI->getArgOperand(0), 1, CI->getArgOperand(3), 1,
-                     ConstantInt::get(CI->getType(), Str.size() + 1));
+      B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(3),
+                     Align(1), ConstantInt::get(CI->getType(), Str.size() + 1));
 
       // The snprintf result is the unincremented number of bytes in the string.
       return ConstantInt::get(CI->getType(), Str.size());
@@ -2702,7 +2750,7 @@ Value *LibCallSimplifier::optimizeFWrite(CallInst *CI, IRBuilder<> &B) {
     }
   }
 
-  if (isLocallyOpenedFile(CI->getArgOperand(3), CI, B, TLI))
+  if (isLocallyOpenedFile(CI->getArgOperand(3), CI, TLI))
     return emitFWriteUnlocked(CI->getArgOperand(0), CI->getArgOperand(1),
                               CI->getArgOperand(2), CI->getArgOperand(3), B, DL,
                               TLI);
@@ -2716,13 +2764,14 @@ Value *LibCallSimplifier::optimizeFPuts(CallInst *CI, IRBuilder<> &B) {
   // Don't rewrite fputs to fwrite when optimising for size because fwrite
   // requires more arguments and thus extra MOVs are required.
   bool OptForSize = CI->getFunction()->hasOptSize() ||
-                    llvm::shouldOptimizeForSize(CI->getParent(), PSI, BFI);
+                    llvm::shouldOptimizeForSize(CI->getParent(), PSI, BFI,
+                                                PGSOQueryType::IRPass);
   if (OptForSize)
     return nullptr;
 
   // Check if has any use
   if (!CI->use_empty()) {
-    if (isLocallyOpenedFile(CI->getArgOperand(1), CI, B, TLI))
+    if (isLocallyOpenedFile(CI->getArgOperand(1), CI, TLI))
       return emitFPutSUnlocked(CI->getArgOperand(0), CI->getArgOperand(1), B,
                                TLI);
     else
@@ -2745,7 +2794,7 @@ Value *LibCallSimplifier::optimizeFPuts(CallInst *CI, IRBuilder<> &B) {
 Value *LibCallSimplifier::optimizeFPutc(CallInst *CI, IRBuilder<> &B) {
   optimizeErrorReporting(CI, B, 1);
 
-  if (isLocallyOpenedFile(CI->getArgOperand(1), CI, B, TLI))
+  if (isLocallyOpenedFile(CI->getArgOperand(1), CI, TLI))
     return emitFPutCUnlocked(CI->getArgOperand(0), CI->getArgOperand(1), B,
                              TLI);
 
@@ -2753,14 +2802,14 @@ Value *LibCallSimplifier::optimizeFPutc(CallInst *CI, IRBuilder<> &B) {
 }
 
 Value *LibCallSimplifier::optimizeFGetc(CallInst *CI, IRBuilder<> &B) {
-  if (isLocallyOpenedFile(CI->getArgOperand(0), CI, B, TLI))
+  if (isLocallyOpenedFile(CI->getArgOperand(0), CI, TLI))
     return emitFGetCUnlocked(CI->getArgOperand(0), B, TLI);
 
   return nullptr;
 }
 
 Value *LibCallSimplifier::optimizeFGets(CallInst *CI, IRBuilder<> &B) {
-  if (isLocallyOpenedFile(CI->getArgOperand(2), CI, B, TLI))
+  if (isLocallyOpenedFile(CI->getArgOperand(2), CI, TLI))
     return emitFGetSUnlocked(CI->getArgOperand(0), CI->getArgOperand(1),
                              CI->getArgOperand(2), B, TLI);
 
@@ -2768,7 +2817,7 @@ Value *LibCallSimplifier::optimizeFGets(CallInst *CI, IRBuilder<> &B) {
 }
 
 Value *LibCallSimplifier::optimizeFRead(CallInst *CI, IRBuilder<> &B) {
-  if (isLocallyOpenedFile(CI->getArgOperand(3), CI, B, TLI))
+  if (isLocallyOpenedFile(CI->getArgOperand(3), CI, TLI))
     return emitFReadUnlocked(CI->getArgOperand(0), CI->getArgOperand(1),
                              CI->getArgOperand(2), CI->getArgOperand(3), B, DL,
                              TLI);
@@ -2792,8 +2841,8 @@ Value *LibCallSimplifier::optimizePuts(CallInst *CI, IRBuilder<> &B) {
 
 Value *LibCallSimplifier::optimizeBCopy(CallInst *CI, IRBuilder<> &B) {
   // bcopy(src, dst, n) -> llvm.memmove(dst, src, n)
-  return B.CreateMemMove(CI->getArgOperand(1), 1, CI->getArgOperand(0), 1,
-                         CI->getArgOperand(2));
+  return B.CreateMemMove(CI->getArgOperand(1), Align(1), CI->getArgOperand(0),
+                         Align(1), CI->getArgOperand(2));
 }
 
 bool LibCallSimplifier::hasFloatVersion(StringRef FuncName) {
@@ -2864,6 +2913,8 @@ Value *LibCallSimplifier::optimizeStringMemoryLibCall(CallInst *CI,
       return optimizeMemCmp(CI, Builder);
     case LibFunc_memcpy:
       return optimizeMemCpy(CI, Builder);
+    case LibFunc_memccpy:
+      return optimizeMemCCpy(CI, Builder);
     case LibFunc_mempcpy:
       return optimizeMemPCpy(CI, Builder);
     case LibFunc_memmove:
@@ -3223,8 +3274,9 @@ FortifiedLibCallSimplifier::isFortifiedCallFoldable(CallInst *CI,
 Value *FortifiedLibCallSimplifier::optimizeMemCpyChk(CallInst *CI,
                                                      IRBuilder<> &B) {
   if (isFortifiedCallFoldable(CI, 3, 2)) {
-    CallInst *NewCI = B.CreateMemCpy(
-        CI->getArgOperand(0), 1, CI->getArgOperand(1), 1, CI->getArgOperand(2));
+    CallInst *NewCI =
+        B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
+                       Align(1), CI->getArgOperand(2));
     NewCI->setAttributes(CI->getAttributes());
     return CI->getArgOperand(0);
   }
@@ -3234,8 +3286,9 @@ Value *FortifiedLibCallSimplifier::optimizeMemCpyChk(CallInst *CI,
 Value *FortifiedLibCallSimplifier::optimizeMemMoveChk(CallInst *CI,
                                                       IRBuilder<> &B) {
   if (isFortifiedCallFoldable(CI, 3, 2)) {
-    CallInst *NewCI = B.CreateMemMove(
-        CI->getArgOperand(0), 1, CI->getArgOperand(1), 1, CI->getArgOperand(2));
+    CallInst *NewCI =
+        B.CreateMemMove(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
+                        Align(1), CI->getArgOperand(2));
     NewCI->setAttributes(CI->getAttributes());
     return CI->getArgOperand(0);
   }
@@ -3248,8 +3301,8 @@ Value *FortifiedLibCallSimplifier::optimizeMemSetChk(CallInst *CI,
 
   if (isFortifiedCallFoldable(CI, 3, 2)) {
     Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
-    CallInst *NewCI =
-        B.CreateMemSet(CI->getArgOperand(0), Val, CI->getArgOperand(2), 1);
+    CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val,
+                                     CI->getArgOperand(2), Align(1));
     NewCI->setAttributes(CI->getAttributes());
     return CI->getArgOperand(0);
   }

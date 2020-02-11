@@ -314,10 +314,8 @@ ClangTidyASTConsumerFactory::ClangTidyASTConsumerFactory(
     IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS)
     : Context(Context), OverlayFS(OverlayFS),
       CheckFactories(new ClangTidyCheckFactories) {
-  for (ClangTidyModuleRegistry::iterator I = ClangTidyModuleRegistry::begin(),
-                                         E = ClangTidyModuleRegistry::end();
-       I != E; ++I) {
-    std::unique_ptr<ClangTidyModule> Module(I->instantiate());
+  for (ClangTidyModuleRegistry::entry E : ClangTidyModuleRegistry::entries()) {
+    std::unique_ptr<ClangTidyModule> Module = E.instantiate();
     Module->addCheckFactories(*CheckFactories);
   }
 }
@@ -361,7 +359,7 @@ static CheckersList getAnalyzerCheckersAndPackages(ClangTidyContext &Context,
 
     if (CheckName.startswith("core") ||
         Context.isCheckEnabled(ClangTidyCheckName)) {
-      List.emplace_back(CheckName, true);
+      List.emplace_back(std::string(CheckName), true);
     }
   }
   return List;
@@ -598,7 +596,7 @@ void exportReplacements(const llvm::StringRef MainFilePath,
                         const std::vector<ClangTidyError> &Errors,
                         raw_ostream &OS) {
   TranslationUnitDiagnostics TUD;
-  TUD.MainSourceFile = MainFilePath;
+  TUD.MainSourceFile = std::string(MainFilePath);
   for (const auto &Error : Errors) {
     tooling::Diagnostic Diag = Error;
     TUD.Diagnostics.insert(TUD.Diagnostics.end(), Diag);

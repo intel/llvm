@@ -39,8 +39,9 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -166,10 +167,10 @@ static SDValue CreateCopyOfByValArgument(SDValue Src, SDValue Dst,
                                          SDValue Chain, ISD::ArgFlagsTy Flags,
                                          SelectionDAG &DAG, const SDLoc &dl) {
   SDValue SizeNode = DAG.getConstant(Flags.getByValSize(), dl, MVT::i32);
-  return DAG.getMemcpy(Chain, dl, Dst, Src, SizeNode, Flags.getByValAlign(),
-                       /*isVolatile=*/false, /*AlwaysInline=*/false,
-                       /*isTailCall=*/false,
-                       MachinePointerInfo(), MachinePointerInfo());
+  return DAG.getMemcpy(
+      Chain, dl, Dst, Src, SizeNode, Flags.getNonZeroByValAlign(),
+      /*isVolatile=*/false, /*AlwaysInline=*/false,
+      /*isTailCall=*/false, MachinePointerInfo(), MachinePointerInfo());
 }
 
 bool
@@ -232,19 +233,76 @@ HexagonTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
 
 bool HexagonTargetLowering::mayBeEmittedAsTailCall(const CallInst *CI) const {
   // If either no tail call or told not to tail call at all, don't.
-  auto Attr =
-      CI->getParent()->getParent()->getFnAttribute("disable-tail-calls");
-  if (!CI->isTailCall() || Attr.getValueAsString() == "true")
-    return false;
-
-  return true;
+  return CI->isTailCall();
 }
 
-Register HexagonTargetLowering::getRegisterByName(const char* RegName, EVT VT,
-                                                  const MachineFunction &) const {
+Register HexagonTargetLowering::getRegisterByName(
+      const char* RegName, LLT VT, const MachineFunction &) const {
   // Just support r19, the linux kernel uses it.
   Register Reg = StringSwitch<Register>(RegName)
+                     .Case("r0", Hexagon::R0)
+                     .Case("r1", Hexagon::R1)
+                     .Case("r2", Hexagon::R2)
+                     .Case("r3", Hexagon::R3)
+                     .Case("r4", Hexagon::R4)
+                     .Case("r5", Hexagon::R5)
+                     .Case("r6", Hexagon::R6)
+                     .Case("r7", Hexagon::R7)
+                     .Case("r8", Hexagon::R8)
+                     .Case("r9", Hexagon::R9)
+                     .Case("r10", Hexagon::R10)
+                     .Case("r11", Hexagon::R11)
+                     .Case("r12", Hexagon::R12)
+                     .Case("r13", Hexagon::R13)
+                     .Case("r14", Hexagon::R14)
+                     .Case("r15", Hexagon::R15)
+                     .Case("r16", Hexagon::R16)
+                     .Case("r17", Hexagon::R17)
+                     .Case("r18", Hexagon::R18)
                      .Case("r19", Hexagon::R19)
+                     .Case("r20", Hexagon::R20)
+                     .Case("r21", Hexagon::R21)
+                     .Case("r22", Hexagon::R22)
+                     .Case("r23", Hexagon::R23)
+                     .Case("r24", Hexagon::R24)
+                     .Case("r25", Hexagon::R25)
+                     .Case("r26", Hexagon::R26)
+                     .Case("r27", Hexagon::R27)
+                     .Case("r28", Hexagon::R28)
+                     .Case("r29", Hexagon::R29)
+                     .Case("r30", Hexagon::R30)
+                     .Case("r31", Hexagon::R31)
+                     .Case("r1:0", Hexagon::D0)
+                     .Case("r3:2", Hexagon::D1)
+                     .Case("r5:4", Hexagon::D2)
+                     .Case("r7:6", Hexagon::D3)
+                     .Case("r9:8", Hexagon::D4)
+                     .Case("r11:10", Hexagon::D5)
+                     .Case("r13:12", Hexagon::D6)
+                     .Case("r15:14", Hexagon::D7)
+                     .Case("r17:16", Hexagon::D8)
+                     .Case("r19:18", Hexagon::D9)
+                     .Case("r21:20", Hexagon::D10)
+                     .Case("r23:22", Hexagon::D11)
+                     .Case("r25:24", Hexagon::D12)
+                     .Case("r27:26", Hexagon::D13)
+                     .Case("r29:28", Hexagon::D14)
+                     .Case("r31:30", Hexagon::D15)
+                     .Case("sp", Hexagon::R29)
+                     .Case("fp", Hexagon::R30)
+                     .Case("lr", Hexagon::R31)
+                     .Case("p0", Hexagon::P0)
+                     .Case("p1", Hexagon::P1)
+                     .Case("p2", Hexagon::P2)
+                     .Case("p3", Hexagon::P3)
+                     .Case("sa0", Hexagon::SA0)
+                     .Case("lc0", Hexagon::LC0)
+                     .Case("sa1", Hexagon::SA1)
+                     .Case("lc1", Hexagon::LC1)
+                     .Case("m0", Hexagon::M0)
+                     .Case("m1", Hexagon::M1)
+                     .Case("usr", Hexagon::USR)
+                     .Case("ugp", Hexagon::UGP)
                      .Default(Register());
   if (Reg)
     return Reg;
@@ -335,19 +393,18 @@ HexagonTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   if (GlobalAddressSDNode *GAN = dyn_cast<GlobalAddressSDNode>(Callee))
     Callee = DAG.getTargetGlobalAddress(GAN->getGlobal(), dl, MVT::i32);
 
+  // Linux ABI treats var-arg calls the same way as regular ones.
+  bool TreatAsVarArg = !Subtarget.isEnvironmentMusl() && IsVarArg;
+
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
-  HexagonCCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext(),
+  HexagonCCState CCInfo(CallConv, TreatAsVarArg, MF, ArgLocs, *DAG.getContext(),
                         NumParams);
 
   if (Subtarget.useHVXOps())
     CCInfo.AnalyzeCallOperands(Outs, CC_Hexagon_HVX);
   else
     CCInfo.AnalyzeCallOperands(Outs, CC_Hexagon);
-
-  auto Attr = MF.getFunction().getFnAttribute("disable-tail-calls");
-  if (Attr.getValueAsString() == "true")
-    CLI.IsTailCall = false;
 
   if (CLI.IsTailCall) {
     bool StructAttrFlag = MF.getFunction().hasStructRetAttr();
@@ -413,7 +470,7 @@ HexagonTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       MemAddr = DAG.getNode(ISD::ADD, dl, MVT::i32, StackPtr, MemAddr);
       if (ArgAlign)
         LargestAlignSeen = std::max(LargestAlignSeen,
-                                    VA.getLocVT().getStoreSizeInBits() >> 3);
+                             (unsigned)VA.getLocVT().getStoreSizeInBits() >> 3);
       if (Flags.isByVal()) {
         // The argument is a struct passed by value. According to LLVM, "Arg"
         // is a pointer.
@@ -696,9 +753,13 @@ SDValue HexagonTargetLowering::LowerFormalArguments(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
+  // Linux ABI treats var-arg calls the same way as regular ones.
+  bool TreatAsVarArg = !Subtarget.isEnvironmentMusl() && IsVarArg;
+
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
-  HexagonCCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext(),
+  HexagonCCState CCInfo(CallConv, TreatAsVarArg, MF, ArgLocs,
+                        *DAG.getContext(),
                         MF.getFunction().getFunctionType()->getNumParams());
 
   if (Subtarget.useHVXOps())
@@ -712,8 +773,24 @@ SDValue HexagonTargetLowering::LowerFormalArguments(
   // caller's stack is passed only when the struct size is smaller than (and
   // equal to) 8 bytes. If not, no address will be passed into callee and
   // callee return the result direclty through R0/R1.
+  auto NextSingleReg = [] (const TargetRegisterClass &RC, unsigned Reg) {
+    switch (RC.getID()) {
+    case Hexagon::IntRegsRegClassID:
+      return Reg - Hexagon::R0 + 1;
+    case Hexagon::DoubleRegsRegClassID:
+      return (Reg - Hexagon::D0 + 1) * 2;
+    case Hexagon::HvxVRRegClassID:
+      return Reg - Hexagon::V0 + 1;
+    case Hexagon::HvxWRRegClassID:
+      return (Reg - Hexagon::W0 + 1) * 2;
+    }
+    llvm_unreachable("Unexpected register class");
+  };
 
+  auto &HFL = const_cast<HexagonFrameLowering&>(*Subtarget.getFrameLowering());
   auto &HMFI = *MF.getInfo<HexagonMachineFunctionInfo>();
+  HFL.FirstVarArgSavedReg = 0;
+  HMFI.setFirstNamedArgFrameIndex(-int(MFI.getNumFixedObjects()));
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
@@ -757,6 +834,7 @@ SDValue HexagonTargetLowering::LowerFormalArguments(
       }
       InVals.push_back(Copy);
       MRI.addLiveIn(VA.getLocReg(), VReg);
+      HFL.FirstVarArgSavedReg = NextSingleReg(*RC, VA.getLocReg());
     } else {
       assert(VA.isMemLoc() && "Argument should be passed in memory");
 
@@ -784,8 +862,48 @@ SDValue HexagonTargetLowering::LowerFormalArguments(
     }
   }
 
+  if (IsVarArg && Subtarget.isEnvironmentMusl()) {
+    for (int i = HFL.FirstVarArgSavedReg; i < 6; i++)
+      MRI.addLiveIn(Hexagon::R0+i);
+  }
 
-  if (IsVarArg) {
+  if (IsVarArg && Subtarget.isEnvironmentMusl()) {
+    HMFI.setFirstNamedArgFrameIndex(HMFI.getFirstNamedArgFrameIndex() - 1);
+    HMFI.setLastNamedArgFrameIndex(-int(MFI.getNumFixedObjects()));
+
+    // Create Frame index for the start of register saved area.
+    int NumVarArgRegs = 6 - HFL.FirstVarArgSavedReg;
+    bool RequiresPadding = (NumVarArgRegs & 1);
+    int RegSaveAreaSizePlusPadding = RequiresPadding
+                                        ? (NumVarArgRegs + 1) * 4
+                                        : NumVarArgRegs * 4;
+
+    if (RegSaveAreaSizePlusPadding > 0) {
+      // The offset to saved register area should be 8 byte aligned.
+      int RegAreaStart = HEXAGON_LRFP_SIZE + CCInfo.getNextStackOffset();
+      if (!(RegAreaStart % 8))
+        RegAreaStart = (RegAreaStart + 7) & -8;
+
+      int RegSaveAreaFrameIndex =
+        MFI.CreateFixedObject(RegSaveAreaSizePlusPadding, RegAreaStart, true);
+      HMFI.setRegSavedAreaStartFrameIndex(RegSaveAreaFrameIndex);
+
+      // This will point to the next argument passed via stack.
+      int Offset = RegAreaStart + RegSaveAreaSizePlusPadding;
+      int FI = MFI.CreateFixedObject(Hexagon_PointerSize, Offset, true);
+      HMFI.setVarArgsFrameIndex(FI);
+    } else {
+      // This will point to the next argument passed via stack, when
+      // there is no saved register area.
+      int Offset = HEXAGON_LRFP_SIZE + CCInfo.getNextStackOffset();
+      int FI = MFI.CreateFixedObject(Hexagon_PointerSize, Offset, true);
+      HMFI.setRegSavedAreaStartFrameIndex(FI);
+      HMFI.setVarArgsFrameIndex(FI);
+    }
+  }
+
+
+  if (IsVarArg && !Subtarget.isEnvironmentMusl()) {
     // This will point to the next argument passed via stack.
     int Offset = HEXAGON_LRFP_SIZE + CCInfo.getNextStackOffset();
     int FI = MFI.CreateFixedObject(Hexagon_PointerSize, Offset, true);
@@ -803,8 +921,81 @@ HexagonTargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   HexagonMachineFunctionInfo *QFI = MF.getInfo<HexagonMachineFunctionInfo>();
   SDValue Addr = DAG.getFrameIndex(QFI->getVarArgsFrameIndex(), MVT::i32);
   const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
-  return DAG.getStore(Op.getOperand(0), SDLoc(Op), Addr, Op.getOperand(1),
-                      MachinePointerInfo(SV));
+
+  if (!Subtarget.isEnvironmentMusl()) {
+    return DAG.getStore(Op.getOperand(0), SDLoc(Op), Addr, Op.getOperand(1),
+                        MachinePointerInfo(SV));
+  }
+  auto &FuncInfo = *MF.getInfo<HexagonMachineFunctionInfo>();
+  auto &HFL = *Subtarget.getFrameLowering();
+  SDLoc DL(Op);
+  SmallVector<SDValue, 8> MemOps;
+
+  // Get frame index of va_list.
+  SDValue FIN = Op.getOperand(1);
+
+  // If first Vararg register is odd, add 4 bytes to start of
+  // saved register area to point to the first register location.
+  // This is because the saved register area has to be 8 byte aligned.
+  // Incase of an odd start register, there will be 4 bytes of padding in
+  // the beginning of saved register area. If all registers area used up,
+  // the following condition will handle it correctly.
+  SDValue SavedRegAreaStartFrameIndex =
+    DAG.getFrameIndex(FuncInfo.getRegSavedAreaStartFrameIndex(), MVT::i32);
+
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+
+  if (HFL.FirstVarArgSavedReg & 1)
+    SavedRegAreaStartFrameIndex =
+      DAG.getNode(ISD::ADD, DL, PtrVT,
+                  DAG.getFrameIndex(FuncInfo.getRegSavedAreaStartFrameIndex(),
+                                    MVT::i32),
+                  DAG.getIntPtrConstant(4, DL));
+
+  // Store the saved register area start pointer.
+  SDValue Store =
+    DAG.getStore(Op.getOperand(0), DL,
+                 SavedRegAreaStartFrameIndex,
+                 FIN, MachinePointerInfo(SV));
+  MemOps.push_back(Store);
+
+  // Store saved register area end pointer.
+  FIN = DAG.getNode(ISD::ADD, DL, PtrVT,
+                    FIN, DAG.getIntPtrConstant(4, DL));
+  Store = DAG.getStore(Op.getOperand(0), DL,
+                       DAG.getFrameIndex(FuncInfo.getVarArgsFrameIndex(),
+                                         PtrVT),
+                       FIN, MachinePointerInfo(SV, 4));
+  MemOps.push_back(Store);
+
+  // Store overflow area pointer.
+  FIN = DAG.getNode(ISD::ADD, DL, PtrVT,
+                    FIN, DAG.getIntPtrConstant(4, DL));
+  Store = DAG.getStore(Op.getOperand(0), DL,
+                       DAG.getFrameIndex(FuncInfo.getVarArgsFrameIndex(),
+                                         PtrVT),
+                       FIN, MachinePointerInfo(SV, 8));
+  MemOps.push_back(Store);
+
+  return DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOps);
+}
+
+SDValue
+HexagonTargetLowering::LowerVACOPY(SDValue Op, SelectionDAG &DAG) const {
+  // Assert that the linux ABI is enabled for the current compilation.
+  assert(Subtarget.isEnvironmentMusl() && "Linux ABI should be enabled");
+  SDValue Chain = Op.getOperand(0);
+  SDValue DestPtr = Op.getOperand(1);
+  SDValue SrcPtr = Op.getOperand(2);
+  const Value *DestSV = cast<SrcValueSDNode>(Op.getOperand(3))->getValue();
+  const Value *SrcSV = cast<SrcValueSDNode>(Op.getOperand(4))->getValue();
+  SDLoc DL(Op);
+  // Size of the va_list is 12 bytes as it has 3 pointers. Therefore,
+  // we need to memcopy 12 bytes from va_list to another similar list.
+  return DAG.getMemcpy(Chain, DL, DestPtr, SrcPtr,
+                       DAG.getIntPtrConstant(12, DL), Align(4),
+                       /*isVolatile*/ false, false, false,
+                       MachinePointerInfo(DestSV), MachinePointerInfo(SrcSV));
 }
 
 SDValue HexagonTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
@@ -1321,7 +1512,10 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
   setOperationAction(ISD::VAEND,   MVT::Other, Expand);
   setOperationAction(ISD::VAARG,   MVT::Other, Expand);
-  setOperationAction(ISD::VACOPY,  MVT::Other, Expand);
+  if (Subtarget.isEnvironmentMusl())
+    setOperationAction(ISD::VACOPY, MVT::Other, Custom);
+  else
+    setOperationAction(ISD::VACOPY,  MVT::Other, Expand);
 
   setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
   setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
@@ -1473,6 +1667,10 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   setLoadExtAction(ISD::ZEXTLOAD, MVT::v4i16, MVT::v4i8, Legal);
   setLoadExtAction(ISD::SEXTLOAD, MVT::v4i16, MVT::v4i8, Legal);
 
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i8,  Legal);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i16, Legal);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i32, Legal);
+
   // Types natively supported:
   for (MVT NativeVT : {MVT::v8i1, MVT::v4i1, MVT::v2i1, MVT::v4i8,
                        MVT::v8i8, MVT::v2i16, MVT::v4i16, MVT::v2i32}) {
@@ -1562,6 +1760,11 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasV66Ops()) {
     setOperationAction(ISD::FADD, MVT::f64, Legal);
     setOperationAction(ISD::FSUB, MVT::f64, Legal);
+  }
+  if (Subtarget.hasV67Ops()) {
+    setOperationAction(ISD::FMINNUM, MVT::f64, Legal);
+    setOperationAction(ISD::FMAXNUM, MVT::f64, Legal);
+    setOperationAction(ISD::FMUL,    MVT::f64, Legal);
   }
 
   setTargetDAGCombine(ISD::VSELECT);
@@ -1847,7 +2050,8 @@ bool HexagonTargetLowering::isTruncateFree(EVT VT1, EVT VT2) const {
   return VT1.getSimpleVT() == MVT::i64 && VT2.getSimpleVT() == MVT::i32;
 }
 
-bool HexagonTargetLowering::isFMAFasterThanFMulAndFAdd(EVT VT) const {
+bool HexagonTargetLowering::isFMAFasterThanFMulAndFAdd(
+    const MachineFunction &MF, EVT VT) const {
   return isOperationLegalOrCustom(ISD::FMA, VT);
 }
 
@@ -2869,6 +3073,7 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     case ISD::GlobalAddress:        return LowerGLOBALADDRESS(Op, DAG);
     case ISD::BlockAddress:         return LowerBlockAddress(Op, DAG);
     case ISD::GLOBAL_OFFSET_TABLE:  return LowerGLOBAL_OFFSET_TABLE(Op, DAG);
+    case ISD::VACOPY:              return LowerVACOPY(Op, DAG);
     case ISD::VASTART:              return LowerVASTART(Op, DAG);
     case ISD::DYNAMIC_STACKALLOC:   return LowerDYNAMIC_STACKALLOC(Op, DAG);
     case ISD::SETCC:                return LowerSETCC(Op, DAG);
@@ -3173,19 +3378,21 @@ bool HexagonTargetLowering::IsEligibleForTailCallOptimization(
 /// zero. 'MemcpyStrSrc' indicates whether the memcpy source is constant so it
 /// does not need to be loaded.  It returns EVT::Other if the type should be
 /// determined using generic target-independent logic.
-EVT HexagonTargetLowering::getOptimalMemOpType(uint64_t Size,
-      unsigned DstAlign, unsigned SrcAlign, bool IsMemset, bool ZeroMemset,
-      bool MemcpyStrSrc, const AttributeList &FuncAttributes) const {
+EVT HexagonTargetLowering::getOptimalMemOpType(
+    const MemOp &Op, const AttributeList &FuncAttributes) const {
 
   auto Aligned = [](unsigned GivenA, unsigned MinA) -> bool {
     return (GivenA % MinA) == 0;
   };
 
-  if (Size >= 8 && Aligned(DstAlign, 8) && (IsMemset || Aligned(SrcAlign, 8)))
+  if (Op.size() >= 8 && Aligned(Op.getDstAlign(), 8) &&
+      (Op.isMemset() || Aligned(Op.getSrcAlign(), 8)))
     return MVT::i64;
-  if (Size >= 4 && Aligned(DstAlign, 4) && (IsMemset || Aligned(SrcAlign, 4)))
+  if (Op.size() >= 4 && Aligned(Op.getDstAlign(), 4) &&
+      (Op.isMemset() || Aligned(Op.getSrcAlign(), 4)))
     return MVT::i32;
-  if (Size >= 2 && Aligned(DstAlign, 2) && (IsMemset || Aligned(SrcAlign, 2)))
+  if (Op.size() >= 2 && Aligned(Op.getDstAlign(), 2) &&
+      (Op.isMemset() || Aligned(Op.getSrcAlign(), 2)))
     return MVT::i16;
 
   return MVT::Other;

@@ -203,7 +203,7 @@ enum {
   KMP_IDENT_WORK_LOOP = 0x200,
   /*! To mark a sections directive in OMPT callbacks */
   KMP_IDENT_WORK_SECTIONS = 0x400,
-  /*! To mark a distirbute construct in OMPT callbacks */
+  /*! To mark a distribute construct in OMPT callbacks */
   KMP_IDENT_WORK_DISTRIBUTE = 0x800,
   /*! Atomic hint; bottom four bits as omp_sync_hint_t. Top four reserved and
       not currently used. If one day we need more bits, then we can use
@@ -868,40 +868,40 @@ extern int __kmp_hws_abs_flag; // absolute or per-item number requested
 /* OpenMP 5.0 Memory Management support */
 
 #ifndef __OMP_H
-// Duplicate type definitios from omp.h
+// Duplicate type definitions from omp.h
 typedef uintptr_t omp_uintptr_t;
 
 typedef enum {
-  OMP_ATK_THREADMODEL = 1,
-  OMP_ATK_ALIGNMENT = 2,
-  OMP_ATK_ACCESS = 3,
-  OMP_ATK_POOL_SIZE = 4,
-  OMP_ATK_FALLBACK = 5,
-  OMP_ATK_FB_DATA = 6,
-  OMP_ATK_PINNED = 7,
-  OMP_ATK_PARTITION = 8
+  omp_atk_threadmodel = 1,
+  omp_atk_alignment = 2,
+  omp_atk_access = 3,
+  omp_atk_pool_size = 4,
+  omp_atk_fallback = 5,
+  omp_atk_fb_data = 6,
+  omp_atk_pinned = 7,
+  omp_atk_partition = 8
 } omp_alloctrait_key_t;
 
 typedef enum {
-  OMP_ATV_FALSE = 0,
-  OMP_ATV_TRUE = 1,
-  OMP_ATV_DEFAULT = 2,
-  OMP_ATV_CONTENDED = 3,
-  OMP_ATV_UNCONTENDED = 4,
-  OMP_ATV_SEQUENTIAL = 5,
-  OMP_ATV_PRIVATE = 6,
-  OMP_ATV_ALL = 7,
-  OMP_ATV_THREAD = 8,
-  OMP_ATV_PTEAM = 9,
-  OMP_ATV_CGROUP = 10,
-  OMP_ATV_DEFAULT_MEM_FB = 11,
-  OMP_ATV_NULL_FB = 12,
-  OMP_ATV_ABORT_FB = 13,
-  OMP_ATV_ALLOCATOR_FB = 14,
-  OMP_ATV_ENVIRONMENT = 15,
-  OMP_ATV_NEAREST = 16,
-  OMP_ATV_BLOCKED = 17,
-  OMP_ATV_INTERLEAVED = 18
+  omp_atv_false = 0,
+  omp_atv_true = 1,
+  omp_atv_default = 2,
+  omp_atv_contended = 3,
+  omp_atv_uncontended = 4,
+  omp_atv_sequential = 5,
+  omp_atv_private = 6,
+  omp_atv_all = 7,
+  omp_atv_thread = 8,
+  omp_atv_pteam = 9,
+  omp_atv_cgroup = 10,
+  omp_atv_default_mem_fb = 11,
+  omp_atv_null_fb = 12,
+  omp_atv_abort_fb = 13,
+  omp_atv_allocator_fb = 14,
+  omp_atv_environment = 15,
+  omp_atv_nearest = 16,
+  omp_atv_blocked = 17,
+  omp_atv_interleaved = 18
 } omp_alloctrait_value_t;
 
 typedef void *omp_memspace_handle_t;
@@ -929,7 +929,7 @@ extern omp_allocator_handle_t const omp_thread_mem_alloc;
 extern omp_allocator_handle_t const kmp_max_mem_alloc;
 extern omp_allocator_handle_t __kmp_def_allocator;
 
-// end of duplicate type definitios from omp.h
+// end of duplicate type definitions from omp.h
 #endif
 
 extern int __kmp_memkind_available;
@@ -1389,7 +1389,7 @@ The type for a microtask which gets passed to @ref __kmpc_fork_call().
 The arguments to the outlined function are
 @param global_tid the global thread identity of the thread executing the
 function.
-@param bound_tid  the local identitiy of the thread executing the function
+@param bound_tid  the local identity of the thread executing the function
 @param ... pointers to shared variables accessed by the function.
 */
 typedef void (*kmpc_micro)(kmp_int32 *global_tid, kmp_int32 *bound_tid, ...);
@@ -2253,7 +2253,7 @@ typedef struct kmp_tasking_flags { /* Total struct must be exactly 32 bits */
   unsigned started : 1; /* 1==started, 0==not started     */
   unsigned executing : 1; /* 1==executing, 0==not executing */
   unsigned complete : 1; /* 1==complete, 0==not complete   */
-  unsigned freed : 1; /* 1==freed, 0==allocateed        */
+  unsigned freed : 1; /* 1==freed, 0==allocated        */
   unsigned native : 1; /* 1==gcc-compiled task, 0==intel */
   unsigned reserved31 : 7; /* reserved for library use */
 
@@ -2654,7 +2654,7 @@ typedef struct KMP_ALIGN_CACHE kmp_base_team {
   int t_level; // nested parallel level
 
   KMP_ALIGN_CACHE int t_max_argc;
-  int t_max_nproc; // max threads this team can handle (dynamicly expandable)
+  int t_max_nproc; // max threads this team can handle (dynamically expandable)
   int t_serialized; // levels deep of serialized teams
   dispatch_shared_info_t *t_disp_buffer; // buffers for dispatch system
   int t_id; // team's id, assigned by debugger.
@@ -3115,7 +3115,6 @@ extern void __kmp_internal_begin(void);
 extern void __kmp_internal_end_library(int gtid);
 extern void __kmp_internal_end_thread(int gtid);
 extern void __kmp_internal_end_atexit(void);
-extern void __kmp_internal_end_fini(void);
 extern void __kmp_internal_end_dtor(void);
 extern void __kmp_internal_end_dest(void *);
 

@@ -10,6 +10,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclGroup.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -200,7 +201,8 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
     }
     if ((ActionType == PluginASTAction::AddBeforeMainAction ||
          ActionType == PluginASTAction::AddAfterMainAction) &&
-        P->ParseArgs(CI, CI.getFrontendOpts().PluginArgs[it->getName()])) {
+        P->ParseArgs(
+            CI, CI.getFrontendOpts().PluginArgs[std::string(it->getName())])) {
       std::unique_ptr<ASTConsumer> PluginConsumer = P->CreateASTConsumer(CI, InFile);
       if (ActionType == PluginASTAction::AddBeforeMainAction) {
         Consumers.push_back(std::move(PluginConsumer));
@@ -563,8 +565,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     StringRef InputFile = Input.getFile();
 
     std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromASTFile(
-        InputFile, CI.getPCHContainerReader(), ASTUnit::LoadPreprocessorOnly,
-        ASTDiags, CI.getFileSystemOpts(), CI.getCodeGenOpts().DebugTypeExtRefs);
+        std::string(InputFile), CI.getPCHContainerReader(),
+        ASTUnit::LoadPreprocessorOnly, ASTDiags, CI.getFileSystemOpts(),
+        CI.getCodeGenOpts().DebugTypeExtRefs);
     if (!AST)
       goto failure;
 
@@ -591,10 +594,11 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         if (&MF != &PrimaryModule)
           CI.getFrontendOpts().ModuleFiles.push_back(MF.FileName);
 
-      ASTReader->visitTopLevelModuleMaps(PrimaryModule,
-                                         [&](const FileEntry *FE) {
-        CI.getFrontendOpts().ModuleMapFiles.push_back(FE->getName());
-      });
+      ASTReader->visitTopLevelModuleMaps(
+          PrimaryModule, [&](const FileEntry *FE) {
+            CI.getFrontendOpts().ModuleMapFiles.push_back(
+                std::string(FE->getName()));
+          });
     }
 
     // Set up the input file for replay purposes.
@@ -629,8 +633,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     StringRef InputFile = Input.getFile();
 
     std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromASTFile(
-        InputFile, CI.getPCHContainerReader(), ASTUnit::LoadEverything, Diags,
-        CI.getFileSystemOpts(), CI.getCodeGenOpts().DebugTypeExtRefs);
+        std::string(InputFile), CI.getPCHContainerReader(),
+        ASTUnit::LoadEverything, Diags, CI.getFileSystemOpts(),
+        CI.getCodeGenOpts().DebugTypeExtRefs);
 
     if (!AST)
       goto failure;
@@ -724,7 +729,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
                 Dir->path(), FileMgr, CI.getPCHContainerReader(),
                 CI.getLangOpts(), CI.getTargetOpts(), CI.getPreprocessorOpts(),
                 SpecificModuleCachePath)) {
-          PPOpts.ImplicitPCHInclude = Dir->path();
+          PPOpts.ImplicitPCHInclude = std::string(Dir->path());
           Found = true;
           break;
         }
@@ -816,7 +821,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
     // For preprocessed files, check if the first line specifies the original
     // source file name with a linemarker.
-    std::string PresumedInputFile = getCurrentFileOrBufferName();
+    std::string PresumedInputFile = std::string(getCurrentFileOrBufferName());
     if (Input.isPreprocessed())
       ReadOriginalFileName(CI, PresumedInputFile);
 
@@ -870,9 +875,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       // extended by an external source.
       if (CI.getLangOpts().Modules || !CI.hasASTContext() ||
           !CI.getASTContext().getExternalSource()) {
-        CI.createModuleManager();
-        CI.getModuleManager()->setDeserializationListener(DeserialListener,
-                                                        DeleteDeserialListener);
+        CI.createASTReader();
+        CI.getASTReader()->setDeserializationListener(DeserialListener,
+                                                      DeleteDeserialListener);
       }
     }
 
@@ -891,7 +896,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   } else {
     // FIXME: If this is a problem, recover from it by creating a multiplex
     // source.
-    assert((!CI.getLangOpts().Modules || CI.getModuleManager()) &&
+    assert((!CI.getLangOpts().Modules || CI.getASTReader()) &&
            "modules enabled but created an external source that "
            "doesn't support modules");
   }

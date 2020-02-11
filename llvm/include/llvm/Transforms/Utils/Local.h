@@ -153,7 +153,15 @@ bool RecursivelyDeleteTriviallyDeadInstructions(
 /// `DeadInsts` will be used as scratch storage for this routine and will be
 /// empty afterward.
 void RecursivelyDeleteTriviallyDeadInstructions(
-    SmallVectorImpl<Instruction *> &DeadInsts,
+    SmallVectorImpl<WeakTrackingVH> &DeadInsts,
+    const TargetLibraryInfo *TLI = nullptr, MemorySSAUpdater *MSSAU = nullptr);
+
+/// Same functionality as RecursivelyDeleteTriviallyDeadInstructions, but allow
+/// instructions that are not trivially dead. These will be ignored.
+/// Returns true if any changes were made, i.e. any instructions trivially dead
+/// were found and deleted.
+bool RecursivelyDeleteTriviallyDeadInstructionsPermissive(
+    SmallVectorImpl<WeakTrackingVH> &DeadInsts,
     const TargetLibraryInfo *TLI = nullptr, MemorySSAUpdater *MSSAU = nullptr);
 
 /// If the specified value is an effectively dead PHI node, due to being a
@@ -162,7 +170,8 @@ void RecursivelyDeleteTriviallyDeadInstructions(
 /// operands trivially dead, delete them too, recursively. Return true if a
 /// change was made.
 bool RecursivelyDeleteDeadPHINode(PHINode *PN,
-                                  const TargetLibraryInfo *TLI = nullptr);
+                                  const TargetLibraryInfo *TLI = nullptr,
+                                  MemorySSAUpdater *MSSAU = nullptr);
 
 /// Scan the specified basic block and try to simplify any instructions in it
 /// and recursively delete dead instructions.
@@ -353,6 +362,10 @@ AllocaInst *findAllocaForValue(Value *V,
 /// debug users of \p I by writing the effect of \p I in a DIExpression.
 /// Returns true if any debug users were updated.
 bool salvageDebugInfo(Instruction &I);
+
+/// Salvage all debug users of the instruction \p I or mark it as undef if it
+/// cannot be salvaged.
+void salvageDebugInfoOrMarkUndef(Instruction &I);
 
 /// Implementation of salvageDebugInfo, applying only to instructions in
 /// \p Insns, rather than all debug users of \p I.

@@ -62,7 +62,7 @@ Expected<DILineInfo>
 LLVMSymbolizer::symbolizeCode(const ObjectFile &Obj,
                               object::SectionedAddress ModuleOffset) {
   StringRef ModuleName = Obj.getFileName();
-  auto I = Modules.find(ModuleName);
+  auto I = Modules.find(std::string(ModuleName));
   if (I != Modules.end())
     return symbolizeCodeCommon(I->second.get(), ModuleOffset);
 
@@ -184,7 +184,7 @@ std::string getDarwinDWARFResourceForPath(
   }
   sys::path::append(ResourceName, "Contents", "Resources", "DWARF");
   sys::path::append(ResourceName, Basename);
-  return ResourceName.str();
+  return std::string(ResourceName.str());
 }
 
 bool checkFileCRC(StringRef Path, uint32_t CRCHash) {
@@ -205,14 +205,14 @@ bool findDebugBinary(const std::string &OrigPath,
   // Try relative/path/to/original_binary/debuglink_name
   llvm::sys::path::append(DebugPath, DebuglinkName);
   if (checkFileCRC(DebugPath, CRCHash)) {
-    Result = DebugPath.str();
+    Result = std::string(DebugPath.str());
     return true;
   }
   // Try relative/path/to/original_binary/.debug/debuglink_name
   DebugPath = OrigDir;
   llvm::sys::path::append(DebugPath, ".debug", DebuglinkName);
   if (checkFileCRC(DebugPath, CRCHash)) {
-    Result = DebugPath.str();
+    Result = std::string(DebugPath.str());
     return true;
   }
   // Make the path absolute so that lookups will go to
@@ -234,7 +234,7 @@ bool findDebugBinary(const std::string &OrigPath,
   llvm::sys::path::append(DebugPath, llvm::sys::path::relative_path(OrigDir),
                           DebuglinkName);
   if (checkFileCRC(DebugPath, CRCHash)) {
-    Result = DebugPath.str();
+    Result = std::string(DebugPath.str());
     return true;
   }
   return false;
@@ -284,6 +284,80 @@ bool darwinDsymMatchesBinary(const MachOObjectFile *DbgObj,
   return !memcmp(dbg_uuid.data(), bin_uuid.data(), dbg_uuid.size());
 }
 
+template <typename ELFT>
+Optional<ArrayRef<uint8_t>> getBuildID(const ELFFile<ELFT> *Obj) {
+  if (!Obj)
+    return {};
+  auto PhdrsOrErr = Obj->program_headers();
+  if (!PhdrsOrErr) {
+    consumeError(PhdrsOrErr.takeError());
+    return {};
+  }
+  for (const auto &P : *PhdrsOrErr) {
+    if (P.p_type != ELF::PT_NOTE)
+      continue;
+    Error Err = Error::success();
+    for (auto N : Obj->notes(P, Err))
+      if (N.getType() == ELF::NT_GNU_BUILD_ID && N.getName() == ELF::ELF_NOTE_GNU)
+        return N.getDesc();
+    consumeError(std::move(Err));
+  }
+  return {};
+}
+
+Optional<ArrayRef<uint8_t>> getBuildID(const ELFObjectFileBase *Obj) {
+  Optional<ArrayRef<uint8_t>> BuildID;
+  if (auto *O = dyn_cast<ELFObjectFile<ELF32LE>>(Obj))
+    BuildID = getBuildID(O->getELFFile());
+  else if (auto *O = dyn_cast<ELFObjectFile<ELF32BE>>(Obj))
+    BuildID = getBuildID(O->getELFFile());
+  else if (auto *O = dyn_cast<ELFObjectFile<ELF64LE>>(Obj))
+    BuildID = getBuildID(O->getELFFile());
+  else if (auto *O = dyn_cast<ELFObjectFile<ELF64BE>>(Obj))
+    BuildID = getBuildID(O->getELFFile());
+  else
+    llvm_unreachable("unsupported file format");
+  return BuildID;
+}
+
+bool findDebugBinary(const std::vector<std::string> &DebugFileDirectory,
+                     const ArrayRef<uint8_t> BuildID,
+                     std::string &Result) {
+  auto getDebugPath = [&](StringRef Directory) {
+    SmallString<128> Path{Directory};
+    sys::path::append(Path, ".build-id",
+                      llvm::toHex(BuildID[0], /*LowerCase=*/true),
+                      llvm::toHex(BuildID.slice(1), /*LowerCase=*/true));
+    Path += ".debug";
+    return Path;
+  };
+  if (DebugFileDirectory.empty()) {
+    SmallString<128> Path = getDebugPath(
+#if defined(__NetBSD__)
+      // Try /usr/libdata/debug/.build-id/../...
+      "/usr/libdata/debug"
+#else
+      // Try /usr/lib/debug/.build-id/../...
+      "/usr/lib/debug"
+#endif
+    );
+    if (llvm::sys::fs::exists(Path)) {
+      Result = std::string(Path.str());
+      return true;
+    }
+  } else {
+    for (const auto &Directory : DebugFileDirectory) {
+      // Try <debug-file-directory>/.build-id/../...
+      SmallString<128> Path = getDebugPath(Directory);
+      if (llvm::sys::fs::exists(Path)) {
+        Result = std::string(Path.str());
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 } // end anonymous namespace
 
 ObjectFile *LLVMSymbolizer::lookUpDsymFile(const std::string &ExePath,
@@ -292,9 +366,11 @@ ObjectFile *LLVMSymbolizer::lookUpDsymFile(const std::string &ExePath,
   // resource directory.
   std::vector<std::string> DsymPaths;
   StringRef Filename = sys::path::filename(ExePath);
-  DsymPaths.push_back(getDarwinDWARFResourceForPath(ExePath, Filename));
+  DsymPaths.push_back(
+      getDarwinDWARFResourceForPath(ExePath, std::string(Filename)));
   for (const auto &Path : Opts.DsymHints) {
-    DsymPaths.push_back(getDarwinDWARFResourceForPath(Path, Filename));
+    DsymPaths.push_back(
+        getDarwinDWARFResourceForPath(Path, std::string(Filename)));
   }
   for (const auto &Path : DsymPaths) {
     auto DbgObjOrErr = getOrCreateObject(Path, ArchName);
@@ -335,6 +411,25 @@ ObjectFile *LLVMSymbolizer::lookUpDebuglinkObject(const std::string &Path,
   return DbgObjOrErr.get();
 }
 
+ObjectFile *LLVMSymbolizer::lookUpBuildIDObject(const std::string &Path,
+                                                const ELFObjectFileBase *Obj,
+                                                const std::string &ArchName) {
+  auto BuildID = getBuildID(Obj);
+  if (!BuildID)
+    return nullptr;
+  if (BuildID->size() < 2)
+    return nullptr;
+  std::string DebugBinaryPath;
+  if (!findDebugBinary(Opts.DebugFileDirectory, *BuildID, DebugBinaryPath))
+    return nullptr;
+  auto DbgObjOrErr = getOrCreateObject(DebugBinaryPath, ArchName);
+  if (!DbgObjOrErr) {
+    consumeError(DbgObjOrErr.takeError());
+    return nullptr;
+  }
+  return DbgObjOrErr.get();
+}
+
 Expected<LLVMSymbolizer::ObjectPair>
 LLVMSymbolizer::getOrCreateObjectPair(const std::string &Path,
                                       const std::string &ArchName) {
@@ -355,6 +450,8 @@ LLVMSymbolizer::getOrCreateObjectPair(const std::string &Path,
 
   if (auto MachObj = dyn_cast<const MachOObjectFile>(Obj))
     DbgObj = lookUpDsymFile(Path, MachObj, ArchName);
+  else if (auto ELFObj = dyn_cast<const ELFObjectFileBase>(Obj))
+    DbgObj = lookUpBuildIDObject(Path, ELFObj, ArchName);
   if (!DbgObj)
     DbgObj = lookUpDebuglinkObject(Path, Obj, ArchName);
   if (!DbgObj)
@@ -414,8 +511,8 @@ LLVMSymbolizer::createModuleInfo(const ObjectFile *Obj,
   std::unique_ptr<SymbolizableModule> SymMod;
   if (InfoOrErr)
     SymMod = std::move(*InfoOrErr);
-  auto InsertResult =
-      Modules.insert(std::make_pair(ModuleName, std::move(SymMod)));
+  auto InsertResult = Modules.insert(
+      std::make_pair(std::string(ModuleName), std::move(SymMod)));
   assert(InsertResult.second);
   if (std::error_code EC = InfoOrErr.getError())
     return errorCodeToError(EC);

@@ -11,6 +11,7 @@
 
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -39,6 +40,10 @@ struct CrashReportInfo {
 /// Command - An executable path/name and argument vector to
 /// execute.
 class Command {
+public:
+  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+
+private:
   /// Source - The action which caused the creation of this job.
   const Action &Source;
 
@@ -47,6 +52,18 @@ class Command {
 
   /// The executable to run.
   const char *Executable;
+
+  /// The container for custom driver-set diagnostic messages that are
+  /// produced upon particular error codes returned by the command.
+  /// In order to add such a diagnostic for an external tool, consider the
+  /// following criteria:
+  /// 1) Does the command's executable return different codes upon different
+  ///    types of errors?
+  /// 2) If the executable provides a single error code for various error types,
+  ///    is only a certain type of failure expected to occur within the driver
+  ///    flow? E.g. the driver guarantees a valid input to the tool, so any
+  ///    "invalid input" error can be ruled out
+  ErrorCodeDiagMapTy ErrorCodeDiagMap;
 
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
@@ -100,6 +117,15 @@ public:
   virtual int Execute(ArrayRef<Optional<StringRef>> Redirects,
                       std::string *ErrMsg, bool *ExecutionFailed) const;
 
+  /// Store a custom driver diagnostic message upon a particular error code
+  /// returned by the command
+  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
+
+  /// Get the custom driver diagnostic message for a particular error code
+  /// if such was stored. Returns an empty string if no diagnostic message
+  /// was found for the given error code.
+  StringRef getDiagForErrorCode(int ErrorCode) const;
+
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }
 
@@ -119,7 +145,7 @@ public:
   /// \param NewEnvironment An array of environment variables.
   /// \remark If the environment remains unset, then the environment
   ///         from the parent process will be used.
-  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment);
+  virtual void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment);
 
   const char *getExecutable() const { return Executable; }
 
@@ -130,6 +156,24 @@ public:
 
   /// Set whether to print the input filenames when executing.
   void setPrintInputFilenames(bool P) { PrintInputFilenames = P; }
+
+protected:
+  /// Optionally print the filenames to be compiled
+  void PrintFileNames() const;
+};
+
+/// Use the CC1 tool callback when available, to avoid creating a new process
+class CC1Command : public Command {
+public:
+  using Command::Command;
+
+  void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
+             CrashReportInfo *CrashInfo = nullptr) const override;
+
+  int Execute(ArrayRef<Optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override;
+
+  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
 };
 
 /// Like Command, but with a fallback which is executed in case

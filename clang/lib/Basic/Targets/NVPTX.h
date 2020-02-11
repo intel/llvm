@@ -39,6 +39,9 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // sycl_private
     // FIXME: generic has to be added to the target
     0, // sycl_generic
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
 };
 
 /// The DWARF address class. Taken from

@@ -80,9 +80,9 @@ void Sema::AddMsStructLayoutForRecord(RecordDecl *RD) {
   // FIXME: We should merge AddAlignmentAttributesForRecord with
   // AddMsStructLayoutForRecord into AddPragmaAttributesForRecord, which takes
   // all active pragmas and applies them as attributes to class definitions.
-  if (VtorDispStack.CurrentValue != getLangOpts().VtorDispMode)
-    RD->addAttr(
-        MSVtorDispAttr::CreateImplicit(Context, VtorDispStack.CurrentValue));
+  if (VtorDispStack.CurrentValue != getLangOpts().getVtorDispMode())
+    RD->addAttr(MSVtorDispAttr::CreateImplicit(
+        Context, unsigned(VtorDispStack.CurrentValue)));
 }
 
 template <typename Attribute>
@@ -282,7 +282,7 @@ void Sema::ActOnPragmaClangSection(SourceLocation PragmaLoc, PragmaClangSectionA
   }
 
   CSec->Valid = true;
-  CSec->SectionName = SecName;
+  CSec->SectionName = std::string(SecName);
   CSec->PragmaLocation = PragmaLoc;
 }
 
@@ -416,7 +416,7 @@ void Sema::ActOnPragmaMSPointersToMembers(
 
 void Sema::ActOnPragmaMSVtorDisp(PragmaMsStackAction Action,
                                  SourceLocation PragmaLoc,
-                                 MSVtorDispAttr::Mode Mode) {
+                                 MSVtorDispMode Mode) {
   if (Action & PSK_Pop && VtorDispStack.Stack.empty())
     Diag(PragmaLoc, diag::warn_pragma_pop_failed) << "vtordisp"
                                                   << "stack empty";
@@ -938,6 +938,14 @@ void Sema::ActOnPragmaFPContract(LangOptions::FPContractModeKind FPC) {
     FPFeatures.setDisallowFPContract();
     break;
   }
+}
+
+void Sema::setRoundingMode(LangOptions::FPRoundingModeKind FPR) {
+  FPFeatures.setRoundingMode(FPR);
+}
+
+void Sema::setExceptionMode(LangOptions::FPExceptionModeKind FPE) {
+  FPFeatures.setExceptionMode(FPE);
 }
 
 void Sema::ActOnPragmaFEnvAccess(LangOptions::FEnvAccessModeKind FPC) {

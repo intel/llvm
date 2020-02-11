@@ -141,8 +141,8 @@ static void addDefaultBlacklists(const Driver &D, SanitizerMask Kinds,
 
     clang::SmallString<64> Path(D.ResourceDir);
     llvm::sys::path::append(Path, "share", BL.File);
-    if (llvm::sys::fs::exists(Path))
-      BlacklistFiles.push_back(Path.str());
+    if (D.getVFS().exists(Path))
+      BlacklistFiles.push_back(std::string(Path.str()));
     else if (BL.Mask == SanitizerKind::CFI)
       // If cfi_blacklist.txt cannot be found in the resource dir, driver
       // should fail.
@@ -412,9 +412,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                          SanitizerKind::Leak | SanitizerKind::Thread |
                          SanitizerKind::Memory | SanitizerKind::KernelAddress),
       std::make_pair(SanitizerKind::SafeStack,
-                     SanitizerKind::Address | SanitizerKind::HWAddress |
-                         SanitizerKind::Leak | SanitizerKind::Thread |
-                         SanitizerKind::Memory | SanitizerKind::KernelAddress),
+                     (TC.getTriple().isOSFuchsia() ? SanitizerMask()
+                                                   : SanitizerKind::Leak) |
+                         SanitizerKind::Address | SanitizerKind::HWAddress |
+                         SanitizerKind::Thread | SanitizerKind::Memory |
+                         SanitizerKind::KernelAddress),
       std::make_pair(SanitizerKind::KernelHWAddress,
                      SanitizerKind::Address | SanitizerKind::HWAddress |
                          SanitizerKind::Leak | SanitizerKind::Thread |
@@ -557,29 +559,35 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
 
   // Setup blacklist files.
   // Add default blacklist from resource directory.
-  addDefaultBlacklists(D, Kinds, BlacklistFiles);
+  addDefaultBlacklists(D, Kinds, SystemBlacklistFiles);
   // Parse -f(no-)sanitize-blacklist options.
   for (const auto *Arg : Args) {
     if (Arg->getOption().matches(options::OPT_fsanitize_blacklist)) {
       Arg->claim();
       std::string BLPath = Arg->getValue();
-      if (llvm::sys::fs::exists(BLPath)) {
-        BlacklistFiles.push_back(BLPath);
-        ExtraDeps.push_back(BLPath);
+      if (D.getVFS().exists(BLPath)) {
+        UserBlacklistFiles.push_back(BLPath);
       } else {
         D.Diag(clang::diag::err_drv_no_such_file) << BLPath;
       }
     } else if (Arg->getOption().matches(options::OPT_fno_sanitize_blacklist)) {
       Arg->claim();
-      BlacklistFiles.clear();
-      ExtraDeps.clear();
+      UserBlacklistFiles.clear();
+      SystemBlacklistFiles.clear();
     }
   }
   // Validate blacklists format.
   {
     std::string BLError;
     std::unique_ptr<llvm::SpecialCaseList> SCL(
-        llvm::SpecialCaseList::create(BlacklistFiles, BLError));
+        llvm::SpecialCaseList::create(UserBlacklistFiles, D.getVFS(), BLError));
+    if (!SCL.get())
+      D.Diag(clang::diag::err_drv_malformed_sanitizer_blacklist) << BLError;
+  }
+  {
+    std::string BLError;
+    std::unique_ptr<llvm::SpecialCaseList> SCL(llvm::SpecialCaseList::create(
+        SystemBlacklistFiles, D.getVFS(), BLError));
     if (!SCL.get())
       D.Diag(clang::diag::err_drv_malformed_sanitizer_blacklist) << BLError;
   }
@@ -825,8 +833,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   }
 
   if (AllAddedKinds & SanitizerKind::SafeStack) {
-    // SafeStack runtime is built into the system on Fuchsia.
-    SafeStackRuntime = !TC.getTriple().isOSFuchsia();
+    // SafeStack runtime is built into the system on Android and Fuchsia.
+    SafeStackRuntime =
+        !TC.getTriple().isAndroid() && !TC.getTriple().isOSFuchsia();
   }
 
   LinkRuntimes =
@@ -952,15 +961,15 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(
         Args.MakeArgString("-fsanitize-trap=" + toString(TrapSanitizers)));
 
-  for (const auto &BLPath : BlacklistFiles) {
+  for (const auto &BLPath : UserBlacklistFiles) {
     SmallString<64> BlacklistOpt("-fsanitize-blacklist=");
     BlacklistOpt += BLPath;
     CmdArgs.push_back(Args.MakeArgString(BlacklistOpt));
   }
-  for (const auto &Dep : ExtraDeps) {
-    SmallString<64> ExtraDepOpt("-fdepfile-entry=");
-    ExtraDepOpt += Dep;
-    CmdArgs.push_back(Args.MakeArgString(ExtraDepOpt));
+  for (const auto &BLPath : SystemBlacklistFiles) {
+    SmallString<64> BlacklistOpt("-fsanitize-system-blacklist=");
+    BlacklistOpt += BLPath;
+    CmdArgs.push_back(Args.MakeArgString(BlacklistOpt));
   }
 
   if (MsanTrackOrigins)

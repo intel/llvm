@@ -1,4 +1,4 @@
-//===-- Mangled.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Mangled.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -32,18 +32,8 @@
 #include <string.h>
 using namespace lldb_private;
 
-static inline Mangled::ManglingScheme cstring_mangling_scheme(const char *s) {
-  if (s) {
-    if (s[0] == '?')
-      return Mangled::eManglingSchemeMSVC;
-    if (s[0] == '_' && s[1] == 'Z')
-      return Mangled::eManglingSchemeItanium;
-  }
-  return Mangled::eManglingSchemeNone;
-}
-
-static inline bool cstring_is_mangled(const char *s) {
-  return cstring_mangling_scheme(s) != Mangled::eManglingSchemeNone;
+static inline bool cstring_is_mangled(llvm::StringRef s) {
+  return Mangled::GetManglingScheme(s) != Mangled::eManglingSchemeNone;
 }
 
 static ConstString 
@@ -99,6 +89,23 @@ get_demangled_name_without_arguments(ConstString mangled,
 
 #pragma mark Mangled
 
+Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
+  if (name.empty())
+    return Mangled::eManglingSchemeNone;
+
+  if (name.startswith("?"))
+    return Mangled::eManglingSchemeMSVC;
+
+  if (name.startswith("_Z"))
+    return Mangled::eManglingSchemeItanium;
+
+  // ___Z is a clang extension of block invocations
+  if (name.startswith("___Z"))
+    return Mangled::eManglingSchemeItanium;
+
+  return Mangled::eManglingSchemeNone;
+}
+
 Mangled::Mangled(ConstString s) : m_mangled(), m_demangled() {
   if (s)
     SetValue(s);
@@ -135,9 +142,8 @@ void Mangled::Clear() {
 
 // Compare the string values.
 int Mangled::Compare(const Mangled &a, const Mangled &b) {
-  return ConstString::Compare(
-      a.GetName(lldb::eLanguageTypeUnknown, ePreferMangled),
-      b.GetName(lldb::eLanguageTypeUnknown, ePreferMangled));
+  return ConstString::Compare(a.GetName(ePreferMangled),
+                              b.GetName(ePreferMangled));
 }
 
 // Set the string value in this objects. If "mangled" is true, then the mangled
@@ -159,7 +165,7 @@ void Mangled::SetValue(ConstString s, bool mangled) {
 
 void Mangled::SetValue(ConstString name) {
   if (name) {
-    if (cstring_is_mangled(name.GetCString())) {
+    if (cstring_is_mangled(name.GetStringRef())) {
       m_demangled.Clear();
       m_mangled = name;
     } else {
@@ -232,7 +238,7 @@ bool Mangled::DemangleWithRichManglingInfo(
   assert(m_mangled);
 
   // Check whether or not we are interested in this name at all.
-  ManglingScheme scheme = cstring_mangling_scheme(m_mangled.GetCString());
+  ManglingScheme scheme = GetManglingScheme(m_mangled.GetStringRef());
   if (skip_mangled_name && skip_mangled_name(m_mangled.GetStringRef(), scheme))
     return false;
 
@@ -288,8 +294,7 @@ bool Mangled::DemangleWithRichManglingInfo(
 // class will need to use this accessor if it wishes to decode the demangled
 // name. The result is cached and will be kept until a new string value is
 // supplied to this object, or until the end of the object's lifetime.
-ConstString 
-Mangled::GetDemangledName(lldb::LanguageType language) const {
+ConstString Mangled::GetDemangledName() const {
   // Check to make sure we have a valid mangled name and that we haven't
   // already decoded our mangled name.
   if (m_mangled && m_demangled.IsNull()) {
@@ -300,7 +305,7 @@ Mangled::GetDemangledName(lldb::LanguageType language) const {
 
     // Don't bother running anything that isn't mangled
     const char *mangled_name = m_mangled.GetCString();
-    ManglingScheme mangling_scheme{cstring_mangling_scheme(mangled_name)};
+    ManglingScheme mangling_scheme = GetManglingScheme(m_mangled.GetStringRef());
     if (mangling_scheme != eManglingSchemeNone &&
         !m_mangled.GetMangledCounterpart(m_demangled)) {
       // We didn't already mangle this name, demangle it and if all goes well
@@ -334,26 +339,24 @@ Mangled::GetDemangledName(lldb::LanguageType language) const {
 }
 
 ConstString
-Mangled::GetDisplayDemangledName(lldb::LanguageType language) const {
-  return GetDemangledName(language);
+Mangled::GetDisplayDemangledName() const {
+  return GetDemangledName();
 }
 
-bool Mangled::NameMatches(const RegularExpression &regex,
-                          lldb::LanguageType language) const {
+bool Mangled::NameMatches(const RegularExpression &regex) const {
   if (m_mangled && regex.Execute(m_mangled.AsCString()))
     return true;
 
-  ConstString demangled = GetDemangledName(language);
+  ConstString demangled = GetDemangledName();
   return demangled && regex.Execute(demangled.AsCString());
 }
 
 // Get the demangled name if there is one, else return the mangled name.
-ConstString Mangled::GetName(lldb::LanguageType language,
-                             Mangled::NamePreference preference) const {
+ConstString Mangled::GetName(Mangled::NamePreference preference) const {
   if (preference == ePreferMangled && m_mangled)
     return m_mangled;
 
-  ConstString demangled = GetDemangledName(language);
+  ConstString demangled = GetDemangledName();
 
   if (preference == ePreferDemangledWithoutArguments) {
     return get_demangled_name_without_arguments(m_mangled, demangled);
@@ -405,6 +408,7 @@ size_t Mangled::MemorySize() const {
 // within those targets.
 lldb::LanguageType Mangled::GuessLanguage() const {
   ConstString mangled = GetMangledName();
+
   if (mangled) {
     const char *mangled_name = mangled.GetCString();
     if (CPlusPlusLanguage::IsCPPMangledName(mangled_name))
@@ -414,7 +418,7 @@ lldb::LanguageType Mangled::GuessLanguage() const {
   } else {
     // ObjC names aren't really mangled, so they won't necessarily be in the
     // mangled name slot.
-    ConstString demangled_name = GetDemangledName(lldb::eLanguageTypeUnknown);
+    ConstString demangled_name = GetDemangledName();
     if (demangled_name 
         && ObjCLanguage::IsPossibleObjCMethodName(demangled_name.GetCString()))
       return lldb::eLanguageTypeObjC;
@@ -428,8 +432,7 @@ Stream &operator<<(Stream &s, const Mangled &obj) {
   if (obj.GetMangledName())
     s << "mangled = '" << obj.GetMangledName() << "'";
 
-  ConstString demangled =
-      obj.GetDemangledName(lldb::eLanguageTypeUnknown);
+  ConstString demangled = obj.GetDemangledName();
   if (demangled)
     s << ", demangled = '" << demangled << '\'';
   else

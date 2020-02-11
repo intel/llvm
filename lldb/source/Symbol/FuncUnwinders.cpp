@@ -1,4 +1,4 @@
-//===-- FuncUnwinders.cpp ----------------------------------*- C++ -*-===//
+//===-- FuncUnwinders.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -41,7 +41,9 @@ FuncUnwinders::FuncUnwinders(UnwindTable &unwind_table, AddressRange range)
       m_unwind_plan_arch_default_sp(),
       m_unwind_plan_arch_default_at_func_entry_sp(),
       m_tried_unwind_plan_assembly(false), m_tried_unwind_plan_eh_frame(false),
+      m_tried_unwind_plan_object_file(false),
       m_tried_unwind_plan_debug_frame(false),
+      m_tried_unwind_plan_object_file_augmented(false),
       m_tried_unwind_plan_eh_frame_augmented(false),
       m_tried_unwind_plan_debug_frame_augmented(false),
       m_tried_unwind_plan_compact_unwind(false),

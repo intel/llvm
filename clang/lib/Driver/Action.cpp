@@ -47,6 +47,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "llvm-spirv";
   case SPIRCheckJobClass:
     return "llvm-no-spir-kernel";
+  case SYCLPostLinkJobClass:
+    return "sycl-post-link";
   case BackendCompileJobClass:
     return "backend-compiler";
   }
@@ -443,7 +445,16 @@ void SPIRCheckJobAction::anchor() {}
 SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
     : JobAction(SPIRCheckJobClass, Input, Type) {}
 
+void SYCLPostLinkJobAction::anchor() {}
+
+SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input, types::ID Type)
+    : JobAction(SYCLPostLinkJobClass, Input, Type) {}
+
 void BackendCompileJobAction::anchor() {}
+
+BackendCompileJobAction::BackendCompileJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+    : JobAction(BackendCompileJobClass, Inputs, Type) {}
 
 BackendCompileJobAction::BackendCompileJobAction(Action *Input,
                                                  types::ID Type)

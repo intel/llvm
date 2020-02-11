@@ -177,18 +177,6 @@ let isTerminator = 1, hasSideEffects = 1, isBarrier = 1, hasCtrlDep = 1,
                      [(catchret bb:$dst, bb:$from)]>;
 }
 
-let hasSideEffects = 1, hasCtrlDep = 1, isCodeGenOnly = 1,
-    usesCustomInserter = 1 in
-def CATCHPAD : I<0, Pseudo, (outs), (ins), "# CATCHPAD", [(catchpad)]>;
-
-// This instruction is responsible for re-establishing stack pointers after an
-// exception has been caught and we are rejoining normal control flow in the
-// parent function or funclet. It generally sets ESP and EBP, and optionally
-// ESI. It is only needed for 32-bit WinEH, as the runtime restores CSRs for us
-// elsewhere.
-let hasSideEffects = 1, hasCtrlDep = 1, isCodeGenOnly = 1 in
-def EH_RESTORE : I<0, Pseudo, (outs), (ins), "# EH_RESTORE", []>;
-
 let hasSideEffects = 1, isBarrier = 1, isCodeGenOnly = 1,
     usesCustomInserter = 1 in {
   def EH_SjLj_SetJmp32  : I<0, Pseudo, (outs GR32:$dst), (ins i32mem:$buf),
@@ -334,27 +322,6 @@ def SETB_C64r : I<0, Pseudo, (outs GR64:$dst), (ins), "",
                  [(set GR64:$dst, (X86setcc_c X86_COND_B, EFLAGS))]>;
 } // isCodeGenOnly
 
-
-def : Pat<(i16 (anyext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C16r)>;
-def : Pat<(i32 (anyext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C32r)>;
-def : Pat<(i64 (anyext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C64r)>;
-
-def : Pat<(i16 (sext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C16r)>;
-def : Pat<(i32 (sext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C32r)>;
-def : Pat<(i64 (sext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C64r)>;
-
-// We canonicalize 'setb' to "(and (sbb reg,reg), 1)" on the hope that the and
-// will be eliminated and that the sbb can be extended up to a wider type.  When
-// this happens, it is great.  However, if we are left with an 8-bit sbb and an
-// and, we might as well just match it as a setb.
-def : Pat<(and (i8 (X86setcc_c X86_COND_B, EFLAGS)), 1),
-          (SETCCr (i8 2))>;
 
 // Patterns to give priority when both inputs are zero so that we don't use
 // an immediate for the RHS.
@@ -1918,15 +1885,6 @@ multiclass one_bit_patterns<RegisterClass RC, ValueType VT, Instruction BTR,
 defm : one_bit_patterns<GR16, i16, BTR16rr, BTS16rr, BTC16rr, shiftMask16>;
 defm : one_bit_patterns<GR32, i32, BTR32rr, BTS32rr, BTC32rr, shiftMask32>;
 defm : one_bit_patterns<GR64, i64, BTR64rr, BTS64rr, BTC64rr, shiftMask64>;
-
-
-// (anyext (setcc_carry)) -> (setcc_carry)
-def : Pat<(i16 (anyext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C16r)>;
-def : Pat<(i32 (anyext (i8 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C32r)>;
-def : Pat<(i32 (anyext (i16 (X86setcc_c X86_COND_B, EFLAGS)))),
-          (SETB_C32r)>;
 
 //===----------------------------------------------------------------------===//
 // EFLAGS-defining Patterns

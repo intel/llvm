@@ -1,4 +1,4 @@
-//===-- CanonicalIncludes.h - remap #inclue headers--------------*- C++ -*-===//
+//===-- CanonicalIncludes.h - remap #include headers-------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,7 @@ const char IWYUPragma[] = "// IWYU pragma: private, include ";
 
 void CanonicalIncludes::addMapping(llvm::StringRef Path,
                                    llvm::StringRef CanonicalPath) {
-  FullPathMapping[Path] = CanonicalPath;
+  FullPathMapping[Path] = std::string(CanonicalPath);
 }
 
 /// The maximum number of path components in a key from StdSuffixHeaderMapping.

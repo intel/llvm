@@ -8,6 +8,7 @@ function(add_sycl_rt_library LIB_NAME)
 
   add_library(${LIB_NAME} SHARED ${ARGN})
 
+  #To-Do: Remove dependency on icd loader and opencl headers.
   add_dependencies(${LIB_NAME}
     ocl-icd
     ocl-headers
@@ -18,50 +19,42 @@ function(add_sycl_rt_library LIB_NAME)
 
   if (MSVC)
       target_compile_definitions(${LIB_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
+      target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+  else()
+      set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
+      target_link_libraries(
+        ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
+      set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
   endif()
-  target_include_directories(${LIB_NAME} PRIVATE "${sycl_inc_dir}")
+
+  target_include_directories(
+      ${LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} "${sycl_inc_dir}")
   target_link_libraries(${LIB_NAME}
       PRIVATE OpenCL::Headers
       PRIVATE ${OpenCL_LIBRARIES}
+      PRIVATE ${CMAKE_DL_LIBS}
   )
-  if (SYCL_USE_LIBCXX)
-      if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-          (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-          target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-          if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-              message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                                  "SYCL_LIBCXX_LIBRARY_PATH should be set")
-          endif()
-          target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-          target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      else()
-          message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-      endif()
-  else()
 
-# Workaround for bug in GCC version 5 and higher.
-# More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-    target_link_libraries(${LIB_NAME} PRIVATE gcc_s gcc)
-    endif()
+  add_common_options(${LIB_NAME})
 
-  endif()
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
+    "detail/accessor_impl.cpp"
+    "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
     "detail/pi.cpp"
-    "detail/pi_opencl.cpp"
     "detail/common.cpp"
+    "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_impl.cpp"
     "detail/device_info.cpp"
+    "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
     "detail/helpers.cpp"
@@ -69,6 +62,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_info.cpp"
+    "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/platform_impl.cpp"
     "detail/platform_info.cpp"
@@ -83,6 +77,7 @@ set(SYCL_SOURCES
     "detail/scheduler/scheduler.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
+    "detail/sycl_mem_obj_t.cpp"
     "detail/usm/clusm.cpp"
     "detail/usm/usm_dispatch.cpp"
     "detail/usm/usm_impl.cpp"
@@ -93,14 +88,19 @@ set(SYCL_SOURCES
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
+    "function_pointer.cpp"
     "half_type.cpp"
+    "handler.cpp"
     "kernel.cpp"
     "platform.cpp"
+    "program.cpp"
     "queue.cpp"
     "ordered_queue.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
+    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
 add_sycl_rt_library(sycl ${SYCL_SOURCES})
@@ -139,13 +139,14 @@ if (MSVC)
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "")
   set(CMAKE_CXX_FLAGS_DEBUG "")
 
-  target_compile_options(sycl PUBLIC ${SYCL_CXX_FLAGS_RELEASE})
+  target_compile_options(sycl PRIVATE ${SYCL_CXX_FLAGS_RELEASE})
 
   add_sycl_rt_library(sycld ${SYCL_SOURCES})
-  target_compile_options(sycld PUBLIC ${SYCL_CXX_FLAGS_DEBUG})
+  target_compile_options(sycld PRIVATE ${SYCL_CXX_FLAGS_DEBUG})
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}
     ARCHIVE DESTINATION "lib" COMPONENT sycl
     LIBRARY DESTINATION "lib" COMPONENT sycl
     RUNTIME DESTINATION "bin" COMPONENT sycl)
+add_subdirectory(detail/devicelib)

@@ -7,12 +7,13 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/usm_dispatch.hpp>
 
-namespace cl {
-namespace sycl {
-namespace detail {
-namespace usm {
+__SYCL_INLINE namespace cl {
+  namespace sycl {
+  namespace detail {
+  namespace usm {
 
 /***
 
@@ -297,10 +298,12 @@ pi_result USMDispatcher::enqueueMigrateMem(pi_queue Queue, const void *Ptr,
     if (mEmulated) {
       // We could check for OpenCL 2.1 and call the SVM migrate
       // functions, but for now we'll just enqueue a marker.
+      // TODO: Implement a PI call for this openCL API
       RetVal = pi::cast<pi_result>(clEnqueueMarkerWithWaitList(
           CLQueue, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
+      RT::GlobalPlugin->checkPiResult(RetVal);
     } else {
       RetVal = pi::cast<pi_result>(pfn_clEnqueueMigrateMemINTEL(
           CLQueue, Ptr, Size, Flags, NumEventsInWaitList,
@@ -347,19 +350,24 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
 
     if (mEmulated) {
       // memAdvise does nothing here
-      PI_CHECK(clEnqueueMarkerWithWaitList(
-          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      // TODO: Implement a PI call for this openCL API
+      RT::GlobalPlugin->checkPiResult(
+          RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+              CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
     } else {
       // Temporary until driver supports
       // memAdvise doesn't do anything on an iGPU anyway
-      PI_CHECK(clEnqueueMarkerWithWaitList(
-                 CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      // TODO: Implement a PI call for this openCL API
+      RT::GlobalPlugin->checkPiResult(
+          RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+              CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
       /*
       // Enable once this is supported in the driver
       auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
-      PI_CHECK(pfn_clEnqueueMemAdviseINTEL(
+      // TODO: Implement a PI call for this openCL API
+      RT::GlobalPlugin->checkPiResult(RT::cast<RT::PiResult>(pfn_clEnqueueMemAdviseINTEL(
           CLQueue, Ptr, Length, CLAdvice, 0, nullptr,
-          reinterpret_cast<cl_event *>(Event)));
+          reinterpret_cast<cl_event *>(Event))));
       */
     }
   }
@@ -368,19 +376,20 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
 pi_result USMDispatcher::enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
                                          pi_uint32 NumEventsInWaitList,
                                          const pi_event *EventWaitList,
-                                         pi_event *Event) {
+                                         pi_event *Event,
+                                         const plugin &Plugin) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     if (mEmulated) {
       // Prefetch is a hint, so ignoring it is always safe.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait(
-          Queue, NumEventsInWaitList, EventWaitList, Event));
+      RetVal = Plugin.call_nocheck<PiApiKind::piEnqueueEventsWait>(
+          Queue, NumEventsInWaitList, EventWaitList, Event);
     } else {
       // TODO: Replace this with real prefetch support when the driver enables
       // it.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait(
-          Queue, NumEventsInWaitList, EventWaitList, Event));
+      RetVal = Plugin.call_nocheck<PiApiKind::piEnqueueEventsWait>(
+          Queue, NumEventsInWaitList, EventWaitList, Event);
     }
   }
 

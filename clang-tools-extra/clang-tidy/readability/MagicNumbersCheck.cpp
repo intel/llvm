@@ -21,12 +21,12 @@
 using namespace clang::ast_matchers;
 using namespace clang::ast_type_traits;
 
-namespace {
+namespace clang {
 
-bool isUsedToInitializeAConstant(const MatchFinder::MatchResult &Result,
-                                 const DynTypedNode &Node) {
+static bool isUsedToInitializeAConstant(const MatchFinder::MatchResult &Result,
+                                        const DynTypedNode &Node) {
 
-  const auto *AsDecl = Node.get<clang::DeclaratorDecl>();
+  const auto *AsDecl = Node.get<DeclaratorDecl>();
   if (AsDecl) {
     if (AsDecl->getType().isConstQualified())
       return true;
@@ -34,7 +34,7 @@ bool isUsedToInitializeAConstant(const MatchFinder::MatchResult &Result,
     return AsDecl->isImplicit();
   }
 
-  if (Node.get<clang::EnumConstantDecl>() != nullptr)
+  if (Node.get<EnumConstantDecl>())
     return true;
 
   return llvm::any_of(Result.Context->getParents(Node),
@@ -43,9 +43,18 @@ bool isUsedToInitializeAConstant(const MatchFinder::MatchResult &Result,
                       });
 }
 
-} // namespace
+static bool isUsedToDefineABitField(const MatchFinder::MatchResult &Result,
+                                    const DynTypedNode &Node) {
+  const auto *AsFieldDecl = Node.get<FieldDecl>();
+  if (AsFieldDecl && AsFieldDecl->isBitField())
+    return true;
 
-namespace clang {
+  return llvm::any_of(Result.Context->getParents(Node),
+                      [&Result](const DynTypedNode &Parent) {
+                        return isUsedToDefineABitField(Result, Parent);
+                      });
+}
+
 namespace tidy {
 namespace readability {
 
@@ -56,6 +65,7 @@ MagicNumbersCheck::MagicNumbersCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IgnoreAllFloatingPointValues(
           Options.get("IgnoreAllFloatingPointValues", false)),
+      IgnoreBitFieldsWidths(Options.get("IgnoreBitFieldsWidths", true)),
       IgnorePowersOf2IntegerValues(
           Options.get("IgnorePowersOf2IntegerValues", false)) {
   // Process the set of ignored integer values.
@@ -76,11 +86,17 @@ MagicNumbersCheck::MagicNumbersCheck(StringRef Name, ClangTidyContext *Context)
     IgnoredDoublePointValues.reserve(IgnoredFloatingPointValuesInput.size());
     for (const auto &InputValue : IgnoredFloatingPointValuesInput) {
       llvm::APFloat FloatValue(llvm::APFloat::IEEEsingle());
-      FloatValue.convertFromString(InputValue, DefaultRoundingMode);
+      auto StatusOrErr =
+          FloatValue.convertFromString(InputValue, DefaultRoundingMode);
+      assert(StatusOrErr && "Invalid floating point representation");
+      consumeError(StatusOrErr.takeError());
       IgnoredFloatingPointValues.push_back(FloatValue.convertToFloat());
 
       llvm::APFloat DoubleValue(llvm::APFloat::IEEEdouble());
-      DoubleValue.convertFromString(InputValue, DefaultRoundingMode);
+      StatusOrErr =
+          DoubleValue.convertFromString(InputValue, DefaultRoundingMode);
+      assert(StatusOrErr && "Invalid floating point representation");
+      consumeError(StatusOrErr.takeError());
       IgnoredDoublePointValues.push_back(DoubleValue.convertToDouble());
     }
     llvm::sort(IgnoredFloatingPointValues.begin(),
@@ -112,10 +128,33 @@ bool MagicNumbersCheck::isConstant(const MatchFinder::MatchResult &Result,
   return llvm::any_of(
       Result.Context->getParents(ExprResult),
       [&Result](const DynTypedNode &Parent) {
-        return isUsedToInitializeAConstant(Result, Parent) ||
-               // Ignore this instance, because this match reports the location
-               // where the template is defined, not where it is instantiated.
-               Parent.get<SubstNonTypeTemplateParmExpr>();
+        if (isUsedToInitializeAConstant(Result, Parent))
+          return true;
+
+        // Ignore this instance, because this matches an
+        // expanded class enumeration value.
+        if (Parent.get<CStyleCastExpr>() &&
+            llvm::any_of(
+                Result.Context->getParents(Parent),
+                [](const DynTypedNode &GrandParent) {
+                  return GrandParent.get<SubstNonTypeTemplateParmExpr>() !=
+                         nullptr;
+                }))
+          return true;
+
+        // Ignore this instance, because this match reports the
+        // location where the template is defined, not where it
+        // is instantiated.
+        if (Parent.get<SubstNonTypeTemplateParmExpr>())
+          return true;
+
+        // Don't warn on string user defined literals:
+        // std::string s = "Hello World"s;
+        if (const auto *UDL = Parent.get<UserDefinedLiteral>())
+          if (UDL->getLiteralOperatorKind() == UserDefinedLiteral::LOK_String)
+            return true;
+
+        return false;
       });
 }
 
@@ -163,6 +202,16 @@ bool MagicNumbersCheck::isSyntheticValue(const SourceManager *SourceManager,
       SourceManager->getBuffer(FileOffset.first)->getBufferIdentifier();
 
   return BufferIdentifier.empty();
+}
+
+bool MagicNumbersCheck::isBitFieldWidth(
+    const clang::ast_matchers::MatchFinder::MatchResult &Result,
+    const IntegerLiteral &Literal) const {
+  return IgnoreBitFieldsWidths &&
+         llvm::any_of(Result.Context->getParents(Literal),
+                      [&Result](const DynTypedNode &Parent) {
+                        return isUsedToDefineABitField(Result, Parent);
+                      });
 }
 
 } // namespace readability

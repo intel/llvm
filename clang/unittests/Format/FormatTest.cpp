@@ -1211,6 +1211,58 @@ TEST_F(FormatTest, FormatsSwitchStatement) {
                    "  }\n"
                    "}",
                    Style));
+  Style.IndentCaseLabels = false;
+  Style.IndentCaseBlocks = true;
+  EXPECT_EQ("switch (n)\n"
+            "{\n"
+            "case 0:\n"
+            "  {\n"
+            "    return false;\n"
+            "  }\n"
+            "case 1:\n"
+            "  break;\n"
+            "default:\n"
+            "  {\n"
+            "    return true;\n"
+            "  }\n"
+            "}",
+            format("switch (n) {\n"
+                   "case 0: {\n"
+                   "  return false;\n"
+                   "}\n"
+                   "case 1:\n"
+                   "  break;\n"
+                   "default: {\n"
+                   "  return true;\n"
+                   "}\n"
+                   "}",
+                   Style));
+  Style.IndentCaseLabels = true;
+  Style.IndentCaseBlocks = true;
+  EXPECT_EQ("switch (n)\n"
+            "{\n"
+            "  case 0:\n"
+            "    {\n"
+            "      return false;\n"
+            "    }\n"
+            "  case 1:\n"
+            "    break;\n"
+            "  default:\n"
+            "    {\n"
+            "      return true;\n"
+            "    }\n"
+            "}",
+            format("switch (n) {\n"
+                   "case 0: {\n"
+                   "  return false;\n"
+                   "}\n"
+                   "case 1:\n"
+                   "  break;\n"
+                   "default: {\n"
+                   "  return true;\n"
+                   "}\n"
+                   "}",
+                   Style));
 }
 
 TEST_F(FormatTest, CaseRanges) {
@@ -1565,6 +1617,41 @@ TEST_F(FormatTest, MultiLineControlStatements) {
             "  baz();\n"
             "}",
             format("try{foo();}catch(Exception&bar){baz();}", Style));
+  Style.ColumnLimit =
+      40; // to concentrate at brace wrapping, not line wrap due to column limit
+  EXPECT_EQ("try {\n"
+            "  foo();\n"
+            "} catch (Exception &bar) {\n"
+            "  baz();\n"
+            "}",
+            format("try{foo();}catch(Exception&bar){baz();}", Style));
+  Style.ColumnLimit =
+      20; // to concentrate at brace wrapping, not line wrap due to column limit
+
+  Style.BraceWrapping.BeforeElse = true;
+  EXPECT_EQ(
+      "if (foo) {\n"
+      "  bar();\n"
+      "}\n"
+      "else if (baz ||\n"
+      "         quux)\n"
+      "{\n"
+      "  foobar();\n"
+      "}\n"
+      "else {\n"
+      "  barbaz();\n"
+      "}",
+      format("if(foo){bar();}else if(baz||quux){foobar();}else{barbaz();}",
+             Style));
+
+  Style.BraceWrapping.BeforeCatch = true;
+  EXPECT_EQ("try {\n"
+            "  foo();\n"
+            "}\n"
+            "catch (...) {\n"
+            "  baz();\n"
+            "}",
+            format("try{foo();}catch(...){baz();}", Style));
 }
 
 //===----------------------------------------------------------------------===//
@@ -4977,6 +5064,29 @@ TEST_F(FormatTest, TrailingReturnType) {
   verifyFormat("void f() { auto a = b->c(); }");
 }
 
+TEST_F(FormatTest, DeductionGuides) {
+  verifyFormat("template <class T> A(const T &, const T &) -> A<T &>;");
+  verifyFormat("template <class T> explicit A(T &, T &&) -> A<T>;");
+  verifyFormat("template <class... Ts> S(Ts...) -> S<Ts...>;");
+  verifyFormat(
+      "template <class... T>\n"
+      "array(T &&... t) -> array<std::common_type_t<T...>, sizeof...(T)>;");
+  verifyFormat("template <class T> A() -> A<decltype(p->foo<3>())>;");
+  verifyFormat("template <class T> A() -> A<decltype(foo<traits<1>>)>;");
+  verifyFormat("template <class T> A() -> A<sizeof(p->foo<1>)>;");
+  verifyFormat("template <class T> A() -> A<(3 < 2)>;");
+  verifyFormat("template <class T> A() -> A<((3) < (2))>;");
+  verifyFormat("template <class T> x() -> x<1>;");
+  verifyFormat("template <class T> explicit x(T &) -> x<1>;");
+
+  // Ensure not deduction guides.
+  verifyFormat("c()->f<int>();");
+  verifyFormat("x()->foo<1>;");
+  verifyFormat("x = p->foo<3>();");
+  verifyFormat("x()->x<1>();");
+  verifyFormat("x()->x<1>;");
+}
+
 TEST_F(FormatTest, BreaksFunctionDeclarationsWithTrailingTokens) {
   // Avoid breaking before trailing 'const' or other trailing annotations, if
   // they are not function-like.
@@ -6111,7 +6221,48 @@ TEST_F(FormatTest, ReturnTypeBreakingStyle) {
                "void\n"
                "A::operator>>() {}\n"
                "void\n"
-               "A::operator+() {}\n",
+               "A::operator+() {}\n"
+               "void\n"
+               "A::operator*() {}\n"
+               "void\n"
+               "A::operator->() {}\n"
+               "void\n"
+               "A::operator void *() {}\n"
+               "void\n"
+               "A::operator void &() {}\n"
+               "void\n"
+               "A::operator void &&() {}\n"
+               "void\n"
+               "A::operator char *() {}\n"
+               "void\n"
+               "A::operator[]() {}\n"
+               "void\n"
+               "A::operator!() {}\n",
+               Style);
+  verifyFormat("constexpr auto\n"
+               "operator()() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator>>() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator+() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator*() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator->() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator++() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator void *() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator void &() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator void &&() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator char *() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator!() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator[]() const -> reference {}\n",
                Style);
   verifyFormat("void *operator new(std::size_t s);", // No break here.
                Style);
@@ -6926,6 +7077,9 @@ TEST_F(FormatTest, UnderstandsUnaryOperators) {
   verifyFormat("int a = /* confusing comment */ -1;");
   // FIXME: The space after 'i' is wrong, but hopefully, this is a rare case.
   verifyFormat("int a = i /* confusing comment */++;");
+
+  verifyFormat("co_yield -1;");
+  verifyFormat("co_return -1;");
 }
 
 TEST_F(FormatTest, DoesNotIndentRelativeToUnaryOperators) {
@@ -7253,6 +7407,9 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("typedef typeof(int(int, int))* MyFuncPtr;", Left);
   verifyFormat("[](const decltype(*a)* ptr) {}", Left);
   verifyFormat("typedef typeof /*comment*/ (int(int, int))* MyFuncPtr;", Left);
+  verifyFormat("auto x(A&&, B&&, C&&) -> D;", Left);
+  verifyFormat("auto x = [](A&&, B&&, C&&) -> D {};", Left);
+  verifyFormat("template <class T> X(T&&, T&&, T&&) -> X<T>;", Left);
 
   verifyIndependentOfContext("a = *(x + y);");
   verifyIndependentOfContext("a = &(x + y);");
@@ -10572,6 +10729,46 @@ TEST_F(FormatTest, ConfigurableSpacesInSquareBrackets) {
   // Lambdas.
   verifyFormat("int c = []() -> int { return 2; }();\n", Spaces);
   verifyFormat("return [ i, args... ] {};", Spaces);
+  verifyFormat("int foo = [ &bar ]() {};", Spaces);
+  verifyFormat("int foo = [ = ]() {};", Spaces);
+  verifyFormat("int foo = [ & ]() {};", Spaces);
+  verifyFormat("int foo = [ =, &bar ]() {};", Spaces);
+  verifyFormat("int foo = [ &bar, = ]() {};", Spaces);
+}
+
+TEST_F(FormatTest, ConfigurableSpaceBeforeBrackets) {
+  FormatStyle NoSpaceStyle = getLLVMStyle();
+  verifyFormat("int a[5];", NoSpaceStyle);
+  verifyFormat("a[3] += 42;", NoSpaceStyle);
+
+  verifyFormat("int a[1];", NoSpaceStyle);
+  verifyFormat("int 1 [a];", NoSpaceStyle);
+  verifyFormat("int a[1][2];", NoSpaceStyle);
+  verifyFormat("a[7] = 5;", NoSpaceStyle);
+  verifyFormat("int a = (f())[23];", NoSpaceStyle);
+  verifyFormat("f([] {})", NoSpaceStyle);
+
+  FormatStyle Space = getLLVMStyle();
+  Space.SpaceBeforeSquareBrackets = true;
+  verifyFormat("int c = []() -> int { return 2; }();\n", Space);
+  verifyFormat("return [i, args...] {};", Space);
+
+  verifyFormat("int a [5];", Space);
+  verifyFormat("a [3] += 42;", Space);
+  verifyFormat("constexpr char hello []{\"hello\"};", Space);
+  verifyFormat("double &operator[](int i) { return 0; }\n"
+               "int i;",
+               Space);
+  verifyFormat("std::unique_ptr<int []> foo() {}", Space);
+  verifyFormat("int i = a [a][a]->f();", Space);
+  verifyFormat("int i = (*b) [a]->f();", Space);
+
+  verifyFormat("int a [1];", Space);
+  verifyFormat("int 1 [a];", Space);
+  verifyFormat("int a [1][2];", Space);
+  verifyFormat("a [7] = 5;", Space);
+  verifyFormat("int a = (f()) [23];", Space);
+  verifyFormat("f([] {})", Space);
 }
 
 TEST_F(FormatTest, ConfigurableSpaceBeforeAssignmentOperators) {
@@ -12431,10 +12628,12 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(BreakStringLiterals);
   CHECK_PARSE_BOOL(CompactNamespaces);
   CHECK_PARSE_BOOL(ConstructorInitializerAllOnOneLineOrOnePerLine);
+  CHECK_PARSE_BOOL(DeriveLineEnding);
   CHECK_PARSE_BOOL(DerivePointerAlignment);
   CHECK_PARSE_BOOL_FIELD(DerivePointerAlignment, "DerivePointerBinding");
   CHECK_PARSE_BOOL(DisableFormat);
   CHECK_PARSE_BOOL(IndentCaseLabels);
+  CHECK_PARSE_BOOL(IndentCaseBlocks);
   CHECK_PARSE_BOOL(IndentGotoLabels);
   CHECK_PARSE_BOOL(IndentWrappedFunctionNames);
   CHECK_PARSE_BOOL(KeepEmptyLinesAtTheStartOfBlocks);
@@ -12447,6 +12646,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(SpacesInParentheses);
   CHECK_PARSE_BOOL(SpacesInSquareBrackets);
   CHECK_PARSE_BOOL(SpacesInAngles);
+  CHECK_PARSE_BOOL(SpacesInConditionalStatement);
   CHECK_PARSE_BOOL(SpaceInEmptyBlock);
   CHECK_PARSE_BOOL(SpaceInEmptyParentheses);
   CHECK_PARSE_BOOL(SpacesInContainerLiterals);
@@ -12459,6 +12659,8 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(SpaceBeforeCtorInitializerColon);
   CHECK_PARSE_BOOL(SpaceBeforeInheritanceColon);
   CHECK_PARSE_BOOL(SpaceBeforeRangeBasedForLoopColon);
+  CHECK_PARSE_BOOL(SpaceBeforeSquareBrackets);
+  CHECK_PARSE_BOOL(UseCRLF);
 
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterCaseLabel);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterClass);
@@ -12779,6 +12981,8 @@ TEST_F(FormatTest, ParsesConfiguration) {
               IncludeStyle.IncludeCategories, ExpectedCategories);
   CHECK_PARSE("IncludeIsMainRegex: 'abc$'", IncludeStyle.IncludeIsMainRegex,
               "abc$");
+  CHECK_PARSE("IncludeIsMainSourceRegex: 'abc$'",
+              IncludeStyle.IncludeIsMainSourceRegex, "abc$");
 
   Style.RawStringFormats.clear();
   std::vector<FormatStyle::RawStringFormat> ExpectedRawStringFormats = {
@@ -12827,6 +13031,12 @@ TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
                                "IndentWidth: 34",
                                &Style),
             ParseError::Unsuitable);
+  FormatStyle BinPackedTCS = {};
+  BinPackedTCS.Language = FormatStyle::LK_JavaScript;
+  EXPECT_EQ(parseConfiguration("BinPackArguments: true\n"
+                               "InsertTrailingCommas: Wrapped",
+                               &BinPackedTCS),
+            ParseError::BinPackTrailingCommaConflict);
   EXPECT_EQ(12u, Style.IndentWidth);
   CHECK_PARSE("IndentWidth: 56", IndentWidth, 56u);
   EXPECT_EQ(FormatStyle::LK_Cpp, Style.Language);
@@ -13985,6 +14195,94 @@ TEST_F(FormatTest, SupportsCRLF) {
             format("/*\r\n"
                    "    \r\r\r\n"
                    "*/"));
+
+  FormatStyle style = getLLVMStyle();
+
+  style.DeriveLineEnding = true;
+  style.UseCRLF = false;
+  EXPECT_EQ("union FooBarBazQux {\n"
+            "  int foo;\n"
+            "  int bar;\n"
+            "  int baz;\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "};",
+                   style));
+  style.UseCRLF = true;
+  EXPECT_EQ("union FooBarBazQux {\r\n"
+            "  int foo;\r\n"
+            "  int bar;\r\n"
+            "  int baz;\r\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "};",
+                   style));
+
+  style.DeriveLineEnding = false;
+  style.UseCRLF = false;
+  EXPECT_EQ("union FooBarBazQux {\n"
+            "  int foo;\n"
+            "  int bar;\n"
+            "  int baz;\n"
+            "  int qux;\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "  int qux;\r\n"
+                   "};",
+                   style));
+  style.UseCRLF = true;
+  EXPECT_EQ("union FooBarBazQux {\r\n"
+            "  int foo;\r\n"
+            "  int bar;\r\n"
+            "  int baz;\r\n"
+            "  int qux;\r\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "  int qux;\n"
+                   "};",
+                   style));
+
+  style.DeriveLineEnding = true;
+  style.UseCRLF = false;
+  EXPECT_EQ("union FooBarBazQux {\r\n"
+            "  int foo;\r\n"
+            "  int bar;\r\n"
+            "  int baz;\r\n"
+            "  int qux;\r\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "  int qux;\r\n"
+                   "};",
+                   style));
+  style.UseCRLF = true;
+  EXPECT_EQ("union FooBarBazQux {\n"
+            "  int foo;\n"
+            "  int bar;\n"
+            "  int baz;\n"
+            "  int qux;\n"
+            "};",
+            format("union FooBarBazQux {\r\n"
+                   "  int foo;\n"
+                   "  int bar;\r\n"
+                   "  int baz;\n"
+                   "  int qux;\n"
+                   "};",
+                   style));
 }
 
 TEST_F(FormatTest, MunchSemicolonAfterBlocks) {
@@ -14680,6 +14978,23 @@ TEST_F(FormatTest, AmbersandInLamda) {
   verifyFormat("auto lambda = [&a = a]() { a = 2; };", AlignStyle);
 }
 
+TEST_F(FormatTest, SpacesInConditionalStatement) {
+  FormatStyle Spaces = getLLVMStyle();
+  Spaces.SpacesInConditionalStatement = true;
+  verifyFormat("for ( int i = 0; i; i++ )\n  continue;", Spaces);
+  verifyFormat("if ( !a )\n  return;", Spaces);
+  verifyFormat("if ( a )\n  return;", Spaces);
+  verifyFormat("if constexpr ( a )\n  return;", Spaces);
+  verifyFormat("switch ( a )\ncase 1:\n  return;", Spaces);
+  verifyFormat("while ( a )\n  return;", Spaces);
+  verifyFormat("while ( (a && b) )\n  return;", Spaces);
+  verifyFormat("do {\n} while ( 1 != 0 );", Spaces);
+  verifyFormat("try {\n} catch ( const std::exception & ) {\n}", Spaces);
+  // Check that space on the left of "::" is inserted as expected at beginning
+  // of condition.
+  verifyFormat("while ( ::func() )\n  return;", Spaces);
+}
+
 TEST_F(FormatTest, AlternativeOperators) {
   // Test case for ensuring alternate operators are not
   // combined with their right most neighbour.
@@ -14726,6 +15041,84 @@ TEST_F(FormatTest, STLWhileNotDefineChed) {
   verifyFormat("#if defined(while)\n"
                "#define while EMIT WARNING C4005\n"
                "#endif // while");
+}
+
+TEST_F(FormatTest, OperatorSpacing) {
+  FormatStyle Style = getLLVMStyle();
+  Style.PointerAlignment = FormatStyle::PAS_Right;
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator void *();", Style);
+  verifyFormat("Foo::operator()(void *);", Style);
+  verifyFormat("Foo::operator*(void *);", Style);
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("operator*(int (*)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("Foo::operator void &();", Style);
+  verifyFormat("Foo::operator()(void &);", Style);
+  verifyFormat("Foo::operator&(void &);", Style);
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("operator&(int (&)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("Foo::operator void &&();", Style);
+  verifyFormat("Foo::operator()(void &&);", Style);
+  verifyFormat("Foo::operator&&(void &&);", Style);
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+
+  Style.PointerAlignment = FormatStyle::PAS_Left;
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator void*();", Style);
+  verifyFormat("Foo::operator/*comment*/ void*();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void*();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void*();", Style);
+  verifyFormat("Foo::operator()(void*);", Style);
+  verifyFormat("Foo::operator*(void*);", Style);
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("operator*(int (*)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("Foo::operator void&();", Style);
+  verifyFormat("Foo::operator/*comment*/ void&();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void&();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void&();", Style);
+  verifyFormat("Foo::operator()(void&);", Style);
+  verifyFormat("Foo::operator&(void&);", Style);
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("operator&(int (&)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("Foo::operator void&&();", Style);
+  verifyFormat("Foo::operator/*comment*/ void&&();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void&&();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void&&();", Style);
+  verifyFormat("Foo::operator()(void&&);", Style);
+  verifyFormat("Foo::operator&&(void&&);", Style);
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+
+  Style.PointerAlignment = FormatStyle::PAS_Middle;
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator void *();", Style);
+  verifyFormat("Foo::operator()(void *);", Style);
+  verifyFormat("Foo::operator*(void *);", Style);
+  verifyFormat("Foo::operator*();", Style);
+  verifyFormat("operator*(int (*)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("Foo::operator void &();", Style);
+  verifyFormat("Foo::operator()(void &);", Style);
+  verifyFormat("Foo::operator&(void &);", Style);
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("operator&(int (&)(), class Foo);", Style);
+
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("Foo::operator void &&();", Style);
+  verifyFormat("Foo::operator()(void &&);", Style);
+  verifyFormat("Foo::operator&&(void &&);", Style);
+  verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
 }
 
 } // namespace

@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 #include "Target.h"
 
-#include "Latency.h"
-#include "Uops.h"
+#include "LatencyBenchmarkRunner.h"
+#include "ParallelSnippetGenerator.h"
+#include "SerialSnippetGenerator.h"
+#include "UopsBenchmarkRunner.h"
 
 namespace llvm {
 namespace exegesis {
@@ -43,10 +45,10 @@ std::unique_ptr<SnippetGenerator> ExegesisTarget::createSnippetGenerator(
   case InstructionBenchmark::Unknown:
     return nullptr;
   case InstructionBenchmark::Latency:
-    return createLatencySnippetGenerator(State, Opts);
+    return createSerialSnippetGenerator(State, Opts);
   case InstructionBenchmark::Uops:
   case InstructionBenchmark::InverseThroughput:
-    return createUopsSnippetGenerator(State, Opts);
+    return createParallelSnippetGenerator(State, Opts);
   }
   return nullptr;
 }
@@ -54,26 +56,37 @@ std::unique_ptr<SnippetGenerator> ExegesisTarget::createSnippetGenerator(
 std::unique_ptr<BenchmarkRunner>
 ExegesisTarget::createBenchmarkRunner(InstructionBenchmark::ModeE Mode,
                                       const LLVMState &State) const {
+  PfmCountersInfo PfmCounters = State.getPfmCounters();
   switch (Mode) {
   case InstructionBenchmark::Unknown:
     return nullptr;
   case InstructionBenchmark::Latency:
   case InstructionBenchmark::InverseThroughput:
+    if (!PfmCounters.CycleCounter) {
+      const char *ModeName = Mode == InstructionBenchmark::Latency
+                                 ? "latency"
+                                 : "inverse_throughput";
+      report_fatal_error(Twine("can't run '").concat(ModeName).concat("' mode, "
+                               "sched model does not define a cycle counter."));
+    }
     return createLatencyBenchmarkRunner(State, Mode);
   case InstructionBenchmark::Uops:
+    if (!PfmCounters.UopsCounter && !PfmCounters.IssueCounters)
+      report_fatal_error("can't run 'uops' mode, sched model does not define "
+                         "uops or issue counters.");
     return createUopsBenchmarkRunner(State);
   }
   return nullptr;
 }
 
-std::unique_ptr<SnippetGenerator> ExegesisTarget::createLatencySnippetGenerator(
+std::unique_ptr<SnippetGenerator> ExegesisTarget::createSerialSnippetGenerator(
     const LLVMState &State, const SnippetGenerator::Options &Opts) const {
-  return std::make_unique<LatencySnippetGenerator>(State, Opts);
+  return std::make_unique<SerialSnippetGenerator>(State, Opts);
 }
 
-std::unique_ptr<SnippetGenerator> ExegesisTarget::createUopsSnippetGenerator(
+std::unique_ptr<SnippetGenerator> ExegesisTarget::createParallelSnippetGenerator(
     const LLVMState &State, const SnippetGenerator::Options &Opts) const {
-  return std::make_unique<UopsSnippetGenerator>(State, Opts);
+  return std::make_unique<ParallelSnippetGenerator>(State, Opts);
 }
 
 std::unique_ptr<BenchmarkRunner> ExegesisTarget::createLatencyBenchmarkRunner(
@@ -84,30 +97,6 @@ std::unique_ptr<BenchmarkRunner> ExegesisTarget::createLatencyBenchmarkRunner(
 std::unique_ptr<BenchmarkRunner>
 ExegesisTarget::createUopsBenchmarkRunner(const LLVMState &State) const {
   return std::make_unique<UopsBenchmarkRunner>(State);
-}
-
-void ExegesisTarget::randomizeMCOperand(const Instruction &Instr,
-                                        const Variable &Var,
-                                        MCOperand &AssignedValue,
-                                        const BitVector &ForbiddenRegs) const {
-  const Operand &Op = Instr.getPrimaryOperand(Var);
-  switch (Op.getExplicitOperandInfo().OperandType) {
-  case MCOI::OperandType::OPERAND_IMMEDIATE:
-    // FIXME: explore immediate values too.
-    AssignedValue = MCOperand::createImm(1);
-    break;
-  case MCOI::OperandType::OPERAND_REGISTER: {
-    assert(Op.isReg());
-    auto AllowedRegs = Op.getRegisterAliasing().sourceBits();
-    assert(AllowedRegs.size() == ForbiddenRegs.size());
-    for (auto I : ForbiddenRegs.set_bits())
-      AllowedRegs.reset(I);
-    AssignedValue = MCOperand::createReg(randomBit(AllowedRegs));
-    break;
-  }
-  default:
-    break;
-  }
 }
 
 static_assert(std::is_pod<PfmCountersInfo>::value,

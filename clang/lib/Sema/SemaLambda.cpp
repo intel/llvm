@@ -361,7 +361,8 @@ CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
                                            TypeSourceInfo *MethodTypeInfo,
                                            SourceLocation EndLoc,
                                            ArrayRef<ParmVarDecl *> Params,
-                                           ConstexprSpecKind ConstexprKind) {
+                                           ConstexprSpecKind ConstexprKind,
+                                           Expr *TrailingRequiresClause) {
   QualType MethodType = MethodTypeInfo->getType();
   TemplateParameterList *TemplateParams =
       getGenericLambdaTemplateParameterList(getCurLambda(), *this);
@@ -395,7 +396,7 @@ CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
       DeclarationNameInfo(MethodName, IntroducerRange.getBegin(),
                           MethodNameLoc),
       MethodType, MethodTypeInfo, SC_None,
-      /*isInline=*/true, ConstexprKind, EndLoc);
+      /*isInline=*/true, ConstexprKind, EndLoc, TrailingRequiresClause);
   Method->setAccess(AS_public);
   if (!TemplateParams)
     Class->addDecl(Method);
@@ -790,7 +791,8 @@ QualType Sema::buildLambdaInitCaptureInitialization(
   // deduce against.
   QualType DeductType = Context.getAutoDeductType();
   TypeLocBuilder TLB;
-  TLB.pushTypeSpec(DeductType).setNameLoc(Loc);
+  AutoTypeLoc TL = TLB.push<AutoTypeLoc>(DeductType);
+  TL.setNameLoc(Loc);
   if (ByRef) {
     DeductType = BuildReferenceType(DeductType, true, Loc, Id);
     assert(!DeductType.isNull() && "can't build reference to auto");
@@ -917,6 +919,10 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
         /*IsVariadic=*/false, /*IsCXXMethod=*/true));
     EPI.HasTrailingReturn = true;
     EPI.TypeQuals.addConst();
+    LangAS AS = getDefaultCXXMethodAddrSpace();
+    if (AS != LangAS::Default)
+      EPI.TypeQuals.addAddressSpace(AS);
+
     // C++1y [expr.prim.lambda]:
     //   The lambda return type is 'auto', which is replaced by the
     //   trailing-return type if provided and/or deduced from 'return'
@@ -968,7 +974,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
                                                  KnownDependent, Intro.Default);
   CXXMethodDecl *Method =
       startLambdaDefinition(Class, Intro.Range, MethodTyInfo, EndLoc, Params,
-                            ParamInfo.getDeclSpec().getConstexprSpecifier());
+                            ParamInfo.getDeclSpec().getConstexprSpecifier(),
+                            ParamInfo.getTrailingRequiresClause());
   if (ExplicitParams)
     CheckCXXDefaultArguments(Method);
 
@@ -1227,7 +1234,9 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   // Enter a new evaluation context to insulate the lambda from any
   // cleanups from the enclosing full-expression.
   PushExpressionEvaluationContext(
-      ExpressionEvaluationContext::PotentiallyEvaluated);
+      LSI->CallOperator->isConsteval()
+          ? ExpressionEvaluationContext::ConstantEvaluated
+          : ExpressionEvaluationContext::PotentiallyEvaluated);
 }
 
 void Sema::ActOnLambdaError(SourceLocation StartLoc, Scope *CurScope,
@@ -1248,7 +1257,7 @@ void Sema::ActOnLambdaError(SourceLocation StartLoc, Scope *CurScope,
   SmallVector<Decl*, 4> Fields(Class->fields());
   ActOnFields(nullptr, Class->getLocation(), Class, Fields, SourceLocation(),
               SourceLocation(), ParsedAttributesView());
-  CheckCompletedCXXClass(Class);
+  CheckCompletedCXXClass(nullptr, Class);
 
   PopFunctionScopeInfo();
 }
@@ -1794,7 +1803,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
     SmallVector<Decl*, 4> Fields(Class->fields());
     ActOnFields(nullptr, Class->getLocation(), Class, Fields, SourceLocation(),
                 SourceLocation(), ParsedAttributesView());
-    CheckCompletedCXXClass(Class);
+    CheckCompletedCXXClass(nullptr, Class);
   }
 
   Cleanup.mergeFrom(LambdaCleanup);

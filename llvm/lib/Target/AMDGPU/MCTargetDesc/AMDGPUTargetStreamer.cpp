@@ -43,7 +43,7 @@ using namespace llvm::AMDGPU::HSAMD;
 
 bool AMDGPUTargetStreamer::EmitHSAMetadataV2(StringRef HSAMetadataString) {
   HSAMD::Metadata HSAMetadata;
-  if (HSAMD::fromString(HSAMetadataString, HSAMetadata))
+  if (HSAMD::fromString(std::string(HSAMetadataString), HSAMetadata))
     return false;
 
   return EmitHSAMetadata(HSAMetadata);
@@ -60,6 +60,7 @@ StringRef AMDGPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   AMDGPU::GPUKind AK;
 
   switch (ElfMach) {
+  default: llvm_unreachable("Unhandled ELF::EF_AMDGPU type");
   case ELF::EF_AMDGPU_MACH_R600_R600:      AK = GK_R600;    break;
   case ELF::EF_AMDGPU_MACH_R600_R630:      AK = GK_R630;    break;
   case ELF::EF_AMDGPU_MACH_R600_RS880:     AK = GK_RS880;   break;

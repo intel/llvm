@@ -193,8 +193,12 @@ void test_conditional_bzero() {
 }
 
 // CHECK-LABEL: define void @test_float_builtins
-void test_float_builtins(float F, double D, long double LD) {
+void test_float_builtins(__fp16 *H, float F, double D, long double LD) {
   volatile int res;
+  res = __builtin_isinf(*H);
+  // CHECK:  call half @llvm.fabs.f16(half
+  // CHECK:  fcmp oeq half {{.*}}, 0xH7C00
+
   res = __builtin_isinf(F);
   // CHECK:  call float @llvm.fabs.f32(float
   // CHECK:  fcmp oeq float {{.*}}, 0x7FF0000000000000
@@ -206,6 +210,14 @@ void test_float_builtins(float F, double D, long double LD) {
   res = __builtin_isinf(LD);
   // CHECK:  call x86_fp80 @llvm.fabs.f80(x86_fp80
   // CHECK:  fcmp oeq x86_fp80 {{.*}}, 0xK7FFF8000000000000000
+
+  res = __builtin_isinf_sign(*H);
+  // CHECK:  %[[ABS:.*]] = call half @llvm.fabs.f16(half %[[ARG:.*]])
+  // CHECK:  %[[ISINF:.*]] = fcmp oeq half %[[ABS]], 0xH7C00
+  // CHECK:  %[[BITCAST:.*]] = bitcast half %[[ARG]] to i16
+  // CHECK:  %[[ISNEG:.*]] = icmp slt i16 %[[BITCAST]], 0
+  // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
+  // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
   res = __builtin_isinf_sign(F);
   // CHECK:  %[[ABS:.*]] = call float @llvm.fabs.f32(float %[[ARG:.*]])
@@ -231,6 +243,10 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
   // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
+  res = __builtin_isfinite(*H);
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp one half {{.*}}, 0xH7C00
+
   res = __builtin_isfinite(F);
   // CHECK: call float @llvm.fabs.f32(float
   // CHECK: fcmp one float {{.*}}, 0x7FF0000000000000
@@ -238,6 +254,14 @@ void test_float_builtins(float F, double D, long double LD) {
   res = finite(D);
   // CHECK: call double @llvm.fabs.f64(double
   // CHECK: fcmp one double {{.*}}, 0x7FF0000000000000
+
+  res = __builtin_isnormal(*H);
+  // CHECK: fcmp oeq half
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp ult half {{.*}}, 0xH7C00
+  // CHECK: fcmp uge half {{.*}}, 0xH0400
+  // CHECK: and i1
+  // CHECK: and i1
 
   res = __builtin_isnormal(F);
   // CHECK: fcmp oeq float
@@ -427,6 +451,13 @@ void test_builtin_launder(int *p) {
   // CHECK-NOT: @llvm.launder
   // CHECK: store i32* [[TMP]],
   int *d = __builtin_launder(p);
+}
+
+// __warn_memset_zero_len should be NOP, see https://sourceware.org/bugzilla/show_bug.cgi?id=25399
+// CHECK-LABEL: define void @test___warn_memset_zero_len
+void test___warn_memset_zero_len() {
+  // CHECK-NOT: @__warn_memset_zero_len
+  __warn_memset_zero_len();
 }
 
 // Behavior of __builtin_os_log differs between platforms, so only test on X86

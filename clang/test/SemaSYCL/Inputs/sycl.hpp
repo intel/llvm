@@ -57,17 +57,17 @@ struct DeviceValueType;
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::global_buffer> {
-  using type = __attribute__((ocl_global)) dataT;
+  using type = __attribute__((opencl_global)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::constant_buffer> {
-  using type = __attribute__((ocl_constant)) dataT;
+  using type = __attribute__((opencl_constant)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::local> {
-  using type = __attribute__((ocl_local)) dataT;
+  using type = __attribute__((opencl_local)) dataT;
 };
 
 template <typename dataT, int dimensions, access::mode accessmode,
@@ -167,14 +167,31 @@ public:
   template <typename T>
   event submit(T cgf) { return event{}; }
 };
+class auto_name {};
+template <typename Name, typename Type>
+struct get_kernel_name_t {
+  using name = Name;
+};
+template <typename Type>
+struct get_kernel_name_t<auto_name, Type> {
+  using name = Type;
+};
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+  kernelFunc();
+}
 class handler {
 public:
-  template <typename KernelName, typename KernelType>
-  ATTR_SYCL_KERNEL void single_task(KernelType kernelFunc) {}
-
-  template <typename KernelType>
-  ATTR_SYCL_KERNEL void single_task(KernelType kernelFunc) {}
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
 };
 
 } // namespace sycl

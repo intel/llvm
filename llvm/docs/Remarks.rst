@@ -581,14 +581,17 @@ This diff file can be displayed using :ref:`opt-viewer.py <optviewerpy>`.
 Emitting remark diagnostics in the object file
 ==============================================
 
-A section containing metadata on remark diagnostics will be emitted when
--remarks-section is passed. The section contains the metadata associated to the
-format used to serialize the remarks.
+A section containing metadata on remark diagnostics will be emitted for the
+following formats:
+
+* ``yaml-strtab``
+* ``bitstream``
+
+This can be overridden by using the flag ``-remarks-section=<bool>``.
 
 The section is named:
 
 * ``__LLVM,__remarks`` (MachO)
-* ``.remarks`` (ELF)
 
 C API
 =====
@@ -608,6 +611,38 @@ The typical usage through the C API is like the following:
     }
     bool HasError = LLVMRemarkParserHasError(Parser);
     LLVMRemarkParserDispose(Parser);
+
+Remark streamers
+================
+
+The ``RemarkStreamer`` interface is used to unify the serialization
+capabilities of remarks across all the components that can generate remarks.
+
+All remark serialization should go through the main remark streamer, the
+``llvm::remarks::RemarkStreamer`` set up in the ``LLVMContext``. The interface
+takes remark objects converted to ``llvm::remarks::Remark``, and takes care of
+serializing it to the requested format, using the requested type of metadata,
+etc.
+
+Typically, a specialized remark streamer will hold a reference to the one set
+up in the ``LLVMContext``, and will operate on its own type of diagnostics.
+
+For example, LLVM IR passes will emit ``llvm::DiagnosticInfoOptimization*``
+that get converted to ``llvm::remarks::Remark`` objects.  Then, clang could set
+up its own specialized remark streamer that takes ``clang::Diagnostic``
+objects. This can allow various components of the frontend to emit remarks
+using the same techniques as the LLVM remarks.
+
+This gives us the following advantages:
+
+* Composition: during the compilation pipeline, multiple components can set up
+  their specialized remark streamers that all emit remarks through the same
+  main streamer.
+* Re-using the remark infrastructure in ``lib/Remarks``.
+* Using the same file and format for the remark emitters created throughout the
+  compilation.
+
+at the cost of an extra layer of abstraction.
 
 .. FIXME: add documentation for llvm-opt-report.
 .. FIXME: add documentation for Passes supporting optimization remarks

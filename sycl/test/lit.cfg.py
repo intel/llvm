@@ -26,7 +26,7 @@ config.test_format = lit.formats.ShTest()
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
 
-config.excludes = ['CMakeLists.txt', 'run_tests.sh', 'README.txt']
+config.excludes = ['CMakeLists.txt', 'run_tests.sh', 'README.txt', 'Inputs']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -35,12 +35,14 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
 if platform.system() == "Linux":
+    config.available_features.add('linux')
     # Propagate 'LD_LIBRARY_PATH' through the environment.
     if 'LD_LIBRARY_PATH' in os.environ:
         config.environment['LD_LIBRARY_PATH'] = os.path.pathsep.join((config.environment['LD_LIBRARY_PATH'], config.llvm_build_libs_dir))
     else:
         config.environment['LD_LIBRARY_PATH'] = config.llvm_build_libs_dir
-else:
+
+elif platform.system() == "Windows":
     config.available_features.add('windows')
     if 'LIB' in os.environ:
         config.environment['LIB'] = os.path.pathsep.join((config.environment['LIB'], config.llvm_build_libs_dir))
@@ -51,6 +53,15 @@ else:
         config.environment['PATH'] = os.path.pathsep.join((config.environment['PATH'], config.llvm_build_bins_dir))
     else:
         config.environment['PATH'] = config.llvm_build_bins_dir
+
+elif platform.system() == "Darwin":
+    # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
+    if 'CPATH' in os.environ:
+        config.environment['CPATH'] = os.path.pathsep.join((os.environ['CPATH'], "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"))
+    else:
+        config.environment['CPATH'] = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"
+    config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
+    config.environment['DYLD_LIBRARY_PATH'] = config.llvm_build_libs_dir
 
 # propagate the environment variable OCL_ICD_FILANEMES to use proper runtime.
 if 'OCL_ICD_FILENAMES' in os.environ:
@@ -67,6 +78,11 @@ config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 tools = ['llvm-spirv']
 tool_dirs = [config.llvm_tools_dir]
 llvm_config.add_tool_substitutions(tools, tool_dirs)
+
+if "opencl-aot" in config.llvm_enable_projects:
+    if 'PATH' in os.environ:
+        print("Adding path to opencl-aot tool to PATH")
+        os.environ['PATH'] = os.path.pathsep.join((os.getenv('PATH'), config.llvm_build_bins_dir))
 
 get_device_count_by_type_path = os.path.join(config.llvm_binary_dir,
     "bin", "get_device_count_by_type")
@@ -94,8 +110,8 @@ def getDeviceCount(device_type):
     return 0
 
 
-cpu_run_substitute = "echo"
-cpu_run_on_linux_substitute = "echo "
+cpu_run_substitute = "true"
+cpu_run_on_linux_substitute = "true "
 cpu_check_substitute = ""
 cpu_check_on_linux_substitute = ""
 if getDeviceCount("cpu"):
@@ -111,8 +127,8 @@ config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux
 config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
 config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
 
-gpu_run_substitute = "echo"
-gpu_run_on_linux_substitute = "echo "
+gpu_run_substitute = "true"
+gpu_run_on_linux_substitute = "true "
 gpu_check_substitute = ""
 gpu_check_on_linux_substitute = ""
 if getDeviceCount("gpu"):
@@ -128,12 +144,13 @@ config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux
 config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
 config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
 
-acc_run_substitute = "echo"
+acc_run_substitute = "true"
 acc_check_substitute = ""
 if getDeviceCount("accelerator"):
     print("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
     acc_check_substitute = "| FileCheck %s"
+    config.available_features.add('accelerator')
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
@@ -143,9 +160,9 @@ config.environment['PATH'] = path
 
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
-aot_tools = ["ioc64", "ocloc", "aoc"]
+aot_tools = ["opencl-aot", "ocloc", "aoc"]
 for aot_tool in aot_tools:
-    if find_executable(aot_tool) != None:
+    if find_executable(aot_tool) is not None:
         print("Found AOT device compiler " + aot_tool)
         config.available_features.add(aot_tool)
     else:

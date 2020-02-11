@@ -17,7 +17,6 @@
 #include "llvm-c/Types.h"
 #include "llvm/IR/DiagnosticHandler.h"
 #include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Support/Options.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -35,8 +34,12 @@ template <typename T> class SmallVectorImpl;
 class SMDiagnostic;
 class StringRef;
 class Twine;
-class RemarkStreamer;
+class LLVMRemarkStreamer;
 class raw_ostream;
+
+namespace remarks {
+class RemarkStreamer;
+}
 
 namespace SyncScope {
 
@@ -85,6 +88,7 @@ public:
     OB_deopt = 0,         // "deopt"
     OB_funclet = 1,       // "funclet"
     OB_gc_transition = 2, // "gc-transition"
+    OB_cfguardtarget = 3, // "cfguardtarget"
   };
 
   /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -218,23 +222,27 @@ public:
   /// included in optimization diagnostics.
   void setDiagnosticsHotnessThreshold(uint64_t Threshold);
 
-  /// Return the streamer used by the backend to save remark diagnostics. If it
-  /// does not exist, diagnostics are not saved in a file but only emitted via
-  /// the diagnostic handler.
-  RemarkStreamer *getRemarkStreamer();
-  const RemarkStreamer *getRemarkStreamer() const;
+  /// The "main remark streamer" used by all the specialized remark streamers.
+  /// This streamer keeps generic remark metadata in memory throughout the life
+  /// of the LLVMContext. This metadata may be emitted in a section in object
+  /// files depending on the format requirements.
+  ///
+  /// All specialized remark streamers should convert remarks to
+  /// llvm::remarks::Remark and emit them through this streamer.
+  remarks::RemarkStreamer *getMainRemarkStreamer();
+  const remarks::RemarkStreamer *getMainRemarkStreamer() const;
+  void setMainRemarkStreamer(
+      std::unique_ptr<remarks::RemarkStreamer> MainRemarkStreamer);
 
-  /// Set the diagnostics output used for optimization diagnostics.
-  /// This filename may be embedded in a section for tools to find the
-  /// diagnostics whenever they're needed.
+  /// The "LLVM remark streamer" used by LLVM to serialize remark diagnostics
+  /// comming from IR and MIR passes.
   ///
-  /// If a remark streamer is already set, it will be replaced with
-  /// \p RemarkStreamer.
-  ///
-  /// By default, diagnostics are not saved in a file but only emitted via the
-  /// diagnostic handler.  Even if an output file is set, the handler is invoked
-  /// for each diagnostic message.
-  void setRemarkStreamer(std::unique_ptr<RemarkStreamer> RemarkStreamer);
+  /// If it does not exist, diagnostics are not saved in a file but only emitted
+  /// via the diagnostic handler.
+  LLVMRemarkStreamer *getLLVMRemarkStreamer();
+  const LLVMRemarkStreamer *getLLVMRemarkStreamer() const;
+  void
+  setLLVMRemarkStreamer(std::unique_ptr<LLVMRemarkStreamer> RemarkStreamer);
 
   /// Get the prefix that should be printed in front of a diagnostic of
   ///        the given \p Severity
@@ -286,14 +294,6 @@ public:
   void emitError(unsigned LocCookie, const Twine &ErrorStr);
   void emitError(const Instruction *I, const Twine &ErrorStr);
   void emitError(const Twine &ErrorStr);
-
-  /// Query for a debug option's value.
-  ///
-  /// This function returns typed data populated from command line parsing.
-  template <typename ValT, typename Base, ValT(Base::*Mem)>
-  ValT getOption() const {
-    return OptionRegistry::instance().template get<ValT, Base, Mem>();
-  }
 
   /// Access the object which can disable optional passes and individual
   /// optimizations at compile time.

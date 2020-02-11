@@ -8,10 +8,11 @@
 
 #include "llvm-objcopy.h"
 #include "Buffer.h"
+#include "COFF/COFFObjcopy.h"
 #include "CopyConfig.h"
 #include "ELF/ELFObjcopy.h"
-#include "COFF/COFFObjcopy.h"
 #include "MachO/MachOObjcopy.h"
+#include "wasm/WasmObjcopy.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -25,6 +26,7 @@
 #include "llvm/Object/ELFTypes.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Object/MachO.h"
+#include "llvm/Object/Wasm.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
@@ -172,6 +174,8 @@ static Error executeObjcopyOnBinary(CopyConfig &Config, object::Binary &In,
     return coff::executeObjcopyOnBinary(Config, *COFFBinary, Out);
   else if (auto *MachOBinary = dyn_cast<object::MachOObjectFile>(&In))
     return macho::executeObjcopyOnBinary(Config, *MachOBinary, Out);
+  else if (auto *WasmBinary = dyn_cast<object::WasmObjectFile>(&In))
+    return objcopy::wasm::executeObjcopyOnBinary(Config, *WasmBinary, Out);
   else
     return createStringError(object_error::invalid_file_type,
                              "unsupported object file format");
@@ -313,11 +317,20 @@ static Error executeObjcopy(CopyConfig &Config) {
   return Error::success();
 }
 
+namespace {
+
+enum class ToolType { Objcopy, Strip, InstallNameTool };
+
+} // anonymous namespace
+
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   ToolName = argv[0];
-  bool IsStrip = sys::path::stem(ToolName).contains("strip");
-
+  ToolType Tool = StringSwitch<ToolType>(sys::path::stem(ToolName))
+                      .EndsWith("strip", ToolType::Strip)
+                      .EndsWith("install-name-tool", ToolType::InstallNameTool)
+                      .EndsWith("install_name_tool", ToolType::InstallNameTool)
+                      .Default(ToolType::Objcopy);
   // Expand response files.
   // TODO: Move these lines, which are copied from lib/Support/CommandLine.cpp,
   // into a separate function in the CommandLine library and call that function
@@ -332,10 +345,11 @@ int main(int argc, char **argv) {
                           NewArgv);
 
   auto Args = makeArrayRef(NewArgv).drop_front();
-
   Expected<DriverConfig> DriverConfig =
-      IsStrip ? parseStripOptions(Args, reportWarning)
-              : parseObjcopyOptions(Args, reportWarning);
+      (Tool == ToolType::Strip) ? parseStripOptions(Args, reportWarning)
+                                : ((Tool == ToolType::InstallNameTool)
+                                       ? parseInstallNameToolOptions(Args)
+                                       : parseObjcopyOptions(Args, reportWarning));
   if (!DriverConfig) {
     logAllUnhandledErrors(DriverConfig.takeError(),
                           WithColor::error(errs(), ToolName));

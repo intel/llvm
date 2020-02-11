@@ -207,6 +207,8 @@ public:
 
   bool hasBranchDivergence() { return false; }
 
+  bool useGPUDivergenceAnalysis() { return false; }
+
   bool isSourceOfDivergence(const Value *V) { return false; }
 
   bool isAlwaysUniform(const Value *V) { return false; }
@@ -326,7 +328,9 @@ public:
   }
 
   unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                            unsigned &JumpTableSize) {
+                                            unsigned &JumpTableSize,
+                                            ProfileSummaryInfo *PSI,
+                                            BlockFrequencyInfo *BFI) {
     /// Try to find the estimated number of clusters. Note that the number of
     /// clusters identified in this function could be different from the actual
     /// numbers found in lowering. This function ignore switches that are
@@ -374,7 +378,7 @@ public:
           (MaxCaseVal - MinCaseVal)
               .getLimitedValue(std::numeric_limits<uint64_t>::max() - 1) + 1;
       // Check whether a range of clusters is dense enough for a jump table
-      if (TLI->isSuitableForJumpTable(&SI, N, Range)) {
+      if (TLI->isSuitableForJumpTable(&SI, N, Range, PSI, BFI)) {
         JumpTableSize = Range;
         return 1;
       }
@@ -508,6 +512,13 @@ public:
     return BaseT::isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
 
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   const LoopAccessInfo *LAI) {
+    return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
+  }
+
   int getInstructionLatency(const Instruction *I) {
     if (isa<LoadInst>(I))
       return getST()->getSchedModel().DefaultLoadLatency;
@@ -624,7 +635,8 @@ public:
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
-      ArrayRef<const Value *> Args = ArrayRef<const Value *>()) {
+      ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
+      const Instruction *CxtI = nullptr) {
     // Check if any of the operands are vector operands.
     const TargetLoweringBase *TLI = getTLI();
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
@@ -772,9 +784,10 @@ public:
       // cost of the split itself. Count that as 1, to be consistent with
       // TLI->getTypeLegalizationCost().
       if ((TLI->getTypeAction(Src->getContext(), TLI->getValueType(DL, Src)) ==
-           TargetLowering::TypeSplitVector) ||
-          (TLI->getTypeAction(Dst->getContext(), TLI->getValueType(DL, Dst)) ==
-           TargetLowering::TypeSplitVector)) {
+               TargetLowering::TypeSplitVector ||
+           TLI->getTypeAction(Dst->getContext(), TLI->getValueType(DL, Dst)) ==
+               TargetLowering::TypeSplitVector) &&
+          Src->getVectorNumElements() > 1 && Dst->getVectorNumElements() > 1) {
         Type *SplitDst = VectorType::get(Dst->getVectorElementType(),
                                          Dst->getVectorNumElements() / 2);
         Type *SplitSrc = VectorType::get(Src->getVectorElementType(),
@@ -1275,6 +1288,9 @@ public:
     case Intrinsic::fmuladd:
       ISDs.push_back(ISD::FMA);
       break;
+    case Intrinsic::experimental_constrained_fmuladd:
+      ISDs.push_back(ISD::STRICT_FMA);
+      break;
     // FIXME: We should return 0 whenever getIntrinsicCost == TCC_Free.
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
@@ -1498,6 +1514,12 @@ public:
     if (IID == Intrinsic::fmuladd)
       return ConcreteTTI->getArithmeticInstrCost(BinaryOperator::FMul, RetTy) +
              ConcreteTTI->getArithmeticInstrCost(BinaryOperator::FAdd, RetTy);
+    if (IID == Intrinsic::experimental_constrained_fmuladd)
+      return ConcreteTTI->getIntrinsicCost(
+                 Intrinsic::experimental_constrained_fmul, RetTy, Tys,
+                 nullptr) +
+             ConcreteTTI->getIntrinsicCost(
+                 Intrinsic::experimental_constrained_fadd, RetTy, Tys, nullptr);
 
     // Else, assume that we need to scalarize this intrinsic. For math builtins
     // this will emit a costly libcall, adding call overhead and spills. Make it

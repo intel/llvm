@@ -14,6 +14,10 @@
 
 #include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/TemplateBase.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FoldingSet.h"
 using namespace clang;
 
 ASTConstraintSatisfaction::ASTConstraintSatisfaction(const ASTContext &C,
@@ -29,13 +33,12 @@ ASTConstraintSatisfaction::ASTConstraintSatisfaction(const ASTContext &C,
                                          Detail.second.get<Expr *>())};
     else {
       auto &SubstitutionDiagnostic =
-          *Detail.second.get<std::pair<SourceLocation, std::string> *>();
+          *Detail.second.get<std::pair<SourceLocation, StringRef> *>();
       unsigned MessageSize = SubstitutionDiagnostic.second.size();
-      char *Mem = new (C) char[MessageSize + 1];
-      memcpy(Mem, SubstitutionDiagnostic.second.c_str(), MessageSize);
-      Mem[MessageSize + 1] = '\0';
+      char *Mem = new (C) char[MessageSize];
+      memcpy(Mem, SubstitutionDiagnostic.second.data(), MessageSize);
       auto *NewSubstDiag = new (C) std::pair<SourceLocation, StringRef>(
-          SubstitutionDiagnostic.first, StringRef(Mem));
+          SubstitutionDiagnostic.first, StringRef(Mem, MessageSize));
       new (getTrailingObjects<UnsatisfiedConstraintRecord>() + I)
          UnsatisfiedConstraintRecord{Detail.first,
                                      UnsatisfiedConstraintRecord::second_type(
@@ -53,4 +56,13 @@ ASTConstraintSatisfaction::Create(const ASTContext &C,
           Satisfaction.Details.size());
   void *Mem = C.Allocate(size, alignof(ASTConstraintSatisfaction));
   return new (Mem) ASTConstraintSatisfaction(C, Satisfaction);
+}
+
+void ConstraintSatisfaction::Profile(
+    llvm::FoldingSetNodeID &ID, const ASTContext &C,
+    const NamedDecl *ConstraintOwner, ArrayRef<TemplateArgument> TemplateArgs) {
+  ID.AddPointer(ConstraintOwner);
+  ID.AddInteger(TemplateArgs.size());
+  for (auto &Arg : TemplateArgs)
+    Arg.Profile(ID, C);
 }

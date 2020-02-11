@@ -279,6 +279,7 @@ multiclass FLAT_Atomic_Pseudo<
     AtomicNoRet <opName, 0> {
     let PseudoInstr = NAME;
     let FPAtomic = isFP;
+    let AddedComplexity = -1; // Prefer global atomics if available
   }
 
   def _RTN : FLAT_AtomicRet_Pseudo <opName,
@@ -290,6 +291,7 @@ multiclass FLAT_Atomic_Pseudo<
        GlobalSaddrTable<0, opName#"_rtn">,
        AtomicNoRet <opName, 1>{
     let FPAtomic = isFP;
+    let AddedComplexity = -1; // Prefer global atomics if available
   }
 }
 
@@ -364,11 +366,12 @@ multiclass FLAT_Global_Atomic_Pseudo<
   string opName,
   RegisterClass vdst_rc,
   ValueType vt,
-  SDPatternOperator atomic = null_frag,
+  SDPatternOperator atomic_rtn = null_frag,
+  SDPatternOperator atomic_no_rtn = null_frag,
   ValueType data_vt = vt,
   RegisterClass data_rc = vdst_rc> :
-    FLAT_Global_Atomic_Pseudo_NO_RTN<opName, vdst_rc, vt, atomic, data_vt, data_rc>,
-    FLAT_Global_Atomic_Pseudo_RTN<opName, vdst_rc, vt, atomic, data_vt, data_rc>;
+    FLAT_Global_Atomic_Pseudo_NO_RTN<opName, vdst_rc, vt, atomic_no_rtn, data_vt, data_rc>,
+    FLAT_Global_Atomic_Pseudo_RTN<opName, vdst_rc, vt, atomic_rtn, data_vt, data_rc>;
 
 
 //===----------------------------------------------------------------------===//
@@ -535,11 +538,12 @@ defm GLOBAL_STORE_SHORT_D16_HI : FLAT_Global_Store_Pseudo <"global_store_short_d
 
 let is_flat_global = 1 in {
 defm GLOBAL_ATOMIC_CMPSWAP : FLAT_Global_Atomic_Pseudo <"global_atomic_cmpswap",
-                               VGPR_32, i32, AMDGPUatomic_cmp_swap_global_32,
+                               VGPR_32, i32, AMDGPUatomic_cmp_swap_global_32, null_frag,
                                v2i32, VReg_64>;
 
 defm GLOBAL_ATOMIC_CMPSWAP_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_cmpswap_x2",
                                   VReg_64, i64, AMDGPUatomic_cmp_swap_global_64,
+                                  null_frag,
                                   v2i64, VReg_128>;
 
 defm GLOBAL_ATOMIC_SWAP : FLAT_Global_Atomic_Pseudo <"global_atomic_swap",
@@ -757,7 +761,6 @@ def : FlatLoadPat <FLAT_LOAD_USHORT, zextloadi16_flat, i32>;
 def : FlatLoadPat <FLAT_LOAD_USHORT, load_flat, i16>;
 def : FlatLoadPat <FLAT_LOAD_SSHORT, sextloadi16_flat, i32>;
 def : FlatLoadPat <FLAT_LOAD_DWORDX3, load_flat, v3i32>;
-def : FlatLoadPat <FLAT_LOAD_DWORDX4, load_flat, v4i32>;
 
 def : FlatLoadAtomicPat <FLAT_LOAD_DWORD, atomic_load_32_flat, i32>;
 def : FlatLoadAtomicPat <FLAT_LOAD_DWORDX2, atomic_load_64_flat, i64>;
@@ -776,7 +779,11 @@ def : FlatLoadPat <FLAT_LOAD_DWORDX2, load_flat, vt>;
 }
 
 def : FlatStorePat <FLAT_STORE_DWORDX3, store_flat, v3i32, VReg_96>;
-def : FlatStorePat <FLAT_STORE_DWORDX4, store_flat, v4i32, VReg_128>;
+
+foreach vt = VReg_128.RegTypes in {
+def : FlatLoadPat <FLAT_LOAD_DWORDX4, load_flat, vt>;
+def : FlatStorePat <FLAT_STORE_DWORDX4, store_flat, vt, VReg_128>;
+}
 
 def : FlatStoreAtomicPat <FLAT_STORE_DWORD, atomic_store_flat_32, i32>;
 def : FlatStoreAtomicPat <FLAT_STORE_DWORDX2, atomic_store_flat_64, i64, VReg_64>;
@@ -857,7 +864,11 @@ def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX2, store_global, vt, VReg_64>;
 }
 
 def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX3, load_global, v3i32>;
-def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX4, load_global, v4i32>;
+
+foreach vt = VReg_128.RegTypes in {
+def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX4, load_global, vt>;
+def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX4, store_global, vt, VReg_128>;
+}
 
 def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORD, atomic_load_32_global, i32>;
 def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORDX2, atomic_load_64_global, i64>;
@@ -867,7 +878,6 @@ def : FlatStoreSignedPat <GLOBAL_STORE_BYTE, truncstorei8_global, i16, VGPR_32>;
 def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, truncstorei16_global, i32, VGPR_32>;
 def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, store_global, i16, VGPR_32>;
 def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX3, store_global, v3i32, VReg_96>;
-def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX4, store_global, v4i32, VReg_128>;
 
 let OtherPredicates = [D16PreservesUnusedBits] in {
 def : FlatStoreSignedPat <GLOBAL_STORE_SHORT_D16_HI, truncstorei16_hi16_global, i32>;
@@ -888,8 +898,8 @@ def : FlatSignedLoadPat_D16 <GLOBAL_LOAD_SHORT_D16, load_d16_lo_global, v2i16>;
 def : FlatSignedLoadPat_D16 <GLOBAL_LOAD_SHORT_D16, load_d16_lo_global, v2f16>;
 }
 
-def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORD, store_atomic_global, i32>;
-def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORDX2, store_atomic_global, i64, VReg_64>;
+def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORD, atomic_store_global_32, i32>;
+def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORDX2, atomic_store_global_64, i64, VReg_64>;
 
 def : FlatSignedAtomicPat <GLOBAL_ATOMIC_ADD_RTN, atomic_load_add_global_32, i32>;
 def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SUB_RTN, atomic_load_sub_global_32, i32>;

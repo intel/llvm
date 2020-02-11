@@ -87,6 +87,11 @@ int no_promise_type() { // expected-error {{this function cannot be a coroutine:
   co_await a;
 }
 
+int no_promise_type_multiple_awaits(int) { // expected-error {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<int, int>' has no member named 'promise_type'}}
+  co_await a;
+  co_await a;
+}
+
 template <>
 struct std::experimental::coroutine_traits<double, double> { typedef int promise_type; };
 double bad_promise_type(double) { // expected-error {{this function cannot be a coroutine: 'experimental::coroutine_traits<double, double>::promise_type' (aka 'int') is not a class}}
@@ -726,6 +731,12 @@ template<typename T> void ok_generic_lambda_coawait_PR41909() {
   [](auto &arg) -> coro<good_promise_1> {
     co_await 24;
   }("argument");
+  [](auto &arg) ->coro<good_promise_1> { // expected-warning {{expression result unused}}
+    []() -> coro<good_promise_1> {
+      co_await 36;
+    };
+    co_await 48;
+  };
 }
 template void ok_generic_lambda_coawait_PR41909<int>(); // expected-note {{in instantiation of function template specialization 'ok_generic_lambda_coawait_PR41909<int>' requested here}}
 

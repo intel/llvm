@@ -85,12 +85,28 @@ class SOP1_32 <string opName, list<dag> pattern=[], bit tied_in = 0> : SOP1_Pseu
   let Constraints = !if(tied_in, "$sdst = $sdst_in", "");
 }
 
+// Only register input allowed.
+class SOP1_32R <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs SReg_32:$sdst), (ins SReg_32:$src0),
+  "$sdst, $src0", pattern>;
+
 // 32-bit input, no output.
 class SOP1_0_32 <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   opName, (outs), (ins SSrc_b32:$src0),
   "$src0", pattern> {
   let has_sdst = 0;
 }
+
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_32_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_32:$sdst, SSrc_b32:$src0),
+  "$sdst, $src0", pattern>;
+
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_64_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_64:$sdst, SSrc_b64:$src0),
+  "$sdst, $src0", pattern
+>;
 
 class SOP1_0_32R <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   opName, (outs), (ins SReg_32:$src0),
@@ -100,6 +116,12 @@ class SOP1_0_32R <string opName, list<dag> pattern = []> : SOP1_Pseudo <
 
 class SOP1_64 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
   opName, (outs SReg_64:$sdst), (ins SSrc_b64:$src0),
+  "$sdst, $src0", pattern
+>;
+
+// Only register input allowed.
+class SOP1_64R <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs SReg_64:$sdst), (ins SReg_64:$src0),
   "$sdst, $src0", pattern
 >;
 
@@ -159,14 +181,14 @@ let Defs = [SCC] in {
 let WaveSizePredicate = isWave32 in {
 def : GCNPat <
   (int_amdgcn_wqm_vote i1:$src0),
-  (S_WQM_B32 $src0)
+  (S_WQM_B32 SSrc_b32:$src0)
 >;
 }
 
 let WaveSizePredicate = isWave64 in {
 def : GCNPat <
   (int_amdgcn_wqm_vote i1:$src0),
-  (S_WQM_B64 $src0)
+  (S_WQM_B64 SSrc_b64:$src0)
 >;
 }
 
@@ -254,10 +276,10 @@ def S_QUADMASK_B32 : SOP1_32 <"s_quadmask_b32">;
 def S_QUADMASK_B64 : SOP1_64 <"s_quadmask_b64">;
 
 let Uses = [M0] in {
-def S_MOVRELS_B32 : SOP1_32 <"s_movrels_b32">;
-def S_MOVRELS_B64 : SOP1_64 <"s_movrels_b64">;
-def S_MOVRELD_B32 : SOP1_32 <"s_movreld_b32">;
-def S_MOVRELD_B64 : SOP1_64 <"s_movreld_b64">;
+def S_MOVRELS_B32 : SOP1_32R <"s_movrels_b32">;
+def S_MOVRELS_B64 : SOP1_64R <"s_movrels_b64">;
+def S_MOVRELD_B32 : SOP1_32_movreld <"s_movreld_b32">;
+def S_MOVRELD_B64 : SOP1_64_movreld <"s_movreld_b64">;
 } // End Uses = [M0]
 
 let SubtargetPredicate = isGFX6GFX7GFX8GFX9 in {
@@ -390,8 +412,14 @@ class UniformUnaryFrag<SDPatternOperator Op> : PatFrag <
 class UniformBinFrag<SDPatternOperator Op> : PatFrag <
   (ops node:$src0, node:$src1),
   (Op $src0, $src1),
-  [{ return !N->isDivergent(); }]
->;
+  [{ return !N->isDivergent(); }]> {
+  // This check is unnecessary as it's captured by the result register
+  // bank constraint.
+  //
+  // FIXME: Should add a way for the emitter to recognize this is a
+  // trivially true predicate to eliminate the check.
+  let GISelPredicateCode = [{return true;}];
+}
 
 let Defs = [SCC] in { // Carry out goes to SCC
 let isCommutable = 1 in {
@@ -513,22 +541,22 @@ let AddedComplexity = 1 in {
 let Defs = [SCC] in {
 // TODO: b64 versions require VOP3 change since v_lshlrev_b64 is VOP3
 def S_LSHL_B32 : SOP2_32 <"s_lshl_b32",
-  [(set SReg_32:$sdst, (shl (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<shl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHL_B64 : SOP2_64_32 <"s_lshl_b64",
-  [(set SReg_64:$sdst, (shl (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<shl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B32 : SOP2_32 <"s_lshr_b32",
-  [(set SReg_32:$sdst, (srl (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<srl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B64 : SOP2_64_32 <"s_lshr_b64",
-  [(set SReg_64:$sdst, (srl (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<srl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I32 : SOP2_32 <"s_ashr_i32",
-  [(set SReg_32:$sdst, (sra (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<sra> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I64 : SOP2_64_32 <"s_ashr_i64",
-  [(set SReg_64:$sdst, (sra (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<sra> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 } // End Defs = [SCC]
 
@@ -587,8 +615,12 @@ let SubtargetPredicate = isGFX9Plus in {
     def S_LSHL4_ADD_U32 : SOP2_32<"s_lshl4_add_u32">;
   } // End Defs = [SCC]
 
-  def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32">;
-  def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32">;
+  let isCommutable = 1 in {
+    def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32",
+      [(set i32:$sdst, (UniformBinFrag<mulhu> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+    def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32",
+      [(set i32:$sdst, (UniformBinFrag<mulhs> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+  }
 } // End SubtargetPredicate = isGFX9Plus
 
 //===----------------------------------------------------------------------===//
@@ -1202,7 +1234,7 @@ def : GCNPat <
 
 def : GCNPat <
   (i32 (smax i32:$x, (i32 (ineg i32:$x)))),
-  (S_ABS_I32 $x)
+  (S_ABS_I32 SReg_32:$x)
 >;
 
 def : GCNPat <
@@ -1503,7 +1535,7 @@ defm S_SETREG_IMM32_B32 : SOPK_Real64_gfx6_gfx7_gfx10<0x015>;
 
 class Select_vi<string opName> :
   SIMCInstr<opName, SIEncodingFamily.VI> {
-  list<Predicate> AssemblerPredicates = [isGFX8GFX9];
+  Predicate AssemblerPredicate = isGFX8GFX9;
   string DecoderNamespace = "GFX8";
 }
 

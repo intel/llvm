@@ -2,7 +2,6 @@
 Test that ASan memory history provider returns correct stack traces
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -17,7 +16,7 @@ class AsanTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIfFreeBSD  # llvm.org/pr21136 runtimes not yet available by default
-    @skipIfRemote
+    @expectedFailureNetBSD
     @skipUnlessAddressSanitizer
     def test(self):
         self.build()
@@ -33,9 +32,10 @@ class AsanTestCase(TestBase):
 
     def asan_tests(self):
         exe = self.getBuildArtifact("a.out")
-        self.expect(
-            "file " + exe,
-            patterns=["Current executable set to .*a.out"])
+        target = self.dbg.CreateTarget(exe)
+        self.assertTrue(target, VALID_TARGET)
+
+        self.registerSanitizerLibrariesWithTarget(target)
 
         self.runCmd("breakpoint set -f main.c -l %d" % self.line_breakpoint)
 
@@ -66,14 +66,13 @@ class AsanTestCase(TestBase):
         self.expect(
             "memory history 'pointer'",
             substrs=[
-                'Memory allocated by Thread',
-                'a.out`f1',
-                'main.c:%d' %
-                self.line_malloc,
                 'Memory deallocated by Thread',
                 'a.out`f2',
-                'main.c:%d' %
-                self.line_free])
+                'main.c:%d' % self.line_free,
+                'Memory allocated by Thread',
+                'a.out`f1',
+                'main.c:%d' % self.line_malloc,
+            ])
 
         # do the same using SB API
         process = self.dbg.GetSelectedTarget().process

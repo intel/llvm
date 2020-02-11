@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
+
 // Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
 // Khronos ICD supports only latest OpenCL version
 #define CL_TARGET_OPENCL_VERSION 220
@@ -20,12 +22,18 @@
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
+__SYCL_INLINE namespace cl {
+namespace sycl {
+namespace detail {
+
 const char *stringifyErrorCode(cl_int error);
 
 static inline std::string codeToString(cl_int code){
   return std::string(std::to_string(code) + " (" +
          stringifyErrorCode(code) + ")");
 }
+
+}}} // namespace cl::sycl::detail
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -46,7 +54,8 @@ static inline std::string codeToString(cl_int code){
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+    std::cerr << OCL_ERROR_REPORT << cl::sycl::detail::codeToString(code)      \
+      << std::endl;                                                            \
   }                                                                            \
 }
 #endif
@@ -58,7 +67,7 @@ static inline std::string codeToString(cl_int code){
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
+    throw exc(OCL_ERROR_REPORT + cl::sycl::detail::codeToString(code), code);  \
   }                                                                            \
 }
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
@@ -78,21 +87,7 @@ static inline std::string codeToString(cl_int code){
 #define CHECK_OCL_CODE_NO_EXC(X) REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
-#ifndef __has_attribute
-#define __has_attribute(x) 0
-#endif
-
-#if __has_attribute(always_inline)
-#define ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define ALWAYS_INLINE
-#endif
-
-#ifndef SYCL_EXTERNAL
-#define SYCL_EXTERNAL
-#endif
-
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -168,7 +163,7 @@ struct NDLoopIterateImpl {
   }
 };
 
-// spcialization for DIM=0 to terminate recursion
+// Specialization for DIM=0 to terminate recursion
 template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
 struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
@@ -245,6 +240,15 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
     LinearIndex = LinearIndex * Range[I] + Index[I];
   return LinearIndex;
 }
+
+// Kernel set ID, used to group kernels (represented by OSModule & kernel name
+// pairs) into disjoint sets based on the kernel distribution among device
+// images.
+using KernelSetId = size_t;
+// Kernel set ID for kernels contained within the SPIRV file specified via
+// environment.
+constexpr KernelSetId SpvFileKSId = 0;
+constexpr KernelSetId LastKSId = SpvFileKSId;
 
 } // namespace detail
 } // namespace sycl

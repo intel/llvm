@@ -2,7 +2,6 @@
 Test lldb settings command.
 """
 
-from __future__ import print_function
 
 
 import os
@@ -59,6 +58,7 @@ class SettingsCommandTestCase(TestBase):
                              '[3]: "b"',
                              '[4]: "c"'])
 
+    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr44430")
     def test_replace_target_run_args(self):
         """Test that 'replace target.run-args' works."""
         # Set the run-args and then replace the index-0 element.
@@ -107,6 +107,7 @@ class SettingsCommandTestCase(TestBase):
                     substrs=["term-width (int) = 70"])
 
     # rdar://problem/10712130
+    @skipIf(oslist=["windows"], bugnumber="llvm.org/pr44431")
     def test_set_frame_format(self):
         """Test that 'set frame-format' with a backtick char in the format string works as well as fullpath."""
         self.build()
@@ -357,6 +358,7 @@ class SettingsCommandTestCase(TestBase):
                     'thread-format (format-string) = "abc def   "')
         self.runCmd('settings clear thread-format')
 
+    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr44430")
     def test_settings_with_trailing_whitespace(self):
 
         # boolean
@@ -483,7 +485,7 @@ class SettingsCommandTestCase(TestBase):
 
     def test_settings_list(self):
         # List settings (and optionally test the filter to only show 'target' settings).
-        self.expect("settings list target", substrs=["language", "arg0", "detach-on-error"])
+        self.expect("settings list target", substrs=["arg0", "detach-on-error", "language"])
         self.expect("settings list target", matching=False, substrs=["packet-timeout"])
         self.expect("settings list", substrs=["language", "arg0", "detach-on-error", "packet-timeout"])
 
@@ -535,33 +537,34 @@ class SettingsCommandTestCase(TestBase):
                              "term-width",
                              "thread-format",
                              "use-external-editor",
-                             "target.default-arch",
-                             "target.move-to-nearest-code",
-                             "target.expr-prefix",
-                             "target.language",
-                             "target.prefer-dynamic-value",
-                             "target.enable-synthetic-value",
-                             "target.skip-prologue",
-                             "target.source-map",
-                             "target.exec-search-paths",
-                             "target.max-children-count",
-                             "target.max-string-summary-length",
                              "target.breakpoints-use-platform-avoid-list",
-                             "target.run-args",
-                             "target.env-vars",
-                             "target.inherit-env",
-                             "target.input-path",
-                             "target.output-path",
-                             "target.error-path",
+                             "target.default-arch",
                              "target.disable-aslr",
                              "target.disable-stdio",
                              "target.x86-disassembly-flavor",
-                             "target.use-hex-immediates",
+                             "target.enable-synthetic-value",
+                             "target.env-vars",
+                             "target.error-path",
+                             "target.exec-search-paths",
+                             "target.expr-prefix",
                              "target.hex-immediate-style",
+                             "target.inherit-env",
+                             "target.input-path",
+                             "target.language",
+                             "target.max-children-count",
+                             "target.max-string-summary-length",
+                             "target.move-to-nearest-code",
+                             "target.output-path",
+                             "target.prefer-dynamic-value",
+                             "target.run-args",
+                             "target.skip-prologue",
+                             "target.source-map",
+                             "target.use-hex-immediates",
                              "target.process.disable-memory-cache",
                              "target.process.extra-startup-command",
+                             "target.process.thread.trace-thread",
                              "target.process.thread.step-avoid-regexp",
-                             "target.process.thread.trace-thread"])
+                             ])
 
     # settings under an ".experimental" domain should have two properties:
     #   1. If the name does not exist with "experimental" in the name path,

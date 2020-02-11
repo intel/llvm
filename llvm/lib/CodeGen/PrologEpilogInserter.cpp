@@ -51,6 +51,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CodeGen.h"
@@ -257,6 +258,10 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
   // Reinsert stashed debug values at the start of the entry blocks.
   for (auto &I : EntryDbgValues)
     I.first->insert(I.first->begin(), I.second.begin(), I.second.end());
+
+  // Allow the target machine to make final modifications to the function
+  // before the frame layout is finalized.
+  TFI->processFunctionBeforeFrameIndicesReplaced(MF, RS);
 
   // Replace all MO_FrameIndex operands with physical register references
   // and actual offsets.

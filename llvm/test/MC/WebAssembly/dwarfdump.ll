@@ -1,7 +1,7 @@
 ; RUN: llc -filetype=obj %s -o - | llvm-dwarfdump - | FileCheck %s
 
 ; CHECK: .debug_info contents:
-; CHECK-NEXT: 0x00000000: Compile Unit: length = 0x00000066 version = 0x0004 abbr_offset = 0x0000 addr_size = 0x04 (next unit at 0x0000006a)
+; CHECK-NEXT: 0x00000000: Compile Unit: length = 0x0000006b version = 0x0004 abbr_offset = 0x0000 addr_size = 0x04 (next unit at 0x0000006f)
 
 ; CHECK: 0x0000000b: DW_TAG_compile_unit
 ; CHECK-NEXT:              DW_AT_producer	("clang version 6.0.0 (trunk 315924) (llvm/trunk 315960)")
@@ -46,13 +46,14 @@
 ; CHECK: 0x0000005a:   DW_TAG_subprogram
 ; CHECK-NEXT:                DW_AT_low_pc	(0x0000000000000002)
 ; CHECK-NEXT:                DW_AT_high_pc	(0x0000000000000004)
+; CHECK-NEXT:                DW_AT_frame_base	(DW_OP_WASM_location 0x1 +0, DW_OP_stack_value)
 ; CHECK-NEXT:                DW_AT_name	("f2")
 ; CHECK-NEXT:                DW_AT_decl_file	("/usr/local/google/home/sbc/dev/wasm/simple{{[/\\]}}test.c")
 ; CHECK-NEXT:                DW_AT_decl_line	(2)
 ; CHECK-NEXT:                DW_AT_prototyped	(true)
 ; CHECK-NEXT:                DW_AT_external		(true)
 
-; CHECK: 0x00000069:   NULL
+; CHECK: 0x0000006e:   NULL
 
 target triple = "wasm32-unknown-unknown"
 
@@ -68,7 +69,7 @@ entry:
   ret void, !dbg !18
 }
 
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!13, !14, !15}

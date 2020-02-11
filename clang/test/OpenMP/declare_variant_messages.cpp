@@ -38,6 +38,17 @@ T foofoo(); // expected-note 2 {{declared here}}
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(2 ibm)}) // expected-error {{expected ')' or ',' after 'vendor name'}} expected-error 2 {{expected ')'}} expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-warning {{missing ':' after context selector score clause - ignoring}} expected-note 2 {{to match this '('}}
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(foofoo <int>()) ibm)}) // expected-warning {{missing ':' after context selector score clause - ignoring}} expected-error {{expression is not an integral constant expression}} expected-note {{non-constexpr function 'foofoo<int>' cannot be used in a constant expression}}
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(5): ibm), vendor(llvm)}) // expected-error {{context trait selector 'vendor' is used already in the same 'implementation' context selector set of 'omp declare variant' directive}} expected-note {{previously context trait selector 'vendor' used here}}
+#pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(5): ibm), kind(cpu)}) // expected-warning {{unknown context selector in 'implementation' context selector set of 'omp declare variant' directive, ignored}}
+#pragma omp declare variant(foofoo <int>) match(device={xxx}) // expected-warning {{unknown context selector in 'device' context selector set of 'omp declare variant' directive, ignored}}
+#pragma omp declare variant(foofoo <int>) match(device={kind}) // expected-error {{expected '(' after 'kind'}} expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}} expected-error {{expected ')'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(}) // expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}} expected-error 2 {{expected ')'}} expected-note {{to match this '('}}
+#pragma omp declare variant(foofoo <int>) match(device={kind()}) // expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score cpu)}) // expected-error {{expected ')' or ',' after 'score'}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score( ibm)}) // expected-error 2 {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(2 gpu)}) // expected-error 2 {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(foofoo <int>()) ibm)}) // expected-error {{expected ')' or ',' after 'score'}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(5): host), kind(llvm)}) // expected-error {{context trait selector 'kind' is used already in the same 'device' context selector set of 'omp declare variant' directive}} expected-note {{previously context trait selector 'kind' used here}} expected-error {{expected ')' or ',' after 'score'}} expected-note {{to match this '('}} expected-error {{expected ')'}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}} expected-error {{unknown 'llvm' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(5): nohost), vendor(llvm)}) // expected-warning {{unknown context selector in 'device' context selector set of 'omp declare variant' directive, ignored}} expected-error {{expected ')' or ',' after 'score'}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
 int bar();
 
 #pragma omp declare variant                            // expected-error {{expected '(' after 'declare variant'}}
@@ -67,6 +78,17 @@ int bar();
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(C ibm)}) // expected-error {{expected ')' or ',' after 'vendor name'}} expected-error 2 {{expected ')'}} expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-warning {{missing ':' after context selector score clause - ignoring}} expected-note 2 {{to match this '('}}
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(foofoo <int>()) ibm)}) // expected-warning {{missing ':' after context selector score clause - ignoring}} expected-error {{expression is not an integral constant expression}} expected-note {{non-constexpr function 'foofoo<int>' cannot be used in a constant expression}}
 #pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(C+5): ibm), vendor(llvm)}) // expected-error {{context trait selector 'vendor' is used already in the same 'implementation' context selector set of 'omp declare variant' directive}} expected-note {{previously context trait selector 'vendor' used here}}
+#pragma omp declare variant(foofoo <int>) match(implementation={vendor(score(5): ibm), kind(cpu)}) // expected-warning {{unknown context selector in 'implementation' context selector set of 'omp declare variant' directive, ignored}}
+#pragma omp declare variant(foofoo <int>) match(device={xxx}) // expected-warning {{unknown context selector in 'device' context selector set of 'omp declare variant' directive, ignored}}
+#pragma omp declare variant(foofoo <int>) match(device={kind}) // expected-error {{expected '(' after 'kind'}} expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}} expected-error {{expected ')'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(}) // expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}} expected-error 2 {{expected ')'}} expected-note {{to match this '('}}
+#pragma omp declare variant(foofoo <int>) match(device={kind()}) // expected-error {{expected 'host', 'nohost', 'cpu', 'gpu', or 'fpga' in 'kind' context selector of 'device' selector set of 'omp declare variant' directive}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score cpu)}) // expected-error {{expected ')' or ',' after 'score'}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score( ibm)}) // expected-error 2 {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(C gpu)}) // expected-error 2 {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(foofoo <int>()) ibm)}) // expected-error {{expected ')' or ',' after 'score'}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(C+5): host), kind(llvm)}) // expected-error {{context trait selector 'kind' is used already in the same 'device' context selector set of 'omp declare variant' directive}} expected-note {{previously context trait selector 'kind' used here}} expected-error {{expected ')' or ',' after 'score'}} expected-note {{to match this '('}} expected-error {{expected ')'}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}} expected-error {{unknown 'llvm' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
+#pragma omp declare variant(foofoo <int>) match(device={kind(score(C+5): nohost), vendor(llvm)}) // expected-warning {{unknown context selector in 'device' context selector set of 'omp declare variant' directive, ignored}} expected-error {{expected ')' or ',' after 'score'}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{unknown 'score' device kind trait in the 'device' context selector set, expected one of 'host', 'nohost', 'cpu', 'gpu' or 'fpga'}}
 template <typename T, int C>
 T barbar();
 
@@ -109,7 +131,7 @@ void h(C *hp, C *hp2, C *hq, C *lin) {
   b = 0;
 }
 
-// expected-error@+1 {{variant in '#pragma omp declare variant' with type '<overloaded function type>' is incompatible with type 'void (*)(int *, int *, int *, int *)'}}
+// expected-error@+1 {{variant in '#pragma omp declare variant' with type '<overloaded function type>' is incompatible with type 'void (int *, int *, int *, int *)'}}
 #pragma omp declare variant(barbar <int>) match(xxx = {})
 template <>
 void h(int *hp, int *hp2, int *hq, int *lin);
@@ -131,7 +153,7 @@ int overload(void);
 
 int fn1();
 int fn1(int);
-// expected-error@+1 {{variant in '#pragma omp declare variant' with type '<overloaded function type>' is incompatible with type 'int (*)(float)'}}
+// expected-error@+1 {{variant in '#pragma omp declare variant' with type '<overloaded function type>' is incompatible with type 'int (float)'}}
 #pragma omp declare variant(fn1) match(xxx = {})
 int overload1(float);
 
@@ -179,7 +201,7 @@ auto fn_deduced3() { return 0; }
 auto fn_deduced3();
 
 auto fn_deduced_variant2() { return 0; }
-// expected-error@+1 {{variant in '#pragma omp declare variant' with type 'int ()' is incompatible with type 'float (*)()'}}
+// expected-error@+1 {{variant in '#pragma omp declare variant' with type 'int ()' is incompatible with type 'float ()'}}
 #pragma omp declare variant(fn_deduced_variant2) match(xxx = {})
 float fn_deduced2();
 
@@ -209,6 +231,8 @@ struct SpecialFuncs {
   void bar(int);
 #pragma omp declare variant(SpecialFuncs::baz) match(xxx = {})
 #pragma omp declare variant(SpecialFuncs::bar) match(xxx = {})
+// expected-error@+1 {{variant in '#pragma omp declare variant' with type 'int (*)()' is incompatible with type 'void (SpecialFuncs::*)()'}}
+#pragma omp declare variant(fn_sc_variant1) match(xxx = {})
   void foo1();
   SpecialFuncs& foo(const SpecialFuncs&);
   SpecialFuncs& bar(SpecialFuncs&&);

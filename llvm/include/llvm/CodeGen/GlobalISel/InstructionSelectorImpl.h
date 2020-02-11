@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -573,7 +574,8 @@ bool InstructionSelector::executeMatchTable(
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       MachineOperand &MO = State.MIs[InsnID]->getOperand(OpIdx);
       if (!MO.isReg() ||
-          &RBI.getRegBankFromRegClass(*TRI.getRegClass(RCEnum)) !=
+          &RBI.getRegBankFromRegClass(*TRI.getRegClass(RCEnum),
+                                      MRI.getType(MO.getReg())) !=
               RBI.getRegBank(MO.getReg(), MRI, TRI)) {
         if (handleReject() == RejectAndGiveUp)
           return false;
@@ -640,10 +642,15 @@ bool InstructionSelector::executeMatchTable(
                              << "), Value=" << Value << ")\n");
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       MachineOperand &MO = State.MIs[InsnID]->getOperand(OpIdx);
-      if (!MO.isCImm() || !MO.getCImm()->equalsInt(Value)) {
-        if (handleReject() == RejectAndGiveUp)
-          return false;
-      }
+      if (MO.isImm() && MO.getImm() == Value)
+        break;
+
+      if (MO.isCImm() && MO.getCImm()->equalsInt(Value))
+        break;
+
+      if (handleReject() == RejectAndGiveUp)
+        return false;
+
       break;
     }
 
@@ -852,16 +859,25 @@ bool InstructionSelector::executeMatchTable(
       break;
     }
 
-    case GIR_AddTempRegister: {
+    case GIR_AddTempRegister:
+    case GIR_AddTempSubRegister: {
       int64_t InsnID = MatchTable[CurrentIdx++];
       int64_t TempRegID = MatchTable[CurrentIdx++];
       uint64_t TempRegFlags = MatchTable[CurrentIdx++];
+      unsigned SubReg = 0;
+      if (MatcherOpcode == GIR_AddTempSubRegister)
+        SubReg = MatchTable[CurrentIdx++];
+
       assert(OutMIs[InsnID] && "Attempted to add to undefined instruction");
-      OutMIs[InsnID].addReg(State.TempRegisters[TempRegID], TempRegFlags);
+
+      OutMIs[InsnID].addReg(State.TempRegisters[TempRegID], TempRegFlags, SubReg);
       DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
                       dbgs() << CurrentIdx << ": GIR_AddTempRegister(OutMIs["
                              << InsnID << "], TempRegisters[" << TempRegID
-                             << "], " << TempRegFlags << ")\n");
+                             << "]";
+                      if (SubReg)
+                        dbgs() << '.' << TRI.getSubRegIndexName(SubReg);
+                      dbgs() << ", " << TempRegFlags << ")\n");
       break;
     }
 
@@ -945,8 +961,27 @@ bool InstructionSelector::executeMatchTable(
                       dbgs() << CurrentIdx << ": GIR_CustomRenderer(OutMIs["
                              << InsnID << "], MIs[" << OldInsnID << "], "
                              << RendererFnID << ")\n");
+      (ISel.*ISelInfo.CustomRenderers[RendererFnID])(
+        OutMIs[InsnID], *State.MIs[OldInsnID],
+        -1); // Not a source operand of the old instruction.
+      break;
+    }
+    case GIR_CustomOperandRenderer: {
+      int64_t InsnID = MatchTable[CurrentIdx++];
+      int64_t OldInsnID = MatchTable[CurrentIdx++];
+      int64_t OpIdx = MatchTable[CurrentIdx++];
+      int64_t RendererFnID = MatchTable[CurrentIdx++];
+      assert(OutMIs[InsnID] && "Attempted to add to undefined instruction");
+
+      DEBUG_WITH_TYPE(
+        TgtInstructionSelector::getName(),
+        dbgs() << CurrentIdx << ": GIR_CustomOperandRenderer(OutMIs["
+               << InsnID << "], MIs[" << OldInsnID << "]->getOperand("
+               << OpIdx << "), "
+        << RendererFnID << ")\n");
       (ISel.*ISelInfo.CustomRenderers[RendererFnID])(OutMIs[InsnID],
-                                                     *State.MIs[OldInsnID]);
+                                                     *State.MIs[OldInsnID],
+                                                     OpIdx);
       break;
     }
     case GIR_ConstrainOperandRC: {

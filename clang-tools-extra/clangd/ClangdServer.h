@@ -16,6 +16,7 @@
 #include "FormattedString.h"
 #include "Function.h"
 #include "GlobalCompilationDatabase.h"
+#include "Hover.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
 #include "TUScheduler.h"
@@ -23,6 +24,7 @@
 #include "index/Background.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
+#include "refactor/Rename.h"
 #include "refactor/Tweak.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -38,23 +40,6 @@
 
 namespace clang {
 namespace clangd {
-
-// FIXME: find a better name.
-class DiagnosticsConsumer {
-public:
-  virtual ~DiagnosticsConsumer() = default;
-
-  /// Called by ClangdServer when \p Diagnostics for \p File are ready.
-  virtual void onDiagnosticsReady(PathRef File,
-                                  std::vector<Diag> Diagnostics) = 0;
-  /// Called whenever the file status is updated.
-  virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
-
-  /// Called by ClangdServer when some \p Highlightings for \p File are ready.
-  virtual void
-  onHighlightingsReady(PathRef File,
-                       std::vector<HighlightingToken> Highlightings) {}
-};
 
 /// When set, used by ClangdServer to get clang-tidy options for each particular
 /// file. Must be thread-safe. We use this instead of ClangTidyOptionsProvider
@@ -77,6 +62,31 @@ using ClangTidyOptionsBuilder = std::function<tidy::ClangTidyOptions(
 /// (ClangdLSPServer uses this to implement $/cancelRequest).
 class ClangdServer {
 public:
+  /// Interface with hooks for users of ClangdServer to be notified of events.
+  class Callbacks {
+  public:
+    virtual ~Callbacks() = default;
+
+    /// Called by ClangdServer when \p Diagnostics for \p File are ready.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void onDiagnosticsReady(PathRef File,
+                                    std::vector<Diag> Diagnostics) {}
+    /// Called whenever the file status is updated.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
+
+    /// Called by ClangdServer when some \p Highlightings for \p File are ready.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void
+    onHighlightingsReady(PathRef File,
+                         std::vector<HighlightingToken> Highlightings) {}
+
+    /// Called when background indexing tasks are enqueued/started/completed.
+    /// Not called concurrently.
+    virtual void
+    onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) {}
+  };
+
   struct Options {
     /// To process requests asynchronously, ClangdServer spawns worker threads.
     /// If this is zero, no threads are spawned. All work is done on the calling
@@ -120,8 +130,8 @@ public:
     llvm::Optional<std::string> ResourceDir = llvm::None;
 
     /// Time to wait after a new file version before computing diagnostics.
-    std::chrono::steady_clock::duration UpdateDebounce =
-        std::chrono::milliseconds(500);
+    DebouncePolicy UpdateDebounce =
+        DebouncePolicy::fixed(std::chrono::milliseconds(500));
 
     bool SuggestMissingIncludes = false;
 
@@ -132,10 +142,15 @@ public:
     /// Enable semantic highlighting features.
     bool SemanticHighlighting = false;
 
+    /// Enable cross-file rename feature.
+    bool CrossFileRename = false;
+
     /// Returns true if the tweak should be enabled.
     std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
       return !T.hidden(); // only enable non-hidden tweaks.
     };
+
+    explicit operator TUScheduler::Options() const;
   };
   // Sensible default options for use in tests.
   // Features like indexing must be enabled if desired.
@@ -148,14 +163,9 @@ public:
   /// added file (i.e., when processing a first call to addDocument) and reuses
   /// those arguments for subsequent reparses. However, ClangdServer will check
   /// if compilation arguments changed on calls to forceReparse().
-  ///
-  /// After each parsing request finishes, ClangdServer reports diagnostics to
-  /// \p DiagConsumer. Note that a callback to \p DiagConsumer happens on a
-  /// worker thread. Therefore, instances of \p DiagConsumer must properly
-  /// synchronize access to shared state.
   ClangdServer(const GlobalCompilationDatabase &CDB,
-               const FileSystemProvider &FSProvider,
-               DiagnosticsConsumer &DiagConsumer, const Options &Opts);
+               const FileSystemProvider &FSProvider, const Options &Opts,
+               Callbacks *Callbacks = nullptr);
 
   /// Add a \p File to the list of tracked C++ files or update the contents if
   /// \p File is already tracked. Also schedules parsing of the AST for it on a
@@ -225,7 +235,7 @@ public:
 
   /// Retrieve locations for symbol references.
   void findReferences(PathRef File, Position Pos, uint32_t Limit,
-                      Callback<std::vector<Location>> CB);
+                      Callback<ReferencesResult> CB);
 
   /// Run formatting for \p Rng inside \p File with content \p Code.
   llvm::Expected<tooling::Replacements> formatRange(StringRef Code,
@@ -251,7 +261,7 @@ public:
   /// embedders could use this method to get all occurrences of the symbol (e.g.
   /// highlighting them in prepare stage).
   void rename(PathRef File, Position Pos, llvm::StringRef NewName,
-              bool WantFormat, Callback<std::vector<TextEdit>> CB);
+              bool WantFormat, Callback<FileEdits> CB);
 
   struct TweakRef {
     std::string ID;    /// ID to pass for applyTweak.
@@ -282,6 +292,9 @@ public:
   void semanticRanges(PathRef File, Position Pos,
                       Callback<std::vector<Range>> CB);
 
+  /// Get all document links in a file.
+  void documentLinks(PathRef File, Callback<std::vector<DocumentLink>> CB);
+ 
   /// Returns estimated memory usage for each of the currently open files.
   /// The order of results is unspecified.
   /// Overall memory usage of clangd may be significantly more than reported
@@ -325,6 +338,8 @@ private:
   // If this is true, suggest include insertion fixes for diagnostic errors that
   // can be caused by missing includes (e.g. member access in incomplete type).
   bool SuggestMissingIncludes = false;
+
+  bool CrossFileRename = false;
 
   std::function<bool(const Tweak &)> TweakFilter;
 

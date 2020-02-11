@@ -72,7 +72,8 @@ Expected<std::vector<BenchmarkCode>> SnippetGenerator::generateConfigurations(
         BenchmarkCode BC;
         BC.Info = CT.Info;
         for (InstructionTemplate &IT : CT.Instructions) {
-          randomizeUnsetVariables(State.getExegesisTarget(), ForbiddenRegs, IT);
+          if (auto error = randomizeUnsetVariables(State, ForbiddenRegs, IT))
+            return std::move(error);
           BC.Key.Instructions.push_back(IT.build());
         }
         if (CT.ScratchSpacePointerInReg)
@@ -112,7 +113,7 @@ std::vector<RegisterValue> SnippetGenerator::computeRegisterInitialValues(
       return 0;
     };
     // Collect used registers that have never been def'ed.
-    for (const Operand &Op : IT.Instr.Operands) {
+    for (const Operand &Op : IT.getInstr().Operands) {
       if (Op.isUse()) {
         const unsigned Reg = GetOpReg(Op);
         if (Reg > 0 && !DefinedRegs.test(Reg)) {
@@ -122,7 +123,7 @@ std::vector<RegisterValue> SnippetGenerator::computeRegisterInitialValues(
       }
     }
     // Mark defs as having been def'ed.
-    for (const Operand &Op : IT.Instr.Operands) {
+    for (const Operand &Op : IT.getInstr().Operands) {
       if (Op.isDef()) {
         const unsigned Reg = GetOpReg(Op);
         if (Reg > 0)
@@ -141,7 +142,7 @@ generateSelfAliasingCodeTemplates(const Instruction &Instr) {
   std::vector<CodeTemplate> Result;
   Result.emplace_back();
   CodeTemplate &CT = Result.back();
-  InstructionTemplate IT(Instr);
+  InstructionTemplate IT(&Instr);
   if (SelfAliasing.hasImplicitAliasing()) {
     CT.Info = "implicit Self cycles, picking random values.";
   } else {
@@ -159,8 +160,9 @@ generateUnconstrainedCodeTemplates(const Instruction &Instr, StringRef Msg) {
   std::vector<CodeTemplate> Result;
   Result.emplace_back();
   CodeTemplate &CT = Result.back();
-  CT.Info = formatv("{0}, repeating an unconstrained assignment", Msg);
-  CT.Instructions.emplace_back(Instr);
+  CT.Info =
+      std::string(formatv("{0}, repeating an unconstrained assignment", Msg));
+  CT.Instructions.emplace_back(&Instr);
   return std::move(Result);
 }
 
@@ -215,14 +217,53 @@ void setRandomAliasing(const AliasingConfigurations &AliasingConfigurations,
   setRegisterOperandValue(randomElement(RandomConf.Uses), UseIB);
 }
 
-void randomizeUnsetVariables(const ExegesisTarget &Target,
-                             const BitVector &ForbiddenRegs,
-                             InstructionTemplate &IT) {
-  for (const Variable &Var : IT.Instr.Variables) {
+static Error randomizeMCOperand(const LLVMState &State,
+                                const Instruction &Instr, const Variable &Var,
+                                MCOperand &AssignedValue,
+                                const BitVector &ForbiddenRegs) {
+  const Operand &Op = Instr.getPrimaryOperand(Var);
+  if (Op.getExplicitOperandInfo().OperandType >=
+      MCOI::OperandType::OPERAND_FIRST_TARGET)
+    return State.getExegesisTarget().randomizeTargetMCOperand(
+        Instr, Var, AssignedValue, ForbiddenRegs);
+  switch (Op.getExplicitOperandInfo().OperandType) {
+  case MCOI::OperandType::OPERAND_IMMEDIATE:
+    // FIXME: explore immediate values too.
+    AssignedValue = MCOperand::createImm(1);
+    break;
+  case MCOI::OperandType::OPERAND_REGISTER: {
+    assert(Op.isReg());
+    auto AllowedRegs = Op.getRegisterAliasing().sourceBits();
+    assert(AllowedRegs.size() == ForbiddenRegs.size());
+    for (auto I : ForbiddenRegs.set_bits())
+      AllowedRegs.reset(I);
+    if (!AllowedRegs.any())
+      return make_error<Failure>(
+          Twine("no available registers:\ncandidates:\n")
+              .concat(debugString(State.getRegInfo(),
+                                  Op.getRegisterAliasing().sourceBits()))
+              .concat("\nforbidden:\n")
+              .concat(debugString(State.getRegInfo(), ForbiddenRegs)));
+    AssignedValue = MCOperand::createReg(randomBit(AllowedRegs));
+    break;
+  }
+  default:
+    break;
+  }
+  return Error::success();
+}
+
+Error randomizeUnsetVariables(const LLVMState &State,
+                              const BitVector &ForbiddenRegs,
+                              InstructionTemplate &IT) {
+  for (const Variable &Var : IT.getInstr().Variables) {
     MCOperand &AssignedValue = IT.getValueFor(Var);
     if (!AssignedValue.isValid())
-      Target.randomizeMCOperand(IT.Instr, Var, AssignedValue, ForbiddenRegs);
+      if (auto Err = randomizeMCOperand(State, IT.getInstr(), Var,
+                                        AssignedValue, ForbiddenRegs))
+        return Err;
   }
+  return Error::success();
 }
 
 } // namespace exegesis

@@ -34,7 +34,7 @@ std::string toString(const wasm::InputFile *file) {
     return "<internal>";
 
   if (file->archiveName.empty())
-    return file->getName();
+    return std::string(file->getName());
 
   return (file->archiveName + "(" + file->getName() + ")").str();
 }
@@ -299,8 +299,7 @@ void ObjFile::parse(bool ignoreComdats) {
       customSectionsByIndex[sectionIndex] = customSections.back();
     }
     sectionIndex++;
-    // Scans relocations to dermine determine if a function symbol is called
-    // directly
+    // Scans relocations to determine if a function symbol is called directly.
     for (const WasmRelocation &reloc : section.Relocations)
       if (reloc.Type == R_WASM_FUNCTION_INDEX_LEB)
         isCalledDirectly[reloc.Index] = true;

@@ -45,6 +45,7 @@
 #include "llvm/Support/SpecialCaseList.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -357,7 +358,7 @@ static std::string parseScalarString(yaml::Node *N) {
   SmallString<64> StringStorage;
   yaml::ScalarNode *S = dyn_cast<yaml::ScalarNode>(N);
   failIf(!S, "expected string");
-  return S->getValue(StringStorage);
+  return std::string(S->getValue(StringStorage));
 }
 
 std::unique_ptr<SymbolizedCoverage>
@@ -470,7 +471,7 @@ static std::unique_ptr<symbolize::LLVMSymbolizer> createSymbolizer() {
 static std::string normalizeFilename(const std::string &FileName) {
   SmallString<256> S(FileName);
   sys::path::remove_dots(S, /* remove_dot_dot */ true);
-  return stripPathPrefix(S.str().str());
+  return stripPathPrefix(std::string(S));
 }
 
 class Blacklists {
@@ -510,7 +511,8 @@ private:
     if (ClBlacklist.empty())
       return std::unique_ptr<SpecialCaseList>();
 
-    return SpecialCaseList::createOrDie({{ClBlacklist}});
+    return SpecialCaseList::createOrDie({{ClBlacklist}},
+                                        *vfs::getRealFileSystem());
   }
   std::unique_ptr<SpecialCaseList> DefaultBlacklist;
   std::unique_ptr<SpecialCaseList> UserBlacklist;
@@ -756,7 +758,7 @@ static void getObjectCoveragePoints(const object::ObjectFile &O,
          Index += Size) {
       MCInst Inst;
       if (!DisAsm->getInstruction(Inst, Size, Bytes.slice(Index),
-                                  SectionAddr + Index, nulls(), nulls())) {
+                                  SectionAddr + Index, nulls())) {
         if (Size == 0)
           Size = 1;
         continue;
@@ -1068,11 +1070,11 @@ readSymbolizeAndMergeCmdArguments(std::vector<std::string> FileNames) {
         CovFiles.insert(FileName);
       } else {
         auto ShortFileName = llvm::sys::path::filename(FileName);
-        if (ObjFiles.find(ShortFileName) != ObjFiles.end()) {
+        if (ObjFiles.find(std::string(ShortFileName)) != ObjFiles.end()) {
           fail("Duplicate binary file with a short name: " + ShortFileName);
         }
 
-        ObjFiles[ShortFileName] = FileName;
+        ObjFiles[std::string(ShortFileName)] = FileName;
         if (FirstObjFile.empty())
           FirstObjFile = FileName;
       }
@@ -1091,7 +1093,7 @@ readSymbolizeAndMergeCmdArguments(std::vector<std::string> FileNames) {
              FileName);
       }
 
-      auto Iter = ObjFiles.find(Components[1]);
+      auto Iter = ObjFiles.find(std::string(Components[1]));
       if (Iter == ObjFiles.end()) {
         fail("Object file for coverage not found: " + FileName);
       }

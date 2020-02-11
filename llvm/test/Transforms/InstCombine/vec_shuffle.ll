@@ -61,7 +61,8 @@ define float @test6(<4 x float> %X) {
 
 define <4 x float> @test7(<4 x float> %x) {
 ; CHECK-LABEL: @test7(
-; CHECK-NEXT:    ret <4 x float> [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[X:%.*]], <4 x float> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+; CHECK-NEXT:    ret <4 x float> [[R]]
 ;
   %r = shufflevector <4 x float> %x, <4 x float> undef, <4 x i32> < i32 0, i32 1, i32 6, i32 7 >
   ret <4 x float> %r
@@ -1004,6 +1005,207 @@ define <2 x i32> @and_splat_constant(<2 x i32> %x) {
   ret <2 x i32> %r
 }
 
+; AND does not fold to undef for undef operands, we cannot move it
+; across a shuffle with undef masks.
+define <4 x i16> @and_constant_mask_undef(<4 x i16> %add) {
+; CHECK-LABEL: @and_constant_mask_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i16> [[ADD:%.*]], <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+; CHECK-NEXT:    [[AND:%.*]] = and <4 x i16> [[SHUFFLE]], <i16 0, i16 0, i16 -1, i16 -1>
+; CHECK-NEXT:    ret <4 x i16> [[AND]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %add, <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+  %and = and <4 x i16> %shuffle, <i16 0, i16 0, i16 -1, i16 -1>
+  ret <4 x i16> %and
+}
+
+; AND does not fold to undef for undef operands, we cannot move it
+; across a shuffle with undef masks.
+define <4 x i16> @and_constant_mask_undef_2(<4 x i16> %add) {
+; CHECK-LABEL: @and_constant_mask_undef_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i16> [[ADD:%.*]], <4 x i16> undef, <4 x i32> <i32 1, i32 1, i32 1, i32 undef>
+; CHECK-NEXT:    [[AND:%.*]] = and <4 x i16> [[SHUFFLE]], <i16 -1, i16 -1, i16 -1, i16 0>
+; CHECK-NEXT:    ret <4 x i16> [[AND]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %add, <4 x i16> undef, <4 x i32> <i32 1, i32 1, i32 1, i32 undef>
+  %and = and <4 x i16> %shuffle, <i16 -1, i16 -1, i16 -1, i16 -0>
+  ret <4 x i16> %and
+}
+
+; We can move the AND across the shuffle, as -1 (AND identity value) is used for undef lanes.
+define <4 x i16> @and_constant_mask_undef_3(<4 x i16> %add) {
+; CHECK-LABEL: @and_constant_mask_undef_3(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    ret <4 x i16> <i16 0, i16 0, i16 0, i16 undef>
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %add, <4 x i16> undef, <4 x i32> <i32 0, i32 1, i32 1, i32 undef>
+  %and = and <4 x i16> %shuffle, <i16 0, i16 0, i16 0, i16 -1>
+  ret <4 x i16> %and
+}
+
+; We can move the AND across the shuffle, as -1 (AND identity value) is used for undef lanes.
+define <4 x i16> @and_constant_mask_undef_4(<4 x i16> %add) {
+; CHECK-LABEL: @and_constant_mask_undef_4(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = and <4 x i16> [[ADD:%.*]], <i16 9, i16 20, i16 undef, i16 undef>
+; CHECK-NEXT:    [[AND:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 0, i32 1, i32 1, i32 undef>
+; CHECK-NEXT:    ret <4 x i16> [[AND]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %add, <4 x i16> undef, <4 x i32> <i32 0, i32 1, i32 1, i32 undef>
+  %and = and <4 x i16> %shuffle, <i16 9, i16 20, i16 20, i16 -1>
+  ret <4 x i16> %and
+}
+
+define <4 x i16> @and_constant_mask_not_undef(<4 x i16> %add) {
+; CHECK-LABEL: @and_constant_mask_not_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = and <4 x i16> [[ADD:%.*]], <i16 undef, i16 -1, i16 0, i16 0>
+; CHECK-NEXT:    [[AND:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 2, i32 3, i32 1, i32 1>
+; CHECK-NEXT:    ret <4 x i16> [[AND]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %add, <4 x i16> undef, <4 x i32> <i32 2, i32 3, i32 1, i32 1>
+  %and = and <4 x i16> %shuffle, <i16 0, i16 0, i16 -1, i16 -1>
+  ret <4 x i16> %and
+}
+
+; OR does not fold to undef for undef operands, we cannot move it
+; across a shuffle with undef masks.
+define <4 x i16> @or_constant_mask_undef(<4 x i16> %in) {
+; CHECK-LABEL: @or_constant_mask_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i16> [[IN:%.*]], <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+; CHECK-NEXT:    [[OR:%.*]] = or <4 x i16> [[SHUFFLE]], <i16 -1, i16 -1, i16 0, i16 0>
+; CHECK-NEXT:    ret <4 x i16> [[OR]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+  %or = or <4 x i16> %shuffle, <i16 -1, i16 -1, i16 0, i16 0>
+  ret <4 x i16> %or
+}
+
+; OR does not fold to undef for undef operands, we cannot move it
+; across a shuffle with undef masks.
+define <4 x i16> @or_constant_mask_undef_2(<4 x i16> %in) {
+; CHECK-LABEL: @or_constant_mask_undef_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i16> [[IN:%.*]], <4 x i16> undef, <4 x i32> <i32 undef, i32 1, i32 1, i32 undef>
+; CHECK-NEXT:    [[OR:%.*]] = or <4 x i16> [[SHUFFLE]], <i16 -1, i16 0, i16 0, i16 -1>
+; CHECK-NEXT:    ret <4 x i16> [[OR]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 1, i32 1, i32 undef>
+  %or = or <4 x i16> %shuffle, <i16 -1, i16 0, i16 0, i16 -1>
+  ret <4 x i16> %or
+}
+
+; We can move the OR across the shuffle, as 0 (OR identity value) is used for undef lanes.
+define <4 x i16> @or_constant_mask_undef_3(<4 x i16> %in) {
+; CHECK-LABEL: @or_constant_mask_undef_3(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    ret <4 x i16> <i16 undef, i16 -1, i16 -1, i16 undef>
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 1, i32 1, i32 undef>
+  %or = or <4 x i16> %shuffle, <i16 0, i16 -1, i16 -1, i16 0>
+  ret <4 x i16> %or
+}
+
+; We can move the OR across the shuffle, as 0 (OR identity value) is used for undef lanes.
+define <4 x i16> @or_constant_mask_undef_4(<4 x i16> %in) {
+; CHECK-LABEL: @or_constant_mask_undef_4(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = or <4 x i16> [[IN:%.*]], <i16 undef, i16 99, i16 undef, i16 undef>
+; CHECK-NEXT:    [[OR:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 undef, i32 1, i32 1, i32 undef>
+; CHECK-NEXT:    ret <4 x i16> [[OR]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 1, i32 1, i32 undef>
+  %or = or <4 x i16> %shuffle, <i16 0, i16 99, i16 99, i16 0>
+  ret <4 x i16> %or
+}
+
+define <4 x i16> @or_constant_mask_not_undef(<4 x i16> %in) {
+; CHECK-LABEL: @or_constant_mask_not_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = or <4 x i16> [[IN:%.*]], <i16 undef, i16 -1, i16 0, i16 0>
+; CHECK-NEXT:    [[AND:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 2, i32 3, i32 1, i32 1>
+; CHECK-NEXT:    ret <4 x i16> [[AND]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 2, i32 3, i32 1, i32 1>
+  %and = or <4 x i16> %shuffle, <i16 0, i16 0, i16 -1, i16 -1>
+  ret <4 x i16> %and
+}
+
+define <4 x i16> @shl_constant_mask_undef(<4 x i16> %in) {
+; CHECK-LABEL: @shl_constant_mask_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i16> [[IN:%.*]], <4 x i16> undef, <4 x i32> <i32 0, i32 undef, i32 1, i32 1>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <4 x i16> [[SHUFFLE]], <i16 10, i16 3, i16 0, i16 0>
+; CHECK-NEXT:    ret <4 x i16> [[SHL]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 0, i32 undef, i32 1, i32 1>
+  %shl = shl <4 x i16> %shuffle, <i16 10, i16 3, i16 0, i16 0>
+  ret <4 x i16> %shl
+}
+
+define <4 x i16> @add_constant_mask_undef(<4 x i16> %in) {
+; CHECK-LABEL: @add_constant_mask_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[ADD:%.*]] = shufflevector <4 x i16> [[IN:%.*]], <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+; CHECK-NEXT:    ret <4 x i16> [[ADD]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+  %add = add <4 x i16> %shuffle, <i16 10, i16 3, i16 0, i16 0>
+  ret <4 x i16> %add
+}
+
+define <4 x i16> @add_constant_mask_undef_2(<4 x i16> %in) {
+; CHECK-LABEL: @add_constant_mask_undef_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = add <4 x i16> [[IN:%.*]], <i16 undef, i16 0, i16 3, i16 undef>
+; CHECK-NEXT:    [[ADD:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 undef, i32 2, i32 1, i32 1>
+; CHECK-NEXT:    ret <4 x i16> [[ADD]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 2, i32 1, i32 1>
+  %add = add <4 x i16> %shuffle, <i16 10, i16 3, i16 0, i16 0>
+  ret <4 x i16> %add
+}
+
+define <4 x i16> @sub_constant_mask_undef(<4 x i16> %in) {
+; CHECK-LABEL: @sub_constant_mask_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[SUB:%.*]] = shufflevector <4 x i16> [[IN:%.*]], <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+; CHECK-NEXT:    ret <4 x i16> [[SUB]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 undef, i32 undef, i32 1, i32 1>
+  %sub = sub <4 x i16> %shuffle, <i16 10, i16 3, i16 0, i16 0>
+  ret <4 x i16> %sub
+}
+
+define <4 x i16> @sub_constant_mask_undef_2(<4 x i16> %in) {
+; CHECK-LABEL: @sub_constant_mask_undef_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = add <4 x i16> [[IN:%.*]], <i16 undef, i16 0, i16 -10, i16 undef>
+; CHECK-NEXT:    [[SUB:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> undef, <4 x i32> <i32 1, i32 1, i32 2, i32 undef>
+; CHECK-NEXT:    ret <4 x i16> [[SUB]]
+;
+entry:
+  %shuffle = shufflevector <4 x i16> %in, <4 x i16> undef, <4 x i32> <i32 1, i32 1, i32 2, i32 undef>
+  %sub = sub <4 x i16> %shuffle, <i16 0, i16 0, i16 10, i16 99>
+  ret <4 x i16> %sub
+}
+
 define <2 x i32> @or_splat_constant(<2 x i32> %x) {
 ; CHECK-LABEL: @or_splat_constant(
 ; CHECK-NEXT:    [[TMP1:%.*]] = or <2 x i32> [[X:%.*]], <i32 42, i32 undef>
@@ -1251,4 +1453,295 @@ define <4 x float> @insert_subvector_crash_invalid_mask_elt(<2 x float> %x, <4 x
   %I = insertelement <4 x float> %widen, float %ext2, i16 0
   store <4 x float> %I, <4 x float>* %p
   ret <4 x float> %widen
+}
+
+define <4 x i32> @splat_assoc_add(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[X:%.*]], <i32 317426, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> zeroinitializer
+  %a = add <4 x i32> %y, <i32 317426, i32 317426, i32 317426, i32 317426>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+; Undefs in splat mask are replaced with defined splat index
+
+define <4 x i32> @splat_assoc_add_undef_mask_elts(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_mask_elts(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[X:%.*]], <i32 42, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> <i32 0, i32 0, i32 undef, i32 undef>
+  %a = add <4 x i32> %y, <i32 42, i32 42, i32 42, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+; Undefs in splat mask are replaced with defined splat index
+
+define <4 x i32> @splat_assoc_add_undef_mask_elt_at_splat_index(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_mask_elt_at_splat_index(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[X:%.*]], <i32 42, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+  %a = add <4 x i32> %y, <i32 42, i32 42, i32 42, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @splat_assoc_add_undef_constant_elts(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_constant_elts(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 42, i32 undef, i32 undef, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> zeroinitializer
+  %a = add <4 x i32> %y, <i32 42, i32 undef, i32 undef, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @splat_assoc_add_undef_constant_elt_at_splat_index(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_constant_elt_at_splat_index(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 undef, i32 42, i32 undef, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> zeroinitializer
+  %a = add <4 x i32> %y, <i32 undef, i32 42, i32 undef, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @splat_assoc_add_undef_mask_elts_undef_constant_elts(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_mask_elts_undef_constant_elts(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 0, i32 undef, i32 0, i32 undef>
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 42, i32 undef, i32 undef, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> <i32 0, i32 undef, i32 0, i32 undef>
+  %a = add <4 x i32> %y, <i32 42, i32 undef, i32 undef, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @splat_assoc_add_undef_mask_elt_at_splat_index_undef_constant_elts(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_mask_elt_at_splat_index_undef_constant_elts(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 42, i32 undef, i32 undef, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+  %a = add <4 x i32> %y, <i32 42, i32 undef, i32 undef, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @splat_assoc_add_undef_mask_elt_at_splat_index_undef_constant_elt_at_splat_index(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_undef_mask_elt_at_splat_index_undef_constant_elt_at_splat_index(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 undef, i32 42, i32 undef, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = add <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+  %a = add <4 x i32> %y, <i32 undef, i32 42, i32 undef, i32 42>
+  %r = add <4 x i32> %splatx, %a
+  ret <4 x i32> %r
+}
+
+; Non-zero splat index; commute operands; FMF intersect
+
+define <2 x float> @splat_assoc_fmul(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @splat_assoc_fmul(
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul reassoc nsz <2 x float> [[X:%.*]], <float undef, float 3.000000e+00>
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <2 x float> [[TMP1]], <2 x float> undef, <2 x i32> <i32 1, i32 1>
+; CHECK-NEXT:    [[R:%.*]] = fmul reassoc nsz <2 x float> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x float> [[R]]
+;
+  %splatx = shufflevector <2 x float> %x, <2 x float> undef, <2 x i32> <i32 1, i32 1>
+  %a = fmul reassoc nsz <2 x float> %y, <float 3.0, float 3.0>
+  %r = fmul reassoc nsz nnan <2 x float> %a, %splatx
+  ret <2 x float> %r
+}
+
+; Two splat shuffles; drop poison-generating flags
+
+define <3 x i8> @splat_assoc_mul(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_mul(
+; CHECK-NEXT:    [[TMP1:%.*]] = mul <3 x i8> [[Z:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <3 x i8> [[TMP1]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[R:%.*]] = mul <3 x i8> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %a = mul nsw <3 x i8> %y, %splatz
+  %r = mul <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+define <3 x i8> @splat_assoc_mul_undef_elt1(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_mul_undef_elt1(
+; CHECK-NEXT:    [[TMP1:%.*]] = mul <3 x i8> [[Z:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <3 x i8> [[TMP1]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[R:%.*]] = mul <3 x i8> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 undef, i32 2, i32 2>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %a = mul nsw <3 x i8> %y, %splatz
+  %r = mul nsw nuw <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+define <3 x i8> @splat_assoc_mul_undef_elt2(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_mul_undef_elt2(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <3 x i8> [[X:%.*]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[SPLATZ:%.*]] = shufflevector <3 x i8> [[Z:%.*]], <3 x i8> undef, <3 x i32> <i32 undef, i32 2, i32 2>
+; CHECK-NEXT:    [[A:%.*]] = mul nsw <3 x i8> [[SPLATZ]], [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = mul nuw nsw <3 x i8> [[A]], [[SPLATX]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 undef, i32 2, i32 2>
+  %a = mul nsw <3 x i8> %y, %splatz
+  %r = mul nsw nuw <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+define <3 x i8> @splat_assoc_mul_undef_elt_at_splat_index1(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_mul_undef_elt_at_splat_index1(
+; CHECK-NEXT:    [[TMP1:%.*]] = mul <3 x i8> [[Z:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <3 x i8> [[TMP1]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[R:%.*]] = mul <3 x i8> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 undef>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %a = mul nsw <3 x i8> %y, %splatz
+  %r = mul nsw nuw <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+define <3 x i8> @splat_assoc_mul_undef_elt_at_splat_index2(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_mul_undef_elt_at_splat_index2(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <3 x i8> [[X:%.*]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[SPLATZ:%.*]] = shufflevector <3 x i8> [[Z:%.*]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 undef>
+; CHECK-NEXT:    [[A:%.*]] = mul nsw <3 x i8> [[SPLATZ]], [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = mul nuw nsw <3 x i8> [[A]], [[SPLATX]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 undef>
+  %a = mul nsw <3 x i8> %y, %splatz
+  %r = mul nsw nuw <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+; Negative test - mismatched splat elements
+
+define <3 x i8> @splat_assoc_or(<3 x i8> %x, <3 x i8> %y, <3 x i8> %z) {
+; CHECK-LABEL: @splat_assoc_or(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <3 x i8> [[X:%.*]], <3 x i8> undef, <3 x i32> <i32 1, i32 1, i32 1>
+; CHECK-NEXT:    [[SPLATZ:%.*]] = shufflevector <3 x i8> [[Z:%.*]], <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[A:%.*]] = or <3 x i8> [[SPLATZ]], [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or <3 x i8> [[A]], [[SPLATX]]
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %splatx = shufflevector <3 x i8> %x, <3 x i8> undef, <3 x i32> <i32 1, i32 1, i32 1>
+  %splatz = shufflevector <3 x i8> %z, <3 x i8> undef, <3 x i32> <i32 2, i32 2, i32 2>
+  %a = or <3 x i8> %y, %splatz
+  %r = or <3 x i8> %a, %splatx
+  ret <3 x i8> %r
+}
+
+; Negative test - not associative
+
+define <2 x float> @splat_assoc_fdiv(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @splat_assoc_fdiv(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <2 x float> [[X:%.*]], <2 x float> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = fdiv reassoc nsz <2 x float> [[Y:%.*]], <float 3.000000e+00, float 3.000000e+00>
+; CHECK-NEXT:    [[R:%.*]] = fdiv reassoc nsz <2 x float> [[A]], [[SPLATX]]
+; CHECK-NEXT:    ret <2 x float> [[R]]
+;
+  %splatx = shufflevector <2 x float> %x, <2 x float> undef, <2 x i32> zeroinitializer
+  %a = fdiv reassoc nsz <2 x float> %y, <float 3.0, float 3.0>
+  %r = fdiv reassoc nsz <2 x float> %a, %splatx
+  ret <2 x float> %r
+}
+
+; Negative test - extra use
+
+define <2 x float> @splat_assoc_fadd(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @splat_assoc_fadd(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <2 x float> [[X:%.*]], <2 x float> undef, <2 x i32> <i32 1, i32 1>
+; CHECK-NEXT:    [[A:%.*]] = fadd fast <2 x float> [[Y:%.*]], <float 3.000000e+00, float 3.000000e+00>
+; CHECK-NEXT:    call void @use(<2 x float> [[A]])
+; CHECK-NEXT:    [[R:%.*]] = fadd fast <2 x float> [[A]], [[SPLATX]]
+; CHECK-NEXT:    ret <2 x float> [[R]]
+;
+  %splatx = shufflevector <2 x float> %x, <2 x float> undef, <2 x i32> <i32 1, i32 1>
+  %a = fadd fast <2 x float> %y, <float 3.0, float 3.0>
+  call void @use(<2 x float> %a)
+  %r = fadd fast <2 x float> %a, %splatx
+  ret <2 x float> %r
+}
+
+; Negative test - narrowing splat
+
+define <3 x i32> @splat_assoc_and(<4 x i32> %x, <3 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_and(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <3 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = and <3 x i32> [[Y:%.*]], <i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <3 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <3 x i32> zeroinitializer
+  %a = and <3 x i32> %y, <i32 42, i32 42, i32 42>
+  %r = and <3 x i32> %splatx, %a
+  ret <3 x i32> %r
+}
+
+; Negative test - widening splat
+
+define <5 x i32> @splat_assoc_xor(<4 x i32> %x, <5 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_xor(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <5 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = xor <5 x i32> [[Y:%.*]], <i32 42, i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = xor <5 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <5 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <5 x i32> zeroinitializer
+  %a = xor <5 x i32> %y, <i32 42, i32 42, i32 42, i32 42, i32 42>
+  %r = xor <5 x i32> %splatx, %a
+  ret <5 x i32> %r
+}
+
+; Negative test - opcode mismatch
+
+define <4 x i32> @splat_assoc_add_mul(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @splat_assoc_add_mul(
+; CHECK-NEXT:    [[SPLATX:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[A:%.*]] = add <4 x i32> [[Y:%.*]], <i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[R:%.*]] = mul <4 x i32> [[SPLATX]], [[A]]
+; CHECK-NEXT:    ret <4 x i32> [[R]]
+;
+  %splatx = shufflevector <4 x i32> %x, <4 x i32> undef, <4 x i32> zeroinitializer
+  %a = add <4 x i32> %y, <i32 42, i32 42, i32 42, i32 42>
+  %r = mul <4 x i32> %splatx, %a
+  ret <4 x i32> %r
 }

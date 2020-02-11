@@ -64,6 +64,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -96,10 +97,11 @@ STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
 
-static cl::opt<bool> EnablePRE("enable-pre",
-                               cl::init(true), cl::Hidden);
-static cl::opt<bool> EnableLoadPRE("enable-load-pre", cl::init(true));
-static cl::opt<bool> EnableMemDep("enable-gvn-memdep", cl::init(true));
+static cl::opt<bool> GVNEnablePRE("enable-pre", cl::init(true), cl::Hidden);
+static cl::opt<bool> GVNEnableLoadPRE("enable-load-pre", cl::init(true));
+static cl::opt<bool> GVNEnableLoadInLoopPRE("enable-load-in-loop-pre",
+                                            cl::init(true));
+static cl::opt<bool> GVNEnableMemDep("enable-gvn-memdep", cl::init(true));
 
 // Maximum allowed recursion depth.
 static cl::opt<uint32_t>
@@ -112,7 +114,7 @@ static cl::opt<uint32_t> MaxNumDeps(
 
 struct llvm::GVN::Expression {
   uint32_t opcode;
-  Type *type;
+  Type *type = nullptr;
   bool commutative = false;
   SmallVector<uint32_t, 4> varargs;
 
@@ -173,7 +175,7 @@ struct llvm::gvn::AvailableValue {
   PointerIntPair<Value *, 2, ValType> Val;
 
   /// Offset - The byte offset in Val that is interesting for the load query.
-  unsigned Offset;
+  unsigned Offset = 0;
 
   static AvailableValue get(Value *V, unsigned Offset = 0) {
     AvailableValue Res;
@@ -237,7 +239,7 @@ struct llvm::gvn::AvailableValue {
 /// the associated BasicBlock.
 struct llvm::gvn::AvailableValueInBlock {
   /// BB - The basic block in question.
-  BasicBlock *BB;
+  BasicBlock *BB = nullptr;
 
   /// AV - The actual available value
   AvailableValue AV;
@@ -364,6 +366,7 @@ GVN::ValueTable::ValueTable() = default;
 GVN::ValueTable::ValueTable(const ValueTable &) = default;
 GVN::ValueTable::ValueTable(ValueTable &&) = default;
 GVN::ValueTable::~ValueTable() = default;
+GVN::ValueTable &GVN::ValueTable::operator=(const GVN::ValueTable &Arg) = default;
 
 /// add - Insert a value into the table with a specified value number.
 void GVN::ValueTable::add(Value *V, uint32_t num) {
@@ -608,6 +611,22 @@ void GVN::ValueTable::verifyRemoved(const Value *V) const {
 //                                GVN Pass
 //===----------------------------------------------------------------------===//
 
+bool GVN::isPREEnabled() const {
+  return Options.AllowPRE.getValueOr(GVNEnablePRE);
+}
+
+bool GVN::isLoadPREEnabled() const {
+  return Options.AllowLoadPRE.getValueOr(GVNEnableLoadPRE);
+}
+
+bool GVN::isLoadInLoopPREEnabled() const {
+  return Options.AllowLoadInLoopPRE.getValueOr(GVNEnableLoadInLoopPRE);
+}
+
+bool GVN::isMemDepEnabled() const {
+  return Options.AllowMemDep.getValueOr(GVNEnableMemDep);
+}
+
 PreservedAnalyses GVN::run(Function &F, FunctionAnalysisManager &AM) {
   // FIXME: The order of evaluation of these 'getResult' calls is very
   // significant! Re-ordering these variables will cause GVN when run alone to
@@ -617,10 +636,11 @@ PreservedAnalyses GVN::run(Function &F, FunctionAnalysisManager &AM) {
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   auto &AA = AM.getResult<AAManager>(F);
-  auto &MemDep = AM.getResult<MemoryDependenceAnalysis>(F);
+  auto *MemDep =
+      isMemDepEnabled() ? &AM.getResult<MemoryDependenceAnalysis>(F) : nullptr;
   auto *LI = AM.getCachedResult<LoopAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
-  bool Changed = runImpl(F, AC, DT, TLI, AA, &MemDep, LI, &ORE);
+  bool Changed = runImpl(F, AC, DT, TLI, AA, MemDep, LI, &ORE);
   if (!Changed)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
@@ -1381,11 +1401,67 @@ bool GVN::processNonLocalLoad(LoadInst *LI) {
   }
 
   // Step 4: Eliminate partial redundancy.
-  if (!EnablePRE || !EnableLoadPRE)
+  if (!isPREEnabled() || !isLoadPREEnabled())
+    return false;
+  if (!isLoadInLoopPREEnabled() && this->LI &&
+      this->LI->getLoopFor(LI->getParent()))
     return false;
 
   return PerformLoadPRE(LI, ValuesPerBlock, UnavailableBlocks);
 }
+
+static bool impliesEquivalanceIfTrue(CmpInst* Cmp) {
+  if (Cmp->getPredicate() == CmpInst::Predicate::ICMP_EQ)
+    return true;
+
+  // Floating point comparisons can be equal, but not equivalent.  Cases:
+  // NaNs for unordered operators
+  // +0.0 vs 0.0 for all operators
+  if (Cmp->getPredicate() == CmpInst::Predicate::FCMP_OEQ ||
+      (Cmp->getPredicate() == CmpInst::Predicate::FCMP_UEQ &&
+       Cmp->getFastMathFlags().noNaNs())) {
+      Value *LHS = Cmp->getOperand(0);
+      Value *RHS = Cmp->getOperand(1);
+      // If we can prove either side non-zero, then equality must imply
+      // equivalence.
+      // FIXME: We should do this optimization if 'no signed zeros' is
+      // applicable via an instruction-level fast-math-flag or some other
+      // indicator that relaxed FP semantics are being used.
+      if (isa<ConstantFP>(LHS) && !cast<ConstantFP>(LHS)->isZero())
+        return true;
+      if (isa<ConstantFP>(RHS) && !cast<ConstantFP>(RHS)->isZero())
+        return true;;
+      // TODO: Handle vector floating point constants
+  }
+  return false;
+}
+
+static bool impliesEquivalanceIfFalse(CmpInst* Cmp) {
+  if (Cmp->getPredicate() == CmpInst::Predicate::ICMP_NE)
+    return true;
+
+  // Floating point comparisons can be equal, but not equivelent.  Cases:
+  // NaNs for unordered operators
+  // +0.0 vs 0.0 for all operators
+  if ((Cmp->getPredicate() == CmpInst::Predicate::FCMP_ONE &&
+       Cmp->getFastMathFlags().noNaNs()) ||
+      Cmp->getPredicate() == CmpInst::Predicate::FCMP_UNE) {
+      Value *LHS = Cmp->getOperand(0);
+      Value *RHS = Cmp->getOperand(1);
+      // If we can prove either side non-zero, then equality must imply
+      // equivalence. 
+      // FIXME: We should do this optimization if 'no signed zeros' is
+      // applicable via an instruction-level fast-math-flag or some other
+      // indicator that relaxed FP semantics are being used.
+      if (isa<ConstantFP>(LHS) && !cast<ConstantFP>(LHS)->isZero())
+        return true;
+      if (isa<ConstantFP>(RHS) && !cast<ConstantFP>(RHS)->isZero())
+        return true;;
+      // TODO: Handle vector floating point constants
+  }
+  return false;
+}
+
 
 static bool hasUsersIn(Value *V, BasicBlock *BB) {
   for (User *U : V->users())
@@ -1451,10 +1527,7 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
   // call void @llvm.assume(i1 %cmp)
   // ret float %load ; will change it to ret float %0
   if (auto *CmpI = dyn_cast<CmpInst>(V)) {
-    if (CmpI->getPredicate() == CmpInst::Predicate::ICMP_EQ ||
-        CmpI->getPredicate() == CmpInst::Predicate::FCMP_OEQ ||
-        (CmpI->getPredicate() == CmpInst::Predicate::FCMP_UEQ &&
-         CmpI->getFastMathFlags().noNaNs())) {
+    if (impliesEquivalanceIfTrue(CmpI)) {
       Value *CmpLHS = CmpI->getOperand(0);
       Value *CmpRHS = CmpI->getOperand(1);
       // Heuristically pick the better replacement -- the choice of heuristic
@@ -1479,12 +1552,6 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
       // Handle degenerate case where we either haven't pruned a dead path or a
       // removed a trivial assume yet.
       if (isa<Constant>(CmpLHS) && isa<Constant>(CmpRHS))
-        return Changed;
-
-      // +0.0 and -0.0 compare equal, but do not imply equivalence.  Unless we
-      // can prove equivalence, bail.
-      if (CmpRHS->getType()->isFloatTy() &&
-          (!isa<ConstantFP>(CmpRHS) || cast<ConstantFP>(CmpRHS)->isZero()))
         return Changed;
 
       LLVM_DEBUG(dbgs() << "Replacing dominated uses of "
@@ -1875,26 +1942,11 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
       Value *Op0 = Cmp->getOperand(0), *Op1 = Cmp->getOperand(1);
 
       // If "A == B" is known true, or "A != B" is known false, then replace
-      // A with B everywhere in the scope.
-      if ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
-          (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE))
+      // A with B everywhere in the scope.  For floating point operations, we
+      // have to be careful since equality does not always imply equivalance.  
+      if ((isKnownTrue && impliesEquivalanceIfTrue(Cmp)) ||
+          (isKnownFalse && impliesEquivalanceIfFalse(Cmp)))
         Worklist.push_back(std::make_pair(Op0, Op1));
-
-      // Handle the floating point versions of equality comparisons too.
-      if ((isKnownTrue && Cmp->getPredicate() == CmpInst::FCMP_OEQ) ||
-          (isKnownFalse && Cmp->getPredicate() == CmpInst::FCMP_UNE)) {
-
-        // Floating point -0.0 and 0.0 compare equal, so we can only
-        // propagate values if we know that we have a constant and that
-        // its value is non-zero.
-
-        // FIXME: We should do this optimization if 'no signed zeros' is
-        // applicable via an instruction-level fast-math-flag or some other
-        // indicator that relaxed FP semantics are being used.
-
-        if (isa<ConstantFP>(Op1) && !cast<ConstantFP>(Op1)->isZero())
-          Worklist.push_back(std::make_pair(Op0, Op1));
-      }
 
       // If "A >= B" is known true, replace "A < B" with false everywhere.
       CmpInst::Predicate NotPred = Cmp->getInversePredicate();
@@ -2117,7 +2169,7 @@ bool GVN::runImpl(Function &F, AssumptionCache &RunAC, DominatorTree &RunDT,
     ++Iteration;
   }
 
-  if (EnablePRE) {
+  if (isPREEnabled()) {
     // Fabricate val-num for dead-code in order to suppress assertion in
     // performPRE().
     assignValNumForDeadCode();
@@ -2651,8 +2703,8 @@ class llvm::gvn::GVNLegacyPass : public FunctionPass {
 public:
   static char ID; // Pass identification, replacement for typeid
 
-  explicit GVNLegacyPass(bool NoMemDepAnalysis = !EnableMemDep)
-      : FunctionPass(ID), NoMemDepAnalysis(NoMemDepAnalysis) {
+  explicit GVNLegacyPass(bool NoMemDepAnalysis = !GVNEnableMemDep)
+      : FunctionPass(ID), Impl(GVNOptions().setMemDep(!NoMemDepAnalysis)) {
     initializeGVNLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
@@ -2667,9 +2719,9 @@ public:
         getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
         getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
         getAnalysis<AAResultsWrapperPass>().getAAResults(),
-        NoMemDepAnalysis
-            ? nullptr
-            : &getAnalysis<MemoryDependenceWrapperPass>().getMemDep(),
+        Impl.isMemDepEnabled()
+            ? &getAnalysis<MemoryDependenceWrapperPass>().getMemDep()
+            : nullptr,
         LIWP ? &LIWP->getLoopInfo() : nullptr,
         &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE());
   }
@@ -2679,7 +2731,7 @@ public:
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<LoopInfoWrapperPass>();
-    if (!NoMemDepAnalysis)
+    if (Impl.isMemDepEnabled())
       AU.addRequired<MemoryDependenceWrapperPass>();
     AU.addRequired<AAResultsWrapperPass>();
 
@@ -2692,7 +2744,6 @@ public:
   }
 
 private:
-  bool NoMemDepAnalysis;
   GVN Impl;
 };
 

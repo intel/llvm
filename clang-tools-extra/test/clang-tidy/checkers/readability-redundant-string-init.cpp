@@ -1,4 +1,8 @@
-// RUN: %check_clang_tidy -std=c++11,c++14 %s readability-redundant-string-init %t
+// RUN: %check_clang_tidy -std=c++11,c++14 %s readability-redundant-string-init %t \
+// RUN:   -config="{CheckOptions: \
+// RUN:             [{key: readability-redundant-string-init.StringNames, \
+// RUN:               value: '::std::basic_string;our::TestString'}] \
+// RUN:             }"
 // FIXME: Fix the checker to work in C++17 mode.
 
 namespace std {
@@ -30,6 +34,12 @@ void f() {
   std::string d(R"()");
   // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
   // CHECK-FIXES: std::string d;
+  std::string e{""};
+  // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
+  // CHECK-FIXES: std::string e;
+  std::string f = {""};
+  // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
+  // CHECK-FIXES: std::string f;
 
   std::string u = "u";
   std::string w("w");
@@ -131,6 +141,11 @@ void k() {
   // CHECK-FIXES: std::string a, b, c;
 
   std::string d = "u", e = "u", f = "u";
+
+  std::string g = "u", h = "", i = "uuu", j = "", k;
+  // CHECK-MESSAGES: [[@LINE-1]]:24: warning: redundant string initialization
+  // CHECK-MESSAGES: [[@LINE-2]]:43: warning: redundant string initialization
+  // CHECK-FIXES: std::string g = "u", h, i = "uuu", j, k;
 }
 
 // These cases should not generate warnings.
@@ -139,3 +154,132 @@ extern void Param2(const std::string& param = "");
 void Param3(std::string param = "") {}
 void Param4(STRING param = "") {}
 
+namespace our {
+struct TestString {
+  TestString();
+  TestString(const TestString &);
+  TestString(const char *);
+  ~TestString();
+};
+}
+
+void ourTestStringTests() {
+  our::TestString a = "";
+  // CHECK-MESSAGES: [[@LINE-1]]:19: warning: redundant string initialization
+  // CHECK-FIXES: our::TestString a;
+  our::TestString b("");
+  // CHECK-MESSAGES: [[@LINE-1]]:19: warning: redundant string initialization
+  // CHECK-FIXES: our::TestString b;
+  our::TestString c = R"()";
+  // CHECK-MESSAGES: [[@LINE-1]]:19: warning: redundant string initialization
+  // CHECK-FIXES: our::TestString c;
+  our::TestString d(R"()");
+  // CHECK-MESSAGES: [[@LINE-1]]:19: warning: redundant string initialization
+  // CHECK-FIXES: our::TestString d;
+
+  our::TestString u = "u";
+  our::TestString w("w");
+  our::TestString x = R"(x)";
+  our::TestString y(R"(y)");
+  our::TestString z;
+}
+
+namespace their {
+using TestString = our::TestString;
+}
+
+// their::TestString is the same type so should warn / fix
+void theirTestStringTests() {
+  their::TestString a = "";
+  // CHECK-MESSAGES: [[@LINE-1]]:21: warning: redundant string initialization
+  // CHECK-FIXES: their::TestString a;
+  their::TestString b("");
+  // CHECK-MESSAGES: [[@LINE-1]]:21: warning: redundant string initialization
+  // CHECK-FIXES: their::TestString b;
+}
+
+namespace other {
+// Identical declarations to above but different type
+struct TestString {
+  TestString();
+  TestString(const TestString &);
+  TestString(const char *);
+  ~TestString();
+};
+
+// Identical declarations to above but different type
+template <typename T>
+class allocator {};
+template <typename T>
+class char_traits {};
+template <typename C, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+struct basic_string {
+  basic_string();
+  basic_string(const basic_string &);
+  basic_string(const C *, const A &a = A());
+  ~basic_string();
+};
+typedef basic_string<char> string;
+typedef basic_string<wchar_t> wstring;
+}
+
+// other::TestString, other::string, other::wstring are unrelated to the types
+// being checked. No warnings / fixes should be produced for these types.
+void otherTestStringTests() {
+  other::TestString a = "";
+  other::TestString b("");
+  other::string c = "";
+  other::string d("");
+  other::wstring e = L"";
+  other::wstring f(L"");
+}
+
+class Foo {
+  std::string A = "";
+  // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
+  // CHECK-FIXES:  std::string A;
+  std::string B;
+  std::string C;
+  std::string D;
+  std::string E = "NotEmpty";
+
+public:
+  // Check redundant constructor where Field has a redundant initializer.
+  Foo() : A("") {}
+  // CHECK-MESSAGES: [[@LINE-1]]:11: warning: redundant string initialization
+  // CHECK-FIXES:  Foo()  {}
+
+  // Check redundant constructor where Field has no initializer.
+  Foo(char) : B("") {}
+  // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(char)  {}
+
+  // Check redundant constructor where Field has a valid initializer.
+  Foo(long) : E("") {}
+  // CHECK-MESSAGES: [[@LINE-1]]:15: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(long) : E() {}
+
+  // Check how it handles removing 1 initializer, and defaulting the other.
+  Foo(int) : B(""), E("") {}
+  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: redundant string initialization
+  // CHECK-MESSAGES: [[@LINE-2]]:21: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(int) :  E() {}
+
+  Foo(short) : B{""} {}
+  // CHECK-MESSAGES: [[@LINE-1]]:16: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(short)  {}
+
+  Foo(float) : A{""}, B{""} {}
+  // CHECK-MESSAGES: [[@LINE-1]]:16: warning: redundant string initialization
+  // CHECK-MESSAGES: [[@LINE-2]]:23: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(float)  {}
+
+
+  // Check how it handles removing some redundant initializers while leaving
+  // valid initializers intact.
+  Foo(std::string Arg) : A(Arg), B(""), C("NonEmpty"), D(R"()"), E("") {}
+  // CHECK-MESSAGES: [[@LINE-1]]:34: warning: redundant string initialization
+  // CHECK-MESSAGES: [[@LINE-2]]:56: warning: redundant string initialization
+  // CHECK-MESSAGES: [[@LINE-3]]:66: warning: redundant string initialization
+  // CHECK-FIXES:  Foo(std::string Arg) : A(Arg),  C("NonEmpty"),  E() {}
+};

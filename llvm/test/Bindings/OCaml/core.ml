@@ -1370,6 +1370,7 @@ let test_builder () =
      * CHECK: %build_nuw_neg = sub nuw i32 0, %P1
      * CHECK: %build_fneg = fneg float %F1
      * CHECK: %build_not = xor i32 %P1, -1
+     * CHECK: %build_freeze = freeze i32 %P1
      *)
     ignore (build_add p1 p2 "build_add" b);
     ignore (build_nsw_add p1 p2 "build_nsw_add" b);
@@ -1401,6 +1402,7 @@ let test_builder () =
     ignore (build_nuw_neg p1 "build_nuw_neg" b);
     ignore (build_fneg f1 "build_fneg" b);
     ignore (build_not p1 "build_not" b);
+    ignore (build_freeze p1 "build_freeze" b);
     ignore (build_unreachable b)
   end;
 

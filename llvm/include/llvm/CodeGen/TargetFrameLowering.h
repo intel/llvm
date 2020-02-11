@@ -52,6 +52,21 @@ public:
     unsigned Reg;
     int Offset; // Offset relative to stack pointer on function entry.
   };
+
+  struct DwarfFrameBase {
+    // The frame base may be either a register (the default), the CFA,
+    // or a WebAssembly-specific location description.
+    enum FrameBaseKind { Register, CFA, WasmFrameBase } Kind;
+    struct WasmFrameBase {
+      unsigned Kind; // Wasm local, global, or value stack
+      unsigned Index;
+    };
+    union {
+      unsigned Reg;
+      struct WasmFrameBase WasmLoc;
+    } Location;
+  };
+
 private:
   StackDirection StackDir;
   Align StackAlignment;
@@ -60,7 +75,7 @@ private:
   bool StackRealignable;
 public:
   TargetFrameLowering(StackDirection D, Align StackAl, int LAO,
-                      Align TransAl = Align::None(), bool StackReal = true)
+                      Align TransAl = Align(1), bool StackReal = true)
       : StackDir(D), StackAlignment(StackAl), TransientStackAlignment(TransAl),
         LocalAreaOffset(LAO), StackRealignable(StackReal) {}
 
@@ -282,6 +297,11 @@ public:
     return getFrameIndexReference(MF, FI, FrameReg);
   }
 
+  /// Returns the callee-saved registers as computed by determineCalleeSaves
+  /// in the BitVector \p SavedRegs.
+  virtual void getCalleeSaves(const MachineFunction &MF,
+                                  BitVector &SavedRegs) const;
+
   /// This method determines which of the registers reported by
   /// TargetRegisterInfo::getCalleeSavedRegs() should actually get saved.
   /// The default implementation checks populates the \p SavedRegs bitset with
@@ -289,6 +309,9 @@ public:
   /// this function to save additional registers.
   /// This method also sets up the register scavenger ensuring there is a free
   /// register or a frameindex available.
+  /// This method should not be called by any passes outside of PEI, because
+  /// it may change state passed in by \p MF and \p RS. The preferred
+  /// interface outside PEI is getCalleeSaves.
   virtual void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                                     RegScavenger *RS = nullptr) const;
 
@@ -300,6 +323,13 @@ public:
   virtual void processFunctionBeforeFrameFinalized(MachineFunction &MF,
                                              RegScavenger *RS = nullptr) const {
   }
+
+  /// processFunctionBeforeFrameIndicesReplaced - This method is called
+  /// immediately before MO_FrameIndex operands are eliminated, but after the
+  /// frame is finalized. This method is optional.
+  virtual void
+  processFunctionBeforeFrameIndicesReplaced(MachineFunction &MF,
+                                            RegScavenger *RS = nullptr) const {}
 
   virtual unsigned getWinEHParentFrameOffset(const MachineFunction &MF) const {
     report_fatal_error("WinEH not implemented for this target");
@@ -355,6 +385,11 @@ public:
     return true;
   }
 
+  /// Returns the StackID that scalable vectors should be associated with.
+  virtual TargetStackID::Value getStackIDForScalableVectors() const {
+    return TargetStackID::Default;
+  }
+
   virtual bool isSupportedStackID(TargetStackID::Value ID) const {
     switch (ID) {
     default:
@@ -381,6 +416,10 @@ public:
   /// Return initial CFA register value i.e. the one valid at the beginning of
   /// the function (before any stack operations).
   virtual unsigned getInitialCFARegister(const MachineFunction &MF) const;
+
+  /// Return the frame base information to be encoded in the DWARF subprogram
+  /// debug info.
+  virtual DwarfFrameBase getDwarfFrameBase(const MachineFunction &MF) const;
 };
 
 } // End llvm namespace

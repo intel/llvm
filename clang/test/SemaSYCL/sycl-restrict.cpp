@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 
 
 namespace std {
@@ -37,7 +37,6 @@ void restriction(int p) {
 
 void* operator new (std::size_t size, void* ptr) throw() { return ptr; };
 namespace Check_RTTI_Restriction {
-// expected-error@+1 9{{SYCL kernel cannot have a class with a virtual function table}}
 struct A {
   virtual ~A(){};
 };
@@ -50,7 +49,7 @@ struct OverloadedNewDelete {
   // This overload allocates storage, give diagnostic.
   void *operator new(std::size_t size) throw() {
     // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-    float *pt = new float; 
+    float *pt = new float;
     return 0;}
   // This overload does not allocate: no diagnostic.
   void *operator new[](std::size_t size) throw() {return 0;}
@@ -66,23 +65,21 @@ bool isa_B(A *a) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   int i; int *p3 = new(&i) int; // no error on placement new
+  // expected-note@+1 {{called by 'isa_B'}}
   OverloadedNewDelete *x = new( struct OverloadedNewDelete );
   auto y = new struct OverloadedNewDelete [5];
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
   (void)typeid(int);
-  // expected-error@+2 {{SYCL kernel cannot use rtti}}
-  // expected-note@+1 {{used here}}
+  // expected-error@+1 {{SYCL kernel cannot use rtti}}
   return dynamic_cast<B *>(a) != 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
-  // expected-note@+1 {{used here}}
-  A *a;
-  // expected-note@+1 3{{used here}}
-  isa_B(a);
+template<typename N, typename L>
+__attribute__((sycl_kernel)) void kernel1(L l) {
+  l();
 }
 }
-// expected-error@+1 {{SYCL kernel cannot have a class with a virtual function table}}
+
 typedef struct Base {
   virtual void f() const {}
 } b_type;
@@ -106,6 +103,7 @@ using myFuncDef = int(int,int);
 
 void eh_ok(void)
 {
+  __float128 A;
   try {
     ;
   } catch (...) {
@@ -126,7 +124,7 @@ void eh_not_ok(void)
   throw 20;
 }
 
-void usage(  myFuncDef functionPtr ) {
+void usage(myFuncDef functionPtr) {
 
   eh_not_ok();
 
@@ -135,12 +133,16 @@ void usage(  myFuncDef functionPtr ) {
 #else
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
-  if ((*functionPtr)(1,2))
-  // expected-error@+3 {{SYCL kernel cannot use a global variable}}
-  // expected-error@+2 {{SYCL kernel cannot call a virtual function}}
-  // expected-note@+1 {{used here}}
-  b.f();
-  Check_RTTI_Restriction::kernel1();
+  if ((*functionPtr)(1, 2))
+    // expected-error@+2 {{SYCL kernel cannot use a global variable}}
+    // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
+    b.f();
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
+  Check_RTTI_Restriction::A *a;
+  Check_RTTI_Restriction::isa_B(a); });
+
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  __float128 A;
 }
 
 namespace ns {
@@ -174,12 +176,13 @@ int use2 ( a_type ab, a_type *abp ) {
     AnotherNS::moar_globals;
   // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
-  // expected-note@+1 {{used here}}
   Check_RTTI_Restriction:: A *a;
-  // expected-note@+1 3{{used here}}
+  // expected-note@+1 2{{called by 'use2'}}
   Check_RTTI_Restriction:: isa_B(a);
+  // expected-note@+1 {{called by 'use2'}}
   usage(&addInt);
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  // expected-note@+1 {{called by 'use2'}}
   if (f1 == f2) return false;
 }
 
@@ -188,7 +191,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 {{called by 'kernel_single_task'}}
+  // expected-note@+1 5{{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 

@@ -74,7 +74,7 @@ bool areChangesSame(const tooling::AtomicChanges &LHS,
                     const tooling::AtomicChanges &RHS) {
   if (LHS.size() != RHS.size())
     return false;
-  for (const auto &I : llvm::zip(LHS, RHS)) {
+  for (auto I : llvm::zip(LHS, RHS)) {
     if (!(std::get<0>(I) == std::get<1>(I)))
       return false;
   }
@@ -190,7 +190,7 @@ bool TestRefactoringResultConsumer::handleAllResults() {
               const PartialDiagnosticAt &Diag = Err.getDiagnostic();
               llvm::SmallString<100> DiagText;
               Diag.second.EmitToString(getDiags(), DiagText);
-              ErrorMessage = DiagText.str().str();
+              ErrorMessage = std::string(DiagText);
             });
       }
       if (!CanonicalResult && !CanonicalErrorMessage) {
@@ -303,9 +303,10 @@ findTestSelectionRanges(StringRef Filename) {
 
   // See the doc comment for this function for the explanation of this
   // syntax.
-  static Regex RangeRegex("range[[:blank:]]*([[:alpha:]_]*)?[[:blank:]]*=[[:"
-                          "blank:]]*(\\+[[:digit:]]+)?[[:blank:]]*(->[[:blank:]"
-                          "]*[\\+\\:[:digit:]]+)?");
+  static const Regex RangeRegex(
+      "range[[:blank:]]*([[:alpha:]_]*)?[[:blank:]]*=[[:"
+      "blank:]]*(\\+[[:digit:]]+)?[[:blank:]]*(->[[:blank:]"
+      "]*[\\+\\:[:digit:]]+)?");
 
   std::map<std::string, SmallVector<TestSelectionRange, 8>> GroupedRanges;
 
@@ -352,7 +353,7 @@ findTestSelectionRanges(StringRef Filename) {
     unsigned EndOffset;
 
     if (!Matches[3].empty()) {
-      static Regex EndLocRegex(
+      static const Regex EndLocRegex(
           "->[[:blank:]]*(\\+[[:digit:]]+):([[:digit:]]+)");
       SmallVector<StringRef, 4> EndLocMatches;
       if (!EndLocRegex.match(Matches[3], &EndLocMatches)) {

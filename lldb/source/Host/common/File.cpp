@@ -1,4 +1,4 @@
-//===-- File.cpp ------------------------------------------------*- C++ -*-===//
+//===-- File.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -310,7 +310,7 @@ Status NativeFile::Close() {
     if (m_own_stream) {
       if (::fclose(m_stream) == EOF)
         error.SetErrorToErrno();
-    } else {
+    } else if (m_options & eOpenOptionWrite) {
       if (::fflush(m_stream) == EOF)
         error.SetErrorToErrno();
     }

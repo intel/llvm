@@ -1,4 +1,4 @@
-//===-- SBThread.cpp --------------------------------------------*- C++ -*-===//
+//===-- SBThread.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -313,8 +313,8 @@ SBThread::GetStopReasonExtendedBacktraces(InstrumentationRuntimeType type) {
 }
 
 size_t SBThread::GetStopDescription(char *dst, size_t dst_len) {
-  LLDB_RECORD_METHOD(size_t, SBThread, GetStopDescription, (char *, size_t),
-                     dst, dst_len);
+  LLDB_RECORD_METHOD(size_t, SBThread, GetStopDescription, (char *, size_t), "",
+                     dst_len);
 
   std::unique_lock<std::recursive_mutex> lock;
   ExecutionContext exe_ctx(m_opaque_sp.get(), lock);
@@ -914,9 +914,10 @@ SBError SBThread::StepOverUntil(lldb::SBFrame &sb_frame,
     const bool exact = false;
 
     SymbolContextList sc_list;
-    const uint32_t num_matches = frame_sc.comp_unit->ResolveSymbolContext(
-        step_file_spec, line, check_inlines, exact, eSymbolContextLineEntry,
-        sc_list);
+    frame_sc.comp_unit->ResolveSymbolContext(step_file_spec, line,
+                                             check_inlines, exact,
+                                             eSymbolContextLineEntry, sc_list);
+    const uint32_t num_matches = sc_list.GetSize();
     if (num_matches > 0) {
       SymbolContext sc;
       for (uint32_t i = 0; i < num_matches; ++i) {
@@ -969,23 +970,20 @@ SBError SBThread::StepUsingScriptedThreadPlan(const char *script_class_name) {
 SBError SBThread::StepUsingScriptedThreadPlan(const char *script_class_name,
                                             bool resume_immediately) {
   LLDB_RECORD_METHOD(lldb::SBError, SBThread, StepUsingScriptedThreadPlan,
-                     (const char *, bool), script_class_name, 
+                     (const char *, bool), script_class_name,
                      resume_immediately);
 
   lldb::SBStructuredData no_data;
-  return LLDB_RECORD_RESULT(
-      StepUsingScriptedThreadPlan(script_class_name, 
-                                  no_data, 
-                                  resume_immediately));
+  return LLDB_RECORD_RESULT(StepUsingScriptedThreadPlan(
+      script_class_name, no_data, resume_immediately));
 }
 
 SBError SBThread::StepUsingScriptedThreadPlan(const char *script_class_name,
                                               SBStructuredData &args_data,
                                               bool resume_immediately) {
   LLDB_RECORD_METHOD(lldb::SBError, SBThread, StepUsingScriptedThreadPlan,
-                     (const char *, lldb::SBStructuredData &, bool), 
-                     script_class_name, args_data,
-                     resume_immediately);
+                     (const char *, lldb::SBStructuredData &, bool),
+                     script_class_name, args_data, resume_immediately);
 
   SBError error;
 
@@ -1036,7 +1034,7 @@ SBError SBThread::JumpToLine(lldb::SBFileSpec &file_spec, uint32_t line) {
 
   Thread *thread = exe_ctx.GetThreadPtr();
 
-  Status err = thread->JumpToLine(file_spec.get(), line, true);
+  Status err = thread->JumpToLine(file_spec.ref(), line, true);
   sb_error.SetError(err);
   return LLDB_RECORD_RESULT(sb_error);
 }
@@ -1443,8 +1441,6 @@ void RegisterMethods<SBThread>(Registry &R) {
   LLDB_REGISTER_METHOD(lldb::SBThreadCollection, SBThread,
                        GetStopReasonExtendedBacktraces,
                        (lldb::InstrumentationRuntimeType));
-  LLDB_REGISTER_METHOD(size_t, SBThread, GetStopDescription,
-                       (char *, size_t));
   LLDB_REGISTER_METHOD(lldb::SBValue, SBThread, GetStopReturnValue, ());
   LLDB_REGISTER_METHOD_CONST(lldb::tid_t, SBThread, GetThreadID, ());
   LLDB_REGISTER_METHOD_CONST(uint32_t, SBThread, GetIndexID, ());
@@ -1521,6 +1517,7 @@ void RegisterMethods<SBThread>(Registry &R) {
   LLDB_REGISTER_METHOD(lldb::SBThread, SBThread, GetCurrentExceptionBacktrace,
                        ());
   LLDB_REGISTER_METHOD(bool, SBThread, SafeToCallFunctions, ());
+  LLDB_REGISTER_CHAR_PTR_REDIRECT(size_t, SBThread, GetStopDescription);
 }
 
 }

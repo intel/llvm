@@ -51,8 +51,8 @@ opt<bool> DisableCTRLoops("disable-ppc-ctrloops", cl::Hidden,
                         cl::desc("Disable CTR loops for PPC"));
 
 static cl::
-opt<bool> DisablePreIncPrep("disable-ppc-preinc-prep", cl::Hidden,
-                            cl::desc("Disable PPC loop preinc prep"));
+opt<bool> DisableInstrFormPrep("disable-ppc-instr-form-prep", cl::Hidden,
+                            cl::desc("Disable PPC loop instr form prep"));
 
 static cl::opt<bool>
 VSXFMAMutateEarly("schedule-ppc-vsx-fma-mutation-early",
@@ -77,7 +77,7 @@ EnableGEPOpt("ppc-gep-opt", cl::Hidden,
 
 static cl::opt<bool>
 EnablePrefetch("enable-ppc-prefetching",
-                  cl::desc("disable software prefetching on PPC"),
+                  cl::desc("enable software prefetching on PPC"),
                   cl::init(false), cl::Hidden);
 
 static cl::opt<bool>
@@ -94,7 +94,7 @@ static cl::opt<bool>
   ReduceCRLogical("ppc-reduce-cr-logicals",
                   cl::desc("Expand eligible cr-logical binary ops to branches"),
                   cl::init(true), cl::Hidden);
-extern "C" void LLVMInitializePowerPCTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTarget() {
   // Register the targets
   RegisterTargetMachine<PPCTargetMachine> A(getThePPC32Target());
   RegisterTargetMachine<PPCTargetMachine> B(getThePPC64Target());
@@ -104,7 +104,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
 #ifndef NDEBUG
   initializePPCCTRLoopsVerifyPass(PR);
 #endif
-  initializePPCLoopPreIncPrepPass(PR);
+  initializePPCLoopInstrFormPrepPass(PR);
   initializePPCTOCRegDepsPass(PR);
   initializePPCEarlyReturnPass(PR);
   initializePPCVSXCopyPass(PR);
@@ -119,6 +119,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   initializePPCPreEmitPeepholePass(PR);
   initializePPCTLSDynamicCallPass(PR);
   initializePPCMIPeepholePass(PR);
+  initializePPCLowerMASSVEntriesPass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -157,7 +158,7 @@ static std::string getDataLayoutString(const Triple &T) {
 
 static std::string computeFSAdditions(StringRef FS, CodeGenOpt::Level OL,
                                       const Triple &TT) {
-  std::string FullFS = FS;
+  std::string FullFS = std::string(FS);
 
   // Make sure 64-bit features are available when CPUname is generic
   if (TT.getArch() == Triple::ppc64 || TT.getArch() == Triple::ppc64le) {
@@ -214,8 +215,6 @@ static PPCTargetMachine::PPCABI computeTargetABI(const Triple &TT,
   case Triple::ppc64le:
     return PPCTargetMachine::PPC_ABI_ELFv2;
   case Triple::ppc64:
-    if (TT.getEnvironment() == llvm::Triple::ELFv2)
-      return PPCTargetMachine::PPC_ABI_ELFv2;
     return PPCTargetMachine::PPC_ABI_ELFv1;
   default:
     return PPCTargetMachine::PPC_ABI_UNKNOWN;
@@ -224,6 +223,9 @@ static PPCTargetMachine::PPCABI computeTargetABI(const Triple &TT,
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            Optional<Reloc::Model> RM) {
+  assert((!TT.isOSAIX() || !RM.hasValue() || *RM == Reloc::PIC_) &&
+         "Invalid relocation model for AIX.");
+
   if (RM.hasValue())
     return *RM;
 
@@ -231,8 +233,8 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
   if (TT.isOSDarwin())
     return Reloc::DynamicNoPIC;
 
-  // Big Endian PPC is PIC by default.
-  if (TT.getArch() == Triple::ppc64)
+  // Big Endian PPC and AIX default to PIC.
+  if (TT.getArch() == Triple::ppc64 || TT.isOSAIX())
     return Reloc::PIC_;
 
   // Rest are static by default.
@@ -401,6 +403,9 @@ void PPCPassConfig::addIRPasses() {
     addPass(createPPCBoolRetToIntPass());
   addPass(createAtomicExpandPass());
 
+  // Lower generic MASSV routines to PowerPC subtarget-specific entries.
+  addPass(createPPCLowerMASSVEntriesPass());
+  
   // For the BG/Q (or if explicitly requested), add explicit data prefetch
   // intrinsics.
   bool UsePrefetching = TM->getTargetTriple().getVendor() == Triple::BGQ &&
@@ -427,8 +432,8 @@ void PPCPassConfig::addIRPasses() {
 }
 
 bool PPCPassConfig::addPreISel() {
-  if (!DisablePreIncPrep && getOptLevel() != CodeGenOpt::None)
-    addPass(createPPCLoopPreIncPrepPass(getPPCTargetMachine()));
+  if (!DisableInstrFormPrep && getOptLevel() != CodeGenOpt::None)
+    addPass(createPPCLoopInstrFormPrepPass(getPPCTargetMachine()));
 
   if (!DisableCTRLoops && getOptLevel() != CodeGenOpt::None)
     addPass(createHardwareLoopsPass());

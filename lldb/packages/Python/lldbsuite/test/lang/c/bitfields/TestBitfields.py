@@ -1,6 +1,5 @@
 """Show bitfields and check that they display correctly."""
 
-from __future__ import print_function
 
 
 import lldb
@@ -22,7 +21,6 @@ class BitfieldsTestCase(TestBase):
     # BitFields exhibit crashes in record layout on Windows
     # (http://llvm.org/pr21800)
     @skipIfWindows
-    @expectedFailureNetBSD
     def test_and_run_command(self):
         """Test 'frame variable ...' on a variable with bitfields."""
         self.build()
@@ -154,7 +152,6 @@ class BitfieldsTestCase(TestBase):
     # BitFields exhibit crashes in record layout on Windows
     # (http://llvm.org/pr21800)
     @skipIfWindows
-    @expectedFailureNetBSD
     def test_and_python_api(self):
         """Use Python APIs to inspect a bitfields variable."""
         self.build()

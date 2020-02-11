@@ -20,7 +20,6 @@
 #include "IRForTarget.h"
 
 #include "lldb/Core/Address.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Expression/LLVMUserExpression.h"
 #include "lldb/Expression/Materializer.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -38,11 +37,14 @@ namespace lldb_private {
 /// the objects needed to parse and interpret or JIT an expression.  It uses
 /// the Clang parser to produce LLVM IR from the expression.
 class ClangUserExpression : public LLVMUserExpression {
+  // LLVM RTTI support
+  static char ID;
+
 public:
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindClangUserExpression;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || LLVMUserExpression::isA(ClassID);
   }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
 
   enum { kDefaultTimeout = 500000u };
 
@@ -93,7 +95,7 @@ public:
   /// \param[in] expr
   ///     The expression to parse.
   ///
-  /// \param[in] expr_prefix
+  /// \param[in] prefix
   ///     If non-NULL, a C string containing translation-unit level
   ///     definitions to be included when the expression is parsed.
   ///

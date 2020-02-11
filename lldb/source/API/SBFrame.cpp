@@ -1,4 +1,4 @@
-//===-- SBFrame.cpp ---------------------------------------------*- C++ -*-===//
+//===-- SBFrame.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -831,14 +831,12 @@ SBValueList SBFrame::GetVariables(const lldb::SBVariablesOptions &options) {
     if (stop_locker.TryLock(&process->GetRunLock())) {
       frame = exe_ctx.GetFramePtr();
       if (frame) {
-        size_t i;
         VariableList *variable_list = nullptr;
         variable_list = frame->GetVariableList(true);
         if (variable_list) {
           const size_t num_variables = variable_list->GetSize();
           if (num_variables) {
-            for (i = 0; i < num_variables; ++i) {
-              VariableSP variable_sp(variable_list->GetVariableAtIndex(i));
+            for (const VariableSP &variable_sp : *variable_list) {
               if (variable_sp) {
                 bool add_variable = false;
                 switch (variable_sp->GetScope()) {
@@ -1227,8 +1225,7 @@ const char *SBFrame::GetFunctionName() const {
           if (inlined_block) {
             const InlineFunctionInfo *inlined_info =
                 inlined_block->GetInlinedFunctionInfo();
-            name =
-                inlined_info->GetName(sc.function->GetLanguage()).AsCString();
+            name = inlined_info->GetName().AsCString();
           }
         }
 
@@ -1271,8 +1268,7 @@ const char *SBFrame::GetDisplayFunctionName() {
           if (inlined_block) {
             const InlineFunctionInfo *inlined_info =
                 inlined_block->GetInlinedFunctionInfo();
-            name = inlined_info->GetDisplayName(sc.function->GetLanguage())
-                       .AsCString();
+            name = inlined_info->GetDisplayName().AsCString();
           }
         }
 

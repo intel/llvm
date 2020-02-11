@@ -220,7 +220,8 @@ void parseAligncomm(StringRef s) {
     error("/aligncomm: invalid argument: " + s);
     return;
   }
-  config->alignComm[name] = std::max(config->alignComm[name], 1 << v);
+  config->alignComm[std::string(name)] =
+      std::max(config->alignComm[std::string(name)], 1 << v);
 }
 
 // Parses /functionpadmin option argument.
@@ -318,7 +319,7 @@ public:
     SmallString<128> s;
     if (auto ec = sys::fs::createTemporaryFile("lld-" + prefix, extn, s))
       fatal("cannot create a temporary file: " + ec.message());
-    path = s.str();
+    path = std::string(s.str());
 
     if (!contents.empty()) {
       std::error_code ec;
@@ -403,7 +404,7 @@ static std::string createManifestXmlWithInternalMt(StringRef defaultXml) {
             toString(std::move(e)));
   }
 
-  return merger.getMergedManifest().get()->getBuffer();
+  return std::string(merger.getMergedManifest().get()->getBuffer());
 }
 
 static std::string createManifestXmlWithExternalMt(StringRef defaultXml) {
@@ -431,9 +432,10 @@ static std::string createManifestXmlWithExternalMt(StringRef defaultXml) {
   e.add("/out:" + StringRef(user.path));
   e.run();
 
-  return CHECK(MemoryBuffer::getFile(user.path), "could not open " + user.path)
-      .get()
-      ->getBuffer();
+  return std::string(
+      CHECK(MemoryBuffer::getFile(user.path), "could not open " + user.path)
+          .get()
+          ->getBuffer());
 }
 
 static std::string createManifestXml() {
@@ -507,7 +509,7 @@ std::unique_ptr<MemoryBuffer> createManifestRes() {
 }
 
 void createSideBySideManifest() {
-  std::string path = config->manifestFile;
+  std::string path = std::string(config->manifestFile);
   if (path == "")
     path = config->outputFile + ".manifest";
   std::error_code ec;
@@ -773,15 +775,15 @@ static void handleColorDiagnostics(opt::InputArgList &args) {
   if (!arg)
     return;
   if (arg->getOption().getID() == OPT_color_diagnostics) {
-    enableColors(true);
+    lld::errs().enable_colors(true);
   } else if (arg->getOption().getID() == OPT_no_color_diagnostics) {
-    enableColors(false);
+    lld::errs().enable_colors(false);
   } else {
     StringRef s = arg->getValue();
     if (s == "always")
-      enableColors(true);
+      lld::errs().enable_colors(true);
     else if (s == "never")
-      enableColors(false);
+      lld::errs().enable_colors(false);
     else if (s != "auto")
       error("unknown option: --color-diagnostics=" + s);
   }
@@ -907,7 +909,7 @@ std::vector<const char *> ArgParser::tokenize(StringRef s) {
 }
 
 void printHelp(const char *argv0) {
-  COFFOptTable().PrintHelp(outs(),
+  COFFOptTable().PrintHelp(lld::outs(),
                            (std::string(argv0) + " [options] file...").c_str(),
                            "LLVM Linker", false);
 }

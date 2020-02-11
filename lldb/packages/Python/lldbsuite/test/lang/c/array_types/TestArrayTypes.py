@@ -1,6 +1,5 @@
 """Test breakpoint by file/line number; and list variables with array types."""
 
-from __future__ import print_function
 
 
 import lldb
@@ -54,12 +53,12 @@ class ArrayTypesTestCase(TestBase):
             startstr='(char *[4])',
             substrs=[
                 '(char *) [0]',
-                '(char *) [1]',
-                '(char *) [2]',
-                '(char *) [3]',
                 'Hello',
+                '(char *) [1]',
                 'Hola',
+                '(char *) [2]',
                 'Bonjour',
+                '(char *) [3]',
                 'Guten Tag'])
 
         self.expect(

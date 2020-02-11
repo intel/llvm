@@ -24,6 +24,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "vectorutils"
 
@@ -306,6 +307,24 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
   return nullptr;
 }
 
+int llvm::getSplatIndex(ArrayRef<int> Mask) {
+  int SplatIndex = -1;
+  for (int M : Mask) {
+    // Ignore invalid (undefined) mask elements.
+    if (M < 0)
+      continue;
+
+    // There can be only 1 non-negative mask element value if this is a splat.
+    if (SplatIndex != -1 && SplatIndex != M)
+      return -1;
+
+    // Initialize the splat index to the 1st non-negative mask element.
+    SplatIndex = M;
+  }
+  assert((SplatIndex == -1 || SplatIndex >= 0) && "Negative index?");
+  return SplatIndex;
+}
+
 /// Get splat value if the input is a splat vector or return nullptr.
 /// This function is not fully general. It checks only 2 cases:
 /// the input value is (1) a splat constant vector or (2) a sequence
@@ -329,21 +348,32 @@ const llvm::Value *llvm::getSplatValue(const Value *V) {
 // adjusted if needed.
 const unsigned MaxDepth = 6;
 
-bool llvm::isSplatValue(const Value *V, unsigned Depth) {
+bool llvm::isSplatValue(const Value *V, int Index, unsigned Depth) {
   assert(Depth <= MaxDepth && "Limit Search Depth");
 
   if (isa<VectorType>(V->getType())) {
     if (isa<UndefValue>(V))
       return true;
-    // FIXME: Constant splat analysis does not allow undef elements.
+    // FIXME: We can allow undefs, but if Index was specified, we may want to
+    //        check that the constant is defined at that index.
     if (auto *C = dyn_cast<Constant>(V))
       return C->getSplatValue() != nullptr;
   }
 
-  // FIXME: Constant splat analysis does not allow undef elements.
-  Constant *Mask;
-  if (match(V, m_ShuffleVector(m_Value(), m_Value(), m_Constant(Mask))))
-    return Mask->getSplatValue() != nullptr;
+  if (auto *Shuf = dyn_cast<ShuffleVectorInst>(V)) {
+    // FIXME: We can safely allow undefs here. If Index was specified, we will
+    //        check that the mask elt is defined at the required index.
+    if (!Shuf->getMask()->getSplatValue())
+      return false;
+
+    // Match any index.
+    if (Index == -1)
+      return true;
+
+    // Match a specific element. The mask should be defined at and match the
+    // specified index.
+    return Shuf->getMaskValue(Index) == Index;
+  }
 
   // The remaining tests are all recursive, so bail out if we hit the limit.
   if (Depth++ == MaxDepth)
@@ -352,12 +382,12 @@ bool llvm::isSplatValue(const Value *V, unsigned Depth) {
   // If both operands of a binop are splats, the result is a splat.
   Value *X, *Y, *Z;
   if (match(V, m_BinOp(m_Value(X), m_Value(Y))))
-    return isSplatValue(X, Depth) && isSplatValue(Y, Depth);
+    return isSplatValue(X, Index, Depth) && isSplatValue(Y, Index, Depth);
 
   // If all operands of a select are splats, the result is a splat.
   if (match(V, m_Select(m_Value(X), m_Value(Y), m_Value(Z))))
-    return isSplatValue(X, Depth) && isSplatValue(Y, Depth) &&
-           isSplatValue(Z, Depth);
+    return isSplatValue(X, Index, Depth) && isSplatValue(Y, Index, Depth) &&
+           isSplatValue(Z, Index, Depth);
 
   // TODO: Add support for unary ops (fneg), casts, intrinsics (overflow ops).
 
@@ -1158,4 +1188,71 @@ void InterleaveGroup<Instruction>::addMetadata(Instruction *NewInst) const {
                  [](std::pair<int, Instruction *> p) { return p.second; });
   propagateMetadata(NewInst, VL);
 }
+}
+
+void VFABI::getVectorVariantNames(
+    const CallInst &CI, SmallVectorImpl<std::string> &VariantMappings) {
+  const StringRef S =
+      CI.getAttribute(AttributeList::FunctionIndex, VFABI::MappingsAttrName)
+          .getValueAsString();
+  if (S.empty())
+    return;
+
+  SmallVector<StringRef, 8> ListAttr;
+  S.split(ListAttr, ",");
+
+  for (auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
+#ifndef NDEBUG
+    LLVM_DEBUG(dbgs() << "VFABI: adding mapping '" << S << "'\n");
+    Optional<VFInfo> Info = VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
+    assert(Info.hasValue() && "Invalid name for a VFABI variant.");
+    assert(CI.getModule()->getFunction(Info.getValue().VectorName) &&
+           "Vector function is missing.");
+#endif
+    VariantMappings.push_back(std::string(S));
+  }
+}
+
+bool VFShape::hasValidParameterList() const {
+  for (unsigned Pos = 0, NumParams = Parameters.size(); Pos < NumParams;
+       ++Pos) {
+    assert(Parameters[Pos].ParamPos == Pos && "Broken parameter list.");
+
+    switch (Parameters[Pos].ParamKind) {
+    default: // Nothing to check.
+      break;
+    case VFParamKind::OMP_Linear:
+    case VFParamKind::OMP_LinearRef:
+    case VFParamKind::OMP_LinearVal:
+    case VFParamKind::OMP_LinearUVal:
+      // Compile time linear steps must be non-zero.
+      if (Parameters[Pos].LinearStepOrPos == 0)
+        return false;
+      break;
+    case VFParamKind::OMP_LinearPos:
+    case VFParamKind::OMP_LinearRefPos:
+    case VFParamKind::OMP_LinearValPos:
+    case VFParamKind::OMP_LinearUValPos:
+      // The runtime linear step must be referring to some other
+      // parameters in the signature.
+      if (Parameters[Pos].LinearStepOrPos >= int(NumParams))
+        return false;
+      // The linear step parameter must be marked as uniform.
+      if (Parameters[Parameters[Pos].LinearStepOrPos].ParamKind !=
+          VFParamKind::OMP_Uniform)
+        return false;
+      // The linear step parameter can't point at itself.
+      if (Parameters[Pos].LinearStepOrPos == int(Pos))
+        return false;
+      break;
+    case VFParamKind::GlobalPredicate:
+      // The global predicate must be the unique. Can be placed anywhere in the
+      // signature.
+      for (unsigned NextPos = Pos + 1; NextPos < NumParams; ++NextPos)
+        if (Parameters[NextPos].ParamKind == VFParamKind::GlobalPredicate)
+          return false;
+      break;
+    }
+  }
+  return true;
 }

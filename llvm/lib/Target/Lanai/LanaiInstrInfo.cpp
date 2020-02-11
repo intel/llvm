@@ -34,8 +34,8 @@ LanaiInstrInfo::LanaiInstrInfo()
 void LanaiInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator Position,
                                  const DebugLoc &DL,
-                                 unsigned DestinationRegister,
-                                 unsigned SourceRegister,
+                                 MCRegister DestinationRegister,
+                                 MCRegister SourceRegister,
                                  bool KillSource) const {
   if (!Lanai::GPRRegClass.contains(DestinationRegister, SourceRegister)) {
     llvm_unreachable("Impossible reg-to-reg copy");
@@ -48,7 +48,7 @@ void LanaiInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 void LanaiInstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
-    unsigned SourceRegister, bool IsKill, int FrameIndex,
+    Register SourceRegister, bool IsKill, int FrameIndex,
     const TargetRegisterClass *RegisterClass,
     const TargetRegisterInfo * /*RegisterInfo*/) const {
   DebugLoc DL;
@@ -68,7 +68,7 @@ void LanaiInstrInfo::storeRegToStackSlot(
 
 void LanaiInstrInfo::loadRegFromStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
-    unsigned DestinationRegister, int FrameIndex,
+    Register DestinationRegister, int FrameIndex,
     const TargetRegisterClass *RegisterClass,
     const TargetRegisterInfo * /*RegisterInfo*/) const {
   DebugLoc DL;
@@ -788,15 +788,16 @@ bool LanaiInstrInfo::getMemOperandWithOffsetWidth(
 
   BaseOp = &LdSt.getOperand(1);
   Offset = LdSt.getOperand(2).getImm();
-  assert(BaseOp->isReg() && "getMemOperandWithOffset only supports base "
-                            "operands of type register.");
+
+  if (!BaseOp->isReg())
+    return false;
+
   return true;
 }
 
-bool LanaiInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
-                                        const MachineOperand *&BaseOp,
-                                        int64_t &Offset,
-                                        const TargetRegisterInfo *TRI) const {
+bool LanaiInstrInfo::getMemOperandsWithOffset(
+    const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
+    int64_t &Offset, const TargetRegisterInfo *TRI) const {
   switch (LdSt.getOpcode()) {
   default:
     return false;
@@ -809,7 +810,11 @@ bool LanaiInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
   case Lanai::STH_RI:
   case Lanai::LDBs_RI:
   case Lanai::LDBz_RI:
+    const MachineOperand *BaseOp;
     unsigned Width;
-    return getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, Width, TRI);
+    if (!getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, Width, TRI))
+      return false;
+    BaseOps.push_back(BaseOp);
+    return true;
   }
 }

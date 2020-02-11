@@ -13,10 +13,7 @@ from lldbsuite.test import lldbutil
 class ProcessIOTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
-
-    def setUp(self):
-        # Call super's setUp().
-        TestBase.setUp(self)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setup_test(self):
         # Get the full path to our executable to be debugged.

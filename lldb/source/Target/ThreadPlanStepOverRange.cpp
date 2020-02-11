@@ -1,4 +1,4 @@
-//===-- ThreadPlanStepOverRange.cpp -----------------------------*- C++ -*-===//
+//===-- ThreadPlanStepOverRange.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -128,8 +128,8 @@ bool ThreadPlanStepOverRange::ShouldStop(Event *event_ptr) {
 
   if (log) {
     StreamString s;
-    s.Address(
-        m_thread.GetRegisterContext()->GetPC(),
+    DumpAddress(
+        s.AsRawOstream(), m_thread.GetRegisterContext()->GetPC(),
         m_thread.CalculateTarget()->GetArchitecture().GetAddressByteSize());
     LLDB_LOGF(log, "ThreadPlanStepOverRange reached %s.", s.GetData());
   }
@@ -390,11 +390,7 @@ bool ThreadPlanStepOverRange::DoWillResume(lldb::StateType resume_state,
                   frame_block->GetInlinedFunctionInfo();
               const char *name;
               if (inline_info)
-                name =
-                    inline_info
-                        ->GetName(frame_block->CalculateSymbolContextFunction()
-                                      ->GetLanguage())
-                        .AsCString();
+                name = inline_info->GetName().AsCString();
               else
                 name = "<unknown-notinlined>";
 

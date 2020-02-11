@@ -429,6 +429,10 @@ def FPR32 : RegisterClass<"AArch64", [f32, i32], 32,(sequence "S%u", 0, 31)>;
 def FPR64 : RegisterClass<"AArch64", [f64, i64, v2f32, v1f64, v8i8, v4i16, v2i32,
                                     v1i64, v4f16],
                                     64, (sequence "D%u", 0, 31)>;
+def FPR64_lo : RegisterClass<"AArch64",
+                             [v8i8, v4i16, v2i32, v1i64, v4f16, v2f32, v1f64],
+                             64, (trunc FPR64, 16)>;
+
 // We don't (yet) have an f128 legal type, so don't use that here. We
 // normalize 128-bit vectors to v2f64 for arg passing and such, so use
 // that here.
@@ -481,7 +485,7 @@ def QQQQ : RegisterClass<"AArch64", [untyped], 128, (add QSeqQuads)> {
 
 
 // Vector operand versions of the FP registers. Alternate name printing and
-// assmebler matching.
+// assembler matching.
 def VectorReg64AsmOperand : AsmOperandClass {
   let Name = "VectorReg64";
   let PredicateMethod = "isNeonVectorReg";
@@ -502,6 +506,9 @@ def V128 : RegisterOperand<FPR128, "printVRegOperand"> {
 def VectorRegLoAsmOperand : AsmOperandClass {
   let Name = "VectorRegLo";
   let PredicateMethod = "isNeonVectorRegLo";
+}
+def V64_lo : RegisterOperand<FPR64_lo, "printVRegOperand"> {
+  let ParserMatchClass = VectorRegLoAsmOperand;
 }
 def V128_lo : RegisterOperand<FPR128_lo, "printVRegOperand"> {
   let ParserMatchClass = VectorRegLoAsmOperand;
@@ -858,35 +865,19 @@ def PPR3b64  : PPRRegOp<"d", PPRAsmOp3b64,  ElementSizeD, PPR_3b>;
 
 //******************************************************************************
 
-// SVE vector register class
-def ZPR : RegisterClass<"AArch64",
-                        [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
-                         nxv2f16, nxv4f16, nxv8f16,
-                         nxv1f32, nxv2f32, nxv4f32,
-                         nxv1f64, nxv2f64],
-                        128, (sequence "Z%u", 0, 31)> {
+// SVE vector register classes
+class ZPRClass<int lastreg> : RegisterClass<"AArch64",
+                                            [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
+                                             nxv2f16, nxv4f16, nxv8f16,
+                                             nxv2f32, nxv4f32,
+                                             nxv2f64],
+                                            128, (sequence "Z%u", 0, lastreg)> {
   let Size = 128;
 }
 
-// SVE restricted 4 bit scalable vector register class
-def ZPR_4b : RegisterClass<"AArch64",
-                         [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
-                          nxv2f16, nxv4f16, nxv8f16,
-                          nxv1f32, nxv2f32, nxv4f32,
-                          nxv1f64, nxv2f64],
-                         128, (sequence "Z%u", 0, 15)> {
-  let Size = 128;
-}
-
-// SVE restricted 3 bit scalable vector register class
-def ZPR_3b : RegisterClass<"AArch64",
-                         [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
-                          nxv2f16, nxv4f16, nxv8f16,
-                          nxv1f32, nxv2f32, nxv4f32,
-                          nxv1f64, nxv2f64],
-                         128, (sequence "Z%u", 0, 7)> {
-  let Size = 128;
-}
+def ZPR    : ZPRClass<31>;
+def ZPR_4b : ZPRClass<15>; // Restricted 4 bit SVE vector register class.
+def ZPR_3b : ZPRClass<7>;  // Restricted 3 bit SVE vector register class.
 
 class ZPRAsmOperand<string name, int Width, string RegClassSuffix = "">
     : AsmOperandClass {

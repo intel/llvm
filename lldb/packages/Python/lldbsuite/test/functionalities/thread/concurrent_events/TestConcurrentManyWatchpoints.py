@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import unittest2
 
@@ -14,7 +13,6 @@ class ConcurrentManyWatchpoints(ConcurrentEventsBase):
 
     # Atomic sequences are not supported yet for MIPS in LLDB.
     @skipIf(triple='^mips')
-    @expectedFailureNetBSD
     @add_test_categories(["watchpoint"])
     @skipIfOutOfTreeDebugserver
     def test(self):

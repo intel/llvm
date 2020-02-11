@@ -15,6 +15,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
@@ -67,8 +68,8 @@ MCContext::MCContext(const MCAsmInfo *mai, const MCRegisterInfo *mri,
   SecureLogFile = AsSecureLogFileName;
 
   if (SrcMgr && SrcMgr->getNumBuffers())
-    MainFileName =
-        SrcMgr->getMemoryBuffer(SrcMgr->getMainFileID())->getBufferIdentifier();
+    MainFileName = std::string(SrcMgr->getMemoryBuffer(SrcMgr->getMainFileID())
+                                   ->getBufferIdentifier());
 }
 
 MCContext::~MCContext() {
@@ -550,13 +551,15 @@ MCSectionXCOFF *MCContext::getXCOFFSection(StringRef Section,
 
   // Otherwise, return a new section.
   StringRef CachedName = Entry.first.SectionName;
+  MCSymbol *QualName = getOrCreateSymbol(
+      CachedName + "[" + XCOFF::getMappingClassString(SMC) + "]");
 
   MCSymbol *Begin = nullptr;
   if (BeginSymName)
     Begin = createTempSymbol(BeginSymName, false);
 
-  MCSectionXCOFF *Result = new (XCOFFAllocator.Allocate())
-      MCSectionXCOFF(CachedName, SMC, Type, SC, Kind, Begin);
+  MCSectionXCOFF *Result = new (XCOFFAllocator.Allocate()) MCSectionXCOFF(
+      CachedName, SMC, Type, SC, Kind, cast<MCSymbolXCOFF>(QualName), Begin);
   Entry.second = Result;
 
   auto *F = new MCDataFragment();
@@ -590,7 +593,7 @@ void MCContext::RemapDebugPaths() {
   };
 
   // Remap compilation directory.
-  std::string CompDir = CompilationDir.str();
+  std::string CompDir = std::string(CompilationDir.str());
   RemapDebugPath(CompDir);
   CompilationDir = CompDir;
 

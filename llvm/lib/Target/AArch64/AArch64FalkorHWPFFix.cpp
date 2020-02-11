@@ -42,6 +42,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -821,9 +822,6 @@ bool FalkorHWPFFix::runOnMachineFunction(MachineFunction &Fn) {
 
   TII = static_cast<const AArch64InstrInfo *>(ST.getInstrInfo());
   TRI = ST.getRegisterInfo();
-
-  assert(TRI->trackLivenessAfterRegAlloc(Fn) &&
-         "Register liveness not available!");
 
   MachineLoopInfo &LI = getAnalysis<MachineLoopInfo>();
 

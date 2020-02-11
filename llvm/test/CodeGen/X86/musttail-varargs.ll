@@ -211,37 +211,31 @@ define void @f_thunk(i8* %this, ...) {
 ; WINDOWS-NEXT:    .seh_pushreg %rsi
 ; WINDOWS-NEXT:    pushq %rdi
 ; WINDOWS-NEXT:    .seh_pushreg %rdi
-; WINDOWS-NEXT:    pushq %rbp
-; WINDOWS-NEXT:    .seh_pushreg %rbp
 ; WINDOWS-NEXT:    pushq %rbx
 ; WINDOWS-NEXT:    .seh_pushreg %rbx
-; WINDOWS-NEXT:    subq $64, %rsp
-; WINDOWS-NEXT:    .seh_stackalloc 64
+; WINDOWS-NEXT:    subq $72, %rsp
+; WINDOWS-NEXT:    .seh_stackalloc 72
 ; WINDOWS-NEXT:    .seh_endprologue
-; WINDOWS-NEXT:    movl %eax, %r14d
-; WINDOWS-NEXT:    movq %r9, %rsi
+; WINDOWS-NEXT:    movq %r9, %r14
 ; WINDOWS-NEXT:    movq %r8, %rdi
 ; WINDOWS-NEXT:    movq %rdx, %rbx
-; WINDOWS-NEXT:    movq %rcx, %rbp
+; WINDOWS-NEXT:    movq %rcx, %rsi
 ; WINDOWS-NEXT:    movq %rdx, {{[0-9]+}}(%rsp)
 ; WINDOWS-NEXT:    movq %r8, {{[0-9]+}}(%rsp)
 ; WINDOWS-NEXT:    movq %r9, {{[0-9]+}}(%rsp)
 ; WINDOWS-NEXT:    leaq {{[0-9]+}}(%rsp), %rax
 ; WINDOWS-NEXT:    movq %rax, {{[0-9]+}}(%rsp)
 ; WINDOWS-NEXT:    callq get_f
-; WINDOWS-NEXT:    movq %rax, %r10
-; WINDOWS-NEXT:    movq %rbp, %rcx
+; WINDOWS-NEXT:    movq %rsi, %rcx
 ; WINDOWS-NEXT:    movq %rbx, %rdx
 ; WINDOWS-NEXT:    movq %rdi, %r8
-; WINDOWS-NEXT:    movq %rsi, %r9
-; WINDOWS-NEXT:    movl %r14d, %eax
-; WINDOWS-NEXT:    addq $64, %rsp
+; WINDOWS-NEXT:    movq %r14, %r9
+; WINDOWS-NEXT:    addq $72, %rsp
 ; WINDOWS-NEXT:    popq %rbx
-; WINDOWS-NEXT:    popq %rbp
 ; WINDOWS-NEXT:    popq %rdi
 ; WINDOWS-NEXT:    popq %rsi
 ; WINDOWS-NEXT:    popq %r14
-; WINDOWS-NEXT:    rex64 jmpq *%r10 # TAILCALL
+; WINDOWS-NEXT:    rex64 jmpq *%rax # TAILCALL
 ; WINDOWS-NEXT:    .seh_handlerdata
 ; WINDOWS-NEXT:    .text
 ; WINDOWS-NEXT:    .seh_endproc
@@ -252,12 +246,13 @@ define void @f_thunk(i8* %this, ...) {
 ; X86-NOSSE-NEXT:    movl %esp, %ebp
 ; X86-NOSSE-NEXT:    pushl %esi
 ; X86-NOSSE-NEXT:    andl $-16, %esp
-; X86-NOSSE-NEXT:    subl $48, %esp
+; X86-NOSSE-NEXT:    subl $32, %esp
 ; X86-NOSSE-NEXT:    movl 8(%ebp), %esi
 ; X86-NOSSE-NEXT:    leal 12(%ebp), %eax
-; X86-NOSSE-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NOSSE-NEXT:    movl %esi, (%esp)
+; X86-NOSSE-NEXT:    movl %eax, (%esp)
+; X86-NOSSE-NEXT:    pushl %esi
 ; X86-NOSSE-NEXT:    calll _get_f
+; X86-NOSSE-NEXT:    addl $4, %esp
 ; X86-NOSSE-NEXT:    movl %esi, 8(%ebp)
 ; X86-NOSSE-NEXT:    leal -4(%ebp), %esp
 ; X86-NOSSE-NEXT:    popl %esi
@@ -270,17 +265,18 @@ define void @f_thunk(i8* %this, ...) {
 ; X86-SSE-NEXT:    movl %esp, %ebp
 ; X86-SSE-NEXT:    pushl %esi
 ; X86-SSE-NEXT:    andl $-16, %esp
-; X86-SSE-NEXT:    subl $96, %esp
+; X86-SSE-NEXT:    subl $80, %esp
 ; X86-SSE-NEXT:    movaps %xmm2, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; X86-SSE-NEXT:    movaps %xmm1, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
-; X86-SSE-NEXT:    movaps %xmm0, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
+; X86-SSE-NEXT:    movaps %xmm0, (%esp) # 16-byte Spill
 ; X86-SSE-NEXT:    movl 8(%ebp), %esi
 ; X86-SSE-NEXT:    leal 12(%ebp), %eax
 ; X86-SSE-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-SSE-NEXT:    movl %esi, (%esp)
+; X86-SSE-NEXT:    pushl %esi
 ; X86-SSE-NEXT:    calll _get_f
+; X86-SSE-NEXT:    addl $4, %esp
 ; X86-SSE-NEXT:    movl %esi, 8(%ebp)
-; X86-SSE-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm0 # 16-byte Reload
+; X86-SSE-NEXT:    movaps (%esp), %xmm0 # 16-byte Reload
 ; X86-SSE-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm1 # 16-byte Reload
 ; X86-SSE-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm2 # 16-byte Reload
 ; X86-SSE-NEXT:    leal -4(%ebp), %esp
@@ -306,38 +302,21 @@ define void @f_thunk(i8* %this, ...) {
 define void @g_thunk(i8* %fptr_i8, ...) {
 ; LINUX-LABEL: g_thunk:
 ; LINUX:       # %bb.0:
-; LINUX-NEXT:    pushq %rax
-; LINUX-NEXT:    .cfi_def_cfa_offset 16
-; LINUX-NEXT:    popq %r11
-; LINUX-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-NEXT:    jmpq *%rdi # TAILCALL
 ;
 ; LINUX-X32-LABEL: g_thunk:
 ; LINUX-X32:       # %bb.0:
-; LINUX-X32-NEXT:    pushq %rax
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 16
 ; LINUX-X32-NEXT:    movl %edi, %r11d
-; LINUX-X32-NEXT:    addl $8, %esp
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-X32-NEXT:    jmpq *%r11 # TAILCALL
 ;
 ; WINDOWS-LABEL: g_thunk:
 ; WINDOWS:       # %bb.0:
-; WINDOWS-NEXT:    subq $40, %rsp
-; WINDOWS-NEXT:    .seh_stackalloc 40
-; WINDOWS-NEXT:    .seh_endprologue
-; WINDOWS-NEXT:    addq $40, %rsp
 ; WINDOWS-NEXT:    rex64 jmpq *%rcx # TAILCALL
-; WINDOWS-NEXT:    .seh_handlerdata
-; WINDOWS-NEXT:    .text
-; WINDOWS-NEXT:    .seh_endproc
 ;
 ; X86-LABEL: g_thunk:
 ; X86:       # %bb.0:
-; X86-NEXT:    pushl %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NEXT:    popl %ecx
 ; X86-NEXT:    jmpl *%eax # TAILCALL
   %fptr = bitcast i8* %fptr_i8 to void (i8*, ...)*
   musttail call void (i8*, ...) %fptr(i8* %fptr_i8, ...)
@@ -353,78 +332,53 @@ define void @g_thunk(i8* %fptr_i8, ...) {
 define void @h_thunk(%struct.Foo* %this, ...) {
 ; LINUX-LABEL: h_thunk:
 ; LINUX:       # %bb.0:
-; LINUX-NEXT:    pushq %rax
-; LINUX-NEXT:    .cfi_def_cfa_offset 16
 ; LINUX-NEXT:    cmpb $1, (%rdi)
 ; LINUX-NEXT:    jne .LBB2_2
 ; LINUX-NEXT:  # %bb.1: # %then
 ; LINUX-NEXT:    movq 8(%rdi), %r11
-; LINUX-NEXT:    addq $8, %rsp
-; LINUX-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-NEXT:    jmpq *%r11 # TAILCALL
 ; LINUX-NEXT:  .LBB2_2: # %else
-; LINUX-NEXT:    .cfi_def_cfa_offset 16
 ; LINUX-NEXT:    movq 16(%rdi), %r11
 ; LINUX-NEXT:    movl $42, {{.*}}(%rip)
-; LINUX-NEXT:    addq $8, %rsp
-; LINUX-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-NEXT:    jmpq *%r11 # TAILCALL
 ;
 ; LINUX-X32-LABEL: h_thunk:
 ; LINUX-X32:       # %bb.0:
-; LINUX-X32-NEXT:    pushq %rax
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 16
 ; LINUX-X32-NEXT:    cmpb $1, (%edi)
 ; LINUX-X32-NEXT:    jne .LBB2_2
 ; LINUX-X32-NEXT:  # %bb.1: # %then
 ; LINUX-X32-NEXT:    movl 4(%edi), %r11d
-; LINUX-X32-NEXT:    addl $8, %esp
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-X32-NEXT:    jmpq *%r11 # TAILCALL
 ; LINUX-X32-NEXT:  .LBB2_2: # %else
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 16
 ; LINUX-X32-NEXT:    movl 8(%edi), %r11d
 ; LINUX-X32-NEXT:    movl $42, {{.*}}(%rip)
-; LINUX-X32-NEXT:    addl $8, %esp
-; LINUX-X32-NEXT:    .cfi_def_cfa_offset 8
 ; LINUX-X32-NEXT:    jmpq *%r11 # TAILCALL
 ;
 ; WINDOWS-LABEL: h_thunk:
 ; WINDOWS:       # %bb.0:
-; WINDOWS-NEXT:    subq $40, %rsp
-; WINDOWS-NEXT:    .seh_stackalloc 40
-; WINDOWS-NEXT:    .seh_endprologue
 ; WINDOWS-NEXT:    cmpb $1, (%rcx)
 ; WINDOWS-NEXT:    jne .LBB2_2
 ; WINDOWS-NEXT:  # %bb.1: # %then
-; WINDOWS-NEXT:    movq 8(%rcx), %r10
-; WINDOWS-NEXT:    addq $40, %rsp
-; WINDOWS-NEXT:    rex64 jmpq *%r10 # TAILCALL
+; WINDOWS-NEXT:    movq 8(%rcx), %rax
+; WINDOWS-NEXT:    rex64 jmpq *%rax # TAILCALL
 ; WINDOWS-NEXT:  .LBB2_2: # %else
-; WINDOWS-NEXT:    movq 16(%rcx), %r10
+; WINDOWS-NEXT:    movq 16(%rcx), %rax
 ; WINDOWS-NEXT:    movl $42, {{.*}}(%rip)
-; WINDOWS-NEXT:    addq $40, %rsp
-; WINDOWS-NEXT:    rex64 jmpq *%r10 # TAILCALL
-; WINDOWS-NEXT:    .seh_handlerdata
-; WINDOWS-NEXT:    .text
-; WINDOWS-NEXT:    .seh_endproc
+; WINDOWS-NEXT:    rex64 jmpq *%rax # TAILCALL
 ;
 ; X86-LABEL: h_thunk:
 ; X86:       # %bb.0:
-; X86-NEXT:    pushl %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    cmpb $1, (%eax)
 ; X86-NEXT:    jne LBB2_2
 ; X86-NEXT:  # %bb.1: # %then
 ; X86-NEXT:    movl 4(%eax), %ecx
 ; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NEXT:    popl %eax
 ; X86-NEXT:    jmpl *%ecx # TAILCALL
 ; X86-NEXT:  LBB2_2: # %else
 ; X86-NEXT:    movl 8(%eax), %ecx
 ; X86-NEXT:    movl $42, _g
 ; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NEXT:    popl %eax
 ; X86-NEXT:    jmpl *%ecx # TAILCALL
   %cond_p = getelementptr %struct.Foo, %struct.Foo* %this, i32 0, i32 0
   %cond = load i1, i1* %cond_p

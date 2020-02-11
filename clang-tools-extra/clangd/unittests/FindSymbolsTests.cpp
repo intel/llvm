@@ -25,11 +25,6 @@ using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-class IgnoreDiagnostics : public DiagnosticsConsumer {
-  void onDiagnosticsReady(PathRef File,
-                          std::vector<Diag> Diagnostics) override {}
-};
-
 // GMock helpers for matching SymbolInfos items.
 MATCHER_P(QName, Name, "") {
   if (arg.containerName.empty())
@@ -56,8 +51,7 @@ ClangdServer::Options optsForTests() {
 
 class WorkspaceSymbolsTest : public ::testing::Test {
 public:
-  WorkspaceSymbolsTest()
-      : Server(CDB, FSProvider, DiagConsumer, optsForTests()) {
+  WorkspaceSymbolsTest() : Server(CDB, FSProvider, optsForTests()) {
     // Make sure the test root directory is created.
     FSProvider.Files[testPath("unused")] = "";
     CDB.ExtraClangFlags = {"-xc++"};
@@ -66,7 +60,6 @@ public:
 protected:
   MockFSProvider FSProvider;
   MockCompilationDatabase CDB;
-  IgnoreDiagnostics DiagConsumer;
   ClangdServer Server;
   int Limit = 0;
 
@@ -79,7 +72,7 @@ protected:
 
   void addFile(llvm::StringRef FileName, llvm::StringRef Contents) {
     auto Path = testPath(FileName);
-    FSProvider.Files[Path] = Contents;
+    FSProvider.Files[Path] = std::string(Contents);
     Server.addDocument(Path, Contents);
   }
 };
@@ -178,13 +171,10 @@ TEST_F(WorkspaceSymbolsTest, Namespaces) {
 }
 
 TEST_F(WorkspaceSymbolsTest, AnonymousNamespace) {
-  addFile("foo.h", R"cpp(
+  addFile("foo.cpp", R"cpp(
       namespace {
       void test() {}
       }
-      )cpp");
-  addFile("foo.cpp", R"cpp(
-      #include "foo.h"
       )cpp");
   EXPECT_THAT(getSymbols("test"), ElementsAre(QName("test")));
 }
@@ -319,13 +309,11 @@ TEST_F(WorkspaceSymbolsTest, TempSpecs) {
 namespace {
 class DocumentSymbolsTest : public ::testing::Test {
 public:
-  DocumentSymbolsTest()
-      : Server(CDB, FSProvider, DiagConsumer, optsForTests()) {}
+  DocumentSymbolsTest() : Server(CDB, FSProvider, optsForTests()) {}
 
 protected:
   MockFSProvider FSProvider;
   MockCompilationDatabase CDB;
-  IgnoreDiagnostics DiagConsumer;
   ClangdServer Server;
 
   std::vector<DocumentSymbol> getSymbols(PathRef File) {
@@ -336,7 +324,7 @@ protected:
   }
 
   void addFile(llvm::StringRef FilePath, llvm::StringRef Contents) {
-    FSProvider.Files[FilePath] = Contents;
+    FSProvider.Files[FilePath] = std::string(Contents);
     Server.addDocument(FilePath, Contents);
   }
 };
@@ -393,16 +381,16 @@ TEST_F(DocumentSymbolsTest, BasicSymbols) {
       ElementsAreArray(
           {AllOf(WithName("Foo"), WithKind(SymbolKind::Class), Children()),
            AllOf(WithName("Foo"), WithKind(SymbolKind::Class),
-                 Children(AllOf(WithName("Foo"), WithKind(SymbolKind::Method),
-                                Children()),
-                          AllOf(WithName("Foo"), WithKind(SymbolKind::Method),
-                                Children()),
+                 Children(AllOf(WithName("Foo"),
+                                WithKind(SymbolKind::Constructor), Children()),
+                          AllOf(WithName("Foo"),
+                                WithKind(SymbolKind::Constructor), Children()),
                           AllOf(WithName("f"), WithKind(SymbolKind::Method),
                                 Children()),
                           AllOf(WithName("operator="),
                                 WithKind(SymbolKind::Method), Children()),
-                          AllOf(WithName("~Foo"), WithKind(SymbolKind::Method),
-                                Children()),
+                          AllOf(WithName("~Foo"),
+                                WithKind(SymbolKind::Constructor), Children()),
                           AllOf(WithName("Nested"), WithKind(SymbolKind::Class),
                                 Children(AllOf(WithName("f"),
                                                WithKind(SymbolKind::Method),
@@ -450,6 +438,15 @@ TEST_F(DocumentSymbolsTest, DeclarationDefinition) {
                                SymNameRange(Main.range("decl"))))),
           AllOf(WithName("Foo::f"), WithKind(SymbolKind::Method),
                 SymNameRange(Main.range("def")))));
+}
+
+TEST_F(DocumentSymbolsTest, Concepts) {
+  CDB.ExtraClangFlags = {"-std=c++2a"};
+  std::string FilePath = testPath("foo.cpp");
+  addFile(FilePath,
+          "template <typename T> concept C = requires(T t) { t.foo(); };");
+
+  EXPECT_THAT(getSymbols(FilePath), ElementsAre(WithName("C")));
 }
 
 TEST_F(DocumentSymbolsTest, ExternSymbol) {

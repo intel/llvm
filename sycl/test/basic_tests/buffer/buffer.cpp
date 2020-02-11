@@ -556,7 +556,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
 
         program prog(myQueue.get_context());
         prog.build_with_source("kernel void override_source(global int* Acc) "
@@ -581,7 +581,7 @@ int main() {
     std::vector<int> data2(10, -2);
     {
       buffer<int, 1> a(data1.data(), range<1>(10));
-      buffer<int, 1> b(data2.data(), range<1>(10));
+      buffer<int, 1> b(data2);
       accessor<int, 1, access::mode::read_write, access::target::global_buffer,
                access::placeholder::true_t>
           A(a);
@@ -609,7 +609,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
         accessor<int, 1, access::mode::read_write,
                  access::target::global_buffer, access::placeholder::true_t>
             A(a);
@@ -648,6 +648,44 @@ int main() {
     cl::sycl::shared_ptr_class<float8> data(new float8[8]);
     cl::sycl::buffer<float8, 1, std::allocator<float8>>
         b(data, cl::sycl::range<1>(8), buf_alloc);
+  }
+
+  {
+    constexpr int Size = 6;
+    cl::sycl::buffer<char, 1> Buf_1(Size);
+    cl::sycl::buffer<char, 1> Buf_2(Size / 2);
+
+    {
+      auto AccA =
+          Buf_1.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      auto AccB =
+          Buf_2.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      assert(AccA.get_size() == AccB.get_size());
+      assert(AccA.get_range() == AccB.get_range());
+      assert(AccA.get_count() == AccB.get_count());
+    }
+
+    auto AH0 = accessor<char, 0, access::mode::read_write,
+                        access::target::host_buffer>(Buf_1);
+    auto BH0 = accessor<char, 0, access::mode::read_write,
+                        access::target::host_buffer>(Buf_2);
+    assert(AH0.get_size() == sizeof(char));
+    assert(BH0.get_size() == sizeof(char));
+    assert(AH0.get_count() == 1);
+    assert(BH0.get_count() == 1);
+
+    queue Queue;
+    Queue.submit([&](handler &CGH) {
+      auto AK0 = accessor<char, 0, access::mode::read_write,
+                          access::target::global_buffer>(Buf_1, CGH);
+      auto BK0 = accessor<char, 0, access::mode::read_write,
+                          access::target::global_buffer>(Buf_2, CGH);
+      assert(AK0.get_size() == sizeof(char));
+      assert(BK0.get_size() == sizeof(char));
+      assert(AK0.get_count() == 1);
+      assert(BK0.get_count() == 1);
+      CGH.single_task<class DummyKernel>([]() {});
+    });
   }
 
   // TODO tests with mutex property

@@ -290,14 +290,11 @@ void X86_MC::initLLVMToSEHAndCVRegMapping(MCRegisterInfo *MRI) {
 MCSubtargetInfo *X86_MC::createX86MCSubtargetInfo(const Triple &TT,
                                                   StringRef CPU, StringRef FS) {
   std::string ArchFS = X86_MC::ParseX86Triple(TT);
-  if (!FS.empty()) {
-    if (!ArchFS.empty())
-      ArchFS = (Twine(ArchFS) + "," + FS).str();
-    else
-      ArchFS = FS;
-  }
+  assert(!ArchFS.empty() && "Failed to parse X86 triple");
+  if (!FS.empty())
+    ArchFS = (Twine(ArchFS) + "," + FS).str();
 
-  std::string CPUName = CPU;
+  std::string CPUName = std::string(CPU);
   if (CPUName.empty())
     CPUName = "generic";
 
@@ -555,7 +552,7 @@ static MCInstrAnalysis *createX86MCInstrAnalysis(const MCInstrInfo *Info) {
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeX86TargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86TargetMC() {
   for (Target *T : {&getTheX86_32Target(), &getTheX86_64Target()}) {
     // Register the MC asm info.
     RegisterMCAsmInfoFn X(*T, createX86MCAsmInfo);

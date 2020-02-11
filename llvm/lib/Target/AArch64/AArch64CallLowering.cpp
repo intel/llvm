@@ -62,10 +62,9 @@ struct IncomingArgHandler : public CallLowering::ValueHandler {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
     int FI = MFI.CreateFixedObject(Size, Offset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
-    Register AddrReg = MRI.createGenericVirtualRegister(LLT::pointer(0, 64));
-    MIRBuilder.buildFrameIndex(AddrReg, FI);
+    auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 64), FI);
     StackUsed = std::max(StackUsed, Size + Offset);
-    return AddrReg;
+    return AddrReg.getReg(0);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
@@ -147,23 +146,19 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
     if (IsTailCall) {
       Offset += FPDiff;
       int FI = MF.getFrameInfo().CreateFixedObject(Size, Offset, true);
-      Register FIReg = MRI.createGenericVirtualRegister(p0);
-      MIRBuilder.buildFrameIndex(FIReg, FI);
+      auto FIReg = MIRBuilder.buildFrameIndex(p0, FI);
       MPO = MachinePointerInfo::getFixedStack(MF, FI);
-      return FIReg;
+      return FIReg.getReg(0);
     }
 
-    Register SPReg = MRI.createGenericVirtualRegister(p0);
-    MIRBuilder.buildCopy(SPReg, Register(AArch64::SP));
+    auto SPReg = MIRBuilder.buildCopy(p0, Register(AArch64::SP));
 
-    Register OffsetReg = MRI.createGenericVirtualRegister(s64);
-    MIRBuilder.buildConstant(OffsetReg, Offset);
+    auto OffsetReg = MIRBuilder.buildConstant(s64, Offset);
 
-    Register AddrReg = MRI.createGenericVirtualRegister(p0);
-    MIRBuilder.buildGEP(AddrReg, SPReg, OffsetReg);
+    auto AddrReg = MIRBuilder.buildPtrAdd(p0, SPReg, OffsetReg);
 
     MPO = MachinePointerInfo::getStack(MF, Offset);
-    return AddrReg;
+    return AddrReg.getReg(0);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
@@ -178,8 +173,7 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
     if (VA.getLocInfo() == CCValAssign::LocInfo::AExt) {
       Size = VA.getLocVT().getSizeInBits() / 8;
       ValVReg = MIRBuilder.buildAnyExt(LLT::scalar(Size * 8), ValVReg)
-                    ->getOperand(0)
-                    .getReg();
+                    .getReg(0);
     }
     auto MMO = MIRBuilder.getMF().getMachineMemOperand(
         MPO, MachineMemOperand::MOStore, Size, 1);
@@ -815,7 +809,7 @@ bool AArch64CallLowering::lowerTailCall(
 
   // Tell the call which registers are clobbered.
   auto TRI = MF.getSubtarget<AArch64Subtarget>().getRegisterInfo();
-  const uint32_t *Mask = TRI->getCallPreservedMask(MF, F.getCallingConv());
+  const uint32_t *Mask = TRI->getCallPreservedMask(MF, CalleeCC);
   if (MF.getSubtarget<AArch64Subtarget>().hasCustomCallingConv())
     TRI->UpdateCustomCallPreservedMask(MF, &Mask);
   MIB.addRegMask(Mask);
@@ -972,7 +966,7 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 
   // Tell the call which registers are clobbered.
   auto TRI = MF.getSubtarget<AArch64Subtarget>().getRegisterInfo();
-  const uint32_t *Mask = TRI->getCallPreservedMask(MF, F.getCallingConv());
+  const uint32_t *Mask = TRI->getCallPreservedMask(MF, Info.CallConv);
   if (MF.getSubtarget<AArch64Subtarget>().hasCustomCallingConv())
     TRI->UpdateCustomCallPreservedMask(MF, &Mask);
   MIB.addRegMask(Mask);
@@ -1000,10 +994,10 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
         0));
 
   // Finally we can copy the returned value back into its virtual-register. In
-  // symmetry with the arugments, the physical register must be an
+  // symmetry with the arguments, the physical register must be an
   // implicit-define of the call instruction.
   if (!Info.OrigRet.Ty->isVoidTy()) {
-    CCAssignFn *RetAssignFn = TLI.CCAssignFnForReturn(F.getCallingConv());
+    CCAssignFn *RetAssignFn = TLI.CCAssignFnForReturn(Info.CallConv);
     CallReturnHandler Handler(MIRBuilder, MRI, MIB, RetAssignFn);
     if (!handleAssignments(MIRBuilder, InArgs, Handler))
       return false;

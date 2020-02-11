@@ -1148,6 +1148,11 @@ namespace {
           continue;
         }
 
+        if (isFollowedByFallThroughComment(LastStmt)) {
+          ++AnnotatedCnt;
+          continue; // Fallthrough comment, good.
+        }
+
         ++UnannotatedCnt;
       }
       return !!UnannotatedCnt;
@@ -1174,7 +1179,7 @@ namespace {
     // We analyze lambda bodies separately. Skip them here.
     bool TraverseLambdaExpr(LambdaExpr *LE) {
       // Traverse the captures, but not the body.
-      for (const auto &C : zip(LE->captures(), LE->capture_inits()))
+      for (const auto C : zip(LE->captures(), LE->capture_inits()))
         TraverseLambdaCapture(LE, &std::get<0>(C), std::get<1>(C));
       return true;
     }
@@ -1208,10 +1213,41 @@ namespace {
       return nullptr;
     }
 
+    bool isFollowedByFallThroughComment(const Stmt *Statement) {
+      // Try to detect whether the fallthough is marked by a comment like
+      // /*FALLTHOUGH*/.
+      bool Invalid;
+      const char *SourceData = S.getSourceManager().getCharacterData(
+          Statement->getEndLoc(), &Invalid);
+      if (Invalid)
+        return false;
+      const char *LineStart = SourceData;
+      for (;;) {
+        LineStart = strchr(LineStart, '\n');
+        if (LineStart == nullptr)
+          return false;
+        ++LineStart; // Start of next line.
+        const char *LineEnd = strchr(LineStart, '\n');
+        StringRef Line(LineStart,
+                       LineEnd ? LineEnd - LineStart : strlen(LineStart));
+        if (LineStart == LineEnd ||
+            Line.find_first_not_of(" \t\r") == StringRef::npos)
+          continue; // Whitespace-only line.
+        if (!FallthroughRegex.isValid())
+          FallthroughRegex =
+              llvm::Regex("(/\\*[ \\t]*fall(s | |-)?thr(ough|u)\\.?[ \\t]*\\*/)"
+                          "|(//[ \\t]*fall(s | |-)?thr(ough|u)\\.?[ \\t]*)",
+                          llvm::Regex::IgnoreCase);
+        assert(FallthroughRegex.isValid());
+        return FallthroughRegex.match(Line);
+      }
+    }
+
     bool FoundSwitchStatements;
     AttrStmts FallthroughStmts;
     Sema &S;
     llvm::SmallPtrSet<const CFGBlock *, 16> ReachableBlocks;
+    llvm::Regex FallthroughRegex;
   };
 } // anonymous namespace
 

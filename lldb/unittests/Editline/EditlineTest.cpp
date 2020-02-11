@@ -1,4 +1,4 @@
-//===-- EditlineTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- EditlineTest.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_DISABLE_LIBEDIT
+#include "lldb/Host/Config.h"
+
+#if LLDB_ENABLE_LIBEDIT
 
 #define EDITLINE_TEST_DUMP_OUTPUT 0
 
@@ -18,6 +20,7 @@
 #include <memory>
 #include <thread>
 
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/Editline.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Pipe.h"
@@ -240,7 +243,7 @@ void EditlineAdapter::ConsumeAllOutput() {
 }
 
 class EditlineTestFixture : public ::testing::Test {
-private:
+  SubsystemRAII<FileSystem> subsystems;
   EditlineAdapter _el_adapter;
   std::shared_ptr<std::thread> _sp_output_thread;
 
@@ -251,8 +254,6 @@ public:
   }
 
   void SetUp() override {
-    FileSystem::Initialize();
-
     // Validate the editline adapter.
     EXPECT_TRUE(_el_adapter.IsValid());
     if (!_el_adapter.IsValid())
@@ -267,8 +268,6 @@ public:
     _el_adapter.CloseInput();
     if (_sp_output_thread)
       _sp_output_thread->join();
-
-    FileSystem::Terminate();
   }
 
   EditlineAdapter &GetEditlineAdapter() { return _el_adapter; }

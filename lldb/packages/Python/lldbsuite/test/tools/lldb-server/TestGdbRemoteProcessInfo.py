@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 
 
@@ -75,6 +74,7 @@ class TestGdbRemoteProcessInfo(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.set_inferior_startup_attach()
         self.attach_commandline_qProcessInfo_reports_correct_pid()
 
+    @expectedFailureNetBSD
     @llgs_test
     def test_attach_commandline_qProcessInfo_reports_correct_pid_llgs(self):
         self.init_llgs_test()

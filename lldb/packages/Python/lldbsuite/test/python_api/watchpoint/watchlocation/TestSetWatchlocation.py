@@ -15,6 +15,7 @@ from lldbsuite.test import lldbutil
 class SetWatchlocationAPITestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().
@@ -28,7 +29,6 @@ class SetWatchlocationAPITestCase(TestBase):
         self.violating_func = "do_bad_thing_with_location"
 
     @add_test_categories(['pyapi'])
-    @expectedFailureNetBSD
     def test_watch_location(self):
         """Exercise SBValue.WatchPointee() API to set a watchpoint."""
         self.build()

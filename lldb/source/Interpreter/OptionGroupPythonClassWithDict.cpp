@@ -1,4 +1,4 @@
-//===-- OptionGroupPythonClassWithDict.cpp ----------------------------------*- C++ -*-===//
+//===-- OptionGroupPythonClassWithDict.cpp --------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -91,13 +91,13 @@ Status OptionGroupPythonClassWithDict::SetOptionValue(
   switch (option_idx) {
   case 0:
   case 3: {
-    m_name.assign(option_arg);
+    m_name.assign(std::string(option_arg));
   } break;
   case 1: {
       if (!m_dict_sp)
         m_dict_sp = std::make_shared<StructuredData::Dictionary>();
       if (m_current_key.empty())
-        m_current_key.assign(option_arg);
+        m_current_key.assign(std::string(option_arg));
       else
         error.SetErrorStringWithFormat("Key: \"%s\" missing value.",
                                         m_current_key.c_str());
@@ -127,6 +127,7 @@ void OptionGroupPythonClassWithDict::OptionParsingStarting(
   // the user didn't pass any -k -v pairs.  We want to be able to warn if these
   // were passed when the function they passed won't use them.
   m_dict_sp.reset();
+  m_name.clear();
 }
 
 Status OptionGroupPythonClassWithDict::OptionParsingFinished(

@@ -64,7 +64,7 @@ if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True
 else:
-    config.substitutions.append(('spirv-val', 'echo'))
+    config.substitutions.append(('spirv-val', ':'))
 
 if using_spirv_tools:
     new_ld_library_path = os.path.pathsep.join((config.spirv_tools_lib_dir, config.environment['LD_LIBRARY_PATH']))

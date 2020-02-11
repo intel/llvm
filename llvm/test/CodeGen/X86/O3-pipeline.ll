@@ -13,8 +13,8 @@
 ; CHECK-NEXT: Type-Based Alias Analysis
 ; CHECK-NEXT: Scoped NoAlias Alias Analysis
 ; CHECK-NEXT: Assumption Cache Tracker
-; CHECK-NEXT: Create Garbage Collector Module Metadata
 ; CHECK-NEXT: Profile summary info
+; CHECK-NEXT: Create Garbage Collector Module Metadata
 ; CHECK-NEXT: Machine Branch Probability Analysis
 ; CHECK-NEXT:   ModulePass Manager
 ; CHECK-NEXT:     Pre-ISel Intrinsic Lowering
@@ -32,6 +32,9 @@
 ; CHECK-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:       Merge contiguous icmps into a memcmp
+; CHECK-NEXT:       Natural Loop Information
+; CHECK-NEXT:       Lazy Branch Probability Analysis
+; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       Expand memcmp() to load/stores
 ; CHECK-NEXT:       Lower Garbage Collection Instructions
 ; CHECK-NEXT:       Shadow Stack GC Lowering
@@ -64,12 +67,15 @@
 ; CHECK-NEXT:       Function Alias Analysis Results
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       Branch Probability Analysis
+; CHECK-NEXT:       Lazy Branch Probability Analysis
+; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       X86 DAG->DAG Instruction Selection
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Local Dynamic TLS Access Clean-up
 ; CHECK-NEXT:       X86 PIC Global Base Reg Initialization
 ; CHECK-NEXT:        Finalize ISel and expand pseudo-instructions
 ; CHECK-NEXT:       X86 Domain Reassignment Pass
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Early Tail Duplication
 ; CHECK-NEXT:       Optimize machine instruction PHIs
 ; CHECK-NEXT:       Slot index numbering
@@ -80,6 +86,7 @@
 ; CHECK-NEXT:       Machine Natural Loop Construction
 ; CHECK-NEXT:       Machine Trace Metrics
 ; CHECK-NEXT:       Early If-Conversion
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine InstCombiner
 ; CHECK-NEXT:       X86 cmov Conversion
 ; CHECK-NEXT:       MachineDominator Tree Construction
@@ -94,6 +101,7 @@
 ; CHECK-NEXT:       Remove dead machine instructions
 ; CHECK-NEXT:       Live Range Shrink
 ; CHECK-NEXT:       X86 Fixup SetCC
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       X86 LEA Optimize
 ; CHECK-NEXT:       X86 Optimize Call Frame
 ; CHECK-NEXT:       X86 Avoid Store Forwarding Block
@@ -139,6 +147,7 @@
 ; CHECK-NEXT:       Shrink Wrapping analysis
 ; CHECK-NEXT:       Prologue/Epilogue Insertion & Frame Finalization
 ; CHECK-NEXT:       Control Flow Optimizer
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Tail Duplication
 ; CHECK-NEXT:       Machine Copy Propagation Pass
 ; CHECK-NEXT:       Post-RA pseudo instruction expansion pass
@@ -150,6 +159,9 @@
 ; CHECK-NEXT:       Machine Block Frequency Analysis
 ; CHECK-NEXT:       MachinePostDominator Tree Construction
 ; CHECK-NEXT:       Branch Probability Basic Block Placement
+; CHECK-NEXT:       Insert fentry calls
+; CHECK-NEXT:       Insert XRay ops
+; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:       ReachingDefAnalysis
 ; CHECK-NEXT:       X86 Execution Dependency Fix
 ; CHECK-NEXT:       BreakFalseDeps
@@ -157,18 +169,18 @@
 ; CHECK-NEXT:       X86 vzeroupper inserter
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Machine Natural Loop Construction
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       X86 Byte/Word Instruction Fixup
+; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       X86 Atom pad short functions
 ; CHECK-NEXT:       X86 LEA Fixup
 ; CHECK-NEXT:       Compressing EVEX instrs to VEX encoding when possible
 ; CHECK-NEXT:       X86 Discriminate Memory Operands
 ; CHECK-NEXT:       X86 Insert Cache Prefetches
+; CHECK-NEXT:       X86 insert wait instruction
 ; CHECK-NEXT:       Contiguously Lay Out Funclets
 ; CHECK-NEXT:       StackMap Liveness Analysis
 ; CHECK-NEXT:       Live DEBUG_VALUE analysis
-; CHECK-NEXT:       Insert fentry calls
-; CHECK-NEXT:       Insert XRay ops
-; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:       X86 Retpoline Thunks
 ; CHECK-NEXT:       Check CFA info and insert CFI instructions if needed
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis

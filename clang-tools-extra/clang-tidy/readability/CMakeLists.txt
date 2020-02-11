@@ -15,12 +15,15 @@ add_clang_library(clangTidyReadabilityModule
   InconsistentDeclarationParameterNameCheck.cpp
   IsolateDeclarationCheck.cpp
   MagicNumbersCheck.cpp
+  MakeMemberFunctionConstCheck.cpp
   MisleadingIndentationCheck.cpp
   MisplacedArrayIndexCheck.cpp
   NamedParameterCheck.cpp
   NamespaceCommentCheck.cpp
   NonConstParameterCheck.cpp
+  QualifiedAutoCheck.cpp
   ReadabilityTidyModule.cpp
+  RedundantAccessSpecifiersCheck.cpp
   RedundantControlFlowCheck.cpp
   RedundantDeclarationCheck.cpp
   RedundantFunctionPtrDereferenceCheck.cpp

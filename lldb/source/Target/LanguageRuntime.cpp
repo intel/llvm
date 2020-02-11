@@ -1,4 +1,4 @@
-//===-- LanguageRuntime.cpp -------------------------------------*- C++ -*-===//
+//===-- LanguageRuntime.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -155,8 +155,10 @@ public:
 
 protected:
   BreakpointResolverSP CopyForBreakpoint(Breakpoint &breakpoint) override {
-    return BreakpointResolverSP(
+    BreakpointResolverSP ret_sp(
         new ExceptionBreakpointResolver(m_language, m_catch_bp, m_throw_bp));
+    ret_sp->SetBreakpoint(&breakpoint);
+    return ret_sp;
   }
 
   bool SetActualResolver() {

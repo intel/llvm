@@ -17,13 +17,14 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
 DiagnosticInfoMIROptimization::MachineArgument::MachineArgument(
     StringRef MKey, const MachineInstr &MI)
     : Argument() {
-  Key = MKey;
+  Key = std::string(MKey);
 
   raw_string_ostream OS(Val);
   MI.print(OS, /*IsStandalone=*/true, /*SkipOpers=*/false,

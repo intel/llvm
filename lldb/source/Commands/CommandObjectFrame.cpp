@@ -1,4 +1,4 @@
-//===-- CommandObjectFrame.cpp ----------------------------------*- C++ -*-===//
+//===-- CommandObjectFrame.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,10 @@
 //===----------------------------------------------------------------------===//
 #include "CommandObjectFrame.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
-#include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
-#include "lldb/Host/Host.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -23,23 +19,16 @@
 #include "lldb/Interpreter/OptionGroupValueObjectDisplay.h"
 #include "lldb/Interpreter/OptionGroupVariable.h"
 #include "lldb/Interpreter/Options.h"
-#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Function.h"
-#include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
-#include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Args.h"
-#include "lldb/Utility/LLDBAssert.h"
-#include "lldb/Utility/StreamString.h"
-#include "lldb/Utility/Timer.h"
 
 #include <memory>
 #include <string>
@@ -177,14 +166,13 @@ protected:
       return false;
     }
 
-
-    DumpValueObjectOptions::DeclPrintingHelper helper = [&valobj_sp](
-        ConstString type, ConstString var, const DumpValueObjectOptions &opts,
-        Stream &stream) -> bool {
+    DumpValueObjectOptions::DeclPrintingHelper helper =
+        [&valobj_sp](ConstString type, ConstString var,
+                     const DumpValueObjectOptions &opts,
+                     Stream &stream) -> bool {
       const ValueObject::GetExpressionPathFormat format = ValueObject::
           GetExpressionPathFormat::eGetExpressionPathFormatHonorPointers;
-      const bool qualify_cxx_base_classes = false;
-      valobj_sp->GetExpressionPath(stream, qualify_cxx_base_classes, format);
+      valobj_sp->GetExpressionPath(stream, format);
       stream.PutCString(" =");
       return true;
     };
@@ -209,12 +197,13 @@ protected:
 class CommandObjectFrameInfo : public CommandObjectParsed {
 public:
   CommandObjectFrameInfo(CommandInterpreter &interpreter)
-      : CommandObjectParsed(
-            interpreter, "frame info", "List information about the current "
-                                       "stack frame in the current thread.",
-            "frame info",
-            eCommandRequiresFrame | eCommandTryTargetAPILock |
-                eCommandProcessMustBeLaunched | eCommandProcessMustBePaused) {}
+      : CommandObjectParsed(interpreter, "frame info",
+                            "List information about the current "
+                            "stack frame in the current thread.",
+                            "frame info",
+                            eCommandRequiresFrame | eCommandTryTargetAPILock |
+                                eCommandProcessMustBeLaunched |
+                                eCommandProcessMustBePaused) {}
 
   ~CommandObjectFrameInfo() override = default;
 
@@ -275,13 +264,14 @@ public:
   };
 
   CommandObjectFrameSelect(CommandInterpreter &interpreter)
-      : CommandObjectParsed(
-            interpreter, "frame select", "Select the current stack frame by "
-                                         "index from within the current thread "
-                                         "(see 'thread backtrace'.)",
-            nullptr,
-            eCommandRequiresThread | eCommandTryTargetAPILock |
-                eCommandProcessMustBeLaunched | eCommandProcessMustBePaused),
+      : CommandObjectParsed(interpreter, "frame select",
+                            "Select the current stack frame by "
+                            "index from within the current thread "
+                            "(see 'thread backtrace'.)",
+                            nullptr,
+                            eCommandRequiresThread | eCommandTryTargetAPILock |
+                                eCommandProcessMustBeLaunched |
+                                eCommandProcessMustBePaused),
         m_options() {
     CommandArgumentEntry arg;
     CommandArgumentData index_arg;
@@ -415,14 +405,14 @@ public:
             "uses debug information and memory reads directly, rather than "
             "parsing and evaluating an expression, which may even involve "
             "JITing and running code in the target program.",
-            nullptr, eCommandRequiresFrame | eCommandTryTargetAPILock |
-                         eCommandProcessMustBeLaunched |
-                         eCommandProcessMustBePaused | eCommandRequiresProcess),
+            nullptr,
+            eCommandRequiresFrame | eCommandTryTargetAPILock |
+                eCommandProcessMustBeLaunched | eCommandProcessMustBePaused |
+                eCommandRequiresProcess),
         m_option_group(),
         m_option_variable(
             true), // Include the frame specific options by passing "true"
-        m_option_format(eFormatDefault),
-        m_varobj_options() {
+        m_option_format(eFormatDefault), m_varobj_options() {
     CommandArgumentEntry arg;
     CommandArgumentData var_name_arg;
 
@@ -849,7 +839,7 @@ Process 1234 stopped
 
 bool CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
                                                 CommandReturnObject &result) {
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
   if (m_options.m_class_name.empty()) {
     result.AppendErrorWithFormat(
         "%s needs a Python class name (-l argument).\n", m_cmd_name.c_str());
@@ -875,9 +865,8 @@ bool CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
 
   if (interpreter &&
       !interpreter->CheckObjectExists(m_options.m_class_name.c_str())) {
-    result.AppendWarning(
-        "The provided class does not exist - please define it "
-        "before attempting to use this frame recognizer");
+    result.AppendWarning("The provided class does not exist - please define it "
+                         "before attempting to use this frame recognizer");
   }
 
   StackFrameRecognizerSP recognizer_sp =
@@ -904,7 +893,7 @@ class CommandObjectFrameRecognizerClear : public CommandObjectParsed {
 public:
   CommandObjectFrameRecognizerClear(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "frame recognizer clear",
-                           "Delete all frame recognizers.", nullptr) {}
+                            "Delete all frame recognizers.", nullptr) {}
 
   ~CommandObjectFrameRecognizerClear() override = default;
 
@@ -917,14 +906,14 @@ protected:
 };
 
 class CommandObjectFrameRecognizerDelete : public CommandObjectParsed {
- public:
+public:
   CommandObjectFrameRecognizerDelete(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "frame recognizer delete",
                             "Delete an existing frame recognizer.", nullptr) {}
 
   ~CommandObjectFrameRecognizerDelete() override = default;
 
- protected:
+protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.GetArgumentCount() == 0) {
       if (!m_interpreter.Confirm(
@@ -957,7 +946,7 @@ class CommandObjectFrameRecognizerDelete : public CommandObjectParsed {
 };
 
 class CommandObjectFrameRecognizerList : public CommandObjectParsed {
- public:
+public:
   CommandObjectFrameRecognizerList(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "frame recognizer list",
                             "Show a list of active frame recognizers.",
@@ -965,14 +954,15 @@ class CommandObjectFrameRecognizerList : public CommandObjectParsed {
 
   ~CommandObjectFrameRecognizerList() override = default;
 
- protected:
+protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     bool any_printed = false;
     StackFrameRecognizerManager::ForEach(
         [&result, &any_printed](uint32_t recognizer_id, std::string name,
                                 std::string function, std::string symbol,
                                 bool regexp) {
-          if (name == "") name = "(internal)";
+          if (name == "")
+            name = "(internal)";
           result.GetOutputStream().Printf(
               "%d: %s, module %s, function %s%s\n", recognizer_id, name.c_str(),
               function.c_str(), symbol.c_str(), regexp ? " (regexp)" : "");
@@ -990,7 +980,7 @@ class CommandObjectFrameRecognizerList : public CommandObjectParsed {
 };
 
 class CommandObjectFrameRecognizerInfo : public CommandObjectParsed {
- public:
+public:
   CommandObjectFrameRecognizerInfo(CommandInterpreter &interpreter)
       : CommandObjectParsed(
             interpreter, "frame recognizer info",
@@ -1013,7 +1003,7 @@ class CommandObjectFrameRecognizerInfo : public CommandObjectParsed {
 
   ~CommandObjectFrameRecognizerInfo() override = default;
 
- protected:
+protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Process *process = m_exe_ctx.GetProcessPtr();
     if (process == nullptr) {
@@ -1061,27 +1051,24 @@ class CommandObjectFrameRecognizerInfo : public CommandObjectParsed {
 };
 
 class CommandObjectFrameRecognizer : public CommandObjectMultiword {
- public:
+public:
   CommandObjectFrameRecognizer(CommandInterpreter &interpreter)
       : CommandObjectMultiword(
             interpreter, "frame recognizer",
             "Commands for editing and viewing frame recognizers.",
             "frame recognizer [<sub-command-options>] ") {
-    LoadSubCommand(
-        "add",
-        CommandObjectSP(new CommandObjectFrameRecognizerAdd(interpreter)));
+    LoadSubCommand("add", CommandObjectSP(new CommandObjectFrameRecognizerAdd(
+                              interpreter)));
     LoadSubCommand(
         "clear",
         CommandObjectSP(new CommandObjectFrameRecognizerClear(interpreter)));
     LoadSubCommand(
         "delete",
         CommandObjectSP(new CommandObjectFrameRecognizerDelete(interpreter)));
-    LoadSubCommand(
-        "list",
-        CommandObjectSP(new CommandObjectFrameRecognizerList(interpreter)));
-    LoadSubCommand(
-        "info",
-        CommandObjectSP(new CommandObjectFrameRecognizerInfo(interpreter)));
+    LoadSubCommand("list", CommandObjectSP(new CommandObjectFrameRecognizerList(
+                               interpreter)));
+    LoadSubCommand("info", CommandObjectSP(new CommandObjectFrameRecognizerInfo(
+                               interpreter)));
   }
 
   ~CommandObjectFrameRecognizer() override = default;
@@ -1093,9 +1080,10 @@ class CommandObjectFrameRecognizer : public CommandObjectMultiword {
 
 CommandObjectMultiwordFrame::CommandObjectMultiwordFrame(
     CommandInterpreter &interpreter)
-    : CommandObjectMultiword(interpreter, "frame", "Commands for selecting and "
-                                                   "examing the current "
-                                                   "thread's stack frames.",
+    : CommandObjectMultiword(interpreter, "frame",
+                             "Commands for selecting and "
+                             "examing the current "
+                             "thread's stack frames.",
                              "frame <subcommand> [<subcommand-options>]") {
   LoadSubCommand("diagnose",
                  CommandObjectSP(new CommandObjectFrameDiagnose(interpreter)));
@@ -1105,10 +1093,9 @@ CommandObjectMultiwordFrame::CommandObjectMultiwordFrame(
                  CommandObjectSP(new CommandObjectFrameSelect(interpreter)));
   LoadSubCommand("variable",
                  CommandObjectSP(new CommandObjectFrameVariable(interpreter)));
-#ifndef LLDB_DISABLE_PYTHON
-  LoadSubCommand(
-      "recognizer",
-      CommandObjectSP(new CommandObjectFrameRecognizer(interpreter)));
+#if LLDB_ENABLE_PYTHON
+  LoadSubCommand("recognizer", CommandObjectSP(new CommandObjectFrameRecognizer(
+                                   interpreter)));
 #endif
 }
 

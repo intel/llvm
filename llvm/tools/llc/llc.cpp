@@ -29,11 +29,12 @@
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/RemarkStreamer.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -170,7 +171,7 @@ struct RunPassOption {
     SmallVector<StringRef, 8> PassNames;
     StringRef(Val).split(PassNames, ',', -1, false);
     for (auto PassName : PassNames)
-      RunPassNames->push_back(PassName);
+      RunPassNames->push_back(std::string(PassName));
   }
 };
 }
@@ -195,14 +196,14 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
       // If InputFilename ends in .bc or .ll, remove it.
       StringRef IFN = InputFilename;
       if (IFN.endswith(".bc") || IFN.endswith(".ll"))
-        OutputFilename = IFN.drop_back(3);
+        OutputFilename = std::string(IFN.drop_back(3));
       else if (IFN.endswith(".mir"))
-        OutputFilename = IFN.drop_back(4);
+        OutputFilename = std::string(IFN.drop_back(4));
       else
-        OutputFilename = IFN;
+        OutputFilename = std::string(IFN);
 
       switch (FileType) {
-      case TargetMachine::CGFT_AssemblyFile:
+      case CGFT_AssemblyFile:
         if (TargetName[0] == 'c') {
           if (TargetName[1] == 0)
             OutputFilename += ".cbe.c";
@@ -213,13 +214,13 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
         } else
           OutputFilename += ".s";
         break;
-      case TargetMachine::CGFT_ObjectFile:
+      case CGFT_ObjectFile:
         if (OS == Triple::Win32)
           OutputFilename += ".obj";
         else
           OutputFilename += ".o";
         break;
-      case TargetMachine::CGFT_Null:
+      case CGFT_Null:
         OutputFilename += ".null";
         break;
       }
@@ -229,10 +230,10 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
   // Decide if we need "binary" output.
   bool Binary = false;
   switch (FileType) {
-  case TargetMachine::CGFT_AssemblyFile:
+  case CGFT_AssemblyFile:
     break;
-  case TargetMachine::CGFT_ObjectFile:
-  case TargetMachine::CGFT_Null:
+  case CGFT_ObjectFile:
+  case CGFT_Null:
     Binary = true;
     break;
   }
@@ -333,9 +334,9 @@ int main(int argc, char **argv) {
   Context.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, &HasError);
 
   Expected<std::unique_ptr<ToolOutputFile>> RemarksFileOrErr =
-      setupOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
-                               RemarksFormat, RemarksWithHotness,
-                               RemarksHotnessThreshold);
+      setupLLVMOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
+                                   RemarksFormat, RemarksWithHotness,
+                                   RemarksHotnessThreshold);
   if (Error E = RemarksFileOrErr.takeError()) {
     WithColor::error(errs(), argv[0]) << toString(std::move(E)) << '\n';
     return 1;
@@ -394,6 +395,12 @@ static int compileModule(char **argv, LLVMContext &Context) {
   std::unique_ptr<Module> M;
   std::unique_ptr<MIRParser> MIR;
   Triple TheTriple;
+  std::string CPUStr = getCPUStr(), FeaturesStr = getFeaturesStr();
+
+  // Set attributes on functions as loaded from MIR from command line arguments.
+  auto setMIRFunctionAttributes = [&CPUStr, &FeaturesStr](Function &F) {
+    setFunctionAttributes(CPUStr, FeaturesStr, F);
+  };
 
   bool SkipModule = MCPU == "help" ||
                     (!MAttrs.empty() && MAttrs.front() == "help");
@@ -402,7 +409,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
   if (!SkipModule) {
     if (InputLanguage == "mir" ||
         (InputLanguage == "" && StringRef(InputFilename).endswith(".mir"))) {
-      MIR = createMIRParserFromFile(InputFilename, Err, Context);
+      MIR = createMIRParserFromFile(InputFilename, Err, Context,
+                                    setMIRFunctionAttributes);
       if (MIR)
         M = MIR->parseIRModule();
     } else
@@ -432,8 +440,6 @@ static int compileModule(char **argv, LLVMContext &Context) {
     return 1;
   }
 
-  std::string CPUStr = getCPUStr(), FeaturesStr = getFeaturesStr();
-
   CodeGenOpt::Level OLvl = CodeGenOpt::Default;
   switch (OptLevel) {
   default:
@@ -455,8 +461,17 @@ static int compileModule(char **argv, LLVMContext &Context) {
   Options.MCOptions.IASSearchPaths = IncludeDirs;
   Options.MCOptions.SplitDwarfFile = SplitDwarfFile;
 
+  // On AIX, setting the relocation model to anything other than PIC is considered
+  // a user error.
+  Optional<Reloc::Model> RM = getRelocModel();
+  if (TheTriple.isOSAIX() && RM.hasValue() && *RM != Reloc::PIC_) {
+    WithColor::error(errs(), argv[0])
+        << "invalid relocation model, AIX only supports PIC.\n";
+    return 1;
+  }
+
   std::unique_ptr<TargetMachine> Target(TheTarget->createTargetMachine(
-      TheTriple.getTriple(), CPUStr, FeaturesStr, Options, getRelocModel(),
+      TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
       getCodeModel(), OLvl));
 
   assert(Target && "Could not allocate target machine!");
@@ -519,7 +534,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   setFunctionAttributes(CPUStr, FeaturesStr, *M);
 
   if (RelaxAll.getNumOccurrences() > 0 &&
-      FileType != TargetMachine::CGFT_ObjectFile)
+      FileType != CGFT_ObjectFile)
     WithColor::warning(errs(), argv[0])
         << ": warning: ignoring -mc-relax-all because filetype != obj";
 
@@ -530,7 +545,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
     // so we can memcmp the contents in CompileTwice mode
     SmallVector<char, 0> Buffer;
     std::unique_ptr<raw_svector_ostream> BOS;
-    if ((FileType != TargetMachine::CGFT_AssemblyFile &&
+    if ((FileType != CGFT_AssemblyFile &&
          !Out->os().supportsSeeking()) ||
         CompileTwice) {
       BOS = std::make_unique<raw_svector_ostream>(Buffer);

@@ -317,7 +317,10 @@ namespace dr635 { // dr635: yes
 namespace dr637 { // dr637: yes
   void f(int i) {
     i = ++i + 1;
-    i = i++ + 1; // expected-warning {{unsequenced}}
+    i = i++ + 1;
+#if __cplusplus < 201703L
+    // expected-warning@-2 {{unsequenced}}
+#endif
   }
 }
 
@@ -548,9 +551,9 @@ namespace dr648 { // dr648: yes
 
 #if __cplusplus >= 201103L
 namespace dr649 { // dr649: yes
-  alignas(0x20000000) int n; // expected-error {{requested alignment}}
-  struct alignas(0x20000000) X {}; // expected-error {{requested alignment}}
-  struct Y { int n alignas(0x20000000); }; // expected-error {{requested alignment}}
+  alignas(0x40000000) int n; // expected-error {{requested alignment}}1
+  struct alignas(0x40000000) X {}; // expected-error {{requested alignment}}
+  struct Y { int n alignas(0x40000000); }; // expected-error {{requested alignment}}
   struct alignas(256) Z {};
   // This part is superseded by dr2130 and eventually by aligned allocation support.
   auto *p = new Z;

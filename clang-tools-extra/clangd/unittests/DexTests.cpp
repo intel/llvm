@@ -687,14 +687,18 @@ TEST(DexTests, Refs) {
   Req.Filter = RefKind::Declaration | RefKind::Definition;
 
   std::vector<std::string> Files;
-  Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
-      .refs(Req, [&](const Ref &R) { Files.push_back(R.Location.FileURI); });
+  EXPECT_FALSE(Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
+                   .refs(Req, [&](const Ref &R) {
+                     Files.push_back(R.Location.FileURI);
+                   }));
   EXPECT_THAT(Files, UnorderedElementsAre("foo.h", "foo.cc"));
 
   Req.Limit = 1;
   Files.clear();
-  Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
-      .refs(Req, [&](const Ref &R) { Files.push_back(R.Location.FileURI); });
+  EXPECT_TRUE(Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
+                  .refs(Req, [&](const Ref &R) {
+                    Files.push_back(R.Location.FileURI);
+                  }));
   EXPECT_THAT(Files, ElementsAre(AnyOf("foo.h", "foo.cc")));
 }
 
@@ -735,10 +739,10 @@ TEST(DexTest, PreferredTypesBoosting) {
   // The best candidate can change depending on the preferred type.
   Req.Limit = 1;
 
-  Req.PreferredTypes = {Sym1.Type};
+  Req.PreferredTypes = {std::string(Sym1.Type)};
   EXPECT_THAT(match(I, Req), ElementsAre("t1"));
 
-  Req.PreferredTypes = {Sym2.Type};
+  Req.PreferredTypes = {std::string(Sym2.Type)};
   EXPECT_THAT(match(I, Req), ElementsAre("t2"));
 }
 

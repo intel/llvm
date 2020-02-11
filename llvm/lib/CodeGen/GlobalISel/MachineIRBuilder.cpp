@@ -219,19 +219,19 @@ void MachineIRBuilder::validateShiftOp(const LLT &Res, const LLT &Op0,
   assert((Res == Op0) && "type mismatch");
 }
 
-MachineInstrBuilder MachineIRBuilder::buildGEP(const DstOp &Res,
-                                               const SrcOp &Op0,
-                                               const SrcOp &Op1) {
-  assert(Res.getLLTTy(*getMRI()).isPointer() &&
+MachineInstrBuilder MachineIRBuilder::buildPtrAdd(const DstOp &Res,
+                                                  const SrcOp &Op0,
+                                                  const SrcOp &Op1) {
+  assert(Res.getLLTTy(*getMRI()).getScalarType().isPointer() &&
          Res.getLLTTy(*getMRI()) == Op0.getLLTTy(*getMRI()) && "type mismatch");
-  assert(Op1.getLLTTy(*getMRI()).isScalar() && "invalid offset type");
+  assert(Op1.getLLTTy(*getMRI()).getScalarType().isScalar() && "invalid offset type");
 
-  return buildInstr(TargetOpcode::G_GEP, {Res}, {Op0, Op1});
+  return buildInstr(TargetOpcode::G_PTR_ADD, {Res}, {Op0, Op1});
 }
 
 Optional<MachineInstrBuilder>
-MachineIRBuilder::materializeGEP(Register &Res, Register Op0,
-                                 const LLT &ValueTy, uint64_t Value) {
+MachineIRBuilder::materializePtrAdd(Register &Res, Register Op0,
+                                    const LLT &ValueTy, uint64_t Value) {
   assert(Res == 0 && "Res is a result argument");
   assert(ValueTy.isScalar()  && "invalid offset type");
 
@@ -242,7 +242,7 @@ MachineIRBuilder::materializeGEP(Register &Res, Register Op0,
 
   Res = getMRI()->createGenericVirtualRegister(getMRI()->getType(Op0));
   auto Cst = buildConstant(ValueTy, Value);
-  return buildGEP(Res, Op0, Cst.getReg(0));
+  return buildPtrAdd(Res, Op0, Cst.getReg(0));
 }
 
 MachineInstrBuilder MachineIRBuilder::buildPtrMask(const DstOp &Res,
@@ -650,22 +650,20 @@ MachineIRBuilder::buildConcatVectors(const DstOp &Res, ArrayRef<Register> Ops) {
   return buildInstr(TargetOpcode::G_CONCAT_VECTORS, Res, TmpVec);
 }
 
-MachineInstrBuilder MachineIRBuilder::buildInsert(Register Res, Register Src,
-                                                  Register Op, unsigned Index) {
-  assert(Index + getMRI()->getType(Op).getSizeInBits() <=
-             getMRI()->getType(Res).getSizeInBits() &&
+MachineInstrBuilder MachineIRBuilder::buildInsert(const DstOp &Res,
+                                                  const SrcOp &Src,
+                                                  const SrcOp &Op,
+                                                  unsigned Index) {
+  assert(Index + Op.getLLTTy(*getMRI()).getSizeInBits() <=
+             Res.getLLTTy(*getMRI()).getSizeInBits() &&
          "insertion past the end of a register");
 
-  if (getMRI()->getType(Res).getSizeInBits() ==
-      getMRI()->getType(Op).getSizeInBits()) {
+  if (Res.getLLTTy(*getMRI()).getSizeInBits() ==
+      Op.getLLTTy(*getMRI()).getSizeInBits()) {
     return buildCast(Res, Op);
   }
 
-  return buildInstr(TargetOpcode::G_INSERT)
-      .addDef(Res)
-      .addUse(Src)
-      .addUse(Op)
-      .addImm(Index);
+  return buildInstr(TargetOpcode::G_INSERT, Res, {Src, Op, uint64_t(Index)});
 }
 
 MachineInstrBuilder MachineIRBuilder::buildIntrinsic(Intrinsic::ID ID,
@@ -1011,6 +1009,13 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
     assert(SrcOps.size() == 1 && "Invalid Srcs");
     validateTruncExt(DstOps[0].getLLTTy(*getMRI()),
                      SrcOps[0].getLLTTy(*getMRI()), false);
+    break;
+  }
+  case TargetOpcode::G_BITCAST: {
+    assert(DstOps.size() == 1 && "Invalid Dst");
+    assert(SrcOps.size() == 1 && "Invalid Srcs");
+    assert(DstOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
+           SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() && "invalid bitcast");
     break;
   }
   case TargetOpcode::COPY:

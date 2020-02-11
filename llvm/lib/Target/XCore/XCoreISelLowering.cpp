@@ -31,6 +31,7 @@
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsXCore.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
@@ -995,7 +996,7 @@ LowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG) const {
 }
 
 MachineMemOperand::Flags
-XCoreTargetLowering::getMMOFlags(const Instruction &I) const {
+XCoreTargetLowering::getTargetMMOFlags(const Instruction &I) const {
   // Because of how we convert atomic_load and atomic_store to normal loads and
   // stores in the DAG, we need to ensure that the MMOs are marked volatile
   // since DAGCombine hasn't been updated to account for atomic, but non
@@ -1390,16 +1391,16 @@ SDValue XCoreTargetLowering::LowerCCCArguments(
        ArgDI != ArgDE; ++ArgDI) {
     if (ArgDI->Flags.isByVal() && ArgDI->Flags.getByValSize()) {
       unsigned Size = ArgDI->Flags.getByValSize();
-      unsigned Align = std::max(StackSlotSize, ArgDI->Flags.getByValAlign());
+      Align Alignment =
+          std::max(Align(StackSlotSize), ArgDI->Flags.getNonZeroByValAlign());
       // Create a new object on the stack and copy the pointee into it.
-      int FI = MFI.CreateStackObject(Size, Align, false);
+      int FI = MFI.CreateStackObject(Size, Alignment, false);
       SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
       InVals.push_back(FIN);
-      MemOps.push_back(DAG.getMemcpy(Chain, dl, FIN, ArgDI->SDV,
-                                     DAG.getConstant(Size, dl, MVT::i32),
-                                     Align, false, false, false,
-                                     MachinePointerInfo(),
-                                     MachinePointerInfo()));
+      MemOps.push_back(DAG.getMemcpy(
+          Chain, dl, FIN, ArgDI->SDV, DAG.getConstant(Size, dl, MVT::i32),
+          Alignment, false, false, false, MachinePointerInfo(),
+          MachinePointerInfo()));
     } else {
       InVals.push_back(ArgDI->SDV);
     }
@@ -1799,11 +1800,10 @@ SDValue XCoreTargetLowering::PerformDAGCombine(SDNode *N,
         !LD->isVolatile() && !LD->isIndexed() &&
         Chain.reachesChainWithoutSideEffects(SDValue(LD, 1))) {
         bool isTail = isInTailCallPosition(DAG, ST, Chain);
-        return DAG.getMemmove(Chain, dl, ST->getBasePtr(),
-                              LD->getBasePtr(),
-                              DAG.getConstant(StoreBits/8, dl, MVT::i32),
-                              Alignment, false, isTail, ST->getPointerInfo(),
-                              LD->getPointerInfo());
+        return DAG.getMemmove(Chain, dl, ST->getBasePtr(), LD->getBasePtr(),
+                              DAG.getConstant(StoreBits / 8, dl, MVT::i32),
+                              Align(Alignment), false, isTail,
+                              ST->getPointerInfo(), LD->getPointerInfo());
       }
     }
     break;

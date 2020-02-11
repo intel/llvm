@@ -144,7 +144,8 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
         if (AI->isStaticAlloca() &&
             (TFI->isStackRealignable() || (Align <= StackAlign))) {
           const ConstantInt *CUI = cast<ConstantInt>(AI->getArraySize());
-          uint64_t TySize = MF->getDataLayout().getTypeAllocSize(Ty);
+          uint64_t TySize =
+              MF->getDataLayout().getTypeAllocSize(Ty).getKnownMinSize();
 
           TySize *= CUI->getZExtValue();   // Get total allocated size.
           if (TySize == 0) TySize = 1; // Don't create zero-sized stack objects.
@@ -158,6 +159,12 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
             FrameIndex =
                 MF->getFrameInfo().CreateStackObject(TySize, Align, false, AI);
           }
+
+          // Scalable vectors may need a special StackID to distinguish
+          // them from other (fixed size) stack objects.
+          if (Ty->isVectorTy() && Ty->getVectorIsScalable())
+            MF->getFrameInfo().setStackID(FrameIndex,
+                                          TFI->getStackIDForScalableVectors());
 
           StaticAllocaMap[AI] = FrameIndex;
           // Update the catch handler information.
@@ -380,8 +387,8 @@ unsigned FunctionLoweringInfo::CreateRegs(Type *Ty, bool isDivergent) {
 }
 
 unsigned FunctionLoweringInfo::CreateRegs(const Value *V) {
-  return CreateRegs(V->getType(), DA && !TLI->requiresUniformRegister(*MF, V) &&
-                                      DA->isDivergent(V));
+  return CreateRegs(V->getType(), DA && DA->isDivergent(V) &&
+                    !TLI->requiresUniformRegister(*MF, V));
 }
 
 /// GetLiveOutRegInfo - Gets LiveOutInfo for a register, returning NULL if the

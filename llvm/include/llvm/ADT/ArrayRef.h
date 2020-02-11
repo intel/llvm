@@ -97,9 +97,19 @@ namespace llvm {
     /*implicit*/ constexpr ArrayRef(const T (&Arr)[N]) : Data(Arr), Length(N) {}
 
     /// Construct an ArrayRef from a std::initializer_list.
+#if LLVM_GNUC_PREREQ(9, 0, 0)
+// Disable gcc's warning in this constructor as it generates an enormous amount
+// of messages. Anyone using ArrayRef should already be aware of the fact that
+// it does not do lifetime extension.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-list-lifetime"
+#endif
     /*implicit*/ ArrayRef(const std::initializer_list<T> &Vec)
     : Data(Vec.begin() == Vec.end() ? (T*)nullptr : Vec.begin()),
       Length(Vec.size()) {}
+#if LLVM_GNUC_PREREQ(9, 0, 0)
+#pragma GCC diagnostic pop
+#endif
 
     /// Construct an ArrayRef<const T*> from ArrayRef<T*>. This uses SFINAE to
     /// ensure that only ArrayRefs of pointers can be converted.
@@ -298,17 +308,17 @@ namespace llvm {
     /// Construct an empty MutableArrayRef from None.
     /*implicit*/ MutableArrayRef(NoneType) : ArrayRef<T>() {}
 
-    /// Construct an MutableArrayRef from a single element.
+    /// Construct a MutableArrayRef from a single element.
     /*implicit*/ MutableArrayRef(T &OneElt) : ArrayRef<T>(OneElt) {}
 
-    /// Construct an MutableArrayRef from a pointer and length.
+    /// Construct a MutableArrayRef from a pointer and length.
     /*implicit*/ MutableArrayRef(T *data, size_t length)
       : ArrayRef<T>(data, length) {}
 
-    /// Construct an MutableArrayRef from a range.
+    /// Construct a MutableArrayRef from a range.
     MutableArrayRef(T *begin, T *end) : ArrayRef<T>(begin, end) {}
 
-    /// Construct an MutableArrayRef from a SmallVector.
+    /// Construct a MutableArrayRef from a SmallVector.
     /*implicit*/ MutableArrayRef(SmallVectorImpl<T> &Vec)
     : ArrayRef<T>(Vec) {}
 
@@ -316,12 +326,12 @@ namespace llvm {
     /*implicit*/ MutableArrayRef(std::vector<T> &Vec)
     : ArrayRef<T>(Vec) {}
 
-    /// Construct an ArrayRef from a std::array
+    /// Construct a MutableArrayRef from a std::array
     template <size_t N>
     /*implicit*/ constexpr MutableArrayRef(std::array<T, N> &Arr)
         : ArrayRef<T>(Arr) {}
 
-    /// Construct an MutableArrayRef from a C array.
+    /// Construct a MutableArrayRef from a C array.
     template <size_t N>
     /*implicit*/ constexpr MutableArrayRef(T (&Arr)[N]) : ArrayRef<T>(Arr) {}
 

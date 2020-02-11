@@ -1,4 +1,4 @@
-//===-- ClangPersistentVariables.cpp ----------------------------*- C++ -*-===//
+//===-- ClangPersistentVariables.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "ClangPersistentVariables.h"
+#include "ClangASTImporter.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Value.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Log.h"
@@ -67,39 +68,43 @@ void ClangPersistentVariables::RemovePersistentVariable(
 llvm::Optional<CompilerType>
 ClangPersistentVariables::GetCompilerTypeFromPersistentDecl(
     ConstString type_name) {
-  CompilerType compiler_type;
-  if (clang::TypeDecl *tdecl = llvm::dyn_cast_or_null<clang::TypeDecl>(
-          GetPersistentDecl(type_name))) {
-    compiler_type.SetCompilerType(
-        ClangASTContext::GetASTContext(&tdecl->getASTContext()),
-        reinterpret_cast<lldb::opaque_compiler_type_t>(
-            const_cast<clang::Type *>(tdecl->getTypeForDecl())));
-    return compiler_type;
+  PersistentDecl p = m_persistent_decls.lookup(type_name.GetCString());
+
+  if (p.m_decl == nullptr)
+    return llvm::None;
+
+  if (clang::TypeDecl *tdecl = llvm::dyn_cast<clang::TypeDecl>(p.m_decl)) {
+    opaque_compiler_type_t t = static_cast<opaque_compiler_type_t>(
+        const_cast<clang::Type *>(tdecl->getTypeForDecl()));
+    return CompilerType(p.m_context, t);
   }
   return llvm::None;
 }
 
 void ClangPersistentVariables::RegisterPersistentDecl(ConstString name,
-                                                      clang::NamedDecl *decl) {
-  m_persistent_decls.insert(
-      std::pair<const char *, clang::NamedDecl *>(name.GetCString(), decl));
+                                                      clang::NamedDecl *decl,
+                                                      TypeSystemClang *ctx) {
+  PersistentDecl p = {decl, ctx};
+  m_persistent_decls.insert(std::make_pair(name.GetCString(), p));
 
   if (clang::EnumDecl *enum_decl = llvm::dyn_cast<clang::EnumDecl>(decl)) {
     for (clang::EnumConstantDecl *enumerator_decl : enum_decl->enumerators()) {
-      m_persistent_decls.insert(std::pair<const char *, clang::NamedDecl *>(
-          ConstString(enumerator_decl->getNameAsString()).GetCString(),
-          enumerator_decl));
+      p = {enumerator_decl, ctx};
+      m_persistent_decls.insert(std::make_pair(
+          ConstString(enumerator_decl->getNameAsString()).GetCString(), p));
     }
   }
 }
 
 clang::NamedDecl *
 ClangPersistentVariables::GetPersistentDecl(ConstString name) {
-  PersistentDeclMap::const_iterator i =
-      m_persistent_decls.find(name.GetCString());
+  return m_persistent_decls.lookup(name.GetCString()).m_decl;
+}
 
-  if (i == m_persistent_decls.end())
-    return nullptr;
-  else
-    return i->second;
+std::shared_ptr<ClangASTImporter>
+ClangPersistentVariables::GetClangASTImporter() {
+  if (!m_ast_importer_sp) {
+    m_ast_importer_sp = std::make_shared<ClangASTImporter>();
+  }
+  return m_ast_importer_sp;
 }

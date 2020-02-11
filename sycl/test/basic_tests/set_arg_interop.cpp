@@ -16,12 +16,14 @@ int main() {
 
     cl_context ClContext = Context.get();
 
-    const size_t CountSources = 2;
+    const size_t CountSources = 3;
     const char *Sources[CountSources] = {
         "kernel void foo1(global float* Array, global int* Value) { *Array = "
         "42; *Value = 1; }\n",
         "kernel void foo2(global float* Array) { int id = get_global_id(0); "
         "Array[id] = id; }\n",
+        "kernel void foo3(global float* Array, local float* LocalArray) { "
+        "(void)LocalArray; (void)Array; }\n",
     };
 
     cl_int Err;
@@ -38,11 +40,15 @@ int main() {
     cl_kernel SecondCLKernel = clCreateKernel(ClProgram, "foo2", &Err);
     assert(Err == CL_SUCCESS);
 
+    cl_kernel ThirdCLKernel = clCreateKernel(ClProgram, "foo3", &Err);
+    assert(Err == CL_SUCCESS);
+
     const size_t Count = 100;
     float Array[Count];
 
     kernel FirstKernel(FirstCLKernel, Context);
     kernel SecondKernel(SecondCLKernel, Context);
+    kernel ThirdKernel(ThirdCLKernel, Context);
     int Value;
     {
       buffer<float, 1> FirstBuffer(Array, range<1>(1));
@@ -75,24 +81,41 @@ int main() {
     {
       auto dev = Queue.get_device();
       auto ctxt = Queue.get_context();
-      float *data =
-          static_cast<float *>(malloc_shared(Count * sizeof(float), dev, ctxt));
+      if (dev.get_info<info::device::usm_shared_allocations>()) {
+        float *data = static_cast<float *>(
+            malloc_shared(Count * sizeof(float), dev, ctxt));
 
-      Queue.submit([&](handler &CGH) {
-        CGH.set_arg(0, data);
-        CGH.parallel_for(range<1>{Count}, SecondKernel);
-      });
-      Queue.wait_and_throw();
+        Queue.submit([&](handler &CGH) {
+          CGH.set_arg(0, data);
+          CGH.parallel_for(range<1>{Count}, SecondKernel);
+        });
+        Queue.wait_and_throw();
 
-      for (size_t I = 0; I < Count; ++I) {
-        assert(data[I] == I);
+        for (size_t I = 0; I < Count; ++I) {
+          assert(data[I] == I);
+        }
+        free(data, ctxt);
       }
-      free(data, ctxt);
     }
+
+    {
+      buffer<float, 1> FirstBuffer(Array, range<1>(Count));
+      Queue.submit([&](handler &CGH) {
+        auto Acc = FirstBuffer.get_access<access::mode::read_write>(CGH);
+        CGH.set_arg(0, FirstBuffer.get_access<access::mode::read_write>(CGH));
+        CGH.set_arg(
+            1, cl::sycl::accessor<float, 1, cl::sycl::access::mode::read_write,
+                                  cl::sycl::access::target::local>(
+                   cl::sycl::range<1>(Count), CGH));
+        CGH.parallel_for(range<1>{Count}, ThirdKernel);
+      });
+    }
+    Queue.wait_and_throw();
 
     clReleaseContext(ClContext);
     clReleaseKernel(FirstCLKernel);
     clReleaseKernel(SecondCLKernel);
+    clReleaseKernel(ThirdCLKernel);
     clReleaseProgram(ClProgram);
   }
   return 0;

@@ -9,8 +9,10 @@ add_clang_library(clangTidyPerformanceModule
   InefficientVectorOperationCheck.cpp
   MoveConstArgCheck.cpp
   MoveConstructorInitCheck.cpp
+  NoAutomaticMoveCheck.cpp
   NoexceptMoveConstructorCheck.cpp
   PerformanceTidyModule.cpp
+  TriviallyDestructibleCheck.cpp
   TypePromotionInMathFnCheck.cpp
   UnnecessaryCopyInitialization.cpp
   UnnecessaryValueParamCheck.cpp

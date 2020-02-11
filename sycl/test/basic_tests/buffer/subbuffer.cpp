@@ -194,11 +194,90 @@ void checkExceptions() {
   }
 }
 
+void copyBlock() {
+  using typename cl::sycl::access::mode;
+  using buffer = cl::sycl::buffer<int, 1>;
+
+  auto CopyF = [](buffer& Buffer, buffer& Block, size_t Idx, size_t BlockSize) {
+    auto Subbuf = buffer(Buffer, Idx * BlockSize, BlockSize);
+    auto *Src = Subbuf.get_access<mode::read>().get_pointer();
+    auto *Dst = Block.get_access<mode::write>().get_pointer();
+    std::copy(Src, Src + BlockSize, Dst);
+  };
+
+  try {
+    static const size_t N = 100;
+    static const size_t NBlock = 4;
+    static const size_t BlockSize = N / NBlock;
+
+    buffer Buffer(N);
+
+    // Init with data
+    {
+      auto *Acc = Buffer.get_access<mode::write>().get_pointer();
+
+      for (size_t Idx = 0; Idx < N; Idx++) {
+        Acc[Idx] = Idx;
+      }
+    }
+
+    std::vector<buffer> BlockBuffers;
+    BlockBuffers.reserve(NBlock);
+
+    // Copy block by block
+    for (size_t Idx = 0; Idx < NBlock; Idx++) {
+      auto InsertedIt = BlockBuffers.emplace(BlockBuffers.end(), BlockSize);
+      CopyF(Buffer, *InsertedIt, Idx, BlockSize);
+    }
+
+    // Validate copies
+    for (size_t Idx = 0; Idx < BlockBuffers.size(); ++Idx) {
+      buffer &BlockB = BlockBuffers[Idx];
+
+      auto *V = BlockB.get_access<mode::read>().get_pointer();
+
+      for (size_t Idx2 = 0; Idx2 < BlockSize; ++Idx2) {
+        assert(V[Idx2] == Idx2 + BlockSize * Idx &&
+               "Invalid data in block buffer");
+      }
+    }
+  }
+  catch (cl::sycl::exception& ex) {
+    assert(false && "Unexpected exception captured!");
+  }
+}
+
+void checkMultipleContexts() {
+  constexpr int N = 64;
+  int a[N] = {0};
+  {
+    sycl::queue queue1;
+    sycl::queue queue2;
+    sycl::buffer<int, 1> buf(a, sycl::range<1>(N));
+    sycl::buffer<int, 1> subbuf1(buf, sycl::id<1>(0), sycl::range<1>(N / 2));
+    sycl::buffer<int, 1> subbuf2(buf, sycl::id<1>(N / 2),
+                                 sycl::range<1>(N / 2));
+    queue1.submit([&](sycl::handler &cgh) {
+      auto bufacc = subbuf1.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<class sub_buffer_1>(
+          sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 1; });
+    });
+
+    queue2.submit([&](sycl::handler &cgh) {
+      auto bufacc = subbuf2.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<class sub_buffer_2>(
+          sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 2; });
+    });
+  }
+  assert(a[N / 2 - 1] == 1 && a[N / 2] == 2 && "Sub buffer data loss");
+}
+
 int main() {
   cl::sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
-  // TODO! Uncomment once SYCL-CTS are fixed
-  // checkExceptions();
+  checkExceptions();
+  copyBlock();
+  checkMultipleContexts();
   return 0;
 }

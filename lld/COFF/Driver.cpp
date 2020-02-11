@@ -35,6 +35,7 @@
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
@@ -61,14 +62,17 @@ static Timer inputFileTimer("Input File Reading", Timer::root());
 Configuration *config;
 LinkerDriver *driver;
 
-bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &diag) {
+bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
+          raw_ostream &stderrOS) {
+  lld::stdoutOS = &stdoutOS;
+  lld::stderrOS = &stderrOS;
+
   errorHandler().logName = args::getFilenameWithoutExe(args[0]);
-  errorHandler().errorOS = &diag;
   errorHandler().errorLimitExceededMsg =
       "too many errors emitted, stopping now"
       " (use /errorlimit:0 to see all errors)";
   errorHandler().exitEarly = canExitEarly;
-  enableColors(diag.has_colors());
+  stderrOS.enable_colors(stderrOS.has_colors());
 
   config = make<Configuration>();
   symtab = make<SymbolTable>();
@@ -102,12 +106,16 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
   return ret;
 }
 
-// Drop directory components and replace extension with ".exe" or ".dll".
+// Drop directory components and replace extension with
+// ".exe", ".dll" or ".sys".
 static std::string getOutputPath(StringRef path) {
-  auto p = path.find_last_of("\\/");
-  StringRef s = (p == StringRef::npos) ? path : path.substr(p + 1);
-  const char* e = config->dll ? ".dll" : ".exe";
-  return (s.substr(0, s.rfind('.')) + e).str();
+  StringRef ext = ".exe";
+  if (config->dll)
+    ext = ".dll";
+  else if (config->driver)
+    ext = ".sys";
+
+  return (sys::path::stem(path) + ext).str();
 }
 
 // Returns true if S matches /crtend.?\.o$/.
@@ -229,9 +237,9 @@ void LinkerDriver::addBuffer(std::unique_ptr<MemoryBuffer> mb,
 }
 
 void LinkerDriver::enqueuePath(StringRef path, bool wholeArchive, bool lazy) {
-  auto future =
-      std::make_shared<std::future<MBErrPair>>(createFutureForFile(path));
-  std::string pathStr = path;
+  auto future = std::make_shared<std::future<MBErrPair>>(
+      createFutureForFile(std::string(path)));
+  std::string pathStr = std::string(path);
   enqueueTask([=]() {
     auto mbOrErr = future->get();
     if (mbOrErr.second) {
@@ -444,7 +452,7 @@ Optional<StringRef> LinkerDriver::findFile(StringRef filename) {
   }
 
   if (path.endswith_lower(".lib"))
-    visitedLibs.insert(sys::path::filename(path));
+    visitedLibs.insert(std::string(sys::path::filename(path)));
   return path;
 }
 
@@ -616,6 +624,7 @@ static std::string createResponseFile(const opt::InputArgList &args,
       break;
     case OPT_implib:
     case OPT_pdb:
+    case OPT_pdbstripped:
     case OPT_out:
       os << arg->getSpelling() << sys::path::filename(arg->getValue()) << "\n";
       break;
@@ -632,7 +641,7 @@ static std::string createResponseFile(const opt::InputArgList &args,
   for (StringRef path : filePaths)
     os << quote(relativeToRoot(path)) << "\n";
 
-  return data.str();
+  return std::string(data.str());
 }
 
 enum class DebugKind { Unknown, None, Full, FastLink, GHash, Dwarf, Symtab };
@@ -712,10 +721,10 @@ static std::string getMapFile(const opt::InputArgList &args) {
 
 static std::string getImplibPath() {
   if (!config->implib.empty())
-    return config->implib;
+    return std::string(config->implib);
   SmallString<128> out = StringRef(config->outputFile);
   sys::path::replace_extension(out, ".lib");
-  return out.str();
+  return std::string(out.str());
 }
 
 // The import name is calculated as follows:
@@ -739,16 +748,16 @@ static std::string getImportName(bool asLib) {
                                    (config->dll || asLib) ? ".dll" : ".exe");
   }
 
-  return out.str();
+  return std::string(out.str());
 }
 
 static void createImportLibrary(bool asLib) {
   std::vector<COFFShortExport> exports;
   for (Export &e1 : config->exports) {
     COFFShortExport e2;
-    e2.Name = e1.name;
-    e2.SymbolName = e1.symbolName;
-    e2.ExtName = e1.extName;
+    e2.Name = std::string(e1.name);
+    e2.SymbolName = std::string(e1.symbolName);
+    e2.ExtName = std::string(e1.extName);
     e2.Ordinal = e1.ordinal;
     e2.Noname = e1.noname;
     e2.Data = e1.data;
@@ -809,8 +818,8 @@ static void parseModuleDefs(StringRef path) {
       mb->getMemBufferRef(), config->machine, config->mingw));
 
   if (config->outputFile.empty())
-    config->outputFile = saver.save(m.OutputFile);
-  config->importName = saver.save(m.ImportName);
+    config->outputFile = std::string(saver.save(m.OutputFile));
+  config->importName = std::string(saver.save(m.ImportName));
   if (m.ImageBase)
     config->imageBase = m.ImageBase;
   if (m.StackReserve)
@@ -895,7 +904,8 @@ static void parseOrderFile(StringRef arg) {
   // All symbols that were not present in a given order file are
   // considered to have the lowest priority 0 and are placed at
   // end of an output section.
-  for (std::string s : args::getLines(mb->getMemBufferRef())) {
+  for (StringRef arg : args::getLines(mb->getMemBufferRef())) {
+    std::string s(arg);
     if (config->machine == I386 && !isDecorated(s))
       s = "_" + s;
 
@@ -1085,7 +1095,7 @@ Optional<std::string> getReproduceFile(const opt::InputArgList &args) {
   if (auto *arg = args.getLastArg(OPT_linkrepro)) {
     SmallString<64> path = StringRef(arg->getValue());
     sys::path::append(path, "repro.tar");
-    return path.str().str();
+    return std::string(path);
   }
 
   return None;
@@ -1145,7 +1155,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   // because it doesn't start with "/", but we deliberately chose "--" to
   // avoid conflict with /version and for compatibility with clang-cl.
   if (args.hasArg(OPT_dash_dash_version)) {
-    outs() << getLLDVersion() << "\n";
+    lld::outs() << getLLDVersion() << "\n";
     return;
   }
 
@@ -1166,7 +1176,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     }
   }
 
-  if (!args.hasArg(OPT_INPUT)) {
+  if (!args.hasArg(OPT_INPUT, OPT_wholearchive_file)) {
     if (args.hasArg(OPT_deffile))
       config->noEntry = true;
     else
@@ -1191,6 +1201,8 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
         config->warnDebugInfoUnusable = false;
       else if (s == "4217")
         config->warnLocallyDefinedImported = false;
+      else if (s == "longsections")
+        config->warnLongSectionNames = false;
       // Other warning numbers are ignored.
     }
   }
@@ -1230,6 +1242,16 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   // Handle /debugtype
   config->debugTypes = parseDebugTypes(args);
 
+  // Handle /driver[:uponly|:wdm].
+  config->driverUponly = args.hasArg(OPT_driver_uponly) ||
+                         args.hasArg(OPT_driver_uponly_wdm) ||
+                         args.hasArg(OPT_driver_wdm_uponly);
+  config->driverWdm = args.hasArg(OPT_driver_wdm) ||
+                      args.hasArg(OPT_driver_uponly_wdm) ||
+                      args.hasArg(OPT_driver_wdm_uponly);
+  config->driver =
+      config->driverUponly || config->driverWdm || args.hasArg(OPT_driver);
+
   // Handle /pdb
   bool shouldCreatePDB =
       (debug == DebugKind::Full || debug == DebugKind::GHash);
@@ -1244,6 +1266,10 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     if (auto *arg = args.getLastArg(OPT_pdb_source_path))
       config->pdbSourcePath = arg->getValue();
   }
+
+  // Handle /pdbstripped
+  if (args.hasArg(OPT_pdbstripped))
+    warn("ignoring /pdbstripped flag, it is not yet supported");
 
   // Handle /noentry
   if (args.hasArg(OPT_noentry)) {
@@ -1463,6 +1489,8 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     parseNumbers(arg->getValue(), &config->align);
     if (!isPowerOf2_64(config->align))
       error("/align: not a power of two: " + StringRef(arg->getValue()));
+    if (!args.hasArg(OPT_driver))
+      warn("/align specified without /driver; image may not run");
   }
 
   // Handle /aligncomm
@@ -1529,6 +1557,11 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   config->debugDwarf = debug == DebugKind::Dwarf;
   config->debugGHashes = debug == DebugKind::GHash;
   config->debugSymtab = debug == DebugKind::Symtab;
+
+  // Don't warn about long section names, such as .debug_info, for mingw or when
+  // -debug:dwarf is requested.
+  if (config->mingw || config->debugDwarf)
+    config->warnLongSectionNames = false;
 
   config->mapFile = getMapFile(args);
 
@@ -1676,7 +1709,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   }
 
   // Handle generation of import library from a def file.
-  if (!args.hasArg(OPT_INPUT)) {
+  if (!args.hasArg(OPT_INPUT, OPT_wholearchive_file)) {
     fixupExports();
     createImportLibrary(/*asLib=*/true);
     return;
@@ -1699,6 +1732,9 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
       StringRef s = (config->machine == I386) ? "__DllMainCRTStartup@12"
                                               : "_DllMainCRTStartup";
       config->entry = addUndefined(s);
+    } else if (config->driverWdm) {
+      // /driver:wdm implies /entry:_NtProcessStartup
+      config->entry = addUndefined(mangle("_NtProcessStartup"));
     } else {
       // Windows specific -- If entry point name is not given, we need to
       // infer that from user-defined entry name.
@@ -1722,8 +1758,8 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
 
   // Set default image name if neither /out or /def set it.
   if (config->outputFile.empty()) {
-    config->outputFile =
-        getOutputPath((*args.filtered(OPT_INPUT).begin())->getValue());
+    config->outputFile = getOutputPath(
+        (*args.filtered(OPT_INPUT, OPT_wholearchive_file).begin())->getValue());
   }
 
   // Fail early if an output file is not writable.

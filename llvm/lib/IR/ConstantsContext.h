@@ -149,7 +149,7 @@ public:
   ShuffleVectorConstantExpr(Constant *C1, Constant *C2, Constant *C3)
   : ConstantExpr(VectorType::get(
                    cast<VectorType>(C1->getType())->getElementType(),
-                   cast<VectorType>(C3->getType())->getNumElements()),
+                   cast<VectorType>(C3->getType())->getElementCount()),
                  Instruction::ShuffleVector,
                  &Op<0>(), 3) {
     Op<0>() = C1;
@@ -454,8 +454,8 @@ struct InlineAsmKeyType {
 
   InlineAsm *create(TypeClass *Ty) const {
     assert(PointerType::getUnqual(FTy) == Ty);
-    return new InlineAsm(FTy, AsmString, Constraints, HasSideEffects,
-                         IsAlignStack, AsmDialect);
+    return new InlineAsm(FTy, std::string(AsmString), std::string(Constraints),
+                         HasSideEffects, IsAlignStack, AsmDialect);
   }
 };
 

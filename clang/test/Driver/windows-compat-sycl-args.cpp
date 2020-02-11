@@ -1,4 +1,4 @@
-// RUN: %clang -### --sycl -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck %s
+// RUN: %clang -### -fsycl-device-only -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck %s
 // CHECK: -fms-compatibility
 // CHECK: -fdelayed-template-parsing
 // expected-no-diagnostics

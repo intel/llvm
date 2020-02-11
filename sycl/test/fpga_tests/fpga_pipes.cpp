@@ -1,4 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==------------- fpga_pipes.cpp - SYCL FPGA pipes test --------------------==//
 //
@@ -291,6 +293,13 @@ int test_array_th_bl_pipe(cl::sycl::queue Queue) {
 
 int main() {
   cl::sycl::queue Queue;
+
+  if (!Queue.get_device()
+           .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
+    std::cout << "SYCL_INTEL_data_flow_pipes not supported, skipping"
+              << std::endl;
+    return 0;
+  }
 
   // Non-blocking pipes
   int Result = test_simple_nb_pipe<some_nb_pipe, /*test number*/ 1>(Queue);

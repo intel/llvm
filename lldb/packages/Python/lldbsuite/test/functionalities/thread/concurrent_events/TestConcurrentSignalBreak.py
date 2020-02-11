@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import unittest2
 
@@ -15,7 +14,6 @@ class ConcurrentSignalBreak(ConcurrentEventsBase):
     @skipIfFreeBSD  # timing out on buildbot
     # Atomic sequences are not supported yet for MIPS in LLDB.
     @skipIf(triple='^mips')
-    @expectedFailureNetBSD
     def test(self):
         """Test signal and a breakpoint in multiple threads."""
         self.build(dictionary=self.getBuildFlags())

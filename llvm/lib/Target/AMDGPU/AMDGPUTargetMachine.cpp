@@ -37,6 +37,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -182,7 +183,7 @@ static cl::opt<bool> EnableScalarIRPasses(
   cl::init(true),
   cl::Hidden);
 
-extern "C" void LLVMInitializeAMDGPUTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
   RegisterTargetMachine<GCNTargetMachine> Y(getTheGCNTarget());
@@ -216,6 +217,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPULowerKernelAttributesPass(*PR);
   initializeAMDGPULowerIntrinsicsPass(*PR);
   initializeAMDGPUOpenCLEnqueuedBlockLoweringPass(*PR);
+  initializeAMDGPUPreLegalizerCombinerPass(*PR);
   initializeAMDGPUPromoteAllocaPass(*PR);
   initializeAMDGPUCodeGenPreparePass(*PR);
   initializeAMDGPUPropagateAttributesEarlyPass(*PR);
@@ -227,11 +229,13 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeSIModeRegisterPass(*PR);
   initializeSIWholeQuadModePass(*PR);
   initializeSILowerControlFlowPass(*PR);
+  initializeSIRemoveShortExecBranchesPass(*PR);
   initializeSIInsertSkipsPass(*PR);
   initializeSIMemoryLegalizerPass(*PR);
   initializeSIOptimizeExecMaskingPass(*PR);
   initializeSIPreAllocateWWMRegsPass(*PR);
   initializeSIFormMemoryClausesPass(*PR);
+  initializeSIPostRABundlerPass(*PR);
   initializeAMDGPUUnifyDivergentExitNodesPass(*PR);
   initializeAMDGPUAAWrapperPassPass(*PR);
   initializeAMDGPUExternalAAWrapperPass(*PR);
@@ -615,6 +619,7 @@ public:
   bool addILPOpts() override;
   bool addInstSelector() override;
   bool addIRTranslator() override;
+  void addPreLegalizeMachineIR() override;
   bool addLegalizeMachineIR() override;
   bool addRegBankSelect() override;
   bool addGlobalInstructionSelect() override;
@@ -893,6 +898,11 @@ bool GCNPassConfig::addIRTranslator() {
   return false;
 }
 
+void GCNPassConfig::addPreLegalizeMachineIR() {
+  bool IsOptNone = getOptLevel() == CodeGenOpt::None;
+  addPass(createAMDGPUPreLegalizeCombiner(IsOptNone));
+}
+
 bool GCNPassConfig::addLegalizeMachineIR() {
   addPass(new Legalizer());
   return false;
@@ -947,7 +957,7 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   insertPass(&RegisterCoalescerID, &SIPreAllocateWWMRegsID, false);
 
   if (EnableDCEInRA)
-    insertPass(&RenameIndependentSubregsID, &DeadMachineInstructionElimID);
+    insertPass(&DetectDeadLanesID, &DeadMachineInstructionElimID);
 
   TargetPassConfig::addOptimizedRegAlloc();
 }
@@ -971,6 +981,7 @@ void GCNPassConfig::addPostRegAlloc() {
 }
 
 void GCNPassConfig::addPreSched2() {
+  addPass(&SIPostRABundlerID);
 }
 
 void GCNPassConfig::addPreEmitPass() {
@@ -992,6 +1003,7 @@ void GCNPassConfig::addPreEmitPass() {
   // be better for it to emit S_NOP <N> when possible.
   addPass(&PostRAHazardRecognizerID);
 
+  addPass(&SIRemoveShortExecBranchesID);
   addPass(&SIInsertSkipsPassID);
   addPass(&BranchRelaxationPassID);
 }
@@ -1151,6 +1163,10 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
 
   MFI->Mode.IEEE = YamlMFI.Mode.IEEE;
   MFI->Mode.DX10Clamp = YamlMFI.Mode.DX10Clamp;
+  MFI->Mode.FP32InputDenormals = YamlMFI.Mode.FP32InputDenormals;
+  MFI->Mode.FP32OutputDenormals = YamlMFI.Mode.FP32OutputDenormals;
+  MFI->Mode.FP64FP16InputDenormals = YamlMFI.Mode.FP64FP16InputDenormals;
+  MFI->Mode.FP64FP16OutputDenormals = YamlMFI.Mode.FP64FP16OutputDenormals;
 
   return false;
 }

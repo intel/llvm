@@ -44,6 +44,10 @@ protected:
 #include "clang/Basic/LangOptions.def"
 };
 
+/// In the Microsoft ABI, this controls the placement of virtual displacement
+/// members used to implement virtual inheritance.
+enum class MSVtorDispMode { Never, ForVBaseOverride, ForVFTable };
+
 /// Keeps track of the various options that can be
 /// enabled, which controls the dialect of C or C++ that is accepted.
 class LangOptions : public LangOptionsBase {
@@ -90,6 +94,8 @@ public:
     PPTMK_FullGeneralityMultipleInheritance,
     PPTMK_FullGeneralityVirtualInheritance
   };
+
+  using MSVtorDispMode = clang::MSVtorDispMode;
 
   enum DefaultCallingConvention {
     DCC_None,
@@ -187,6 +193,34 @@ public:
     FEA_Off,
 
     FEA_On
+  };
+
+  // Values of the following enumerations correspond to metadata arguments
+  // specified for constrained floating-point intrinsics:
+  // http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics.
+
+  /// Possible rounding modes.
+  enum FPRoundingModeKind {
+    /// Rounding to nearest, corresponds to "round.tonearest".
+    FPR_ToNearest,
+    /// Rounding toward -Inf, corresponds to "round.downward".
+    FPR_Downward,
+    /// Rounding toward +Inf, corresponds to "round.upward".
+    FPR_Upward,
+    /// Rounding toward zero, corresponds to "round.towardzero".
+    FPR_TowardZero,
+    /// Is determined by runtime environment, corresponds to "round.dynamic".
+    FPR_Dynamic
+  };
+
+  /// Possible floating point exception behavior.
+  enum FPExceptionModeKind {
+    /// Assume that floating-point exceptions are masked.
+    FPE_Ignore,
+    /// Transformations do not cause new exceptions but may hide some.
+    FPE_MayTrap,
+    /// Strictly preserve the floating-point exception semantics.
+    FPE_Strict
   };
 
   enum class LaxVectorConversionKind {
@@ -320,7 +354,7 @@ public:
   }
 
   bool assumeFunctionsAreConvergent() const {
-    return (CUDA && CUDAIsDevice) || OpenCL;
+    return ConvergentFunctions;
   }
 
   /// Return the OpenCL C or C++ version as a VersionTuple.
@@ -331,17 +365,25 @@ public:
 class FPOptions {
 public:
   FPOptions() : fp_contract(LangOptions::FPC_Off),
-                fenv_access(LangOptions::FEA_Off) {}
+                fenv_access(LangOptions::FEA_Off),
+                rounding(LangOptions::FPR_ToNearest),
+                exceptions(LangOptions::FPE_Ignore)
+        {}
 
   // Used for serializing.
   explicit FPOptions(unsigned I)
       : fp_contract(static_cast<LangOptions::FPContractModeKind>(I & 3)),
-        fenv_access(static_cast<LangOptions::FEnvAccessModeKind>((I >> 2) & 1))
+        fenv_access(static_cast<LangOptions::FEnvAccessModeKind>((I >> 2) & 1)),
+        rounding(static_cast<LangOptions::FPRoundingModeKind>((I >> 3) & 7)),
+        exceptions(static_cast<LangOptions::FPExceptionModeKind>((I >> 6) & 3))
         {}
 
   explicit FPOptions(const LangOptions &LangOpts)
       : fp_contract(LangOpts.getDefaultFPContractMode()),
-        fenv_access(LangOptions::FEA_Off) {}
+        fenv_access(LangOptions::FEA_Off),
+        rounding(LangOptions::FPR_ToNearest),
+        exceptions(LangOptions::FPE_Ignore)
+        {}
   // FIXME: Use getDefaultFEnvAccessMode() when available.
 
   bool allowFPContractWithinStatement() const {
@@ -372,14 +414,42 @@ public:
 
   void setDisallowFEnvAccess() { fenv_access = LangOptions::FEA_Off; }
 
+  LangOptions::FPRoundingModeKind getRoundingMode() const {
+    return static_cast<LangOptions::FPRoundingModeKind>(rounding);
+  }
+
+  void setRoundingMode(LangOptions::FPRoundingModeKind RM) {
+    rounding = RM;
+  }
+
+  LangOptions::FPExceptionModeKind getExceptionMode() const {
+    return static_cast<LangOptions::FPExceptionModeKind>(exceptions);
+  }
+
+  void setExceptionMode(LangOptions::FPExceptionModeKind EM) {
+    exceptions = EM;
+  }
+
+  bool isFPConstrained() const {
+    return getRoundingMode() != LangOptions::FPR_ToNearest ||
+           getExceptionMode() != LangOptions::FPE_Ignore ||
+           allowFEnvAccess();
+  }
+
   /// Used to serialize this.
-  unsigned getInt() const { return fp_contract | (fenv_access << 2); }
+  unsigned getInt() const {
+    return fp_contract | (fenv_access << 2) | (rounding << 3)
+        | (exceptions << 6);
+  }
 
 private:
-  /// Adjust BinaryOperator::FPFeatures to match the total bit-field size
-  /// of these two.
+  /// Adjust BinaryOperatorBitfields::FPFeatures and
+  /// CXXOperatorCallExprBitfields::FPFeatures to match the total bit-field size
+  /// of these fields.
   unsigned fp_contract : 2;
   unsigned fenv_access : 1;
+  unsigned rounding : 3;
+  unsigned exceptions : 2;
 };
 
 /// Describes the kind of translation unit being processed.

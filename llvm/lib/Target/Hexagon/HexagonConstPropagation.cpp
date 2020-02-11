@@ -134,11 +134,21 @@ namespace {
     uint32_t properties() const;
     unsigned size() const { return Size; }
 
-    LatticeCell &operator= (const LatticeCell &L) {
+    LatticeCell(const LatticeCell &L) {
+      // This memcpy also copies Properties (when L.Size == 0).
+      uint32_t N =
+          L.IsSpecial ? sizeof L.Properties : L.Size * sizeof(const Constant *);
+      memcpy(Values, L.Values, N);
+      Kind = L.Kind;
+      Size = L.Size;
+      IsSpecial = L.IsSpecial;
+    }
+
+    LatticeCell &operator=(const LatticeCell &L) {
       if (this != &L) {
         // This memcpy also copies Properties (when L.Size == 0).
         uint32_t N = L.IsSpecial ? sizeof L.Properties
-                                 : L.Size*sizeof(const Constant*);
+                                 : L.Size * sizeof(const Constant *);
         memcpy(Values, L.Values, N);
         Kind = L.Kind;
         Size = L.Size;
@@ -260,7 +270,7 @@ namespace {
     void propagate(MachineFunction &MF);
     bool rewrite(MachineFunction &MF);
 
-    MachineRegisterInfo      *MRI;
+    MachineRegisterInfo      *MRI = nullptr;
     MachineConstEvaluator    &MCE;
 
     using CFGEdge = std::pair<unsigned, unsigned>;
@@ -2826,6 +2836,9 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
   if (MI.isCopy())
     return false;
 
+  MachineFunction *MF = MI.getParent()->getParent();
+  auto &HST = MF->getSubtarget<HexagonSubtarget>();
+
   // Collect all virtual register-def operands.
   SmallVector<unsigned,2> DefRegs;
   for (const MachineOperand &MO : MI.operands()) {
@@ -2913,11 +2926,13 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
             NewMI = BuildMI(B, At, DL, *NewD, NewR)
                       .addImm(Hi)
                       .addImm(Lo);
-          } else {
+          } else if (MF->getFunction().hasOptSize() || !HST.isTinyCore()) {
+            // Disable CONST64 for tiny core since it takes a LD resource.
             NewD = &HII.get(Hexagon::CONST64);
             NewMI = BuildMI(B, At, DL, *NewD, NewR)
                       .addImm(V);
-          }
+          } else
+            return false;
         }
       }
       (void)NewMI;

@@ -39,17 +39,11 @@
 # CHECK-GNU-NEXT:      DW_AT_location      (DW_OP_reg8 R8)
 # CHECK-GNU-NEXT:      DW_AT_GNU_call_site_value   (DW_OP_breg14 R14+3)
 
-# CHECK-DWARF5: [[getValue_SP:.*]]: DW_TAG_subprogram
-# CHECK-DWARF5-NEXT: DW_AT_name      ("getVal")
-
-# CHECK-DWARF5: [[foo_SP:.*]]: DW_TAG_subprogram
-# CHECK-DWARF5-NEXT: DW_AT_name      ("foo")
+# CHECK-DWARF5: DW_TAG_call_site
+# CHECK-DWARF5:   DW_AT_call_origin ([[getValue_SP:.*]])
 
 # CHECK-DWARF5: DW_TAG_call_site
-# CHECK-DWARF5:   DW_AT_call_origin ([[getValue_SP]])
-#
-# CHECK-DWARF5: DW_TAG_call_site
-# CHECK-DWARF5:   DW_AT_call_origin ([[foo_SP]])
+# CHECK-DWARF5:   DW_AT_call_origin ([[foo_SP:.*]])
 # CHECK-DWARF5:   DW_AT_call_return_pc {{.*}}
 # CHECK-DWARF5-EMPTY:
 # CHECK-DWARF5:         DW_TAG_call_site_parameter
@@ -70,6 +64,12 @@
 # CHECK-DWARF5:         DW_TAG_call_site_parameter
 # CHECK-DWARF5-NEXT:      DW_AT_location      (DW_OP_reg8 R8)
 # CHECK-DWARF5-NEXT:      DW_AT_call_value   (DW_OP_breg14 R14+3)
+
+# CHECK-DWARF5: [[getValue_SP]]: DW_TAG_subprogram
+# CHECK-DWARF5-NEXT: DW_AT_name      ("getVal")
+
+# CHECK-DWARF5: [[foo_SP]]: DW_TAG_subprogram
+# CHECK-DWARF5-NEXT: DW_AT_name      ("foo")
 
 --- |
   ; ModuleID = 'test.c'
@@ -120,9 +120,9 @@
   !12 = !{null, !13, !13, !13}
   !13 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
   !14 = !{!15, !16, !17, !18}
-  !15 = !DILocalVariable(name: "arg1", arg: 1, scope: !10, file: !1, line: 4, type: !13, flags: DIFlagArgumentNotModified)
-  !16 = !DILocalVariable(name: "arg2", arg: 2, scope: !10, file: !1, line: 4, type: !13, flags: DIFlagArgumentNotModified)
-  !17 = !DILocalVariable(name: "arg3", arg: 3, scope: !10, file: !1, line: 4, type: !13, flags: DIFlagArgumentNotModified)
+  !15 = !DILocalVariable(name: "arg1", arg: 1, scope: !10, file: !1, line: 4, type: !13)
+  !16 = !DILocalVariable(name: "arg2", arg: 2, scope: !10, file: !1, line: 4, type: !13)
+  !17 = !DILocalVariable(name: "arg3", arg: 3, scope: !10, file: !1, line: 4, type: !13)
   !18 = !DILocalVariable(name: "local1", scope: !10, file: !1, line: 5, type: !13)
   !19 = !DILocation(line: 4, column: 14, scope: !10)
   !20 = !DILocation(line: 4, column: 24, scope: !10)

@@ -65,6 +65,16 @@ define <16 x i8> @sub_sat_u_v16i8(<16 x i8> %x, <16 x i8> %y) {
   ret <16 x i8> %a
 }
 
+; CHECK-LABEL: avgr_u_v16i8:
+; SIMD128-NEXT: .functype avgr_u_v16i8 (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: i8x16.avgr_u $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <16 x i8> @llvm.wasm.avgr.unsigned.v16i8(<16 x i8>, <16 x i8>)
+define <16 x i8> @avgr_u_v16i8(<16 x i8> %x, <16 x i8> %y) {
+  %a = call <16 x i8> @llvm.wasm.avgr.unsigned.v16i8(<16 x i8> %x, <16 x i8> %y)
+  ret <16 x i8> %a
+}
+
 ; CHECK-LABEL: any_v16i8:
 ; SIMD128-NEXT: .functype any_v16i8 (v128) -> (i32){{$}}
 ; SIMD128-NEXT: i8x16.any_true $push[[R:[0-9]+]]=, $0{{$}}
@@ -168,6 +178,16 @@ define <8 x i16> @sub_sat_u_v8i16(<8 x i16> %x, <8 x i16> %y) {
   ret <8 x i16> %a
 }
 
+; CHECK-LABEL: avgr_u_v8i16:
+; SIMD128-NEXT: .functype avgr_u_v8i16 (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: i16x8.avgr_u $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <8 x i16> @llvm.wasm.avgr.unsigned.v8i16(<8 x i16>, <8 x i16>)
+define <8 x i16> @avgr_u_v8i16(<8 x i16> %x, <8 x i16> %y) {
+  %a = call <8 x i16> @llvm.wasm.avgr.unsigned.v8i16(<8 x i16> %x, <8 x i16> %y)
+  ret <8 x i16> %a
+}
+
 ; CHECK-LABEL: any_v8i16:
 ; SIMD128-NEXT: .functype any_v8i16 (v128) -> (i32){{$}}
 ; SIMD128-NEXT: i16x8.any_true $push[[R:[0-9]+]]=, $0{{$}}
@@ -267,6 +287,16 @@ define <8 x i16> @widen_high_unsigned_v8i16(<16 x i8> %v) {
 ; ==============================================================================
 ; 4 x i32
 ; ==============================================================================
+; CHECK-LABEL: dot:
+; SIMD128-NEXT: .functype dot (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: i32x4.dot_i16x8_s $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <4 x i32> @llvm.wasm.dot(<8 x i16>, <8 x i16>)
+define <4 x i32> @dot(<8 x i16> %x, <8 x i16> %y) {
+  %a = call <4 x i32> @llvm.wasm.dot(<8 x i16> %x, <8 x i16> %y)
+  ret <4 x i32> %a
+}
+
 ; CHECK-LABEL: any_v4i32:
 ; SIMD128-NEXT: .functype any_v4i32 (v128) -> (i32){{$}}
 ; SIMD128-NEXT: i32x4.any_true $push[[R:[0-9]+]]=, $0{{$}}

@@ -76,8 +76,9 @@ using namespace llvm;
 MipsRegisterBankInfo::MipsRegisterBankInfo(const TargetRegisterInfo &TRI)
     : MipsGenRegisterBankInfo() {}
 
-const RegisterBank &MipsRegisterBankInfo::getRegBankFromRegClass(
-    const TargetRegisterClass &RC) const {
+const RegisterBank &
+MipsRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                             LLT) const {
   using namespace Mips;
 
   switch (RC.getID()) {
@@ -361,7 +362,7 @@ MipsRegisterBankInfo::TypeInfoForMF::determineInstType(const MachineInstr *MI) {
 void MipsRegisterBankInfo::TypeInfoForMF::cleanupIfNewFunction(
     llvm::StringRef FunctionName) {
   if (MFName != FunctionName) {
-    MFName = FunctionName;
+    MFName = std::string(FunctionName);
     WaitingQueues.clear();
     Types.clear();
   }
@@ -440,7 +441,7 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_UMULH:
   case G_ZEXTLOAD:
   case G_SEXTLOAD:
-  case G_GEP:
+  case G_PTR_ADD:
   case G_INTTOPTR:
   case G_PTRTOINT:
   case G_AND:
@@ -451,6 +452,8 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_LSHR:
   case G_BRINDIRECT:
   case G_VASTART:
+  case G_BSWAP:
+  case G_CTLZ:
     OperandsMapping = &Mips::ValueMappings[Mips::GPRIdx];
     break;
   case G_ADD:
@@ -638,7 +641,7 @@ void MipsRegisterBankInfo::setRegBank(MachineInstr &MI,
     MRI.setRegBank(Dest, getRegBank(Mips::GPRBRegBankID));
     break;
   }
-  case TargetOpcode::G_GEP: {
+  case TargetOpcode::G_PTR_ADD: {
     assert(MRI.getType(Dest).isPointer() && "Unexpected operand type.");
     MRI.setRegBank(Dest, getRegBank(Mips::GPRBRegBankID));
     break;
@@ -651,8 +654,9 @@ void MipsRegisterBankInfo::setRegBank(MachineInstr &MI,
 static void
 combineAwayG_UNMERGE_VALUES(LegalizationArtifactCombiner &ArtCombiner,
                             MachineInstr &MI) {
+  SmallVector<Register, 4> UpdatedDefs;
   SmallVector<MachineInstr *, 2> DeadInstrs;
-  ArtCombiner.tryCombineMerges(MI, DeadInstrs);
+  ArtCombiner.tryCombineMerges(MI, DeadInstrs, UpdatedDefs);
   for (MachineInstr *DeadMI : DeadInstrs)
     DeadMI->eraseFromParent();
 }

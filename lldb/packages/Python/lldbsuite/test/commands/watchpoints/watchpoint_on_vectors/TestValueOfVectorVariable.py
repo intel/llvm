@@ -2,7 +2,6 @@
 Test displayed value of a vector variable while doing watchpoint operations
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -14,6 +13,7 @@ from lldbsuite.test import lldbutil
 class TestValueOfVectorVariableTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def test_value_of_vector_variable_using_watchpoint_set(self):
         """Test verify displayed value of vector variable."""

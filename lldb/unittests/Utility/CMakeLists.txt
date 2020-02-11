@@ -24,6 +24,7 @@ add_lldb_unittest(UtilityTests
   ReproducerInstrumentationTest.cpp
   ReproducerTest.cpp
   ScalarTest.cpp
+  SharedClusterTest.cpp
   StateTest.cpp
   StatusTest.cpp
   StreamTeeTest.cpp
@@ -32,6 +33,7 @@ add_lldb_unittest(UtilityTests
   StringLexerTest.cpp
   StringListTest.cpp
   StructuredDataTest.cpp
+  SubsystemRAIITest.cpp
   TildeExpressionResolverTest.cpp
   TimeoutTest.cpp
   TimerTest.cpp

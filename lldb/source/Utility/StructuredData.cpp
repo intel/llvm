@@ -1,4 +1,4 @@
-//===---------------------StructuredData.cpp ---------------------*- C++-*-===//
+//===-- StructuredData.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,16 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/StructuredData.h"
-#include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
-#include "lldb/Utility/StreamString.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <cerrno>
 #include <cstdlib>
 #include <inttypes.h>
-#include <limits>
 
 using namespace lldb_private;
 using namespace llvm;
@@ -82,7 +78,7 @@ static StructuredData::ObjectSP ParseJSONObject(json::Object *object) {
     if (StructuredData::ObjectSP value_sp = ParseJSONValue(value))
       dict_up->AddItem(key, value_sp);
   }
-  return dict_up;
+  return std::move(dict_up);
 }
 
 static StructuredData::ObjectSP ParseJSONArray(json::Array *array) {
@@ -91,7 +87,7 @@ static StructuredData::ObjectSP ParseJSONArray(json::Array *array) {
     if (StructuredData::ObjectSP value_sp = ParseJSONValue(value))
       array_up->AddItem(value_sp);
   }
-  return array_up;
+  return std::move(array_up);
 }
 
 StructuredData::ObjectSP

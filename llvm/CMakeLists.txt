@@ -16,7 +16,7 @@ if(POLICY CMP0077)
 endif()
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 10)
+  set(LLVM_VERSION_MAJOR 11)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -25,7 +25,7 @@ if(NOT DEFINED LLVM_VERSION_PATCH)
   set(LLVM_VERSION_PATCH 0)
 endif()
 if(NOT DEFINED LLVM_VERSION_SUFFIX)
-  set(LLVM_VERSION_SUFFIX svn)
+  set(LLVM_VERSION_SUFFIX git)
 endif()
 
 if (NOT PACKAGE_VERSION)
@@ -63,7 +63,7 @@ endif()
 # LLVM_EXTERNAL_${project}_SOURCE_DIR using LLVM_ALL_PROJECTS
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
-set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;debuginfo-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;llgo;openmp;parallel-libs;polly;pstl")
+set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;debuginfo-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;llgo;mlir;openmp;parallel-libs;polly;pstl")
 set(LLVM_ENABLE_PROJECTS "" CACHE STRING
 	"Semicolon-separated list of projects to build (${LLVM_ALL_PROJECTS}), or \"all\".")
 if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
@@ -347,7 +347,13 @@ option(LLVM_ENABLE_LIBPFM "Use libpfm for performance counters if available." ON
 
 option(LLVM_ENABLE_THREADS "Use threads if available." ON)
 
-option(LLVM_ENABLE_ZLIB "Use zlib for compression/decompression if available." ON)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  set(zlib_DEFAULT "OFF")
+else()
+  set(zlib_DEFAULT "ON")
+endif()
+
+set(LLVM_ENABLE_ZLIB "${zlib_DEFAULT}" CACHE STRING "Use zlib for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
 
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
@@ -465,29 +471,6 @@ set(LLVM_LIB_FUZZING_ENGINE "" CACHE PATH
 option(LLVM_USE_SPLIT_DWARF
   "Use -gsplit-dwarf when compiling llvm." OFF)
 
-option(LLVM_POLLY_LINK_INTO_TOOLS "Statically link Polly into tools (if available)" ON)
-option(LLVM_POLLY_BUILD "Build LLVM with Polly" ON)
-
-if (EXISTS ${LLVM_MAIN_SRC_DIR}/tools/polly/CMakeLists.txt)
-  set(POLLY_IN_TREE TRUE)
-elseif(LLVM_EXTERNAL_POLLY_SOURCE_DIR)
-  set(POLLY_IN_TREE TRUE)
-else()
-  set(POLLY_IN_TREE FALSE)
-endif()
-
-if (LLVM_POLLY_BUILD AND POLLY_IN_TREE)
-  set(WITH_POLLY ON)
-else()
-  set(WITH_POLLY OFF)
-endif()
-
-if (LLVM_POLLY_LINK_INTO_TOOLS AND WITH_POLLY)
-  set(LINK_POLLY_INTO_TOOLS ON)
-else()
-  set(LINK_POLLY_INTO_TOOLS OFF)
-endif()
-
 # Define an option controlling whether we should build for 32-bit on 64-bit
 # platforms, where supported.
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )
@@ -530,6 +513,10 @@ option(LLVM_BUILD_EXAMPLES
   "Build the LLVM example programs. If OFF, just generate build targets." OFF)
 option(LLVM_INCLUDE_EXAMPLES "Generate build targets for the LLVM examples" ON)
 
+if(LLVM_BUILD_EXAMPLES)
+  add_definitions(-DBUILD_EXAMPLES)
+endif(LLVM_BUILD_EXAMPLES)
+
 option(LLVM_BUILD_TESTS
   "Build LLVM unit tests. If OFF, just generate build targets." OFF)
 option(LLVM_INCLUDE_TESTS "Generate build targets for the LLVM unit tests." ON)
@@ -564,17 +551,28 @@ if(NOT DEFINED LLVM_DYLIB_COMPONENTS)
   set(LLVM_DYLIB_COMPONENTS "all" CACHE STRING
     "Semicolon-separated list of components to include in libLLVM, or \"all\".")
 endif()
-option(LLVM_LINK_LLVM_DYLIB "Link tools against the libllvm dynamic library" OFF)
+
 if(MSVC)
   option(LLVM_BUILD_LLVM_C_DYLIB "Build LLVM-C.dll (Windows only)" ON)
+  # Set this variable to OFF here so it can't be set with a command-line
+  # argument.
+  set (LLVM_LINK_LLVM_DYLIB OFF)
+  if (BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "BUILD_SHARED_LIBS options is not supported on Windows.")
+  endif()
 else()
+  option(LLVM_LINK_LLVM_DYLIB "Link tools against the libllvm dynamic library" OFF)
   option(LLVM_BUILD_LLVM_C_DYLIB "Build libllvm-c re-export library (Darwin only)" OFF)
+  set(LLVM_BUILD_LLVM_DYLIB_default OFF)
+  if(LLVM_LINK_LLVM_DYLIB OR LLVM_BUILD_LLVM_C_DYLIB)
+    set(LLVM_BUILD_LLVM_DYLIB_default ON)
+  endif()
+  option(LLVM_BUILD_LLVM_DYLIB "Build libllvm dynamic library" ${LLVM_BUILD_LLVM_DYLIB_default})
 endif()
-set(LLVM_BUILD_LLVM_DYLIB_default OFF)
-if(LLVM_LINK_LLVM_DYLIB OR (LLVM_BUILD_LLVM_C_DYLIB AND NOT MSVC))
-  set(LLVM_BUILD_LLVM_DYLIB_default ON)
+
+if (LLVM_LINK_LLVM_DYLIB AND BUILD_SHARED_LIBS)
+  message(FATAL_ERROR "Cannot enable BUILD_SHARED_LIBS with LLVM_LINK_LLVM_DYLIB.  We recommend disabling BUILD_SHARED_LIBS.")
 endif()
-option(LLVM_BUILD_LLVM_DYLIB "Build libllvm dynamic library" ${LLVM_BUILD_LLVM_DYLIB_default})
 
 option(LLVM_OPTIMIZED_TABLEGEN "Force TableGen to be built with optimization" OFF)
 if(CMAKE_CROSSCOMPILING OR (LLVM_OPTIMIZED_TABLEGEN AND (LLVM_ENABLE_ASSERTIONS OR CMAKE_CONFIGURATION_TYPES)))
@@ -805,11 +803,7 @@ set(LLVM_SRPM_DIR "${CMAKE_CURRENT_BINARY_DIR}/srpm")
 
 get_source_info(${CMAKE_CURRENT_SOURCE_DIR} revision repository)
 string(LENGTH "${revision}" revision_length)
-if(revision MATCHES "^[0-9]+$" AND revision_length LESS 40)
-  set(LLVM_RPM_SPEC_REVISION "r${revision}")
-else()
-  set(LLVM_RPM_SPEC_REVISION "${revision}")
-endif()
+set(LLVM_RPM_SPEC_REVISION "${revision}")
 
 configure_file(
   ${LLVM_SRPM_USER_BINARY_SPECFILE}
@@ -1105,3 +1099,5 @@ endif()
 if (LLVM_INCLUDE_UTILS AND LLVM_INCLUDE_TOOLS)
   add_subdirectory(utils/llvm-locstats)
 endif()
+
+process_llvm_pass_plugins()

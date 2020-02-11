@@ -13,7 +13,7 @@ Header Configuration Language
 -----------------------------
 
 Header configuration language consists of few special *commands*. The header
-generation mechanism takes a an input file, which has an extension of
+generation mechanism takes an input file, which has an extension of
 ``.h.def``, and produces a header file with ``.h`` extension. The header
 configuration language commands are listed in the input ``.h.def`` file. While
 reading a ``.h.def`` file, the header generation tool does two things:
@@ -96,3 +96,21 @@ Action
 
   The header generator will only include content starting from the line after the
   line on which this command is listed.
+
+``public_api``
+~~~~~~~~~~~~~~
+
+This is a replacement command which should be listed in an input ``.h.def``
+file. The header file generator will replace this command with the public API of
+the target platform. See the build system document for more information on the
+relevant build rules. Also, see "Mechanics of public_api" to learn the mechanics
+of how the header generator replaces this command with the public API.
+
+Arguments
+
+  None.
+
+Action
+
+  The header generator will replace this command with the public API to be exposed
+  from the generated header file.

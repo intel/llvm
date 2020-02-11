@@ -17,6 +17,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Driver/Types.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
@@ -221,14 +222,6 @@ bool isSpelledInSource(SourceLocation Loc, const SourceManager &SM) {
       return false;
   }
   return true;
-}
-
-SourceLocation spellingLocIfSpelled(SourceLocation Loc,
-                                    const SourceManager &SM) {
-  if (!isSpelledInSource(Loc, SM))
-    // Use the expansion location as spelling location is not interesting.
-    return SM.getExpansionRange(Loc).getBegin();
-  return SM.getSpellingLoc(Loc);
 }
 
 llvm::Optional<Range> getTokenRange(const SourceManager &SM,
@@ -615,7 +608,7 @@ TextEdit replacementToEdit(llvm::StringRef Code,
   Range ReplacementRange = {
       offsetToPosition(Code, R.getOffset()),
       offsetToPosition(Code, R.getOffset() + R.getLength())};
-  return {ReplacementRange, R.getReplacementText()};
+  return {ReplacementRange, std::string(R.getReplacementText())};
 }
 
 std::vector<TextEdit> replacementsToEdits(llvm::StringRef Code,
@@ -719,39 +712,52 @@ cleanupAndFormat(StringRef Code, const tooling::Replacements &Replaces,
   return formatReplacements(Code, std::move(*CleanReplaces), Style);
 }
 
-void lex(llvm::StringRef Code, const format::FormatStyle &Style,
-         llvm::function_ref<void(const clang::Token &, Position)> Action) {
+static void
+lex(llvm::StringRef Code, const LangOptions &LangOpts,
+    llvm::function_ref<void(const clang::Token &, const SourceManager &SM)>
+        Action) {
   // FIXME: InMemoryFileAdapter crashes unless the buffer is null terminated!
   std::string NullTerminatedCode = Code.str();
   SourceManagerForFile FileSM("dummy.cpp", NullTerminatedCode);
   auto &SM = FileSM.get();
   auto FID = SM.getMainFileID();
-  Lexer Lex(FID, SM.getBuffer(FID), SM, format::getFormattingLangOpts(Style));
+  // Create a raw lexer (with no associated preprocessor object).
+  Lexer Lex(FID, SM.getBuffer(FID), SM, LangOpts);
   Token Tok;
 
   while (!Lex.LexFromRawLexer(Tok))
-    Action(Tok, sourceLocToPosition(SM, Tok.getLocation()));
+    Action(Tok, SM);
   // LexFromRawLexer returns true after it lexes last token, so we still have
   // one more token to report.
-  Action(Tok, sourceLocToPosition(SM, Tok.getLocation()));
+  Action(Tok, SM);
 }
 
 llvm::StringMap<unsigned> collectIdentifiers(llvm::StringRef Content,
                                              const format::FormatStyle &Style) {
   llvm::StringMap<unsigned> Identifiers;
-  lex(Content, Style, [&](const clang::Token &Tok, Position) {
-    switch (Tok.getKind()) {
-    case tok::identifier:
-      ++Identifiers[Tok.getIdentifierInfo()->getName()];
-      break;
-    case tok::raw_identifier:
+  auto LangOpt = format::getFormattingLangOpts(Style);
+  lex(Content, LangOpt, [&](const clang::Token &Tok, const SourceManager &) {
+    if (Tok.getKind() == tok::raw_identifier)
       ++Identifiers[Tok.getRawIdentifier()];
-      break;
-    default:
-      break;
-    }
   });
   return Identifiers;
+}
+
+std::vector<Range> collectIdentifierRanges(llvm::StringRef Identifier,
+                                           llvm::StringRef Content,
+                                           const LangOptions &LangOpts) {
+  std::vector<Range> Ranges;
+  lex(Content, LangOpts, [&](const clang::Token &Tok, const SourceManager &SM) {
+    if (Tok.getKind() != tok::raw_identifier)
+      return;
+    if (Tok.getRawIdentifier() != Identifier)
+      return;
+    auto Range = getTokenRange(SM, LangOpts, Tok.getLocation());
+    if (!Range)
+      return;
+    Ranges.push_back(*Range);
+  });
+  return Ranges;
 }
 
 namespace {
@@ -786,20 +792,21 @@ void parseNamespaceEvents(llvm::StringRef Code,
   std::string NSName;
 
   NamespaceEvent Event;
-  lex(Code, Style, [&](const clang::Token &Tok, Position P) {
-    Event.Pos = std::move(P);
+  lex(Code, format::getFormattingLangOpts(Style),
+      [&](const clang::Token &Tok,const SourceManager &SM) {
+    Event.Pos = sourceLocToPosition(SM, Tok.getLocation());
     switch (Tok.getKind()) {
     case tok::raw_identifier:
       // In raw mode, this could be a keyword or a name.
       switch (State) {
       case UsingNamespace:
       case UsingNamespaceName:
-        NSName.append(Tok.getRawIdentifier());
+        NSName.append(std::string(Tok.getRawIdentifier()));
         State = UsingNamespaceName;
         break;
       case Namespace:
       case NamespaceName:
-        NSName.append(Tok.getRawIdentifier());
+        NSName.append(std::string(Tok.getRawIdentifier()));
         State = NamespaceName;
         break;
       case Using:
@@ -921,11 +928,11 @@ std::vector<std::string> visibleNamespaces(llvm::StringRef Code,
 
   std::vector<std::string> Found;
   for (llvm::StringRef Enclosing : ancestorNamespaces(Current)) {
-    Found.push_back(Enclosing);
+    Found.push_back(std::string(Enclosing));
     auto It = UsingDirectives.find(Enclosing);
     if (It != UsingDirectives.end())
       for (const auto &Used : It->second)
-        Found.push_back(Used.getKey());
+        Found.push_back(std::string(Used.getKey()));
   }
 
   llvm::sort(Found, [&](const std::string &LHS, const std::string &RHS) {
@@ -1106,6 +1113,30 @@ EligibleRegion getEligiblePoints(llvm::StringRef Code,
     ER.EligiblePoints.emplace_back(offsetToPosition(Code, Code.size()));
   }
   return ER;
+}
+
+bool isHeaderFile(llvm::StringRef FileName,
+                  llvm::Optional<LangOptions> LangOpts) {
+  // Respect the langOpts, for non-file-extension cases, e.g. standard library
+  // files.
+  if (LangOpts && LangOpts->IsHeaderFile)
+    return true;
+  namespace types = clang::driver::types;
+  auto Lang = types::lookupTypeForExtension(
+      llvm::sys::path::extension(FileName).substr(1));
+  return Lang != types::TY_INVALID && types::onlyPrecompileType(Lang);
+}
+
+bool isProtoFile(SourceLocation Loc, const SourceManager &SM) {
+  auto FileName = SM.getFilename(Loc);
+  if (!FileName.endswith(".proto.h") && !FileName.endswith(".pb.h"))
+    return false;
+  auto FID = SM.getFileID(Loc);
+  // All proto generated headers should start with this line.
+  static const char *PROTO_HEADER_COMMENT =
+      "// Generated by the protocol buffer compiler.  DO NOT EDIT!";
+  // Double check that this is an actual protobuf header.
+  return SM.getBufferData(FID).startswith(PROTO_HEADER_COMMENT);
 }
 
 } // namespace clangd

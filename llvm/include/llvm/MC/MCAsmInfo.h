@@ -171,11 +171,16 @@ protected:
 
   //===--- Data Emission Directives -------------------------------------===//
 
-  /// This should be set to the directive used to get some number of zero bytes
-  /// emitted to the current section.  Common cases are "\t.zero\t" and
-  /// "\t.space\t".  If this is set to null, the Data*bitsDirective's will be
-  /// used to emit zero bytes.  Defaults to "\t.zero\t"
+  /// This should be set to the directive used to get some number of zero (and
+  /// non-zero if supported by the directive) bytes emitted to the current
+  /// section. Common cases are "\t.zero\t" and "\t.space\t". Defaults to
+  /// "\t.zero\t"
   const char *ZeroDirective;
+
+  /// This should be set to true if the zero directive supports a value to emit
+  /// other than zero. If this is set to false, the Data*bitsDirective's will be
+  /// used to emit these bytes. Defaults to true.
+  bool ZeroDirectiveSupportsNonZeroValue = true;
 
   /// This directive allows emission of an ascii string with the standard C
   /// escape characters embedded into it.  If a target doesn't support this, it
@@ -333,6 +338,10 @@ protected:
   /// protected visibility.  Defaults to MCSA_Protected
   MCSymbolAttr ProtectedVisibilityAttr = MCSA_Protected;
 
+  // This attribute is used to indicate symbols such as commons on AIX may have
+  // a storage mapping class embedded in the name.
+  bool SymbolsHaveSMC = false;
+
   //===--- Dwarf Emission Directives -----------------------------------===//
 
   /// True if target supports emission of debugging information.  Defaults to
@@ -454,6 +463,9 @@ public:
                                             unsigned Encoding,
                                             MCStreamer &Streamer) const;
 
+  /// Return true if C is an acceptable character inside a symbol name.
+  virtual bool isAcceptableChar(char C) const;
+
   /// Return true if the identifier \p Name does not need quotes to be
   /// syntactically correct.
   virtual bool isValidUnquotedName(StringRef Name) const;
@@ -536,6 +548,9 @@ public:
   }
 
   const char *getZeroDirective() const { return ZeroDirective; }
+  bool doesZeroDirectiveSupportNonZeroValue() const {
+    return ZeroDirectiveSupportsNonZeroValue;
+  }
   const char *getAsciiDirective() const { return AsciiDirective; }
   const char *getAscizDirective() const { return AscizDirective; }
   bool getAlignmentIsInBytes() const { return AlignmentIsInBytes; }
@@ -583,6 +598,8 @@ public:
   MCSymbolAttr getProtectedVisibilityAttr() const {
     return ProtectedVisibilityAttr;
   }
+
+  bool getSymbolsHaveSMC() const { return SymbolsHaveSMC; }
 
   bool doesSupportDebugInformation() const { return SupportsDebugInformation; }
 

@@ -86,6 +86,7 @@ namespace llvm {
 
     CodeGenSubRegIndex(Record *R, unsigned Enum);
     CodeGenSubRegIndex(StringRef N, StringRef Nspace, unsigned Enum);
+    CodeGenSubRegIndex(CodeGenSubRegIndex&) = delete;
 
     const std::string &getName() const { return Name; }
     const std::string &getNamespace() const { return Namespace; }
@@ -442,6 +443,7 @@ namespace llvm {
                          std::vector<unsigned> &RegUnits) const;
 
     CodeGenRegisterClass(CodeGenRegBank&, Record *R);
+    CodeGenRegisterClass(CodeGenRegisterClass&) = delete;
 
     // A key representing the parts of a register class used for forming
     // sub-classes.  Note the ordering provided by this key is not the same as
@@ -611,6 +613,7 @@ namespace llvm {
 
   public:
     CodeGenRegBank(RecordKeeper&, const CodeGenHwModes&);
+    CodeGenRegBank(CodeGenRegBank&) = delete;
 
     SetTheory &getSets() { return Sets; }
 
@@ -635,9 +638,11 @@ namespace llvm {
     CodeGenSubRegIndex *
       getConcatSubRegIndex(const SmallVector<CodeGenSubRegIndex *, 8>&);
 
-    const std::deque<CodeGenRegister> &getRegisters() { return Registers; }
+    const std::deque<CodeGenRegister> &getRegisters() const {
+      return Registers;
+    }
 
-    const StringMap<CodeGenRegister*> &getRegistersByName() {
+    const StringMap<CodeGenRegister *> &getRegistersByName() const {
       return RegistersByName;
     }
 
@@ -686,7 +691,7 @@ namespace llvm {
     // Native units are the singular unit of a leaf register. Register aliasing
     // is completely characterized by native units. Adopted units exist to give
     // register additional weight but don't affect aliasing.
-    bool isNativeUnit(unsigned RUID) {
+    bool isNativeUnit(unsigned RUID) const {
       return RUID < NumNativeRegUnits;
     }
 

@@ -1,4 +1,4 @@
-//===-- MainLoop.cpp --------------------------------------------*- C++ -*-===//
+//===-- MainLoop.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Config/llvm-config.h"
+#include "lldb/Host/Config.h"
 
 #include "lldb/Host/MainLoop.h"
 #include "lldb/Host/PosixApi.h"

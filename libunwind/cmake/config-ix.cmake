@@ -2,6 +2,7 @@ include(CMakePushCheckState)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
+include(CheckSymbolExists)
 include(CheckCSourceCompiles)
 
 check_library_exists(c fopen "" LIBUNWIND_HAS_C_LIB)
@@ -70,6 +71,21 @@ endif()
 # Check compiler flags
 check_cxx_compiler_flag(-nostdinc++ LIBUNWIND_HAS_NOSTDINCXX_FLAG)
 
+# Check symbols
+check_symbol_exists(__arm__ "" LIBUNWIND_TARGET_ARM)
+check_symbol_exists(__USING_SJLJ_EXCEPTIONS__ "" LIBUNWIND_USES_SJLJ_EXCEPTIONS)
+check_symbol_exists(__ARM_DWARF_EH__ "" LIBUNWIND_USES_DWARF_EH)
+
+if(LIBUNWIND_TARGET_ARM AND NOT LIBUNWIND_USES_SJLJ_EXCEPTIONS AND NOT LIBUNWIND_USES_DWARF_EH)
+  # This condition is copied from __libunwind_config.h
+  set(LIBUNWIND_USES_ARM_EHABI ON)
+endif()
+
 # Check libraries
-check_library_exists(dl dladdr "" LIBUNWIND_HAS_DL_LIB)
-check_library_exists(pthread pthread_once "" LIBUNWIND_HAS_PTHREAD_LIB)
+if(FUCHSIA)
+  set(LIBUNWIND_HAS_DL_LIB NO)
+  set(LIBUNWIND_HAS_PTHREAD_LIB NO)
+else()
+  check_library_exists(dl dladdr "" LIBUNWIND_HAS_DL_LIB)
+  check_library_exists(pthread pthread_once "" LIBUNWIND_HAS_PTHREAD_LIB)
+endif()

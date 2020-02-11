@@ -2,7 +2,6 @@
 Test breakpoint commands for a breakpoint ID with multiple locations.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -25,7 +24,6 @@ class BreakpointLocationsTestCase(TestBase):
         """Test that options set on the breakpoint and location behave correctly."""
         self.build()
         self.shadowed_bkpt_cond_test()
-
 
     def test_shadowed_command_options(self):
         """Test that options set on the breakpoint and location behave correctly."""

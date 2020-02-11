@@ -2,7 +2,6 @@
 Test that we obey thread conditioned breakpoints.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -25,13 +24,11 @@ class ThreadSpecificBreakTestCase(TestBase):
     @add_test_categories(['pyapi'])
 
     @expectedFailureAll(oslist=['ios', 'watchos', 'tvos', 'bridgeos'], archs=['armv7', 'armv7k'], bugnumber='rdar://problem/34563920') # armv7 ios problem - breakpoint with tid qualifier isn't working
-    @expectedFailureNetBSD
     def test_thread_id(self):
         self.do_test(set_thread_id)
 
     @skipUnlessDarwin
     @expectedFailureAll(oslist=['ios', 'watchos', 'tvos', 'bridgeos'], archs=['armv7', 'armv7k'], bugnumber='rdar://problem/34563920') # armv7 ios problem - breakpoint with tid qualifier isn't working
-    @expectedFailureNetBSD
     def test_thread_name(self):
         self.do_test(set_thread_name)
 

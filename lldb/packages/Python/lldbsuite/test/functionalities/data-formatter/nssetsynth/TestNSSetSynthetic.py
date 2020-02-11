@@ -2,7 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -57,13 +56,14 @@ class NSSetSyntheticTestCase(TestBase):
             substrs=[
                 '4 elements',
                 '[0]',
-                '[1]',
-                '[2]',
-                '[3]',
                 'hello',
-                'world',
+                '[1]',
+                '(int)2',
+                '[2]',
                 '(int)1',
-                '(int)2'])
+                '[3]',
+                'world',
+            ])
         self.expect(
             'frame variable mutable --ptr-depth 1 -d run -T',
             substrs=[
@@ -87,26 +87,27 @@ class NSSetSyntheticTestCase(TestBase):
             substrs=[
                 '4 elements',
                 '[0]',
-                '[1]',
-                '[2]',
-                '[3]',
-                'hello',
-                'world',
                 '(int)1',
-                '(int)2'])
+                '[1]',
+                '(int)2',
+                '[2]',
+                'hello',
+                '[3]',
+                'world',
+            ])
 
         self.runCmd("next")
-        self.expect('frame variable mutable',
-                    substrs=['4 elements'])
+        self.expect('frame variable mutable', substrs=['4 elements'])
         self.expect(
             'frame variable mutable --ptr-depth 1 -d run -T',
             substrs=[
                 '4 elements',
                 '[0]',
-                '[1]',
-                '[2]',
-                '[3]',
-                'hello',
-                'world',
                 '(int)1',
-                '(int)2'])
+                '[1]',
+                '(int)2',
+                '[2]',
+                'hello',
+                '[3]',
+                'world',
+            ])

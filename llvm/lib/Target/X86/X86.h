@@ -129,6 +129,10 @@ FunctionPass *createX86DiscriminateMemOpsPass();
 /// This pass applies profiling information to insert cache prefetches.
 FunctionPass *createX86InsertPrefetchPass();
 
+/// This pass insert wait instruction after X87 instructions which could raise
+/// fp exceptions when strict-fp enabled.
+FunctionPass *createX86InsertX87waitPass();
+
 InstructionSelector *createX86InstructionSelector(const X86TargetMachine &TM,
                                                   X86Subtarget &,
                                                   X86RegisterBankInfo &);
@@ -150,6 +154,18 @@ void initializeX86ExpandPseudoPass(PassRegistry &);
 void initializeX86FlagsCopyLoweringPassPass(PassRegistry &);
 void initializeX86OptimizeLEAPassPass(PassRegistry &);
 void initializeX86SpeculativeLoadHardeningPassPass(PassRegistry &);
+
+namespace X86AS {
+enum : unsigned {
+  GS = 256,
+  FS = 257,
+  SS = 258,
+  PTR32_SPTR = 270,
+  PTR32_UPTR = 271,
+  PTR64 = 272
+};
+} // End X86AS namespace
+
 } // End llvm namespace
 
 #endif

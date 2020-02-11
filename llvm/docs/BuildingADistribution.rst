@@ -96,6 +96,7 @@ LLVM. Even in this situation using *BUILD_SHARED_LIBS* is not supported. If you
 want to distribute LLVM as a shared library for use in a tool, the recommended
 method is using *LLVM_BUILD_LLVM_DYLIB*, and you can use *LLVM_DYLIB_COMPONENTS*
 to configure which LLVM components are part of libLLVM.
+Note: *LLVM_BUILD_LLVM_DYLIB* is not available on Windows.
 
 Options for Optimizing LLVM
 ===========================
@@ -193,7 +194,6 @@ that are already documented include: *LLVM_TARGETS_TO_BUILD*,
   
   #. ``all`` - All LLVM available component libraries
   #. ``Native`` - The LLVM target for the Native system
-  #. ``AllTargetsAsmPrinters`` - All the included target ASM printers libraries
   #. ``AllTargetsAsmParsers`` - All the included target ASM parsers libraries
   #. ``AllTargetsDescs`` - All the included target descriptions libraries
   #. ``AllTargetsDisassemblers`` - All the included target dissassemblers libraries

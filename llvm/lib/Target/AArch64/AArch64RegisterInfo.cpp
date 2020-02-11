@@ -43,6 +43,8 @@ AArch64RegisterInfo::AArch64RegisterInfo(const Triple &TT)
 const MCPhysReg *
 AArch64RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   assert(MF && "Invalid MachineFunction pointer.");
+  if (MF->getFunction().getCallingConv() == CallingConv::CFGuard_Check)
+    return CSR_Win_AArch64_CFGuard_Check_SaveList;
   if (MF->getSubtarget<AArch64Subtarget>().isTargetWindows())
     return CSR_Win_AArch64_AAPCS_SaveList;
   if (MF->getFunction().getCallingConv() == CallingConv::GHC)
@@ -53,6 +55,8 @@ AArch64RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     return CSR_AArch64_AllRegs_SaveList;
   if (MF->getFunction().getCallingConv() == CallingConv::AArch64_VectorCall)
     return CSR_AArch64_AAVPCS_SaveList;
+  if (MF->getFunction().getCallingConv() == CallingConv::AArch64_SVE_VectorCall)
+    return CSR_AArch64_SVE_AAPCS_SaveList;
   if (MF->getFunction().getCallingConv() == CallingConv::CXX_FAST_TLS)
     return MF->getInfo<AArch64FunctionInfo>()->isSplitCSR() ?
            CSR_AArch64_CXX_TLS_Darwin_PE_SaveList :
@@ -123,7 +127,10 @@ AArch64RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   if (CC == CallingConv::AArch64_VectorCall)
     return SCS ? CSR_AArch64_AAVPCS_SCS_RegMask : CSR_AArch64_AAVPCS_RegMask;
   if (CC == CallingConv::AArch64_SVE_VectorCall)
-    return CSR_AArch64_SVE_AAPCS_RegMask;
+    return SCS ? CSR_AArch64_SVE_AAPCS_SCS_RegMask
+               : CSR_AArch64_SVE_AAPCS_RegMask;
+  if (CC == CallingConv::CFGuard_Check)
+    return CSR_Win_AArch64_CFGuard_Check_RegMask;
   if (MF.getSubtarget<AArch64Subtarget>().getTargetLowering()
           ->supportSwiftError() &&
       MF.getFunction().getAttributes().hasAttrSomewhere(Attribute::SwiftError))
@@ -383,6 +390,10 @@ bool AArch64RegisterInfo::needsFrameBaseReg(MachineInstr *MI,
   if (isFrameOffsetLegal(MI, AArch64::SP, Offset))
     return false;
 
+  // If even offset 0 is illegal, we don't want a virtual base register.
+  if (!isFrameOffsetLegal(MI, AArch64::SP, 0))
+    return false;
+
   // The offset likely isn't legal; we want to allocate a virtual base register.
   return true;
 }
@@ -390,7 +401,6 @@ bool AArch64RegisterInfo::needsFrameBaseReg(MachineInstr *MI,
 bool AArch64RegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
                                              unsigned BaseReg,
                                              int64_t Offset) const {
-  assert(Offset <= INT_MAX && "Offset too big to fit in int.");
   assert(MI && "Unable to get the legal offset for nil instruction.");
   StackOffset SaveOffset(Offset, MVT::i8);
   return isAArch64FrameOffsetLegal(*MI, SaveOffset) & AArch64FrameOffsetIsLegal;
@@ -437,6 +447,27 @@ void AArch64RegisterInfo::resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
   bool Done = rewriteAArch64FrameIndex(MI, i, BaseReg, Off, TII);
   assert(Done && "Unable to resolve frame index!");
   (void)Done;
+}
+
+// Create a scratch register for the frame index elimination in an instruction.
+// This function has special handling of stack tagging loop pseudos, in which
+// case it can also change the instruction opcode (but not the operands).
+static Register
+createScratchRegisterForInstruction(MachineInstr &MI,
+                                    const AArch64InstrInfo *TII) {
+  // ST*Gloop have a reserved scratch register in operand 1. Use it, and also
+  // replace the instruction with the writeback variant because it will now
+  // satisfy the operand constraints for it.
+  if (MI.getOpcode() == AArch64::STGloop) {
+    MI.setDesc(TII->get(AArch64::STGloop_wback));
+    return MI.getOperand(1).getReg();
+  } else if (MI.getOpcode() == AArch64::STZGloop) {
+    MI.setDesc(TII->get(AArch64::STZGloop_wback));
+    return MI.getOperand(1).getReg();
+  } else {
+    return MI.getMF()->getRegInfo().createVirtualRegister(
+        &AArch64::GPR64RegClass);
+  }
 }
 
 void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
@@ -525,8 +556,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   // If we get here, the immediate doesn't fit into the instruction.  We folded
   // as much as possible above.  Handle the rest, providing a register that is
   // SP+LargeImm.
-  Register ScratchReg =
-      MF.getRegInfo().createVirtualRegister(&AArch64::GPR64RegClass);
+  Register ScratchReg = createScratchRegisterForInstruction(MI, TII);
   emitFrameOffset(MBB, II, MI.getDebugLoc(), ScratchReg, FrameReg, Offset, TII);
   MI.getOperand(FIOperandNum).ChangeToRegister(ScratchReg, false, false, true);
 }
@@ -566,6 +596,7 @@ unsigned AArch64RegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
     return 32;
 
   case AArch64::FPR128_loRegClassID:
+  case AArch64::FPR64_loRegClassID:
     return 16;
   }
 }

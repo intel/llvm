@@ -77,6 +77,8 @@ public:
     assert(InstPrinter);
     if (IsVerboseAsm)
         InstPrinter->setCommentStream(CommentStream);
+    if (Assembler->getBackendPtr())
+      setAllowAutoPadding(Assembler->getBackend().allowAutoPadding());
   }
 
   MCAssembler &getAssembler() { return *Assembler; }
@@ -164,7 +166,8 @@ public:
   void EmitCOFFSectionIndex(MCSymbol const *Symbol) override;
   void EmitCOFFSecRel32(MCSymbol const *Symbol, uint64_t Offset) override;
   void EmitCOFFImgRel32(MCSymbol const *Symbol, int64_t Offset) override;
-  void EmitXCOFFLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
+  void EmitXCOFFLocalCommonSymbol(MCSymbol *LabelSym, uint64_t Size,
+                                  MCSymbol *CsectSym,
                                   unsigned ByteAlign) override;
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -765,16 +768,18 @@ void MCAsmStreamer::EmitCOFFImgRel32(MCSymbol const *Symbol, int64_t Offset) {
 // We need an XCOFF-specific version of this directive as the AIX syntax
 // requires a QualName argument identifying the csect name and storage mapping
 // class to appear before the alignment if we are specifying it.
-void MCAsmStreamer::EmitXCOFFLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
+void MCAsmStreamer::EmitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
+                                               uint64_t Size,
+                                               MCSymbol *CsectSym,
                                                unsigned ByteAlignment) {
   assert(MAI->getLCOMMDirectiveAlignmentType() == LCOMM::Log2Alignment &&
          "We only support writing log base-2 alignment format with XCOFF.");
   assert(isPowerOf2_32(ByteAlignment) && "Alignment must be a power of 2.");
 
   OS << "\t.lcomm\t";
-  Symbol->print(OS, MAI);
-  OS << ',' << Size;
-  OS << ',' << Symbol->getName();
+  LabelSym->print(OS, MAI);
+  OS << ',' << Size << ',';
+  CsectSym->print(OS, MAI);
   OS << ',' << Log2_32(ByteAlignment);
 
   EmitEOL();
@@ -1093,16 +1098,27 @@ void MCAsmStreamer::EmitGPRel32Value(const MCExpr *Value) {
 void MCAsmStreamer::emitFill(const MCExpr &NumBytes, uint64_t FillValue,
                              SMLoc Loc) {
   int64_t IntNumBytes;
-  if (NumBytes.evaluateAsAbsolute(IntNumBytes) && IntNumBytes == 0)
+  const bool IsAbsolute = NumBytes.evaluateAsAbsolute(IntNumBytes);
+  if (IsAbsolute && IntNumBytes == 0)
     return;
 
   if (const char *ZeroDirective = MAI->getZeroDirective()) {
-    // FIXME: Emit location directives
-    OS << ZeroDirective;
-    NumBytes.print(OS, MAI);
-    if (FillValue != 0)
-      OS << ',' << (int)FillValue;
-    EmitEOL();
+    if (MAI->doesZeroDirectiveSupportNonZeroValue() || FillValue == 0) {
+      // FIXME: Emit location directives
+      OS << ZeroDirective;
+      NumBytes.print(OS, MAI);
+      if (FillValue != 0)
+        OS << ',' << (int)FillValue;
+      EmitEOL();
+    } else {
+      if (!IsAbsolute)
+        report_fatal_error(
+            "Cannot emit non-absolute expression lengths of fill.");
+      for (int i = 0; i < IntNumBytes; ++i) {
+        OS << MAI->getData8bitsDirective() << (int)FillValue;
+        EmitEOL();
+      }
+    }
     return;
   }
 
@@ -1941,9 +1957,9 @@ void MCAsmStreamer::EmitInstruction(const MCInst &Inst,
   }
 
   if(getTargetStreamer())
-    getTargetStreamer()->prettyPrintAsm(*InstPrinter, OS, Inst, STI);
+    getTargetStreamer()->prettyPrintAsm(*InstPrinter, 0, Inst, STI, OS);
   else
-    InstPrinter->printInst(&Inst, OS, "", STI);
+    InstPrinter->printInst(&Inst, 0, "", STI, OS);
 
   StringRef Comments = CommentToEmit;
   if (Comments.size() && Comments.back() != '\n')

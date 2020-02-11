@@ -89,7 +89,11 @@ public:
   }
 
   Value *operator->() const { return getValPtr(); }
-  Value &operator*() const { return *getValPtr(); }
+  Value &operator*() const {
+    Value *V = getValPtr();
+    assert(V && "Dereferencing deleted ValueHandle");
+    return *V;
+  }
 
 protected:
   Value *getValPtr() const { return Val; }
@@ -169,6 +173,25 @@ template <> struct simplify_type<const WeakVH> {
   using SimpleType = Value *;
 
   static SimpleType getSimplifiedValue(const WeakVH &WVH) { return WVH; }
+};
+
+// Specialize DenseMapInfo to allow WeakVH to participate in DenseMap.
+template <> struct DenseMapInfo<WeakVH> {
+  static inline WeakVH getEmptyKey() {
+    return WeakVH(DenseMapInfo<Value *>::getEmptyKey());
+  }
+
+  static inline WeakVH getTombstoneKey() {
+    return WeakVH(DenseMapInfo<Value *>::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(const WeakVH &Val) {
+    return DenseMapInfo<Value *>::getHashValue(Val);
+  }
+
+  static bool isEqual(const WeakVH &LHS, const WeakVH &RHS) {
+    return DenseMapInfo<Value *>::isEqual(LHS, RHS);
+  }
 };
 
 /// Value handle that is nullable, but tries to track the Value.
@@ -264,6 +287,7 @@ public:
 #else
   AssertingVH() : ThePtr(nullptr) {}
   AssertingVH(ValueTy *P) : ThePtr(GetAsValue(P)) {}
+  AssertingVH(const AssertingVH<ValueTy> &) = default;
 #endif
 
   operator ValueTy*() const {

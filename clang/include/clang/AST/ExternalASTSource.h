@@ -66,9 +66,8 @@ class ExternalASTSource : public RefCountedBase<ExternalASTSource> {
   /// whenever we might have added new redeclarations for existing decls.
   uint32_t CurrentGeneration = 0;
 
-  /// Whether this AST source also provides information for
-  /// semantic analysis.
-  bool SemaSource = false;
+  /// LLVM-style RTTI.
+  static char ID;
 
 public:
   ExternalASTSource() = default;
@@ -325,6 +324,12 @@ public:
 
   virtual void getMemoryBufferSizes(MemoryBufferSizes &sizes) const;
 
+  /// LLVM-style RTTI.
+  /// \{
+  virtual bool isA(const void *ClassID) const { return ClassID == &ID; }
+  static bool classof(const ExternalASTSource *S) { return S->isA(&ID); }
+  /// \}
+
 protected:
   static DeclContextLookupResult
   SetExternalVisibleDeclsForName(const DeclContext *DC,
@@ -499,9 +504,8 @@ struct PointerLikeTypeTraits<
   static void *getAsVoidPointer(Ptr P) { return P.getOpaqueValue(); }
   static Ptr getFromVoidPointer(void *P) { return Ptr::getFromOpaqueValue(P); }
 
-  enum {
-    NumLowBitsAvailable = PointerLikeTypeTraits<T>::NumLowBitsAvailable - 1
-  };
+  static constexpr int NumLowBitsAvailable =
+      PointerLikeTypeTraits<T>::NumLowBitsAvailable - 1;
 };
 
 } // namespace llvm

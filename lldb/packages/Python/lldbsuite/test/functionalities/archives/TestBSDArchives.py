@@ -1,6 +1,5 @@
 """Test breaking inside functions defined within a BSD archive file libfoo.a."""
 
-from __future__ import print_function
 
 
 import lldb
@@ -23,12 +22,6 @@ class BSDArchivesTestCase(TestBase):
     @expectedFailureAll(
         oslist=["windows"],
         bugnumber="llvm.org/pr24527.  Makefile.rules doesn't know how to build static libs on Windows")
-    @expectedFailureAll(
-        oslist=["linux"],
-        archs=[
-            "arm",
-            "aarch64"],
-        bugnumber="llvm.org/pr27795")
     def test(self):
         """Break inside a() and b() defined within libfoo.a."""
         self.build()

@@ -43,8 +43,8 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 ; CHECK: .loc [[CU2:[0-9]+]] 6 0
 ; CHECK: Lfunc_begin1:
 ; CHECK: .loc [[CU2]] 6 0
-; CHECK: //DEBUG_VALUE: baz:z <- {{[0-9]+}}
-; CHECK: //DEBUG_VALUE: baz:z <- {{[0-9]+}}
+; CHECK-NOT: //DEBUG_VALUE: baz:z
+; CHECK: //DEBUG_VALUE: baz:z <- undef
 ; CHECK: .loc [[CU2]] 10 0
 ; CHECK: ret;
 ; CHECK: }
@@ -87,9 +87,9 @@ if.end4:                                          ; preds = %if.then2, %if.end
 
 declare signext i8 @_ZN1A3fooEv(%struct.A*) #2
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0, !9}
 !llvm.module.flags = !{!18, !19}
@@ -470,7 +470,5 @@ attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "n
 ; CHECK-NEXT: .b8 4                                // DW_AT_byte_size
 ; CHECK-NEXT: .b8 0                                // End Of Children Mark
 ; CHECK-NEXT: }
-; CHECK-NEXT: .section .debug_macinfo
-; CHECK-NEXT: {
-; CHECK-NEXT: .b8 0                                // End Of Macro List Mark
-; CHECK:      }
+; CHECK-NEXT: .section .debug_loc { }
+; CHECK-NOT: debug_

@@ -36,7 +36,6 @@ set(LLDB_TEST_USER_ARGS
 # hash of filename and .text section, there *will* be conflicts inside
 # the build directory.
 set(LLDB_TEST_COMMON_ARGS
-  --arch=${LLDB_TEST_ARCH}
   -s
   ${CMAKE_BINARY_DIR}/lldb-test-traces
   -S nm
@@ -65,13 +64,6 @@ set(LLDB_TEST_FILECHECK "${LLDB_DEFAULT_TEST_FILECHECK}" CACHE PATH "FileCheck u
 if ("${LLDB_TEST_COMPILER}" STREQUAL "")
   message(FATAL_ERROR "LLDB test compiler not specified. Tests will not run.")
 endif()
-
-list(APPEND LLDB_TEST_COMMON_ARGS
-  --executable ${LLDB_TEST_EXECUTABLE}
-  --compiler ${LLDB_TEST_COMPILER}
-  --dsymutil ${LLDB_TEST_DSYMUTIL}
-  --filecheck ${LLDB_TEST_FILECHECK}
-  )
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
   # All tests are currently flaky on Windows, so rerun them all once when they fail.
@@ -107,8 +99,7 @@ endif()
 
 if(CMAKE_HOST_APPLE)
   if(LLDB_BUILD_FRAMEWORK)
-    get_target_property(framework_build_dir liblldb LIBRARY_OUTPUT_DIRECTORY)
-    list(APPEND LLDB_TEST_COMMON_ARGS --framework ${framework_build_dir}/LLDB.framework)
+    list(APPEND LLDB_TEST_COMMON_ARGS --framework ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework)
   endif()
 
   # Use the same identity for testing
@@ -123,12 +114,6 @@ if(CMAKE_HOST_APPLE)
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
       ${system_debugserver_path} ${LLVM_RUNTIME_OUTPUT_INTDIR}
       COMMENT "Copying the system debugserver to LLDB's binaries directory for testing.")
-    # The custom target for the system debugserver has no install target, so we
-    # need to remove it from the LLVM_DISTRIBUTION_COMPONENTS list.
-    if (LLVM_DISTRIBUTION_COMPONENTS)
-      list(REMOVE_ITEM LLVM_DISTRIBUTION_COMPONENTS debugserver)
-      set(LLVM_DISTRIBUTION_COMPONENTS ${LLVM_DISTRIBUTION_COMPONENTS} PARENT_SCOPE)
-    endif()
     message(STATUS "LLDB tests use out-of-tree debugserver: ${system_debugserver_path}")
     list(APPEND LLDB_TEST_COMMON_ARGS --out-of-tree-debugserver)
     add_lldb_test_dependency(debugserver)
@@ -154,6 +139,12 @@ if(LLDB_BUILT_STANDALONE)
   # In paths to our build-tree, replace CMAKE_CFG_INTDIR with our configuration name placeholder.
   string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} config_runtime_output_dir ${LLVM_RUNTIME_OUTPUT_INTDIR})
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_DOTEST_ARGS "${LLDB_DOTEST_ARGS}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_SOURCE_DIR "${LLDB_SOURCE_DIR}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_BUILD_DIRECTORY "${LLDB_TEST_BUILD_DIRECTORY}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_EXECUTABLE "${LLDB_TEST_EXECUTABLE}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
 
   # Remaining ones must be paths to the provided LLVM build-tree.
   if(LLVM_CONFIGURATION_TYPES)
@@ -175,6 +166,12 @@ if(LLDB_BUILT_STANDALONE)
 endif()
 
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_DOTEST_ARGS "${LLDB_DOTEST_ARGS}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_SOURCE_DIR "${LLDB_SOURCE_DIR}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_BUILD_DIRECTORY "${LLDB_TEST_BUILD_DIRECTORY}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_EXECUTABLE "${LLDB_TEST_EXECUTABLE}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
 
 # Configure the API test suite.
 configure_lit_site_cfg(
@@ -182,3 +179,11 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
+
+if (CMAKE_GENERATOR STREQUAL "Xcode")
+  # Xcode does not get the auto-generated targets. We need to create
+  # check-lldb-api manually.
+  add_lit_testsuite(check-lldb-api "Running lldb api test suite"
+    ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS lldb-test-deps)
+endif()

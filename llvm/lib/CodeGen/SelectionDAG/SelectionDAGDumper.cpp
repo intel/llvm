@@ -65,7 +65,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
       if (G)
         if (const TargetInstrInfo *TII = G->getSubtarget().getInstrInfo())
           if (getMachineOpcode() < TII->getNumOpcodes())
-            return TII->getName(getMachineOpcode());
+            return std::string(TII->getName(getMachineOpcode()));
       return "<<Unknown Machine Node #" + utostr(getOpcode()) + ">>";
     }
     if (G) {
@@ -170,6 +170,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::CopyToReg:                  return "CopyToReg";
   case ISD::CopyFromReg:                return "CopyFromReg";
   case ISD::UNDEF:                      return "undef";
+  case ISD::VSCALE:                     return "vscale";
   case ISD::MERGE_VALUES:               return "merge_values";
   case ISD::INLINEASM:                  return "inlineasm";
   case ISD::INLINEASM_BR:               return "inlineasm_br";
@@ -186,7 +187,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::FMINNUM_IEEE:               return "fminnum_ieee";
   case ISD::FMAXNUM_IEEE:               return "fmaxnum_ieee";
   case ISD::FMINIMUM:                   return "fminimum";
+  case ISD::STRICT_FMINIMUM:            return "strict_fminimum";
   case ISD::FMAXIMUM:                   return "fmaximum";
+  case ISD::STRICT_FMAXIMUM:            return "strict_fmaximum";
   case ISD::FNEG:                       return "fneg";
   case ISD::FSQRT:                      return "fsqrt";
   case ISD::STRICT_FSQRT:               return "strict_fsqrt";
@@ -270,6 +273,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::STRICT_FPOWI:               return "strict_fpowi";
   case ISD::SETCC:                      return "setcc";
   case ISD::SETCCCARRY:                 return "setcccarry";
+  case ISD::STRICT_FSETCC:              return "strict_fsetcc";
+  case ISD::STRICT_FSETCCS:             return "strict_fsetccs";
   case ISD::SELECT:                     return "select";
   case ISD::VSELECT:                    return "vselect";
   case ISD::SELECT_CC:                  return "select_cc";
@@ -308,6 +313,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::UMULFIX:                    return "umulfix";
   case ISD::UMULFIXSAT:                 return "umulfixsat";
 
+  case ISD::SDIVFIX:                    return "sdivfix";
+  case ISD::UDIVFIX:                    return "udivfix";
+
   // Conversion operators.
   case ISD::SIGN_EXTEND:                return "sign_extend";
   case ISD::ZERO_EXTEND:                return "zero_extend";
@@ -324,7 +332,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::STRICT_FP_EXTEND:           return "strict_fp_extend";
 
   case ISD::SINT_TO_FP:                 return "sint_to_fp";
+  case ISD::STRICT_SINT_TO_FP:          return "strict_sint_to_fp";
   case ISD::UINT_TO_FP:                 return "uint_to_fp";
+  case ISD::STRICT_UINT_TO_FP:          return "strict_uint_to_fp";
   case ISD::FP_TO_SINT:                 return "fp_to_sint";
   case ISD::STRICT_FP_TO_SINT:          return "strict_fp_to_sint";
   case ISD::FP_TO_UINT:                 return "fp_to_uint";
@@ -541,6 +551,9 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
   if (getFlags().hasVectorReduction())
     OS << " vector-reduction";
 
+  if (getFlags().hasNoFPExcept())
+    OS << " nofpexcept";
+
   if (const MachineSDNode *MN = dyn_cast<MachineSDNode>(this)) {
     if (!MN->memoperands_empty()) {
       OS << "<";
@@ -685,6 +698,10 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     if (doExt)
       OS << " from " << MLd->getMemoryVT().getEVTString();
 
+    const char *AM = getIndexedModeName(MLd->getAddressingMode());
+    if (*AM)
+      OS << ", " << AM;
+
     if (MLd->isExpandingLoad())
       OS << ", expanding";
 
@@ -695,6 +712,10 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
 
     if (MSt->isTruncatingStore())
       OS << ", trunc to " << MSt->getMemoryVT().getEVTString();
+
+    const char *AM = getIndexedModeName(MSt->getAddressingMode());
+    if (*AM)
+      OS << ", " << AM;
 
     if (MSt->isCompressingStore())
       OS << ", compressing";

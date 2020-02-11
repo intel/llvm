@@ -444,20 +444,21 @@ define i64 @fptoui_i64_fp80(x86_fp80 %a0) nounwind {
 ; X86-NEXT:    subl $16, %esp
 ; X86-NEXT:    fldt 8(%ebp)
 ; X86-NEXT:    flds {{\.LCPI.*}}
-; X86-NEXT:    fld %st(1)
-; X86-NEXT:    fsub %st(1), %st
-; X86-NEXT:    fxch %st(1)
-; X86-NEXT:    fucomp %st(2)
+; X86-NEXT:    fucom %st(1)
 ; X86-NEXT:    fnstsw %ax
+; X86-NEXT:    xorl %edx, %edx
 ; X86-NEXT:    # kill: def $ah killed $ah killed $ax
 ; X86-NEXT:    sahf
+; X86-NEXT:    setbe %al
+; X86-NEXT:    fldz
 ; X86-NEXT:    ja .LBB10_2
 ; X86-NEXT:  # %bb.1:
-; X86-NEXT:    fstp %st(1)
-; X86-NEXT:    fldz
-; X86-NEXT:  .LBB10_2:
 ; X86-NEXT:    fstp %st(0)
-; X86-NEXT:    setbe %al
+; X86-NEXT:    fldz
+; X86-NEXT:    fxch %st(1)
+; X86-NEXT:  .LBB10_2:
+; X86-NEXT:    fstp %st(1)
+; X86-NEXT:    fsubrp %st, %st(1)
 ; X86-NEXT:    fnstcw {{[0-9]+}}(%esp)
 ; X86-NEXT:    movzwl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    orl $3072, %ecx # imm = 0xC00
@@ -465,7 +466,7 @@ define i64 @fptoui_i64_fp80(x86_fp80 %a0) nounwind {
 ; X86-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X86-NEXT:    fistpll {{[0-9]+}}(%esp)
 ; X86-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X86-NEXT:    movzbl %al, %edx
+; X86-NEXT:    movb %al, %dl
 ; X86-NEXT:    shll $31, %edx
 ; X86-NEXT:    xorl {{[0-9]+}}(%esp), %edx
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
@@ -477,14 +478,14 @@ define i64 @fptoui_i64_fp80(x86_fp80 %a0) nounwind {
 ; X64-X87:       # %bb.0:
 ; X64-X87-NEXT:    fldt {{[0-9]+}}(%rsp)
 ; X64-X87-NEXT:    flds {{.*}}(%rip)
-; X64-X87-NEXT:    fld %st(1)
-; X64-X87-NEXT:    fsub %st(1), %st
 ; X64-X87-NEXT:    xorl %eax, %eax
+; X64-X87-NEXT:    fucomi %st(1), %st
+; X64-X87-NEXT:    setbe %al
+; X64-X87-NEXT:    fldz
 ; X64-X87-NEXT:    fxch %st(1)
-; X64-X87-NEXT:    fucompi %st(2), %st
 ; X64-X87-NEXT:    fcmovnbe %st(1), %st
 ; X64-X87-NEXT:    fstp %st(1)
-; X64-X87-NEXT:    setbe %al
+; X64-X87-NEXT:    fsubrp %st, %st(1)
 ; X64-X87-NEXT:    fnstcw -{{[0-9]+}}(%rsp)
 ; X64-X87-NEXT:    movzwl -{{[0-9]+}}(%rsp), %ecx
 ; X64-X87-NEXT:    orl $3072, %ecx # imm = 0xC00
@@ -500,13 +501,13 @@ define i64 @fptoui_i64_fp80(x86_fp80 %a0) nounwind {
 ; X64-SSSE3:       # %bb.0:
 ; X64-SSSE3-NEXT:    fldt {{[0-9]+}}(%rsp)
 ; X64-SSSE3-NEXT:    flds {{.*}}(%rip)
-; X64-SSSE3-NEXT:    fld %st(1)
-; X64-SSSE3-NEXT:    fsub %st(1), %st
 ; X64-SSSE3-NEXT:    xorl %eax, %eax
+; X64-SSSE3-NEXT:    fucomi %st(1), %st
+; X64-SSSE3-NEXT:    fldz
 ; X64-SSSE3-NEXT:    fxch %st(1)
-; X64-SSSE3-NEXT:    fucompi %st(2), %st
 ; X64-SSSE3-NEXT:    fcmovnbe %st(1), %st
 ; X64-SSSE3-NEXT:    fstp %st(1)
+; X64-SSSE3-NEXT:    fsubrp %st, %st(1)
 ; X64-SSSE3-NEXT:    fisttpll -{{[0-9]+}}(%rsp)
 ; X64-SSSE3-NEXT:    setbe %al
 ; X64-SSSE3-NEXT:    shlq $63, %rax
@@ -526,20 +527,21 @@ define i64 @fptoui_i64_fp80_ld(x86_fp80 *%a0) nounwind {
 ; X86-NEXT:    movl 8(%ebp), %eax
 ; X86-NEXT:    fldt (%eax)
 ; X86-NEXT:    flds {{\.LCPI.*}}
-; X86-NEXT:    fld %st(1)
-; X86-NEXT:    fsub %st(1), %st
-; X86-NEXT:    fxch %st(1)
-; X86-NEXT:    fucomp %st(2)
+; X86-NEXT:    fucom %st(1)
 ; X86-NEXT:    fnstsw %ax
+; X86-NEXT:    xorl %edx, %edx
 ; X86-NEXT:    # kill: def $ah killed $ah killed $ax
 ; X86-NEXT:    sahf
+; X86-NEXT:    setbe %al
+; X86-NEXT:    fldz
 ; X86-NEXT:    ja .LBB11_2
 ; X86-NEXT:  # %bb.1:
-; X86-NEXT:    fstp %st(1)
-; X86-NEXT:    fldz
-; X86-NEXT:  .LBB11_2:
 ; X86-NEXT:    fstp %st(0)
-; X86-NEXT:    setbe %al
+; X86-NEXT:    fldz
+; X86-NEXT:    fxch %st(1)
+; X86-NEXT:  .LBB11_2:
+; X86-NEXT:    fstp %st(1)
+; X86-NEXT:    fsubrp %st, %st(1)
 ; X86-NEXT:    fnstcw {{[0-9]+}}(%esp)
 ; X86-NEXT:    movzwl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    orl $3072, %ecx # imm = 0xC00
@@ -547,7 +549,7 @@ define i64 @fptoui_i64_fp80_ld(x86_fp80 *%a0) nounwind {
 ; X86-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X86-NEXT:    fistpll {{[0-9]+}}(%esp)
 ; X86-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X86-NEXT:    movzbl %al, %edx
+; X86-NEXT:    movb %al, %dl
 ; X86-NEXT:    shll $31, %edx
 ; X86-NEXT:    xorl {{[0-9]+}}(%esp), %edx
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
@@ -559,14 +561,14 @@ define i64 @fptoui_i64_fp80_ld(x86_fp80 *%a0) nounwind {
 ; X64-X87:       # %bb.0:
 ; X64-X87-NEXT:    fldt (%rdi)
 ; X64-X87-NEXT:    flds {{.*}}(%rip)
-; X64-X87-NEXT:    fld %st(1)
-; X64-X87-NEXT:    fsub %st(1), %st
 ; X64-X87-NEXT:    xorl %eax, %eax
+; X64-X87-NEXT:    fucomi %st(1), %st
+; X64-X87-NEXT:    setbe %al
+; X64-X87-NEXT:    fldz
 ; X64-X87-NEXT:    fxch %st(1)
-; X64-X87-NEXT:    fucompi %st(2), %st
 ; X64-X87-NEXT:    fcmovnbe %st(1), %st
 ; X64-X87-NEXT:    fstp %st(1)
-; X64-X87-NEXT:    setbe %al
+; X64-X87-NEXT:    fsubrp %st, %st(1)
 ; X64-X87-NEXT:    fnstcw -{{[0-9]+}}(%rsp)
 ; X64-X87-NEXT:    movzwl -{{[0-9]+}}(%rsp), %ecx
 ; X64-X87-NEXT:    orl $3072, %ecx # imm = 0xC00
@@ -582,13 +584,13 @@ define i64 @fptoui_i64_fp80_ld(x86_fp80 *%a0) nounwind {
 ; X64-SSSE3:       # %bb.0:
 ; X64-SSSE3-NEXT:    fldt (%rdi)
 ; X64-SSSE3-NEXT:    flds {{.*}}(%rip)
-; X64-SSSE3-NEXT:    fld %st(1)
-; X64-SSSE3-NEXT:    fsub %st(1), %st
 ; X64-SSSE3-NEXT:    xorl %eax, %eax
+; X64-SSSE3-NEXT:    fucomi %st(1), %st
+; X64-SSSE3-NEXT:    fldz
 ; X64-SSSE3-NEXT:    fxch %st(1)
-; X64-SSSE3-NEXT:    fucompi %st(2), %st
 ; X64-SSSE3-NEXT:    fcmovnbe %st(1), %st
 ; X64-SSSE3-NEXT:    fstp %st(1)
+; X64-SSSE3-NEXT:    fsubrp %st, %st(1)
 ; X64-SSSE3-NEXT:    fisttpll -{{[0-9]+}}(%rsp)
 ; X64-SSSE3-NEXT:    setbe %al
 ; X64-SSSE3-NEXT:    shlq $63, %rax
@@ -615,9 +617,8 @@ define x86_fp80 @sitofp_fp80_i16(i16 %a0) nounwind {
 ;
 ; X64-LABEL: sitofp_fp80_i16:
 ; X64:       # %bb.0:
-; X64-NEXT:    movswl %di, %eax
-; X64-NEXT:    movl %eax, -{{[0-9]+}}(%rsp)
-; X64-NEXT:    fildl -{{[0-9]+}}(%rsp)
+; X64-NEXT:    movw %di, -{{[0-9]+}}(%rsp)
+; X64-NEXT:    filds -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    retq
   %1 = sitofp i16 %a0 to x86_fp80
   ret x86_fp80 %1
@@ -636,9 +637,9 @@ define x86_fp80 @sitofp_fp80_i16_ld(i16 *%a0) nounwind {
 ;
 ; X64-LABEL: sitofp_fp80_i16_ld:
 ; X64:       # %bb.0:
-; X64-NEXT:    movswl (%rdi), %eax
-; X64-NEXT:    movl %eax, -{{[0-9]+}}(%rsp)
-; X64-NEXT:    fildl -{{[0-9]+}}(%rsp)
+; X64-NEXT:    movzwl (%rdi), %eax
+; X64-NEXT:    movw %ax, -{{[0-9]+}}(%rsp)
+; X64-NEXT:    filds -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    retq
   %1 = load i16, i16 *%a0
   %2 = sitofp i16 %1 to x86_fp80
@@ -828,11 +829,9 @@ define x86_fp80 @uitofp_fp80_i64(i64 %a0) nounwind {
 ; X86-NEXT:    movl 12(%ebp), %ecx
 ; X86-NEXT:    movl %ecx, {{[0-9]+}}(%esp)
 ; X86-NEXT:    movl %eax, (%esp)
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    testl %ecx, %ecx
-; X86-NEXT:    setns %al
+; X86-NEXT:    shrl $31, %ecx
 ; X86-NEXT:    fildll (%esp)
-; X86-NEXT:    fadds {{\.LCPI.*}}(,%eax,4)
+; X86-NEXT:    fadds {{\.LCPI.*}}(,%ecx,4)
 ; X86-NEXT:    movl %ebp, %esp
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
@@ -842,7 +841,7 @@ define x86_fp80 @uitofp_fp80_i64(i64 %a0) nounwind {
 ; X64-NEXT:    movq %rdi, -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    xorl %eax, %eax
 ; X64-NEXT:    testq %rdi, %rdi
-; X64-NEXT:    setns %al
+; X64-NEXT:    sets %al
 ; X64-NEXT:    fildll -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    fadds {{\.LCPI.*}}(,%rax,4)
 ; X64-NEXT:    retq
@@ -862,11 +861,9 @@ define x86_fp80 @uitofp_fp80_i64_ld(i64 *%a0) nounwind {
 ; X86-NEXT:    movl 4(%eax), %eax
 ; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
 ; X86-NEXT:    movl %ecx, (%esp)
-; X86-NEXT:    xorl %ecx, %ecx
-; X86-NEXT:    testl %eax, %eax
-; X86-NEXT:    setns %cl
+; X86-NEXT:    shrl $31, %eax
 ; X86-NEXT:    fildll (%esp)
-; X86-NEXT:    fadds {{\.LCPI.*}}(,%ecx,4)
+; X86-NEXT:    fadds {{\.LCPI.*}}(,%eax,4)
 ; X86-NEXT:    movl %ebp, %esp
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
@@ -877,7 +874,7 @@ define x86_fp80 @uitofp_fp80_i64_ld(i64 *%a0) nounwind {
 ; X64-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    xorl %ecx, %ecx
 ; X64-NEXT:    testq %rax, %rax
-; X64-NEXT:    setns %cl
+; X64-NEXT:    sets %cl
 ; X64-NEXT:    fildll -{{[0-9]+}}(%rsp)
 ; X64-NEXT:    fadds {{\.LCPI.*}}(,%rcx,4)
 ; X64-NEXT:    retq

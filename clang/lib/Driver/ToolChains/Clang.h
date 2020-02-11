@@ -191,6 +191,20 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+/// SYCL post-link device code processing tool.
+class LLVM_LIBRARY_VISIBILITY SYCLPostLink final : public Tool {
+public:
+  SYCLPostLink(const ToolChain &TC)
+      : Tool("SYCL post link", "sycl-post-link", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
 } // end namespace tools
 
 } // end namespace driver

@@ -8388,8 +8388,8 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-NEXT: .b8 37                               // DW_AT_call_column
 ; CHECK-NEXT: .b8 43                               // Abbrev [43] 0x2711:0x23 DW_TAG_inlined_subroutine
 ; CHECK-NEXT: .b32 9791                            // DW_AT_abstract_origin
-; CHECK-NEXT: .b64 Ltmp10                          // DW_AT_low_pc
-; CHECK-NEXT: .b64 Ltmp11                          // DW_AT_high_pc
+; CHECK-NEXT: .b64 Ltmp9                           // DW_AT_low_pc
+; CHECK-NEXT: .b64 Ltmp10                          // DW_AT_high_pc
 ; CHECK-NEXT: .b8 12                               // DW_AT_call_file
 ; CHECK-NEXT: .b8 8                                // DW_AT_call_line
 ; CHECK-NEXT: .b8 5                                // DW_AT_call_column
@@ -8401,10 +8401,8 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-NEXT: .b8 0                                // End Of Children Mark
 ; CHECK-NEXT: .b8 0                                // End Of Children Mark
 ; CHECK-NEXT: }
-; CHECK-NEXT: .section .debug_macinfo
-; CHECK-NEXT: {
-; CHECK-NEXT: .b8 0                                // End Of Macro List Mark
-; CHECK:      }
+; CHECK-NEXT: .section .debug_loc { }
+; CHECK-NOT: debug_
 
 ; Function Attrs: nounwind readnone
 declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() #1
@@ -8418,7 +8416,7 @@ declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() #1
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="sm_20" "target-features"="+ptx42" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="sm_20" "target-features"="+ptx42" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind readnone speculatable }
 attributes #3 = { nounwind }

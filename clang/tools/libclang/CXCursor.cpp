@@ -257,6 +257,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::TypeTraitExprClass:
   case Stmt::CoawaitExprClass:
   case Stmt::ConceptSpecializationExprClass:
+  case Stmt::RequiresExprClass:
   case Stmt::DependentCoawaitExprClass:
   case Stmt::CoyieldExprClass:
   case Stmt::CXXBindTemporaryExprClass:
@@ -610,6 +611,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::OMPParallelForSimdDirectiveClass:
     K = CXCursor_OMPParallelForSimdDirective;
     break;
+  case Stmt::OMPParallelMasterDirectiveClass:
+    K = CXCursor_OMPParallelMasterDirective;
+    break;
   case Stmt::OMPParallelSectionsDirectiveClass:
     K = CXCursor_OMPParallelSectionsDirective;
     break;
@@ -681,6 +685,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
     K = CXCursor_OMPParallelMasterTaskLoopDirective;
+    break;
+  case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
+    K = CXCursor_OMPParallelMasterTaskLoopSimdDirective;
     break;
   case Stmt::OMPDistributeDirectiveClass:
     K = CXCursor_OMPDistributeDirective;

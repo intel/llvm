@@ -16,19 +16,19 @@
 #include <set>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
-  for (Command *Cmd : Record->MReadLeafs) {
+  for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
       throw runtime_error("Enqueue process failed.");
     GraphProcessor::waitForEvent(Cmd->getEvent());
   }
-  for (Command *Cmd : Record->MWriteLeafs) {
+  for (Command *Cmd : Record->MWriteLeaves) {
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
@@ -81,10 +81,15 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   // buffer.
   if (!NewCmd)
     return nullptr;
-  EnqueueResultT Res;
-  bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-  if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
-    throw runtime_error("Enqueue process failed.");
+
+  try {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+    if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
+      throw runtime_error("Enqueue process failed.");
+  } catch (...) {
+    NewCmd->getQueue()->reportAsyncException(std::current_exception());
+  }
   return NewCmd->getEvent();
 }
 
@@ -109,7 +114,6 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
@@ -128,8 +132,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  EventImplPtr RetEvent;
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, RetEvent);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
 
   if (!NewCmd)
     return nullptr;
@@ -137,13 +140,29 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
   if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
     throw runtime_error("Enqueue process failed.");
-  return RetEvent;
+  return NewCmd->getEvent();
+}
+
+void Scheduler::releaseHostAccessor(Requirement *Req) {
+  Req->MBlockedCmd->MCanEnqueue = true;
+  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+  auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
+    for (Command *Cmd : Leaves) {
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+      if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
+        throw runtime_error("Enqueue process failed.");
+    }
+  };
+  EnqueueLeaves(Record->MReadLeaves);
+  EnqueueLeaves(Record->MWriteLeaves);
 }
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(new queue_impl(
-      HostDevice, /*AsyncHandler=*/{}, QueueOrder::Ordered, /*PropList=*/{}));
+      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+          QueueOrder::Ordered, /*PropList=*/{}));
 }
 
 } // namespace detail

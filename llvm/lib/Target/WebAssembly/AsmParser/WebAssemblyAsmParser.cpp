@@ -712,6 +712,42 @@ public:
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
+    if (DirectiveID.getString() == ".export_name") {
+      auto SymName = expectIdent();
+      if (SymName.empty())
+        return true;
+      if (expect(AsmToken::Comma, ","))
+        return true;
+      auto ExportName = expectIdent();
+      auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
+      WasmSym->setExportName(ExportName);
+      TOut.emitExportName(WasmSym, ExportName);
+    }
+
+    if (DirectiveID.getString() == ".import_module") {
+      auto SymName = expectIdent();
+      if (SymName.empty())
+        return true;
+      if (expect(AsmToken::Comma, ","))
+        return true;
+      auto ImportModule = expectIdent();
+      auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
+      WasmSym->setImportModule(ImportModule);
+      TOut.emitImportModule(WasmSym, ImportModule);
+    }
+
+    if (DirectiveID.getString() == ".import_name") {
+      auto SymName = expectIdent();
+      if (SymName.empty())
+        return true;
+      if (expect(AsmToken::Comma, ","))
+        return true;
+      auto ImportName = expectIdent();
+      auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
+      WasmSym->setImportName(ImportName);
+      TOut.emitImportName(WasmSym, ImportName);
+    }
+
     if (DirectiveID.getString() == ".eventtype") {
       auto SymName = expectIdent();
       if (SymName.empty())
@@ -843,6 +879,9 @@ public:
     auto SecName = ".text." + SymName;
     auto WS = getContext().getWasmSection(SecName, SectionKind::getText());
     getStreamer().SwitchSection(WS);
+    // Also generate DWARF for this section if requested.
+    if (getContext().getGenDwarfForAssembly())
+      getContext().addGenDwarfSection(WS);
   }
 
   void onEndOfFunction() {
@@ -863,7 +902,7 @@ public:
 } // end anonymous namespace
 
 // Force static initialization.
-extern "C" void LLVMInitializeWebAssemblyAsmParser() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyAsmParser() {
   RegisterMCAsmParser<WebAssemblyAsmParser> X(getTheWebAssemblyTarget32());
   RegisterMCAsmParser<WebAssemblyAsmParser> Y(getTheWebAssemblyTarget64());
 }

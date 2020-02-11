@@ -110,6 +110,8 @@ bool AArch64ExpandPseudo::expandMOVImm(MachineBasicBlock &MBB,
                                        unsigned BitSize) {
   MachineInstr &MI = *MBBI;
   Register DstReg = MI.getOperand(0).getReg();
+  uint64_t RenamableState =
+      MI.getOperand(0).isRenamable() ? RegState::Renamable : 0;
   uint64_t Imm = MI.getOperand(1).getImm();
 
   if (DstReg == AArch64::XZR || DstReg == AArch64::WZR) {
@@ -144,7 +146,8 @@ bool AArch64ExpandPseudo::expandMOVImm(MachineBasicBlock &MBB,
       bool DstIsDead = MI.getOperand(0).isDead();
       MIBS.push_back(BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(I->Opcode))
         .addReg(DstReg, RegState::Define |
-                getDeadRegState(DstIsDead && LastItem))
+                getDeadRegState(DstIsDead && LastItem) |
+                RenamableState)
         .addImm(I->Op1)
         .addImm(I->Op2));
       } break;
@@ -155,7 +158,8 @@ bool AArch64ExpandPseudo::expandMOVImm(MachineBasicBlock &MBB,
       MIBS.push_back(BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(I->Opcode))
         .addReg(DstReg,
                 RegState::Define |
-                getDeadRegState(DstIsDead && LastItem))
+                getDeadRegState(DstIsDead && LastItem) |
+                RenamableState)
         .addReg(DstReg)
         .addImm(I->Op1)
         .addImm(I->Op2));
@@ -345,14 +349,30 @@ bool AArch64ExpandPseudo::expandSetTagLoop(
     MachineBasicBlock::iterator &NextMBBI) {
   MachineInstr &MI = *MBBI;
   DebugLoc DL = MI.getDebugLoc();
-  Register SizeReg = MI.getOperand(2).getReg();
-  Register AddressReg = MI.getOperand(3).getReg();
+  Register SizeReg = MI.getOperand(0).getReg();
+  Register AddressReg = MI.getOperand(1).getReg();
 
   MachineFunction *MF = MBB.getParent();
 
-  bool ZeroData = MI.getOpcode() == AArch64::STZGloop;
-  const unsigned OpCode =
+  bool ZeroData = MI.getOpcode() == AArch64::STZGloop_wback;
+  const unsigned OpCode1 =
+      ZeroData ? AArch64::STZGPostIndex : AArch64::STGPostIndex;
+  const unsigned OpCode2 =
       ZeroData ? AArch64::STZ2GPostIndex : AArch64::ST2GPostIndex;
+
+  unsigned Size = MI.getOperand(2).getImm();
+  assert(Size > 0 && Size % 16 == 0);
+  if (Size % (16 * 2) != 0) {
+    BuildMI(MBB, MBBI, DL, TII->get(OpCode1), AddressReg)
+        .addReg(AddressReg)
+        .addReg(AddressReg)
+        .addImm(1);
+    Size -= 16;
+  }
+  MachineBasicBlock::iterator I =
+      BuildMI(MBB, MBBI, DL, TII->get(AArch64::MOVi64imm), SizeReg)
+          .addImm(Size);
+  expandMOVImm(MBB, I, 64);
 
   auto LoopBB = MF->CreateMachineBasicBlock(MBB.getBasicBlock());
   auto DoneBB = MF->CreateMachineBasicBlock(MBB.getBasicBlock());
@@ -360,7 +380,7 @@ bool AArch64ExpandPseudo::expandSetTagLoop(
   MF->insert(++MBB.getIterator(), LoopBB);
   MF->insert(++LoopBB->getIterator(), DoneBB);
 
-  BuildMI(LoopBB, DL, TII->get(OpCode))
+  BuildMI(LoopBB, DL, TII->get(OpCode2))
       .addDef(AddressReg)
       .addReg(AddressReg)
       .addReg(AddressReg)
@@ -595,10 +615,7 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
     Register DstReg = MI.getOperand(0).getReg();
     auto SysReg = AArch64SysReg::TPIDR_EL0;
     MachineFunction *MF = MBB.getParent();
-    if (MF->getTarget().getTargetTriple().isOSFuchsia() &&
-        MF->getTarget().getCodeModel() == CodeModel::Kernel)
-      SysReg = AArch64SysReg::TPIDR_EL1;
-    else if (MF->getSubtarget<AArch64Subtarget>().useEL3ForTP())
+    if (MF->getSubtarget<AArch64Subtarget>().useEL3ForTP())
       SysReg = AArch64SysReg::TPIDR_EL3;
     else if (MF->getSubtarget<AArch64Subtarget>().useEL2ForTP())
       SysReg = AArch64SysReg::TPIDR_EL2;
@@ -692,17 +709,24 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
      return true;
    }
    case AArch64::TAGPstack: {
-     BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ADDG))
+     int64_t Offset = MI.getOperand(2).getImm();
+     BuildMI(MBB, MBBI, MI.getDebugLoc(),
+             TII->get(Offset >= 0 ? AArch64::ADDG : AArch64::SUBG))
          .add(MI.getOperand(0))
          .add(MI.getOperand(1))
-         .add(MI.getOperand(2))
+         .addImm(std::abs(Offset))
          .add(MI.getOperand(4));
      MI.eraseFromParent();
      return true;
    }
+   case AArch64::STGloop_wback:
+   case AArch64::STZGloop_wback:
+     return expandSetTagLoop(MBB, MBBI, NextMBBI);
    case AArch64::STGloop:
    case AArch64::STZGloop:
-     return expandSetTagLoop(MBB, MBBI, NextMBBI);
+     report_fatal_error(
+         "Non-writeback variants of STGloop / STZGloop should not "
+         "survive past PrologEpilogInserter.");
   }
   return false;
 }

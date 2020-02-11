@@ -35,6 +35,7 @@ subdirectories =
  llvm-ifs
  llvm-exegesis
  llvm-extract
+ llvm-foreach
  llvm-jitlistener
  llvm-jitlink
  llvm-link

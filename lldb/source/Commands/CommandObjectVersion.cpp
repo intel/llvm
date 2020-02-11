@@ -1,4 +1,4 @@
-//===-- CommandObjectVersion.cpp --------------------------------*- C++ -*-===//
+//===-- CommandObjectVersion.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,6 @@
 
 #include "CommandObjectVersion.h"
 
-#include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/lldb-private.h"
 

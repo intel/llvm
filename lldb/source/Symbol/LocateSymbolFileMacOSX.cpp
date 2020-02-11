@@ -1,4 +1,4 @@
-//===-- LocateSymbolFileMacOSX.cpp ------------------------------*- C++ -*-===//
+//===-- LocateSymbolFileMacOSX.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -595,7 +595,7 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
         }
         Status error = Host::RunShellCommand(
             command.GetData(),
-            NULL,            // current working directory
+            FileSpec(),      // current working directory
             &exit_status,    // Exit status
             &signo,          // Signal int *
             &command_output, // Command output

@@ -137,11 +137,13 @@ bool shardIsStale(const LoadedShard &LS, llvm::vfs::FileSystem *FS) {
 BackgroundIndex::BackgroundIndex(
     Context BackgroundContext, const FileSystemProvider &FSProvider,
     const GlobalCompilationDatabase &CDB,
-    BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize)
-    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider),
-      CDB(CDB), BackgroundContext(std::move(BackgroundContext)),
+    BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize,
+    std::function<void(BackgroundQueue::Stats)> OnProgress)
+    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider), CDB(CDB),
+      BackgroundContext(std::move(BackgroundContext)),
       Rebuilder(this, &IndexedSymbols, ThreadPoolSize),
       IndexStorageFactory(std::move(IndexStorageFactory)),
+      Queue(std::move(OnProgress)),
       CommandsChanged(
           CDB.watch([&](const std::vector<std::string> &ChangedFiles) {
             enqueue(ChangedFiles);
@@ -200,16 +202,12 @@ BackgroundIndex::indexFileTask(tooling::CompileCommand Cmd) {
       elog("Indexing {0} failed: {1}", FileName, std::move(Error));
   });
   T.QueuePri = IndexFile;
-  T.Tag = filenameWithoutExtension(Cmd.Filename);
+  T.Tag = std::string(filenameWithoutExtension(Cmd.Filename));
   return T;
 }
 
 void BackgroundIndex::boostRelated(llvm::StringRef Path) {
-  namespace types = clang::driver::types;
-  auto Type =
-      types::lookupTypeForExtension(llvm::sys::path::extension(Path).substr(1));
-  // is this a header?
-  if (Type != types::TY_INVALID && types::onlyPrecompileType(Type))
+  if (isHeaderFile(Path))
     Queue.boost(filenameWithoutExtension(Path), IndexBoostedFile);
 }
 

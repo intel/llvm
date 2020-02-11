@@ -95,7 +95,6 @@ public:
   /// Expose LegalizerInfo so the clients can re-use.
   const LegalizerInfo &getLegalizerInfo() const { return LI; }
 
-private:
   /// Legalize a single operand \p OpIdx of the machine instruction \p MI as a
   /// Use by extending the operand's type to \p WideTy using the specified \p
   /// ExtOpcode for the extension instruction, and replacing the vreg of the
@@ -129,6 +128,7 @@ private:
   /// original vector type, and replacing the vreg of the operand in place.
   void moreElementsVectorSrc(MachineInstr &MI, LLT MoreTy, unsigned OpIdx);
 
+private:
   LegalizeResult
   widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
@@ -162,6 +162,36 @@ private:
   void insertParts(Register DstReg, LLT ResultTy,
                    LLT PartTy, ArrayRef<Register> PartRegs,
                    LLT LeftoverTy = LLT(), ArrayRef<Register> LeftoverRegs = {});
+
+  /// Unmerge \p SrcReg into \p Parts with the greatest common divisor type with
+  /// \p DstTy and \p NarrowTy. Returns the GCD type.
+  LLT extractGCDType(SmallVectorImpl<Register> &Parts, LLT DstTy,
+                     LLT NarrowTy, Register SrcReg);
+
+  /// Produce a merge of values in \p VRegs to define \p DstReg. Perform a merge
+  /// from the least common multiple type, and convert as appropriate to \p
+  /// DstReg.
+  ///
+  /// \p VRegs should each have type \p GCDTy. This type should be greatest
+  /// common divisor type of \p DstReg, \p NarrowTy, and an undetermined source
+  /// type.
+  ///
+  /// \p NarrowTy is the desired result merge source type. If the source value
+  /// needs to be widened to evenly cover \p DstReg, inserts high bits
+  /// corresponding to the extension opcode \p PadStrategy.
+  ///
+  /// \p VRegs will be cleared, and the the result \p NarrowTy register pieces
+  /// will replace it. Returns The complete LCMTy that \p VRegs will cover when
+  /// merged.
+  LLT buildLCMMergePieces(LLT DstTy, LLT NarrowTy, LLT GCDTy,
+                          SmallVectorImpl<Register> &VRegs,
+                          unsigned PadStrategy = TargetOpcode::G_ANYEXT);
+
+  /// Merge the values in \p RemergeRegs to an \p LCMTy typed value. Extract the
+  /// low bits into \p DstReg. This is intended to use the outputs from
+  /// buildLCMMergePieces after processing.
+  void buildWidenedRemergeToDst(Register DstReg, LLT LCMTy,
+                                ArrayRef<Register> RemergeRegs);
 
   /// Perform generic multiplication of values held in multiple registers.
   /// Generated instructions use only types NarrowTy and i1.
@@ -210,6 +240,9 @@ public:
   LegalizeResult
   reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
 
+  LegalizeResult fewerElementsVectorSextInReg(MachineInstr &MI, unsigned TypeIdx,
+                                              LLT NarrowTy);
+
   LegalizeResult narrowScalarShiftByConstant(MachineInstr &MI, const APInt &Amt,
                                              LLT HalfTy, LLT ShiftAmtTy);
 
@@ -219,24 +252,34 @@ public:
   LegalizeResult narrowScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   LegalizeResult narrowScalarBasic(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarExt(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarSelect(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTLZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTTZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTPOP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
+  LegalizeResult lowerBitcast(MachineInstr &MI);
   LegalizeResult lowerBitCount(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   LegalizeResult lowerU64ToF32BitOps(MachineInstr &MI);
   LegalizeResult lowerUITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerSITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFPTOUI(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult lowerFPTOSI(MachineInstr &MI);
   LegalizeResult lowerMinMax(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFCopySign(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFMinNumMaxNum(MachineInstr &MI);
   LegalizeResult lowerFMad(MachineInstr &MI);
+  LegalizeResult lowerIntrinsicRound(MachineInstr &MI);
   LegalizeResult lowerUnmergeValues(MachineInstr &MI);
   LegalizeResult lowerShuffleVector(MachineInstr &MI);
   LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
   LegalizeResult lowerExtract(MachineInstr &MI);
   LegalizeResult lowerInsert(MachineInstr &MI);
   LegalizeResult lowerSADDO_SSUBO(MachineInstr &MI);
+  LegalizeResult lowerBswap(MachineInstr &MI);
+  LegalizeResult lowerBitreverse(MachineInstr &MI);
+  LegalizeResult lowerReadWriteRegister(MachineInstr &MI);
 
 private:
   MachineRegisterInfo &MRI;

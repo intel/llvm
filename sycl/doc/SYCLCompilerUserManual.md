@@ -10,7 +10,7 @@ your application.
     General enabling option for SYCL compilation mode.  This option enables
     offload compilation for a given target using the `-fsycl-targets` option.
     When the `-fsycl-targets` option is not provided, the default triple is
-    `spir64-unknown-[linux,windows]-sycldevice`.
+    `spir64-unknown-unknown-sycldevice`.
 
 **`-fsycl-targets=<value>`**
 
@@ -80,6 +80,27 @@ your application.
     NOTE:  Any libraries that are passed on the command line which are not
     specified with `-foffload-static-lib` are treated as host libraries and are
     only used during the final host link.
+
+**`-fsycl-device-code-split=<value>`**
+
+    Perform SYCL device code split. There are three possible values for this
+    option:
+    - per_kernel - a separate device code module is created for each SYCL
+    kernel. Each device code module will contain a kernel and all its
+    dependencies, i.e. called functions and used variables.
+    - per_source - a separate device code module is created for each source
+    (translation unit). Each device code module will contain a bunch of kernels
+    grouped on per-source basis and all their dependencies, i.e. all used
+    variables and called functions, including the `SYCL_EXTERNAL` macro-marked
+    functions from other translation units.
+    - off - no device code split.
+    NOTE: By default device code split is 'off' - all kernels go into a
+    single module.
+
+**`-fsycl-device-code-split`**
+
+    Perform SYCL device code split in the per_source mode, i.e. create a
+    separate device code module for each source (translation unit).
 
 ### Intel FPGA specific options
 

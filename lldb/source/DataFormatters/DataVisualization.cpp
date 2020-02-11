@@ -1,5 +1,4 @@
-//===-- DataVisualization.cpp ---------------------------------------*- C++
-//-*-===//
+//===-- DataVisualization.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -66,17 +65,6 @@ DataVisualization::GetSyntheticForType(lldb::TypeNameSpecifierImplSP type_sp) {
   return GetFormatManager().GetSyntheticForType(type_sp);
 }
 
-lldb::TypeValidatorImplSP
-DataVisualization::GetValidator(ValueObject &valobj,
-                                lldb::DynamicValueType use_dynamic) {
-  return GetFormatManager().GetValidator(valobj, use_dynamic);
-}
-
-lldb::TypeValidatorImplSP
-DataVisualization::GetValidatorForType(lldb::TypeNameSpecifierImplSP type_sp) {
-  return GetFormatManager().GetValidatorForType(type_sp);
-}
-
 bool DataVisualization::AnyMatches(
     ConstString type_name, TypeCategoryImpl::FormatCategoryItems items,
     bool only_enabled, const char **matching_category,
@@ -122,8 +110,7 @@ void DataVisualization::Categories::Enable(ConstString category,
                                            TypeCategoryMap::Position pos) {
   if (GetFormatManager().GetCategory(category)->IsEnabled())
     GetFormatManager().DisableCategory(category);
-  GetFormatManager().EnableCategory(
-      category, pos, std::initializer_list<lldb::LanguageType>());
+  GetFormatManager().EnableCategory(category, pos, {});
 }
 
 void DataVisualization::Categories::Enable(lldb::LanguageType lang_type) {

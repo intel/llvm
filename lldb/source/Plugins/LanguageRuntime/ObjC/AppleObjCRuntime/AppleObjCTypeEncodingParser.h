@@ -22,7 +22,7 @@ public:
   AppleObjCTypeEncodingParser(ObjCLanguageRuntime &runtime);
   ~AppleObjCTypeEncodingParser() override = default;
 
-  CompilerType RealizeType(clang::ASTContext &ast_ctx, const char *name,
+  CompilerType RealizeType(TypeSystemClang &ast_ctx, const char *name,
                            bool for_expression) override;
 
 private:
@@ -35,29 +35,29 @@ private:
     ~StructElement() = default;
   };
 
-  clang::QualType BuildType(clang::ASTContext &ast_ctx, StringLexer &type,
+  clang::QualType BuildType(TypeSystemClang &clang_ast_ctx, StringLexer &type,
                             bool for_expression,
                             uint32_t *bitfield_bit_size = nullptr);
 
-  clang::QualType BuildStruct(clang::ASTContext &ast_ctx, StringLexer &type,
+  clang::QualType BuildStruct(TypeSystemClang &ast_ctx, StringLexer &type,
                               bool for_expression);
 
-  clang::QualType BuildAggregate(clang::ASTContext &ast_ctx, StringLexer &type,
-                                 bool for_expression, char opener, char closer,
-                                 uint32_t kind);
+  clang::QualType BuildAggregate(TypeSystemClang &clang_ast_ctx,
+                                 StringLexer &type, bool for_expression,
+                                 char opener, char closer, uint32_t kind);
 
-  clang::QualType BuildUnion(clang::ASTContext &ast_ctx, StringLexer &type,
+  clang::QualType BuildUnion(TypeSystemClang &ast_ctx, StringLexer &type,
                              bool for_expression);
 
-  clang::QualType BuildArray(clang::ASTContext &ast_ctx, StringLexer &type,
+  clang::QualType BuildArray(TypeSystemClang &ast_ctx, StringLexer &type,
                              bool for_expression);
 
   std::string ReadStructName(StringLexer &type);
 
-  StructElement ReadStructElement(clang::ASTContext &ast_ctx, StringLexer &type,
+  StructElement ReadStructElement(TypeSystemClang &ast_ctx, StringLexer &type,
                                   bool for_expression);
 
-  clang::QualType BuildObjCObjectPointerType(clang::ASTContext &ast_ctx,
+  clang::QualType BuildObjCObjectPointerType(TypeSystemClang &clang_ast_ctx,
                                              StringLexer &type,
                                              bool for_expression);
 

@@ -1,4 +1,4 @@
-//===-- LineEntry.cpp -------------------------------------------*- C++ -*-===//
+//===-- LineEntry.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -51,7 +51,7 @@ bool LineEntry::IsValid() const {
 bool LineEntry::DumpStopContext(Stream *s, bool show_fullpaths) const {
   if (file) {
     if (show_fullpaths)
-      file.Dump(s);
+      file.Dump(s->AsRawOstream());
     else
       file.GetFilename().Dump(s);
 

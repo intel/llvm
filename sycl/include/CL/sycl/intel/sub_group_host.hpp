@@ -15,7 +15,7 @@
 #include <CL/sycl/types.hpp>
 #ifndef __SYCL_DEVICE_ONLY__
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {

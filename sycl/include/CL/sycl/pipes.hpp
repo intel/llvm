@@ -10,7 +10,7 @@
 
 #include <CL/sycl/intel/pipes.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = intel::pipe<name, dataT, min_capacity>;

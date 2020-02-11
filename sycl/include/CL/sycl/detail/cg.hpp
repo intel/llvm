@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
@@ -24,7 +25,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -151,8 +152,7 @@ public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
   void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:
-    NDRDescT AdjustedRange;
-    bool Adjust = false;
+    NDRDescT AdjustedRange = NDRDesc;
 
     if (NDRDesc.GlobalSize[0] == 0 && NDRDesc.NumWorkGroups[0] != 0) {
       // This is a special case - NDRange information is not complete, only the
@@ -164,12 +164,15 @@ public:
       range<3> WGsize{1, 1, 1}; // no better alternative for serial host?
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
-      Adjust = true;
     }
-    const NDRDescT &R = Adjust ? AdjustedRange : NDRDesc;
+    // If local size for host is not set explicitly, let's adjust it to 1,
+    // so nd_range_error for zero local size is not thrown.
+    if (AdjustedRange.LocalSize[0] == 0)
+      for (int I = 0; I < AdjustedRange.Dims; ++I)
+        AdjustedRange.LocalSize[I] = 1;
     if (HPI)
       HPI->start();
-    runOnHost(R);
+    runOnHost(AdjustedRange);
     if (HPI)
       HPI->end();
   }
@@ -197,7 +200,6 @@ public:
   typename std::enable_if<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    size_t XYZ[3] = {0};
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
@@ -237,7 +239,7 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::runtime_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size");
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -278,7 +280,7 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::runtime_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size");
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -319,11 +321,11 @@ public:
     PREFETCH_USM
   };
 
-  CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
-     std::vector<detail::AccessorImplPtr> AccStorage,
-     std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-     std::vector<Requirement *> Requirements,
-     std::vector<detail::EventImplPtr> Events)
+  CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
+     vector_class<detail::AccessorImplPtr> AccStorage,
+     vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+     vector_class<Requirement *> Requirements,
+     vector_class<detail::EventImplPtr> Events)
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
@@ -340,41 +342,41 @@ private:
   // The following storages needed to ensure that arguments won't die while
   // we are using them.
   // Storage for standard layout arguments.
-  std::vector<std::vector<char>> MArgsStorage;
+  vector_class<vector_class<char>> MArgsStorage;
   // Storage for accessors.
-  std::vector<detail::AccessorImplPtr> MAccStorage;
+  vector_class<detail::AccessorImplPtr> MAccStorage;
   // Storage for shared_ptrs.
-  std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
+  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
 
 public:
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
-  std::vector<Requirement *> MRequirements;
+  vector_class<Requirement *> MRequirements;
   // List of events that order the execution of this CG
-  std::vector<detail::EventImplPtr> MEvents;
+  vector_class<detail::EventImplPtr> MEvents;
 };
 
 // The class which represents "execute kernel" command group.
 class CGExecKernel : public CG {
 public:
   NDRDescT MNDRDesc;
-  std::unique_ptr<HostKernelBase> MHostKernel;
-  std::shared_ptr<detail::kernel_impl> MSyclKernel;
-  std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  unique_ptr_class<HostKernelBase> MHostKernel;
+  shared_ptr_class<detail::kernel_impl> MSyclKernel;
+  vector_class<ArgDesc> MArgs;
+  string_class MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
-  std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
+  vector_class<shared_ptr_class<detail::stream_impl>> MStreams;
 
-  CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
-               std::shared_ptr<detail::kernel_impl> SyclKernel,
-               std::vector<std::vector<char>> ArgsStorage,
-               std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-               std::vector<Requirement *> Requirements,
-               std::vector<detail::EventImplPtr> Events,
-               std::vector<ArgDesc> Args, std::string KernelName,
+  CGExecKernel(NDRDescT NDRDesc, unique_ptr_class<HostKernelBase> HKernel,
+               shared_ptr_class<detail::kernel_impl> SyclKernel,
+               vector_class<vector_class<char>> ArgsStorage,
+               vector_class<detail::AccessorImplPtr> AccStorage,
+               vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+               vector_class<Requirement *> Requirements,
+               vector_class<detail::EventImplPtr> Events,
+               vector_class<ArgDesc> Args, string_class KernelName,
                detail::OSModuleHandle OSModuleHandle,
-               std::vector<std::shared_ptr<detail::stream_impl>> Streams,
+               vector_class<shared_ptr_class<detail::stream_impl>> Streams,
                CGTYPE Type)
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
@@ -385,20 +387,11 @@ public:
         MStreams(std::move(Streams)) {
     assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
            "Wrong type of exec kernel CG.");
-
-    if (MNDRDesc.LocalSize.size() > 0) {
-      range<3> Excess = (MNDRDesc.GlobalSize % MNDRDesc.LocalSize);
-      for (int I = 0; I < 3; I++) {
-        if (Excess[I] != 0)
-          throw nd_range_error("Global size is not a multiple of local size",
-              CL_INVALID_WORK_GROUP_SIZE);
-      }
-    }
   }
 
-  std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
-  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+  vector_class<ArgDesc> getArguments() const { return MArgs; }
+  string_class getKernelName() const { return MKernelName; }
+  vector_class<shared_ptr_class<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
 };
@@ -410,11 +403,11 @@ class CGCopy : public CG {
 
 public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst,
-         std::vector<std::vector<char>> ArgsStorage,
-         std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements,
-         std::vector<detail::EventImplPtr> Events)
+         vector_class<vector_class<char>> ArgsStorage,
+         vector_class<detail::AccessorImplPtr> AccStorage,
+         vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+         vector_class<Requirement *> Requirements,
+         vector_class<detail::EventImplPtr> Events)
       : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
@@ -426,15 +419,15 @@ public:
 // The class which represents "fill" command group.
 class CGFill : public CG {
 public:
-  std::vector<char> MPattern;
+  vector_class<char> MPattern;
   Requirement *MPtr;
 
-  CGFill(std::vector<char> Pattern, void *Ptr,
-         std::vector<std::vector<char>> ArgsStorage,
-         std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements,
-         std::vector<detail::EventImplPtr> Events)
+  CGFill(vector_class<char> Pattern, void *Ptr,
+         vector_class<vector_class<char>> ArgsStorage,
+         vector_class<detail::AccessorImplPtr> AccStorage,
+         vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+         vector_class<Requirement *> Requirements,
+         vector_class<detail::EventImplPtr> Events)
       : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
@@ -447,11 +440,11 @@ class CGUpdateHost : public CG {
   Requirement *MPtr;
 
 public:
-  CGUpdateHost(void *Ptr, std::vector<std::vector<char>> ArgsStorage,
-               std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-               std::vector<Requirement *> Requirements,
-               std::vector<detail::EventImplPtr> Events)
+  CGUpdateHost(void *Ptr, vector_class<vector_class<char>> ArgsStorage,
+               vector_class<detail::AccessorImplPtr> AccStorage,
+               vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+               vector_class<Requirement *> Requirements,
+               vector_class<detail::EventImplPtr> Events)
       : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
@@ -468,11 +461,11 @@ class CGCopyUSM : public CG {
 
 public:
   CGCopyUSM(void *Src, void *Dst, size_t Length,
-            std::vector<std::vector<char>> ArgsStorage,
-            std::vector<detail::AccessorImplPtr> AccStorage,
-            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-            std::vector<Requirement *> Requirements,
-            std::vector<detail::EventImplPtr> Events)
+            vector_class<vector_class<char>> ArgsStorage,
+            vector_class<detail::AccessorImplPtr> AccStorage,
+            vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+            vector_class<Requirement *> Requirements,
+            vector_class<detail::EventImplPtr> Events)
       : CG(COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
@@ -485,17 +478,17 @@ public:
 
 // The class which represents "fill" command group for USM pointers.
 class CGFillUSM : public CG {
-  std::vector<char> MPattern;
+  vector_class<char> MPattern;
   void *MDst;
   size_t MLength;
 
 public:
-  CGFillUSM(std::vector<char> Pattern, void *DstPtr, size_t Length,
-            std::vector<std::vector<char>> ArgsStorage,
-            std::vector<detail::AccessorImplPtr> AccStorage,
-            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-            std::vector<Requirement *> Requirements,
-            std::vector<detail::EventImplPtr> Events)
+  CGFillUSM(vector_class<char> Pattern, void *DstPtr, size_t Length,
+            vector_class<vector_class<char>> ArgsStorage,
+            vector_class<detail::AccessorImplPtr> AccStorage,
+            vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+            vector_class<Requirement *> Requirements,
+            vector_class<detail::EventImplPtr> Events)
       : CG(FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
@@ -512,11 +505,11 @@ class CGPrefetchUSM : public CG {
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length,
-                std::vector<std::vector<char>> ArgsStorage,
-                std::vector<detail::AccessorImplPtr> AccStorage,
-                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-                std::vector<Requirement *> Requirements,
-                std::vector<detail::EventImplPtr> Events)
+                vector_class<vector_class<char>> ArgsStorage,
+                vector_class<detail::AccessorImplPtr> AccStorage,
+                vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+                vector_class<Requirement *> Requirements,
+                vector_class<detail::EventImplPtr> Events)
       : CG(PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),

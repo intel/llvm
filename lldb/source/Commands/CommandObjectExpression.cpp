@@ -1,4 +1,4 @@
-//===-- CommandObjectExpression.cpp -----------------------------*- C++ -*-===//
+//===-- CommandObjectExpression.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,29 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "CommandObjectExpression.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/Value.h"
-#include "lldb/Core/ValueObjectVariable.h"
-#include "lldb/DataFormatters/ValueObjectPrinter.h"
-#include "lldb/Expression/DWARFExpression.h"
 #include "lldb/Expression/REPL.h"
 #include "lldb/Expression/UserExpression.h"
-#include "lldb/Host/Host.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
-#include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/Variable.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
-#include "lldb/Target/Thread.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -202,11 +193,12 @@ CommandObjectExpression::CommandOptions::GetDefinitions() {
 
 CommandObjectExpression::CommandObjectExpression(
     CommandInterpreter &interpreter)
-    : CommandObjectRaw(
-          interpreter, "expression", "Evaluate an expression on the current "
-                                     "thread.  Displays any returned value "
-                                     "with LLDB's default formatting.",
-          "", eCommandProcessMustBePaused | eCommandTryTargetAPILock),
+    : CommandObjectRaw(interpreter, "expression",
+                       "Evaluate an expression on the current "
+                       "thread.  Displays any returned value "
+                       "with LLDB's default formatting.",
+                       "",
+                       eCommandProcessMustBePaused | eCommandTryTargetAPILock),
       IOHandlerDelegate(IOHandlerDelegate::Completion::Expression),
       m_option_group(), m_format_options(eFormatDefault),
       m_repl_option(LLDB_OPT_SET_1, false, "repl", 'r', "Drop into REPL", false,
@@ -319,7 +311,12 @@ void CommandObjectExpression::HandleCompletion(CompletionRequest &request) {
     target = &GetDummyTarget();
 
   unsigned cursor_pos = request.GetRawCursorPos();
-  llvm::StringRef code = request.GetRawLine();
+  // Get the full user input including the suffix. The suffix is necessary
+  // as OptionsWithRaw will use it to detect if the cursor is cursor is in the
+  // argument part of in the raw input part of the arguments. If we cut of
+  // of the suffix then "expr -arg[cursor] --" would interpret the "-arg" as
+  // the raw input (as the "--" is hidden in the suffix).
+  llvm::StringRef code = request.GetRawLineWithUnusedSuffix();
 
   const std::size_t original_code_size = code.size();
 
@@ -543,7 +540,7 @@ void CommandObjectExpression::GetMultilineExpression() {
         "Enter expressions, then terminate with an empty line to evaluate:\n");
     output_sp->Flush();
   }
-  debugger.PushIOHandler(io_handler_sp);
+  debugger.RunIOHandlerAsync(io_handler_sp);
 }
 
 static EvaluateExpressionOptions
@@ -588,60 +585,56 @@ bool CommandObjectExpression::DoExecute(llvm::StringRef command,
       return false;
 
     if (m_repl_option.GetOptionValue().GetCurrentValue()) {
-      Target *target = m_interpreter.GetExecutionContext().GetTargetPtr();
-      if (target) {
-        // Drop into REPL
-        m_expr_lines.clear();
-        m_expr_line_count = 0;
+      Target &target = GetSelectedOrDummyTarget();
+      // Drop into REPL
+      m_expr_lines.clear();
+      m_expr_line_count = 0;
 
-        Debugger &debugger = target->GetDebugger();
+      Debugger &debugger = target.GetDebugger();
 
-        // Check if the LLDB command interpreter is sitting on top of a REPL
-        // that launched it...
-        if (debugger.CheckTopIOHandlerTypes(IOHandler::Type::CommandInterpreter,
-                                            IOHandler::Type::REPL)) {
-          // the LLDB command interpreter is sitting on top of a REPL that
-          // launched it, so just say the command interpreter is done and
-          // fall back to the existing REPL
-          m_interpreter.GetIOHandler(false)->SetIsDone(true);
-        } else {
-          // We are launching the REPL on top of the current LLDB command
-          // interpreter, so just push one
-          bool initialize = false;
-          Status repl_error;
-          REPLSP repl_sp(target->GetREPL(repl_error, m_command_options.language,
-                                         nullptr, false));
+      // Check if the LLDB command interpreter is sitting on top of a REPL
+      // that launched it...
+      if (debugger.CheckTopIOHandlerTypes(IOHandler::Type::CommandInterpreter,
+                                          IOHandler::Type::REPL)) {
+        // the LLDB command interpreter is sitting on top of a REPL that
+        // launched it, so just say the command interpreter is done and
+        // fall back to the existing REPL
+        m_interpreter.GetIOHandler(false)->SetIsDone(true);
+      } else {
+        // We are launching the REPL on top of the current LLDB command
+        // interpreter, so just push one
+        bool initialize = false;
+        Status repl_error;
+        REPLSP repl_sp(target.GetREPL(repl_error, m_command_options.language,
+                                       nullptr, false));
 
-          if (!repl_sp) {
-            initialize = true;
-            repl_sp = target->GetREPL(repl_error, m_command_options.language,
-                                      nullptr, true);
-            if (!repl_error.Success()) {
-              result.SetError(repl_error);
-              return result.Succeeded();
-            }
-          }
-
-          if (repl_sp) {
-            if (initialize) {
-              repl_sp->SetEvaluateOptions(
-                  GetExprOptions(exe_ctx, m_command_options));
-              repl_sp->SetFormatOptions(m_format_options);
-              repl_sp->SetValueObjectDisplayOptions(m_varobj_options);
-            }
-
-            IOHandlerSP io_handler_sp(repl_sp->GetIOHandler());
-
-            io_handler_sp->SetIsDone(false);
-
-            debugger.PushIOHandler(io_handler_sp);
-          } else {
-            repl_error.SetErrorStringWithFormat(
-                "Couldn't create a REPL for %s",
-                Language::GetNameForLanguageType(m_command_options.language));
+        if (!repl_sp) {
+          initialize = true;
+          repl_sp = target.GetREPL(repl_error, m_command_options.language,
+                                    nullptr, true);
+          if (!repl_error.Success()) {
             result.SetError(repl_error);
             return result.Succeeded();
           }
+        }
+
+        if (repl_sp) {
+          if (initialize) {
+            repl_sp->SetEvaluateOptions(
+                GetExprOptions(exe_ctx, m_command_options));
+            repl_sp->SetFormatOptions(m_format_options);
+            repl_sp->SetValueObjectDisplayOptions(m_varobj_options);
+          }
+
+          IOHandlerSP io_handler_sp(repl_sp->GetIOHandler());
+          io_handler_sp->SetIsDone(false);
+          debugger.RunIOHandlerAsync(io_handler_sp);
+        } else {
+          repl_error.SetErrorStringWithFormat(
+              "Couldn't create a REPL for %s",
+              Language::GetNameForLanguageType(m_command_options.language));
+          result.SetError(repl_error);
+          return result.Succeeded();
         }
       }
     }
@@ -664,7 +657,7 @@ bool CommandObjectExpression::DoExecute(llvm::StringRef command,
       std::string fixed_command("expression ");
       if (args.HasArgs()) {
         // Add in any options that might have been in the original command:
-        fixed_command.append(args.GetArgStringWithDelimiter());
+        fixed_command.append(std::string(args.GetArgStringWithDelimiter()));
         fixed_command.append(m_fixed_expression);
       } else
         fixed_command.append(m_fixed_expression);

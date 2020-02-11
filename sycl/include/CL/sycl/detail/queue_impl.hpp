@@ -9,6 +9,10 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/event_impl.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
@@ -16,255 +20,363 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <CL/sycl/stl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
-// Set max number of queues supported by FPGA RT.
+using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
+
+/// Sets max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
 
 enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
-  queue_impl(const device &SyclDevice, async_handler AsyncHandler,
+  /// Constructs a SYCL queue from a device using an async_handler and
+  /// property_list provided.
+  ///
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
+  /// the queue.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param Order specifies whether the queue being constructed as in-order or
+  /// out-of-order.
+  /// @param PropList is a list of properties to use for queue construction.
+  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
              QueueOrder Order, const property_list &PropList)
-      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, Order,
-                   PropList){};
+      : queue_impl(Device,
+                   detail::getSyclObjImpl(
+                       context(createSyclObjFromImpl<device>(Device))),
+                   AsyncHandler, Order, PropList){};
 
-  queue_impl(const device &SyclDevice, const context &Context,
+  /// Constructs a SYCL queue with an async_handler and property_list provided
+  /// form a device and a context.
+  ///
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
+  /// the queue.
+  /// @param Context is a SYCL context to associate with the queue being
+  /// constructed.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param Order specifies whether the queue being constructed as in-order or
+  /// out-of-order.
+  /// @param PropList is a list of properties to use for queue construction.
+  queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
              async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
-      : m_Device(SyclDevice), m_Context(Context), m_AsyncHandler(AsyncHandler),
-        m_PropList(PropList), m_HostQueue(m_Device.is_host()),
-        m_OpenCLInterop(!m_HostQueue) {
-    if (!m_HostQueue) {
-      m_CommandQueue = createQueue(Order);
+      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MOpenCLInterop(!MHostQueue) {
+    if (!MHostQueue) {
+      MCommandQueue = createQueue(Order);
     }
   }
 
-  queue_impl(cl_command_queue CLQueue, const context &SyclContext,
+  /// Constructs a SYCL queue from plugin interoperability handle.
+  ///
+  /// @param PiQueue is a raw PI queue handle.
+  /// @param Context is a SYCL context to associate with the queue being
+  /// constructed.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
-      : m_Context(SyclContext), m_AsyncHandler(AsyncHandler),
-        m_HostQueue(false), m_OpenCLInterop(true) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+        MOpenCLInterop(true) {
 
-    m_CommandQueue = pi::cast<RT::PiQueue>(CLQueue);
+    MCommandQueue = pi::cast<RT::PiQueue>(PiQueue);
 
     RT::PiDevice Device = nullptr;
+    const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piQueueGetInfo(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
-                               sizeof(Device), &Device, nullptr));
-    m_Device =
-        createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(Device));
+    Plugin.call<PiApiKind::piQueueGetInfo>(MCommandQueue, PI_QUEUE_INFO_DEVICE,
+                                           sizeof(Device), &Device, nullptr);
+    MDevice =
+        std::make_shared<device_impl>(Device, Context->getPlatformImpl());
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piQueueRetain(m_CommandQueue));
+    Plugin.call<PiApiKind::piQueueRetain>(MCommandQueue);
   }
 
   ~queue_impl() {
     throw_asynchronous();
-    if (m_OpenCLInterop) {
-      PI_CALL(RT::piQueueRelease(m_CommandQueue));
+    if (MOpenCLInterop) {
+      getPlugin().call<PiApiKind::piQueueRelease>(MCommandQueue);
     }
   }
 
+  /// @return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (m_OpenCLInterop) {
-      PI_CALL(RT::piQueueRetain(m_CommandQueue));
-      return pi::cast<cl_command_queue>(m_CommandQueue);
+    if (MOpenCLInterop) {
+      getPlugin().call<PiApiKind::piQueueRetain>(MCommandQueue);
+      return pi::cast<cl_command_queue>(MCommandQueue);
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability");
   }
 
-  context get_context() const { return m_Context; }
-
-  ContextImplPtr get_context_impl() const {
-    return detail::getSyclObjImpl(m_Context);
+  /// @return an associated SYCL context.
+  context get_context() const {
+    return createSyclObjFromImpl<context>(MContext);
   }
 
-  device get_device() const { return m_Device; }
+  const plugin &getPlugin() const { return MContext->getPlugin(); }
 
-  bool is_host() const { return m_HostQueue; }
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
+  /// @return an associated SYCL device.
+  device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
+
+  /// @return true if this queue is a SYCL host queue.
+  bool is_host() const { return MHostQueue; }
+
+  /// Queries SYCL queue for information.
+  ///
+  /// The return type depends on information being queried.
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  template <typename T>
-  event submit(T cgf, std::shared_ptr<queue_impl> self,
-               std::shared_ptr<queue_impl> second_queue) {
-    event Event;
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// On a kernel error, this command group function object is then scheduled
+  /// for execution on a secondary queue.
+  ///
+  /// @param CGF is a function object containing command group.
+  /// @param Self is a shared_ptr to this queue.
+  /// @return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
+  event submit(const function_class<void(handler &)> &CGF,
+               shared_ptr_class<queue_impl> Self,
+               shared_ptr_class<queue_impl> SecondQueue) {
     try {
-      Event = submit_impl(cgf, self);
+      return submit_impl(CGF, Self);
     } catch (...) {
       {
-        std::lock_guard<mutex_class> guard(m_Mutex);
-        m_Exceptions.PushBack(std::current_exception());
+        std::lock_guard<mutex_class> Guard(MMutex);
+        MExceptions.PushBack(std::current_exception());
       }
-      Event = second_queue->submit(cgf, second_queue);
+      return SecondQueue->submit(CGF, SecondQueue);
     }
-    return Event;
   }
 
-  template <typename T> event submit(T cgf, std::shared_ptr<queue_impl> self) {
-    event Event;
-    try {
-      Event = submit_impl(cgf, self);
-    } catch (...) {
-      std::lock_guard<mutex_class> guard(m_Mutex);
-      m_Exceptions.PushBack(std::current_exception());
-    }
-    return Event;
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// @param CGF is a function object containing command group.
+  /// @param Self is a shared_ptr to this queue.
+  /// @return a SYCL event object for the submitted command group.
+  event submit(const function_class<void(handler &)> &CGF,
+               shared_ptr_class<queue_impl> Self) {
+    return submit_impl(CGF, std::move(Self));
   }
 
+  /// Performs a blocking wait for the completion of all enqueued tasks in the
+  /// queue.
+  ///
+  /// Synchronous errors will be reported through SYCL exceptions.
   void wait() {
-    std::lock_guard<mutex_class> guard(m_Mutex);
-    for (auto &evnt : m_Events)
-      evnt.wait();
-    m_Events.clear();
+    std::lock_guard<mutex_class> Guard(MMutex);
+    for (auto &Event : MEvents)
+      Event.wait();
+    MEvents.clear();
   }
 
-  exception_list getExceptionList() const { return m_Exceptions; }
+  /// @return list of asynchronous exceptions occurred during execution.
+  exception_list getExceptionList() const { return MExceptions; }
 
   void wait_and_throw() {
     wait();
     throw_asynchronous();
   }
 
+  /// Performs a blocking wait for the completion of all enqueued tasks in the
+  /// queue.
+  ///
+  /// Synchronous errors will be reported through SYCL exceptions. Asynchronous
+  /// errors will be passed to the async_handler passed to the queue on
+  /// construction. If no async_handler was provided then asynchronous
+  /// exceptions will be lost.
   void throw_asynchronous() {
-    std::unique_lock<mutex_class> lock(m_Mutex);
+    std::unique_lock<mutex_class> lock(MMutex);
 
-    if (m_AsyncHandler && m_Exceptions.size()) {
+    if (MAsyncHandler && MExceptions.size()) {
       exception_list Exceptions;
 
-      std::swap(m_Exceptions, Exceptions);
+      std::swap(MExceptions, Exceptions);
 
       // Unlock the mutex before calling user-provided handler to avoid
       // potential deadlock if the same queue is somehow referenced in the
       // handler.
       lock.unlock();
 
-      m_AsyncHandler(std::move(Exceptions));
+      MAsyncHandler(std::move(Exceptions));
     }
   }
 
+  /// Creates PI queue.
+  ///
+  /// @param Order specifies whether the queue being constructed as in-order or
+  /// out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
-    if (m_PropList.has_property<property::queue::enable_profiling>()) {
+    if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
     RT::PiQueue Queue;
-    RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
-    RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
-    RT::PiResult Error = PI_CALL_RESULT(
-        RT::piQueueCreate(Context, Device, CreationFlags, &Queue));
+    RT::PiContext Context = MContext->getHandleRef();
+    RT::PiDevice Device = MDevice->getHandleRef();
+    const detail::plugin &Plugin = getPlugin();
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
+        Context, Device, CreationFlags, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
     // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (m_SupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
-      m_SupportOOO = false;
+    if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
+      MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      PI_CHECK(Error);
+      Plugin.checkPiResult(Error);
     }
 
     return Queue;
   }
 
-  // Warning. Returned reference will be invalid if queue_impl was destroyed.
+  /// @return a raw PI handle for a free queue. The returned handle is not
+  /// retained. It is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getExclusiveQueueHandleRef() {
-    std::lock_guard<mutex_class> guard(m_Mutex);
+    std::lock_guard<mutex_class> Guard(MMutex);
 
-    // To achive parallelism for FPGA with in order execution model with
+    // To achieve parallelism for FPGA with in order execution model with
     // possibility of two kernels to share data with each other we shall
     // create a queue for every kernel enqueued.
-    if (m_Queues.size() < MaxNumQueues) {
-      m_Queues.push_back(createQueue(QueueOrder::Ordered));
-      return m_Queues.back();
+    if (MQueues.size() < MaxNumQueues) {
+      MQueues.push_back(createQueue(QueueOrder::Ordered));
+      return MQueues.back();
     }
 
     // If the limit of OpenCL queues is going to be exceeded - take the earliest
     // used queue, wait until it finished and then reuse it.
-    m_QueueNumber %= MaxNumQueues;
-    size_t FreeQueueNum = m_QueueNumber++;
+    MQueueNumber %= MaxNumQueues;
+    size_t FreeQueueNum = MQueueNumber++;
 
-    PI_CALL(RT::piQueueFinish(m_Queues[FreeQueueNum]));
-    return m_Queues[FreeQueueNum];
+    getPlugin().call<PiApiKind::piQueueFinish>(MQueues[FreeQueueNum]);
+    return MQueues[FreeQueueNum];
   }
 
+  /// @return a raw PI queue handle. The returned handle is not retained. It is
+  /// caller responsibility to make sure queue is still alive.
   RT::PiQueue &getHandleRef() {
-    if (m_SupportOOO) {
-      return m_CommandQueue;
+    if (MSupportOOO) {
+      return MCommandQueue;
     }
 
     {
       // Reduce the scope since this mutex is also
       // locked inside of getExclusiveQueueHandleRef()
-      std::lock_guard<mutex_class> guard(m_Mutex);
+      std::lock_guard<mutex_class> Guard(MMutex);
 
-      if (m_Queues.empty()) {
-        m_Queues.push_back(m_CommandQueue);
-        return m_CommandQueue;
+      if (MQueues.empty()) {
+        MQueues.push_back(MCommandQueue);
+        return MCommandQueue;
       }
     }
 
     return getExclusiveQueueHandleRef();
   }
 
+  /// @return true if the queue was constructed with property specified by
+  /// PropertyT.
   template <typename propertyT> bool has_property() const {
-    return m_PropList.has_property<propertyT>();
+    return MPropList.has_property<propertyT>();
   }
 
+  /// @return a copy of the property of type PropertyT that the queue was
+  /// constructed with. If the queue was not constructed with the PropertyT
+  /// property, an invalid_object_error SYCL exception.
   template <typename propertyT> propertyT get_property() const {
-    return m_PropList.get_property<propertyT>();
+    return MPropList.get_property<propertyT>();
   }
 
-  event memset(std::shared_ptr<queue_impl> Impl, void *Ptr, int Value,
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  ///
+  /// @param Impl is a shared_ptr to this queue.
+  /// @param Ptr is a USM pointer to the memory to fill.
+  /// @param Value is a value to be set. Value is cast as an unsigned char.
+  /// @param Count is a number of bytes to fill.
+  /// @return an event representing fill operation.
+  event memset(shared_ptr_class<queue_impl> Impl, void *Ptr, int Value,
                size_t Count);
-  event memcpy(std::shared_ptr<queue_impl> Impl, void *Dest, const void *Src,
+  /// Copies data from one memory region to another, both pointed by
+  /// USM pointers.
+  ///
+  /// @param Impl is a shared_ptr to this queue.
+  /// @param Dest is a USM pointer to the destination memory.
+  /// @param Src is a USM pointer to the source memory.
+  /// @param Count is a number of bytes to copy.
+  event memcpy(shared_ptr_class<queue_impl> Impl, void *Dest, const void *Src,
                size_t Count);
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// @param Ptr is a USM pointer to the allocation.
+  /// @param Length is a number of bytes in the allocation.
+  /// @param Advice is a device-defined advice for the specified allocation.
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
+  /// Puts exception to the list of asynchronous ecxeptions.
+  ///
+  /// @param ExceptionPtr is a pointer to exception to be put.
+  void reportAsyncException(std::exception_ptr ExceptionPtr) {
+    std::lock_guard<mutex_class> Guard(MMutex);
+    MExceptions.PushBack(ExceptionPtr);
+  }
+
 private:
-  template <typename T>
-  event submit_impl(T cgf, std::shared_ptr<queue_impl> self) {
-    handler Handler(std::move(self), m_HostQueue);
-    cgf(Handler);
+  /// Performs command group submission to the queue.
+  ///
+  /// @param CGF is a function object containing command group.
+  /// @param Self is a pointer to this queue.
+  /// @return a SYCL event representing submitted command group.
+  event submit_impl(const function_class<void(handler &)> &CGF,
+                    shared_ptr_class<queue_impl> Self) {
+    handler Handler(std::move(Self), MHostQueue);
+    CGF(Handler);
     event Event = Handler.finalize();
     {
-      std::lock_guard<mutex_class> guard(m_Mutex);
-      m_Events.push_back(Event);
+      std::lock_guard<mutex_class> Guard(MMutex);
+      MEvents.push_back(Event);
     }
     return Event;
   }
 
-  // Protects all the fields that can be changed by class' methods
-  mutex_class m_Mutex;
+  /// Protects all the fields that can be changed by class' methods.
+  mutex_class MMutex;
 
-  device m_Device;
-  const context m_Context;
-  vector_class<event> m_Events;
-  exception_list m_Exceptions;
-  const async_handler m_AsyncHandler;
-  const property_list m_PropList;
+  DeviceImplPtr MDevice;
+  const ContextImplPtr MContext;
+  vector_class<event> MEvents;
+  exception_list MExceptions;
+  const async_handler MAsyncHandler;
+  const property_list MPropList;
 
-  RT::PiQueue m_CommandQueue = nullptr;
+  RT::PiQueue MCommandQueue = nullptr;
 
-  // List of queues created for FPGA device from a single SYCL queue.
-  vector_class<RT::PiQueue> m_Queues;
-  // Iterator through m_Queues.
-  size_t m_QueueNumber = 0;
+  /// List of queues created for FPGA device from a single SYCL queue.
+  vector_class<RT::PiQueue> MQueues;
+  /// Iterator through MQueues.
+  size_t MQueueNumber = 0;
 
-  const bool m_HostQueue = false;
-  const bool m_OpenCLInterop = false;
+  const bool MHostQueue = false;
+  const bool MOpenCLInterop = false;
   // Assume OOO support by default.
-  bool m_SupportOOO = true;
+  bool MSupportOOO = true;
 };
 
 } // namespace detail

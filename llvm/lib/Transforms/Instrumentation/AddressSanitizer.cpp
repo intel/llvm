@@ -59,6 +59,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -1808,6 +1809,8 @@ bool ModuleAddressSanitizer::ShouldInstrumentGlobal(GlobalVariable *G) {
   if (GlobalsMD.get(G).IsBlacklisted) return false;
   if (!Ty->isSized()) return false;
   if (!G->hasInitializer()) return false;
+  // Only instrument globals of default address spaces
+  if (G->getAddressSpace()) return false;
   if (GlobalWasGeneratedByCompiler(G)) return false; // Our own globals.
   // Two problems with thread-locals:
   //   - The address of the main thread's copy can't be computed at link-time.
@@ -1990,7 +1993,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
     }
 
     if (!InternalSuffix.empty() && G->hasLocalLinkage()) {
-      std::string Name = G->getName();
+      std::string Name = std::string(G->getName());
       Name += InternalSuffix;
       C = M.getOrInsertComdat(Name);
     } else {
@@ -2359,7 +2362,7 @@ bool ModuleAddressSanitizer::InstrumentGlobals(IRBuilder<> &IRB, Module &M,
       // Set meaningful attributes for indicator symbol.
       ODRIndicatorSym->setVisibility(NewGlobal->getVisibility());
       ODRIndicatorSym->setDLLStorageClass(NewGlobal->getDLLStorageClass());
-      ODRIndicatorSym->setAlignment(Align::None());
+      ODRIndicatorSym->setAlignment(Align(1));
       ODRIndicator = ODRIndicatorSym;
     }
 
@@ -2833,7 +2836,8 @@ void FunctionStackPoisoner::copyToShadowInline(ArrayRef<uint8_t> ShadowMask,
     Value *Ptr = IRB.CreateAdd(ShadowBase, ConstantInt::get(IntptrTy, i));
     Value *Poison = IRB.getIntN(StoreSizeInBytes * 8, Val);
     IRB.CreateAlignedStore(
-        Poison, IRB.CreateIntToPtr(Ptr, Poison->getType()->getPointerTo()), 1);
+        Poison, IRB.CreateIntToPtr(Ptr, Poison->getType()->getPointerTo()),
+        Align(1));
 
     i += StoreSizeInBytes;
   }
@@ -2898,15 +2902,14 @@ void FunctionStackPoisoner::copyArgsPassedByValToAllocas() {
   for (Argument &Arg : F.args()) {
     if (Arg.hasByValAttr()) {
       Type *Ty = Arg.getType()->getPointerElementType();
-      unsigned Alignment = Arg.getParamAlignment();
-      if (Alignment == 0)
-        Alignment = DL.getABITypeAlignment(Ty);
+      const Align Alignment =
+          DL.getValueOrABITypeAlignment(Arg.getParamAlign(), Ty);
 
       AllocaInst *AI = IRB.CreateAlloca(
           Ty, nullptr,
           (Arg.hasName() ? Arg.getName() : "Arg" + Twine(Arg.getArgNo())) +
               ".byval");
-      AI->setAlignment(Align(Alignment));
+      AI->setAlignment(Alignment);
       Arg.replaceAllUsesWith(AI);
 
       uint64_t AllocSize = DL.getTypeAllocSize(Ty);
@@ -2993,7 +2996,6 @@ void FunctionStackPoisoner::processStaticAllocas() {
 
   Instruction *InsBefore = AllocaVec[0];
   IRBuilder<> IRB(InsBefore);
-  IRB.SetCurrentDebugLocation(EntryDebugLocation);
 
   // Make sure non-instrumented allocas stay in the entry block. Otherwise,
   // debug info is broken, because only entry-block allocas are treated as
@@ -3088,14 +3090,12 @@ void FunctionStackPoisoner::processStaticAllocas() {
     Instruction *Term =
         SplitBlockAndInsertIfThen(UseAfterReturnIsEnabled, InsBefore, false);
     IRBuilder<> IRBIf(Term);
-    IRBIf.SetCurrentDebugLocation(EntryDebugLocation);
     StackMallocIdx = StackMallocSizeClass(LocalStackSize);
     assert(StackMallocIdx <= kMaxAsanStackMallocSizeClass);
     Value *FakeStackValue =
         IRBIf.CreateCall(AsanStackMallocFunc[StackMallocIdx],
                          ConstantInt::get(IntptrTy, LocalStackSize));
     IRB.SetInsertPoint(InsBefore);
-    IRB.SetCurrentDebugLocation(EntryDebugLocation);
     FakeStack = createPHI(IRB, UseAfterReturnIsEnabled, FakeStackValue, Term,
                           ConstantInt::get(IntptrTy, 0));
 
@@ -3103,14 +3103,11 @@ void FunctionStackPoisoner::processStaticAllocas() {
         IRB.CreateICmpEQ(FakeStack, Constant::getNullValue(IntptrTy));
     Term = SplitBlockAndInsertIfThen(NoFakeStack, InsBefore, false);
     IRBIf.SetInsertPoint(Term);
-    IRBIf.SetCurrentDebugLocation(EntryDebugLocation);
     Value *AllocaValue =
         DoDynamicAlloca ? createAllocaForLayout(IRBIf, L, true) : StaticAlloca;
 
     IRB.SetInsertPoint(InsBefore);
-    IRB.SetCurrentDebugLocation(EntryDebugLocation);
     LocalStackBase = createPHI(IRB, NoFakeStack, AllocaValue, Term, FakeStack);
-    IRB.SetCurrentDebugLocation(EntryDebugLocation);
     IRB.CreateStore(LocalStackBase, LocalStackBaseAlloca);
     DIExprFlags |= DIExpression::DerefBefore;
   } else {

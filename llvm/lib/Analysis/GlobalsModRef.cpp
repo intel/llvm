@@ -25,6 +25,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 using namespace llvm;
@@ -76,7 +77,7 @@ class GlobalsAAResult::FunctionInfo {
     static inline AlignedMap *getFromVoidPointer(void *P) {
       return (AlignedMap *)P;
     }
-    enum { NumLowBitsAvailable = 3 };
+    static constexpr int NumLowBitsAvailable = 3;
     static_assert(alignof(AlignedMap) >= (1 << NumLowBitsAvailable),
                   "AlignedMap insufficiently aligned to have enough low bits.");
   };
@@ -286,7 +287,7 @@ GlobalsAAResult::getFunctionInfo(const Function *F) {
 void GlobalsAAResult::AnalyzeGlobals(Module &M) {
   SmallPtrSet<Function *, 32> TrackedFunctions;
   for (Function &F : M)
-    if (F.hasLocalLinkage())
+    if (F.hasLocalLinkage()) {
       if (!AnalyzeUsesOfPointer(&F)) {
         // Remember that we are tracking this global.
         NonAddressTakenGlobals.insert(&F);
@@ -294,7 +295,9 @@ void GlobalsAAResult::AnalyzeGlobals(Module &M) {
         Handles.emplace_front(*this, &F);
         Handles.front().I = Handles.begin();
         ++NumNonAddrTakenFunctions;
-      }
+      } else
+        UnknownFunctionsWithLocalLinkage = true;
+    }
 
   SmallPtrSet<Function *, 16> Readers, Writers;
   for (GlobalVariable &GV : M.globals())
@@ -526,9 +529,12 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
             FI.setMayReadAnyGlobal();
         } else {
           FI.addModRefInfo(ModRefInfo::ModRef);
-          // Can't say anything useful unless it's an intrinsic - they don't
-          // read or write global variables of the kind considered here.
-          KnowNothing = !F->isIntrinsic();
+          if (!F->onlyAccessesArgMemory())
+            FI.setMayReadAnyGlobal();
+          if (!F->isIntrinsic()) {
+            KnowNothing = true;
+            break;
+          }
         }
         continue;
       }
@@ -804,6 +810,14 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
   return true;
 }
 
+bool GlobalsAAResult::invalidate(Module &, const PreservedAnalyses &PA,
+                                 ModuleAnalysisManager::Invalidator &) {
+  // Check whether the analysis has been explicitly invalidated. Otherwise, it's
+  // stateless and remains preserved.
+  auto PAC = PA.getChecker<GlobalsAA>();
+  return !PAC.preservedWhenStateless();
+}
+
 /// alias - If one of the pointers is to a global that we are tracking, and the
 /// other is some random pointer, we know there cannot be an alias, because the
 /// address of the global isn't taken.
@@ -927,7 +941,9 @@ ModRefInfo GlobalsAAResult::getModRefInfo(const CallBase *Call,
   // global we are tracking, return information if we have it.
   if (const GlobalValue *GV =
           dyn_cast<GlobalValue>(GetUnderlyingObject(Loc.Ptr, DL)))
-    if (GV->hasLocalLinkage())
+    // If GV is internal to this IR and there is no function with local linkage
+    // that has had their address taken, keep looking for a tighter ModRefInfo.
+    if (GV->hasLocalLinkage() && !UnknownFunctionsWithLocalLinkage)
       if (const Function *F = Call->getCalledFunction())
         if (NonAddressTakenGlobals.count(GV))
           if (const FunctionInfo *FI = getFunctionInfo(F))

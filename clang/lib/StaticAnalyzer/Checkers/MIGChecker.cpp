@@ -21,6 +21,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/Attr.h"
 #include "clang/Analysis/AnyCall.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
@@ -216,7 +217,7 @@ void MIGChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
     llvm::raw_svector_ostream OS(Str);
     OS << "Value passed through parameter '" << PVD->getName()
        << "\' is deallocated";
-    return OS.str();
+    return std::string(OS.str());
   });
   C.addTransition(State->set<ReleasedParameter>(true), T);
 }

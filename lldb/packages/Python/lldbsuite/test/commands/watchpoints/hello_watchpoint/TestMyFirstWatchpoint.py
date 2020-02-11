@@ -2,7 +2,6 @@
 Test my first lldb watchpoint.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -14,6 +13,7 @@ from lldbsuite.test import lldbutil
 class HelloWatchpointTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().

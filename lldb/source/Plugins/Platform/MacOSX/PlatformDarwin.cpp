@@ -1,4 +1,4 @@
-//===-- PlatformDarwin.cpp --------------------------------------*- C++ -*-===//
+//===-- PlatformDarwin.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1106,7 +1106,7 @@ static FileSpec GetXcodeSelectPath() {
       std::string command_output;
       Status status =
           Host::RunShellCommand("/usr/bin/xcode-select --print-path",
-                                nullptr, // current working directory
+                                FileSpec(), // current working directory
                                 &exit_status, &signo, &command_output,
                                 std::chrono::seconds(2), // short timeout
                                 false);                  // don't run in a shell
@@ -1562,7 +1562,7 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
       minimum_version_option.PutCString("-mmacosx-version-min=");
       minimum_version_option.PutCString(version.getAsString());
     }
-    options.push_back(minimum_version_option.GetString());
+    options.push_back(std::string(minimum_version_option.GetString()));
   }
 
   FileSpec sysroot_spec;

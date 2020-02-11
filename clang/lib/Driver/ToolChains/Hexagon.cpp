@@ -31,7 +31,6 @@ static StringRef getDefaultHvxLength(StringRef Cpu) {
       .Case("v60", "64b")
       .Case("v62", "64b")
       .Case("v65", "64b")
-      .Case("v66", "128b")
       .Default("128b");
 }
 
@@ -48,13 +47,12 @@ static void handleHVXWarnings(const Driver &D, const ArgList &Args) {
 // Handle hvx target features explicitly.
 static void handleHVXTargetFeatures(const Driver &D, const ArgList &Args,
                                     std::vector<StringRef> &Features,
-                                    bool &HasHVX) {
+                                    StringRef Cpu, bool &HasHVX) {
   // Handle HVX warnings.
   handleHVXWarnings(D, Args);
 
   // Add the +hvx* features based on commandline flags.
   StringRef HVXFeature, HVXLength;
-  StringRef Cpu(toolchains::HexagonToolChain::GetTargetCPUVersion(Args));
 
   // Handle -mhvx, -mhvx=, -mno-hvx.
   if (Arg *A = Args.getLastArg(options::OPT_mno_hexagon_hvx,
@@ -108,7 +106,15 @@ void hexagon::getHexagonTargetFeatures(const Driver &D, const ArgList &Args,
   Features.push_back(UseLongCalls ? "+long-calls" : "-long-calls");
 
   bool HasHVX = false;
-  handleHVXTargetFeatures(D, Args, Features, HasHVX);
+  StringRef Cpu(toolchains::HexagonToolChain::GetTargetCPUVersion(Args));
+  // 't' in Cpu denotes tiny-core micro-architecture. For now, the co-processors
+  // have no dependency on micro-architecture.
+  const bool TinyCore = Cpu.contains('t');
+
+  if (TinyCore)
+    Cpu = Cpu.take_front(Cpu.size() - 1);
+
+  handleHVXTargetFeatures(D, Args, Features, Cpu, HasHVX);
 
   if (HexagonToolChain::isAutoHVXEnabled(Args) && !HasHVX)
     D.Diag(diag::warn_drv_vectorize_needs_hvx);
@@ -209,7 +215,11 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
   bool IncStartFiles = !Args.hasArg(options::OPT_nostartfiles);
   bool IncDefLibs = !Args.hasArg(options::OPT_nodefaultlibs);
   bool UseG0 = false;
+  const char *Exec = Args.MakeArgString(HTC.GetLinkerPath());
+  bool UseLLD = (llvm::sys::path::filename(Exec).equals_lower("ld.lld") ||
+                 llvm::sys::path::stem(Exec).equals_lower("ld.lld"));
   bool UseShared = IsShared && !IsStatic;
+  StringRef CpuVer = toolchains::HexagonToolChain::GetTargetCPUVersion(Args);
 
   //----------------------------------------------------------------------------
   // Silence warnings for various options
@@ -232,9 +242,10 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
   for (const auto &Opt : HTC.ExtraOpts)
     CmdArgs.push_back(Opt.c_str());
 
-  CmdArgs.push_back("-march=hexagon");
-  StringRef CpuVer = toolchains::HexagonToolChain::GetTargetCPUVersion(Args);
-  CmdArgs.push_back(Args.MakeArgString("-mcpu=hexagon" + CpuVer));
+  if (!UseLLD) {
+    CmdArgs.push_back("-march=hexagon");
+    CmdArgs.push_back(Args.MakeArgString("-mcpu=hexagon" + CpuVer));
+  }
 
   if (IsShared) {
     CmdArgs.push_back("-shared");
@@ -574,7 +585,7 @@ const StringRef HexagonToolChain::GetDefaultCPU() {
 
 const StringRef HexagonToolChain::GetTargetCPUVersion(const ArgList &Args) {
   Arg *CpuArg = nullptr;
-  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ, options::OPT_march_EQ))
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
     CpuArg = A;
 
   StringRef CPU = CpuArg ? CpuArg->getValue() : GetDefaultCPU();

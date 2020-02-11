@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -finclude-default-header -emit-llvm-bc %s -o %t.bc
+// RUN: %clang_cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
@@ -12,7 +12,7 @@
 
 // CHECK-LLVM: fsub half 0xH8000, %
 // CHECK-LLVM: fsub float -0.000000e+00, %
-// CHECK-LLVM: fsub double -0.000000e+00, %
+// CHECK-LLVM: fsub double -0.000000e+00, % 
 // CHECK-LLVM: fsub <8 x double> <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>, %
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable

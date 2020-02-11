@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 
 import gdbremote_testcase
@@ -52,6 +51,7 @@ class TestGdbRemoteKill(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.set_inferior_startup_attach()
         self.attach_commandline_kill_after_initial_stop()
 
+    @expectedFailureNetBSD
     @llgs_test
     def test_attach_commandline_kill_after_initial_stop_llgs(self):
         self.init_llgs_test()

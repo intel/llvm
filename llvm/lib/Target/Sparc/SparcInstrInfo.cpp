@@ -304,8 +304,8 @@ bool SparcInstrInfo::reverseBranchCondition(
 
 void SparcInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator I,
-                                 const DebugLoc &DL, unsigned DestReg,
-                                 unsigned SrcReg, bool KillSrc) const {
+                                 const DebugLoc &DL, MCRegister DestReg,
+                                 MCRegister SrcReg, bool KillSrc) const {
   unsigned numSubRegs = 0;
   unsigned movOpc     = 0;
   const unsigned *subRegIdx = nullptr;
@@ -393,7 +393,7 @@ void SparcInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 void SparcInstrInfo::
 storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                    unsigned SrcReg, bool isKill, int FI,
+                    Register SrcReg, bool isKill, int FI,
                     const TargetRegisterClass *RC,
                     const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
@@ -432,7 +432,7 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
 
 void SparcInstrInfo::
 loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                     unsigned DestReg, int FI,
+                     Register DestReg, int FI,
                      const TargetRegisterClass *RC,
                      const TargetRegisterInfo *TRI) const {
   DebugLoc DL;

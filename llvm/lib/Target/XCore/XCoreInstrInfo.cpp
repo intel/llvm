@@ -163,7 +163,7 @@ static inline XCore::CondCode GetOppositeBranchCondition(XCore::CondCode CC)
   }
 }
 
-/// AnalyzeBranch - Analyze the branching code at the end of MBB, returning
+/// analyzeBranch - Analyze the branching code at the end of MBB, returning
 /// true if it cannot be understood (e.g. it's a switch dispatch or isn't
 /// implemented for a target).  Upon success, this returns false and returns
 /// with the following information in various cases:
@@ -330,8 +330,8 @@ XCoreInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemoved) const {
 
 void XCoreInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator I,
-                                 const DebugLoc &DL, unsigned DestReg,
-                                 unsigned SrcReg, bool KillSrc) const {
+                                 const DebugLoc &DL, MCRegister DestReg,
+                                 MCRegister SrcReg, bool KillSrc) const {
   bool GRDest = XCore::GRRegsRegClass.contains(DestReg);
   bool GRSrc  = XCore::GRRegsRegClass.contains(SrcReg);
 
@@ -357,7 +357,7 @@ void XCoreInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 void XCoreInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator I,
-                                         unsigned SrcReg, bool isKill,
+                                         Register SrcReg, bool isKill,
                                          int FrameIndex,
                                          const TargetRegisterClass *RC,
                                          const TargetRegisterInfo *TRI) const
@@ -380,7 +380,7 @@ void XCoreInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
 void XCoreInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator I,
-                                          unsigned DestReg, int FrameIndex,
+                                          Register DestReg, int FrameIndex,
                                           const TargetRegisterClass *RC,
                                           const TargetRegisterInfo *TRI) const
 {

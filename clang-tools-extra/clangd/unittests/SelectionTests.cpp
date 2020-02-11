@@ -40,7 +40,7 @@ Range nodeRange(const SelectionTree::Node *N, ParsedAST &AST) {
   if (!N)
     return Range{};
   const SourceManager &SM = AST.getSourceManager();
-  const LangOptions &LangOpts = AST.getASTContext().getLangOpts();
+  const LangOptions &LangOpts = AST.getLangOpts();
   StringRef Buffer = SM.getBufferData(SM.getMainFileID());
   if (llvm::isa_and_nonnull<TranslationUnitDecl>(N->ASTNode.get<Decl>()))
     return Range{Position{}, offsetToPosition(Buffer, Buffer.size())};
@@ -136,6 +136,15 @@ TEST(SelectionTest, CommonAncestor) {
       },
       {
           R"cpp(
+            int x(int);
+            #define M(foo) x(foo)
+            int a = 42;
+            int b = M([[^a]]);
+          )cpp",
+          "DeclRefExpr",
+      },
+      {
+          R"cpp(
             void foo();
             #define CALL_FUNCTION(X) X()
             void bar() { CALL_FUNCTION([[f^o^o]]); }
@@ -213,11 +222,18 @@ TEST(SelectionTest, CommonAncestor) {
       {
           R"cpp(
             struct S {
-              int foo;
-              int bar() { return [[f^oo]]; }
+              int foo() const;
+              int bar() { return [[f^oo]](); }
             };
           )cpp",
-          "MemberExpr", // Not implicit CXXThisExpr!
+          "MemberExpr", // Not implicit CXXThisExpr, or its implicit cast!
+      },
+      {
+          R"cpp(
+            auto lambda = [](const char*){ return 0; };
+            int x = lambda([["y^"]]);
+          )cpp",
+          "StringLiteral", // Not DeclRefExpr to operator()!
       },
 
       // Point selections.
@@ -227,6 +243,7 @@ TEST(SelectionTest, CommonAncestor) {
       {"void foo() { [[foo^()]]; }", "CallExpr"},
       {"void foo() { [[foo^]] (); }", "DeclRefExpr"},
       {"int bar; void foo() [[{ foo (); }]]^", "CompoundStmt"},
+      {"int x = [[42]]^;", "IntegerLiteral"},
 
       // Ignores whitespace, comments, and semicolons in the selection.
       {"void foo() { [[foo^()]]; /*comment*/^}", "CallExpr"},
@@ -239,6 +256,17 @@ TEST(SelectionTest, CommonAncestor) {
       // Tricky case: two VarDecls share a specifier.
       {"[[int ^a]], b;", "VarDecl"},
       {"[[int a, ^b]];", "VarDecl"},
+      // Tricky case: CXXConstructExpr wants to claim the whole init range.
+      {
+          R"cpp(
+            struct X { X(int); };
+            class Y {
+              X x;
+              Y() : [[^x(4)]] {}
+            };
+          )cpp",
+          "CXXCtorInitializer", // Not the CXXConstructExpr!
+      },
       // Tricky case: anonymous struct is a sibling of the VarDecl.
       {"[[st^ruct {int x;}]] y;", "CXXRecordDecl"},
       {"[[struct {int x;} ^y]];", "VarDecl"},
@@ -253,7 +281,6 @@ TEST(SelectionTest, CommonAncestor) {
       // FIXME: Ideally we'd get a declstmt or the VarDecl itself here.
       // This doesn't happen now; the RAV doesn't traverse a node containing ;.
       {"int x = 42;^", nullptr},
-      {"int x = 42^;", nullptr},
 
       // Common ancestor is logically TUDecl, but we never return that.
       {"^int x; int y;^", nullptr},
@@ -281,21 +308,78 @@ TEST(SelectionTest, CommonAncestor) {
             };
             Str makeStr(const char*);
             void loop() {
-              for (const char* C : [[mak^eStr("foo"^)]])
+              for (const char C : [[mak^eStr("foo"^)]])
                 ;
             }
           )cpp",
           "CallExpr"},
+
+      // User-defined literals are tricky: is 12_i one token or two?
+      // For now we treat it as one, and the UserDefinedLiteral as a leaf.
+      {
+          R"cpp(
+            struct Foo{};
+            Foo operator""_ud(unsigned long long);
+            Foo x = [[^12_ud]];
+          )cpp",
+          "UserDefinedLiteral"},
+
+      {
+          R"cpp(
+        int a;
+        decltype([[^a]] + a) b;
+        )cpp",
+          "DeclRefExpr"},
+
+      // Objective-C OpaqueValueExpr/PseudoObjectExpr has weird ASTs.
+      // Need to traverse the contents of the OpaqueValueExpr to the POE,
+      // and ensure we traverse only the syntactic form of the PseudoObjectExpr.
+      {
+          R"cpp(
+            @interface I{}
+            @property(retain) I*x;
+            @property(retain) I*y;
+            @end
+            void test(I *f) { [[^f]].x.y = 0; }
+          )cpp",
+          "DeclRefExpr"},
+      {
+          R"cpp(
+            @interface I{}
+            @property(retain) I*x;
+            @property(retain) I*y;
+            @end
+            void test(I *f) { [[f.^x]].y = 0; }
+          )cpp",
+          "ObjCPropertyRefExpr"},
+      // Examples with implicit properties.
+      {
+          R"cpp(
+            @interface I{}
+            -(int)foo;
+            @end
+            int test(I *f) { return 42 + [[^f]].foo; }
+          )cpp",
+          "DeclRefExpr"},
+      {
+          R"cpp(
+            @interface I{}
+            -(int)foo;
+            @end
+            int test(I *f) { return 42 + [[f.^foo]]; }
+          )cpp",
+          "ObjCPropertyRefExpr"},
   };
   for (const Case &C : Cases) {
     Annotations Test(C.Code);
 
     TestTU TU;
-    TU.Code = Test.code();
+    TU.Code = std::string(Test.code());
 
     // FIXME: Auto-completion in a template requires disabling delayed template
     // parsing.
     TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
+    TU.ExtraArgs.push_back("-xobjective-c++");
 
     auto AST = TU.build();
     auto T = makeSelectionTree(C.Code, AST);
@@ -350,6 +434,7 @@ TEST(SelectionTest, Selected) {
             $C[[return]];
           }]] else [[{^
           }]]]]
+          char z;
         }
       )cpp",
       R"cpp(
@@ -358,10 +443,10 @@ TEST(SelectionTest, Selected) {
           void foo(^$C[[unique_ptr<$C[[unique_ptr<$C[[int]]>]]>]]^ a) {}
       )cpp",
       R"cpp(int a = [[5 >^> 1]];)cpp",
-      R"cpp([[
+      R"cpp(
         #define ECHO(X) X
-        ECHO(EC^HO([[$C[[int]]) EC^HO(a]]));
-      ]])cpp",
+        ECHO(EC^HO($C[[int]]) EC^HO(a));
+      )cpp",
       R"cpp( $C[[^$C[[int]] a^]]; )cpp",
       R"cpp( $C[[^$C[[int]] a = $C[[5]]^]]; )cpp",
   };
@@ -398,6 +483,56 @@ TEST(SelectionTest, PathologicalPreprocessor) {
 
   EXPECT_EQ("BreakStmt", T.commonAncestor()->kind());
   EXPECT_EQ("WhileStmt", T.commonAncestor()->Parent->kind());
+}
+
+TEST(SelectionTest, IncludedFile) {
+  const char *Case = R"cpp(
+    void test() {
+#include "Exp^and.inc"
+        break;
+    }
+  )cpp";
+  Annotations Test(Case);
+  auto TU = TestTU::withCode(Test.code());
+  TU.AdditionalFiles["Expand.inc"] = "while(1)\n";
+  auto AST = TU.build();
+  auto T = makeSelectionTree(Case, AST);
+
+  EXPECT_EQ("WhileStmt", T.commonAncestor()->kind());
+}
+
+TEST(SelectionTest, MacroArgExpansion) {
+  // If a macro arg is expanded several times, we consider them all selected.
+  const char *Case = R"cpp(
+    int mul(int, int);
+    #define SQUARE(X) mul(X, X);
+    int nine = SQUARE(^3);
+  )cpp";
+  Annotations Test(Case);
+  auto AST = TestTU::withCode(Test.code()).build();
+  auto T = makeSelectionTree(Case, AST);
+  // Unfortunately, this makes the common ancestor the CallExpr...
+  // FIXME: hack around this by picking one?
+  EXPECT_EQ("CallExpr", T.commonAncestor()->kind());
+  EXPECT_FALSE(T.commonAncestor()->Selected);
+  EXPECT_EQ(2u, T.commonAncestor()->Children.size());
+  for (const auto* N : T.commonAncestor()->Children) {
+    EXPECT_EQ("IntegerLiteral", N->kind());
+    EXPECT_TRUE(N->Selected);
+  }
+
+  // Verify that the common assert() macro doesn't suffer from this.
+  // (This is because we don't associate the stringified token with the arg).
+  Case = R"cpp(
+    void die(const char*);
+    #define assert(x) (x ? (void)0 : die(#x))
+    void foo() { assert(^42); }
+  )cpp";
+  Test = Annotations(Case);
+  AST = TestTU::withCode(Test.code()).build();
+  T = makeSelectionTree(Case, AST);
+
+  EXPECT_EQ("IntegerLiteral", T.commonAncestor()->kind());
 }
 
 TEST(SelectionTest, Implicit) {

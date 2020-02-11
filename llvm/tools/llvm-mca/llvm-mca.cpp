@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
   processViewOptions();
 
   if (!MCPU.compare("native"))
-    MCPU = llvm::sys::getHostCPUName();
+    MCPU = std::string(llvm::sys::getHostCPUName());
 
   std::unique_ptr<MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(TripleName, MCPU, MATTR));
@@ -474,7 +474,7 @@ int main(int argc, char **argv) {
                   std::string InstructionStr;
                   raw_string_ostream SS(InstructionStr);
                   WithColor::error() << IE.Message << '\n';
-                  IP->printInst(&IE.Inst, SS, "", *STI);
+                  IP->printInst(&IE.Inst, 0, "", *STI, SS);
                   SS.flush();
                   WithColor::note()
                       << "instruction: " << InstructionStr << '\n';

@@ -28,6 +28,7 @@ void foo() {
 class B2 {
   public:
     void baseMethod() const {  }
+    int &getRef() { return bb; }
     int bb;
 };
 
@@ -46,7 +47,36 @@ void pr43145(const Derived *argDerived) {
 
 void pr43145_2(B *argB) {
   Derived *x = (Derived*)argB;
+  // CHECK-LABEL: @_Z9pr43145_2
+  // CHECK: bitcast %struct.B addrspace(4)* %0 to %class.Derived addrspace(4)*
 }
 
-// CHECK-LABEL: @_Z9pr43145_2
-// CHECK: bitcast %struct.B addrspace(4)* %0 to %class.Derived addrspace(4)*
+// Assigning to reference returned by base class method through derived class.
+
+void pr43145_3(int n) {
+  Derived d;
+  d.getRef() = n;
+
+  // CHECK-LABEL: @_Z9pr43145_3
+  // CHECK: addrspacecast %class.Derived* %d to %class.Derived addrspace(4)*
+  // CHECK: bitcast i8 addrspace(4)* %add.ptr to %class.B2 addrspace(4)*
+  // CHECK: call {{.*}} @_ZNU3AS42B26getRefEv
+
+  private Derived *pd = &d;
+  pd->getRef() = n;
+
+  // CHECK: addrspacecast %class.Derived* %4 to %class.Derived addrspace(4)*
+  // CHECK: bitcast i8 addrspace(4)* %add.ptr1 to %class.B2 addrspace(4)*
+  // CHECK: call {{.*}} @_ZNU3AS42B26getRefEv
+}
+
+// Implicit conversion of derived to base.
+
+void functionWithBaseArgPtr(class B2 *b) {}
+void functionWithBaseArgRef(class B2 &b) {}
+
+void pr43145_4() {
+  Derived d;
+  functionWithBaseArgPtr(&d);
+  functionWithBaseArgRef(d);
+}

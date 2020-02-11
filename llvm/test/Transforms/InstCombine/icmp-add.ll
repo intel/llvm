@@ -77,14 +77,14 @@ define i1 @test4(i32 %a) {
 
 define { i32, i1 } @test4multiuse(i32 %a) {
 ; CHECK-LABEL: @test4multiuse(
-; CHECK-NEXT:    [[B:%.*]] = add i32 [[A:%.*]], -2147483644
-; CHECK-NEXT:    [[C:%.*]] = icmp slt i32 [[B]], -4
+; CHECK-NEXT:    [[B:%.*]] = add nsw i32 [[A:%.*]], -2147483644
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i32 [[A]], 2147483640
 ; CHECK-NEXT:    [[TMP:%.*]] = insertvalue { i32, i1 } undef, i32 [[B]], 0
 ; CHECK-NEXT:    [[RES:%.*]] = insertvalue { i32, i1 } [[TMP]], i1 [[C]], 1
 ; CHECK-NEXT:    ret { i32, i1 } [[RES]]
 ;
 
-  %b = add i32 %a, -2147483644
+  %b = add nsw i32 %a, -2147483644
   %c = icmp slt i32 %b, -4
 
   %tmp = insertvalue { i32, i1 } undef, i32 %b, 0
@@ -620,4 +620,46 @@ define void @bzip2(i8 %a, i8 %b, i8 %x) {
   call void @use1(i1 %cmp)
   call void @use8(i8 %add1)
   ret void
+}
+
+define <2 x i1> @icmp_eq_add_undef(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_add_undef(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[A:%.*]], <i32 5, i32 undef>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %add = add <2 x i32> %a, <i32 5, i32 undef>
+  %cmp = icmp eq <2 x i32> %add, <i32 10, i32 10>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_add_non_splat(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_add_non_splat(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[A:%.*]], <i32 5, i32 4>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %add = add <2 x i32> %a, <i32 5, i32 6>
+  %cmp = icmp eq <2 x i32> %add, <i32 10, i32 10>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_add_undef2(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_add_undef2(
+; CHECK-NEXT:    [[ADD:%.*]] = add <2 x i32> [[A:%.*]], <i32 5, i32 5>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[ADD]], <i32 10, i32 undef>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %add = add <2 x i32> %a, <i32 5, i32 5>
+  %cmp = icmp eq <2 x i32> %add, <i32 10, i32 undef>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_add_non_splat2(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_add_non_splat2(
+; CHECK-NEXT:    [[ADD:%.*]] = add <2 x i32> [[A:%.*]], <i32 5, i32 5>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[ADD]], <i32 10, i32 11>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %add = add <2 x i32> %a, <i32 5, i32 5>
+  %cmp = icmp eq <2 x i32> %add, <i32 10, i32 11>
+  ret <2 x i1> %cmp
 }

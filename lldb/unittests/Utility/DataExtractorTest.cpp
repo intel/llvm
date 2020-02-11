@@ -1,4 +1,4 @@
-//===-- DataExtractorTest.cpp -----------------------------------*- C++ -*-===//
+//===-- DataExtractorTest.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,7 +13,7 @@
 using namespace lldb_private;
 
 TEST(DataExtractorTest, GetBitfield) {
-  uint8_t buffer[] = {0x01, 0x23, 0x45, 0x67};
+  uint8_t buffer[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
   DataExtractor LE(buffer, sizeof(buffer), lldb::eByteOrderLittle,
                    sizeof(void *));
   DataExtractor BE(buffer, sizeof(buffer), lldb::eByteOrderBig, sizeof(void *));
@@ -24,6 +24,18 @@ TEST(DataExtractorTest, GetBitfield) {
   ASSERT_EQ(buffer[1], LE.GetMaxU64Bitfield(&offset, sizeof(buffer), 8, 8));
   offset = 0;
   ASSERT_EQ(buffer[1], BE.GetMaxU64Bitfield(&offset, sizeof(buffer), 8, 8));
+  offset = 0;
+  ASSERT_EQ(static_cast<uint64_t>(0xEFCDAB8967452301),
+            LE.GetMaxU64Bitfield(&offset, sizeof(buffer), 64, 0));
+  offset = 0;
+  ASSERT_EQ(static_cast<uint64_t>(0x0123456789ABCDEF),
+            BE.GetMaxU64Bitfield(&offset, sizeof(buffer), 64, 0));
+  offset = 0;
+  ASSERT_EQ(static_cast<uint64_t>(0x01234567),
+            BE.GetMaxU64Bitfield(&offset, sizeof(buffer), 32, 0));
+  offset = 0;
+  ASSERT_EQ(static_cast<uint64_t>(0x012345678),
+            BE.GetMaxU64Bitfield(&offset, sizeof(buffer), 36, 0));
 
   offset = 0;
   ASSERT_EQ(int8_t(buffer[1]),
@@ -31,6 +43,12 @@ TEST(DataExtractorTest, GetBitfield) {
   offset = 0;
   ASSERT_EQ(int8_t(buffer[1]),
             BE.GetMaxS64Bitfield(&offset, sizeof(buffer), 8, 8));
+  offset = 0;
+  ASSERT_EQ(static_cast<int64_t>(0xEFCDAB8967452301),
+            LE.GetMaxS64Bitfield(&offset, sizeof(buffer), 64, 0));
+  offset = 0;
+  ASSERT_EQ(static_cast<int64_t>(0x0123456789ABCDEF),
+            BE.GetMaxS64Bitfield(&offset, sizeof(buffer), 64, 0));
 }
 
 TEST(DataExtractorTest, PeekData) {

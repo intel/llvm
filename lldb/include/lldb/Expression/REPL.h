@@ -32,7 +32,7 @@ public:
   /// Get a REPL with an existing target (or, failing that, a debugger to use),
   /// and (optional) extra arguments for the compiler.
   ///
-  /// \param[out] error
+  /// \param[out] Status
   ///     If this language is supported but the REPL couldn't be created, this
   ///     error is populated with the reason.
   ///
@@ -130,8 +130,8 @@ protected:
                                 lldb::ValueObjectSP &valobj_sp,
                                 ExpressionVariable *var = nullptr) = 0;
 
-  virtual int CompleteCode(const std::string &current_code,
-                           StringList &matches) = 0;
+  virtual void CompleteCode(const std::string &current_code,
+                            CompletionRequest &request) = 0;
 
   OptionGroupFormat m_format_options = OptionGroupFormat(lldb::eFormatDefault);
   OptionGroupValueObjectDisplay m_varobj_options;

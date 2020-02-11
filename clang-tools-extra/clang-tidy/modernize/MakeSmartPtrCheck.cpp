@@ -84,6 +84,8 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
   auto CanCallCtor = unless(has(ignoringImpCasts(
       cxxConstructExpr(hasDeclaration(decl(unless(isPublic())))))));
 
+  auto IsPlacement = hasAnyPlacementArg(anything());
+
   Finder->addMatcher(
       cxxBindTemporaryExpr(has(ignoringParenImpCasts(
           cxxConstructExpr(
@@ -91,7 +93,7 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
               hasArgument(0,
                           cxxNewExpr(hasType(pointsTo(qualType(hasCanonicalType(
                                          equalsBoundNode(PointerType))))),
-                                     CanCallCtor)
+                                     CanCallCtor, unless(IsPlacement))
                               .bind(NewExpression)),
               unless(isInTemplateInstantiation()))
               .bind(ConstructorCall)))),
@@ -101,7 +103,9 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
       cxxMemberCallExpr(
           thisPointerType(getSmartPointerTypeMatcher()),
           callee(cxxMethodDecl(hasName("reset"))),
-          hasArgument(0, cxxNewExpr(CanCallCtor).bind(NewExpression)),
+          hasArgument(
+              0,
+              cxxNewExpr(CanCallCtor, unless(IsPlacement)).bind(NewExpression)),
           unless(isInTemplateInstantiation()))
           .bind(ResetCall),
       this);
@@ -119,8 +123,6 @@ void MakeSmartPtrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Type = Result.Nodes.getNodeAs<QualType>(PointerType);
   const auto *New = Result.Nodes.getNodeAs<CXXNewExpr>(NewExpression);
 
-  if (New->getNumPlacementArgs() != 0)
-    return;
   // Skip when this is a new-expression with `auto`, e.g. new auto(1)
   if (New->getType()->getPointeeType()->getContainedAutoType())
     return;
@@ -376,7 +378,7 @@ bool MakeSmartPtrCheck::replaceNew(DiagnosticBuilder &Diag,
         //   struct S { S(std::initializer_list<int>); };
         //   struct S2 { S2(S, int); };
         //   smart_ptr<S>(new S{1, 2, 3});  // C++11 direct list-initialization
-        //   smart_ptr<S>(new S{});  // use initializer-list consturctor
+        //   smart_ptr<S>(new S{});  // use initializer-list constructor
         //   smart_ptr<S2>()new S2{ {1,2}, 3 }; // have a list-initialized arg
         // The above cases have to be replaced with:
         //   std::make_smart_ptr<S>(std::initializer_list<int>({1, 2, 3}));

@@ -830,7 +830,7 @@ void MachOLinkingContext::addExportSymbol(StringRef sym) {
   }
   // Only i386 MacOSX uses old ABI, so don't change those.
   if ((_os != OS::macOSX) || (_arch != arch_x86)) {
-    // ObjC has two differnent ABIs.  Be nice and allow one export list work for
+    // ObjC has two different ABIs.  Be nice and allow one export list work for
     // both ABIs by renaming symbols.
     if (sym.startswith(".objc_class_name_")) {
       std::string abi2className("_OBJC_CLASS_$_");
@@ -863,11 +863,11 @@ bool MachOLinkingContext::exportSymbolNamed(StringRef sym) const {
 std::string MachOLinkingContext::demangle(StringRef symbolName) const {
   // Only try to demangle symbols if -demangle on command line
   if (!demangleSymbols())
-    return symbolName;
+    return std::string(symbolName);
 
   // Only try to demangle symbols that look like C++ symbols
   if (!symbolName.startswith("__Z"))
-    return symbolName;
+    return std::string(symbolName);
 
   SmallString<256> symBuff;
   StringRef nullTermSym = Twine(symbolName).toNullTerminatedStringRef(symBuff);
@@ -882,7 +882,7 @@ std::string MachOLinkingContext::demangle(StringRef symbolName) const {
     return result;
   }
 
-  return symbolName;
+  return std::string(symbolName);
 }
 
 static void addDependencyInfoHelper(llvm::raw_fd_ostream *DepInfo,

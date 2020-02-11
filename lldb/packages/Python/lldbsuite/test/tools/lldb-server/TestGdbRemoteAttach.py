@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 
 import gdbremote_testcase
@@ -59,6 +58,7 @@ class TestGdbRemoteAttach(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.set_inferior_startup_attach_manually()
         self.attach_with_vAttach()
 
+    @expectedFailureNetBSD
     @llgs_test
     def test_attach_with_vAttach_llgs(self):
         self.init_llgs_test()

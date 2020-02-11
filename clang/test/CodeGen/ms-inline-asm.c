@@ -190,14 +190,20 @@ void t15() {
 // CHECK: mov eax, $1
   __asm mov eax, offset gvar ; eax = address of gvar
 // CHECK: mov eax, $2
-// CHECK: "*m,r,r,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}}, i32* %{{.*}}, i32* @{{.*}})
+  __asm mov eax, offset gvar+1 ; eax = 1 + address of gvar
+// CHECK: mov eax, $3 + $$1
+  __asm mov eax, 1+offset gvar ; eax = 1 + address of gvar
+// CHECK: mov eax, $4 + $$1
+  __asm mov eax, 1+offset gvar+1 ; eax = 2 + address of gvar
+// CHECK: mov eax, $5 + $$2
+// CHECK: "*m,r,i,i,i,i,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}}, i32* %{{.*}}, i32* @{{.*}}, i32* @{{.*}}, i32* @{{.*}}, i32* @{{.*}})
 }
 
 void t16() {
   int var = 10;
-  __asm mov [eax], offset var
+  __asm mov dword ptr [eax], offset var
 // CHECK: t16
-// CHECK: call void asm sideeffect inteldialect "mov [eax], $0", "r,~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
+// CHECK: call void asm sideeffect inteldialect "mov dword ptr [eax], $0", "r,~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
 }
 
 void t17() {
@@ -306,7 +312,7 @@ void t24_helper(void) {}
 void t24() {
   __asm call t24_helper
 // CHECK: t24
-// CHECK: call void asm sideeffect inteldialect "call dword ptr $0", "*m,~{dirflag},~{fpsr},~{flags}"(void ()* @t24_helper)
+// CHECK: call void asm sideeffect inteldialect "call dword ptr ${0:P}", "*m,~{dirflag},~{fpsr},~{flags}"(void ()* @t24_helper)
 }
 
 void t25() {
@@ -592,11 +598,19 @@ void t41(unsigned short a) {
 }
 
 void t42() {
-// CHECK-LABEL: define void @t42
+// CHECK-LABEL: define void @t42(
   int flags;
   __asm mov flags, eax
 // CHECK: mov $0, eax
 // CHECK: "=*m,~{dirflag},~{fpsr},~{flags}"(i32* %flags)
+}
+
+void t42b() {
+// CHECK-LABEL: define void @t42b(
+  int mxcsr;
+  __asm mov mxcsr, eax
+// CHECK: mov $0, eax
+// CHECK: "=*m,~{dirflag},~{fpsr},~{flags}"(i32* %mxcsr)
 }
 
 void t43() {
@@ -681,7 +695,7 @@ void dot_operator(){
 void call_clobber() {
   __asm call t41
   // CHECK-LABEL: define void @call_clobber
-  // CHECK: call void asm sideeffect inteldialect "call dword ptr $0", "*m,~{dirflag},~{fpsr},~{flags}"(void (i16)* @t41)
+  // CHECK: call void asm sideeffect inteldialect "call dword ptr ${0:P}", "*m,~{dirflag},~{fpsr},~{flags}"(void (i16)* @t41)
 }
 
 void xgetbv() {
@@ -752,7 +766,7 @@ void mxcsr() {
   __asm fxrstor buf
 }
 // CHECK-LABEL: define void @mxcsr
-// CHECK: call void asm sideeffect inteldialect "fxrstor $0", "=*m,~{dirflag},~{fpsr},~{flags}"
+// CHECK: call void asm sideeffect inteldialect "fxrstor $0", "=*m,~{fpcr},~{dirflag},~{fpsr},~{flags}"
 
 // Make sure we can find the register for the dirflag for popfd
 void dirflag() {

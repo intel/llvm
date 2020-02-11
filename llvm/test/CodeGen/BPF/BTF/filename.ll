@@ -28,7 +28,7 @@ define dso_local i32 @test() local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .long   4
 ; CHECK-NEXT:        .long   16777248                # 0x1000020
 ; CHECK-NEXT:        .long   5                       # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .byte   0                       # string offset=0
 ; CHECK-NEXT:        .ascii  "int"                   # string offset=1
@@ -63,7 +63,7 @@ define dso_local i32 @test() local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   1038                    # Line 1 Col 14
 
-attributes #0 = { norecurse nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

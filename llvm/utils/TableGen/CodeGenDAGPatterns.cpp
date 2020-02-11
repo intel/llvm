@@ -23,6 +23,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/TypeSize.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include <algorithm>
@@ -481,12 +482,12 @@ bool TypeInfer::EnforceSmallerThan(TypeSetByHwMode &Small,
 
     if (any_of(S, isIntegerOrPtr) && any_of(S, isIntegerOrPtr)) {
       auto NotInt = [](MVT VT) { return !isIntegerOrPtr(VT); };
-      Changed |= berase_if(S, NotInt) |
-                 berase_if(B, NotInt);
+      Changed |= berase_if(S, NotInt);
+      Changed |= berase_if(B, NotInt);
     } else if (any_of(S, isFloatingPoint) && any_of(B, isFloatingPoint)) {
       auto NotFP = [](MVT VT) { return !isFloatingPoint(VT); };
-      Changed |= berase_if(S, NotFP) |
-                 berase_if(B, NotFP);
+      Changed |= berase_if(S, NotFP);
+      Changed |= berase_if(B, NotFP);
     } else if (S.empty() || B.empty()) {
       Changed = !S.empty() || !B.empty();
       S.clear();
@@ -497,24 +498,30 @@ bool TypeInfer::EnforceSmallerThan(TypeSetByHwMode &Small,
     }
 
     if (none_of(S, isVector) || none_of(B, isVector)) {
-      Changed |= berase_if(S, isVector) |
-                 berase_if(B, isVector);
+      Changed |= berase_if(S, isVector);
+      Changed |= berase_if(B, isVector);
     }
   }
 
   auto LT = [](MVT A, MVT B) -> bool {
-    return A.getScalarSizeInBits() < B.getScalarSizeInBits() ||
-           (A.getScalarSizeInBits() == B.getScalarSizeInBits() &&
-            A.getSizeInBits() < B.getSizeInBits());
+    // Always treat non-scalable MVTs as smaller than scalable MVTs for the
+    // purposes of ordering.
+    auto ASize = std::make_tuple(A.isScalableVector(), A.getScalarSizeInBits(),
+                                 A.getSizeInBits());
+    auto BSize = std::make_tuple(B.isScalableVector(), B.getScalarSizeInBits(),
+                                 B.getSizeInBits());
+    return ASize < BSize;
   };
-  auto LE = [&LT](MVT A, MVT B) -> bool {
+  auto SameKindLE = [](MVT A, MVT B) -> bool {
     // This function is used when removing elements: when a vector is compared
-    // to a non-vector, it should return false (to avoid removal).
-    if (A.isVector() != B.isVector())
+    // to a non-vector or a scalable vector to any non-scalable MVT, it should
+    // return false (to avoid removal).
+    if (std::make_tuple(A.isVector(), A.isScalableVector()) !=
+        std::make_tuple(B.isVector(), B.isScalableVector()))
       return false;
 
-    return LT(A, B) || (A.getScalarSizeInBits() == B.getScalarSizeInBits() &&
-                        A.getSizeInBits() == B.getSizeInBits());
+    return std::make_tuple(A.getScalarSizeInBits(), A.getSizeInBits()) <=
+           std::make_tuple(B.getScalarSizeInBits(), B.getSizeInBits());
   };
 
   for (unsigned M : Modes) {
@@ -524,25 +531,29 @@ bool TypeInfer::EnforceSmallerThan(TypeSetByHwMode &Small,
     // smaller-or-equal than MinS.
     auto MinS = min_if(S.begin(), S.end(), isScalar, LT);
     if (MinS != S.end())
-      Changed |= berase_if(B, std::bind(LE, std::placeholders::_1, *MinS));
+      Changed |= berase_if(B, std::bind(SameKindLE,
+                                        std::placeholders::_1, *MinS));
 
     // MaxS = max scalar in Big, remove all scalars from Small that are
     // larger than MaxS.
     auto MaxS = max_if(B.begin(), B.end(), isScalar, LT);
     if (MaxS != B.end())
-      Changed |= berase_if(S, std::bind(LE, *MaxS, std::placeholders::_1));
+      Changed |= berase_if(S, std::bind(SameKindLE,
+                                        *MaxS, std::placeholders::_1));
 
     // MinV = min vector in Small, remove all vectors from Big that are
     // smaller-or-equal than MinV.
     auto MinV = min_if(S.begin(), S.end(), isVector, LT);
     if (MinV != S.end())
-      Changed |= berase_if(B, std::bind(LE, std::placeholders::_1, *MinV));
+      Changed |= berase_if(B, std::bind(SameKindLE,
+                                        std::placeholders::_1, *MinV));
 
     // MaxV = max vector in Big, remove all vectors from Small that are
     // larger than MaxV.
     auto MaxV = max_if(B.begin(), B.end(), isVector, LT);
     if (MaxV != B.end())
-      Changed |= berase_if(S, std::bind(LE, *MaxV, std::placeholders::_1));
+      Changed |= berase_if(S, std::bind(SameKindLE,
+                                        *MaxV, std::placeholders::_1));
   }
 
   return Changed;
@@ -625,7 +636,7 @@ bool TypeInfer::EnforceVectorSubVectorTypeIs(TypeSetByHwMode &Vec,
   /// Return true if S has no element (vector type) that T is a sub-vector of,
   /// i.e. has the same element type as T and more elements.
   auto NoSubV = [&IsSubVec](const TypeSetByHwMode::SetType &S, MVT T) -> bool {
-    for (const auto &I : S)
+    for (auto I : S)
       if (IsSubVec(T, I))
         return false;
     return true;
@@ -634,7 +645,7 @@ bool TypeInfer::EnforceVectorSubVectorTypeIs(TypeSetByHwMode &Vec,
   /// Return true if S has no element (vector type) that T is a super-vector
   /// of, i.e. has the same element type as T and fewer elements.
   auto NoSupV = [&IsSubVec](const TypeSetByHwMode::SetType &S, MVT T) -> bool {
-    for (const auto &I : S)
+    for (auto I : S)
       if (IsSubVec(I, T))
         return false;
     return true;
@@ -1080,7 +1091,8 @@ std::string TreePredicateFn::getPredCode() const {
                   .str();
   }
 
-  std::string PredicateCode = PatFragRec->getRecord()->getValueAsString("PredicateCode");
+  std::string PredicateCode =
+      std::string(PatFragRec->getRecord()->getValueAsString("PredicateCode"));
 
   Code += PredicateCode;
 
@@ -1095,7 +1107,8 @@ bool TreePredicateFn::hasImmCode() const {
 }
 
 std::string TreePredicateFn::getImmCode() const {
-  return PatFragRec->getRecord()->getValueAsString("ImmediateCode");
+  return std::string(
+      PatFragRec->getRecord()->getValueAsString("ImmediateCode"));
 }
 
 bool TreePredicateFn::immCodeUsesAPInt() const {
@@ -1212,7 +1225,8 @@ bool TreePredicateFn::hasGISelPredicateCode() const {
               .empty();
 }
 std::string TreePredicateFn::getGISelPredicateCode() const {
-  return PatFragRec->getRecord()->getValueAsString("GISelPredicateCode");
+  return std::string(
+      PatFragRec->getRecord()->getValueAsString("GISelPredicateCode"));
 }
 
 StringRef TreePredicateFn::getImmType() const {
@@ -1304,13 +1318,29 @@ std::string TreePredicateFn::getCodeToRunOnSDNode() const {
 
   // Handle arbitrary node predicates.
   assert(hasPredCode() && "Don't have any predicate code!");
+
+  // If this is using PatFrags, there are multiple trees to search. They should
+  // all have the same class.  FIXME: Is there a way to find a common
+  // superclass?
   StringRef ClassName;
-  if (PatFragRec->getOnlyTree()->isLeaf())
-    ClassName = "SDNode";
-  else {
-    Record *Op = PatFragRec->getOnlyTree()->getOperator();
-    ClassName = PatFragRec->getDAGPatterns().getSDNodeInfo(Op).getSDClassName();
+  for (const auto &Tree : PatFragRec->getTrees()) {
+    StringRef TreeClassName;
+    if (Tree->isLeaf())
+      TreeClassName = "SDNode";
+    else {
+      Record *Op = Tree->getOperator();
+      const SDNodeInfo &Info = PatFragRec->getDAGPatterns().getSDNodeInfo(Op);
+      TreeClassName = Info.getSDClassName();
+    }
+
+    if (ClassName.empty())
+      ClassName = TreeClassName;
+    else if (ClassName != TreeClassName) {
+      PrintFatalError(getOrigPatFragRecord()->getRecord()->getLoc(),
+                      "PatFrags trees do not have consistent class");
+    }
   }
+
   std::string Result;
   if (ClassName == "SDNode")
     Result = "    SDNode *N = Node;\n";
@@ -2714,7 +2744,7 @@ TreePatternNodePtr TreePattern::ParseTreePattern(Init *TheInit,
     if (R->getName() == "node" && !OpName.empty()) {
       if (OpName.empty())
         error("'node' argument requires a name to match with operand list");
-      Args.push_back(OpName);
+      Args.push_back(std::string(OpName));
     }
 
     Res->setName(OpName);
@@ -2726,7 +2756,7 @@ TreePatternNodePtr TreePattern::ParseTreePattern(Init *TheInit,
     if (OpName.empty())
       error("'?' argument requires a name to match with operand list");
     TreePatternNodePtr Res = std::make_shared<TreePatternNode>(TheInit, 1);
-    Args.push_back(OpName);
+    Args.push_back(std::string(OpName));
     Res->setName(OpName);
     return Res;
   }
@@ -3017,8 +3047,7 @@ CodeGenDAGPatterns::CodeGenDAGPatterns(RecordKeeper &R,
     : Records(R), Target(R), LegalVTS(Target.getLegalValueTypes()),
       PatternRewriter(PatternRewriter) {
 
-  Intrinsics = CodeGenIntrinsicTable(Records, false);
-  TgtIntrinsics = CodeGenIntrinsicTable(Records, true);
+  Intrinsics = CodeGenIntrinsicTable(Records);
   ParseNodeInfo();
   ParseNodeTransforms();
   ParseComplexPatterns();
@@ -3079,7 +3108,8 @@ void CodeGenDAGPatterns::ParseNodeTransforms() {
     Record *XFormNode = Xforms.back();
     Record *SDNode = XFormNode->getValueAsDef("Opcode");
     StringRef Code = XFormNode->getValueAsString("XFormFunction");
-    SDNodeXForms.insert(std::make_pair(XFormNode, NodeXForm(SDNode, Code)));
+    SDNodeXForms.insert(
+        std::make_pair(XFormNode, NodeXForm(SDNode, std::string(Code))));
 
     Xforms.pop_back();
   }
@@ -3147,7 +3177,7 @@ void CodeGenDAGPatterns::ParsePatternFragments(bool OutFrags) {
         P->error("'" + ArgNameStr +
                  "' does not occur in pattern or was multiply specified!");
       OperandsSet.erase(ArgNameStr);
-      Args.push_back(ArgNameStr);
+      Args.push_back(std::string(ArgNameStr));
     }
 
     if (!OperandsSet.empty())

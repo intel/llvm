@@ -170,6 +170,11 @@ static cl::opt<bool>
                          cl::desc("reverse the CSR restore sequence"),
                          cl::init(false), cl::Hidden);
 
+static cl::opt<bool> StackTaggingMergeSetTag(
+    "stack-tagging-merge-settag",
+    cl::desc("merge settag instruction in function epilog"), cl::init(true),
+    cl::Hidden);
+
 STATISTIC(NumRedZoneFunctions, "Number of functions using red zone");
 
 /// This is the biggest offset to the stack pointer we can encode in aarch64
@@ -206,6 +211,11 @@ static unsigned estimateRSStackSizeLimit(MachineFunction &MF) {
   return DefaultSafeSPDisplacement;
 }
 
+TargetStackID::Value
+AArch64FrameLowering::getStackIDForScalableVectors() const {
+  return TargetStackID::SVEVector;
+}
+
 /// Returns the size of the entire SVE stackframe (calleesaves + spills).
 static StackOffset getSVEStackSize(const MachineFunction &MF) {
   const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
@@ -222,7 +232,7 @@ bool AArch64FrameLowering::canUseRedZone(const MachineFunction &MF) const {
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
-  unsigned NumBytes = AFI->getLocalStackSize();
+  uint64_t NumBytes = AFI->getLocalStackSize();
 
   return !(MFI.hasCalls() || hasFP(MF) || NumBytes > 128 ||
            getSVEStackSize(MF));
@@ -239,7 +249,7 @@ bool AArch64FrameLowering::hasFP(const MachineFunction &MF) const {
   if (MF.hasEHFunclets())
     return true;
   // Retain behavior of always omitting the FP for leaf functions when possible.
-  if (MFI.hasCalls() && MF.getTarget().Options.DisableFramePointerElim(MF))
+  if (MF.getTarget().Options.DisableFramePointerElim(MF))
     return true;
   if (MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken() ||
       MFI.hasStackMap() || MFI.hasPatchPoint() ||
@@ -424,7 +434,7 @@ bool AArch64FrameLowering::canUseAsPrologue(
 }
 
 static bool windowsRequiresStackProbe(MachineFunction &MF,
-                                      unsigned StackSizeInBytes) {
+                                      uint64_t StackSizeInBytes) {
   const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
   if (!Subtarget.isTargetWindows())
     return false;
@@ -441,14 +451,11 @@ static bool windowsRequiresStackProbe(MachineFunction &MF,
 }
 
 bool AArch64FrameLowering::shouldCombineCSRLocalStackBump(
-    MachineFunction &MF, unsigned StackBumpBytes) const {
+    MachineFunction &MF, uint64_t StackBumpBytes) const {
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
   const AArch64RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
-
-  if (MF.getFunction().hasOptSize())
-    return false;
 
   if (AFI->getLocalStackSize() == 0)
     return false;
@@ -476,6 +483,39 @@ bool AArch64FrameLowering::shouldCombineCSRLocalStackBump(
     return false;
 
   return true;
+}
+
+bool AArch64FrameLowering::shouldCombineCSRLocalStackBumpInEpilogue(
+    MachineBasicBlock &MBB, unsigned StackBumpBytes) const {
+  if (!shouldCombineCSRLocalStackBump(*MBB.getParent(), StackBumpBytes))
+    return false;
+
+  if (MBB.empty())
+    return true;
+
+  // Disable combined SP bump if the last instruction is an MTE tag store. It
+  // is almost always better to merge SP adjustment into those instructions.
+  MachineBasicBlock::iterator LastI = MBB.getFirstTerminator();
+  MachineBasicBlock::iterator Begin = MBB.begin();
+  while (LastI != Begin) {
+    --LastI;
+    if (LastI->isTransient())
+      continue;
+    if (!LastI->getFlag(MachineInstr::FrameDestroy))
+      break;
+  }
+  switch (LastI->getOpcode()) {
+  case AArch64::STGloop:
+  case AArch64::STZGloop:
+  case AArch64::STGOffset:
+  case AArch64::STZGOffset:
+  case AArch64::ST2GOffset:
+  case AArch64::STZ2GOffset:
+    return false;
+  default:
+    return true;
+  }
+  llvm_unreachable("unreachable");
 }
 
 // Given a load or a store instruction, generate an appropriate unwinding SEH
@@ -723,7 +763,7 @@ static MachineBasicBlock::iterator convertCalleeSaveRestoreToSPPrePostIncDec(
 // Fixup callee-save register save/restore instructions to take into account
 // combined SP bump by adding the local stack size to the stack offsets.
 static void fixupCalleeSaveRestoreStackOffset(MachineInstr &MI,
-                                              unsigned LocalStackSize,
+                                              uint64_t LocalStackSize,
                                               bool NeedsWinCFI,
                                               bool *HasWinCFI) {
   if (AArch64InstrInfo::isSEHInstruction(MI))
@@ -834,6 +874,24 @@ static bool isTargetDarwin(const MachineFunction &MF) {
   return MF.getSubtarget<AArch64Subtarget>().isTargetDarwin();
 }
 
+static bool isTargetWindows(const MachineFunction &MF) {
+  return MF.getSubtarget<AArch64Subtarget>().isTargetWindows();
+}
+
+// Convenience function to determine whether I is an SVE callee save.
+static bool IsSVECalleeSave(MachineBasicBlock::iterator I) {
+  switch (I->getOpcode()) {
+  default:
+    return false;
+  case AArch64::STR_ZXI:
+  case AArch64::STR_PXI:
+  case AArch64::LDR_ZXI:
+  case AArch64::LDR_PXI:
+    return I->getFlag(MachineInstr::FrameSetup) ||
+           I->getFlag(MachineInstr::FrameDestroy);
+  }
+}
+
 void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
                                         MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator MBBI = MBB.begin();
@@ -844,8 +902,8 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   MachineModuleInfo &MMI = MF.getMMI();
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
-  bool needsFrameMoves = (MMI.hasDebugInfo() || F.needsUnwindTableEntry()) &&
-                         !MF.getTarget().getMCAsmInfo()->usesWindowsCFI();
+  bool needsFrameMoves =
+      MF.needsFrameMoves() && !MF.getTarget().getMCAsmInfo()->usesWindowsCFI();
   bool HasFP = hasFP(MF);
   bool NeedsWinCFI = needsWinCFI(MF);
   bool HasWinCFI = false;
@@ -897,8 +955,8 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   // pointer from the funclet.  We only save the callee saved registers in the
   // funclet, which are really the callee saved registers of the parent
   // function, including the funclet.
-  int NumBytes = IsFunclet ? (int)getWinEHFuncletFrameSize(MF)
-                           : (int)MFI.getStackSize();
+  int64_t NumBytes = IsFunclet ? getWinEHFuncletFrameSize(MF)
+                               : MFI.getStackSize();
   if (!AFI->hasStackFrame() && !windowsRequiresStackProbe(MF, NumBytes)) {
     assert(!HasFP && "unexpected function without stack frame but with FP");
     assert(!SVEStackSize &&
@@ -916,15 +974,15 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
       emitFrameOffset(MBB, MBBI, DL, AArch64::SP, AArch64::SP,
                       {-NumBytes, MVT::i8}, TII, MachineInstr::FrameSetup,
                       false, NeedsWinCFI, &HasWinCFI);
-      if (!NeedsWinCFI) {
+      if (!NeedsWinCFI && needsFrameMoves) {
         // Label used to tie together the PROLOG_LABEL and the MachineMoves.
         MCSymbol *FrameLabel = MMI.getContext().createTempSymbol();
-        // Encode the stack size of the leaf function.
-        unsigned CFIIndex = MF.addFrameInst(
-            MCCFIInstruction::createDefCfaOffset(FrameLabel, -NumBytes));
-        BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
-            .addCFIIndex(CFIIndex)
-            .setMIFlags(MachineInstr::FrameSetup);
+          // Encode the stack size of the leaf function.
+          unsigned CFIIndex = MF.addFrameInst(
+              MCCFIInstruction::createDefCfaOffset(FrameLabel, -NumBytes));
+          BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+              .addCFIIndex(CFIIndex)
+              .setMIFlags(MachineInstr::FrameSetup);
       }
     }
 
@@ -965,7 +1023,8 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   // and pre-inc if we decided to combine the callee-save and local stack
   // pointer bump above.
   MachineBasicBlock::iterator End = MBB.end();
-  while (MBBI != End && MBBI->getFlag(MachineInstr::FrameSetup)) {
+  while (MBBI != End && MBBI->getFlag(MachineInstr::FrameSetup) &&
+         !IsSVECalleeSave(MBBI)) {
     if (CombineSPBump)
       fixupCalleeSaveRestoreStackOffset(*MBBI, AFI->getLocalStackSize(),
                                         NeedsWinCFI, &HasWinCFI);
@@ -999,7 +1058,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
 
   if (HasFP) {
     // Only set up FP if we actually need to.
-    int FPOffset = isTargetDarwin(MF) ? (AFI->getCalleeSavedStackSize() - 16) : 0;
+    int64_t FPOffset = isTargetDarwin(MF) ? (AFI->getCalleeSavedStackSize() - 16) : 0;
 
     if (CombineSPBump)
       FPOffset += AFI->getLocalStackSize();
@@ -1014,7 +1073,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   if (windowsRequiresStackProbe(MF, NumBytes)) {
-    uint32_t NumWords = NumBytes >> 4;
+    uint64_t NumWords = NumBytes >> 4;
     if (NeedsWinCFI) {
       HasWinCFI = true;
       // alloc_l can hold at most 256MB, so assume that NumBytes doesn't
@@ -1107,7 +1166,35 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
     NumBytes = 0;
   }
 
-  emitFrameOffset(MBB, MBBI, DL, AArch64::SP, AArch64::SP, -SVEStackSize, TII,
+  StackOffset AllocateBefore = SVEStackSize, AllocateAfter = {};
+  MachineBasicBlock::iterator CalleeSavesBegin = MBBI, CalleeSavesEnd = MBBI;
+
+  // Process the SVE callee-saves to determine what space needs to be
+  // allocated.
+  if (AFI->getSVECalleeSavedStackSize()) {
+    // Find callee save instructions in frame.
+    CalleeSavesBegin = MBBI;
+    assert(IsSVECalleeSave(CalleeSavesBegin) && "Unexpected instruction");
+    while (IsSVECalleeSave(MBBI) && MBBI != MBB.getFirstTerminator())
+      ++MBBI;
+    CalleeSavesEnd = MBBI;
+
+    int64_t OffsetToFirstCalleeSaveFromSP =
+        MFI.getObjectOffset(AFI->getMaxSVECSFrameIndex());
+    StackOffset OffsetToCalleeSavesFromSP =
+        StackOffset(OffsetToFirstCalleeSaveFromSP, MVT::nxv1i8) + SVEStackSize;
+    AllocateBefore -= OffsetToCalleeSavesFromSP;
+    AllocateAfter = SVEStackSize - AllocateBefore;
+  }
+
+  // Allocate space for the callee saves (if any).
+  emitFrameOffset(MBB, CalleeSavesBegin, DL, AArch64::SP, AArch64::SP,
+                  -AllocateBefore, TII,
+                  MachineInstr::FrameSetup);
+
+  // Finally allocate remaining SVE stack space.
+  emitFrameOffset(MBB, CalleeSavesEnd, DL, AArch64::SP, AArch64::SP,
+                  -AllocateAfter, TII,
                   MachineInstr::FrameSetup);
 
   // Allocate space for the rest of the frame.
@@ -1343,8 +1430,8 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
     IsFunclet = isFuncletReturnInstr(*MBBI);
   }
 
-  int NumBytes = IsFunclet ? (int)getWinEHFuncletFrameSize(MF)
-                           : MFI.getStackSize();
+  int64_t NumBytes = IsFunclet ? getWinEHFuncletFrameSize(MF)
+                               : MFI.getStackSize();
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
 
   // All calls are tail calls in GHC calling conv, and functions have no
@@ -1414,7 +1501,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
   // function.
   if (MF.hasEHFunclets())
     AFI->setLocalStackSize(NumBytes - PrologueSaveSize);
-  bool CombineSPBump = shouldCombineCSRLocalStackBump(MF, NumBytes);
+  bool CombineSPBump = shouldCombineCSRLocalStackBumpInEpilogue(MBB, NumBytes);
   // Assume we can't combine the last pop with the sp restore.
 
   if (!CombineSPBump && PrologueSaveSize != 0) {
@@ -1444,7 +1531,8 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator Begin = MBB.begin();
   while (LastPopI != Begin) {
     --LastPopI;
-    if (!LastPopI->getFlag(MachineInstr::FrameDestroy)) {
+    if (!LastPopI->getFlag(MachineInstr::FrameDestroy) ||
+        IsSVECalleeSave(LastPopI)) {
       ++LastPopI;
       break;
     } else if (CombineSPBump)
@@ -1476,11 +1564,53 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
   NumBytes -= PrologueSaveSize;
   assert(NumBytes >= 0 && "Negative stack allocation size!?");
 
+  // Process the SVE callee-saves to determine what space needs to be
+  // deallocated.
+  StackOffset DeallocateBefore = {}, DeallocateAfter = SVEStackSize;
+  MachineBasicBlock::iterator RestoreBegin = LastPopI, RestoreEnd = LastPopI;
+  if (AFI->getSVECalleeSavedStackSize()) {
+    RestoreBegin = std::prev(RestoreEnd);;
+    while (IsSVECalleeSave(RestoreBegin) &&
+           RestoreBegin != MBB.begin())
+      --RestoreBegin;
+    ++RestoreBegin;
+
+    assert(IsSVECalleeSave(RestoreBegin) &&
+           IsSVECalleeSave(std::prev(RestoreEnd)) && "Unexpected instruction");
+
+    int64_t OffsetToFirstCalleeSaveFromSP =
+        MFI.getObjectOffset(AFI->getMaxSVECSFrameIndex());
+    StackOffset OffsetToCalleeSavesFromSP =
+        StackOffset(OffsetToFirstCalleeSaveFromSP, MVT::nxv1i8) + SVEStackSize;
+    DeallocateBefore = OffsetToCalleeSavesFromSP;
+    DeallocateAfter = SVEStackSize - DeallocateBefore;
+  }
+
   // Deallocate the SVE area.
-  if (SVEStackSize)
-    if (!AFI->isStackRealigned())
-      emitFrameOffset(MBB, LastPopI, DL, AArch64::SP, AArch64::SP, SVEStackSize,
-                      TII, MachineInstr::FrameDestroy);
+  if (SVEStackSize) {
+    if (AFI->isStackRealigned()) {
+      if (AFI->getSVECalleeSavedStackSize())
+        // Set SP to start of SVE area, from which the callee-save reloads
+        // can be done. The code below will deallocate the stack space
+        // space by moving FP -> SP.
+        emitFrameOffset(MBB, RestoreBegin, DL, AArch64::SP, AArch64::FP,
+                        -SVEStackSize, TII, MachineInstr::FrameDestroy);
+    } else {
+      if (AFI->getSVECalleeSavedStackSize()) {
+        // Deallocate the non-SVE locals first before we can deallocate (and
+        // restore callee saves) from the SVE area.
+        emitFrameOffset(MBB, RestoreBegin, DL, AArch64::SP, AArch64::SP,
+                        {NumBytes, MVT::i8}, TII, MachineInstr::FrameDestroy);
+        NumBytes = 0;
+      }
+
+      emitFrameOffset(MBB, RestoreBegin, DL, AArch64::SP, AArch64::SP,
+                      DeallocateBefore, TII, MachineInstr::FrameDestroy);
+
+      emitFrameOffset(MBB, RestoreEnd, DL, AArch64::SP, AArch64::SP,
+                      DeallocateAfter, TII, MachineInstr::FrameDestroy);
+    }
+  }
 
   if (!hasFP(MF)) {
     bool RedZone = canUseRedZone(MF);
@@ -1490,7 +1620,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
       return;
 
     bool NoCalleeSaveRestore = PrologueSaveSize == 0;
-    int StackRestoreBytes = RedZone ? 0 : NumBytes;
+    int64_t StackRestoreBytes = RedZone ? 0 : NumBytes;
     if (NoCalleeSaveRestore)
       StackRestoreBytes += AfterCSRPopSize;
 
@@ -1582,19 +1712,20 @@ int AArch64FrameLowering::getNonLocalFrameIndexReference(
   return getSEHFrameIndexOffset(MF, FI);
 }
 
-static StackOffset getFPOffset(const MachineFunction &MF, int ObjectOffset) {
+static StackOffset getFPOffset(const MachineFunction &MF, int64_t ObjectOffset) {
   const auto *AFI = MF.getInfo<AArch64FunctionInfo>();
   const auto &Subtarget = MF.getSubtarget<AArch64Subtarget>();
   bool IsWin64 =
       Subtarget.isCallingConvWin64(MF.getFunction().getCallingConv());
   unsigned FixedObject = IsWin64 ? alignTo(AFI->getVarArgsGPRSize(), 16) : 0;
-  unsigned FPAdjust = isTargetDarwin(MF) ? 16 : AFI->getCalleeSavedStackSize();
+  unsigned FPAdjust = isTargetDarwin(MF)
+                        ? 16 : AFI->getCalleeSavedStackSize(MF.getFrameInfo());
   return {ObjectOffset + FixedObject + FPAdjust, MVT::i8};
 }
 
-static StackOffset getStackOffset(const MachineFunction &MF, int ObjectOffset) {
+static StackOffset getStackOffset(const MachineFunction &MF, int64_t ObjectOffset) {
   const auto &MFI = MF.getFrameInfo();
-  return {ObjectOffset + (int)MFI.getStackSize(), MVT::i8};
+  return {ObjectOffset + (int64_t)MFI.getStackSize(), MVT::i8};
 }
 
 int AArch64FrameLowering::getSEHFrameIndexOffset(const MachineFunction &MF,
@@ -1611,7 +1742,7 @@ StackOffset AArch64FrameLowering::resolveFrameIndexReference(
     const MachineFunction &MF, int FI, unsigned &FrameReg, bool PreferFP,
     bool ForSimm) const {
   const auto &MFI = MF.getFrameInfo();
-  int ObjectOffset = MFI.getObjectOffset(FI);
+  int64_t ObjectOffset = MFI.getObjectOffset(FI);
   bool isFixed = MFI.isFixedObjectIndex(FI);
   bool isSVE = MFI.getStackID(FI) == TargetStackID::SVEVector;
   return resolveFrameOffsetReference(MF, ObjectOffset, isFixed, isSVE, FrameReg,
@@ -1619,7 +1750,7 @@ StackOffset AArch64FrameLowering::resolveFrameIndexReference(
 }
 
 StackOffset AArch64FrameLowering::resolveFrameOffsetReference(
-    const MachineFunction &MF, int ObjectOffset, bool isFixed, bool isSVE,
+    const MachineFunction &MF, int64_t ObjectOffset, bool isFixed, bool isSVE,
     unsigned &FrameReg, bool PreferFP, bool ForSimm) const {
   const auto &MFI = MF.getFrameInfo();
   const auto *RegInfo = static_cast<const AArch64RegisterInfo *>(
@@ -1627,10 +1758,10 @@ StackOffset AArch64FrameLowering::resolveFrameOffsetReference(
   const auto *AFI = MF.getInfo<AArch64FunctionInfo>();
   const auto &Subtarget = MF.getSubtarget<AArch64Subtarget>();
 
-  int FPOffset = getFPOffset(MF, ObjectOffset).getBytes();
-  int Offset = getStackOffset(MF, ObjectOffset).getBytes();
+  int64_t FPOffset = getFPOffset(MF, ObjectOffset).getBytes();
+  int64_t Offset = getStackOffset(MF, ObjectOffset).getBytes();
   bool isCSR =
-      !isFixed && ObjectOffset >= -((int)AFI->getCalleeSavedStackSize());
+      !isFixed && ObjectOffset >= -((int)AFI->getCalleeSavedStackSize(MFI));
 
   const StackOffset &SVEStackSize = getSVEStackSize(MF);
 
@@ -1781,6 +1912,8 @@ static bool invalidateWindowsRegisterPairing(unsigned Reg1, unsigned Reg2,
 
   // TODO: LR can be paired with any register.  We don't support this yet in
   // the MCLayer.  We need to add support for the save_lrpair unwind code.
+  if (Reg2 == AArch64::FP)
+    return true;
   if (!NeedsWinCFI)
     return false;
   if (Reg2 == Reg1 + 1)
@@ -1793,9 +1926,9 @@ static bool invalidateWindowsRegisterPairing(unsigned Reg1, unsigned Reg2,
 /// LR and FP need to be allocated together when the frame needs to save
 /// the frame-record. This means any other register pairing with LR is invalid.
 static bool invalidateRegisterPairing(unsigned Reg1, unsigned Reg2,
-                                      bool NeedsWinCFI, bool NeedsFrameRecord) {
-  if (NeedsWinCFI)
-    return invalidateWindowsRegisterPairing(Reg1, Reg2, true);
+                                      bool UsesWinAAPCS, bool NeedsWinCFI, bool NeedsFrameRecord) {
+  if (UsesWinAAPCS)
+    return invalidateWindowsRegisterPairing(Reg1, Reg2, NeedsWinCFI);
 
   // If we need to store the frame record, don't pair any register
   // with LR other than FP.
@@ -1812,11 +1945,27 @@ struct RegPairInfo {
   unsigned Reg2 = AArch64::NoRegister;
   int FrameIdx;
   int Offset;
-  enum RegType { GPR, FPR64, FPR128 } Type;
+  enum RegType { GPR, FPR64, FPR128, PPR, ZPR } Type;
 
   RegPairInfo() = default;
 
   bool isPaired() const { return Reg2 != AArch64::NoRegister; }
+
+  unsigned getScale() const {
+    switch (Type) {
+    case PPR:
+      return 2;
+    case GPR:
+    case FPR64:
+      return 8;
+    case ZPR:
+    case FPR128:
+      return 16;
+    }
+    llvm_unreachable("Unsupported type");
+  }
+
+  bool isScalable() const { return Type == PPR || Type == ZPR; }
 };
 
 } // end anonymous namespace
@@ -1829,6 +1978,7 @@ static void computeCalleeSaveRegisterPairs(
   if (CSI.empty())
     return;
 
+  bool IsWindows = isTargetWindows(MF);
   bool NeedsWinCFI = needsWinCFI(MF);
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -1841,7 +1991,8 @@ static void computeCalleeSaveRegisterPairs(
           CC == CallingConv::PreserveMost ||
           (Count & 1) == 0) &&
          "Odd number of callee-saved regs to spill!");
-  int Offset = AFI->getCalleeSavedStackSize();
+  int ByteOffset = AFI->getCalleeSavedStackSize();
+  int ScalableByteOffset = AFI->getSVECalleeSavedStackSize();
   // On Linux, we will have either one or zero non-paired register.  On Windows
   // with CFI, we can have multiple unpaired registers in order to utilize the
   // available unwind codes.  This flag assures that the alignment fixup is done
@@ -1857,6 +2008,10 @@ static void computeCalleeSaveRegisterPairs(
       RPI.Type = RegPairInfo::FPR64;
     else if (AArch64::FPR128RegClass.contains(RPI.Reg1))
       RPI.Type = RegPairInfo::FPR128;
+    else if (AArch64::ZPRRegClass.contains(RPI.Reg1))
+      RPI.Type = RegPairInfo::ZPR;
+    else if (AArch64::PPRRegClass.contains(RPI.Reg1))
+      RPI.Type = RegPairInfo::PPR;
     else
       llvm_unreachable("Unsupported register class.");
 
@@ -1866,7 +2021,7 @@ static void computeCalleeSaveRegisterPairs(
       switch (RPI.Type) {
       case RegPairInfo::GPR:
         if (AArch64::GPR64RegClass.contains(NextReg) &&
-            !invalidateRegisterPairing(RPI.Reg1, NextReg, NeedsWinCFI,
+            !invalidateRegisterPairing(RPI.Reg1, NextReg, IsWindows, NeedsWinCFI,
                                        NeedsFrameRecord))
           RPI.Reg2 = NextReg;
         break;
@@ -1878,6 +2033,9 @@ static void computeCalleeSaveRegisterPairs(
       case RegPairInfo::FPR128:
         if (AArch64::FPR128RegClass.contains(NextReg))
           RPI.Reg2 = NextReg;
+        break;
+      case RegPairInfo::PPR:
+      case RegPairInfo::ZPR:
         break;
       }
     }
@@ -1905,6 +2063,11 @@ static void computeCalleeSaveRegisterPairs(
             RPI.Reg1 == AArch64::LR) &&
            "FrameRecord must be allocated together with LR");
 
+    // Windows AAPCS has FP and LR reversed.
+    assert((!RPI.isPaired() || !NeedsFrameRecord || RPI.Reg1 != AArch64::FP ||
+            RPI.Reg2 == AArch64::LR) &&
+           "FrameRecord must be allocated together with LR");
+
     // MachO's compact unwind format relies on all registers being stored in
     // adjacent register pairs.
     assert((!produceCompactUnwindFrame(MF) ||
@@ -1916,23 +2079,33 @@ static void computeCalleeSaveRegisterPairs(
 
     RPI.FrameIdx = CSI[i].getFrameIdx();
 
-    int Scale = RPI.Type == RegPairInfo::FPR128 ? 16 : 8;
-    Offset -= RPI.isPaired() ? 2 * Scale : Scale;
+    int Scale = RPI.getScale();
+    if (RPI.isScalable())
+      ScalableByteOffset -= Scale;
+    else
+      ByteOffset -= RPI.isPaired() ? 2 * Scale : Scale;
+
+    assert(!(RPI.isScalable() && RPI.isPaired()) &&
+           "Paired spill/fill instructions don't exist for SVE vectors");
 
     // Round up size of non-pair to pair size if we need to pad the
     // callee-save area to ensure 16-byte alignment.
     if (AFI->hasCalleeSaveStackFreeSpace() && !FixupDone &&
-        RPI.Type != RegPairInfo::FPR128 && !RPI.isPaired()) {
+        !RPI.isScalable() && RPI.Type != RegPairInfo::FPR128 &&
+        !RPI.isPaired()) {
       FixupDone = true;
-      Offset -= 8;
-      assert(Offset % 16 == 0);
+      ByteOffset -= 8;
+      assert(ByteOffset % 16 == 0);
       assert(MFI.getObjectAlignment(RPI.FrameIdx) <= 16);
       MFI.setObjectAlignment(RPI.FrameIdx, 16);
     }
 
+    int Offset = RPI.isScalable() ? ScalableByteOffset : ByteOffset;
     assert(Offset % Scale == 0);
     RPI.Offset = Offset / Scale;
-    assert((RPI.Offset >= -64 && RPI.Offset <= 63) &&
+
+    assert(((!RPI.isScalable() && RPI.Offset >= -64 && RPI.Offset <= 63) ||
+            (RPI.isScalable() && RPI.Offset >= -256 && RPI.Offset <= 255)) &&
            "Offset out of bounds for LDP/STP immediate");
 
     RegPairs.push_back(RPI);
@@ -2024,6 +2197,16 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
        Size = 16;
        Align = 16;
        break;
+    case RegPairInfo::ZPR:
+       StrOpc = AArch64::STR_ZXI;
+       Size = 16;
+       Align = 16;
+       break;
+    case RegPairInfo::PPR:
+       StrOpc = AArch64::STR_PXI;
+       Size = 2;
+       Align = 2;
+       break;
     }
     LLVM_DEBUG(dbgs() << "CSR spill: (" << printReg(Reg1, TRI);
                if (RPI.isPaired()) dbgs() << ", " << printReg(Reg2, TRI);
@@ -2063,6 +2246,11 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
         MachineMemOperand::MOStore, Size, Align));
     if (NeedsWinCFI)
       InsertSEH(MIB, TII, MachineInstr::FrameSetup);
+
+    // Update the StackIDs of the SVE stack slots.
+    MachineFrameInfo &MFI = MF.getFrameInfo();
+    if (RPI.Type == RegPairInfo::ZPR || RPI.Type == RegPairInfo::PPR)
+      MFI.setStackID(RPI.FrameIdx, TargetStackID::SVEVector);
 
   }
   return true;
@@ -2115,6 +2303,16 @@ bool AArch64FrameLowering::restoreCalleeSavedRegisters(
        Size = 16;
        Align = 16;
        break;
+    case RegPairInfo::ZPR:
+       LdrOpc = AArch64::LDR_ZXI;
+       Size = 16;
+       Align = 16;
+       break;
+    case RegPairInfo::PPR:
+       LdrOpc = AArch64::LDR_PXI;
+       Size = 2;
+       Align = 2;
+       break;
     }
     LLVM_DEBUG(dbgs() << "CSR restore: (" << printReg(Reg1, TRI);
                if (RPI.isPaired()) dbgs() << ", " << printReg(Reg2, TRI);
@@ -2149,12 +2347,20 @@ bool AArch64FrameLowering::restoreCalleeSavedRegisters(
     if (NeedsWinCFI)
       InsertSEH(MIB, TII, MachineInstr::FrameDestroy);
   };
-  if (ReverseCSRRestoreSeq)
+
+  // SVE objects are always restored in reverse order.
+  for (const RegPairInfo &RPI : reverse(RegPairs))
+    if (RPI.isScalable())
+      EmitMI(RPI);
+
+  if (ReverseCSRRestoreSeq) {
     for (const RegPairInfo &RPI : reverse(RegPairs))
-      EmitMI(RPI);
-  else
+      if (!RPI.isScalable())
+        EmitMI(RPI);
+  } else
     for (const RegPairInfo &RPI : RegPairs)
-      EmitMI(RPI);
+      if (!RPI.isScalable())
+        EmitMI(RPI);
 
   if (NeedShadowCallStackProlog) {
     // Shadow call stack epilog: ldr x30, [x18, #-8]!
@@ -2201,7 +2407,12 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
       SavedRegs.set(Reg);
 
     bool RegUsed = SavedRegs.test(Reg);
-    unsigned PairedReg = CSRegs[i ^ 1];
+    unsigned PairedReg = AArch64::NoRegister;
+    if (AArch64::GPR64RegClass.contains(Reg) ||
+        AArch64::FPR64RegClass.contains(Reg) ||
+        AArch64::FPR128RegClass.contains(Reg))
+      PairedReg = CSRegs[i ^ 1];
+
     if (!RegUsed) {
       if (AArch64::GPR64RegClass.contains(Reg) &&
           !RegInfo->isReservedReg(MF, Reg)) {
@@ -2225,16 +2436,23 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
 
   // Calculates the callee saved stack size.
   unsigned CSStackSize = 0;
+  unsigned SVECSStackSize = 0;
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
-  for (unsigned Reg : SavedRegs.set_bits())
-    CSStackSize += TRI->getRegSizeInBits(Reg, MRI) / 8;
+  for (unsigned Reg : SavedRegs.set_bits()) {
+    auto RegSize = TRI->getRegSizeInBits(Reg, MRI) / 8;
+    if (AArch64::PPRRegClass.contains(Reg) ||
+        AArch64::ZPRRegClass.contains(Reg))
+      SVECSStackSize += RegSize;
+    else
+      CSStackSize += RegSize;
+  }
 
   // Save number of saved regs, so we can easily update CSStackSize later.
   unsigned NumSavedRegs = SavedRegs.count();
 
   // The frame record needs to be created by saving the appropriate registers
-  unsigned EstimatedStackSize = MFI.estimateStackSize(MF);
+  uint64_t EstimatedStackSize = MFI.estimateStackSize(MF);
   if (hasFP(MF) ||
       windowsRequiresStackProbe(MF, EstimatedStackSize + CSStackSize + 16)) {
     SavedRegs.set(AArch64::FP);
@@ -2248,10 +2466,8 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
              dbgs() << "\n";);
 
   // If any callee-saved registers are used, the frame cannot be eliminated.
-  unsigned MaxAlign = getStackAlignment();
   int64_t SVEStackSize =
-      alignTo(determineSVEStackSize(MFI, MaxAlign), MaxAlign);
-  assert(MaxAlign <= 16 && "Cannot align scalable vectors more than 16 bytes");
+      alignTo(SVECSStackSize + estimateSVEStackObjectOffsets(MFI), 16);
   bool CanEliminateFrame = (SavedRegs.count() == 0) && !SVEStackSize;
 
   // The CSR spill slots have not been allocated yet, so estimateStackSize
@@ -2299,15 +2515,20 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
 
   // Adding the size of additional 64bit GPR saves.
   CSStackSize += 8 * (SavedRegs.count() - NumSavedRegs);
-  unsigned AlignedCSStackSize = alignTo(CSStackSize, 16);
+  uint64_t AlignedCSStackSize = alignTo(CSStackSize, 16);
   LLVM_DEBUG(dbgs() << "Estimated stack frame size: "
                << EstimatedStackSize + AlignedCSStackSize
                << " bytes.\n");
+
+  assert((!MFI.isCalleeSavedInfoValid() ||
+          AFI->getCalleeSavedStackSize() == AlignedCSStackSize) &&
+         "Should not invalidate callee saved info");
 
   // Round up to register pair alignment to avoid additional SP adjustment
   // instructions.
   AFI->setCalleeSavedStackSize(AlignedCSStackSize);
   AFI->setCalleeSaveStackHasFreeSpace(AlignedCSStackSize != CSStackSize);
+  AFI->setSVECalleeSavedStackSize(alignTo(SVECSStackSize, 16));
 }
 
 bool AArch64FrameLowering::enableStackSlotScavenging(
@@ -2316,9 +2537,40 @@ bool AArch64FrameLowering::enableStackSlotScavenging(
   return AFI->hasCalleeSaveStackFreeSpace();
 }
 
-int64_t AArch64FrameLowering::determineSVEStackSize(MachineFrameInfo &MFI,
-                                                    unsigned &MaxAlign) const {
-  // Process all fixed stack objects.
+/// returns true if there are any SVE callee saves.
+static bool getSVECalleeSaveSlotRange(const MachineFrameInfo &MFI,
+                                      int &Min, int &Max) {
+  Min = std::numeric_limits<int>::max();
+  Max = std::numeric_limits<int>::min();
+
+  if (!MFI.isCalleeSavedInfoValid())
+    return false;
+
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  for (auto &CS : CSI) {
+    if (AArch64::ZPRRegClass.contains(CS.getReg()) ||
+        AArch64::PPRRegClass.contains(CS.getReg())) {
+      assert((Max == std::numeric_limits<int>::min() ||
+              Max + 1 == CS.getFrameIdx()) &&
+             "SVE CalleeSaves are not consecutive");
+
+      Min = std::min(Min, CS.getFrameIdx());
+      Max = std::max(Max, CS.getFrameIdx());
+    }
+  }
+  return Min != std::numeric_limits<int>::max();
+}
+
+// Process all the SVE stack objects and determine offsets for each
+// object. If AssignOffsets is true, the offsets get assigned.
+// Fills in the first and last callee-saved frame indices into
+// Min/MaxCSFrameIndex, respectively.
+// Returns the size of the stack.
+static int64_t determineSVEStackObjectOffsets(MachineFrameInfo &MFI,
+                                              int &MinCSFrameIndex,
+                                              int &MaxCSFrameIndex,
+                                              bool AssignOffsets) {
+  // First process all fixed stack objects.
   int64_t Offset = 0;
   for (int I = MFI.getObjectIndexBegin(); I != 0; ++I)
     if (MFI.getStackID(I) == TargetStackID::SVEVector) {
@@ -2327,10 +2579,67 @@ int64_t AArch64FrameLowering::determineSVEStackSize(MachineFrameInfo &MFI,
         Offset = FixedOffset;
     }
 
-  // Note: We don't take allocatable stack objects into
-  // account yet, because allocation for those is not yet
-  // implemented.
+  auto Assign = [&MFI](int FI, int64_t Offset) {
+    LLVM_DEBUG(dbgs() << "alloc FI(" << FI << ") at SP[" << Offset << "]\n");
+    MFI.setObjectOffset(FI, Offset);
+  };
+
+  // Then process all callee saved slots.
+  if (getSVECalleeSaveSlotRange(MFI, MinCSFrameIndex, MaxCSFrameIndex)) {
+    // Make sure to align the last callee save slot.
+    MFI.setObjectAlignment(MaxCSFrameIndex, 16U);
+
+    // Assign offsets to the callee save slots.
+    for (int I = MinCSFrameIndex; I <= MaxCSFrameIndex; ++I) {
+      Offset += MFI.getObjectSize(I);
+      Offset = alignTo(Offset, MFI.getObjectAlignment(I));
+      if (AssignOffsets)
+        Assign(I, -Offset);
+    }
+  }
+
+  // Create a buffer of SVE objects to allocate and sort it.
+  SmallVector<int, 8> ObjectsToAllocate;
+  for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I) {
+    unsigned StackID = MFI.getStackID(I);
+    if (StackID != TargetStackID::SVEVector)
+      continue;
+    if (MaxCSFrameIndex >= I && I >= MinCSFrameIndex)
+      continue;
+    if (MFI.isDeadObjectIndex(I))
+      continue;
+
+    ObjectsToAllocate.push_back(I);
+  }
+
+  // Allocate all SVE locals and spills
+  for (unsigned FI : ObjectsToAllocate) {
+    unsigned Align = MFI.getObjectAlignment(FI);
+    // FIXME: Given that the length of SVE vectors is not necessarily a power of
+    // two, we'd need to align every object dynamically at runtime if the
+    // alignment is larger than 16. This is not yet supported.
+    if (Align > 16)
+      report_fatal_error(
+          "Alignment of scalable vectors > 16 bytes is not yet supported");
+
+    Offset = alignTo(Offset + MFI.getObjectSize(FI), Align);
+    if (AssignOffsets)
+      Assign(FI, -Offset);
+  }
+
   return Offset;
+}
+
+int64_t AArch64FrameLowering::estimateSVEStackObjectOffsets(
+    MachineFrameInfo &MFI) const {
+  int MinCSFrameIndex, MaxCSFrameIndex;
+  return determineSVEStackObjectOffsets(MFI, MinCSFrameIndex, MaxCSFrameIndex, false);
+}
+
+int64_t AArch64FrameLowering::assignSVEStackObjectOffsets(
+    MachineFrameInfo &MFI, int &MinCSFrameIndex, int &MaxCSFrameIndex) const {
+  return determineSVEStackObjectOffsets(MFI, MinCSFrameIndex, MaxCSFrameIndex,
+                                        true);
 }
 
 void AArch64FrameLowering::processFunctionBeforeFrameFinalized(
@@ -2340,12 +2649,13 @@ void AArch64FrameLowering::processFunctionBeforeFrameFinalized(
   assert(getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown &&
          "Upwards growing stack unsupported");
 
-  unsigned MaxAlign = getStackAlignment();
-  int64_t SVEStackSize = determineSVEStackSize(MFI, MaxAlign);
+  int MinCSFrameIndex, MaxCSFrameIndex;
+  int64_t SVEStackSize =
+      assignSVEStackObjectOffsets(MFI, MinCSFrameIndex, MaxCSFrameIndex);
 
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
-  AFI->setStackSizeSVE(alignTo(SVEStackSize, MaxAlign));
-  assert(MaxAlign <= 16 && "Cannot align scalable vectors more than 16 bytes");
+  AFI->setStackSizeSVE(alignTo(SVEStackSize, 16U));
+  AFI->setMinMaxSVECSFrameIndex(MinCSFrameIndex, MaxCSFrameIndex);
 
   // If this function isn't doing Win64-style C++ EH, we don't need to do
   // anything.
@@ -2377,9 +2687,399 @@ void AArch64FrameLowering::processFunctionBeforeFrameFinalized(
       .addImm(0);
 }
 
-/// For Win64 AArch64 EH, the offset to the Unwind object is from the SP before
-/// the update.  This is easily retrieved as it is exactly the offset that is set
-/// in processFunctionBeforeFrameFinalized.
+namespace {
+struct TagStoreInstr {
+  MachineInstr *MI;
+  int64_t Offset, Size;
+  explicit TagStoreInstr(MachineInstr *MI, int64_t Offset, int64_t Size)
+      : MI(MI), Offset(Offset), Size(Size) {}
+};
+
+class TagStoreEdit {
+  MachineFunction *MF;
+  MachineBasicBlock *MBB;
+  MachineRegisterInfo *MRI;
+  // Tag store instructions that are being replaced.
+  SmallVector<TagStoreInstr, 8> TagStores;
+  // Combined memref arguments of the above instructions.
+  SmallVector<MachineMemOperand *, 8> CombinedMemRefs;
+
+  // Replace allocation tags in [FrameReg + FrameRegOffset, FrameReg +
+  // FrameRegOffset + Size) with the address tag of SP.
+  Register FrameReg;
+  StackOffset FrameRegOffset;
+  int64_t Size;
+  // If not None, move FrameReg to (FrameReg + FrameRegUpdate) at the end.
+  Optional<int64_t> FrameRegUpdate;
+  // MIFlags for any FrameReg updating instructions.
+  unsigned FrameRegUpdateFlags;
+
+  // Use zeroing instruction variants.
+  bool ZeroData;
+  DebugLoc DL;
+
+  void emitUnrolled(MachineBasicBlock::iterator InsertI);
+  void emitLoop(MachineBasicBlock::iterator InsertI);
+
+public:
+  TagStoreEdit(MachineBasicBlock *MBB, bool ZeroData)
+      : MBB(MBB), ZeroData(ZeroData) {
+    MF = MBB->getParent();
+    MRI = &MF->getRegInfo();
+  }
+  // Add an instruction to be replaced. Instructions must be added in the
+  // ascending order of Offset, and have to be adjacent.
+  void addInstruction(TagStoreInstr I) {
+    assert((TagStores.empty() ||
+            TagStores.back().Offset + TagStores.back().Size == I.Offset) &&
+           "Non-adjacent tag store instructions.");
+    TagStores.push_back(I);
+  }
+  void clear() { TagStores.clear(); }
+  // Emit equivalent code at the given location, and erase the current set of
+  // instructions. May skip if the replacement is not profitable. May invalidate
+  // the input iterator and replace it with a valid one.
+  void emitCode(MachineBasicBlock::iterator &InsertI,
+                const AArch64FrameLowering *TFI, bool IsLast);
+};
+
+void TagStoreEdit::emitUnrolled(MachineBasicBlock::iterator InsertI) {
+  const AArch64InstrInfo *TII =
+      MF->getSubtarget<AArch64Subtarget>().getInstrInfo();
+
+  const int64_t kMinOffset = -256 * 16;
+  const int64_t kMaxOffset = 255 * 16;
+
+  Register BaseReg = FrameReg;
+  int64_t BaseRegOffsetBytes = FrameRegOffset.getBytes();
+  if (BaseRegOffsetBytes < kMinOffset ||
+      BaseRegOffsetBytes + (Size - Size % 32) > kMaxOffset) {
+    Register ScratchReg = MRI->createVirtualRegister(&AArch64::GPR64RegClass);
+    emitFrameOffset(*MBB, InsertI, DL, ScratchReg, BaseReg,
+                    {BaseRegOffsetBytes, MVT::i8}, TII);
+    BaseReg = ScratchReg;
+    BaseRegOffsetBytes = 0;
+  }
+
+  MachineInstr *LastI = nullptr;
+  while (Size) {
+    int64_t InstrSize = (Size > 16) ? 32 : 16;
+    unsigned Opcode =
+        InstrSize == 16
+            ? (ZeroData ? AArch64::STZGOffset : AArch64::STGOffset)
+            : (ZeroData ? AArch64::STZ2GOffset : AArch64::ST2GOffset);
+    MachineInstr *I = BuildMI(*MBB, InsertI, DL, TII->get(Opcode))
+                          .addReg(AArch64::SP)
+                          .addReg(BaseReg)
+                          .addImm(BaseRegOffsetBytes / 16)
+                          .setMemRefs(CombinedMemRefs);
+    // A store to [BaseReg, #0] should go last for an opportunity to fold the
+    // final SP adjustment in the epilogue.
+    if (BaseRegOffsetBytes == 0)
+      LastI = I;
+    BaseRegOffsetBytes += InstrSize;
+    Size -= InstrSize;
+  }
+
+  if (LastI)
+    MBB->splice(InsertI, MBB, LastI);
+}
+
+void TagStoreEdit::emitLoop(MachineBasicBlock::iterator InsertI) {
+  const AArch64InstrInfo *TII =
+      MF->getSubtarget<AArch64Subtarget>().getInstrInfo();
+
+  Register BaseReg = FrameRegUpdate
+                         ? FrameReg
+                         : MRI->createVirtualRegister(&AArch64::GPR64RegClass);
+  Register SizeReg = MRI->createVirtualRegister(&AArch64::GPR64RegClass);
+
+  emitFrameOffset(*MBB, InsertI, DL, BaseReg, FrameReg, FrameRegOffset, TII);
+
+  int64_t LoopSize = Size;
+  // If the loop size is not a multiple of 32, split off one 16-byte store at
+  // the end to fold BaseReg update into.
+  if (FrameRegUpdate && *FrameRegUpdate)
+    LoopSize -= LoopSize % 32;
+  MachineInstr *LoopI = BuildMI(*MBB, InsertI, DL,
+                                TII->get(ZeroData ? AArch64::STZGloop_wback
+                                                  : AArch64::STGloop_wback))
+                            .addDef(SizeReg)
+                            .addDef(BaseReg)
+                            .addImm(LoopSize)
+                            .addReg(BaseReg)
+                            .setMemRefs(CombinedMemRefs);
+  if (FrameRegUpdate)
+    LoopI->setFlags(FrameRegUpdateFlags);
+
+  int64_t ExtraBaseRegUpdate =
+      FrameRegUpdate ? (*FrameRegUpdate - FrameRegOffset.getBytes() - Size) : 0;
+  if (LoopSize < Size) {
+    assert(FrameRegUpdate);
+    assert(Size - LoopSize == 16);
+    // Tag 16 more bytes at BaseReg and update BaseReg.
+    BuildMI(*MBB, InsertI, DL,
+            TII->get(ZeroData ? AArch64::STZGPostIndex : AArch64::STGPostIndex))
+        .addDef(BaseReg)
+        .addReg(BaseReg)
+        .addReg(BaseReg)
+        .addImm(1 + ExtraBaseRegUpdate / 16)
+        .setMemRefs(CombinedMemRefs)
+        .setMIFlags(FrameRegUpdateFlags);
+  } else if (ExtraBaseRegUpdate) {
+    // Update BaseReg.
+    BuildMI(
+        *MBB, InsertI, DL,
+        TII->get(ExtraBaseRegUpdate > 0 ? AArch64::ADDXri : AArch64::SUBXri))
+        .addDef(BaseReg)
+        .addReg(BaseReg)
+        .addImm(std::abs(ExtraBaseRegUpdate))
+        .addImm(0)
+        .setMIFlags(FrameRegUpdateFlags);
+  }
+}
+
+// Check if *II is a register update that can be merged into STGloop that ends
+// at (Reg + Size). RemainingOffset is the required adjustment to Reg after the
+// end of the loop.
+bool canMergeRegUpdate(MachineBasicBlock::iterator II, unsigned Reg,
+                       int64_t Size, int64_t *TotalOffset) {
+  MachineInstr &MI = *II;
+  if ((MI.getOpcode() == AArch64::ADDXri ||
+       MI.getOpcode() == AArch64::SUBXri) &&
+      MI.getOperand(0).getReg() == Reg && MI.getOperand(1).getReg() == Reg) {
+    unsigned Shift = AArch64_AM::getShiftValue(MI.getOperand(3).getImm());
+    int64_t Offset = MI.getOperand(2).getImm() << Shift;
+    if (MI.getOpcode() == AArch64::SUBXri)
+      Offset = -Offset;
+    int64_t AbsPostOffset = std::abs(Offset - Size);
+    const int64_t kMaxOffset =
+        0xFFF; // Max encoding for unshifted ADDXri / SUBXri
+    if (AbsPostOffset <= kMaxOffset && AbsPostOffset % 16 == 0) {
+      *TotalOffset = Offset;
+      return true;
+    }
+  }
+  return false;
+}
+
+void mergeMemRefs(const SmallVectorImpl<TagStoreInstr> &TSE,
+                  SmallVectorImpl<MachineMemOperand *> &MemRefs) {
+  MemRefs.clear();
+  for (auto &TS : TSE) {
+    MachineInstr *MI = TS.MI;
+    // An instruction without memory operands may access anything. Be
+    // conservative and return an empty list.
+    if (MI->memoperands_empty()) {
+      MemRefs.clear();
+      return;
+    }
+    MemRefs.append(MI->memoperands_begin(), MI->memoperands_end());
+  }
+}
+
+void TagStoreEdit::emitCode(MachineBasicBlock::iterator &InsertI,
+                            const AArch64FrameLowering *TFI, bool IsLast) {
+  if (TagStores.empty())
+    return;
+  TagStoreInstr &FirstTagStore = TagStores[0];
+  TagStoreInstr &LastTagStore = TagStores[TagStores.size() - 1];
+  Size = LastTagStore.Offset - FirstTagStore.Offset + LastTagStore.Size;
+  DL = TagStores[0].MI->getDebugLoc();
+
+  unsigned Reg;
+  FrameRegOffset = TFI->resolveFrameOffsetReference(
+      *MF, FirstTagStore.Offset, false /*isFixed*/, false /*isSVE*/, Reg,
+      /*PreferFP=*/false, /*ForSimm=*/true);
+  FrameReg = Reg;
+  FrameRegUpdate = None;
+
+  mergeMemRefs(TagStores, CombinedMemRefs);
+
+  LLVM_DEBUG(dbgs() << "Replacing adjacent STG instructions:\n";
+             for (const auto &Instr
+                  : TagStores) { dbgs() << "  " << *Instr.MI; });
+
+  // Size threshold where a loop becomes shorter than a linear sequence of
+  // tagging instructions.
+  const int kSetTagLoopThreshold = 176;
+  if (Size < kSetTagLoopThreshold) {
+    if (TagStores.size() < 2)
+      return;
+    emitUnrolled(InsertI);
+  } else {
+    MachineInstr *UpdateInstr = nullptr;
+    int64_t TotalOffset;
+    if (IsLast) {
+      // See if we can merge base register update into the STGloop.
+      // This is done in AArch64LoadStoreOptimizer for "normal" stores,
+      // but STGloop is way too unusual for that, and also it only
+      // realistically happens in function epilogue. Also, STGloop is expanded
+      // before that pass.
+      if (InsertI != MBB->end() &&
+          canMergeRegUpdate(InsertI, FrameReg, FrameRegOffset.getBytes() + Size,
+                            &TotalOffset)) {
+        UpdateInstr = &*InsertI++;
+        LLVM_DEBUG(dbgs() << "Folding SP update into loop:\n  "
+                          << *UpdateInstr);
+      }
+    }
+
+    if (!UpdateInstr && TagStores.size() < 2)
+      return;
+
+    if (UpdateInstr) {
+      FrameRegUpdate = TotalOffset;
+      FrameRegUpdateFlags = UpdateInstr->getFlags();
+    }
+    emitLoop(InsertI);
+    if (UpdateInstr)
+      UpdateInstr->eraseFromParent();
+  }
+
+  for (auto &TS : TagStores)
+    TS.MI->eraseFromParent();
+}
+
+bool isMergeableStackTaggingInstruction(MachineInstr &MI, int64_t &Offset,
+                                        int64_t &Size, bool &ZeroData) {
+  MachineFunction &MF = *MI.getParent()->getParent();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned Opcode = MI.getOpcode();
+  ZeroData = (Opcode == AArch64::STZGloop || Opcode == AArch64::STZGOffset ||
+              Opcode == AArch64::STZ2GOffset);
+
+  if (Opcode == AArch64::STGloop || Opcode == AArch64::STZGloop) {
+    if (!MI.getOperand(0).isDead() || !MI.getOperand(1).isDead())
+      return false;
+    if (!MI.getOperand(2).isImm() || !MI.getOperand(3).isFI())
+      return false;
+    Offset = MFI.getObjectOffset(MI.getOperand(3).getIndex());
+    Size = MI.getOperand(2).getImm();
+    return true;
+  }
+
+  if (Opcode == AArch64::STGOffset || Opcode == AArch64::STZGOffset)
+    Size = 16;
+  else if (Opcode == AArch64::ST2GOffset || Opcode == AArch64::STZ2GOffset)
+    Size = 32;
+  else
+    return false;
+
+  if (MI.getOperand(0).getReg() != AArch64::SP || !MI.getOperand(1).isFI())
+    return false;
+
+  Offset = MFI.getObjectOffset(MI.getOperand(1).getIndex()) +
+           16 * MI.getOperand(2).getImm();
+  return true;
+}
+
+// Detect a run of memory tagging instructions for adjacent stack frame slots,
+// and replace them with a shorter instruction sequence:
+// * replace STG + STG with ST2G
+// * replace STGloop + STGloop with STGloop
+// This code needs to run when stack slot offsets are already known, but before
+// FrameIndex operands in STG instructions are eliminated.
+MachineBasicBlock::iterator tryMergeAdjacentSTG(MachineBasicBlock::iterator II,
+                                                const AArch64FrameLowering *TFI,
+                                                RegScavenger *RS) {
+  bool FirstZeroData;
+  int64_t Size, Offset;
+  MachineInstr &MI = *II;
+  MachineBasicBlock *MBB = MI.getParent();
+  MachineBasicBlock::iterator NextI = ++II;
+  if (&MI == &MBB->instr_back())
+    return II;
+  if (!isMergeableStackTaggingInstruction(MI, Offset, Size, FirstZeroData))
+    return II;
+
+  SmallVector<TagStoreInstr, 4> Instrs;
+  Instrs.emplace_back(&MI, Offset, Size);
+
+  constexpr int kScanLimit = 10;
+  int Count = 0;
+  for (MachineBasicBlock::iterator E = MBB->end();
+       NextI != E && Count < kScanLimit; ++NextI) {
+    MachineInstr &MI = *NextI;
+    bool ZeroData;
+    int64_t Size, Offset;
+    // Collect instructions that update memory tags with a FrameIndex operand
+    // and (when applicable) constant size, and whose output registers are dead
+    // (the latter is almost always the case in practice). Since these
+    // instructions effectively have no inputs or outputs, we are free to skip
+    // any non-aliasing instructions in between without tracking used registers.
+    if (isMergeableStackTaggingInstruction(MI, Offset, Size, ZeroData)) {
+      if (ZeroData != FirstZeroData)
+        break;
+      Instrs.emplace_back(&MI, Offset, Size);
+      continue;
+    }
+
+    // Only count non-transient, non-tagging instructions toward the scan
+    // limit.
+    if (!MI.isTransient())
+      ++Count;
+
+    // Just in case, stop before the epilogue code starts.
+    if (MI.getFlag(MachineInstr::FrameSetup) ||
+        MI.getFlag(MachineInstr::FrameDestroy))
+      break;
+
+    // Reject anything that may alias the collected instructions.
+    if (MI.mayLoadOrStore() || MI.hasUnmodeledSideEffects())
+      break;
+  }
+
+  // New code will be inserted after the last tagging instruction we've found.
+  MachineBasicBlock::iterator InsertI = Instrs.back().MI;
+  InsertI++;
+
+  llvm::stable_sort(Instrs,
+                    [](const TagStoreInstr &Left, const TagStoreInstr &Right) {
+                      return Left.Offset < Right.Offset;
+                    });
+
+  // Make sure that we don't have any overlapping stores.
+  int64_t CurOffset = Instrs[0].Offset;
+  for (auto &Instr : Instrs) {
+    if (CurOffset > Instr.Offset)
+      return NextI;
+    CurOffset = Instr.Offset + Instr.Size;
+  }
+
+  // Find contiguous runs of tagged memory and emit shorter instruction
+  // sequencies for them when possible.
+  TagStoreEdit TSE(MBB, FirstZeroData);
+  Optional<int64_t> EndOffset;
+  for (auto &Instr : Instrs) {
+    if (EndOffset && *EndOffset != Instr.Offset) {
+      // Found a gap.
+      TSE.emitCode(InsertI, TFI, /*IsLast = */ false);
+      TSE.clear();
+    }
+
+    TSE.addInstruction(Instr);
+    EndOffset = Instr.Offset + Instr.Size;
+  }
+
+  TSE.emitCode(InsertI, TFI, /*IsLast = */ true);
+
+  return InsertI;
+}
+} // namespace
+
+void AArch64FrameLowering::processFunctionBeforeFrameIndicesReplaced(
+    MachineFunction &MF, RegScavenger *RS = nullptr) const {
+  if (StackTaggingMergeSetTag)
+    for (auto &BB : MF)
+      for (MachineBasicBlock::iterator II = BB.begin(); II != BB.end();)
+        II = tryMergeAdjacentSTG(II, this, RS);
+}
+
+/// For Win64 AArch64 EH, the offset to the Unwind object is from the SP
+/// before the update.  This is easily retrieved as it is exactly the offset
+/// that is set in processFunctionBeforeFrameFinalized.
 int AArch64FrameLowering::getFrameIndexReferencePreferSP(
     const MachineFunction &MF, int FI, unsigned &FrameReg,
     bool IgnoreSPUpdates) const {

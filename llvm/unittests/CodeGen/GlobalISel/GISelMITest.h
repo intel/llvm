@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/FileCheck.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -98,6 +99,7 @@ createDummyModule(LLVMContext &Context, const LLVMTargetMachine &TM,
 ---
 ...
 name: func
+tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
   - { id: 1, class: _ }
@@ -105,6 +107,8 @@ registers:
   - { id: 3, class: _ }
 body: |
   bb.1:
+    liveins: $x0, $x1, $x2, $x4
+
     %0(s64) = COPY $x0
     %1(s64) = COPY $x1
     %2(s64) = COPY $x2

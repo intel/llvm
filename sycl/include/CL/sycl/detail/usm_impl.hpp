@@ -11,7 +11,7 @@
 #include <CL/cl_usm_ext.h>
 #include <CL/sycl/usm/usm_enums.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {

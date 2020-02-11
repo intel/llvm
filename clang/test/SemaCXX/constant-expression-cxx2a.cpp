@@ -18,6 +18,7 @@ namespace std {
 [[nodiscard]] void *operator new(std::size_t, std::align_val_t, const std::nothrow_t&) noexcept;
 [[nodiscard]] void *operator new[](std::size_t, const std::nothrow_t&) noexcept;
 [[nodiscard]] void *operator new[](std::size_t, std::align_val_t, const std::nothrow_t&) noexcept;
+[[nodiscard]] void *operator new[](std::size_t, std::align_val_t);
 void operator delete(void*, const std::nothrow_t&) noexcept;
 void operator delete(void*, std::align_val_t, const std::nothrow_t&) noexcept;
 void operator delete[](void*, const std::nothrow_t&) noexcept;
@@ -111,123 +112,19 @@ constexpr bool test_constexpr_success = [] {
     CHECK_TYPE(decltype(greater), PO);
     CHECK(greater.test_eq(GREATER));
   }
-  {
-    using SE = std::strong_equality;
-    auto EQ = SE::equal;
-    auto NEQ = SE::nonequal;
-
-    MemPtrT P1 = &MemPtr::foo;
-    MemPtrT P12 = &MemPtr::foo;
-    MemPtrT P2 = &MemPtr::bar;
-    MemPtrT P3 = nullptr;
-
-    auto eq = (P1 <=> P12);
-    CHECK_TYPE(decltype(eq), SE);
-    CHECK(eq.test_eq(EQ));
-
-    auto neq = (P1 <=> P2);
-    CHECK_TYPE(decltype(eq), SE);
-    CHECK(neq.test_eq(NEQ));
-
-    auto eq2 = (P3 <=> nullptr);
-    CHECK_TYPE(decltype(eq2), SE);
-    CHECK(eq2.test_eq(EQ));
-  }
-  {
-    using SE = std::strong_equality;
-    auto EQ = SE::equal;
-    auto NEQ = SE::nonequal;
-
-    FnPtrT F1 = &FnPtr1;
-    FnPtrT F12 = &FnPtr1;
-    FnPtrT F2 = &FnPtr2;
-    FnPtrT F3 = nullptr;
-
-    auto eq = (F1 <=> F12);
-    CHECK_TYPE(decltype(eq), SE);
-    CHECK(eq.test_eq(EQ));
-
-    auto neq = (F1 <=> F2);
-    CHECK_TYPE(decltype(neq), SE);
-    CHECK(neq.test_eq(NEQ));
-  }
-  { // mixed nullptr tests
-    using SO = std::strong_ordering;
-    using SE = std::strong_equality;
-
-    int x = 42;
-    int *xp = &x;
-
-    MemPtrT mf = nullptr;
-    MemPtrT mf2 = &MemPtr::foo;
-    auto r3 = (mf <=> nullptr);
-    CHECK_TYPE(decltype(r3), std::strong_equality);
-    CHECK(r3.test_eq(SE::equal));
-  }
 
   return true;
 }();
 
-template <auto LHS, auto RHS, bool ExpectTrue = false>
-constexpr bool test_constexpr() {
-  using nullptr_t = decltype(nullptr);
-  using LHSTy = decltype(LHS);
-  using RHSTy = decltype(RHS);
-  // expected-note@+1 {{subexpression not valid in a constant expression}}
-  auto Res = (LHS <=> RHS);
-  if constexpr (__is_same(LHSTy, nullptr_t) || __is_same(RHSTy, nullptr_t)) {
-    CHECK_TYPE(decltype(Res), std::strong_equality);
-  }
-  if (ExpectTrue)
-    return Res == 0;
-  return Res != 0;
-}
 int dummy = 42;
 int dummy2 = 101;
-
-constexpr bool tc1 = test_constexpr<nullptr, &dummy>();
-constexpr bool tc2 = test_constexpr<&dummy, nullptr>();
-
-// OK, equality comparison only
-constexpr bool tc3 = test_constexpr<&MemPtr::foo, nullptr>();
-constexpr bool tc4 = test_constexpr<nullptr, &MemPtr::foo>();
-constexpr bool tc5 = test_constexpr<&MemPtr::foo, &MemPtr::bar>();
-
-constexpr bool tc6 = test_constexpr<&MemPtr::data, nullptr>();
-constexpr bool tc7 = test_constexpr<nullptr, &MemPtr::data>();
-constexpr bool tc8 = test_constexpr<&MemPtr::data, &MemPtr::data2>();
-
-// expected-error@+1 {{must be initialized by a constant expression}}
-constexpr bool tc9 = test_constexpr<&dummy, &dummy2>(); // expected-note {{in call}}
+constexpr bool tc9 = (&dummy <=> &dummy2) != 0; // expected-error {{constant expression}} expected-note {{unspecified}}
 
 template <class T, class R, class I>
 constexpr T makeComplex(R r, I i) {
   T res{r, i};
   return res;
 };
-
-template <class T, class ResultT>
-constexpr bool complex_test(T x, T y, ResultT Expect) {
-  auto res = x <=> y;
-  CHECK_TYPE(decltype(res), ResultT);
-  return res.test_eq(Expect);
-}
-static_assert(complex_test(makeComplex<_Complex double>(0.0, 0.0),
-                           makeComplex<_Complex double>(0.0, 0.0),
-                           std::weak_equality::equivalent));
-static_assert(complex_test(makeComplex<_Complex double>(0.0, 0.0),
-                           makeComplex<_Complex double>(1.0, 0.0),
-                           std::weak_equality::nonequivalent));
-static_assert(complex_test(makeComplex<_Complex double>(0.0, 0.0),
-                           makeComplex<_Complex double>(0.0, 1.0),
-                           std::weak_equality::nonequivalent));
-static_assert(complex_test(makeComplex<_Complex int>(0, 0),
-                           makeComplex<_Complex int>(0, 0),
-                           std::strong_equality::equal));
-static_assert(complex_test(makeComplex<_Complex int>(0, 0),
-                           makeComplex<_Complex int>(1, 0),
-                           std::strong_equality::nonequal));
-// TODO: defaulted operator <=>
 } // namespace ThreeWayComparison
 
 constexpr bool for_range_init() {
@@ -583,6 +480,48 @@ namespace Union {
     // FIXME: This note isn't great. The 'read' here is reading the referent of the reference.
     r.b.r.b = 2; // expected-note {{read of member 'b' of union with active member 'a'}}
     return r.b.r.b;
+  }
+
+  namespace PR43762 {
+    struct A { int x = 1; constexpr int f() { return 1; } };
+    struct B : A { int y = 1; constexpr int g() { return 2; } };
+    struct C {
+      int x;
+      constexpr virtual int f() = 0;
+    };
+    struct D : C {
+      int y;
+      constexpr virtual int f() override { return 3; }
+    };
+
+    union U {
+      int n;
+      B b;
+      D d;
+    };
+
+    constexpr int test(int which) {
+      U u{.n = 5};
+      switch (which) {
+      case 0:
+        u.b.x = 10; // expected-note {{active member 'n'}}
+        return u.b.f();
+      case 1:
+        u.b.y = 10; // expected-note {{active member 'n'}}
+        return u.b.g();
+      case 2:
+        u.d.x = 10; // expected-note {{active member 'n'}}
+        return u.d.f();
+      case 3:
+        u.d.y = 10; // expected-note {{active member 'n'}}
+        return u.d.f();
+      }
+    }
+
+    static_assert(test(0)); // expected-error {{}} expected-note {{in call}}
+    static_assert(test(1)); // expected-error {{}} expected-note {{in call}}
+    static_assert(test(2)); // expected-error {{}} expected-note {{in call}}
+    static_assert(test(3)); // expected-error {{}} expected-note {{in call}}
   }
 }
 
@@ -1008,7 +947,7 @@ namespace dynamic_alloc {
     // Ensure that we don't try to evaluate these for overflow and crash. These
     // are all value-dependent expressions.
     p = new char[n];
-    p = new (n) char[n];
+    p = new ((std::align_val_t)n) char[n];
     p = new char(n);
   }
 }

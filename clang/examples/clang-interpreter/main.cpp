@@ -54,8 +54,10 @@ private:
   std::unique_ptr<TargetMachine> TM;
   const DataLayout DL;
   MangleAndInterner Mangle{ES, DL};
+  JITDylib &MainJD{ES.createJITDylib("<main>")};
   RTDyldObjectLinkingLayer ObjectLayer{ES, createMemMgr};
-  IRCompileLayer CompileLayer{ES, ObjectLayer, SimpleCompiler(*TM)};
+  IRCompileLayer CompileLayer{ES, ObjectLayer,
+                              std::make_unique<SimpleCompiler>(*TM)};
 
   static std::unique_ptr<SectionMemoryManager> createMemMgr() {
     return std::make_unique<SectionMemoryManager>();
@@ -66,7 +68,7 @@ private:
       std::unique_ptr<DynamicLibrarySearchGenerator> ProcessSymbolsGenerator)
       : TM(std::move(TM)), DL(std::move(DL)) {
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
-    ES.getMainJITDylib().addGenerator(std::move(ProcessSymbolsGenerator));
+    MainJD.addGenerator(std::move(ProcessSymbolsGenerator));
   }
 
 public:
@@ -95,11 +97,11 @@ public:
   const TargetMachine &getTargetMachine() const { return *TM; }
 
   Error addModule(ThreadSafeModule M) {
-    return CompileLayer.add(ES.getMainJITDylib(), std::move(M));
+    return CompileLayer.add(MainJD, std::move(M));
   }
 
   Expected<JITEvaluatedSymbol> findSymbol(const StringRef &Name) {
-    return ES.lookup({&ES.getMainJITDylib()}, Mangle(Name));
+    return ES.lookup({&MainJD}, Mangle(Name));
   }
 
   Expected<JITTargetAddress> getSymbolAddress(const StringRef &Name) {

@@ -1,4 +1,4 @@
-//===-- CommandObjectDisassemble.cpp ----------------------------*- C++ -*-===//
+//===-- CommandObjectDisassemble.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,16 +10,13 @@
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/SourceManager.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Interpreter/CommandCompletions.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
-#include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -86,7 +83,7 @@ Status CommandObjectDisassemble::CommandOptions::SetOptionValue(
   } break;
 
   case 'n':
-    func_name.assign(option_arg);
+    func_name.assign(std::string(option_arg));
     some_location_specified = true;
     break;
 
@@ -104,7 +101,7 @@ Status CommandObjectDisassemble::CommandOptions::SetOptionValue(
     break;
 
   case 'P':
-    plugin_name.assign(option_arg);
+    plugin_name.assign(std::string(option_arg));
     break;
 
   case 'F': {
@@ -114,7 +111,7 @@ Status CommandObjectDisassemble::CommandOptions::SetOptionValue(
                           llvm::Triple::x86 ||
                       target_sp->GetArchitecture().GetTriple().getArch() ==
                           llvm::Triple::x86_64)) {
-      flavor_string.assign(option_arg);
+      flavor_string.assign(std::string(option_arg));
     } else
       error.SetErrorStringWithFormat("Disassembler flavors are currently only "
                                      "supported for x86 and x86_64 targets.");
@@ -249,9 +246,8 @@ bool CommandObjectDisassemble::DoExecute(Args &command,
           m_options.arch.GetArchitectureName());
     result.SetStatus(eReturnStatusFailed);
     return false;
-  } else if (flavor_string != nullptr &&
-             !disassembler->FlavorValidForArchSpec(m_options.arch,
-                                                   flavor_string))
+  } else if (flavor_string != nullptr && !disassembler->FlavorValidForArchSpec(
+                                             m_options.arch, flavor_string))
     result.AppendWarningWithFormat(
         "invalid disassembler flavor \"%s\", using default.\n", flavor_string);
 

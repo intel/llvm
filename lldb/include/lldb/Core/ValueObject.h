@@ -179,7 +179,6 @@ public:
     eClearUserVisibleDataItemsLocation = 1u << 3,
     eClearUserVisibleDataItemsDescription = 1u << 4,
     eClearUserVisibleDataItemsSyntheticChildren = 1u << 5,
-    eClearUserVisibleDataItemsValidator = 1u << 6,
     eClearUserVisibleDataItemsAllStrings =
         eClearUserVisibleDataItemsValue | eClearUserVisibleDataItemsSummary |
         eClearUserVisibleDataItemsLocation |
@@ -397,10 +396,8 @@ public:
 
   bool IsIntegerType(bool &is_signed);
 
-  virtual bool GetBaseClassPath(Stream &s);
-
   virtual void GetExpressionPath(
-      Stream &s, bool qualify_cxx_base_classes,
+      Stream &s,
       GetExpressionPathFormat = eGetExpressionPathFormatDereferencePointers);
 
   lldb::ValueObjectSP GetValueForExpressionPath(
@@ -509,8 +506,6 @@ public:
   bool GetSummaryAsCString(TypeSummaryImpl *summary_ptr,
                            std::string &destination,
                            const TypeSummaryOptions &options);
-
-  std::pair<TypeValidatorResult, std::string> GetValidationStatus();
 
   const char *GetObjectDescription();
 
@@ -711,16 +706,6 @@ public:
     ClearUserVisibleData(eClearUserVisibleDataItemsSummary);
   }
 
-  lldb::TypeValidatorImplSP GetValidator() {
-    UpdateFormatsIfNeeded();
-    return m_type_validator_sp;
-  }
-
-  void SetValidator(lldb::TypeValidatorImplSP format) {
-    m_type_validator_sp = format;
-    ClearUserVisibleData(eClearUserVisibleDataItemsValidator);
-  }
-
   void SetValueFormat(lldb::TypeFormatImplSP format) {
     m_type_format_sp = format;
     ClearUserVisibleData(eClearUserVisibleDataItemsValue);
@@ -857,9 +842,6 @@ protected:
                                  // differs from the summary
   // in that the summary is consed up by us, the object_desc_string is builtin.
 
-  llvm::Optional<std::pair<TypeValidatorResult, std::string>>
-      m_validation_result;
-
   CompilerType m_override_type; // If the type of the value object should be
                                 // overridden, the type to impose.
 
@@ -888,7 +870,6 @@ protected:
   lldb::TypeSummaryImplSP m_type_summary_sp;
   lldb::TypeFormatImplSP m_type_format_sp;
   lldb::SyntheticChildrenSP m_synthetic_children_sp;
-  lldb::TypeValidatorImplSP m_type_validator_sp;
   ProcessModID m_user_id_of_forced_summary;
   AddressType m_address_type_of_ptr_or_ref_children;
 
@@ -906,7 +887,6 @@ protected:
       m_is_synthetic_children_generated : 1;
 
   friend class ValueObjectChild;
-  friend class ClangExpressionDeclMap; // For GetValue
   friend class ExpressionVariable;     // For SetName
   friend class Target;                 // For SetName
   friend class ValueObjectConstResultImpl;

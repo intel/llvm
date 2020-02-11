@@ -1,7 +1,6 @@
 """
 Test that argdumper is a viable launching strategy.
 """
-from __future__ import print_function
 import os
 
 
@@ -14,6 +13,7 @@ from lldbsuite.test import lldbutil
 class LaunchWithShellExpandTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     @expectedFailureAll(
         oslist=[

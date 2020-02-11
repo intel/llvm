@@ -56,7 +56,7 @@ template <typename T> struct CaptureProxy {
 private:
   llvm::Optional<T> *Target;
   // Using shared_ptr to workaround compilation errors with MSVC.
-  // MSVC only allows default-construcitble and copyable objects as future<>
+  // MSVC only allows default-constructible and copyable objects as future<>
   // arguments.
   std::promise<std::shared_ptr<T>> Promise;
   std::future<std::shared_ptr<T>> Future;
@@ -96,11 +96,10 @@ runFindDocumentHighlights(ClangdServer &Server, PathRef File, Position Pos) {
   return std::move(*Result);
 }
 
-llvm::Expected<std::vector<TextEdit>> runRename(ClangdServer &Server,
-                                                PathRef File, Position Pos,
-                                                llvm::StringRef NewName) {
-  llvm::Optional<llvm::Expected<std::vector<TextEdit>>> Result;
-  Server.rename(File, Pos, NewName, /*WantFormat=*/true, capture(Result));
+llvm::Expected<FileEdits> runRename(ClangdServer &Server, PathRef File,
+                                    Position Pos, llvm::StringRef NewName) {
+  llvm::Optional<llvm::Expected<FileEdits>> Result;
+  Server.rename(File, Pos, NewName, /*WantFormat=*/false, capture(Result));
   return std::move(*Result);
 }
 
@@ -126,7 +125,7 @@ runDocumentSymbols(ClangdServer &Server, PathRef File) {
 
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, llvm::StringRef Query) {
   FuzzyFindRequest Req;
-  Req.Query = Query;
+  Req.Query = std::string(Query);
   Req.AnyScope = true;
   return runFuzzyFind(Index, Req);
 }

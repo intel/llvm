@@ -1,6 +1,7 @@
 include(CMakePushCheckState)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
+include(CheckIncludeFiles)
 include(CheckLibraryExists)
 include(CheckSymbolExists)
 include(TestBigEndian)
@@ -116,6 +117,9 @@ check_cxx_compiler_flag(/wd4800 COMPILER_RT_HAS_WD4800_FLAG)
 # Symbols.
 check_symbol_exists(__func__ "" COMPILER_RT_HAS_FUNC_SYMBOL)
 
+# Includes.
+check_include_files("sys/auxv.h" COMPILER_RT_HAS_AUXV)
+
 # Libraries.
 check_library_exists(dl dlopen "" COMPILER_RT_HAS_LIBDL)
 check_library_exists(rt shm_open "" COMPILER_RT_HAS_LIBRT)
@@ -224,6 +228,18 @@ function(get_test_cflags_for_apple_platform platform arch cflags_out)
   set(${cflags_out} "${test_cflags_str}" PARENT_SCOPE)
 endfunction()
 
+function(get_capitalized_apple_platform platform platform_capitalized)
+  # TODO(dliew): Remove uses of this function. It exists to preserve needlessly complex
+  # directory naming conventions used by the Sanitizer lit test suites.
+  is_valid_apple_platform("${platform}" is_valid_platform)
+  if (NOT is_valid_platform)
+    message(FATAL_ERROR "\"${platform}\" is not a valid apple platform")
+  endif()
+  string(TOUPPER "${platform}" platform_upper)
+  string(REGEX REPLACE "OSSIM$" "OSSim" platform_upper_capitalized "${platform_upper}")
+  set(${platform_capitalized} "${platform_upper_capitalized}" PARENT_SCOPE)
+endfunction()
+
 function(is_valid_apple_platform platform is_valid_out)
   set(is_valid FALSE)
   if ("${platform}" STREQUAL "")
@@ -261,7 +277,7 @@ set(ALL_SANITIZER_COMMON_SUPPORTED_ARCH ${X86} ${X86_64} ${PPC64} ${RISCV64}
     ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
 set(ALL_ASAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64}
     ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
+set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV32} ${RISCV64})
 set(ALL_DFSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64})
 
 if(ANDROID)
@@ -316,6 +332,7 @@ if(APPLE)
   find_darwin_sdk_dir(DARWIN_tvos_SYSROOT appletvos)
 
   if(NOT DARWIN_osx_SYSROOT)
+    message(WARNING "Could not determine OS X sysroot, trying /usr/include")
     if(EXISTS /usr/include)
       set(DARWIN_osx_SYSROOT /)
     else()
@@ -327,7 +344,7 @@ if(APPLE)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS ios)
     set(DARWIN_ios_MIN_VER_FLAG -miphoneos-version-min)
     set(DARWIN_ios_SANITIZER_MIN_VER_FLAG
-      ${DARWIN_ios_MIN_VER_FLAG}=8.0)
+      ${DARWIN_ios_MIN_VER_FLAG}=9.0)
   endif()
   if(COMPILER_RT_ENABLE_WATCHOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS watchos)
@@ -342,12 +359,15 @@ if(APPLE)
       ${DARWIN_tvos_MIN_VER_FLAG}=9.0)
   endif()
 
-  # Note: In order to target x86_64h on OS X the minimum deployment target must
-  # be 10.8 or higher.
   set(SANITIZER_COMMON_SUPPORTED_OS osx)
   set(PROFILE_SUPPORTED_OS osx)
   set(TSAN_SUPPORTED_OS osx)
   set(XRAY_SUPPORTED_OS osx)
+  set(FUZZER_SUPPORTED_OS osx)
+
+  # Note: In order to target x86_64h on OS X the minimum deployment target must
+  # be 10.8 or higher.
+  set(DEFAULT_SANITIZER_MIN_OSX_VERSION 10.10)
   if(NOT SANITIZER_MIN_OSX_VERSION)
     string(REGEX MATCH "-mmacosx-version-min=([.0-9]+)"
            MACOSX_VERSION_MIN_FLAG "${CMAKE_CXX_FLAGS}")
@@ -356,14 +376,14 @@ if(APPLE)
     elseif(CMAKE_OSX_DEPLOYMENT_TARGET)
       set(SANITIZER_MIN_OSX_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
     else()
-      set(SANITIZER_MIN_OSX_VERSION 10.9)
+      set(SANITIZER_MIN_OSX_VERSION ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
     endif()
     if(SANITIZER_MIN_OSX_VERSION VERSION_LESS "10.7")
       message(FATAL_ERROR "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too old.")
     endif()
-    if(SANITIZER_MIN_OSX_VERSION VERSION_GREATER "10.9")
-      message(WARNING "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too new, setting to '10.9' instead.")
-      set(SANITIZER_MIN_OSX_VERSION 10.9)
+    if(SANITIZER_MIN_OSX_VERSION VERSION_GREATER ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
+      message(WARNING "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too new, setting to '${DEFAULT_SANITIZER_MIN_OSX_VERSION}' instead.")
+      set(SANITIZER_MIN_OSX_VERSION ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
     endif()
   endif()
 
@@ -427,6 +447,7 @@ if(APPLE)
           list(APPEND SANITIZER_COMMON_SUPPORTED_OS ${platform}sim)
           list(APPEND PROFILE_SUPPORTED_OS ${platform}sim)
           list(APPEND TSAN_SUPPORTED_OS ${platform}sim)
+          list(APPEND FUZZER_SUPPORTED_OS ${platform}sim)
         endif()
         foreach(arch ${DARWIN_${platform}sim_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -456,6 +477,7 @@ if(APPLE)
           if(DARWIN_${platform}_TSAN_ARCHS)
             list(APPEND TSAN_SUPPORTED_OS ${platform})
           endif()
+          list(APPEND FUZZER_SUPPORTED_OS ${platform})
         endif()
         foreach(arch ${DARWIN_${platform}_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -622,7 +644,7 @@ else()
 endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND LSAN_SUPPORTED_ARCH AND
-    OS_NAME MATCHES "Darwin|Linux|NetBSD")
+    OS_NAME MATCHES "Darwin|Linux|NetBSD|Fuchsia")
   set(COMPILER_RT_HAS_LSAN TRUE)
 else()
   set(COMPILER_RT_HAS_LSAN FALSE)
@@ -684,7 +706,8 @@ else()
 endif()
 
 #TODO(kostyak): add back Android & Fuchsia when the code settles a bit.
-if (SCUDO_STANDALONE_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux")
+if (SCUDO_STANDALONE_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND
+    COMPILER_RT_HAS_AUXV)
   set(COMPILER_RT_HAS_SCUDO_STANDALONE TRUE)
 else()
   set(COMPILER_RT_HAS_SCUDO_STANDALONE FALSE)

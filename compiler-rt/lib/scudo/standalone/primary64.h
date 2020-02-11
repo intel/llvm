@@ -13,6 +13,7 @@
 #include "common.h"
 #include "list.h"
 #include "local_cache.h"
+#include "memtag.h"
 #include "release.h"
 #include "stats.h"
 #include "string_utils.h"
@@ -38,12 +39,18 @@ namespace scudo {
 // The memory used by this allocator is never unmapped, but can be partially
 // released if the platform allows for it.
 
-template <class SizeClassMapT, uptr RegionSizeLog> class SizeClassAllocator64 {
+template <class SizeClassMapT, uptr RegionSizeLog,
+          bool MaySupportMemoryTagging = false>
+class SizeClassAllocator64 {
 public:
   typedef SizeClassMapT SizeClassMap;
-  typedef SizeClassAllocator64<SizeClassMap, RegionSizeLog> ThisT;
+  typedef SizeClassAllocator64<SizeClassMap, RegionSizeLog,
+                               MaySupportMemoryTagging>
+      ThisT;
   typedef SizeClassAllocatorLocalCache<ThisT> CacheT;
   typedef typename CacheT::TransferBatch TransferBatch;
+  static const bool SupportsMemoryTagging =
+      MaySupportMemoryTagging && archSupportsMemoryTagging();
 
   static uptr getSizeByClassId(uptr ClassId) {
     return (ClassId == SizeClassMap::BatchClassId)
@@ -79,12 +86,14 @@ public:
       // memory accesses which ends up being fairly costly. The current lower
       // limit is mostly arbitrary and based on empirical observations.
       // TODO(kostyak): make the lower limit a runtime option
-      Region->CanRelease = (ReleaseToOsInterval >= 0) &&
-                           (I != SizeClassMap::BatchClassId) &&
+      Region->CanRelease = (I != SizeClassMap::BatchClassId) &&
                            (getSizeByClassId(I) >= (PageSize / 32));
       Region->RandState = getRandomU32(&Seed);
     }
     ReleaseToOsIntervalMs = ReleaseToOsInterval;
+
+    if (SupportsMemoryTagging)
+      UseMemoryTagging = systemSupportsMemoryTagging();
   }
   void init(s32 ReleaseToOsInterval) {
     memset(this, 0, sizeof(*this));
@@ -125,13 +134,22 @@ public:
   }
 
   void disable() {
-    for (uptr I = 0; I < NumClasses; I++)
-      getRegionInfo(I)->Mutex.lock();
+    // The BatchClassId must be locked last since other classes can use it.
+    for (sptr I = static_cast<sptr>(NumClasses) - 1; I >= 0; I--) {
+      if (static_cast<uptr>(I) == SizeClassMap::BatchClassId)
+        continue;
+      getRegionInfo(static_cast<uptr>(I))->Mutex.lock();
+    }
+    getRegionInfo(SizeClassMap::BatchClassId)->Mutex.lock();
   }
 
   void enable() {
-    for (sptr I = static_cast<sptr>(NumClasses) - 1; I >= 0; I--)
-      getRegionInfo(static_cast<uptr>(I))->Mutex.unlock();
+    getRegionInfo(SizeClassMap::BatchClassId)->Mutex.unlock();
+    for (uptr I = 0; I < NumClasses; I++) {
+      if (I == SizeClassMap::BatchClassId)
+        continue;
+      getRegionInfo(I)->Mutex.unlock();
+    }
   }
 
   template <typename F> void iterateOverBlocks(F Callback) const {
@@ -171,8 +189,6 @@ public:
   uptr releaseToOS() {
     uptr TotalReleasedBytes = 0;
     for (uptr I = 0; I < NumClasses; I++) {
-      if (I == SizeClassMap::BatchClassId)
-        continue;
       RegionInfo *Region = getRegionInfo(I);
       ScopedLock L(Region->Mutex);
       TotalReleasedBytes += releaseToOSMaybe(Region, I, /*Force=*/true);
@@ -180,13 +196,20 @@ public:
     return TotalReleasedBytes;
   }
 
+  bool useMemoryTagging() const {
+    return SupportsMemoryTagging && UseMemoryTagging;
+  }
+  void disableMemoryTagging() { UseMemoryTagging = false; }
+
 private:
   static const uptr RegionSize = 1UL << RegionSizeLog;
   static const uptr NumClasses = SizeClassMap::NumClasses;
   static const uptr PrimarySize = RegionSize * NumClasses;
 
   // Call map for user memory with at least this size.
-  static const uptr MapSizeIncrement = 1UL << 17;
+  static const uptr MapSizeIncrement = 1UL << 18;
+  // Fill at most this number of batches from the newly map'd memory.
+  static const u32 MaxNumBatches = 8U;
 
   struct RegionStats {
     uptr PoppedBlocks;
@@ -202,7 +225,7 @@ private:
 
   struct ALIGNED(SCUDO_CACHE_LINE_SIZE) RegionInfo {
     HybridMutex Mutex;
-    IntrusiveList<TransferBatch> FreeList;
+    SinglyLinkedList<TransferBatch> FreeList;
     RegionStats Stats;
     bool CanRelease;
     bool Exhausted;
@@ -213,12 +236,13 @@ private:
     MapPlatformData Data;
     ReleaseToOsInfo ReleaseInfo;
   };
-  COMPILER_CHECK(sizeof(RegionInfo) % SCUDO_CACHE_LINE_SIZE == 0);
+  static_assert(sizeof(RegionInfo) % SCUDO_CACHE_LINE_SIZE == 0, "");
 
   uptr PrimaryBase;
   RegionInfo *RegionInfoArray;
   MapPlatformData Data;
   s32 ReleaseToOsIntervalMs;
+  bool UseMemoryTagging;
 
   RegionInfo *getRegionInfo(uptr ClassId) const {
     DCHECK_LT(ClassId, NumClasses);
@@ -283,22 +307,26 @@ private:
         Region->Data = Data;
       if (UNLIKELY(!map(reinterpret_cast<void *>(RegionBeg + MappedUser),
                         UserMapSize, "scudo:primary",
-                        MAP_ALLOWNOMEM | MAP_RESIZABLE, &Region->Data)))
+                        MAP_ALLOWNOMEM | MAP_RESIZABLE |
+                            (useMemoryTagging() ? MAP_MEMTAG : 0),
+                        &Region->Data)))
         return nullptr;
       Region->MappedUser += UserMapSize;
       C->getStats().add(StatMapped, UserMapSize);
     }
 
-    const uptr NumberOfBlocks = Min(
-        8UL * MaxCount, (Region->MappedUser - Region->AllocatedUser) / Size);
+    const u32 NumberOfBlocks = Min(
+        MaxNumBatches * MaxCount,
+        static_cast<u32>((Region->MappedUser - Region->AllocatedUser) / Size));
     DCHECK_GT(NumberOfBlocks, 0);
 
     TransferBatch *B = nullptr;
-    constexpr uptr ShuffleArraySize = 48;
+    constexpr u32 ShuffleArraySize =
+        MaxNumBatches * TransferBatch::MaxNumCached;
     void *ShuffleArray[ShuffleArraySize];
     u32 Count = 0;
     const uptr P = RegionBeg + Region->AllocatedUser;
-    const uptr AllocatedUser = NumberOfBlocks * Size;
+    const uptr AllocatedUser = Size * NumberOfBlocks;
     for (uptr I = P; I < P + AllocatedUser; I += Size) {
       ShuffleArray[Count++] = reinterpret_cast<void *>(I);
       if (Count == ShuffleArraySize) {
@@ -314,6 +342,11 @@ private:
         return nullptr;
     }
     DCHECK(B);
+    if (!Region->FreeList.empty()) {
+      Region->FreeList.push_back(B);
+      B = Region->FreeList.front();
+      Region->FreeList.pop_front();
+    }
     DCHECK_GT(B->getCount(), 0);
 
     C->getStats().add(StatFree, AllocatedUser);
@@ -365,14 +398,14 @@ private:
       if (IntervalMs < 0)
         return 0;
       if (Region->ReleaseInfo.LastReleaseAtNs +
-              static_cast<uptr>(IntervalMs) * 1000000ULL >
+              static_cast<u64>(IntervalMs) * 1000000 >
           getMonotonicTime()) {
         return 0; // Memory was returned recently.
       }
     }
 
     ReleaseRecorder Recorder(Region->RegionBeg, &Region->Data);
-    releaseFreeMemoryToOS(&Region->FreeList, Region->RegionBeg,
+    releaseFreeMemoryToOS(Region->FreeList, Region->RegionBeg,
                           roundUpTo(Region->AllocatedUser, PageSize) / PageSize,
                           BlockSize, &Recorder);
 

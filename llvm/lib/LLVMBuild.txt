@@ -23,7 +23,9 @@ subdirectories =
  CodeGen
  DebugInfo
  Demangle
+ DWARFLinker
  ExecutionEngine
+ Frontend
  FuzzMutate
  LineEditor
  Linker
@@ -39,7 +41,6 @@ subdirectories =
  Remarks
  Passes
  ProfileData
- SYCL
  Support
  TableGen
  TextAPI

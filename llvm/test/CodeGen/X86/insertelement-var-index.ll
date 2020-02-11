@@ -3,6 +3,22 @@
 ; RUN: llc < %s -mtriple=x86_64-- -mattr=+avx    | FileCheck %s --check-prefixes=ALL,AVX,AVX1
 ; RUN: llc < %s -mtriple=x86_64-- -mattr=+avx2   | FileCheck %s --check-prefixes=ALL,AVX,AVX2
 
+define <16 x i8> @undef_index(i8 %x) nounwind {
+; ALL-LABEL: undef_index:
+; ALL:       # %bb.0:
+; ALL-NEXT:    retq
+  %ins = insertelement <16 x i8> undef, i8 %x, i64 undef
+  ret <16 x i8> %ins
+}
+
+define <16 x i8> @undef_scalar(<16 x i8> %x, i32 %index) nounwind {
+; ALL-LABEL: undef_scalar:
+; ALL:       # %bb.0:
+; ALL-NEXT:    retq
+  %ins = insertelement <16 x i8> %x, i8 undef, i32 %index
+  ret <16 x i8> %ins
+}
+
 define <16 x i8> @arg_i8_v16i8(i8 %x, i32 %y) nounwind {
 ; SSE-LABEL: arg_i8_v16i8:
 ; SSE:       # %bb.0:
@@ -607,3 +623,31 @@ define <4 x double> @load_f64_v4f64(double* %p, i32 %y) nounwind {
   ret <4 x double> %ins
 }
 
+; Don't die trying to insert to an invalid index.
+
+define i32 @PR44139(<16 x i64>* %p) {
+; ALL-LABEL: PR44139:
+; ALL:       # %bb.0:
+; ALL-NEXT:    movl (%rdi), %eax
+; ALL-NEXT:    leal 2147483647(%rax), %ecx
+; ALL-NEXT:    testl %eax, %eax
+; ALL-NEXT:    cmovnsl %eax, %ecx
+; ALL-NEXT:    andl $-2147483648, %ecx # imm = 0x80000000
+; ALL-NEXT:    addl %eax, %ecx
+; ALL-NEXT:    # kill: def $eax killed $eax killed $rax
+; ALL-NEXT:    xorl %edx, %edx
+; ALL-NEXT:    divl %ecx
+; ALL-NEXT:    retq
+  %L = load <16 x i64>, <16 x i64>* %p
+  %E1 = extractelement <16 x i64> %L, i64 0
+  %tempvector = insertelement <16 x i64> undef, i64 %E1, i32 0
+  %vector = shufflevector <16 x i64> %tempvector, <16 x i64> undef, <16 x i32> zeroinitializer
+  %C3 = icmp sgt i64 9223372036854775807, -9223372036854775808
+  %t0 = trunc <16 x i64> %vector to <16 x i32>
+  %I4 = insertelement <16 x i64> %vector, i64 %E1, i1 %C3
+  store <16 x i64> %I4, <16 x i64>* %p
+  %elt = extractelement <16 x i32> %t0, i32 0
+  %B = srem i32 %elt, -2147483648
+  %B9 = udiv i32 %elt, %B
+  ret i32 %B9
+}

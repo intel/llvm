@@ -8,14 +8,13 @@
 
 #pragma once
 
+#include <CL/sycl/context.hpp>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
-// Forward declaration
-class context;
 
 // HOW TO ADD NEW PROPERTY INSTRUCTION:
 // 1. Add forward declaration of property class.
@@ -40,6 +39,7 @@ class context_bound;
 
 namespace queue {
 class enable_profiling;
+class in_order;
 } // namespace queue
 
 namespace detail {
@@ -58,6 +58,7 @@ enum PropKind {
 
   // Queue properties
   QueueEnableProfiling,
+  InOrder,
 
   PropKindSize
 };
@@ -79,7 +80,7 @@ public:
 
   const T &getProp() const {
     assert(true == m_Initialized && "Property was not set!");
-    return *(T *)m_Mem;
+    return *(const T *)m_Mem;
   }
   bool isInitialized() const { return m_Initialized; }
 
@@ -111,6 +112,7 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 
 // Queue
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
+RegisterProp(PropKind::InOrder, queue::in_order);
 
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
@@ -173,6 +175,8 @@ public:
 namespace queue {
 class enable_profiling
     : public detail::Prop<detail::PropKind::QueueEnableProfiling> {};
+
+class in_order : public detail::Prop<detail::PropKind::InOrder> {};
 } // namespace queue
 
 } // namespace property

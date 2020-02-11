@@ -97,6 +97,9 @@ public:
   /// Returns true if this value is known to be non-negative.
   bool isNonNegative() const { return Zero.isSignBitSet(); }
 
+  /// Returns true if this value is known to be positive.
+  bool isStrictlyPositive() const { return Zero.isSignBitSet() && !One.isNullValue(); }
+
   /// Make this value negative.
   void makeNegative() {
     One.setSignBit();
@@ -105,6 +108,18 @@ public:
   /// Make this value non-negative.
   void makeNonNegative() {
     Zero.setSignBit();
+  }
+
+  /// Return the minimal value possible given these KnownBits.
+  APInt getMinValue() const {
+    // Assume that all bits that aren't known-ones are zeros.
+    return One;
+  }
+
+  /// Return the maximal value possible given these KnownBits.
+  APInt getMaxValue() const {
+    // Assume that all bits that aren't known-zeros are ones.
+    return ~Zero;
   }
 
   /// Truncate the underlying known Zero and One bits. This is equivalent
@@ -140,6 +155,13 @@ public:
     if (BitWidth > getBitWidth())
       return zext(BitWidth, ExtendedBitsAreKnownZero);
     return KnownBits(Zero.zextOrTrunc(BitWidth), One.zextOrTrunc(BitWidth));
+  }
+
+  /// Return a KnownBits with the extracted bits
+  /// [bitPosition,bitPosition+numBits).
+  KnownBits extractBits(unsigned NumBits, unsigned BitPosition) const {
+    return KnownBits(Zero.extractBits(NumBits, BitPosition),
+                     One.extractBits(NumBits, BitPosition));
   }
 
   /// Returns the minimum number of trailing zero bits.

@@ -21,8 +21,9 @@
 ; CHECK-NEXT:     [0x0000000000000007, 0x0000000000000009): DW_OP_reg5 RDI, DW_OP_piece 0x8
 ; CHECK-NEXT:   DW_AT_name {{.*}}"outer"
 ; CHECK: DW_TAG_variable
-; CHECK-NEXT:   DW_AT_name {{.*}}"i1"
-; CHECK-NOT:    DW_AT_location
+; CHECK-NEXT:   DW_AT_location [DW_FORM_data4]        (0x00000044
+; CHECK-NEXT:     [0x0000000000000007, 0x0000000000000009): DW_OP_reg0 RAX, DW_OP_piece 0x4)
+; CHECK-NEXT:   "i1"
 
 ; ModuleID = '/Volumes/Data/llvm/test/DebugInfo/X86/sroasplit-2.ll'
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
@@ -54,7 +55,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind ssp uwtable "no-frame-pointer-elim"="true" }
+attributes #0 = { nounwind ssp uwtable "frame-pointer"="all" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind }
 

@@ -34,6 +34,22 @@
 # CHECK: error: command failed with exit status: 127
 # CHECK: ***
 
+# CHECK: PASS: shtest-shell :: dev-null.txt
+
+# CHECK: FAIL: shtest-shell :: diff-b.txt
+# CHECK: *** TEST 'shtest-shell :: diff-b.txt' FAILED ***
+# CHECK: $ "diff" "-b" "{{[^"]*}}.0" "{{[^"]*}}.1"
+# CHECK: # command output:
+# CHECK: 1,2
+# CHECK-NEXT: {{^  }}f o o
+# CHECK-NEXT: ! b a r
+# CHECK-NEXT: ---
+# CHECK-NEXT: {{^  }}f o o
+# CHECK-NEXT: ! bar
+# CHECK-EMPTY:
+# CHECK: error: command failed with exit status: 1
+# CHECK: ***
+
 
 # CHECK: FAIL: shtest-shell :: diff-encodings.txt
 # CHECK: *** TEST 'shtest-shell :: diff-encodings.txt' FAILED ***
@@ -81,33 +97,79 @@
 # CHECK: error: command failed with exit status: 1
 # CHECK: $ "true"
 
+# CHECK: $ "cat" "diff-in.bin"
+# CHECK-NOT: error
+# CHECK: $ "diff" "-u" "-" "diff-in.bin"
+# CHECK-NOT: error
+
+# CHECK: $ "cat" "diff-in.bin"
+# CHECK-NOT: error
+# CHECK: $ "diff" "-u" "diff-in.bin" "-"
+# CHECK-NOT: error
+
+# CHECK: $ "cat" "diff-in.bin"
+# CHECK-NOT: error
+# CHECK: $ "diff" "-u" "diff-in.utf16" "-"
+# CHECK: # command output:
+# CHECK-NEXT: ---
+# CHECK-NEXT: +++
+# CHECK-NEXT: @@
+# CHECK-NEXT: {{^ .f.o.o.$}}
+# CHECK-NEXT: {{^-.b.a.r.$}}
+# CHECK-NEXT: {{^\+.b.a.r..}}
+# CHECK-NEXT: {{^ .b.a.z.$}}
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
+# CHECK: $ "cat" "diff-in.bin"
+# CHECK-NOT: error
+# CHECK: $ "diff" "-u" "diff-in.utf8" "-"
+# CHECK: # command output:
+# CHECK-NEXT: ---
+# CHECK-NEXT: +++
+# CHECK-NEXT: @@
+# CHECK-NEXT: -foo
+# CHECK-NEXT: -bar
+# CHECK-NEXT: -baz
+# CHECK-NEXT: {{^\+.f.o.o.$}}
+# CHECK-NEXT: {{^\+.b.a.r..}}
+# CHECK-NEXT: {{^\+.b.a.z.$}}
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
+# CHECK: $ "diff" "-u" "-" "diff-in.utf8"
+# CHECK: # command output:
+# CHECK-NEXT: ---
+# CHECK-NEXT: +++
+# CHECK-NEXT: @@
+# CHECK-NEXT: {{^\-.f.o.o.$}}
+# CHECK-NEXT: {{^\-.b.a.r..}}
+# CHECK-NEXT: {{^\-.b.a.z.$}}
+# CHECK-NEXT: +foo
+# CHECK-NEXT: +bar
+# CHECK-NEXT: +baz
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
 # CHECK: $ "false"
 
 # CHECK: ***
 
-
-# CHECK: FAIL: shtest-shell :: diff-error-0.txt
-# CHECK: *** TEST 'shtest-shell :: diff-error-0.txt' FAILED ***
-# CHECK: $ "diff" "diff-error-0.txt" "diff-error-0.txt"
-# CHECK: # command stderr:
-# CHECK: Unsupported: 'diff' cannot be part of a pipeline
-# CHECK: error: command failed with exit status: 127
-# CHECK: ***
 
 # CHECK: FAIL: shtest-shell :: diff-error-1.txt
 # CHECK: *** TEST 'shtest-shell :: diff-error-1.txt' FAILED ***
 # CHECK: $ "diff" "-B" "temp1.txt" "temp2.txt"
 # CHECK: # command stderr:
 # CHECK: Unsupported: 'diff': option -B not recognized
-# CHECK: error: command failed with exit status: 127
+# CHECK: error: command failed with exit status: 1
 # CHECK: ***
 
 # CHECK: FAIL: shtest-shell :: diff-error-2.txt
 # CHECK: *** TEST 'shtest-shell :: diff-error-2.txt' FAILED ***
 # CHECK: $ "diff" "temp.txt"
 # CHECK: # command stderr:
-# CHECK: Error:  missing or extra operand
-# CHECK: error: command failed with exit status: 127
+# CHECK: Error: missing or extra operand
+# CHECK: error: command failed with exit status: 1
 # CHECK: ***
 
 # CHECK: FAIL: shtest-shell :: diff-error-3.txt
@@ -134,17 +196,87 @@
 # CHECK: *** TEST 'shtest-shell :: diff-error-5.txt' FAILED ***
 # CHECK: $ "diff"
 # CHECK: # command stderr:
-# CHECK: Error:  missing or extra operand
-# CHECK: error: command failed with exit status: 127
+# CHECK: Error: missing or extra operand
+# CHECK: error: command failed with exit status: 1
 # CHECK: ***
 
 # CHECK: FAIL: shtest-shell :: diff-error-6.txt
 # CHECK: *** TEST 'shtest-shell :: diff-error-6.txt' FAILED ***
 # CHECK: $ "diff"
 # CHECK: # command stderr:
-# CHECK: Error:  missing or extra operand
-# CHECK: error: command failed with exit status: 127
+# CHECK: Error: missing or extra operand
+# CHECK: error: command failed with exit status: 1
 # CHECK: ***
+
+
+# CHECK: FAIL: shtest-shell :: diff-pipes.txt
+
+# CHECK: *** TEST 'shtest-shell :: diff-pipes.txt' FAILED ***
+
+# CHECK: $ "diff" "{{[^"]*}}.foo" "{{[^"]*}}.foo"
+# CHECK-NOT: note
+# CHECK-NOT: error
+# CHECK: $ "FileCheck"
+# CHECK-NOT: note
+# CHECK-NOT: error
+
+# CHECK: $ "diff" "-u" "{{[^"]*}}.foo" "{{[^"]*}}.bar"
+# CHECK: note: command had no output on stdout or stderr
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "FileCheck"
+# CHECK-NOT: note
+# CHECK-NOT: error
+# CHECK: $ "true"
+
+# CHECK: $ "cat" "{{[^"]*}}.foo"
+# CHECK: $ "diff" "-u" "-" "{{[^"]*}}.foo"
+# CHECK-NOT: note
+# CHECK-NOT: error
+
+# CHECK: $ "cat" "{{[^"]*}}.foo"
+# CHECK: $ "diff" "-u" "{{[^"]*}}.foo" "-"
+# CHECK-NOT: note
+# CHECK-NOT: error
+
+# CHECK: $ "cat" "{{[^"]*}}.bar"
+# CHECK: $ "diff" "-u" "{{[^"]*}}.foo" "-"
+# CHECK: # command output:
+# CHECK: @@
+# CHECK-NEXT: -foo
+# CHECK-NEXT: +bar
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
+# CHECK: $ "cat" "{{[^"]*}}.bar"
+# CHECK: $ "diff" "-u" "-" "{{[^"]*}}.foo"
+# CHECK: # command output:
+# CHECK: @@
+# CHECK-NEXT: -bar
+# CHECK-NEXT: +foo
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
+# CHECK: $ "cat" "{{[^"]*}}.foo"
+# CHECK: $ "diff" "-" "{{[^"]*}}.foo"
+# CHECK-NOT: note
+# CHECK-NOT: error
+# CHECK: $ "FileCheck"
+# CHECK-NOT: note
+# CHECK-NOT: error
+
+# CHECK: $ "cat" "{{[^"]*}}.bar"
+# CHECK: $ "diff" "-u" "{{[^"]*}}.foo" "-"
+# CHECK: note: command had no output on stdout or stderr
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "FileCheck"
+# CHECK-NOT: note
+# CHECK-NOT: error
+# CHECK: $ "true"
+
+# CHECK: $ "false"
+
+# CHECK: ***
+
 
 # CHECK: FAIL: shtest-shell :: diff-r-error-0.txt
 # CHECK: *** TEST 'shtest-shell :: diff-r-error-0.txt' FAILED ***
@@ -197,6 +329,20 @@
 # CHECK: $ "diff" "-r" 
 # CHECK: # command output:
 # CHECK: File {{.*}}dir1{{.*}}extra_file is a regular empty file while file {{.*}}dir2{{.*}}extra_file is a directory
+# CHECK: error: command failed with exit status: 1
+
+# CHECK: FAIL: shtest-shell :: diff-r-error-7.txt
+# CHECK: *** TEST 'shtest-shell :: diff-r-error-7.txt' FAILED ***
+# CHECK: $ "diff" "-r" "-" "{{[^"]*}}"
+# CHECK: # command stderr:
+# CHECK: Error: cannot recursively compare '-'
+# CHECK: error: command failed with exit status: 1
+
+# CHECK: FAIL: shtest-shell :: diff-r-error-8.txt
+# CHECK: *** TEST 'shtest-shell :: diff-r-error-8.txt' FAILED ***
+# CHECK: $ "diff" "-r" "{{[^"]*}}" "-"
+# CHECK: # command stderr:
+# CHECK: Error: cannot recursively compare '-'
 # CHECK: error: command failed with exit status: 1
 
 # CHECK: PASS: shtest-shell :: diff-r.txt
@@ -252,23 +398,6 @@
 
 # CHECK: $ "false"
 
-# CHECK: ***
-
-
-# CHECK: FAIL: shtest-shell :: diff-unified-error-0.txt
-# CHECK: *** TEST 'shtest-shell :: diff-unified-error-0.txt' FAILED ***
-# CHECK: $ "diff" "-U" "30.1" "{{[^"]*}}" "{{[^"]*}}"
-# CHECK: # command stderr:
-# CHECK: Error: invalid '-U' argument: 30.1
-# CHECK: error: command failed with exit status: 127
-# CHECK: ***
-
-# CHECK: FAIL: shtest-shell :: diff-unified-error-1.txt
-# CHECK: *** TEST 'shtest-shell :: diff-unified-error-1.txt' FAILED ***
-# CHECK: $ "diff" "-U-1" "{{[^"]*}}" "{{[^"]*}}"
-# CHECK: # command stderr:
-# CHECK: Error: invalid '-U' argument: -1
-# CHECK: error: command failed with exit status: 127
 # CHECK: ***
 
 
@@ -330,10 +459,38 @@
 # CHECK-NEXT: error: command failed with exit status: 1
 # CHECK-NEXT: $ "true"
 
+# CHECK: $ "diff" "-U" "30.1" "{{[^"]*}}" "{{[^"]*}}"
+# CHECK: # command stderr:
+# CHECK: Error: invalid '-U' argument: 30.1
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
+# CHECK: $ "diff" "-U-1" "{{[^"]*}}" "{{[^"]*}}"
+# CHECK: # command stderr:
+# CHECK: Error: invalid '-U' argument: -1
+# CHECK: error: command failed with exit status: 1
+# CHECK: $ "true"
+
 # CHECK: $ "false"
 
 # CHECK: ***
 
+
+# CHECK: FAIL: shtest-shell :: diff-w.txt
+# CHECK: *** TEST 'shtest-shell :: diff-w.txt' FAILED ***
+# CHECK: $ "diff" "-w" "{{[^"]*}}.0" "{{[^"]*}}.1"
+# CHECK: # command output:
+# CHECK: 1,3
+# CHECK-NEXT: {{^  }}foo
+# CHECK-NEXT: {{^  }}bar
+# CHECK-NEXT: ! baz
+# CHECK-NEXT: ---
+# CHECK-NEXT: {{^  }}foo
+# CHECK-NEXT: {{^  }}bar
+# CHECK-NEXT: ! bat
+# CHECK-EMPTY:
+# CHECK: error: command failed with exit status: 1
+# CHECK: ***
 
 # CHECK: FAIL: shtest-shell :: error-0.txt
 # CHECK: *** TEST 'shtest-shell :: error-0.txt' FAILED ***
@@ -426,4 +583,4 @@
 # CHECK: ***
 
 # CHECK: PASS: shtest-shell :: valid-shell.txt
-# CHECK: Failing Tests (33)
+# CHECK: Failing Tests (35)

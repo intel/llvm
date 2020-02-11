@@ -77,6 +77,10 @@ public:
     return getASTContext().getSourceManager();
   }
 
+  const LangOptions &getLangOpts() const {
+    return getASTContext().getLangOpts();
+  }
+
   /// This function returns top-level decls present in the main file of the AST.
   /// The result does not include the decls that come from the preamble.
   /// (These should be const, but RecursiveASTVisitor requires Decl*).
@@ -84,7 +88,7 @@ public:
 
   const std::vector<Diag> &getDiagnostics() const;
 
-  /// Returns the esitmated size of the AST and the accessory structures, in
+  /// Returns the estimated size of the AST and the accessory structures, in
   /// bytes. Does not include the size of the preamble.
   std::size_t getUsedBytes() const;
   const IncludeStructure &getIncludeStructure() const;

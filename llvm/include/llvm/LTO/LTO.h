@@ -19,8 +19,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
-#include "llvm/IR/RemarkStreamer.h"
 #include "llvm/LTO/Config.h"
 #include "llvm/Linker/IRMover.h"
 #include "llvm/Object/IRSymtab.h"
@@ -59,7 +59,7 @@ void thinLTOResolvePrevailingInIndex(
 /// must apply the changes to the Module via thinLTOInternalizeModule.
 void thinLTOInternalizeAndPromoteInIndex(
     ModuleSummaryIndex &Index,
-    function_ref<bool(StringRef, GlobalValue::GUID)> isExported,
+    function_ref<bool(StringRef, ValueInfo)> isExported,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
         isPrevailing);
 
@@ -87,9 +87,9 @@ std::string getThinLTOOutputFile(const std::string &Path,
 
 /// Setup optimization remarks.
 Expected<std::unique_ptr<ToolOutputFile>>
-setupOptimizationRemarks(LLVMContext &Context, StringRef RemarksFilename,
-                         StringRef RemarksPasses, StringRef RemarksFormat,
-                         bool RemarksWithHotness, int Count = -1);
+setupLLVMOptimizationRemarks(LLVMContext &Context, StringRef RemarksFilename,
+                             StringRef RemarksPasses, StringRef RemarksFormat,
+                             bool RemarksWithHotness, int Count = -1);
 
 /// Setups the output file for saving statistics.
 Expected<std::unique_ptr<ToolOutputFile>>
@@ -222,7 +222,7 @@ using NativeObjectCache =
 /// The details of this type definition aren't important; clients can only
 /// create a ThinBackend using one of the create*ThinBackend() functions below.
 using ThinBackend = std::function<std::unique_ptr<ThinBackendProc>(
-    Config &C, ModuleSummaryIndex &CombinedIndex,
+    const Config &C, ModuleSummaryIndex &CombinedIndex,
     StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
     AddStreamFn AddStream, NativeObjectCache Cache)>;
 
@@ -306,7 +306,8 @@ private:
   Config Conf;
 
   struct RegularLTOState {
-    RegularLTOState(unsigned ParallelCodeGenParallelismLevel, Config &Conf);
+    RegularLTOState(unsigned ParallelCodeGenParallelismLevel,
+                    const Config &Conf);
     struct CommonResolution {
       uint64_t Size = 0;
       MaybeAlign Align;

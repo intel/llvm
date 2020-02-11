@@ -20,9 +20,10 @@
 #include "llvm/IR/OptBisect.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassTimingInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Timer.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
@@ -91,38 +92,6 @@ void LPPassManager::addLoop(Loop &L) {
     }
   }
 }
-
-/// cloneBasicBlockSimpleAnalysis - Invoke cloneBasicBlockAnalysis hook for
-/// all loop passes.
-void LPPassManager::cloneBasicBlockSimpleAnalysis(BasicBlock *From,
-                                                  BasicBlock *To, Loop *L) {
-  for (unsigned Index = 0; Index < getNumContainedPasses(); ++Index) {
-    LoopPass *LP = getContainedPass(Index);
-    LP->cloneBasicBlockAnalysis(From, To, L);
-  }
-}
-
-/// deleteSimpleAnalysisValue - Invoke deleteAnalysisValue hook for all passes.
-void LPPassManager::deleteSimpleAnalysisValue(Value *V, Loop *L) {
-  if (BasicBlock *BB = dyn_cast<BasicBlock>(V)) {
-    for (Instruction &I : *BB) {
-      deleteSimpleAnalysisValue(&I, L);
-    }
-  }
-  for (unsigned Index = 0; Index < getNumContainedPasses(); ++Index) {
-    LoopPass *LP = getContainedPass(Index);
-    LP->deleteAnalysisValue(V, L);
-  }
-}
-
-/// Invoke deleteAnalysisLoop hook for all passes.
-void LPPassManager::deleteSimpleAnalysisLoop(Loop *L) {
-  for (unsigned Index = 0; Index < getNumContainedPasses(); ++Index) {
-    LoopPass *LP = getContainedPass(Index);
-    LP->deleteAnalysisLoop(L);
-  }
-}
-
 
 // Recurse through all subloops and all loops  into LQ.
 static void addLoopIntoQueue(Loop *L, std::deque<Loop *> &LQ) {
@@ -245,10 +214,7 @@ bool LPPassManager::runOnFunction(Function &F) {
                                         : CurrentLoop->getName());
       dumpPreservedSet(P);
 
-      if (CurrentLoopDeleted) {
-        // Notify passes that the loop is being deleted.
-        deleteSimpleAnalysisLoop(CurrentLoop);
-      } else {
+      if (!CurrentLoopDeleted) {
         // Manually check that this loop is still healthy. This is done
         // instead of relying on LoopInfo::verifyLoop since LoopInfo
         // is a function pass and it's really expensive to verify every
@@ -407,6 +373,10 @@ bool LoopPass::skipLoop(const Loop *L) const {
     return true;
   }
   return false;
+}
+
+LCSSAVerificationPass::LCSSAVerificationPass() : FunctionPass(ID) {
+  initializeLCSSAVerificationPassPass(*PassRegistry::getPassRegistry());
 }
 
 char LCSSAVerificationPass::ID = 0;

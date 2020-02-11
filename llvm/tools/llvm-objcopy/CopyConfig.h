@@ -69,7 +69,8 @@ enum SectionFlag {
   SecStrings = 1 << 9,
   SecContents = 1 << 10,
   SecShare = 1 << 11,
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ SecShare)
+  SecExclude = 1 << 12,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/SecExclude)
 };
 
 struct SectionRename {
@@ -150,9 +151,9 @@ struct CopyConfig {
 
   // Main input/output options
   StringRef InputFilename;
-  FileFormat InputFormat;
+  FileFormat InputFormat = FileFormat::Unspecified;
   StringRef OutputFilename;
-  FileFormat OutputFormat;
+  FileFormat OutputFormat = FileFormat::Unspecified;
 
   // Only applicable when --output-format!=binary (e.g. elf64-x86-64).
   Optional<MachineInfo> OutputArch;
@@ -175,6 +176,7 @@ struct CopyConfig {
   std::vector<StringRef> AddSection;
   std::vector<StringRef> DumpSection;
   std::vector<StringRef> SymbolsToAdd;
+  std::vector<StringRef> RPathToAdd;
 
   // Section matchers
   NameMatcher KeepSection;
@@ -251,6 +253,12 @@ Expected<DriverConfig>
 parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
                     llvm::function_ref<Error(Error)> ErrorCallback);
 
+// ParseInstallNameToolOptions returns the config and sets the input arguments.
+// If a help flag is set then ParseInstallNameToolOptions will print the help
+// messege and exit.
+Expected<DriverConfig>
+parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr);
+
 // ParseStripOptions returns the config and sets the input arguments. If a
 // help flag is set then ParseStripOptions will print the help messege and
 // exit. ErrorCallback is used to handle recoverable errors. An Error returned
@@ -258,7 +266,6 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
 Expected<DriverConfig>
 parseStripOptions(ArrayRef<const char *> ArgsArr,
                   llvm::function_ref<Error(Error)> ErrorCallback);
-
 } // namespace objcopy
 } // namespace llvm
 

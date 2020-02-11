@@ -168,7 +168,7 @@ MCSubtargetInfo *ARM_MC::createARMMCSubtargetInfo(const Triple &TT,
     if (!ArchFS.empty())
       ArchFS = (Twine(ArchFS) + "," + FS).str();
     else
-      ArchFS = FS;
+      ArchFS = std::string(FS);
   }
 
   return createARMMCSubtargetInfoImpl(TT, CPU, ArchFS);
@@ -212,7 +212,8 @@ static MCStreamer *createELFStreamer(const Triple &T, MCContext &Ctx,
                                      bool RelaxAll) {
   return createARMELFStreamer(
       Ctx, std::move(MAB), std::move(OW), std::move(Emitter), false,
-      (T.getArch() == Triple::thumb || T.getArch() == Triple::thumbeb));
+      (T.getArch() == Triple::thumb || T.getArch() == Triple::thumbeb),
+      T.isAndroid());
 }
 
 static MCStreamer *
@@ -285,7 +286,12 @@ public:
     default:
       OpId = 0;
       break;
+    case ARM::MVE_WLSTP_8:
+    case ARM::MVE_WLSTP_16:
+    case ARM::MVE_WLSTP_32:
+    case ARM::MVE_WLSTP_64:
     case ARM::t2WLS:
+    case ARM::MVE_LETP:
     case ARM::t2LEUpdate:
       OpId = 2;
       break;
@@ -316,7 +322,7 @@ static MCInstrAnalysis *createThumbMCInstrAnalysis(const MCInstrInfo *Info) {
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeARMTargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTargetMC() {
   for (Target *T : {&getTheARMLETarget(), &getTheARMBETarget(),
                     &getTheThumbLETarget(), &getTheThumbBETarget()}) {
     // Register the MC asm info.

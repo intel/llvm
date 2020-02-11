@@ -17,7 +17,6 @@
 #include "llvm/Support/Casting.h"
 
 #include "lldb/Breakpoint/BreakpointPrecondition.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -29,6 +28,7 @@ class CommandObjectObjC_ClassTable_Dump;
 
 namespace lldb_private {
 
+class TypeSystemClang;
 class UtilityFunction;
 
 class ObjCLanguageRuntime : public LanguageRuntime {
@@ -144,15 +144,12 @@ public:
   public:
     virtual ~EncodingToType();
 
-    virtual CompilerType RealizeType(ClangASTContext &ast_ctx, const char *name,
-                                     bool for_expression);
+    virtual CompilerType RealizeType(TypeSystemClang &ast_ctx, const char *name,
+                                     bool for_expression) = 0;
     virtual CompilerType RealizeType(const char *name, bool for_expression);
 
-    virtual CompilerType RealizeType(clang::ASTContext &ast_ctx,
-                                     const char *name, bool for_expression) = 0;
-
   protected:
-    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_up;
+    std::unique_ptr<TypeSystemClang> m_scratch_ast_ctx_up;
   };
 
   class ObjCExceptionPrecondition : public BreakpointPrecondition {
@@ -273,8 +270,6 @@ public:
   }
 
   virtual ObjCISA GetISA(ConstString name);
-
-  virtual ConstString GetActualTypeName(ObjCISA isa);
 
   virtual ObjCISA GetParentClass(ObjCISA isa);
 

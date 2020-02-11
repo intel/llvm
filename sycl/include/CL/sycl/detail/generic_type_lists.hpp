@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>
@@ -15,13 +17,13 @@
 // types of parameters to kernel functions
 
 // Forward declaration
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <typename T, int N> class vec;
 } // namespace sycl
 } // namespace cl
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace gtl {

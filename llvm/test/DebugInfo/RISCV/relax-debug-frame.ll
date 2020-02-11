@@ -1,25 +1,21 @@
-; RUN: llc -filetype=obj -mtriple=riscv32 -mattr=+relax %s -o - \
-; RUN:     | llvm-readobj -r | FileCheck -check-prefix=RELAX %s
-; RUN: llc -filetype=obj -mtriple=riscv32 -mattr=+relax %s -o - \
-; RUN:     | llvm-dwarfdump --debug-frame - \
+; RUN: llc -filetype=obj -mtriple=riscv32 -mattr=+relax %s -o %t.o
+; RUN: llvm-readobj -r %t.o | FileCheck -check-prefix=RELAX %s
+; RUN: llvm-dwarfdump --debug-frame %t.o 2>&1 \
 ; RUN:     | FileCheck -check-prefix=RELAX-DWARFDUMP %s
 ;
-; RELAX: Section{{.*}}.rela.{{eh|debug}}_frame {
-; RELAX-NOT: {{[}]}}
-; RELAX-NOT: 0x0 R_RISCV_ADD32
-; RELAX-NOT: 0x0 R_RISCV_SUB32
-; RELAX-NOT: {{[}]}}
-; RELAX: 0x20 R_RISCV_ADD32
-; RELAX: 0x20 R_RISCV_SUB32
-; RELAX-NOT: {{[}]}}
-; RELAX: 0x25 R_RISCV_SET6
-; RELAX: 0x25 R_RISCV_SUB6
+; RELAX:      Section ({{.*}}) .rela.eh_frame {
+; RELAX-NEXT:   0x1C R_RISCV_32_PCREL - 0x0
+; RELAX-NEXT:   0x20 R_RISCV_ADD32 - 0x0
+; RELAX-NEXT:   0x20 R_RISCV_SUB32 - 0x0
+; RELAX-NOT:  }
+; RELAX:        0x39 R_RISCV_SET6 - 0x0
+; RELAX-NEXT:   0x39 R_RISCV_SUB6 - 0x0
 ;
+; RELAX-DWARFDUMP-NOT: error: failed to compute relocation
 ; RELAX-DWARFDUMP: CIE
 ; RELAX-DWARFDUMP: DW_CFA_advance_loc
 ; RELAX-DWARFDUMP: DW_CFA_def_cfa_offset
 ; RELAX-DWARFDUMP: DW_CFA_offset
-; RELAX-DWARFDUMP: DW_CFA_restore
 source_filename = "frame.c"
 
 ; Function Attrs: noinline nounwind optnone

@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -46,8 +46,10 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
     throw runtime_error("Enqueue process failed.");
 
   RT::PiEvent &CLEvent = Cmd->getEvent()->getHandleRef();
-  if (CLEvent)
-    PI_CALL(RT::piEventsWait(1, &CLEvent));
+  if (CLEvent) {
+    const detail::plugin &Plugin = Event->getPlugin();
+    Plugin.call<PiApiKind::piEventsWait>(1, &CLEvent);
+  }
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,

@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
@@ -146,8 +147,11 @@ LLVM_DUMP_METHOD void LazyCallGraph::Node::dump() const {
 static bool isKnownLibFunction(Function &F, TargetLibraryInfo &TLI) {
   LibFunc LF;
 
-  // Either this is a normal library function or a "vectorizable" function.
-  return TLI.getLibFunc(F, LF) || TLI.isFunctionVectorizable(F.getName());
+  // Either this is a normal library function or a "vectorizable"
+  // function.  Not using the VFDatabase here because this query
+  // is related only to libraries handled via the TLI.
+  return TLI.getLibFunc(F, LF) ||
+         TLI.isKnownVectorFunctionInLibrary(F.getName());
 }
 
 LazyCallGraph::LazyCallGraph(
@@ -209,6 +213,15 @@ LazyCallGraph::LazyCallGraph(LazyCallGraph &&G)
       SCCMap(std::move(G.SCCMap)),
       LibFunctions(std::move(G.LibFunctions)) {
   updateGraphPtrs();
+}
+
+bool LazyCallGraph::invalidate(Module &, const PreservedAnalyses &PA,
+                               ModuleAnalysisManager::Invalidator &) {
+  // Check whether the analysis, all analyses on functions, or the function's
+  // CFG have been preserved.
+  auto PAC = PA.getChecker<llvm::LazyCallGraphAnalysis>();
+  return !(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Module>>() ||
+           PAC.preservedSet<CFGAnalyses>());
 }
 
 LazyCallGraph &LazyCallGraph::operator=(LazyCallGraph &&G) {
@@ -1788,11 +1801,12 @@ LazyCallGraphDOTPrinterPass::LazyCallGraphDOTPrinterPass(raw_ostream &OS)
     : OS(OS) {}
 
 static void printNodeDOT(raw_ostream &OS, LazyCallGraph::Node &N) {
-  std::string Name = "\"" + DOT::EscapeString(N.getFunction().getName()) + "\"";
+  std::string Name =
+      "\"" + DOT::EscapeString(std::string(N.getFunction().getName())) + "\"";
 
   for (LazyCallGraph::Edge &E : N.populate()) {
     OS << "  " << Name << " -> \""
-       << DOT::EscapeString(E.getFunction().getName()) << "\"";
+       << DOT::EscapeString(std::string(E.getFunction().getName())) << "\"";
     if (!E.isCall()) // It is a ref edge.
       OS << " [style=dashed,label=\"ref\"]";
     OS << ";\n";

@@ -1,4 +1,4 @@
-//===-- CommandObjectSettings.cpp -------------------------------*- C++ -*-===//
+//===-- CommandObjectSettings.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -143,25 +143,24 @@ insert-before or insert-after.");
           request, nullptr);
       return;
     }
-      arg =
-          request.GetParsedLine().GetArgumentAtIndex(request.GetCursorIndex());
+    arg = request.GetParsedLine().GetArgumentAtIndex(request.GetCursorIndex());
 
-      if (!arg)
-        return;
+    if (!arg)
+      return;
 
-      // Complete option name
-      if (arg[0] != '-')
-        return;
+    // Complete option name
+    if (arg[0] != '-')
+      return;
 
-      // Complete setting value
-      const char *setting_var_name =
-          request.GetParsedLine().GetArgumentAtIndex(setting_var_idx);
-      Status error;
-      lldb::OptionValueSP value_sp(GetDebugger().GetPropertyValue(
-          &m_exe_ctx, setting_var_name, false, error));
-      if (!value_sp)
-        return;
-      value_sp->AutoComplete(m_interpreter, request);
+    // Complete setting value
+    const char *setting_var_name =
+        request.GetParsedLine().GetArgumentAtIndex(setting_var_idx);
+    Status error;
+    lldb::OptionValueSP value_sp(GetDebugger().GetPropertyValue(
+        &m_exe_ctx, setting_var_name, false, error));
+    if (!value_sp)
+      return;
+    value_sp->AutoComplete(m_interpreter, request);
   }
 
 protected:
@@ -344,7 +343,7 @@ public:
 
       switch (short_option) {
       case 'f':
-        m_filename.assign(option_arg);
+        m_filename.assign(std::string(option_arg));
         break;
       case 'a':
         m_append = true;
@@ -445,7 +444,7 @@ public:
 
       switch (short_option) {
       case 'f':
-        m_filename.assign(option_arg);
+        m_filename.assign(std::string(option_arg));
         break;
       default:
         llvm_unreachable("Unimplemented option");

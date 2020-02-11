@@ -211,6 +211,7 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/SSAUpdater.h"
 
@@ -452,7 +453,7 @@ Function *WebAssemblyLowerEmscriptenEHSjLj::getInvokeWrapper(CallOrInvoke *CI) {
     CalleeFTy = F->getFunctionType();
   else {
     auto *CalleeTy = cast<PointerType>(Callee->getType())->getElementType();
-    CalleeFTy = dyn_cast<FunctionType>(CalleeTy);
+    CalleeFTy = cast<FunctionType>(CalleeTy);
   }
 
   std::string Sig = getSignature(CalleeFTy);
@@ -743,8 +744,8 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
   bool Changed = false;
   SmallVector<Instruction *, 64> ToErase;
   SmallPtrSet<LandingPadInst *, 32> LandingPads;
-  bool AllowExceptions =
-      areAllExceptionsAllowed() || EHWhitelistSet.count(F.getName());
+  bool AllowExceptions = areAllExceptionsAllowed() ||
+                         EHWhitelistSet.count(std::string(F.getName()));
 
   for (BasicBlock &BB : F) {
     auto *II = dyn_cast<InvokeInst>(BB.getTerminator());
@@ -791,6 +792,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
       auto *RI = dyn_cast<ResumeInst>(&I);
       if (!RI)
         continue;
+      Changed = true;
 
       // Split the input into legal values
       Value *Input = RI->getValue();
@@ -815,6 +817,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
         continue;
       if (Callee->getIntrinsicID() != Intrinsic::eh_typeid_for)
         continue;
+      Changed = true;
 
       IRB.SetInsertPoint(CI);
       CallInst *NewCI =
@@ -830,6 +833,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
     if (auto *LPI = dyn_cast<LandingPadInst>(I))
       LandingPads.insert(LPI);
   }
+  Changed |= !LandingPads.empty();
 
   // Handle all the landingpad for this function together, as multiple invokes
   // may share a single lp

@@ -53,10 +53,16 @@
 # CHECK-NEXT:            "entity.name.type.template.cpp"
 # CHECK-NEXT:          ],
 # CHECK-NEXT:          [
+# CHECK-NEXT:            "entity.name.type.concept.cpp"
+# CHECK-NEXT:          ],
+# CHECK-NEXT:          [
 # CHECK-NEXT:            "storage.type.primitive.cpp"
 # CHECK-NEXT:          ],
 # CHECK-NEXT:          [
 # CHECK-NEXT:            "entity.name.function.preprocessor.cpp"
+# CHECK-NEXT:          ],
+# CHECK-NEXT:          [
+# CHECK-NEXT:            "meta.disabled"
 # CHECK-NEXT:          ]
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
@@ -66,8 +72,9 @@
 # CHECK-NEXT:  "params": {
 # CHECK-NEXT:    "lines": [
 # CHECK-NEXT:      {
+# CHECK-NEXT:        "isInactive": false,
 # CHECK-NEXT:        "line": 0,
-# CHECK-NEXT:        "tokens": "AAAAAAADABAAAAAEAAEAAA=="
+# CHECK-NEXT:        "tokens": "AAAABAABAAA="
 # CHECK-NEXT:      }
 # CHECK-NEXT:    ],
 # CHECK-NEXT:    "textDocument": {
@@ -81,12 +88,14 @@
 # CHECK-NEXT:  "params": {
 # CHECK-NEXT:    "lines": [
 # CHECK-NEXT:      {
+# CHECK-NEXT:        "isInactive": false,
 # CHECK-NEXT:        "line": 0,
-# CHECK-NEXT:        "tokens": "AAAAAAADABAAAAAEAAEAAA=="
+# CHECK-NEXT:        "tokens": "AAAABAABAAA="
 # CHECK-NEXT:      }
 # CHECK-NEXT:      {
+# CHECK-NEXT:        "isInactive": false,
 # CHECK-NEXT:        "line": 1,
-# CHECK-NEXT:        "tokens": "AAAAAAADABAAAAAEAAEAAA=="
+# CHECK-NEXT:        "tokens": "AAAABAABAAA="
 # CHECK-NEXT:      }
 # CHECK-NEXT:    ],
 # CHECK-NEXT:    "textDocument": {
@@ -100,8 +109,9 @@
 # CHECK-NEXT:  "params": {
 # CHECK-NEXT:    "lines": [
 # CHECK-NEXT:      {
+# CHECK-NEXT:        "isInactive": false,
 # CHECK-NEXT:        "line": 1,
-# CHECK-NEXT:        "tokens": "AAAAAAADABAAAAAEAAEAAA=="
+# CHECK-NEXT:        "tokens": "AAAABAABAAA="
 # CHECK-NEXT:      }
 # CHECK-NEXT:   ],
 # CHECK-NEXT:    "textDocument": {
@@ -115,6 +125,7 @@
 # CHECK-NEXT:  "params": {
 # CHECK-NEXT:    "lines": [
 # CHECK-NEXT:      {
+# CHECK-NEXT:        "isInactive": false,
 # CHECK-NEXT:        "line": 1,
 # CHECK-NEXT:        "tokens": ""
 # CHECK-NEXT:      }

@@ -1,4 +1,4 @@
-//===-- NativeRegisterContextLinux_x86_64.cpp ---------------*- C++ -*-===//
+//===-- NativeRegisterContextLinux_x86_64.cpp -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1211,6 +1211,13 @@ NativeRegisterContextLinux_x86_64::GetWatchpointAddress(uint32_t wp_index) {
 uint32_t NativeRegisterContextLinux_x86_64::NumSupportedHardwareWatchpoints() {
   // Available debug address registers: dr0, dr1, dr2, dr3
   return 4;
+}
+
+uint32_t
+NativeRegisterContextLinux_x86_64::GetPtraceOffset(uint32_t reg_index) {
+  // If register is MPX, remove extra factor from gdb offset
+  return GetRegisterInfoAtIndex(reg_index)->byte_offset -
+         (IsMPX(reg_index) ? 128 : 0);
 }
 
 #endif // defined(__i386__) || defined(__x86_64__)

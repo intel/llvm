@@ -2,7 +2,6 @@
 Test process list.
 """
 
-from __future__ import print_function
 
 
 import os
@@ -30,4 +29,4 @@ class ProcessListTestCase(TestBase):
         self.addTearDownHook(self.cleanupSubprocesses)
 
         self.expect("platform process list -v",
-                    substrs=["TestProcess arg1 --arg2 arg3", str(popen.pid)])
+                    substrs=[str(popen.pid), "TestProcess arg1 --arg2 arg3"])

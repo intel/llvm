@@ -19,7 +19,6 @@
 
 #include "llvm/Support/Casting.h"
 
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/TaggedASTType.h"
@@ -28,6 +27,10 @@
 
 namespace llvm {
 class Value;
+}
+
+namespace clang {
+class NamedDecl;
 }
 
 namespace lldb_private {
@@ -74,9 +77,6 @@ public:
 
   /// Finds a variable by NamedDecl in the list.
   ///
-  /// \param[in] name
-  ///     The name of the requested variable.
-  ///
   /// \return
   ///     The variable requested, or NULL if that variable is not in the list.
   static ClangExpressionVariable *
@@ -117,11 +117,9 @@ public:
   class ParserVars {
   public:
     ParserVars()
-        : m_parser_type(), m_named_decl(nullptr), m_llvm_value(nullptr),
+        : m_named_decl(nullptr), m_llvm_value(nullptr),
           m_lldb_value(), m_lldb_var(), m_lldb_sym(nullptr) {}
 
-    TypeFromParser
-        m_parser_type; ///< The type of the variable according to the parser
     const clang::NamedDecl
         *m_named_decl;         ///< The Decl corresponding to this variable
     llvm::Value *m_llvm_value; ///< The IR value corresponding to this variable;

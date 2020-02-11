@@ -1,4 +1,4 @@
-//===-- RenderScriptRuntime.cpp ---------------------------------*- C++ -*-===//
+//===-- RenderScriptRuntime.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1513,7 +1513,7 @@ void RenderScriptRuntime::CaptureScriptInit(RuntimeHook *hook,
       script->type = ScriptDetails::eScriptC;
       script->cache_dir = cache_dir;
       script->res_name = res_name;
-      script->shared_lib = strm.GetString();
+      script->shared_lib = std::string(strm.GetString());
       script->context = addr_t(args[eRsContext]);
     }
 
@@ -2240,8 +2240,7 @@ void RenderScriptRuntime::FindStructTypeName(Element &elem,
   // Iterate over all the global variables looking for one with a matching type
   // to the Element. We make the assumption a match exists since there needs to
   // be a global variable to reflect the struct type back into java host code.
-  for (uint32_t i = 0; i < var_list.GetSize(); ++i) {
-    const VariableSP var_sp(var_list.GetVariableAtIndex(i));
+  for (const VariableSP &var_sp : var_list) {
     if (!var_sp)
       continue;
 
@@ -3892,7 +3891,7 @@ void RSModuleDescriptor::Dump(Stream &strm) const {
   int indent = strm.GetIndentLevel();
 
   strm.Indent();
-  m_module->GetFileSpec().Dump(&strm);
+  m_module->GetFileSpec().Dump(strm.AsRawOstream());
   strm.Indent(m_module->GetNumCompileUnits() ? "Debug info loaded."
                                              : "Debug info does not exist.");
   strm.EOL();

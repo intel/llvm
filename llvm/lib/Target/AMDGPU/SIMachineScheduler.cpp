@@ -609,13 +609,8 @@ void SIScheduleBlock::printDebug(bool full) {
   }
 
   dbgs() << "\nInstructions:\n";
-  if (!Scheduled) {
-    for (const SUnit* SU : SUnits)
+  for (const SUnit* SU : SUnits)
       DAG->dumpNode(*SU);
-  } else {
-    for (const SUnit* SU : SUnits)
-      DAG->dumpNode(*SU);
-  }
 
   dbgs() << "///////////////////////\n";
 }
@@ -623,11 +618,8 @@ void SIScheduleBlock::printDebug(bool full) {
 
 // SIScheduleBlockCreator //
 
-SIScheduleBlockCreator::SIScheduleBlockCreator(SIScheduleDAGMI *DAG) :
-DAG(DAG) {
-}
-
-SIScheduleBlockCreator::~SIScheduleBlockCreator() = default;
+SIScheduleBlockCreator::SIScheduleBlockCreator(SIScheduleDAGMI *DAG)
+    : DAG(DAG) {}
 
 SIScheduleBlocks
 SIScheduleBlockCreator::getBlocks(SISchedulerBlockCreatorVariant BlockVariant) {
@@ -1963,7 +1955,7 @@ void SIScheduleDAGMI::schedule()
       if (SITII->getMemOperandWithOffset(*SU->getInstr(), BaseLatOp, OffLatReg,
                                          TRI))
         LowLatencyOffset[i] = OffLatReg;
-    } else if (SITII->isHighLatencyInstruction(*SU->getInstr()))
+    } else if (SITII->isHighLatencyDef(SU->getInstr()->getOpcode()))
       IsHighLatencySU[i] = 1;
   }
 

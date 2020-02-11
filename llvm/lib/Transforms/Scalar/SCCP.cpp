@@ -29,7 +29,6 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
 #include "llvm/IR/BasicBlock.h"
@@ -49,12 +48,14 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
 #include <cassert>
 #include <utility>
@@ -504,6 +505,24 @@ private:
 
     // All others are underdefined by default.
     return LV;
+  }
+
+  LatticeVal toLatticeVal(const ValueLatticeElement &V, Type *T) {
+    LatticeVal Res;
+    if (V.isUndefined())
+      return Res;
+
+    if (V.isConstant()) {
+      Res.markConstant(V.getConstant());
+      return Res;
+    }
+    if (V.isConstantRange() && V.getConstantRange().isSingleElement()) {
+      Res.markConstant(
+          ConstantInt::get(T, *V.getConstantRange().getSingleElement()));
+      return Res;
+    }
+    Res.markOverdefined();
+    return Res;
   }
 
   ValueLatticeElement &getParamState(Value *V) {
@@ -1328,10 +1347,12 @@ CallOverdefined:
       } else {
         // Most other parts of the Solver still only use the simpler value
         // lattice, so we propagate changes for parameters to both lattices.
-        LatticeVal ConcreteArgument = getValueState(*CAI);
-        bool ParamChanged =
-            getParamState(&*AI).mergeIn(ConcreteArgument.toValueLattice(), DL);
-         bool ValueChanged = mergeInValue(&*AI, ConcreteArgument);
+        ValueLatticeElement ConcreteArgument =
+            isa<Argument>(*CAI) ? getParamState(*CAI)
+                                : getValueState(*CAI).toValueLattice();
+        bool ParamChanged = getParamState(&*AI).mergeIn(ConcreteArgument, DL);
+        bool ValueChanged =
+            mergeInValue(&*AI, toLatticeVal(ConcreteArgument, AI->getType()));
         // Add argument to work list, if the state of a parameter changes but
         // ValueState does not change (because it is already overdefined there),
         // We have to take changes in ParamState into account, as it is used
@@ -2196,7 +2217,7 @@ bool llvm::runIPSCCP(
     findReturnsToZap(*F, ReturnsToZap, Solver);
   }
 
-  for (const auto &F : Solver.getMRVFunctionsTracked()) {
+  for (auto F : Solver.getMRVFunctionsTracked()) {
     assert(F->getReturnType()->isStructTy() &&
            "The return type should be a struct");
     StructType *STy = cast<StructType>(F->getReturnType());

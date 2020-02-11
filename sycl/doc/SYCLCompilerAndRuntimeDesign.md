@@ -102,16 +102,18 @@ pointers to the device memory. As there is no way in OpenCL to pass structures
 with pointers inside as kernel arguments all memory objects shared between host
 and device must be passed to the kernel as raw pointers.
 SYCL also has a special mechanism for passing kernel arguments from host to
-the device. In OpenCL you need to call `clSetKernelArg`, in SYCL all the
-kernel arguments are captures/fields of lambda/functor SYCL functions for
-invoking kernels (such as `parallel_for`). For example, in the previous code
-snippet above `accessor` `A` is one such captured kernel argument.
+the device. In OpenCL kernel arguments are set by calling `clSetKernelArg` function
+for each kernel argument, meanwhile in SYCL all the kernel arguments are fields of
+"SYCL kernel function" which can be defined as a lambda function or a named function
+object and passed as an argument to SYCL function for invoking kernels (such as
+`parallel_for` or `single_task`). For example, in the previous code snippet above
+`accessor` `A` is one such captured kernel argument.
 
-To facilitate the mapping of the captures/fields of lambdas/functors to OpenCL
-kernel and overcome OpenCL limitations we added the generation of an OpenCL
+To facilitate the mapping of SYCL kernel data members to OpenCL
+kernel arguments and overcome OpenCL limitations we added the generation of an OpenCL
 kernel function inside the compiler. An OpenCL kernel function contains the
-body of the SYCL kernel function, receives OpenCL like parameters and
-additionally does some manipulation to initialize captured lambda/functor fields
+body of the SYCL kernel function, receives OpenCL-like parameters and
+additionally does some manipulation to initialize SYCL kernel data members
 with these parameters. In some pseudo code the OpenCL kernel function for the
 previous code snippet above looks like this:
 
@@ -152,22 +154,16 @@ targets like SPIR-V).
 
 #### Enable SYCL offload
 
-To enable compilation following the SYCL specification, a special option
+To enable compilation following single-source multiple compiler-passes (SMCP)
+technique which is described in the SYCL specification, a special option
 must be passed to the clang driver:
 
 `-fsycl`
 
 With this option specified, the driver will invoke the host SYCL compiler and a
 number of device compilers for targets specified in the `-fsycl-targets`
-option.  If this option is not specified, then single SPIR-V target is assumed,
-and single device compiler for this target is invoked.
-
-In the driver, the following bools are defined to determine the compilation
-mode in SYCL:
-
-* IsSYCL : True if the user has passed `-fsycl-device-only` to the compilation
-* IsSYCLOffloadDevice: True if calling clang to set up a device compilation
-* IsSYCLHost: True if setting up a call to clang to do a host compilation
+option.  If `-fsycl-targets` is not specified, then single SPIR-V target is
+assumed, and single device compiler for this target is invoked.
 
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
@@ -217,17 +213,14 @@ and understands mnemonics designating a particular code form, for example
 architecture).  User can specify desired code format using the target-specific
 option mechanism, similar to OpenMP.
 
-`-Xsycl-target=<triple> <arg>`
+`-Xsycl-target-backend=<triple> "arg1 arg2 ..."`
 
-For example, to support offload to CPU, FPGA, Gen9/vISA3.3, Gen9/SPIR-V the
-following options would be used:
+For example, to support offload to Gen9/vISA3.3, the following options would be used:
 
-`-fsycl -fsycl-targets=x86,fpga,gen9 -Xsycl-target=gen9 "-fmt:visa -fmt:spirv"`
+`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
 
-The `<arg>` parameter is passed by the driver directly to the SYCL device
-compiler for the corresponding target w/o parsing it. For each target there is
-some default code form which is generated in the absence of overriding via the
-`-Xsycl-target` option.
+The driver passes the `-device skl` parameter directly to the Gen device backend compiler
+without parsing it.
 
 **TBD:** Having multiple code forms for the same target in the fat binary might
 mean invoking device compiler multiple times. Multiple invocations are not
@@ -395,6 +388,51 @@ llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
 
+#### Device code split
+
+Putting all device code into a single SPIRV module does not work well in the
+following cases:
+1. There are thousands of kernels defined and only small part of them is used at
+run-time. Having them all in one SPIR-V module significantly increases JIT time.
+2. Device code can be specialized for different devices. For example, kernels
+that are supposed to be executed only on FPGA can use extensions avaliable for
+FPGA only. This will cause JIT compilation failure on other devices even if this
+particular kernel is never called on them.
+
+To resolve these problems the compiler can split a single module into smaller
+ones. The following features is supported:
+* Emitting a separate module for source (translation unit)
+* Emitting a separate module for each kernel
+
+The current approach is:
+* Generate special meta-data with translation unit ID for each kernel in SYCL
+front-end. This ID will be used to group kernels on per-translation unit basis
+* Link all device LLVM modules using llvm-link
+* Perform split on a fully linked module
+* Generate a symbol table (list of kernels) for each produced device module for
+proper module selection in runtime
+* Perform SPIR-V translation and AOT compilation (if requested) on each produced
+module separately
+* Add information about presented kernels to a wrappring object for each device
+image
+
+Device code splitting process:
+![Device code splitting](images/DeviceCodeSplit.svg)
+
+The "split" box is implemented as functionality of the dedicated tool
+`sycl-post-link`. The tool runs a set of LLVM passes to split input module and
+generates a symbol table (list of kernels) for each produced device module.
+
+To enable device code split, a special option must be passed to the clang
+driver:
+
+`-fsycl-device-code-split=<value>`
+
+There are three possible values for this option:
+* `per_source` - enables emitting a separate module for each source (translation
+unit)
+* `per_kernel` - enables emitting a separate module for each kernel
+* `off` - disables device code split
 
 ### Integration with SPIR-V format
 

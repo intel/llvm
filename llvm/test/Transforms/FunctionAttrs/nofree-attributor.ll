@@ -1,5 +1,4 @@
 ; RUN: opt -functionattrs --disable-nofree-inference=false -S < %s | FileCheck %s --check-prefix=FNATTR
-; RUN: opt -attributor --attributor-disable=false -attributor-max-iterations-verify -attributor-max-iterations=4 -S < %s | FileCheck %s --check-prefix=ATTRIBUTOR
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -15,8 +14,6 @@ declare void @_ZdaPv(i8*) local_unnamed_addr #2
 ; TEST 1 (positive case)
 ; FNATTR: Function Attrs: noinline norecurse nounwind readnone uwtable
 ; FNATTR-NEXT: define void @only_return()
-; ATTRIBUTOR: Function Attrs: nofree noinline nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @only_return()
 define void @only_return() #0 {
     ret void
 }
@@ -30,9 +27,6 @@ define void @only_return() #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define void @only_free(i8* nocapture %0) local_unnamed_addr
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT: define void @only_free(i8* nocapture %0) local_unnamed_addr #1
 define void @only_free(i8* nocapture %0) local_unnamed_addr #0 {
     tail call void @free(i8* %0) #1
     ret void
@@ -52,9 +46,6 @@ define void @only_free(i8* nocapture %0) local_unnamed_addr #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define void @free_in_scc1(i8* nocapture %0) local_unnamed_addr
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT :define void @free_in_scc1(i8* nocapture %0) local_unnamed_addr
 define void @free_in_scc1(i8* nocapture %0) local_unnamed_addr #0 {
   tail call void @free_in_scc2(i8* %0) #1
   ret void
@@ -63,9 +54,6 @@ define void @free_in_scc1(i8* nocapture %0) local_unnamed_addr #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define void @free_in_scc2(i8* nocapture %0) local_unnamed_addr
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR: define void @free_in_scc2(i8* nocapture %0) local_unnamed_addr
 define void @free_in_scc2(i8* nocapture %0) local_unnamed_addr #0 {
   %cmp = icmp eq i8* %0, null
   br i1 %cmp, label %rec, label %call
@@ -92,8 +80,6 @@ end:
 
 ; FNATTR: Function Attrs: noinline nounwind readnone uwtable
 ; FNATTR-NEXT: define void @mutual_recursion1()
-; ATTRIBUTOR: Function Attrs: nofree noinline noreturn nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @mutual_recursion1()
 define void @mutual_recursion1() #0 {
   call void @mutual_recursion2()
   ret void
@@ -101,8 +87,6 @@ define void @mutual_recursion1() #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind readnone uwtable
 ; FNATTR-NEXT: define void @mutual_recursion2()
-; ATTRIBUTOR: Function Attrs: nofree noinline noreturn nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @mutual_recursion2()
 define void @mutual_recursion2() #0 {
   call void @mutual_recursion1()
   ret void
@@ -117,9 +101,6 @@ define void @mutual_recursion2() #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define void @_Z9delete_opPc(i8* %0) local_unnamed_addr
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT: define void @_Z9delete_opPc(i8* %0) local_unnamed_addr #1
 define void @_Z9delete_opPc(i8* %0) local_unnamed_addr #0 {
   %2 = icmp eq i8* %0, null
   br i1 %2, label %4, label %3
@@ -137,9 +118,6 @@ define void @_Z9delete_opPc(i8* %0) local_unnamed_addr #0 {
 ; Call realloc
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define noalias i8* @call_realloc(i8* nocapture %0, i64 %1) local_unnamed_addr
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT: define noalias i8* @call_realloc(i8* nocapture %0, i64 %1) local_unnamed_addr
 define noalias i8* @call_realloc(i8* nocapture %0, i64 %1) local_unnamed_addr #0 {
     %ret = tail call i8* @realloc(i8* %0, i64 %1) #2
     ret i8* %ret
@@ -152,14 +130,10 @@ define noalias i8* @call_realloc(i8* nocapture %0, i64 %1) local_unnamed_addr #0
 
 ; FNATTR: Function Attrs: nofree noinline nounwind readnone uwtable
 ; FNATTR-NEXT: declare void @nofree_function()
-; ATTRIBUTOR: Function Attrs:  nofree noinline nounwind readnone uwtable 
-; ATTRIBUTOR-NEXT: declare void @nofree_function()
 declare void @nofree_function() nofree readnone #0
 
 ; FNATTR: Function Attrs: noinline nounwind readnone uwtable
 ; FNATTR-NEXT: define void @call_nofree_function()
-; ATTRIBUTOR: Function Attrs: nofree noinline nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @call_nofree_function()
 define void @call_nofree_function() #0 {
     tail call void @nofree_function()
     ret void
@@ -169,16 +143,11 @@ define void @call_nofree_function() #0 {
 ; Call function declaration without "nofree"
 
 
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NEXT: declare void @maybe_free()
 declare void @maybe_free() #0
 
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR: define void @call_maybe_free()
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT: define void @call_maybe_free()
 define void @call_maybe_free() #0 {
     tail call void @maybe_free()
     ret void
@@ -190,9 +159,6 @@ define void @call_maybe_free() #0 {
 
 ; FNATTR: Function Attrs: noinline nounwind uwtable
 ; FNATTR-NEXT: define void @call_both()
-; ATTRIBUTOR: Function Attrs: noinline nounwind uwtable
-; ATTRIBUTOR-NOT: nofree
-; ATTRIBUTOR-NEXT: define void @call_both()
 define void @call_both() #0 {
     tail call void @maybe_free()
     tail call void @nofree_function()
@@ -204,15 +170,11 @@ define void @call_both() #0 {
 ; Call intrinsic function
 ; FNATTRS: Function Attrs: noinline readnone speculatable
 ; FNATTRS-NEXT: declare float @llvm.floor.f32(float %0)
-; ATTRIBUTOR: Function Attrs: nounwind readnone speculatable
-; ATTRIBUTOR-NEXT: declare float @llvm.floor.f32(float)
 declare float @llvm.floor.f32(float)
 
 ; FNATTRS: Function Attrs: noinline nounwind uwtable
 ; FNATTRS-NEXT: define void @call_floor(float %a)
 ; FIXME: missing nofree
-; ATTRIBUTOR: Function Attrs: noinline nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @call_floor(float %a)
 
 define void @call_floor(float %a) #0 {
     tail call float @llvm.floor.f32(float %a)
@@ -224,8 +186,6 @@ define void @call_floor(float %a) #0 {
 
 ; FNATTRS: Function Attrs: noinline nounwind uwtable
 ; FNATTRS-NEXT: define void @f1()
-; ATTRIBUTOR: Function Attrs: nofree noinline nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @f1()
 define void @f1() #0 {
     tail call void @nofree_function()
     ret void
@@ -233,13 +193,13 @@ define void @f1() #0 {
 
 ; FNATTRS: Function Attrs: noinline nounwind uwtable
 ; FNATTRS-NEXT: define void @f2()
-; ATTRIBUTOR: Function Attrs: nofree noinline nosync nounwind readnone uwtable
-; ATTRIBUTOR-NEXT: define void @f2()
 define void @f2() #0 {
     tail call void @f1()
     ret void
 }
 
+
+declare noalias i8* @malloc(i64)
 
 attributes #0 = { nounwind uwtable noinline }
 attributes #1 = { nounwind }

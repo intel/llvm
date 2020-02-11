@@ -35,6 +35,10 @@
 #define ANDROID_PR_SET_VMA_ANON_NAME 0
 #endif
 
+#ifdef ANDROID_EXPERIMENTAL_MTE
+#include <bionic/mte_kernel.h>
+#endif
+
 namespace scudo {
 
 uptr getPageSize() { return static_cast<uptr>(sysconf(_SC_PAGESIZE)); }
@@ -50,6 +54,10 @@ void *map(void *Addr, uptr Size, UNUSED const char *Name, uptr Flags,
     MmapProt = PROT_NONE;
   } else {
     MmapProt = PROT_READ | PROT_WRITE;
+#if defined(__aarch64__) && defined(ANDROID_EXPERIMENTAL_MTE)
+    if (Flags & MAP_MEMTAG)
+      MmapProt |= PROT_MTE;
+#endif
   }
   if (Addr) {
     // Currently no scenario for a noaccess mapping with a fixed address.
@@ -124,7 +132,10 @@ u64 getMonotonicTime() {
 
 u32 getNumberOfCPUs() {
   cpu_set_t CPUs;
-  CHECK_EQ(sched_getaffinity(0, sizeof(cpu_set_t), &CPUs), 0);
+  // sched_getaffinity can fail for a variety of legitimate reasons (lack of
+  // CAP_SYS_NICE, syscall filtering, etc), in which case we shall return 0.
+  if (sched_getaffinity(0, sizeof(cpu_set_t), &CPUs) != 0)
+    return 0;
   return static_cast<u32>(CPU_COUNT(&CPUs));
 }
 
@@ -153,10 +164,17 @@ bool getRandom(void *Buffer, uptr Length, UNUSED bool Blocking) {
   return (ReadBytes == static_cast<ssize_t>(Length));
 }
 
+// Allocation free syslog-like API.
+extern "C" WEAK int async_safe_write_log(int pri, const char *tag,
+                                         const char *msg);
+
 void outputRaw(const char *Buffer) {
-  static HybridMutex Mutex;
-  ScopedLock L(Mutex);
-  write(2, Buffer, strlen(Buffer));
+  if (&async_safe_write_log) {
+    constexpr s32 AndroidLogInfo = 4;
+    async_safe_write_log(AndroidLogInfo, "scudo", Buffer);
+  } else {
+    write(2, Buffer, strlen(Buffer));
+  }
 }
 
 extern "C" WEAK void android_set_abort_message(const char *);

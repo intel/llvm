@@ -7859,7 +7859,6 @@ define <8 x i32>@test_int_x86_avx512_mask_inserti32x4_256(<8 x i32> %x0, <4 x i3
 ; X64-NEXT:    vpaddd %ymm0, %ymm3, %ymm0 # EVEX TO VEX Compression encoding: [0xc5,0xe5,0xfe,0xc0]
 ; X64-NEXT:    vpaddd %ymm0, %ymm2, %ymm0 # EVEX TO VEX Compression encoding: [0xc5,0xed,0xfe,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]
-
   %res = call <8 x i32> @llvm.x86.avx512.mask.inserti32x4.256(<8 x i32> %x0, <4 x i32> %x1, i32 1, <8 x i32> %x3, i8 %x4)
   %res1 = call <8 x i32> @llvm.x86.avx512.mask.inserti32x4.256(<8 x i32> %x0, <4 x i32> %x1, i32 1, <8 x i32> %x3, i8 -1)
   %res2 = call <8 x i32> @llvm.x86.avx512.mask.inserti32x4.256(<8 x i32> %x0, <4 x i32> %x1, i32 1, <8 x i32> zeroinitializer, i8 %x4)

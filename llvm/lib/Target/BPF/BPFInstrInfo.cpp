@@ -30,8 +30,8 @@ BPFInstrInfo::BPFInstrInfo()
 
 void BPFInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator I,
-                               const DebugLoc &DL, unsigned DestReg,
-                               unsigned SrcReg, bool KillSrc) const {
+                               const DebugLoc &DL, MCRegister DestReg,
+                               MCRegister SrcReg, bool KillSrc) const {
   if (BPF::GPRRegClass.contains(DestReg, SrcReg))
     BuildMI(MBB, I, DL, get(BPF::MOV_rr), DestReg)
         .addReg(SrcReg, getKillRegState(KillSrc));
@@ -123,7 +123,7 @@ bool BPFInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
 void BPFInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator I,
-                                       unsigned SrcReg, bool IsKill, int FI,
+                                       Register SrcReg, bool IsKill, int FI,
                                        const TargetRegisterClass *RC,
                                        const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
@@ -146,7 +146,7 @@ void BPFInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
 void BPFInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator I,
-                                        unsigned DestReg, int FI,
+                                        Register DestReg, int FI,
                                         const TargetRegisterClass *RC,
                                         const TargetRegisterInfo *TRI) const {
   DebugLoc DL;

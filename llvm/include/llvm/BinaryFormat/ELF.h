@@ -573,15 +573,17 @@ enum {
 // Hexagon-specific e_flags
 enum {
   // Object processor version flags, bits[11:0]
-  EF_HEXAGON_MACH_V2 = 0x00000001,  // Hexagon V2
-  EF_HEXAGON_MACH_V3 = 0x00000002,  // Hexagon V3
-  EF_HEXAGON_MACH_V4 = 0x00000003,  // Hexagon V4
-  EF_HEXAGON_MACH_V5 = 0x00000004,  // Hexagon V5
-  EF_HEXAGON_MACH_V55 = 0x00000005, // Hexagon V55
-  EF_HEXAGON_MACH_V60 = 0x00000060, // Hexagon V60
-  EF_HEXAGON_MACH_V62 = 0x00000062, // Hexagon V62
-  EF_HEXAGON_MACH_V65 = 0x00000065, // Hexagon V65
-  EF_HEXAGON_MACH_V66 = 0x00000066, // Hexagon V66
+  EF_HEXAGON_MACH_V2 = 0x00000001,   // Hexagon V2
+  EF_HEXAGON_MACH_V3 = 0x00000002,   // Hexagon V3
+  EF_HEXAGON_MACH_V4 = 0x00000003,   // Hexagon V4
+  EF_HEXAGON_MACH_V5 = 0x00000004,   // Hexagon V5
+  EF_HEXAGON_MACH_V55 = 0x00000005,  // Hexagon V55
+  EF_HEXAGON_MACH_V60 = 0x00000060,  // Hexagon V60
+  EF_HEXAGON_MACH_V62 = 0x00000062,  // Hexagon V62
+  EF_HEXAGON_MACH_V65 = 0x00000065,  // Hexagon V65
+  EF_HEXAGON_MACH_V66 = 0x00000066,  // Hexagon V66
+  EF_HEXAGON_MACH_V67 = 0x00000067,  // Hexagon V67
+  EF_HEXAGON_MACH_V67T = 0x00008067, // Hexagon V67T
 
   // Highest ISA version flags
   EF_HEXAGON_ISA_MACH = 0x00000000, // Same as specified in bits[11:0]
@@ -595,6 +597,7 @@ enum {
   EF_HEXAGON_ISA_V62 = 0x00000062,  // Hexagon V62 ISA
   EF_HEXAGON_ISA_V65 = 0x00000065,  // Hexagon V65 ISA
   EF_HEXAGON_ISA_V66 = 0x00000066,  // Hexagon V66 ISA
+  EF_HEXAGON_ISA_V67 = 0x00000067,  // Hexagon V67 ISA
 };
 
 // Hexagon-specific section indexes for common small data
@@ -1199,8 +1202,9 @@ enum {
   PT_SUNW_EH_FRAME = 0x6474e550,
   PT_SUNW_UNWIND = 0x6464e550,
 
-  PT_GNU_STACK = 0x6474e551, // Indicates stack executability.
-  PT_GNU_RELRO = 0x6474e552, // Read-only after relocation.
+  PT_GNU_STACK = 0x6474e551,    // Indicates stack executability.
+  PT_GNU_RELRO = 0x6474e552,    // Read-only after relocation.
+  PT_GNU_PROPERTY = 0x6474e553, // .note.gnu.property notes sections.
 
   PT_OPENBSD_RANDOMIZE = 0x65a3dbe6, // Fill with random data.
   PT_OPENBSD_WXNEEDED = 0x65a3dbe7,  // Program does W^X violations.

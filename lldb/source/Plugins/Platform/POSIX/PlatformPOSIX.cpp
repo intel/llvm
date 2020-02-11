@@ -1,4 +1,4 @@
-//===-- PlatformPOSIX.cpp ---------------------------------------*- C++ -*-===//
+//===-- PlatformPOSIX.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 
 #include "PlatformPOSIX.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -22,7 +23,6 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/ProcessLaunchInfo.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -223,7 +223,7 @@ static uint32_t chown_file(Platform *platform, const char *path,
     command.Printf(":%d", gid);
   command.Printf("%s", path);
   int status;
-  platform->RunShellCommand(command.GetData(), nullptr, &status, nullptr,
+  platform->RunShellCommand(command.GetData(), FileSpec(), &status, nullptr,
                             nullptr, std::chrono::seconds(10));
   return status;
 }
@@ -235,7 +235,7 @@ PlatformPOSIX::PutFile(const lldb_private::FileSpec &source,
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
 
   if (IsHost()) {
-    if (FileSpec::Equal(source, destination, true))
+    if (source == destination)
       return Status();
     // cp src dst
     // chown uid:gid dst
@@ -248,7 +248,7 @@ PlatformPOSIX::PutFile(const lldb_private::FileSpec &source,
     StreamString command;
     command.Printf("cp %s %s", src_path.c_str(), dst_path.c_str());
     int status;
-    RunShellCommand(command.GetData(), nullptr, &status, nullptr, nullptr,
+    RunShellCommand(command.GetData(), FileSpec(), &status, nullptr, nullptr,
                     std::chrono::seconds(10));
     if (status != 0)
       return Status("unable to perform copy");
@@ -278,7 +278,7 @@ PlatformPOSIX::PutFile(const lldb_private::FileSpec &source,
                        GetHostname(), dst_path.c_str());
       LLDB_LOGF(log, "[PutFile] Running command: %s\n", command.GetData());
       int retcode;
-      Host::RunShellCommand(command.GetData(), nullptr, &retcode, nullptr,
+      Host::RunShellCommand(command.GetData(), FileSpec(), &retcode, nullptr,
                             nullptr, std::chrono::minutes(1));
       if (retcode == 0) {
         // Don't chown a local file for a remote system
@@ -307,14 +307,14 @@ lldb_private::Status PlatformPOSIX::GetFile(
   if (dst_path.empty())
     return Status("unable to get file path for destination");
   if (IsHost()) {
-    if (FileSpec::Equal(source, destination, true))
+    if (source == destination)
       return Status("local scenario->source and destination are the same file "
                     "path: no operation performed");
     // cp src dst
     StreamString cp_command;
     cp_command.Printf("cp %s %s", src_path.c_str(), dst_path.c_str());
     int status;
-    RunShellCommand(cp_command.GetData(), nullptr, &status, nullptr, nullptr,
+    RunShellCommand(cp_command.GetData(), FileSpec(), &status, nullptr, nullptr,
                     std::chrono::seconds(10));
     if (status != 0)
       return Status("unable to perform copy");
@@ -335,7 +335,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
                        dst_path.c_str());
       LLDB_LOGF(log, "[GetFile] Running command: %s\n", command.GetData());
       int retcode;
-      Host::RunShellCommand(command.GetData(), nullptr, &retcode, nullptr,
+      Host::RunShellCommand(command.GetData(), FileSpec(), &retcode, nullptr,
                             nullptr, std::chrono::minutes(1));
       if (retcode == 0)
         return Status();
@@ -429,7 +429,7 @@ std::string PlatformPOSIX::GetPlatformSpecificConnectionInformation() {
   if (GetLocalCacheDirectory() && *GetLocalCacheDirectory())
     stream.Printf("cache dir: %s", GetLocalCacheDirectory());
   if (stream.GetSize())
-    return stream.GetString();
+    return std::string(stream.GetString());
   else
     return "";
 }
@@ -679,7 +679,7 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   static const char *dlopen_wrapper_name = "__lldb_dlopen_wrapper";
   Process *process = exe_ctx.GetProcessSP().get();
   // Insert the dlopen shim defines into our generic expression:
-  std::string expr(GetLibdlFunctionDeclarations(process));
+  std::string expr(std::string(GetLibdlFunctionDeclarations(process)));
   expr.append(dlopen_wrapper_code);
   Status utility_error;
   DiagnosticManager diagnostics;
@@ -706,7 +706,9 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   FunctionCaller *do_dlopen_function = nullptr;
 
   // Fetch the clang types we will need:
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  if (!ast)
+    return nullptr;
 
   CompilerType clang_void_pointer_type
       = ast->GetBasicType(eBasicTypeVoid).GetPointerType();
@@ -948,7 +950,11 @@ uint32_t PlatformPOSIX::DoLoadImage(lldb_private::Process *process,
 
   Value return_value;
   // Fetch the clang types we will need:
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  if (!ast) {
+    error.SetErrorString("dlopen error: Unable to get TypeSystemClang");
+    return LLDB_INVALID_IMAGE_TOKEN;
+  }
 
   CompilerType clang_void_pointer_type
       = ast->GetBasicType(eBasicTypeVoid).GetPointerType();

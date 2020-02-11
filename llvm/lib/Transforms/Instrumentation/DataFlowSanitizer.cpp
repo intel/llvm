@@ -55,7 +55,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -83,13 +82,16 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SpecialCaseList.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -422,7 +424,7 @@ struct DFSanFunction {
   Value *combineOperandShadows(Instruction *Inst);
   Value *loadShadow(Value *ShadowAddr, uint64_t Size, uint64_t Align,
                     Instruction *Pos);
-  void storeShadow(Value *Addr, uint64_t Size, uint64_t Align, Value *Shadow,
+  void storeShadow(Value *Addr, uint64_t Size, Align Alignment, Value *Shadow,
                    Instruction *Pos);
 };
 
@@ -479,7 +481,9 @@ DataFlowSanitizer::DataFlowSanitizer(
   std::vector<std::string> AllABIListFiles(std::move(ABIListFiles));
   AllABIListFiles.insert(AllABIListFiles.end(), ClABIListFiles.begin(),
                          ClABIListFiles.end());
-  ABIList.set(SpecialCaseList::createOrDie(AllABIListFiles));
+  // FIXME: should we propagate vfs::FileSystem to this constructor?
+  ABIList.set(
+      SpecialCaseList::createOrDie(AllABIListFiles, *vfs::getRealFileSystem()));
 }
 
 FunctionType *DataFlowSanitizer::getArgsFunctionType(FunctionType *T) {
@@ -624,7 +628,7 @@ DataFlowSanitizer::WrapperKind DataFlowSanitizer::getWrapperKind(Function *F) {
 }
 
 void DataFlowSanitizer::addGlobalNamePrefix(GlobalValue *GV) {
-  std::string GVName = GV->getName(), Prefix = "dfs$";
+  std::string GVName = std::string(GV->getName()), Prefix = "dfs$";
   GV->setName(Prefix + GVName);
 
   // Try to change the name of the function in module inline asm.  We only do
@@ -1190,7 +1194,7 @@ Value *DFSanFunction::loadShadow(Value *Addr, uint64_t Size, uint64_t Align,
     }
   }
 
-  uint64_t ShadowAlign = Align * DFS.ShadowWidth / 8;
+  const MaybeAlign ShadowAlign(Align * DFS.ShadowWidth / 8);
   SmallVector<const Value *, 2> Objs;
   GetUnderlyingObjects(Addr, Objs, Pos->getModule()->getDataLayout());
   bool AllConstants = true;
@@ -1212,7 +1216,7 @@ Value *DFSanFunction::loadShadow(Value *Addr, uint64_t Size, uint64_t Align,
     return DFS.ZeroShadow;
   case 1: {
     LoadInst *LI = new LoadInst(DFS.ShadowTy, ShadowAddr, "", Pos);
-    LI->setAlignment(MaybeAlign(ShadowAlign));
+    LI->setAlignment(ShadowAlign);
     return LI;
   }
   case 2: {
@@ -1324,7 +1328,7 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
   DFSF.setShadow(&LI, Shadow);
 }
 
-void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, uint64_t Align,
+void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, Align Alignment,
                                 Value *Shadow, Instruction *Pos) {
   if (AllocaInst *AI = dyn_cast<AllocaInst>(Addr)) {
     const auto i = AllocaShadowMap.find(AI);
@@ -1335,7 +1339,7 @@ void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, uint64_t Align,
     }
   }
 
-  uint64_t ShadowAlign = Align * DFS.ShadowWidth / 8;
+  const Align ShadowAlign(Alignment.value() * (DFS.ShadowWidth / 8));
   IRBuilder<> IRB(Pos);
   Value *ShadowAddr = DFS.getShadowAddress(Addr, Pos);
   if (Shadow == DFS.ZeroShadow) {
@@ -1382,21 +1386,17 @@ void DFSanVisitor::visitStoreInst(StoreInst &SI) {
   if (Size == 0)
     return;
 
-  uint64_t Align;
-  if (ClPreserveAlignment) {
-    Align = SI.getAlignment();
-    if (Align == 0)
-      Align = DL.getABITypeAlignment(SI.getValueOperand()->getType());
-  } else {
-    Align = 1;
-  }
+  const Align Alignement =
+      ClPreserveAlignment ? DL.getValueOrABITypeAlignment(
+                                SI.getAlign(), SI.getValueOperand()->getType())
+                          : Align(1);
 
   Value* Shadow = DFSF.getShadow(SI.getValueOperand());
   if (ClCombinePointerLabelsOnStore) {
     Value *PtrShadow = DFSF.getShadow(SI.getPointerOperand());
     Shadow = DFSF.combineShadows(Shadow, PtrShadow, &SI);
   }
-  DFSF.storeShadow(SI.getPointerOperand(), Size, Align, Shadow, &SI);
+  DFSF.storeShadow(SI.getPointerOperand(), Size, Alignement, Shadow, &SI);
 }
 
 void DFSanVisitor::visitUnaryOperator(UnaryOperator &UO) {

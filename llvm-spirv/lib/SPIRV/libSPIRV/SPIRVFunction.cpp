@@ -136,12 +136,17 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
       break;
     }
 
-    if (Decoder.OpCode == OpLine) {
-      Module->add(Decoder.getEntry());
+    if (Decoder.OpCode == OpNoLine || Decoder.OpCode == OpNop) {
       continue;
     }
 
     SPIRVEntry *Entry = Decoder.getEntry();
+
+    if (Decoder.OpCode == OpLine) {
+      Module->add(Entry);
+      continue;
+    }
+
     if (!Module->getErrorLog().checkError(Entry->isImplemented(),
                                           SPIRVEC_UnimplementedOpCode,
                                           std::to_string(Entry->getOpCode()))) {

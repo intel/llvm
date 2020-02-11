@@ -26,9 +26,4 @@ class ExprEntryBPTestCase(TestBase):
         entry_bp = target.BreakpointCreateBySBAddress(entry)
         self.assertTrue(entry_bp.IsValid(), "Can't set a breakpoint on the module entry point")
 
-        result = target.EvaluateExpression("sum(7, 1)")
-        self.assertTrue(result.IsValid(), "Can't evaluate expression")
-        self.assertEqual(8, result.GetValueAsSigned())
-
-    def setUp(self):
-        TestBase.setUp(self)
+        self.expect_expr("sum(7, 1)", result_type="int", result_value="8")

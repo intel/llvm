@@ -1,4 +1,4 @@
-//===-- RegisterContextDarwin_arm.cpp ---------------------------*- C++ -*-===//
+//===-- RegisterContextDarwin_arm.cpp -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,12 +20,6 @@
 #include "Plugins/Process/Utility/InstructionUtils.h"
 
 #include <memory>
-
-// Support building against older versions of LLVM, this macro was added
-// recently.
-#ifndef LLVM_EXTENSION
-#define LLVM_EXTENSION
-#endif
 
 #include "Utility/ARM_DWARF_Registers.h"
 #include "Utility/ARM_ehframe_Registers.h"
@@ -1146,10 +1140,11 @@ bool RegisterContextDarwin_arm::ReadRegister(const RegisterInfo *reg_info,
   case gpr_sp:
   case gpr_lr:
   case gpr_pc:
-  case gpr_cpsr:
     value.SetUInt32(gpr.r[reg - gpr_r0]);
     break;
-
+  case gpr_cpsr:
+    value.SetUInt32(gpr.cpsr);
+    break;
   case fpu_s0:
   case fpu_s1:
   case fpu_s2:

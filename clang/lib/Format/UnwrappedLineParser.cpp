@@ -466,7 +466,7 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
               (NextTok->is(tok::semi) &&
                (!ExpectClassBody || LBraceStack.size() != 1)) ||
               (NextTok->isBinaryOperator() && !NextIsObjCMethod);
-          if (NextTok->is(tok::l_square)) {
+          if (!Style.isCSharp() && NextTok->is(tok::l_square)) {
             // We can have an array subscript after a braced init
             // list, but C++11 attributes are expected after blocks.
             NextTok = Tokens->getNextToken();
@@ -1011,13 +1011,22 @@ void UnwrappedLineParser::parseStructuralElement() {
       parseAccessSpecifier();
     return;
   case tok::kw_if:
+    if (Style.Language == FormatStyle::LK_JavaScript && Line->MustBeDeclaration)
+      // field/method declaration.
+      break;
     parseIfThenElse();
     return;
   case tok::kw_for:
   case tok::kw_while:
+    if (Style.Language == FormatStyle::LK_JavaScript && Line->MustBeDeclaration)
+      // field/method declaration.
+      break;
     parseForOrWhileLoop();
     return;
   case tok::kw_do:
+    if (Style.Language == FormatStyle::LK_JavaScript && Line->MustBeDeclaration)
+      // field/method declaration.
+      break;
     parseDoWhile();
     return;
   case tok::kw_switch:
@@ -1045,6 +1054,9 @@ void UnwrappedLineParser::parseStructuralElement() {
     return;
   case tok::kw_try:
   case tok::kw___try:
+    if (Style.Language == FormatStyle::LK_JavaScript && Line->MustBeDeclaration)
+      // field/method declaration.
+      break;
     parseTryCatch();
     return;
   case tok::kw_extern:
@@ -1290,6 +1302,12 @@ void UnwrappedLineParser::parseStructuralElement() {
       // element continues.
       break;
     case tok::kw_try:
+      if (Style.Language == FormatStyle::LK_JavaScript &&
+          Line->MustBeDeclaration) {
+        // field/method declaration.
+        nextToken();
+        break;
+      }
       // We arrive here when parsing function-try blocks.
       if (Style.BraceWrapping.AfterFunction)
         addUnwrappedLine();
@@ -1985,7 +2003,8 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
     --Line->Level;
   if (LeftAlignLabel)
     Line->Level = 0;
-  if (CommentsBeforeNextToken.empty() && FormatTok->Tok.is(tok::l_brace)) {
+  if (!Style.IndentCaseBlocks && CommentsBeforeNextToken.empty() &&
+      FormatTok->Tok.is(tok::l_brace)) {
     CompoundStatementIndenter Indenter(this, Line->Level,
                                        Style.BraceWrapping.AfterCaseLabel,
                                        Style.BraceWrapping.IndentBraces);
@@ -2498,9 +2517,10 @@ bool UnwrappedLineParser::isOnNewLine(const FormatToken &FormatTok) {
 
 // Checks if \p FormatTok is a line comment that continues the line comment
 // section on \p Line.
-static bool continuesLineCommentSection(const FormatToken &FormatTok,
-                                        const UnwrappedLine &Line,
-                                        llvm::Regex &CommentPragmasRegex) {
+static bool
+continuesLineCommentSection(const FormatToken &FormatTok,
+                            const UnwrappedLine &Line,
+                            const llvm::Regex &CommentPragmasRegex) {
   if (Line.Tokens.empty())
     return false;
 

@@ -2,7 +2,6 @@
 Test lldb watchpoint that uses 'watchpoint set -w write -s size' to watch a pointed location with size.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -14,6 +13,7 @@ from lldbsuite.test import lldbutil
 class WatchLocationUsingWatchpointSetTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().
@@ -28,13 +28,12 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
         # Build dictionary to have unique executable names for each test
         # method.
 
-    @expectedFailureAll(
+    @skipIf(
         oslist=["linux"],
         archs=[
             'aarch64',
             'arm'],
         bugnumber="llvm.org/pr26031")
-    @expectedFailureNetBSD
     def test_watchlocation_using_watchpoint_set(self):
         """Test watching a location with 'watchpoint set expression -w write -s size' option."""
         self.build()
@@ -80,10 +79,14 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
 
         # We should be stopped again due to the watchpoint (write type), but
         # only once.  The stop reason of the thread should be watchpoint.
-        self.expect("thread list", STOPPED_DUE_TO_WATCHPOINT,
-                    substrs=['stopped',
-                             'stop reason = watchpoint',
-                             self.violating_func])
+        self.expect(
+            "thread list",
+            STOPPED_DUE_TO_WATCHPOINT,
+            substrs=[
+                'stopped',
+                self.violating_func,
+                'stop reason = watchpoint',
+            ])
 
         # Switch to the thread stopped due to watchpoint and issue some
         # commands.

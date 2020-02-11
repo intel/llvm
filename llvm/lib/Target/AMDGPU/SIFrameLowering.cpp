@@ -578,10 +578,7 @@ void SIFrameLowering::emitEntryFunctionScratchSetup(const GCNSubtarget &ST,
 
     // We now have the GIT ptr - now get the scratch descriptor from the entry
     // at offset 0 (or offset 16 for a compute shader).
-    PointerType *PtrTy =
-      PointerType::get(Type::getInt64Ty(MF.getFunction().getContext()),
-                       AMDGPUAS::CONSTANT_ADDRESS);
-    MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
+    MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
     const MCInstrDesc &LoadDwordX4 = TII->get(AMDGPU::S_LOAD_DWORDX4_IMM);
     auto MMO = MF.getMachineMemOperand(PtrInfo,
                                        MachineMemOperand::MOLoad |
@@ -590,7 +587,7 @@ void SIFrameLowering::emitEntryFunctionScratchSetup(const GCNSubtarget &ST,
                                        16, 4);
     unsigned Offset = Fn.getCallingConv() == CallingConv::AMDGPU_CS ? 16 : 0;
     const GCNSubtarget &Subtarget = MF.getSubtarget<GCNSubtarget>();
-    unsigned EncodedOffset = AMDGPU::getSMRDEncodedOffset(Subtarget, Offset);
+    unsigned EncodedOffset = AMDGPU::convertSMRDOffsetUnits(Subtarget, Offset);
     BuildMI(MBB, I, DL, LoadDwordX4, ScratchRsrcReg)
       .addReg(Rsrc01)
       .addImm(EncodedOffset) // offset
@@ -623,10 +620,7 @@ void SIFrameLowering::emitEntryFunctionScratchSetup(const GCNSubtarget &ST,
       } else {
         const MCInstrDesc &LoadDwordX2 = TII->get(AMDGPU::S_LOAD_DWORDX2_IMM);
 
-        PointerType *PtrTy =
-          PointerType::get(Type::getInt64Ty(MF.getFunction().getContext()),
-                           AMDGPUAS::CONSTANT_ADDRESS);
-        MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
+        MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
         auto MMO = MF.getMachineMemOperand(PtrInfo,
                                            MachineMemOperand::MOLoad |
                                            MachineMemOperand::MOInvariant |

@@ -41,6 +41,14 @@ class Triple;
 
 namespace AMDGPU {
 
+struct GcnBufferFormatInfo {
+  unsigned Format;
+  unsigned BitsPerComp;
+  unsigned NumComponents;
+  unsigned NumFormat;
+  unsigned DataFormat;
+};
+
 #define GET_MIMGBaseOpcode_DECL
 #define GET_MIMGDim_DECL
 #define GET_MIMGEncoding_DECL
@@ -298,6 +306,15 @@ bool getMUBUFHasSrsrc(unsigned Opc);
 
 LLVM_READONLY
 bool getMUBUFHasSoffset(unsigned Opc);
+
+LLVM_READONLY
+const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t BitsPerComp,
+                                                  uint8_t NumComponents,
+                                                  uint8_t NumFormat,
+                                                  const MCSubtargetInfo &STI);
+LLVM_READONLY
+const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t Format,
+                                                  const MCSubtargetInfo &STI);
 
 LLVM_READONLY
 int getMCOpcode(uint16_t Opcode, unsigned Gen);
@@ -631,9 +648,19 @@ bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 bool isArgPassedInSGPR(const Argument *Arg);
 
-/// \returns The encoding that will be used for \p ByteOffset in the SMRD
-/// offset field.
-int64_t getSMRDEncodedOffset(const MCSubtargetInfo &ST, int64_t ByteOffset);
+/// Convert \p ByteOffset to dwords if the subtarget uses dword SMRD immediate
+/// offsets.
+uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
+
+/// \returns The encoding that will be used for \p ByteOffset in the SMRD offset
+/// field, or None if it won't fit. This is useful on all subtargets.
+Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
+                                       int64_t ByteOffset);
+
+/// \return The encoding that can be used for a 32-bit literal offset in an SMRD
+/// instruction. This is only useful on CI.s
+Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
+                                                int64_t ByteOffset);
 
 /// \returns true if this offset is small enough to fit in the SMRD
 /// offset field.  \p ByteOffset should be the offset in bytes and
@@ -645,7 +672,6 @@ bool splitMUBUFOffset(uint32_t Imm, uint32_t &SOffset, uint32_t &ImmOffset,
 
 /// \returns true if the intrinsic is divergent
 bool isIntrinsicSourceOfDivergence(unsigned IntrID);
-
 
 // Track defaults for fields in the MODE registser.
 struct SIModeRegisterDefaults {
@@ -659,29 +685,99 @@ struct SIModeRegisterDefaults {
   /// clamp NaN to zero; otherwise, pass NaN through.
   bool DX10Clamp : 1;
 
-  // TODO: FP mode fields
+  /// If this is set, neither input or output denormals are flushed for most f32
+  /// instructions.
+  bool FP32InputDenormals : 1;
+  bool FP32OutputDenormals : 1;
+
+  /// If this is set, neither input or output denormals are flushed for both f64
+  /// and f16/v2f16 instructions.
+  bool FP64FP16InputDenormals : 1;
+  bool FP64FP16OutputDenormals : 1;
 
   SIModeRegisterDefaults() :
     IEEE(true),
-    DX10Clamp(true) {}
+    DX10Clamp(true),
+    FP32InputDenormals(true),
+    FP32OutputDenormals(true),
+    FP64FP16InputDenormals(true),
+    FP64FP16OutputDenormals(true) {}
 
-  SIModeRegisterDefaults(const Function &F);
+  // FIXME: Should not depend on the subtarget
+  SIModeRegisterDefaults(const Function &F, const GCNSubtarget &ST);
 
   static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
+    const bool IsCompute = AMDGPU::isCompute(CC);
+
     SIModeRegisterDefaults Mode;
     Mode.DX10Clamp = true;
-    Mode.IEEE = AMDGPU::isCompute(CC);
+    Mode.IEEE = IsCompute;
+    Mode.FP32InputDenormals = false; // FIXME: Should be on by default.
+    Mode.FP32OutputDenormals = false; // FIXME: Should be on by default.
+    Mode.FP64FP16InputDenormals = true;
+    Mode.FP64FP16OutputDenormals = true;
     return Mode;
   }
 
   bool operator ==(const SIModeRegisterDefaults Other) const {
-    return IEEE == Other.IEEE && DX10Clamp == Other.DX10Clamp;
+    return IEEE == Other.IEEE && DX10Clamp == Other.DX10Clamp &&
+           FP32InputDenormals == Other.FP32InputDenormals &&
+           FP32OutputDenormals == Other.FP32OutputDenormals &&
+           FP64FP16InputDenormals == Other.FP64FP16InputDenormals &&
+           FP64FP16OutputDenormals == Other.FP64FP16OutputDenormals;
+  }
+
+  bool allFP32Denormals() const {
+    return FP32InputDenormals && FP32OutputDenormals;
+  }
+
+  bool allFP64FP16Denormals() const {
+    return FP64FP16InputDenormals && FP64FP16OutputDenormals;
+  }
+
+  /// Get the encoding value for the FP_DENORM bits of the mode register for the
+  /// FP32 denormal mode.
+  uint32_t fpDenormModeSPValue() const {
+    if (FP32InputDenormals && FP32OutputDenormals)
+      return FP_DENORM_FLUSH_NONE;
+    if (FP32InputDenormals)
+      return FP_DENORM_FLUSH_OUT;
+    if (FP32OutputDenormals)
+      return FP_DENORM_FLUSH_IN;
+    return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+  }
+
+  /// Get the encoding value for the FP_DENORM bits of the mode register for the
+  /// FP64/FP16 denormal mode.
+  uint32_t fpDenormModeDPValue() const {
+    if (FP64FP16InputDenormals && FP64FP16OutputDenormals)
+      return FP_DENORM_FLUSH_NONE;
+    if (FP64FP16InputDenormals)
+      return FP_DENORM_FLUSH_OUT;
+    if (FP64FP16OutputDenormals)
+      return FP_DENORM_FLUSH_IN;
+    return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+  }
+
+  /// Returns true if a flag is compatible if it's enabled in the callee, but
+  /// disabled in the caller.
+  static bool oneWayCompatible(bool CallerMode, bool CalleeMode) {
+    return CallerMode == CalleeMode || (CallerMode && !CalleeMode);
   }
 
   // FIXME: Inlining should be OK for dx10-clamp, since the caller's mode should
   // be able to override.
   bool isInlineCompatible(SIModeRegisterDefaults CalleeMode) const {
-    return *this == CalleeMode;
+    if (DX10Clamp != CalleeMode.DX10Clamp)
+      return false;
+    if (IEEE != CalleeMode.IEEE)
+      return false;
+
+    // Allow inlining denormals enabled into denormals flushed functions.
+    return oneWayCompatible(FP64FP16InputDenormals, CalleeMode.FP64FP16InputDenormals) &&
+           oneWayCompatible(FP64FP16OutputDenormals, CalleeMode.FP64FP16OutputDenormals) &&
+           oneWayCompatible(FP32InputDenormals, CalleeMode.FP32InputDenormals) &&
+           oneWayCompatible(FP32OutputDenormals, CalleeMode.FP32OutputDenormals);
   }
 };
 

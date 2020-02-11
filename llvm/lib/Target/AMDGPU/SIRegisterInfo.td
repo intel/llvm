@@ -131,7 +131,12 @@ def SRC_PRIVATE_BASE : SIReg<"src_private_base", 237>;
 def SRC_PRIVATE_LIMIT : SIReg<"src_private_limit", 238>;
 def SRC_POPS_EXITING_WAVE_ID : SIReg<"src_pops_exiting_wave_id", 239>;
 
-def LDS_DIRECT : SIReg <"src_lds_direct", 254>;
+def LDS_DIRECT : SIReg <"src_lds_direct", 254> {
+  // There is no physical register corresponding to this. This is an
+  // encoding value in a source field, which will ultimately trigger a
+  // read from m0.
+  let isArtificial = 1;
+}
 
 def XNACK_MASK_LO : SIReg<"xnack_mask_lo", 104>;
 def XNACK_MASK_HI : SIReg<"xnack_mask_hi", 105>;
@@ -422,7 +427,7 @@ def Pseudo_SReg_128 : RegisterClass<"AMDGPU", [v4i32, v2i64, v2f64], 32,
   let CopyCost = -1;
 }
 
-def LDS_DIRECT_CLASS : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+def LDS_DIRECT_CLASS : RegisterClass<"AMDGPU", [i32], 32,
   (add LDS_DIRECT)> {
   let isAllocatable = 0;
   let CopyCost = -1;
@@ -454,8 +459,8 @@ def SReg_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16, i1], 32
   let AllocationPriority = 10;
 }
 
-def SRegOrLds_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16, i1], 32,
-  (add SReg_32_XM0, M0_CLASS, EXEC_LO, EXEC_HI, SReg_32_XEXEC_HI, LDS_DIRECT_CLASS)> {
+def SRegOrLds_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+  (add SReg_32, LDS_DIRECT_CLASS)> {
   let isAllocatable = 0;
 }
 
@@ -612,7 +617,7 @@ def VReg_96 : RegisterClass<"AMDGPU", [v3i32, v3f32], 32, (add VGPR_96)> {
   let AllocationPriority = 3;
 }
 
-def VReg_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v2i64, v2f64], 32,
+def VReg_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v2i64, v2f64, i128], 32,
                              (add VGPR_128)> {
   let Size = 128;
 
@@ -682,7 +687,21 @@ def AReg_1024 : RegisterClass<"AMDGPU", [v32i32, v32f32], 32,
   let AllocationPriority = 8;
 }
 
-def VReg_1 : RegisterClass<"AMDGPU", [i1], 32, (add VGPR_32)> {
+
+// This is not a real register. This is just to have a register to add
+// to VReg_1 that does not alias any real register that would
+// introduce inferred register classess.
+def ARTIFICIAL_VGPR : SIReg <"invalid vgpr", 0> {
+  let isArtificial = 1;
+}
+
+// FIXME: Should specify an empty set for this. No register should
+// ever be allocated using VReg_1. This is a hack for SelectionDAG
+// that should always be lowered by SILowerI1Copies. TableGen crashes
+// on an empty register set, but also sorts register classes based on
+// the number of registerss in them. Add only one register so this is
+// sorted to the end and not preferred over VGPR_32.
+def VReg_1 : RegisterClass<"AMDGPU", [i1], 32, (add ARTIFICIAL_VGPR)> {
   let Size = 1;
 }
 

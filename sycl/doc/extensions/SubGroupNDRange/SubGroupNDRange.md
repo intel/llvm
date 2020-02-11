@@ -35,7 +35,7 @@ In keeping with Section 6.7 of the SYCL 1.2.1 specification, attributes are made
 
 The `[[cl::intel_reqd_sub_group_size(n)]]` attribute indicates that the kernel must be compiled and executed with a sub-group of size `n`.  The value of `n` must be set to a sub-group size supported by the device, or device compilation will fail.
 
-In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
+In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object and lambda functions, as in the examples below:
 
 ```c++
 class Functor
@@ -45,6 +45,11 @@ class Functor
         /* kernel code */
     }
 }
+
+kernel<class kernel_name>(
+[]() [[cl::intel_reqd_sub_group_size(n)]] {
+     /* kernel code */
+});
 ```
 
 # Sub-group Queries

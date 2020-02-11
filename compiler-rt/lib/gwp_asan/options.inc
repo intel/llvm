@@ -30,6 +30,13 @@ GWP_ASAN_OPTION(int, SampleRate, 5000,
                 "selected for GWP-ASan sampling. Default is 5000. Sample rates "
                 "up to (2^31 - 1) are supported.")
 
+// Developer note - This option is not actually processed by GWP-ASan itself. It
+// is included here so that a user can specify whether they want signal handlers
+// or not. The supporting allocator should inspect this value to see whether
+// signal handlers need to be installed, and then use
+// crash_handler::installSignalHandlers() in order to install the handlers. Note
+// that in order to support signal handlers, you will need to link against the
+// optional crash_handler component.
 GWP_ASAN_OPTION(
     bool, InstallSignalHandlers, true,
     "Install GWP-ASan signal handlers for SIGSEGV during dynamic loading. This "
@@ -39,3 +46,7 @@ GWP_ASAN_OPTION(
     "programs that install further signal handlers should make sure they do "
     "the same. Note, if the previously installed SIGSEGV handler is SIG_IGN, "
     "we terminate the process after dumping the error report.")
+
+GWP_ASAN_OPTION(bool, InstallForkHandlers, true,
+                "Install GWP-ASan atfork handlers to acquire internal locks "
+                "before fork and release them after.")

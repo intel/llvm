@@ -4,7 +4,6 @@ valobj.AddressOf() returns None when an address is
 expected in a SyntheticChildrenProvider
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -61,7 +60,8 @@ class Issue11581TestCase(TestBase):
             self.expect("expr --show-types -- *(StgClosure*)$r14",
                         substrs=["(StgClosure) $",
                                  "(StgClosure *) &$", "0x",
-                                 "addr = ",
-                                 "load_address = ",
                                  hex(addr)[2:].rstrip("L"),
+                                 "addr = ",
+                                 str(addr),
+                                 "load_address = ",
                                  str(addr)])

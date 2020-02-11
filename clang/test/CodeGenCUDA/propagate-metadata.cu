@@ -11,21 +11,21 @@
 
 // Build the bitcode library.  This is not built in CUDA mode, otherwise it
 // might have incompatible attributes.  This mirrors how libdevice is built.
-// RUN: %clang_cc1 -x c++ -emit-llvm-bc -ftrapping-math -DLIB \
+// RUN: %clang_cc1 -x c++ -fconvergent-functions -emit-llvm-bc -ftrapping-math -DLIB \
 // RUN:   %s -o %t.bc -triple nvptx-unknown-unknown
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc -o - \
-// RUN:   -fno-trapping-math -fcuda-is-device -triple nvptx-unknown-unknown \
+// RUN:   -fno-trapping-math -fcuda-is-device -fdenormal-fp-math-f32=ieee -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=NOFTZ --check-prefix=NOFAST
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc \
-// RUN:   -fno-trapping-math -fcuda-flush-denormals-to-zero -o - \
+// RUN:   -fno-trapping-math -fdenormal-fp-math-f32=preserve-sign -o - \
 // RUN:   -fcuda-is-device -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=FTZ \
 // RUN:   --check-prefix=NOFAST
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc \
-// RUN:   -fno-trapping-math -fcuda-flush-denormals-to-zero -o - \
+// RUN:   -fno-trapping-math -fdenormal-fp-math-f32=preserve-sign -o - \
 // RUN:   -fcuda-is-device -menable-unsafe-fp-math -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=FAST
 
@@ -51,12 +51,20 @@ __global__ void kernel() { lib_fn(); }
 // CHECK: define void @kernel() [[attr:#[0-9]+]]
 // CHECK: define internal void @lib_fn() [[attr]]
 
+// FIXME: These -NOT checks do not work as intended and do not check on the same
+// line.
+
 // Check the attribute list.
 // CHECK: attributes [[attr]] = {
-// CHECK: "no-trapping-math"="true"
 
-// FTZ-SAME: "nvptx-f32ftz"="true"
-// NOFTZ-NOT: "nvptx-f32ftz"="true"
+// CHECK-SAME: convergent
+
+// FTZ-NOT: "denormal-fp-math"
+
+// FTZ-SAME: "denormal-fp-math-f32"="preserve-sign,preserve-sign"
+// NOFTZ-SAME: "denormal-fp-math-f32"="ieee,ieee"
+
+// CHECK-SAME: "no-trapping-math"="true"
 
 // FAST-SAME: "unsafe-fp-math"="true"
 // NOFAST-NOT: "unsafe-fp-math"="true"

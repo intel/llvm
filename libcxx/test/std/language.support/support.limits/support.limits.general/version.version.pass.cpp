@@ -37,6 +37,7 @@
     __cpp_lib_constexpr_swap_algorithms            201806L [C++2a]
     __cpp_lib_destroying_delete                    201806L [C++2a]
     __cpp_lib_enable_shared_from_this              201603L [C++17]
+    __cpp_lib_endian                               201907L [C++2a]
     __cpp_lib_erase_if                             201811L [C++2a]
     __cpp_lib_exchange_function                    201304L [C++14]
     __cpp_lib_execution                            201603L [C++17]
@@ -87,6 +88,7 @@
     __cpp_lib_string_udls                          201304L [C++14]
     __cpp_lib_string_view                          201606L [C++17]
     __cpp_lib_three_way_comparison                 201711L [C++2a]
+    __cpp_lib_to_array                             201907L [C++2a]
     __cpp_lib_to_chars                             201611L [C++17]
     __cpp_lib_transformation_trait_aliases         201304L [C++14]
     __cpp_lib_transparent_operators                201210L [C++14]
@@ -195,6 +197,10 @@
 
 # ifdef __cpp_lib_enable_shared_from_this
 #   error "__cpp_lib_enable_shared_from_this should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_endian
+#   error "__cpp_lib_endian should not be defined before c++2a"
 # endif
 
 # ifdef __cpp_lib_erase_if
@@ -397,6 +403,10 @@
 #   error "__cpp_lib_three_way_comparison should not be defined before c++2a"
 # endif
 
+# ifdef __cpp_lib_to_array
+#   error "__cpp_lib_to_array should not be defined before c++2a"
+# endif
+
 # ifdef __cpp_lib_to_chars
 #   error "__cpp_lib_to_chars should not be defined before c++17"
 # endif
@@ -535,6 +545,10 @@
 
 # ifdef __cpp_lib_enable_shared_from_this
 #   error "__cpp_lib_enable_shared_from_this should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_endian
+#   error "__cpp_lib_endian should not be defined before c++2a"
 # endif
 
 # ifdef __cpp_lib_erase_if
@@ -785,6 +799,10 @@
 #   error "__cpp_lib_three_way_comparison should not be defined before c++2a"
 # endif
 
+# ifdef __cpp_lib_to_array
+#   error "__cpp_lib_to_array should not be defined before c++2a"
+# endif
+
 # ifdef __cpp_lib_to_chars
 #   error "__cpp_lib_to_chars should not be defined before c++17"
 # endif
@@ -992,6 +1010,10 @@
 # endif
 # if __cpp_lib_enable_shared_from_this != 201603L
 #   error "__cpp_lib_enable_shared_from_this should have the value 201603L in c++17"
+# endif
+
+# ifdef __cpp_lib_endian
+#   error "__cpp_lib_endian should not be defined before c++2a"
 # endif
 
 # ifdef __cpp_lib_erase_if
@@ -1377,6 +1399,10 @@
 #   error "__cpp_lib_three_way_comparison should not be defined before c++2a"
 # endif
 
+# ifdef __cpp_lib_to_array
+#   error "__cpp_lib_to_array should not be defined before c++2a"
+# endif
+
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_to_chars
 #     error "__cpp_lib_to_chars should be defined in c++17"
@@ -1680,6 +1706,13 @@
 # endif
 # if __cpp_lib_enable_shared_from_this != 201603L
 #   error "__cpp_lib_enable_shared_from_this should have the value 201603L in c++2a"
+# endif
+
+# ifndef __cpp_lib_endian
+#   error "__cpp_lib_endian should be defined in c++2a"
+# endif
+# if __cpp_lib_endian != 201907L
+#   error "__cpp_lib_endian should have the value 201907L in c++2a"
 # endif
 
 # ifndef __cpp_lib_erase_if
@@ -2114,6 +2147,13 @@
 #   ifdef __cpp_lib_three_way_comparison
 #     error "__cpp_lib_three_way_comparison should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifndef __cpp_lib_to_array
+#   error "__cpp_lib_to_array should be defined in c++2a"
+# endif
+# if __cpp_lib_to_array != 201907L
+#   error "__cpp_lib_to_array should have the value 201907L in c++2a"
 # endif
 
 # if !defined(_LIBCPP_VERSION)

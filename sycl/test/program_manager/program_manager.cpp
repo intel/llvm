@@ -20,6 +20,8 @@
 
 using namespace cl::sycl;
 
+class KernelNameT;
+
 int main() {
   context ContextFirst;
   context ContextSecond;
@@ -27,16 +29,19 @@ int main() {
   auto &PM = detail::ProgramManager::getInstance();
   auto M = detail::OSUtil::ExeModuleHandle;
 
-  const detail::RT::PiProgram ClProgramFirst = PM.getBuiltOpenCLProgram(M, ContextFirst);
-  const detail::RT::PiProgram ClProgramSecond = PM.getBuiltOpenCLProgram(M, ContextSecond);
+  string_class KernelNameStr = detail::KernelInfo<KernelNameT>::getName();
+  const detail::RT::PiProgram ClProgramFirst =
+      PM.getBuiltPIProgram(M, ContextFirst, KernelNameStr);
+  const detail::RT::PiProgram ClProgramSecond =
+      PM.getBuiltPIProgram(M, ContextSecond, KernelNameStr);
   // The check what getBuiltOpenCLProgram returns unique cl_program for unique
   // context
   assert(ClProgramFirst != ClProgramSecond);
   for (size_t i = 0; i < 10; ++i) {
     const detail::RT::PiProgram ClProgramFirstNew =
-        PM.getBuiltOpenCLProgram(M, ContextFirst);
+        PM.getBuiltPIProgram(M, ContextFirst, KernelNameStr);
     const detail::RT::PiProgram ClProgramSecondNew =
-        PM.getBuiltOpenCLProgram(M, ContextSecond);
+        PM.getBuiltPIProgram(M, ContextSecond, KernelNameStr);
     // The check what getBuiltOpenCLProgram returns the same program for the
     // same context each time
     assert(ClProgramFirst == ClProgramFirstNew);
@@ -44,7 +49,7 @@ int main() {
   }
 
   queue q;
-  q.submit([&](handler &cgh) { cgh.single_task<class foo>([]() {}); });
+  q.submit([&](handler &cgh) { cgh.single_task<KernelNameT>([]() {}); });
 
   return 0;
 }

@@ -5,6 +5,7 @@ import platform
 import re
 import shutil
 import site
+import subprocess
 import sys
 
 import lit.formats
@@ -37,11 +38,23 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.lldb_obj_root, 'test')
 
+# Propagate reproducer environment vars.
+if 'LLDB_CAPTURE_REPRODUCER' in os.environ:
+  config.environment['LLDB_CAPTURE_REPRODUCER'] = os.environ[
+      'LLDB_CAPTURE_REPRODUCER']
+
+# Support running the test suite under the lldb-repro wrapper. This makes it
+# possible to capture a test suite run and then rerun all the test from the
+# just captured reproducer.
+lldb_repro_mode = lit_config.params.get('lldb-run-with-repro', None)
+if lldb_repro_mode:
+  config.available_features.add('lldb-repro')
+  lit_config.note("Running Shell test with lldb-repo in {} mode.".format(lldb_repro_mode))
+  toolchain.use_lldb_repro_substitutions(config, lldb_repro_mode)
 
 llvm_config.use_default_substitutions()
 toolchain.use_lldb_substitutions(config)
 toolchain.use_support_substitutions(config)
-
 
 if re.match(r'^arm(hf.*-linux)|(.*-linux-gnuabihf)', config.target_triple):
     config.available_features.add("armhf-linux")
@@ -95,11 +108,28 @@ if 'native' in config.available_features:
         else:
             lit_config.warning("lit-cpuid failed: %s" % err)
 
-if not config.lldb_disable_python:
+if config.lldb_enable_python:
     config.available_features.add('python')
+
+if config.lldb_enable_lua:
+    config.available_features.add('lua')
 
 if config.lldb_enable_lzma:
     config.available_features.add('lzma')
 
 if find_executable('xz') != None:
     config.available_features.add('xz')
+
+# NetBSD permits setting dbregs either if one is root
+# or if user_set_dbregs is enabled
+can_set_dbregs = True
+if platform.system() == 'NetBSD' and os.geteuid() != 0:
+    try:
+        output = subprocess.check_output(["/sbin/sysctl", "-n",
+          "security.models.extensions.user_set_dbregs"]).decode().strip()
+        if output != "1":
+            can_set_dbregs = False
+    except subprocess.CalledProcessError:
+        can_set_dbregs = False
+if can_set_dbregs:
+    config.available_features.add('dbregs-set')

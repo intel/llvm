@@ -769,7 +769,14 @@ void OMPClauseProfiler::VisitOMPIsDevicePtrClause(
     const OMPIsDevicePtrClause *C) {
   VisitOMPClauseList(C);
 }
+void OMPClauseProfiler::VisitOMPNontemporalClause(
+    const OMPNontemporalClause *C) {
+  VisitOMPClauseList(C);
+  for (auto *E : C->private_refs())
+    Profiler->VisitStmt(E);
 }
+void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
+} // namespace
 
 void
 StmtProfiler::VisitOMPExecutableDirective(const OMPExecutableDirective *S) {
@@ -831,6 +838,11 @@ StmtProfiler::VisitOMPParallelForDirective(const OMPParallelForDirective *S) {
 void StmtProfiler::VisitOMPParallelForSimdDirective(
     const OMPParallelForSimdDirective *S) {
   VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPParallelMasterDirective(
+    const OMPParallelMasterDirective *S) {
+  VisitOMPExecutableDirective(S);
 }
 
 void StmtProfiler::VisitOMPParallelSectionsDirective(
@@ -934,6 +946,11 @@ void StmtProfiler::VisitOMPMasterTaskLoopSimdDirective(
 
 void StmtProfiler::VisitOMPParallelMasterTaskLoopDirective(
     const OMPParallelMasterTaskLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPParallelMasterTaskLoopSimdDirective(
+    const OMPParallelMasterTaskLoopSimdDirective *S) {
   VisitOMPLoopDirective(S);
 }
 
@@ -1291,7 +1308,7 @@ void StmtProfiler::VisitBlockExpr(const BlockExpr *S) {
 
 void StmtProfiler::VisitGenericSelectionExpr(const GenericSelectionExpr *S) {
   VisitExpr(S);
-  for (const GenericSelectionExpr::ConstAssociation &Assoc :
+  for (const GenericSelectionExpr::ConstAssociation Assoc :
        S->associations()) {
     QualType T = Assoc.getType();
     if (T.isNull())
@@ -1319,9 +1336,52 @@ void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
 void StmtProfiler::VisitConceptSpecializationExpr(
                                            const ConceptSpecializationExpr *S) {
   VisitExpr(S);
-  VisitDecl(S->getFoundDecl());
-  VisitTemplateArguments(S->getTemplateArgsAsWritten()->getTemplateArgs(),
-                         S->getTemplateArgsAsWritten()->NumTemplateArgs);
+  VisitDecl(S->getNamedConcept());
+  for (const TemplateArgument &Arg : S->getTemplateArguments())
+    VisitTemplateArgument(Arg);
+}
+
+void StmtProfiler::VisitRequiresExpr(const RequiresExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getLocalParameters().size());
+  for (ParmVarDecl *LocalParam : S->getLocalParameters())
+    VisitDecl(LocalParam);
+  ID.AddInteger(S->getRequirements().size());
+  for (concepts::Requirement *Req : S->getRequirements()) {
+    if (auto *TypeReq = dyn_cast<concepts::TypeRequirement>(Req)) {
+      ID.AddInteger(concepts::Requirement::RK_Type);
+      ID.AddBoolean(TypeReq->isSubstitutionFailure());
+      if (!TypeReq->isSubstitutionFailure())
+        VisitType(TypeReq->getType()->getType());
+    } else if (auto *ExprReq = dyn_cast<concepts::ExprRequirement>(Req)) {
+      ID.AddInteger(concepts::Requirement::RK_Compound);
+      ID.AddBoolean(ExprReq->isExprSubstitutionFailure());
+      if (!ExprReq->isExprSubstitutionFailure())
+        Visit(ExprReq->getExpr());
+      // C++2a [expr.prim.req.compound]p1 Example:
+      //    [...] The compound-requirement in C1 requires that x++ is a valid
+      //    expression. It is equivalent to the simple-requirement x++; [...]
+      // We therefore do not profile isSimple() here.
+      ID.AddBoolean(ExprReq->getNoexceptLoc().isValid());
+      const concepts::ExprRequirement::ReturnTypeRequirement &RetReq =
+          ExprReq->getReturnTypeRequirement();
+      if (RetReq.isEmpty()) {
+        ID.AddInteger(0);
+      } else if (RetReq.isTypeConstraint()) {
+        ID.AddInteger(1);
+        Visit(RetReq.getTypeConstraint()->getImmediatelyDeclaredConstraint());
+      } else {
+        assert(RetReq.isSubstitutionFailure());
+        ID.AddInteger(2);
+      }
+    } else {
+      ID.AddInteger(concepts::Requirement::RK_Nested);
+      auto *NestedReq = cast<concepts::NestedRequirement>(Req);
+      ID.AddBoolean(NestedReq->isSubstitutionFailure());
+      if (!NestedReq->isSubstitutionFailure())  
+        Visit(NestedReq->getConstraintExpr());
+    }
+  }
 }
 
 static Stmt::StmtClass DecodeOperatorCall(const CXXOperatorCallExpr *S,
@@ -1476,8 +1536,8 @@ static Stmt::StmtClass DecodeOperatorCall(const CXXOperatorCallExpr *S,
     return Stmt::BinaryOperatorClass;
 
   case OO_Spaceship:
-    // FIXME: Update this once we support <=> expressions.
-    llvm_unreachable("<=> expressions not supported yet");
+    BinaryOp = BO_Cmp;
+    return Stmt::BinaryOperatorClass;
 
   case OO_AmpAmp:
     BinaryOp = BO_LAnd;

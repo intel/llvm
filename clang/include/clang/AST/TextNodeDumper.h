@@ -68,7 +68,7 @@ public:
 
     // We need to capture an owning-string in the lambda because the lambda
     // is invoked in a deferred manner.
-    std::string LabelStr = Label;
+    std::string LabelStr(Label);
     auto DumpWithIndent = [this, DoAddChild, LabelStr](bool IsLastChild) {
       // Print out the appropriate tree structure and work out the prefix for
       // children of this node. For instance:
@@ -346,6 +346,8 @@ public:
   void VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D);
   void VisitBlockDecl(const BlockDecl *D);
   void VisitConceptDecl(const ConceptDecl *D);
+  void
+  VisitLifetimeExtendedTemporaryDecl(const LifetimeExtendedTemporaryDecl *D);
 };
 
 } // namespace clang

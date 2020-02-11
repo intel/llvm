@@ -11,7 +11,7 @@
 
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {
@@ -51,7 +51,8 @@ public:
                  pi_event *Event);
   pi_result enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
                             pi_uint32 NumEventsInWaitList,
-                            const pi_event *EventWaitList, pi_event *Event);
+                            const pi_event *EventWaitList, pi_event *Event,
+                            const plugin &Plugin);
 
 private:
   bool mEmulated = false;

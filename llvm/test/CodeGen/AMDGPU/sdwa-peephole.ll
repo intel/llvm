@@ -73,7 +73,7 @@ entry:
 ; GCN-LABEL: {{^}}mul_v2i16:
 ; NOSDWA: v_lshrrev_b32_e32 v[[DST0:[0-9]+]], 16, v{{[0-9]+}}
 ; NOSDWA: v_lshrrev_b32_e32 v[[DST1:[0-9]+]], 16, v{{[0-9]+}}
-; NOSDWA: v_mul_u32_u24_e32 v[[DST_MUL:[0-9]+]], v[[DST0]], v[[DST1]]
+; NOSDWA: v_mul_u32_u24_e32 v[[DST_MUL:[0-9]+]], v[[DST1]], v[[DST0]]
 ; NOSDWA: v_lshlrev_b32_e32 v[[DST_SHL:[0-9]+]], 16, v[[DST_MUL]]
 ; NOSDWA: v_or_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v[[DST_SHL]]
 ; NOSDWA-NOT: v_mul_u32_u24_sdwa
@@ -365,15 +365,15 @@ entry:
 }
 
 ; GCN-LABEL: {{^}}sitofp_v2i16_to_v2f16:
-; NOSDWA-DAG: v_bfe_i32 v{{[0-9]+}}, v{{[0-9]+}}, 0, 16
-; NOSDWA-DAG: v_ashrrev_i32_e32 v{{[0-9]+}}, 16, v{{[0-9]+}}
-; NOSDWA-DAG: v_cvt_f32_i32_e32 v{{[0-9]+}}, v{{[0-9]+}}
-; NOSDWA-DAG: v_cvt_f32_i32_e32 v{{[0-9]+}}, v{{[0-9]+}}
-; NOSDWA-NOT: v_cvt_f32_i32_sdwa
+; NOSDWA-DAG: v_cvt_f16_i16_e32 v{{[0-9]+}}, v{{[0-9]+}}
+; NOSDWA-DAG: v_lshrrev_b32_e32 v{{[0-9]+}}, 16, v{{[0-9]+}}
+; NOSDWA-DAG: v_cvt_f16_i16_e32 v{{[0-9]+}}, v{{[0-9]+}}
+; NOSDWA-NOT: v_cvt_f16_i16_sdwa
 
-; SDWA-DAG: v_cvt_f32_i32_sdwa v{{[0-9]+}}, sext(v{{[0-9]+}}) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0
-; SDWA-DAG: v_cvt_f32_i32_sdwa v{{[0-9]+}}, sext(v{{[0-9]+}}) dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1
+; SDWA-DAG: v_cvt_f16_i16_e32 v{{[0-9]+}}, v{{[0-9]+}}
+; SDWA-DAG: v_cvt_f16_i16_sdwa v{{[0-9]+}}, v{{[0-9]+}} dst_sel:{{(WORD_1|DWORD)?}} dst_unused:UNUSED_PAD src0_sel:WORD_1
 
+; FIXME: Should be able to avoid or
 define amdgpu_kernel void @sitofp_v2i16_to_v2f16(
     <2 x half> addrspace(1)* %r,
     <2 x i16> addrspace(1)* %a) {

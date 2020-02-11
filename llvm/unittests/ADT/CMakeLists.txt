@@ -18,8 +18,10 @@ add_llvm_unittest(ADTTests
   DenseSetTest.cpp
   DepthFirstIteratorTest.cpp
   DirectedGraphTest.cpp
+  EnumeratedArrayTest.cpp
   EquivalenceClassesTest.cpp
   FallibleIteratorTest.cpp
+  FloatingPointMode.cpp
   FoldingSet.cpp
   FunctionExtrasTest.cpp
   FunctionRefTest.cpp
@@ -37,7 +39,6 @@ add_llvm_unittest(ADTTests
   IntervalMapTest.cpp
   IntrusiveRefCntPtrTest.cpp
   IteratorTest.cpp
-  MakeUniqueTest.cpp
   MappedIteratorTest.cpp
   MapVectorTest.cpp
   OptionalTest.cpp

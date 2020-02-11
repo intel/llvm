@@ -1,6 +1,6 @@
-class AttrSubject;
+include "clang/Basic/ASTNode.td"
 
-class StmtNode<StmtNode base, bit abstract = 0> : AttrSubject {
+class StmtNode<StmtNode base, bit abstract = 0> : ASTNode, AttrSubject {
 	StmtNode Base = base;
   bit Abstract = abstract;
 }
@@ -164,6 +164,7 @@ def CoyieldExpr : StmtNode<CoroutineSuspendExpr>;
 
 // C++2a Concepts expressions
 def ConceptSpecializationExpr : StmtNode<Expr>;
+def RequiresExpr : StmtNode<Expr>;
 
 // Obj-C Expressions.
 def ObjCStringLiteral : StmtNode<Expr>;
@@ -223,6 +224,7 @@ def OMPMasterDirective : StmtNode<OMPExecutableDirective>;
 def OMPCriticalDirective : StmtNode<OMPExecutableDirective>;
 def OMPParallelForDirective : StmtNode<OMPLoopDirective>;
 def OMPParallelForSimdDirective : StmtNode<OMPLoopDirective>;
+def OMPParallelMasterDirective : StmtNode<OMPExecutableDirective>;
 def OMPParallelSectionsDirective : StmtNode<OMPExecutableDirective>;
 def OMPTaskDirective : StmtNode<OMPExecutableDirective>;
 def OMPTaskyieldDirective : StmtNode<OMPExecutableDirective>;
@@ -247,6 +249,7 @@ def OMPTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPMasterTaskLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPMasterTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPParallelMasterTaskLoopDirective : StmtNode<OMPLoopDirective>;
+def OMPParallelMasterTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeParallelForDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeParallelForSimdDirective : StmtNode<OMPLoopDirective>;

@@ -43,6 +43,9 @@ multiple file formats.
  starts with ".note". Otherwise, it will have type `SHT_PROGBITS`. Can be
  specified multiple times to add multiple sections.
 
+ For MachO objects, ``<section>`` must be formatted as
+ ``<segment name>,<section name>``.
+
 .. option:: --binary-architecture <arch>, -B
 
  Ignored for compatibility.
@@ -58,6 +61,18 @@ multiple file formats.
  this to a subset of the local symbols. For example, file and section symbols in
  ELF objects will not be discarded.
 
+.. option:: --dump-section <section>=<file>
+
+ Dump the contents of section ``<section>`` into the file ``<file>``. Can be
+ specified multiple times to dump multiple sections to different files.
+ ``<file>`` is unrelated to the input and output files provided to
+ :program:`llvm-objcopy` and as such the normal copying and editing
+ operations will still be performed. No operations are performed on the sections
+ prior to dumping them.
+
+ For MachO objects, ``<section>`` must be formatted as
+ ``<segment name>,<section name>``.
+
 .. option:: --enable-deterministic-archives, -D
 
  Enable deterministic mode when copying archives, i.e. use 0 for archive member
@@ -67,10 +82,35 @@ multiple file formats.
 
  Print a summary of command line options.
 
+.. option:: --only-keep-debug
+
+ Produce a debug file as the output that only preserves contents of sections
+ useful for debugging purposes.
+
+ For ELF objects, this removes the contents of `SHF_ALLOC` sections that are not
+ `SHT_NOTE` by making them `SHT_NOBITS` and shrinking the program headers where
+ possible.
+
 .. option:: --only-section <section>, -j
 
  Remove all sections from the output, except for sections named ``<section>``.
  Can be specified multiple times to keep multiple sections.
+
+ For MachO objects, ``<section>`` must be formatted as
+ ``<segment name>,<section name>``.
+
+.. option:: --redefine-sym <old>=<new>
+
+ Rename symbols called ``<old>`` to ``<new>`` in the output. Can be specified
+ multiple times to rename multiple symbols.
+
+.. option:: --redefine-syms <filename>
+
+ Rename symbols in the output as described in the file ``<filename>``. In the
+ file, each line represents a single symbol to rename, with the old name and new
+ name separated by whitespace. Leading and trailing whitespace is ignored, as is
+ anything following a '#'. Can be specified multiple times to read names from
+ multiple files.
 
 .. option:: --regex
 
@@ -82,10 +122,52 @@ multiple file formats.
  Remove the specified section from the output. Can be specified multiple times
  to remove multiple sections simultaneously.
 
+ For MachO objects, ``<section>`` must be formatted as
+ ``<segment name>,<section name>``.
+
 .. option:: --set-section-alignment <section>=<align>
 
  Set the alignment of section ``<section>`` to `<align>``. Can be specified
  multiple times to update multiple sections.
+
+.. option:: --set-section-flags <section>=<flag>[,<flag>,...]
+
+ Set section properties in the output of section ``<section>`` based on the
+ specified ``<flag>`` values. Can be specified multiple times to update multiple
+ sections.
+
+ Supported flag names are `alloc`, `load`, `noload`, `readonly`, `exclude`,
+ `debug`, `code`, `data`, `rom`, `share`, `contents`, `merge` and `strings`. Not
+ all flags are meaningful for all object file formats.
+
+ For ELF objects, the flags have the following effects:
+
+ - `alloc` = add the `SHF_ALLOC` flag.
+ - `load` = if the section has `SHT_NOBITS` type, mark it as a `SHT_PROGBITS`
+   section.
+ - `readonly` = if this flag is not specified, add the `SHF_WRITE` flag.
+ - `exclude` = add the `SHF_EXCLUDE` flag.
+ - `code` = add the `SHF_EXECINSTR` flag.
+ - `merge` = add the `SHF_MERGE` flag.
+ - `strings` = add the `SHF_STRINGS` flag.
+ - `contents` = if the section has `SHT_NOBITS` type, mark it as a `SHT_PROGBITS`
+   section.
+
+ For COFF objects, the flags have the following effects:
+
+ - `alloc` = add the `IMAGE_SCN_CNT_UNINITIALIZED_DATA` and `IMAGE_SCN_MEM_READ`
+   flags, unless the `load` flag is specified.
+ - `noload` = add the `IMAGE_SCN_LNK_REMOVE` and `IMAGE_SCN_MEM_READ` flags.
+ - `readonly` = if this flag is not specified, add the `IMAGE_SCN_MEM_WRITE`
+   flag.
+ - `exclude` = add the `IMAGE_SCN_LNK_REMOVE` and `IMAGE_SCN_MEM_READ` flags.
+ - `debug` = add the `IMAGE_SCN_CNT_INITIALIZED_DATA`,
+   `IMAGE_SCN_MEM_DISCARDABLE` and  `IMAGE_SCN_MEM_READ` flags.
+ - `code` = add the `IMAGE_SCN_CNT_CODE`, `IMAGE_SCN_MEM_EXECUTE` and
+   `IMAGE_SCN_MEM_READ` flags.
+ - `data` = add the `IMAGE_SCN_CNT_INITIALIZED_DATA` and `IMAGE_SCN_MEM_READ`
+   flags.
+ - `share` = add the `IMAGE_SCN_MEM_SHARED` and `IMAGE_SCN_MEM_READ` flags.
 
 .. option:: --strip-all-gnu
 
@@ -95,10 +177,11 @@ multiple file formats.
 .. option:: --strip-all, -S
 
  For ELF objects, remove from the output all symbols and non-alloc sections not
- within segments, except for .gnu.warning sections and the section name table.
+ within segments, except for .gnu.warning, .ARM.attribute sections and the
+ section name table.
 
- For COFF objects, remove all symbols, debug sections, and relocations from the
- output.
+ For COFF and Mach-O objects, remove all symbols, debug sections, and
+ relocations from the output.
 
 .. option:: --strip-debug, -g
 
@@ -165,18 +248,6 @@ multiple file formats.
 
   The order of wildcards does not matter. For example, ``-w -N '*' -N '!x'`` is
   the same as ``-w -N '!x' -N '*'``.
-
-COFF-SPECIFIC OPTIONS
----------------------
-
-The following options are implemented only for COFF objects. If used with other
-objects, :program:`llvm-objcopy` will either emit an error or silently ignore
-them.
-
-.. option:: --only-keep-debug
-
- Remove the contents of non-debug sections from the output, but keep the section
- headers.
 
 ELF-SPECIFIC OPTIONS
 --------------------
@@ -249,15 +320,6 @@ them.
 .. option:: --discard-locals, -X
 
  Remove local symbols starting with ".L" from the output.
-
-.. option:: --dump-section <section>=<file>
-
- Dump the contents of section ``<section>`` into the file ``<file>``. Can be
- specified multiple times to dump multiple sections to different files.
- ``<file>`` is unrelated to the input and output files provided to
- :program:`llvm-objcopy` and as such the normal copying and editing
- operations will still be performed. No operations are performed on the sections
- prior to dumping them.
 
 .. option:: --extract-dwo
 
@@ -370,45 +432,11 @@ them.
 
  Preserve access and modification timestamps in the output.
 
-.. option:: --redefine-sym <old>=<new>
-
- Rename symbols called ``<old>`` to ``<new>`` in the output. Can be specified
- multiple times to rename multiple symbols.
-
-.. option:: --redefine-syms <filename>
-
- Rename symbols in the output as described in the file ``<filename>``. In the
- file, each line represents a single symbol to rename, with the old name and new
- name separated by an equals sign. Leading and trailing whitespace is ignored,
- as is anything following a '#'. Can be specified multiple times to read names
- from multiple files.
-
 .. option:: --rename-section <old>=<new>[,<flag>,...]
 
  Rename sections called ``<old>`` to ``<new>`` in the output, and apply any
  specified ``<flag>`` values. See :option:`--set-section-flags` for a list of
  supported flags. Can be specified multiple times to rename multiple sections.
-
-.. option:: --set-section-flags <section>=<flag>[,<flag>,...]
-
- Set section properties in the output of section ``<section>`` based on the
- specified ``<flag>`` values. Can be specified multiple times to update multiple
- sections.
-
- Following is a list of supported flags and their effects:
-
- - `alloc` = add the `SHF_ALLOC` flag.
- - `load` = if the section has `SHT_NOBITS` type, mark it as a `SHT_PROGBITS`
-   section.
- - `readonly` = if this flag is not specified, add the `SHF_WRITE` flag.
- - `code` = add the `SHF_EXECINSTR` flag.
- - `merge` = add the `SHF_MERGE` flag.
- - `strings` = add the `SHF_STRINGS` flag.
- - `contents` = if the section has `SHT_NOBITS` type, mark it as a `SHT_PROGBITS`
-   section.
-
- The following flags are also accepted, but are ignored for GNU compatibility:
- `noload`, `debug`, `data`, `rom`, `share`.
 
 .. option:: --set-start-addr <addr>
 

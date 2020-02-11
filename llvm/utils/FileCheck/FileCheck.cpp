@@ -108,24 +108,28 @@ static cl::opt<bool> DumpInputOnFailure(
              "FILECHECK_DUMP_INPUT_ON_FAILURE environment variable.\n"
              "This option is deprecated in favor of -dump-input=fail.\n"));
 
+// The order of DumpInputValue members affects their precedence, as documented
+// for -dump-input below.
 enum DumpInputValue {
   DumpInputDefault,
-  DumpInputHelp,
   DumpInputNever,
   DumpInputFail,
-  DumpInputAlways
+  DumpInputAlways,
+  DumpInputHelp
 };
 
-static cl::opt<DumpInputValue> DumpInput(
-    "dump-input", cl::init(DumpInputDefault),
+static cl::list<DumpInputValue> DumpInputs(
+    "dump-input",
     cl::desc("Dump input to stderr, adding annotations representing\n"
-             " currently enabled diagnostics\n"),
+             "currently enabled diagnostics.  When there are multiple\n"
+             "occurrences of this option, the <value> that appears earliest\n"
+             "in the list below has precedence.\n"),
     cl::value_desc("mode"),
     cl::values(clEnumValN(DumpInputHelp, "help",
                           "Explain dump format and quit"),
-               clEnumValN(DumpInputNever, "never", "Never dump input"),
+               clEnumValN(DumpInputAlways, "always", "Always dump input"),
                clEnumValN(DumpInputFail, "fail", "Dump input on failure"),
-               clEnumValN(DumpInputAlways, "always", "Always dump input")));
+               clEnumValN(DumpInputNever, "never", "Never dump input")));
 
 typedef cl::list<std::string>::const_iterator prefix_iterator;
 
@@ -516,6 +520,10 @@ int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv, /*Overview*/ "", /*Errs*/ nullptr,
                               "FILECHECK_OPTS");
+  DumpInputValue DumpInput =
+      DumpInputs.empty()
+          ? DumpInputDefault
+          : *std::max_element(DumpInputs.begin(), DumpInputs.end());
   if (DumpInput == DumpInputHelp) {
     DumpInputAnnotationHelp(outs());
     return 0;
@@ -608,6 +616,8 @@ int main(int argc, char **argv) {
   // Open the file to check and add it to SourceMgr.
   ErrorOr<std::unique_ptr<MemoryBuffer>> InputFileOrErr =
       MemoryBuffer::getFileOrSTDIN(InputFilename);
+  if (InputFilename == "-")
+    InputFilename = "<stdin>"; // Overwrite for improved diagnostic messages
   if (std::error_code EC = InputFileOrErr.getError()) {
     errs() << "Could not open input file '" << InputFilename
            << "': " << EC.message() << '\n';
@@ -640,7 +650,7 @@ int main(int argc, char **argv) {
       (ExitCode == 1 && DumpInput == DumpInputFail)) {
     errs() << "\n"
            << "Input file: "
-           << (InputFilename == "-" ? "<stdin>" : InputFilename.getValue())
+           << InputFilename
            << "\n"
            << "Check file: " << CheckFilename << "\n"
            << "\n"

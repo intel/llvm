@@ -94,9 +94,9 @@ public:
     this->PP = std::move(PP);
   }
 
-  bool handleDeclOccurence(const Decl *D, SymbolRoleSet Roles,
-                           ArrayRef<SymbolRelation> Relations,
-                           SourceLocation Loc, ASTNodeInfo ASTNode) override {
+  bool handleDeclOccurrence(const Decl *D, SymbolRoleSet Roles,
+                            ArrayRef<SymbolRelation> Relations,
+                            SourceLocation Loc, ASTNodeInfo ASTNode) override {
     ASTContext &Ctx = D->getASTContext();
     SourceManager &SM = Ctx.getSourceManager();
 
@@ -132,9 +132,9 @@ public:
     return true;
   }
 
-  bool handleModuleOccurence(const ImportDecl *ImportD,
-                             const clang::Module *Mod,
-                             SymbolRoleSet Roles, SourceLocation Loc) override {
+  bool handleModuleOccurrence(const ImportDecl *ImportD,
+                              const clang::Module *Mod, SymbolRoleSet Roles,
+                              SourceLocation Loc) override {
     ASTContext &Ctx = ImportD->getASTContext();
     SourceManager &SM = Ctx.getSourceManager();
 
@@ -156,8 +156,8 @@ public:
     return true;
   }
 
-  bool handleMacroOccurence(const IdentifierInfo *Name, const MacroInfo *MI,
-                            SymbolRoleSet Roles, SourceLocation Loc) override {
+  bool handleMacroOccurrence(const IdentifierInfo *Name, const MacroInfo *MI,
+                             SymbolRoleSet Roles, SourceLocation Loc) override {
     assert(PP);
     SourceManager &SM = PP->getSourceManager();
 
@@ -260,10 +260,9 @@ static bool printSourceSymbolsFromModule(StringRef modulePath,
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags =
       CompilerInstance::createDiagnostics(new DiagnosticOptions());
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
-      modulePath, *pchRdr, ASTUnit::LoadASTOnly, Diags,
+      std::string(modulePath), *pchRdr, ASTUnit::LoadASTOnly, Diags,
       FileSystemOpts, /*UseDebugInfo=*/false,
-      /*OnlyLocalDecls=*/true, None,
-      CaptureDiagsKind::None,
+      /*OnlyLocalDecls=*/true, None, CaptureDiagsKind::None,
       /*AllowPCHWithCompilerErrors=*/true,
       /*UserFilesAreVolatile=*/false);
   if (!AU) {

@@ -29,14 +29,16 @@ int main() {
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
-  Node *s_head = nullptr;
-  Node *s_cur = nullptr;
 
-  s_head = (Node *)aligned_alloc_shared(alignof(Node), sizeof(Node), dev, ctxt);
+  if (!dev.get_info<info::device::usm_shared_allocations>())
+    return 0;
+
+  Node *s_head =
+      (Node *)aligned_alloc_shared(alignof(Node), sizeof(Node), dev, ctxt);
   if (s_head == nullptr) {
     return -1;
   }
-  s_cur = s_head;
+  Node *s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
     s_cur->Num = i * 2;
@@ -67,11 +69,10 @@ int main() {
   e1.wait();
 
   s_cur = s_head;
-  int mismatches = 0;
   for (int i = 0; i < numNodes; i++) {
     const int want = i * 4 + 1;
     if (s_cur->Num != want) {
-      return -1;
+      return -2;
     }
     Node *old = s_cur;
     s_cur = s_cur->pNext;

@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationServerCommon.cpp ------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationServerCommon.cpp ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -429,7 +429,7 @@ GDBRemoteCommunicationServerCommon::Handle_qsProcessInfo(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qUserName(
     StringExtractorGDBRemote &packet) {
-#if !defined(LLDB_DISABLE_POSIX)
+#if LLDB_ENABLE_POSIX
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
   LLDB_LOGF(log, "GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
 
@@ -452,7 +452,7 @@ GDBRemoteCommunicationServerCommon::Handle_qUserName(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qGroupName(
     StringExtractorGDBRemote &packet) {
-#if !defined(LLDB_DISABLE_POSIX)
+#if LLDB_ENABLE_POSIX
   // Packet format: "qGroupName:%i" where %i is the gid
   packet.SetFilePos(::strlen("qGroupName:"));
   uint32_t gid = packet.GetU32(UINT32_MAX);
@@ -1228,7 +1228,7 @@ void GDBRemoteCommunicationServerCommon::
     if (cpu_subtype != 0)
       response.Printf("cpusubtype:%" PRIx32 ";", cpu_subtype);
 
-    const std::string vendor = proc_triple.getVendorName();
+    const std::string vendor = proc_triple.getVendorName().str();
     if (!vendor.empty())
       response.Printf("vendor:%s;", vendor.c_str());
 #else
@@ -1237,7 +1237,7 @@ void GDBRemoteCommunicationServerCommon::
     response.PutStringAsRawHex8(proc_triple.getTriple());
     response.PutChar(';');
 #endif
-    std::string ostype = proc_triple.getOSName();
+    std::string ostype = std::string(proc_triple.getOSName());
     // Adjust so ostype reports ios for Apple/ARM and Apple/ARM64.
     if (proc_triple.getVendor() == llvm::Triple::Apple) {
       switch (proc_triple.getArch()) {

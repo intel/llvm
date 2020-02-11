@@ -1114,7 +1114,9 @@ public:
       return QualType(T, 0);
 
     return Ctx.getAutoType(deducedType, T->getKeyword(),
-                           T->isDependentType());
+                           T->isDependentType(), /*IsPack=*/false,
+                           T->getTypeConstraintConcept(),
+                           T->getTypeConstraintArguments());
   }
 
   // FIXME: Non-trivial to implement, but important for C++
@@ -1856,13 +1858,12 @@ bool Type::isIntegralOrUnscopedEnumerationType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
     return BT->getKind() >= BuiltinType::Bool &&
            BT->getKind() <= BuiltinType::Int128;
+  return isUnscopedEnumerationType();
+}
 
-  // Check for a complete enum type; incomplete enum types are not properly an
-  // enumeration type in the sense required here.
-  // C++0x: However, if the underlying type of the enum is fixed, it is
-  // considered complete.
+bool Type::isUnscopedEnumerationType() const {
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
-    return ET->getDecl()->isComplete() && !ET->getDecl()->isScoped();
+    return !ET->getDecl()->isScoped();
 
   return false;
 }
@@ -3065,6 +3066,12 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
   } else {
     FunctionTypeBits.HasExtQuals = 0;
   }
+
+  // Fill in the Ellipsis location info if present.
+  if (epi.Variadic) {
+    auto &EllipsisLoc = *getTrailingObjects<SourceLocation>();
+    EllipsisLoc = epi.EllipsisLoc;
+  }
 }
 
 bool FunctionProtoType::hasDependentExceptionSpec() const {
@@ -4152,4 +4159,36 @@ void clang::FixedPointValueToString(SmallVectorImpl<char> &Str,
                              /*IsSaturated=*/false,
                              /*HasUnsignedPadding=*/false);
   APFixedPoint(Val, FXSema).toString(Str);
+}
+
+AutoType::AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
+                   bool IsDeducedAsDependent, bool IsDeducedAsPack,
+                   ConceptDecl *TypeConstraintConcept,
+                   ArrayRef<TemplateArgument> TypeConstraintArgs)
+    : DeducedType(Auto, DeducedAsType, IsDeducedAsDependent,
+                  IsDeducedAsDependent, IsDeducedAsPack) {
+  AutoTypeBits.Keyword = (unsigned)Keyword;
+  AutoTypeBits.NumArgs = TypeConstraintArgs.size();
+  this->TypeConstraintConcept = TypeConstraintConcept;
+  if (TypeConstraintConcept) {
+    TemplateArgument *ArgBuffer = getArgBuffer();
+    for (const TemplateArgument &Arg : TypeConstraintArgs) {
+      if (Arg.containsUnexpandedParameterPack())
+        setContainsUnexpandedParameterPack();
+
+      new (ArgBuffer++) TemplateArgument(Arg);
+    }
+  }
+}
+
+void AutoType::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      QualType Deduced, AutoTypeKeyword Keyword,
+                      bool IsDependent, ConceptDecl *CD,
+                      ArrayRef<TemplateArgument> Arguments) {
+  ID.AddPointer(Deduced.getAsOpaquePtr());
+  ID.AddInteger((unsigned)Keyword);
+  ID.AddBoolean(IsDependent);
+  ID.AddPointer(CD);
+  for (const TemplateArgument &Arg : Arguments)
+    Arg.Profile(ID, Context);
 }

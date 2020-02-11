@@ -202,8 +202,8 @@ defm : SLMWriteResPair<WriteFAddX,    [SLM_FPC_RSV1], 3>;
 defm : SLMWriteResPair<WriteFAddY,    [SLM_FPC_RSV1], 3>;
 defm : X86WriteResPairUnsupported<WriteFAddZ>;
 defm : SLMWriteResPair<WriteFAdd64,   [SLM_FPC_RSV1], 3>;
-defm : SLMWriteResPair<WriteFAdd64X,  [SLM_FPC_RSV1], 3>;
-defm : SLMWriteResPair<WriteFAdd64Y,  [SLM_FPC_RSV1], 3>;
+defm : SLMWriteResPair<WriteFAdd64X,  [SLM_FPC_RSV1], 4, [2]>;
+defm : SLMWriteResPair<WriteFAdd64Y,  [SLM_FPC_RSV1], 4, [2]>;
 defm : X86WriteResPairUnsupported<WriteFAdd64Z>;
 defm : SLMWriteResPair<WriteFCmp,     [SLM_FPC_RSV1], 3>;
 defm : SLMWriteResPair<WriteFCmpX,    [SLM_FPC_RSV1], 3>;
@@ -214,13 +214,14 @@ defm : SLMWriteResPair<WriteFCmp64X,  [SLM_FPC_RSV1], 3>;
 defm : SLMWriteResPair<WriteFCmp64Y,  [SLM_FPC_RSV1], 3>;
 defm : X86WriteResPairUnsupported<WriteFCmp64Z>;
 defm : SLMWriteResPair<WriteFCom,     [SLM_FPC_RSV1], 3>;
+defm : SLMWriteResPair<WriteFComX,    [SLM_FPC_RSV1], 3>;
 defm : SLMWriteResPair<WriteFMul,     [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
 defm : SLMWriteResPair<WriteFMulX,    [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
 defm : SLMWriteResPair<WriteFMulY,    [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
 defm : X86WriteResPairUnsupported<WriteFMulZ>;
 defm : SLMWriteResPair<WriteFMul64,   [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
-defm : SLMWriteResPair<WriteFMul64X,  [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
-defm : SLMWriteResPair<WriteFMul64Y,  [SLM_FPC_RSV0, SLMFPMultiplier], 5, [1,2]>;
+defm : SLMWriteResPair<WriteFMul64X,  [SLM_FPC_RSV0, SLMFPMultiplier], 7, [1,4]>;
+defm : SLMWriteResPair<WriteFMul64Y,  [SLM_FPC_RSV0, SLMFPMultiplier], 7, [1,4]>;
 defm : X86WriteResPairUnsupported<WriteFMul64Z>;
 defm : SLMWriteResPair<WriteFDiv,     [SLM_FPC_RSV0, SLMFPDivider], 19, [1,17]>;
 defm : SLMWriteResPair<WriteFDivX,    [SLM_FPC_RSV0, SLMFPDivider], 39, [1,39]>;
@@ -380,8 +381,8 @@ def  : WriteRes<WriteVecExtractSt, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
 // Horizontal add/sub  instructions.
 ////////////////////////////////////////////////////////////////////////////////
 
-defm : SLMWriteResPair<WriteFHAdd,   [SLM_FPC_RSV01], 3, [2]>;
-defm : SLMWriteResPair<WriteFHAddY,  [SLM_FPC_RSV01], 3, [2]>;
+defm : SLMWriteResPair<WriteFHAdd,   [SLM_FPC_RSV01], 6, [6], 4>;
+defm : SLMWriteResPair<WriteFHAddY,  [SLM_FPC_RSV01], 6, [6], 4>;
 defm : X86WriteResPairUnsupported<WriteFHAddZ>;
 defm : SLMWriteResPair<WritePHAdd,   [SLM_FPC_RSV01], 1>;
 defm : SLMWriteResPair<WritePHAddX,  [SLM_FPC_RSV01], 1>;
@@ -390,44 +391,15 @@ defm : X86WriteResPairUnsupported<WritePHAddZ>;
 
 // String instructions.
 // Packed Compare Implicit Length Strings, Return Mask
-def : WriteRes<WritePCmpIStrM, [SLM_FPC_RSV0]> {
-  let Latency = 13;
-  let ResourceCycles = [13];
-}
-def : WriteRes<WritePCmpIStrMLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 13;
-  let ResourceCycles = [13, 1];
-}
+defm : SLMWriteResPair<WritePCmpIStrM,  [SLM_FPC_RSV0], 13, [13]>;
 
 // Packed Compare Explicit Length Strings, Return Mask
-def : WriteRes<WritePCmpEStrM, [SLM_FPC_RSV0]> {
-  let Latency = 17;
-  let ResourceCycles = [17];
-}
-def : WriteRes<WritePCmpEStrMLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 17;
-  let ResourceCycles = [17, 1];
-}
-
+defm : SLMWriteResPair<WritePCmpEStrM,  [SLM_FPC_RSV0], 17, [17]>;
 // Packed Compare Implicit Length Strings, Return Index
-def : WriteRes<WritePCmpIStrI, [SLM_FPC_RSV0]> {
-  let Latency = 17;
-  let ResourceCycles = [17];
-}
-def : WriteRes<WritePCmpIStrILd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 17;
-  let ResourceCycles = [17, 1];
-}
+defm : SLMWriteResPair<WritePCmpIStrI,  [SLM_FPC_RSV0], 17, [17]>;
 
 // Packed Compare Explicit Length Strings, Return Index
-def : WriteRes<WritePCmpEStrI, [SLM_FPC_RSV0]> {
-  let Latency = 21;
-  let ResourceCycles = [21];
-}
-def : WriteRes<WritePCmpEStrILd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 21;
-  let ResourceCycles = [21, 1];
-}
+defm : SLMWriteResPair<WritePCmpEStrI,  [SLM_FPC_RSV0], 21, [21]>;
 
 // MOVMSK Instructions.
 def : WriteRes<WriteFMOVMSK,    [SLM_FPC_RSV1]> { let Latency = 4; }
@@ -436,42 +408,12 @@ def : WriteRes<WriteVecMOVMSKY, [SLM_FPC_RSV1]> { let Latency = 4; }
 def : WriteRes<WriteMMXMOVMSK,  [SLM_FPC_RSV1]> { let Latency = 4; }
 
 // AES Instructions.
-def : WriteRes<WriteAESDecEnc, [SLM_FPC_RSV0]> {
-  let Latency = 8;
-  let ResourceCycles = [5];
-}
-def : WriteRes<WriteAESDecEncLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 8;
-  let ResourceCycles = [5, 1];
-}
-
-def : WriteRes<WriteAESIMC, [SLM_FPC_RSV0]> {
-  let Latency = 8;
-  let ResourceCycles = [5];
-}
-def : WriteRes<WriteAESIMCLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 8;
-  let ResourceCycles = [5, 1];
-}
-
-def : WriteRes<WriteAESKeyGen, [SLM_FPC_RSV0]> {
-  let Latency = 8;
-  let ResourceCycles = [5];
-}
-def : WriteRes<WriteAESKeyGenLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 8;
-  let ResourceCycles = [5, 1];
-}
+defm : SLMWriteResPair<WriteAESDecEnc, [SLM_FPC_RSV0], 8, [5]>;
+defm : SLMWriteResPair<WriteAESIMC,    [SLM_FPC_RSV0], 8, [5]>;
+defm : SLMWriteResPair<WriteAESKeyGen, [SLM_FPC_RSV0], 8, [5]>;
 
 // Carry-less multiplication instructions.
-def : WriteRes<WriteCLMul, [SLM_FPC_RSV0]> {
-  let Latency = 10;
-  let ResourceCycles = [10];
-}
-def : WriteRes<WriteCLMulLd, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
-  let Latency = 10;
-  let ResourceCycles = [10, 1];
-}
+defm : SLMWriteResPair<WriteCLMul, [SLM_FPC_RSV0], 10, [10]>;
 
 def : WriteRes<WriteSystem,     [SLM_FPC_RSV0]> { let Latency = 100; }
 def : WriteRes<WriteMicrocoded, [SLM_FPC_RSV0]> { let Latency = 100; }
@@ -486,7 +428,7 @@ defm : X86WriteResPairUnsupported<WriteFBlendZ>;
 defm : SLMWriteResPair<WriteVarBlend, [SLM_FPC_RSV0], 1>;
 defm : X86WriteResPairUnsupported<WriteVarBlendY>;
 defm : X86WriteResPairUnsupported<WriteVarBlendZ>;
-defm : SLMWriteResPair<WriteFVarBlend, [SLM_FPC_RSV0], 1>;
+defm : SLMWriteResPair<WriteFVarBlend, [SLM_FPC_RSV0], 4, [4], 3>;
 defm : X86WriteResPairUnsupported<WriteFVarBlendY>;
 defm : X86WriteResPairUnsupported<WriteFVarBlendZ>;
 defm : X86WriteResPairUnsupported<WriteFShuffle256>;
@@ -510,5 +452,21 @@ defm : X86WriteResUnsupported<WriteCvtPS2PHZ>;
 defm : X86WriteResUnsupported<WriteCvtPS2PHSt>;
 defm : X86WriteResUnsupported<WriteCvtPS2PHYSt>;
 defm : X86WriteResUnsupported<WriteCvtPS2PHZSt>;
+
+// Remaining SLM instrs.
+
+def SLMWriteResGroup1rr : SchedWriteRes<[SLM_FPC_RSV01]> {
+  let Latency = 4;
+  let NumMicroOps = 2;
+  let ResourceCycles = [4];
+}
+def: InstRW<[SLMWriteResGroup1rr], (instrs PADDQrr, PSUBQrr, PCMPEQQrr)>;
+
+def SLMWriteResGroup1rm : SchedWriteRes<[SLM_MEC_RSV,SLM_FPC_RSV01]> {
+  let Latency = 7;
+  let NumMicroOps = 3;
+  let ResourceCycles = [1,4];
+}
+def: InstRW<[SLMWriteResGroup1rm], (instrs PADDQrm, PSUBQrm, PCMPEQQrm)>;
 
 } // SchedModel

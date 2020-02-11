@@ -861,8 +861,10 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
   // Any break on this level means that the parent level has been broken
   // and we need to avoid bin packing there.
   bool NestedBlockSpecialCase =
-      !Style.isCpp() && Current.is(tok::r_brace) && State.Stack.size() > 1 &&
-      State.Stack[State.Stack.size() - 2].NestedBlockInlined;
+      (!Style.isCpp() && Current.is(tok::r_brace) && State.Stack.size() > 1 &&
+       State.Stack[State.Stack.size() - 2].NestedBlockInlined) ||
+      (Style.Language == FormatStyle::LK_ObjC && Current.is(tok::r_brace) &&
+       State.Stack.size() > 1 && !Style.ObjCBreakBeforeNestedBlockParam);
   if (!NestedBlockSpecialCase)
     for (unsigned i = 0, e = State.Stack.size() - 1; i != e; ++i)
       State.Stack[i].BreakBeforeParameter = true;
@@ -1380,7 +1382,8 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
           (!BinPackInconclusiveFunctions &&
            Current.PackingKind == PPK_Inconclusive)));
 
-    if (Current.is(TT_ObjCMethodExpr) && Current.MatchingParen) {
+    if (Current.is(TT_ObjCMethodExpr) && Current.MatchingParen &&
+        Style.ObjCBreakBeforeNestedBlockParam) {
       if (Style.ColumnLimit) {
         // If this '[' opens an ObjC call, determine whether all parameters fit
         // into one line and put one per line if they don't.
@@ -1513,8 +1516,8 @@ unsigned ContinuationIndenter::reformatRawStringLiteral(
   unsigned OldSuffixSize = 2 + OldDelimiter.size();
   // We create a virtual text environment which expects a null-terminated
   // string, so we cannot use StringRef.
-  std::string RawText =
-      Current.TokenText.substr(OldPrefixSize).drop_back(OldSuffixSize);
+  std::string RawText = std::string(
+      Current.TokenText.substr(OldPrefixSize).drop_back(OldSuffixSize));
   if (NewDelimiter != OldDelimiter) {
     // Don't update to the canonical delimiter 'deli' if ')deli"' occurs in the
     // raw string.
@@ -1760,7 +1763,7 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
                                            LineState &State, bool AllowBreak) {
   unsigned StartColumn = State.Column - Current.ColumnWidth;
   if (Current.isStringLiteral()) {
-    // FIXME: String literal breaking is currently disabled for C#,Java and
+    // FIXME: String literal breaking is currently disabled for C#, Java and
     // JavaScript, as it requires strings to be merged using "+" which we
     // don't support.
     if (Style.Language == FormatStyle::LK_Java ||

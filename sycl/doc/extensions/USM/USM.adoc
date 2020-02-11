@@ -1,6 +1,6 @@
 = SYCL(TM) Proposals: Unified Shared Memory
 James Brodman <james.brodman@intel.com>; Ben Ashbaugh <ben.ashbaugh@intel.com>; Michael Kinsner <michael.kinsner@intel.com>
-v0.9
+v0.99
 :source-highlighter: pygments
 :icons: font
 :y: icon:check[role="green"]
@@ -145,6 +145,7 @@ public:
 
   usm_allocator();
   usm_allocator(const context &ctxt, const device &dev);
+  usm_allocator(const queue &q);
   usm_allocator(const usm_allocator &other);
      
   // Construct an object
@@ -229,15 +230,27 @@ void* sycl::malloc_device(size_t size,
 Parameters::
  * `size_t size` - number of bytes to allocate
  * `const sycl::device& dev` - the SYCL `device` to allocate on
- * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+ * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
 
 Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.   Memory allocated by `sycl::malloc_device` must be deallocated with `sycl::free` to avoid memory leaks. On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void* sycl::malloc_device(size_t size,
+                          const sycl::queue& q);
+----
+
+Parameters::
+ * `size_t size` - number of bytes to allocate
+ * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
+
+Return value:: Returns a pointer to the newly allocated memory on the `device` associated with `q` on success.   Memory allocated by `sycl::malloc_device` must be deallocated with `sycl::free` to avoid memory leaks. On failure, returns `nullptr`.
 
 ===== aligned_alloc
 [source,cpp]
 ----
-void* sycl::aligned_alloc_device(size_t alignment, 
-                                 size_t size, 
+void* sycl::aligned_alloc_device(size_t alignment,
+                                 size_t size,
                                  const sycl::device& dev, 
                                  const sycl::context& ctxt);
 ----
@@ -246,8 +259,22 @@ Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the `device` to allocate on
-  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
 Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.  Memory allocated by `sycl::aligned_alloc_device` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void* sycl::aligned_alloc_device(size_t alignment,
+                                 size_t size,
+                                 const sycl::queue& q);
+----
+
+Parameters::
+  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
+
+Return value:: Returns a pointer to the newly allocated memory on the `device` associated with `q` on success.  Memory allocated by `sycl::aligned_alloc_device` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ===== memcpy
 [source,cpp]
@@ -312,6 +339,16 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 
 [source,cpp]
 ----
+void* sycl::malloc_host(size_t size, const sycl::queue& q);
+----
+
+Parameters::
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `queue` whose `context` contains the devices that will access the `host` allocation
+Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::malloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
 void* sycl::malloc_shared(size_t size, 
                           const sycl::device& dev, 
                           const sycl::context& ctxt);
@@ -320,18 +357,42 @@ void* sycl::malloc_shared(size_t size,
 Parameters::
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the SYCL device to allocate on
-  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
 Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl::malloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void* sycl::malloc_shared(size_t size,
+                          const sycl::queue& q);
+----
+
+Parameters::
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
+
+Return value:: Returns a pointer to the newly allocated `shared` memory on the `device` associated with `q` on success.  Memory allocated by `sycl::malloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ===== aligned_alloc
 [source,cpp]
 ----
-void* sycl::aligned_alloc_host(size_t alignment, size_t size);
+void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::context& ctxt);
 ----
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
+  * `const sycl::context& ctxt` - the SYCL `context` that contains the devices that will access the `host` allocation
+Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::aligned_alloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::queue& q);
+----
+
+Parameters::
+  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` whose `context` contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::aligned_alloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 [source,cpp]
@@ -346,8 +407,21 @@ Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the SYCL `device` to allocate on
-  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
 Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl::aligned_alloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void* sycl::aligned_alloc_shared(size_t alignment,
+                                 size_t size,
+                                 const sycl::queue& q);
+----
+
+Parameters::
+  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
+Return value:: Returns a pointer to the newly allocated `shared` memory on the `device` associated with `q` on success.  Memory allocated by `sycl::aligned_alloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ===== Performance Hints
 Programmers may provide hints to the runtime that data should be made available on a device earlier than Unified Shared Memory would normally require it to be available.  This can be accomplished through enqueueing prefetch commands.  Prefetch commands may not be overlapped with kernel execution in Restricted USM.
@@ -405,35 +479,63 @@ Return Value:: Returns an event representing the operation.
 [source,cpp]
 ----
 void *sycl::malloc(size_t size, 
-                   const device& dev, 
-                   const context& ctxt,
+                   const sycl::device& dev,
+                   const sycl::context& ctxt,
                    usm::alloc kind);
 ----
 
 Parameters::
   * `size_t size` - number of bytes to allocate
-  * `const sycl::device& dev` - the SYCL device to allocate on
-  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+  * `const sycl::device& dev` - the SYCL device to allocate on (if applicable)
+  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
   * `usm::alloc kind` - the type of allocation to perform
 Return value:: Returns a pointer to the newly allocated `kind` memory on the specified `device` on success.  If `kind` is `alloc::host`, `dev` is ignored.  Memory allocated by `sycl::malloc` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void *sycl::malloc(size_t size,
+                   const sycl::queue& q,
+                   usm::alloc kind);
+----
+
+Parameters::
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` that provides the `device` (if applicable) and `context` to allocate against
+  * `usm::alloc kind` - the type of allocation to perform
+Return value:: Returns a pointer to the newly allocated `kind` memory on success.  Memory allocated by `sycl::malloc` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ===== aligned_alloc
 [source,cpp]
 ----
 void *sycl::aligned_alloc(size_t alignment, 
                           size_t size, 
-                          const device& dev,
-                          const context& ctxt, 
+                          const sycl::device& dev,
+                          const sycl::context& ctxt,
                           usm::alloc kind);
 ----
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
-  * `const sycl::device& dev` - the SYCL device to allocate on
-  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+  * `const sycl::device& dev` - the SYCL device to allocate on (if applicable)
+  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
   * `usm::alloc kind` - the type of allocation to perform
 Return value:: Returns a pointer to the newly allocated `kind` memory on the specified `device` on success.  If `kind` is `alloc::host`, `dev` is ignored.  Memory allocated by `sycl::aligned_alloc` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
+
+[source,cpp]
+----
+void *sycl::aligned_alloc(size_t alignment,
+                          size_t size,
+                          const sycl::queue& q,
+                          usm::alloc kind);
+----
+
+Parameters::
+  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::queue& q` - the SYCL `q` that provides the `device` (if applicable) and `context` to allocate against. 
+  * `usm::alloc kind` - the type of allocation to perform
+Return value:: Returns a pointer to the newly allocated `kind` memory on success.  Memory allocated by `sycl::aligned_alloc` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ===== free
 [source,cpp]
@@ -442,7 +544,16 @@ void sycl::free(void* ptr, sycl::context& context);
 ----
 Parameters::
   * `void* ptr` - pointer to the memory to deallocate.  Must have been allocated by a SYCL `malloc` or `aligned_alloc` function.
-  * `const sycl::context& dev` - the SYCL `context` in which `ptr` was allocated
+  * `const sycl::context& ctxt` - the SYCL `context` in which `ptr` was allocated
+Return value:: none
+
+[source,cpp]
+----
+void sycl::free(void* ptr, sycl::queue& q);
+----
+Parameters::
+  * `void* ptr` - pointer to the memory to deallocate.  Must have been allocated by a SYCL `malloc` or `aligned_alloc` function.
+  * `const sycl::queue& q` - the SYCL `queue` that provides the `context` in which `ptr` was allocated
 Return value:: none
 
 '''

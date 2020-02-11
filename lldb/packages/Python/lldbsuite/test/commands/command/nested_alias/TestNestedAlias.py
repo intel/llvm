@@ -2,7 +2,6 @@
 Test that an alias can reference other aliases without crashing.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -13,6 +12,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class NestedAliasTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().

@@ -69,6 +69,8 @@ struct SSS {
   T a;
   SSS() : a() {}
 #pragma omp declare reduction(fun : T : omp_out ^= omp_in) initializer(omp_priv = 24 + omp_orig)
+#pragma omp declare reduction(sssss : T : ssssss(omp_in)) initializer(omp_priv = 18 + omp_orig)
+  static void ssssss(T &x);
 };
 
 SSS<int> d;
@@ -85,9 +87,19 @@ SSS<int> d;
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 
-// CHECK: define {{.*}}void [[INIT:@[^(]+]]([[SSS_INT]]*
-// CHECK-LOAD: define {{.*}}void [[INIT:@[^(]+]]([[SSS_INT]]*
-void init(SSS<int> &lhs, SSS<int> &rhs) {}
+// CHECK: define internal {{.*}}void @{{[^(]+}}(i32* noalias %0, i32* noalias %1)
+// CHECK: call void @_ZN3SSSIiE6ssssssERi(i32* dereferenceable{{.*}})
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: define internal {{.*}}void @{{[^(]+}}(i32* noalias %0, i32* noalias %1)
+// CHECK: [[ADD:%.+]] = add nsw i32 18,
+// CHECK-NEXT: store i32 [[ADD]], i32*
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+template <typename T>
+void init(T &lhs, T &rhs) {}
 
 #pragma omp declare reduction(fun : SSS < int > : omp_out = omp_in) initializer(init(omp_priv, omp_orig))
 // CHECK: define internal {{.*}}void @{{[^(]+}}([[SSS_INT]]* noalias %0, [[SSS_INT]]* noalias %1)
@@ -95,7 +107,7 @@ void init(SSS<int> &lhs, SSS<int> &rhs) {}
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 // CHECK: define internal {{.*}}void @{{[^(]+}}([[SSS_INT]]* noalias %0, [[SSS_INT]]* noalias %1)
-// CHECK: call {{.*}}void [[INIT]](
+// CHECK: call {{.*}}void @_Z4initI3SSSIiEEvRT_S3_(
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 
@@ -104,9 +116,12 @@ void init(SSS<int> &lhs, SSS<int> &rhs) {}
 // CHECK-LOAD-NEXT: ret void
 // CHECK-LOAD-NEXT: }
 // CHECK-LOAD: define internal {{.*}}void @{{[^(]+}}([[SSS_INT]]* noalias %0, [[SSS_INT]]* noalias %1)
-// CHECK-LOAD: call {{.*}}void [[INIT]](
+// CHECK-LOAD: call {{.*}}void @_Z4initI3SSSIiEEvRT_S3_(
 // CHECK-LOAD-NEXT: ret void
 // CHECK-LOAD-NEXT: }
+
+// CHECK: define {{.*}}void @_Z4initI3SSSIiEEvRT_S3_(%struct.SSS* {{.+}}, %struct.SSS* {{.+}})
+// CHECK-LOAD: define {{.*}}void @_Z4initI3SSSIiEEvRT_S3_(%struct.SSS* {{.+}}, %struct.SSS* {{.+}})
 
 template <typename T>
 T foo(T a) {

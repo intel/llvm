@@ -81,8 +81,14 @@ namespace types {
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
 
+  /// isFPGA - Is this FPGA input.
+  bool isFPGA(ID Id);
+
   /// isObjC - Is this an "ObjC" input (Obj-C and Obj-C++ sources and headers).
   bool isObjC(ID Id);
+
+  /// isFortran - Is this a Fortran input.
+  bool isFortran(ID Id);
 
   /// isSrcFile - Is this a source file, i.e. something that still has to be
   /// preprocessed. The logic behind this is the same that decides if the first

@@ -287,7 +287,7 @@ multiclass DotPats<SDPatternOperator dot_op,
     (dot_op (dot_inst.Pfl.Src0VT (VOP3PMods0 dot_inst.Pfl.Src0VT:$src0, i32:$src0_modifiers)),
             (dot_inst.Pfl.Src1VT (VOP3PMods dot_inst.Pfl.Src1VT:$src1, i32:$src1_modifiers)),
             (dot_inst.Pfl.Src2VT (VOP3PMods dot_inst.Pfl.Src2VT:$src2, i32:$src2_modifiers)), i1:$clamp),
-    (dot_inst $src0_modifiers, $src0, $src1_modifiers, $src1, $src2_modifiers, $src2, (as_i1imm $clamp))>;
+    (dot_inst $src0_modifiers, $src0, $src1_modifiers, $src1, $src2_modifiers, $src2, (as_i1timm $clamp))>;
 }
 
 defm : DotPats<AMDGPUfdot2, V_DOT2_F32_F16>;
@@ -404,7 +404,7 @@ def : MnemonicAlias<"v_accvgpr_write", "v_accvgpr_write_b32">;
 multiclass VOP3P_Real_vi<bits<10> op> {
   def _vi : VOP3P_Real<!cast<VOP3_Pseudo>(NAME), SIEncodingFamily.VI>,
             VOP3Pe <op, !cast<VOP3_Pseudo>(NAME).Pfl> {
-    let AssemblerPredicates = [HasVOP3PInsts];
+    let AssemblerPredicate = HasVOP3PInsts;
     let DecoderNamespace = "GFX8";
   }
 }
@@ -412,7 +412,7 @@ multiclass VOP3P_Real_vi<bits<10> op> {
 multiclass VOP3P_Real_MAI<bits<10> op> {
   def _vi : VOP3P_Real<!cast<VOP3_Pseudo>(NAME), SIEncodingFamily.VI>,
             VOP3Pe_MAI <op, !cast<VOP3_Pseudo>(NAME).Pfl> {
-    let AssemblerPredicates = [HasMAIInsts];
+    let AssemblerPredicate = HasMAIInsts;
     let DecoderNamespace = "GFX8";
   }
 }

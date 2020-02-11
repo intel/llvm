@@ -21,6 +21,7 @@ class MCSymbolWasm : public MCSymbol {
   mutable bool IsUsedInGOT = false;
   Optional<std::string> ImportModule;
   Optional<std::string> ImportName;
+  Optional<std::string> ExportName;
   wasm::WasmSignature *Signature = nullptr;
   Optional<wasm::WasmGlobalType> GlobalType;
   Optional<wasm::WasmEventType> EventType;
@@ -76,15 +77,26 @@ public:
       }
       return "env";
   }
-  void setImportModule(StringRef Name) { ImportModule = Name; }
+  void setImportModule(StringRef Name) {
+    ImportModule = std::string(std::string(Name));
+  }
 
+  bool hasImportName() const { return ImportName.hasValue(); }
   const StringRef getImportName() const {
       if (ImportName.hasValue()) {
           return ImportName.getValue();
       }
       return getName();
   }
-  void setImportName(StringRef Name) { ImportName = Name; }
+  void setImportName(StringRef Name) {
+    ImportName = std::string(std::string(Name));
+  }
+
+  bool hasExportName() const { return ExportName.hasValue(); }
+  const StringRef getExportName() const { return ExportName.getValue(); }
+  void setExportName(StringRef Name) {
+    ExportName = std::string(std::string(Name));
+  }
 
   void setUsedInGOT() const { IsUsedInGOT = true; }
   bool isUsedInGOT() const { return IsUsedInGOT; }

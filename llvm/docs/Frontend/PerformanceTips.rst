@@ -255,7 +255,7 @@ couple specific suggestions:
 
 #. For languages with numerous rarely executed guard conditions (e.g. null
    checks, type checks, range checks) consider adding an extra execution or
-   two of LoopUnswith and LICM to your pass order.  The standard pass order,
+   two of LoopUnswitch and LICM to your pass order.  The standard pass order,
    which is tuned for C and C++ applications, may not be sufficient to remove
    all dischargeable checks from loops.
 
@@ -270,7 +270,7 @@ couple specific suggestions:
 I Still Can't Find What I'm Looking For
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If you didn't find what you were looking for above, consider proposing an piece
+If you didn't find what you were looking for above, consider proposing a piece
 of metadata which provides the optimization hint you need.  Such extensions are
 relatively common and are generally well received by the community.  You will
 need to ensure that your proposal is sufficiently general so that it benefits

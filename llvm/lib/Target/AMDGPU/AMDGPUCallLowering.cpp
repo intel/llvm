@@ -84,11 +84,10 @@ struct IncomingArgHandler : public CallLowering::ValueHandler {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
     int FI = MFI.CreateFixedObject(Size, Offset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
-    Register AddrReg = MRI.createGenericVirtualRegister(
-      LLT::pointer(AMDGPUAS::PRIVATE_ADDRESS, 32));
-    MIRBuilder.buildFrameIndex(AddrReg, FI);
+    auto AddrReg = MIRBuilder.buildFrameIndex(
+        LLT::pointer(AMDGPUAS::PRIVATE_ADDRESS, 32), FI);
     StackUsed = std::max(StackUsed, Size + Offset);
-    return AddrReg;
+    return AddrReg.getReg(0);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
@@ -222,9 +221,6 @@ static void unpackRegsToOrigType(MachineIRBuilder &B,
                                  LLT PartTy) {
   assert(DstRegs.size() > 1 && "Nothing to unpack");
 
-  MachineFunction &MF = B.getMF();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-
   const unsigned SrcSize = SrcTy.getSizeInBits();
   const unsigned PartSize = PartTy.getSizeInBits();
 
@@ -248,12 +244,11 @@ static void unpackRegsToOrigType(MachineIRBuilder &B,
   LLT BigTy = getMultipleType(PartTy, NumRoundedParts);
   auto ImpDef = B.buildUndef(BigTy);
 
-  Register BigReg = MRI.createGenericVirtualRegister(BigTy);
-  B.buildInsert(BigReg, ImpDef.getReg(0), SrcReg, 0).getReg(0);
+  auto Big = B.buildInsert(BigTy, ImpDef.getReg(0), SrcReg, 0).getReg(0);
 
   int64_t Offset = 0;
   for (unsigned i = 0, e = DstRegs.size(); i != e; ++i, Offset += PartSize)
-    B.buildExtract(DstRegs[i], BigReg, Offset);
+    B.buildExtract(DstRegs[i], Big, Offset);
 }
 
 /// Lower the return value for the already existing \p Ret. This assumes that
@@ -348,17 +343,13 @@ Register AMDGPUCallLowering::lowerParameterPtr(MachineIRBuilder &B,
   const DataLayout &DL = F.getParent()->getDataLayout();
   PointerType *PtrTy = PointerType::get(ParamTy, AMDGPUAS::CONSTANT_ADDRESS);
   LLT PtrType = getLLTForType(*PtrTy, DL);
-  Register DstReg = MRI.createGenericVirtualRegister(PtrType);
   Register KernArgSegmentPtr =
     MFI->getPreloadedReg(AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR);
   Register KernArgSegmentVReg = MRI.getLiveInVirtReg(KernArgSegmentPtr);
 
-  Register OffsetReg = MRI.createGenericVirtualRegister(LLT::scalar(64));
-  B.buildConstant(OffsetReg, Offset);
+  auto OffsetReg = B.buildConstant(LLT::scalar(64), Offset);
 
-  B.buildGEP(DstReg, KernArgSegmentVReg, OffsetReg);
-
-  return DstReg;
+  return B.buildPtrAdd(PtrType, KernArgSegmentVReg, OffsetReg).getReg(0);
 }
 
 void AMDGPUCallLowering::lowerParameter(MachineIRBuilder &B,
@@ -368,8 +359,7 @@ void AMDGPUCallLowering::lowerParameter(MachineIRBuilder &B,
   MachineFunction &MF = B.getMF();
   const Function &F = MF.getFunction();
   const DataLayout &DL = F.getParent()->getDataLayout();
-  PointerType *PtrTy = PointerType::get(ParamTy, AMDGPUAS::CONSTANT_ADDRESS);
-  MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
+  MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
   unsigned TypeSize = DL.getTypeStoreSize(ParamTy);
   Register PtrReg = lowerParameterPtr(B, ParamTy, Offset);
 
@@ -517,11 +507,26 @@ static void packSplitRegsToOrigType(MachineIRBuilder &B,
     return;
   }
 
+  MachineRegisterInfo &MRI = *B.getMRI();
+
   assert(LLTy.isVector() && !PartLLT.isVector());
 
   LLT DstEltTy = LLTy.getElementType();
+
+  // Pointer information was discarded. We'll need to coerce some register types
+  // to avoid violating type constraints.
+  LLT RealDstEltTy = MRI.getType(OrigRegs[0]).getElementType();
+
+  assert(DstEltTy.getSizeInBits() == RealDstEltTy.getSizeInBits());
+
   if (DstEltTy == PartLLT) {
     // Vector was trivially scalarized.
+
+    if (RealDstEltTy.isPointer()) {
+      for (Register Reg : Regs)
+        MRI.setType(Reg, RealDstEltTy);
+    }
+
     B.buildBuildVector(OrigRegs[0], Regs);
   } else if (DstEltTy.getSizeInBits() > PartLLT.getSizeInBits()) {
     // Deal with vector with 64-bit elements decomposed to 32-bit
@@ -532,8 +537,9 @@ static void packSplitRegsToOrigType(MachineIRBuilder &B,
     assert(DstEltTy.getSizeInBits() % PartLLT.getSizeInBits() == 0);
 
     for (int I = 0, NumElts = LLTy.getNumElements(); I != NumElts; ++I)  {
-      auto Merge = B.buildMerge(DstEltTy,
-                                         Regs.take_front(PartsPerElt));
+      auto Merge = B.buildMerge(RealDstEltTy, Regs.take_front(PartsPerElt));
+      // Fix the type in case this is really a vector of pointers.
+      MRI.setType(Merge.getReg(0), RealDstEltTy);
       EltMerges.push_back(Merge.getReg(0));
       Regs = Regs.drop_front(PartsPerElt);
     }

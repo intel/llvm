@@ -33,6 +33,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -156,7 +157,7 @@ public:
   MachineInstr *CmpMI;
 
 private:
-  /// The branch condition in Head as determined by AnalyzeBranch.
+  /// The branch condition in Head as determined by analyzeBranch.
   SmallVector<MachineOperand, 4> HeadCond;
 
   /// The condition code that makes Head branch to CmpBB.
@@ -266,7 +267,7 @@ bool SSACCmpConv::isDeadDef(unsigned DstReg) {
   return MRI->use_nodbg_empty(DstReg);
 }
 
-// Parse a condition code returned by AnalyzeBranch, and compute the CondCode
+// Parse a condition code returned by analyzeBranch, and compute the CondCode
 // corresponding to TBB.
 // Return
 static bool parseCond(ArrayRef<MachineOperand> Cond, AArch64CC::CondCode &CC) {
@@ -351,8 +352,7 @@ MachineInstr *SSACCmpConv::findConvertibleCompare(MachineBasicBlock *MBB) {
     }
 
     // Check for flag reads and clobbers.
-    MIOperands::PhysRegInfo PRI =
-        MIOperands(*I).analyzePhysReg(AArch64::NZCV, TRI);
+    PhysRegInfo PRI = AnalyzePhysRegInBundle(*I, AArch64::NZCV, TRI);
 
     if (PRI.Read) {
       // The ccmp doesn't produce exactly the same flags as the original
@@ -509,7 +509,7 @@ bool SSACCmpConv::canConvert(MachineBasicBlock *MBB) {
   // landing pad.
   if (!TBB || HeadCond.empty()) {
     LLVM_DEBUG(
-        dbgs() << "AnalyzeBranch didn't find conditional branch in Head.\n");
+        dbgs() << "analyzeBranch didn't find conditional branch in Head.\n");
     ++NumHeadBranchRejs;
     return false;
   }
@@ -536,7 +536,7 @@ bool SSACCmpConv::canConvert(MachineBasicBlock *MBB) {
 
   if (!TBB || CmpBBCond.empty()) {
     LLVM_DEBUG(
-        dbgs() << "AnalyzeBranch didn't find conditional branch in CmpBB.\n");
+        dbgs() << "analyzeBranch didn't find conditional branch in CmpBB.\n");
     ++NumCmpBranchRejs;
     return false;
   }

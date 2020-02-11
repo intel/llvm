@@ -1,4 +1,4 @@
-//===-- SBEvent.cpp ---------------------------------------------*- C++ -*-===//
+//===-- SBEvent.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -175,7 +175,7 @@ const char *SBEvent::GetCStringFromEvent(const SBEvent &event) {
   LLDB_RECORD_STATIC_METHOD(const char *, SBEvent, GetCStringFromEvent,
                             (const lldb::SBEvent &), event);
 
-  return reinterpret_cast<const char *>(
+  return static_cast<const char *>(
       EventDataBytes::GetBytesFromEvent(event.get()));
 }
 

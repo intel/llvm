@@ -206,8 +206,9 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
 std::string llvm::getQualifiedName(const Record *R) {
   std::string Namespace;
   if (R->getValue("Namespace"))
-     Namespace = R->getValueAsString("Namespace");
-  if (Namespace.empty()) return R->getName();
+    Namespace = std::string(R->getValueAsString("Namespace"));
+  if (Namespace.empty())
+    return std::string(R->getName());
   return Namespace + "::" + R->getName().str();
 }
 
@@ -260,7 +261,7 @@ Record *CodeGenTarget::getAsmParser() const {
   return LI[AsmParserNum];
 }
 
-/// getAsmParserVariant - Return the AssmblyParserVariant definition for
+/// getAsmParserVariant - Return the AssemblyParserVariant definition for
 /// this target.
 ///
 Record *CodeGenTarget::getAsmParserVariant(unsigned i) const {
@@ -272,7 +273,7 @@ Record *CodeGenTarget::getAsmParserVariant(unsigned i) const {
   return LI[i];
 }
 
-/// getAsmParserVariantCount - Return the AssmblyParserVariant definition
+/// getAsmParserVariantCount - Return the AssemblyParserVariant definition
 /// available for this target.
 ///
 unsigned CodeGenTarget::getAsmParserVariantCount() const {
@@ -526,7 +527,7 @@ bool CodeGenTarget::guessInstructionProperties() const {
 ComplexPattern::ComplexPattern(Record *R) {
   Ty          = ::getValueType(R->getValueAsDef("Ty"));
   NumOperands = R->getValueAsInt("NumOperands");
-  SelectFunc  = R->getValueAsString("SelectFunc");
+  SelectFunc = std::string(R->getValueAsString("SelectFunc"));
   RootNodes   = R->getValueAsListOfDefs("RootNodes");
 
   // FIXME: This is a hack to statically increase the priority of patterns which
@@ -574,17 +575,14 @@ ComplexPattern::ComplexPattern(Record *R) {
 // CodeGenIntrinsic Implementation
 //===----------------------------------------------------------------------===//
 
-CodeGenIntrinsicTable::CodeGenIntrinsicTable(const RecordKeeper &RC,
-                                             bool TargetOnly) {
+CodeGenIntrinsicTable::CodeGenIntrinsicTable(const RecordKeeper &RC) {
   std::vector<Record*> Defs = RC.getAllDerivedDefinitions("Intrinsic");
 
   Intrinsics.reserve(Defs.size());
 
-  for (unsigned I = 0, e = Defs.size(); I != e; ++I) {
-    bool isTarget = Defs[I]->getValueAsBit("isTarget");
-    if (isTarget == TargetOnly)
-      Intrinsics.push_back(CodeGenIntrinsic(Defs[I]));
-  }
+  for (unsigned I = 0, e = Defs.size(); I != e; ++I)
+    Intrinsics.push_back(CodeGenIntrinsic(Defs[I]));
+
   llvm::sort(Intrinsics,
              [](const CodeGenIntrinsic &LHS, const CodeGenIntrinsic &RHS) {
                return std::tie(LHS.TargetPrefix, LHS.Name) <
@@ -601,7 +599,7 @@ CodeGenIntrinsicTable::CodeGenIntrinsicTable(const RecordKeeper &RC,
 
 CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
   TheDef = R;
-  std::string DefName = R->getName();
+  std::string DefName = std::string(R->getName());
   ArrayRef<SMLoc> DefLoc = R->getLoc();
   ModRef = ReadWriteMem;
   Properties = 0;
@@ -624,12 +622,12 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
   EnumName = std::string(DefName.begin()+4, DefName.end());
 
   if (R->getValue("GCCBuiltinName"))  // Ignore a missing GCCBuiltinName field.
-    GCCBuiltinName = R->getValueAsString("GCCBuiltinName");
+    GCCBuiltinName = std::string(R->getValueAsString("GCCBuiltinName"));
   if (R->getValue("MSBuiltinName"))   // Ignore a missing MSBuiltinName field.
-    MSBuiltinName = R->getValueAsString("MSBuiltinName");
+    MSBuiltinName = std::string(R->getValueAsString("MSBuiltinName"));
 
-  TargetPrefix = R->getValueAsString("TargetPrefix");
-  Name = R->getValueAsString("LLVMName");
+  TargetPrefix = std::string(R->getValueAsString("TargetPrefix"));
+  Name = std::string(R->getValueAsString("LLVMName"));
 
   if (Name == "") {
     // If an explicit name isn't specified, derive one from the DefName.
@@ -819,4 +817,10 @@ bool CodeGenIntrinsic::isParamAPointer(unsigned ParamIdx) const {
     return false;
   MVT ParamType = MVT(IS.ParamVTs[ParamIdx]);
   return ParamType == MVT::iPTR || ParamType == MVT::iPTRAny;
+}
+
+bool CodeGenIntrinsic::isParamImmArg(unsigned ParamIdx) const {
+  std::pair<unsigned, ArgAttribute> Val = {ParamIdx, ImmArg};
+  return std::binary_search(ArgumentAttributes.begin(),
+                            ArgumentAttributes.end(), Val);
 }

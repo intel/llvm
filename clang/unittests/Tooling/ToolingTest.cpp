@@ -13,15 +13,18 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "gtest/gtest.h"
 #include <algorithm>
 #include <string>
+#include <vector>
 
 namespace clang {
 namespace tooling {
@@ -322,9 +325,9 @@ TEST(runToolOnCodeWithArgs, TestNoDepFile) {
   std::vector<std::string> Args;
   Args.push_back("-MMD");
   Args.push_back("-MT");
-  Args.push_back(DepFilePath.str());
+  Args.push_back(std::string(DepFilePath.str()));
   Args.push_back("-MF");
-  Args.push_back(DepFilePath.str());
+  Args.push_back(std::string(DepFilePath.str()));
   EXPECT_TRUE(runToolOnCodeWithArgs(std::make_unique<SkipBodyAction>(), "", Args));
   EXPECT_FALSE(llvm::sys::fs::exists(DepFilePath.str()));
   EXPECT_FALSE(llvm::sys::fs::remove(DepFilePath.str()));
@@ -429,6 +432,37 @@ TEST(ClangToolTest, NoDoubleSyntaxOnly) {
   EXPECT_EQ(SyntaxOnlyCount, 1U);
 }
 
+TEST(ClangToolTest, NoOutputCommands) {
+  FixedCompilationDatabase Compilations("/", {"-save-temps", "-save-temps=cwd",
+                                              "--save-temps",
+                                              "--save-temps=somedir"});
+
+  ClangTool Tool(Compilations, std::vector<std::string>(1, "/a.cc"));
+  Tool.mapVirtualFile("/a.cc", "void a() {}");
+
+  std::unique_ptr<FrontendActionFactory> Action(
+      newFrontendActionFactory<SyntaxOnlyAction>());
+
+  const std::vector<llvm::StringRef> OutputCommands = {"-save-temps"};
+  bool Ran = false;
+  ArgumentsAdjuster CheckSyntaxOnlyAdjuster =
+      [&OutputCommands, &Ran](const CommandLineArguments &Args,
+                              StringRef /*unused*/) {
+        for (llvm::StringRef Arg : Args) {
+          for (llvm::StringRef OutputCommand : OutputCommands)
+            EXPECT_FALSE(Arg.contains(OutputCommand));
+        }
+        Ran = true;
+        return Args;
+      };
+
+  Tool.clearArgumentsAdjusters();
+  Tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
+  Tool.appendArgumentsAdjuster(CheckSyntaxOnlyAdjuster);
+  Tool.run(Action.get());
+  EXPECT_TRUE(Ran);
+}
+
 TEST(ClangToolTest, BaseVirtualFileSystemUsage) {
   FixedCompilationDatabase Compilations("/", std::vector<std::string>());
   llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFileSystem(
@@ -518,8 +552,9 @@ std::string getAnyTarget() {
     StringRef TargetName(Target.getName());
     if (TargetName == "x86-64")
       TargetName = "x86_64";
-    if (llvm::TargetRegistry::lookupTarget(TargetName, Error) == &Target) {
-      return TargetName;
+    if (llvm::TargetRegistry::lookupTarget(std::string(TargetName), Error) ==
+        &Target) {
+      return std::string(TargetName);
     }
   }
   return "";

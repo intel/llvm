@@ -32,9 +32,9 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/LiveInterval.h"
@@ -43,6 +43,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
@@ -167,7 +168,7 @@ private:
   // 8 banks for SGPRs.
   // Registers already processed and recorded in RegsUsed are excluded.
   // If Bank is not -1 assume Reg:SubReg to belong to that Bank.
-  unsigned getRegBankMask(unsigned Reg, unsigned SubReg, int Bank);
+  uint32_t getRegBankMask(unsigned Reg, unsigned SubReg, int Bank);
 
   // Return number of stalls in the instructions.
   // UsedBanks has bits set for the banks used by all operands.
@@ -291,7 +292,7 @@ unsigned GCNRegBankReassign::getPhysRegBank(unsigned Reg) const {
   return Reg % NUM_SGPR_BANKS + SGPR_BANK_OFFSET;
 }
 
-unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
+uint32_t GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
                                             int Bank) {
   if (Register::isVirtualRegister(Reg)) {
     if (!VRM->isAssignedReg(Reg))
@@ -312,7 +313,7 @@ unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
   if (TRI->hasVGPRs(RC)) {
     // VGPRs have 4 banks assigned in a round-robin fashion.
     Reg -= AMDGPU::VGPR0;
-    unsigned Mask = (1 << Size) - 1;
+    uint32_t Mask = maskTrailingOnes<uint32_t>(Size);
     unsigned Used = 0;
     // Bitmask lacks an extract method
     for (unsigned I = 0; I < Size; ++I)
@@ -320,7 +321,7 @@ unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
         Used |= 1 << I;
     RegsUsed.set(Reg, Reg + Size);
     Mask &= ~Used;
-    Mask <<= (Bank == -1) ? Reg % NUM_VGPR_BANKS : unsigned(Bank);
+    Mask <<= (Bank == -1) ? Reg % NUM_VGPR_BANKS : uint32_t(Bank);
     return (Mask | (Mask >> NUM_VGPR_BANKS)) & VGPR_BANK_MASK;
   }
 
@@ -387,7 +388,7 @@ unsigned GCNRegBankReassign::analyzeInst(const MachineInstr& MI,
       }
     }
 
-    unsigned Mask = getRegBankMask(R, Op.getSubReg(),
+    uint32_t Mask = getRegBankMask(R, Op.getSubReg(),
                                    (Reg == R) ? ShiftedBank : -1);
     StallCycles += countPopulation(UsedBanks & Mask);
     UsedBanks |= Mask;

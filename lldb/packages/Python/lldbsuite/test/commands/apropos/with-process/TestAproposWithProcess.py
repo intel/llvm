@@ -2,7 +2,6 @@
 Test that apropos env doesn't crash trying to touch the process plugin command
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -13,6 +12,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class AproposWithProcessTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().

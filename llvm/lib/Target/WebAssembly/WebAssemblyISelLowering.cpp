@@ -28,6 +28,7 @@
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -60,8 +61,6 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     addRegisterClass(MVT::v8i16, &WebAssembly::V128RegClass);
     addRegisterClass(MVT::v4i32, &WebAssembly::V128RegClass);
     addRegisterClass(MVT::v4f32, &WebAssembly::V128RegClass);
-  }
-  if (Subtarget->hasUnimplementedSIMD128()) {
     addRegisterClass(MVT::v2i64, &WebAssembly::V128RegClass);
     addRegisterClass(MVT::v2f64, &WebAssembly::V128RegClass);
   }
@@ -115,10 +114,8 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     for (auto T : {MVT::i32, MVT::i64})
       setOperationAction(Op, T, Expand);
     if (Subtarget->hasSIMD128())
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64})
         setOperationAction(Op, T, Expand);
-    if (Subtarget->hasUnimplementedSIMD128())
-      setOperationAction(Op, MVT::v2i64, Expand);
   }
 
   // SIMD-specific configuration
@@ -129,71 +126,64 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
         setOperationAction(Op, T, Legal);
 
     // Custom lower BUILD_VECTORs to minimize number of replace_lanes
-    for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32})
+    for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
+                   MVT::v2f64})
       setOperationAction(ISD::BUILD_VECTOR, T, Custom);
-    if (Subtarget->hasUnimplementedSIMD128())
-      for (auto T : {MVT::v2i64, MVT::v2f64})
-        setOperationAction(ISD::BUILD_VECTOR, T, Custom);
 
     // We have custom shuffle lowering to expose the shuffle mask
-    for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32})
+    for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
+                   MVT::v2f64})
       setOperationAction(ISD::VECTOR_SHUFFLE, T, Custom);
-    if (Subtarget->hasUnimplementedSIMD128())
-      for (auto T: {MVT::v2i64, MVT::v2f64})
-        setOperationAction(ISD::VECTOR_SHUFFLE, T, Custom);
 
     // Custom lowering since wasm shifts must have a scalar shift amount
-    for (auto Op : {ISD::SHL, ISD::SRA, ISD::SRL}) {
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
+    for (auto Op : {ISD::SHL, ISD::SRA, ISD::SRL})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64})
         setOperationAction(Op, T, Custom);
-      if (Subtarget->hasUnimplementedSIMD128())
-        setOperationAction(Op, MVT::v2i64, Custom);
-    }
 
     // Custom lower lane accesses to expand out variable indices
-    for (auto Op : {ISD::EXTRACT_VECTOR_ELT, ISD::INSERT_VECTOR_ELT}) {
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32})
+    for (auto Op : {ISD::EXTRACT_VECTOR_ELT, ISD::INSERT_VECTOR_ELT})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
+                     MVT::v2f64})
         setOperationAction(Op, T, Custom);
-      if (Subtarget->hasUnimplementedSIMD128())
-        for (auto T : {MVT::v2i64, MVT::v2f64})
-          setOperationAction(Op, T, Custom);
-    }
 
     // There is no i64x2.mul instruction
+    // TODO: Actually, there is now. Implement it.
     setOperationAction(ISD::MUL, MVT::v2i64, Expand);
 
     // There are no vector select instructions
-    for (auto Op : {ISD::VSELECT, ISD::SELECT_CC, ISD::SELECT}) {
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32})
+    for (auto Op : {ISD::VSELECT, ISD::SELECT_CC, ISD::SELECT})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
+                     MVT::v2f64})
         setOperationAction(Op, T, Expand);
-      if (Subtarget->hasUnimplementedSIMD128())
-        for (auto T : {MVT::v2i64, MVT::v2f64})
-          setOperationAction(Op, T, Expand);
-    }
 
     // Expand integer operations supported for scalars but not SIMD
     for (auto Op : {ISD::CTLZ, ISD::CTTZ, ISD::CTPOP, ISD::SDIV, ISD::UDIV,
-                    ISD::SREM, ISD::UREM, ISD::ROTL, ISD::ROTR}) {
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
+                    ISD::SREM, ISD::UREM, ISD::ROTL, ISD::ROTR})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64})
         setOperationAction(Op, T, Expand);
-      if (Subtarget->hasUnimplementedSIMD128())
-        setOperationAction(Op, MVT::v2i64, Expand);
-    }
+
+    // But we do have integer min and max operations
+    for (auto Op : {ISD::SMIN, ISD::SMAX, ISD::UMIN, ISD::UMAX})
+      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
+        setOperationAction(Op, T, Legal);
 
     // Expand float operations supported for scalars but not SIMD
     for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
                     ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-                    ISD::FEXP, ISD::FEXP2, ISD::FRINT}) {
-      setOperationAction(Op, MVT::v4f32, Expand);
-      if (Subtarget->hasUnimplementedSIMD128())
-        setOperationAction(Op, MVT::v2f64, Expand);
-    }
+                    ISD::FEXP, ISD::FEXP2, ISD::FRINT})
+      for (auto T : {MVT::v4f32, MVT::v2f64})
+        setOperationAction(Op, T, Expand);
 
-    // Expand additional SIMD ops that V8 hasn't implemented yet
-    if (!Subtarget->hasUnimplementedSIMD128()) {
-      setOperationAction(ISD::FSQRT, MVT::v4f32, Expand);
-      setOperationAction(ISD::FDIV, MVT::v4f32, Expand);
-    }
+    // Expand operations not supported for i64x2 vectors
+    for (unsigned CC = 0; CC < ISD::SETCC_INVALID; ++CC)
+      setCondCodeAction(static_cast<ISD::CondCode>(CC), MVT::v2i64, Custom);
+
+    // 64x2 conversions are not in the spec
+    if (!Subtarget->hasUnimplementedSIMD128())
+      for (auto Op :
+           {ISD::SINT_TO_FP, ISD::UINT_TO_FP, ISD::FP_TO_SINT, ISD::FP_TO_UINT})
+        for (auto T : {MVT::v2i64, MVT::v2f64})
+          setOperationAction(Op, T, Expand);
   }
 
   // As a special case, these operators use the type to mean the type to
@@ -461,11 +451,14 @@ const char *
 WebAssemblyTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (static_cast<WebAssemblyISD::NodeType>(Opcode)) {
   case WebAssemblyISD::FIRST_NUMBER:
+  case WebAssemblyISD::FIRST_MEM_OPCODE:
     break;
 #define HANDLE_NODETYPE(NODE)                                                  \
   case WebAssemblyISD::NODE:                                                   \
     return "WebAssemblyISD::" #NODE;
+#define HANDLE_MEM_NODETYPE(NODE) HANDLE_NODETYPE(NODE)
 #include "WebAssemblyISD.def"
+#undef HANDLE_MEM_NODETYPE
 #undef HANDLE_NODETYPE
   }
   return nullptr;
@@ -632,7 +625,8 @@ static bool callingConvSupported(CallingConv::ID CallConv) {
          CallConv == CallingConv::PreserveMost ||
          CallConv == CallingConv::PreserveAll ||
          CallConv == CallingConv::CXX_FAST_TLS ||
-         CallConv == CallingConv::WASM_EmscriptenInvoke;
+         CallConv == CallingConv::WASM_EmscriptenInvoke ||
+         CallConv == CallingConv::Swift;
 }
 
 SDValue
@@ -716,13 +710,13 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
     if (Out.Flags.isByVal() && Out.Flags.getByValSize() != 0) {
       auto &MFI = MF.getFrameInfo();
       int FI = MFI.CreateStackObject(Out.Flags.getByValSize(),
-                                     Out.Flags.getByValAlign(),
+                                     Out.Flags.getNonZeroByValAlign(),
                                      /*isSS=*/false);
       SDValue SizeNode =
           DAG.getConstant(Out.Flags.getByValSize(), DL, MVT::i32);
       SDValue FINode = DAG.getFrameIndex(FI, getPointerTy(Layout));
       Chain = DAG.getMemcpy(
-          Chain, DL, FINode, OutVal, SizeNode, Out.Flags.getByValAlign(),
+          Chain, DL, FINode, OutVal, SizeNode, Out.Flags.getNonZeroByValAlign(),
           /*isVolatile*/ false, /*AlwaysInline=*/false,
           /*isTailCall*/ false, MachinePointerInfo(), MachinePointerInfo());
       OutVal = FINode;
@@ -1011,6 +1005,8 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
     return LowerBUILD_VECTOR(Op, DAG);
   case ISD::VECTOR_SHUFFLE:
     return LowerVECTOR_SHUFFLE(Op, DAG);
+  case ISD::SETCC:
+    return LowerSETCC(Op, DAG);
   case ISD::SHL:
   case ISD::SRA:
   case ISD::SRL:
@@ -1425,7 +1421,11 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     if (Subtarget->hasUnimplementedSIMD128() &&
         (SplattedLoad = dyn_cast<LoadSDNode>(SplatValue)) &&
         SplattedLoad->getMemoryVT() == VecT.getVectorElementType()) {
-      Result = DAG.getNode(WebAssemblyISD::LOAD_SPLAT, DL, VecT, SplatValue);
+      Result = DAG.getMemIntrinsicNode(
+          WebAssemblyISD::LOAD_SPLAT, DL, DAG.getVTList(VecT),
+          {SplattedLoad->getChain(), SplattedLoad->getBasePtr(),
+           SplattedLoad->getOffset()},
+          SplattedLoad->getMemoryVT(), SplattedLoad->getMemOperand());
     } else {
       Result = DAG.getSplatBuildVector(VecT, DL, SplatValue);
     }
@@ -1470,6 +1470,28 @@ WebAssemblyTargetLowering::LowerVECTOR_SHUFFLE(SDValue Op,
   }
 
   return DAG.getNode(WebAssemblyISD::SHUFFLE, DL, Op.getValueType(), Ops);
+}
+
+SDValue WebAssemblyTargetLowering::LowerSETCC(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  // The legalizer does not know how to expand the comparison modes of i64x2
+  // vectors because no comparison modes are supported. We could solve this by
+  // expanding all i64x2 SETCC nodes, but that seems to expand f64x2 SETCC nodes
+  // (which return i64x2 results) as well. So instead we manually unroll i64x2
+  // comparisons here.
+  assert(Op->getOperand(0)->getSimpleValueType(0) == MVT::v2i64);
+  SmallVector<SDValue, 2> LHS, RHS;
+  DAG.ExtractVectorElements(Op->getOperand(0), LHS);
+  DAG.ExtractVectorElements(Op->getOperand(1), RHS);
+  const SDValue &CC = Op->getOperand(2);
+  auto MakeLane = [&](unsigned I) {
+    return DAG.getNode(ISD::SELECT_CC, DL, MVT::i64, LHS[I], RHS[I],
+                       DAG.getConstant(uint64_t(-1), DL, MVT::i64),
+                       DAG.getConstant(uint64_t(0), DL, MVT::i64), CC);
+  };
+  return DAG.getBuildVector(Op->getValueType(0), DL,
+                            {MakeLane(0), MakeLane(1)});
 }
 
 SDValue

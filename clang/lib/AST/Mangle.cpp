@@ -63,9 +63,7 @@ static CCMangling getCallingConvMangling(const ASTContext &Context,
                                          const NamedDecl *ND) {
   const TargetInfo &TI = Context.getTargetInfo();
   const llvm::Triple &Triple = TI.getTriple();
-  if (!Triple.isOSWindows() ||
-      !(Triple.getArch() == llvm::Triple::x86 ||
-        Triple.getArch() == llvm::Triple::x86_64))
+  if (!Triple.isOSWindows() || !Triple.isX86())
     return CCM_Other;
 
   if (Context.getLangOpts().CPlusPlus && !isExternC(ND) &&
@@ -360,7 +358,7 @@ public:
       SmallString<40> Mangled;
       auto Prefix = getClassSymbolPrefix(Kind, OCD->getASTContext());
       llvm::Mangler::getNameWithPrefix(Mangled, Prefix + ClassName, DL);
-      return Mangled.str();
+      return std::string(Mangled.str());
     };
 
     return {

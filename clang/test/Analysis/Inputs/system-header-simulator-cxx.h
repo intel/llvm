@@ -74,8 +74,12 @@ template <typename T, typename Ptr, typename Ref> struct __vector_iterator {
   difference_type operator-(const __vector_iterator<U, Ptr2, Ref2> &rhs);
 
   Ref operator*() const { return *ptr; }
-  Ptr operator->() const { return *ptr; }
+  Ptr operator->() const { return ptr; }
 
+  Ref operator[](difference_type n) {
+    return *(ptr+n);
+  }
+  
   bool operator==(const iterator &rhs) const { return ptr == rhs.ptr; }
   bool operator==(const const_iterator &rhs) const { return ptr == rhs.ptr; }
 
@@ -125,8 +129,12 @@ template <typename T, typename Ptr, typename Ref> struct __deque_iterator {
   }
 
   Ref operator*() const { return *ptr; }
-  Ptr operator->() const { return *ptr; }
+  Ptr operator->() const { return ptr; }
 
+  Ref operator[](difference_type n) {
+    return *(ptr+n);
+  }
+  
   bool operator==(const iterator &rhs) const { return ptr == rhs.ptr; }
   bool operator==(const const_iterator &rhs) const { return ptr == rhs.ptr; }
 
@@ -165,7 +173,7 @@ template <typename T, typename Ptr, typename Ref> struct __list_iterator {
   }
 
   Ref operator*() const { return item->data; }
-  Ptr operator->() const { return item->data; }
+  Ptr operator->() const { return &item->data; }
 
   bool operator==(const iterator &rhs) const { return item == rhs->item; }
   bool operator==(const const_iterator &rhs) const { return item == rhs->item; }
@@ -201,7 +209,7 @@ template <typename T, typename Ptr, typename Ref> struct __fwdl_iterator {
     return tmp;
   }
   Ref operator*() const { return item->data; }
-  Ptr operator->() const { return item->data; }
+  Ptr operator->() const { return &item->data; }
 
   bool operator==(const iterator &rhs) const { return item == rhs->item; }
   bool operator==(const const_iterator &rhs) const { return item == rhs->item; }
@@ -255,15 +263,16 @@ namespace std {
 
   template<typename T>
   class vector {
+    T *_start;
+    T *_finish;
+    T *_end_of_storage;
+
+  public:
     typedef T value_type;
     typedef size_t size_type;
     typedef __vector_iterator<T, T *, T &> iterator;
     typedef __vector_iterator<T, const T *, const T &> const_iterator;
 
-    T *_start;
-    T *_finish;
-    T *_end_of_storage;
-  public:
     vector() : _start(0), _finish(0), _end_of_storage(0) {}
     template <typename InputIterator>
     vector(InputIterator first, InputIterator last);
@@ -333,6 +342,7 @@ namespace std {
       T data;
       __item *prev, *next;
     } *_start, *_finish;
+
   public:
     typedef T value_type;
     typedef size_t size_type;
@@ -399,15 +409,16 @@ namespace std {
 
   template<typename T>
   class deque {
+    T *_start;
+    T *_finish;
+    T *_end_of_storage;
+
+  public:
     typedef T value_type;
     typedef size_t size_type;
     typedef __deque_iterator<T, T *, T &> iterator;
     typedef __deque_iterator<T, const T *, const T &> const_iterator;
 
-    T *_start;
-    T *_finish;
-    T *_end_of_storage;
-  public:
     deque() : _start(0), _finish(0), _end_of_storage(0) {}
     template <typename InputIterator>
     deque(InputIterator first, InputIterator last);
@@ -483,6 +494,7 @@ namespace std {
       T data;
       __item *next;
     } *_start;
+
   public:
     typedef T value_type;
     typedef size_t size_type;
@@ -771,14 +783,121 @@ namespace std {
     return it;
   }
 
-  template <class InputIterator, class T>
-  InputIterator find(InputIterator first, InputIterator last, const T &val);
+  template <class InputIt, class T>
+  InputIt find(InputIt first, InputIt last, const T& value);
 
-  template <class ForwardIterator1, class ForwardIterator2>
-  ForwardIterator1 find_first_of(ForwardIterator1 first1,
-                                 ForwardIterator1 last1,
-                                 ForwardIterator2 first2,
-                                 ForwardIterator2 last2);
+  template <class ExecutionPolicy, class ForwardIt, class T>
+  ForwardIt find(ExecutionPolicy&& policy, ForwardIt first, ForwardIt last,
+                 const T& value);
+
+  template <class InputIt, class UnaryPredicate>
+  InputIt find_if (InputIt first, InputIt last, UnaryPredicate p);
+
+  template <class ExecutionPolicy, class ForwardIt, class UnaryPredicate>
+  ForwardIt find_if (ExecutionPolicy&& policy, ForwardIt first, ForwardIt last,
+                     UnaryPredicate p);
+
+  template <class InputIt, class UnaryPredicate>
+  InputIt find_if_not (InputIt first, InputIt last, UnaryPredicate q);
+
+  template <class ExecutionPolicy, class ForwardIt, class UnaryPredicate>
+  ForwardIt find_if_not (ExecutionPolicy&& policy, ForwardIt first,
+                         ForwardIt last, UnaryPredicate q);
+
+  template <class InputIt, class ForwardIt>
+  InputIt find_first_of(InputIt first, InputIt last,
+                         ForwardIt s_first, ForwardIt s_last);
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2>
+  ForwardIt1 find_first_of (ExecutionPolicy&& policy,
+                            ForwardIt1 first, ForwardIt1 last,
+                            ForwardIt2 s_first, ForwardIt2 s_last);
+
+  template <class InputIt, class ForwardIt, class BinaryPredicate>
+  InputIt find_first_of (InputIt first, InputIt last,
+                         ForwardIt s_first, ForwardIt s_last,
+                         BinaryPredicate p );
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2,
+            class BinaryPredicate>
+  ForwardIt1 find_first_of (ExecutionPolicy&& policy,
+                            ForwardIt1 first, ForwardIt1 last,
+                            ForwardIt2 s_first, ForwardIt2 s_last,
+                            BinaryPredicate p );
+
+  template <class InputIt, class ForwardIt>
+  InputIt find_end(InputIt first, InputIt last,
+                   ForwardIt s_first, ForwardIt s_last);
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2>
+  ForwardIt1 find_end (ExecutionPolicy&& policy,
+                       ForwardIt1 first, ForwardIt1 last,
+                       ForwardIt2 s_first, ForwardIt2 s_last);
+
+  template <class InputIt, class ForwardIt, class BinaryPredicate>
+  InputIt find_end (InputIt first, InputIt last,
+                    ForwardIt s_first, ForwardIt s_last,
+                    BinaryPredicate p );
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2,
+            class BinaryPredicate>
+  ForwardIt1 find_end (ExecutionPolicy&& policy,
+                       ForwardIt1 first, ForwardIt1 last,
+                       ForwardIt2 s_first, ForwardIt2 s_last,
+                       BinaryPredicate p );
+
+  template <class ForwardIt, class T>
+  ForwardIt lower_bound (ForwardIt first, ForwardIt last, const T& value);
+
+  template <class ForwardIt, class T, class Compare>
+  ForwardIt lower_bound (ForwardIt first, ForwardIt last, const T& value,
+                         Compare comp);
+
+  template <class ForwardIt, class T>
+  ForwardIt upper_bound (ForwardIt first, ForwardIt last, const T& value);
+
+  template <class ForwardIt, class T, class Compare>
+  ForwardIt upper_bound (ForwardIt first, ForwardIt last, const T& value,
+                         Compare comp);
+
+  template <class ForwardIt1, class ForwardIt2>
+  ForwardIt1 search (ForwardIt1 first, ForwardIt1 last,
+                     ForwardIt2 s_first, ForwardIt2 s_last);
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2>
+  ForwardIt1 search (ExecutionPolicy&& policy,
+                     ForwardIt1 first, ForwardIt1 last,
+                     ForwardIt2 s_first, ForwardIt2 s_last);
+
+  template <class ForwardIt1, class ForwardIt2, class BinaryPredicate>
+  ForwardIt1 search (ForwardIt1 first, ForwardIt1 last,
+                     ForwardIt2 s_first, ForwardIt2 s_last, BinaryPredicate p);
+
+  template <class ExecutionPolicy, class ForwardIt1, class ForwardIt2,
+            class BinaryPredicate >
+  ForwardIt1 search (ExecutionPolicy&& policy,
+                     ForwardIt1 first, ForwardIt1 last,
+                     ForwardIt2 s_first, ForwardIt2 s_last, BinaryPredicate p);
+
+  template <class ForwardIt, class Searcher>
+  ForwardIt search (ForwardIt first, ForwardIt last, const Searcher& searcher);
+
+  template <class ForwardIt, class Size, class T>
+  ForwardIt search_n (ForwardIt first, ForwardIt last, Size count,
+                      const T& value);
+
+  template <class ExecutionPolicy, class ForwardIt, class Size, class T>
+  ForwardIt search_n (ExecutionPolicy&& policy, ForwardIt first, ForwardIt last,
+                      Size count, const T& value);
+
+  template <class ForwardIt, class Size, class T, class BinaryPredicate>
+  ForwardIt search_n (ForwardIt first, ForwardIt last, Size count,
+                      const T& value, BinaryPredicate p);
+
+  template <class ExecutionPolicy, class ForwardIt, class Size, class T,
+            class BinaryPredicate>
+  ForwardIt search_n (ExecutionPolicy&& policy, ForwardIt first, ForwardIt last,
+                      Size count, const T& value, BinaryPredicate p);
 
   template <class InputIterator, class OutputIterator>
   OutputIterator copy(InputIterator first, InputIterator last,
@@ -915,4 +1034,22 @@ template<
     iterator begin() const { return iterator(val); }
     iterator end() const { return iterator(val + 1); }
 };
+
+namespace execution {
+class sequenced_policy {};
+}
+
+template <class T = void> struct equal_to {};
+
+template <class ForwardIt, class BinaryPredicate = std::equal_to<> >
+class default_searcher {
+public:
+  default_searcher (ForwardIt pat_first,
+                    ForwardIt pat_last,
+                    BinaryPredicate pred = BinaryPredicate());
+  template <class ForwardIt2>
+  std::pair <ForwardIt2, ForwardIt2>
+  operator()( ForwardIt2 first, ForwardIt2 last ) const;
+};
+
 }

@@ -18,7 +18,7 @@ function(find_darwin_sdk_dir var sdk_name)
   if(NOT DARWIN_PREFER_PUBLIC_SDK)
     # Let's first try the internal SDK, otherwise use the public SDK.
     execute_process(
-      COMMAND xcodebuild -version -sdk ${sdk_name}.internal Path
+      COMMAND xcrun --sdk ${sdk_name}.internal --show-sdk-path
       RESULT_VARIABLE result_process
       OUTPUT_VARIABLE var_internal
       OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -27,7 +27,7 @@ function(find_darwin_sdk_dir var sdk_name)
   endif()
   if((NOT result_process EQUAL 0) OR "" STREQUAL "${var_internal}")
     execute_process(
-      COMMAND xcodebuild -version -sdk ${sdk_name} Path
+      COMMAND xcrun --sdk ${sdk_name} --show-sdk-path
       RESULT_VARIABLE result_process
       OUTPUT_VARIABLE var_internal
       OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -39,6 +39,7 @@ function(find_darwin_sdk_dir var sdk_name)
   if(result_process EQUAL 0)
     set(${var} ${var_internal} PARENT_SCOPE)
   endif()
+  message(STATUS "Checking DARWIN_${sdk_name}_SYSROOT - '${var_internal}'")
   set(DARWIN_${sdk_name}_CACHED_SYSROOT ${var_internal} CACHE STRING "Darwin SDK path for SDK ${sdk_name}." FORCE)
 endfunction()
 
@@ -49,7 +50,7 @@ function(find_darwin_sdk_version var sdk_name)
   if(NOT DARWIN_PREFER_PUBLIC_SDK)
     # Let's first try the internal SDK, otherwise use the public SDK.
     execute_process(
-      COMMAND xcodebuild -version -sdk ${sdk_name}.internal SDKVersion
+      COMMAND xcrun --sdk ${sdk_name}.internal --show-sdk-version
       RESULT_VARIABLE result_process
       OUTPUT_VARIABLE var_internal
       OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -58,7 +59,7 @@ function(find_darwin_sdk_version var sdk_name)
   endif()
   if((NOT ${result_process} EQUAL 0) OR "" STREQUAL "${var_internal}")
     execute_process(
-      COMMAND xcodebuild -version -sdk ${sdk_name} SDKVersion
+      COMMAND xcrun --sdk ${sdk_name} --show-sdk-version
       RESULT_VARIABLE result_process
       OUTPUT_VARIABLE var_internal
       OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -244,7 +245,7 @@ macro(darwin_add_builtin_library name suffix)
   cmake_parse_arguments(LIB
     ""
     "PARENT_TARGET;OS;ARCH"
-    "SOURCES;CFLAGS;DEFS"
+    "SOURCES;CFLAGS;DEFS;INCLUDE_DIRS"
     ${ARGN})
   set(libname "${name}.${suffix}_${LIB_ARCH}_${LIB_OS}")
   add_library(${libname} STATIC ${LIB_SOURCES})
@@ -268,6 +269,8 @@ macro(darwin_add_builtin_library name suffix)
     ${sysroot_flag}
     ${DARWIN_${LIB_OS}_BUILTIN_MIN_VER_FLAG}
     ${builtin_cflags})
+  target_include_directories(${libname}
+    PRIVATE ${LIB_INCLUDE_DIRS})
   set_property(TARGET ${libname} APPEND PROPERTY
       COMPILE_DEFINITIONS ${LIB_DEFS})
   set_target_properties(${libname} PROPERTIES
@@ -372,6 +375,7 @@ macro(darwin_add_builtin_libraries)
                                 SOURCES ${filtered_sources} ${PROFILE_SOURCES}
                                 CFLAGS ${CFLAGS} -arch ${arch} -mkernel
                                 DEFS KERNEL_USE
+                                INCLUDE_DIRS ../../include
                                 PARENT_TARGET builtins)
       endforeach()
       set(archive_name clang_rt.cc_kext_${os})

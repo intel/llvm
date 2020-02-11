@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,

@@ -1,4 +1,4 @@
-//===-- PluginManager.cpp ---------------------------------------*- C++ -*-===//
+//===-- PluginManager.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -86,7 +86,7 @@ static void SetPluginInfo(const FileSpec &plugin_file_spec,
 }
 
 template <typename FPtrTy> static FPtrTy CastToFPtr(void *VPtr) {
-  return reinterpret_cast<FPtrTy>(reinterpret_cast<intptr_t>(VPtr));
+  return reinterpret_cast<FPtrTy>(VPtr);
 }
 
 static FileSystem::EnumerateDirectoryResult
@@ -299,7 +299,8 @@ void PluginManager::RegisterPlugin(ConstString name,
                                    llvm::StringRef description,
                                    ArchitectureCreateInstance create_callback) {
   std::lock_guard<std::mutex> guard(GetArchitectureMutex());
-  GetArchitectureInstances().push_back({name, description, create_callback});
+  GetArchitectureInstances().push_back(
+      {name, std::string(description), create_callback});
 }
 
 void PluginManager::UnregisterPlugin(

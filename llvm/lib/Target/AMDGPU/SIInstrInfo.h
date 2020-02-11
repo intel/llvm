@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
@@ -46,6 +47,7 @@ class SIInstrInfo final : public AMDGPUGenInstrInfo {
 private:
   const SIRegisterInfo RI;
   const GCNSubtarget &ST;
+  TargetSchedModel SchedModel;
 
   // The inverse predicate should have the negative value.
   enum BranchPredicate {
@@ -179,20 +181,21 @@ public:
                                int64_t &Offset1,
                                int64_t &Offset2) const override;
 
-  bool getMemOperandWithOffset(const MachineInstr &LdSt,
-                               const MachineOperand *&BaseOp,
-                               int64_t &Offset,
-                               const TargetRegisterInfo *TRI) const final;
+  bool
+  getMemOperandsWithOffset(const MachineInstr &LdSt,
+                           SmallVectorImpl<const MachineOperand *> &BaseOps,
+                           int64_t &Offset,
+                           const TargetRegisterInfo *TRI) const final;
 
-  bool shouldClusterMemOps(const MachineOperand &BaseOp1,
-                           const MachineOperand &BaseOp2,
+  bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                           ArrayRef<const MachineOperand *> BaseOps2,
                            unsigned NumLoads) const override;
 
   bool shouldScheduleLoadsNear(SDNode *Load0, SDNode *Load1, int64_t Offset0,
                                int64_t Offset1, unsigned NumLoads) const override;
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                   const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+                   const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
                    bool KillSrc) const override;
 
   unsigned calculateLDSSpillAddress(MachineBasicBlock &MBB, MachineInstr &MI,
@@ -217,13 +220,13 @@ public:
                     unsigned SrcReg, int Value)  const;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MI, unsigned SrcReg,
+                           MachineBasicBlock::iterator MI, Register SrcReg,
                            bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI, unsigned DestReg,
+                            MachineBasicBlock::iterator MI, Register DestReg,
                             int FrameIndex, const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
@@ -241,6 +244,9 @@ public:
   // register.  If there is no hardware instruction that can store to \p
   // DstRC, then AMDGPU::COPY is returned.
   unsigned getMovOpcode(const TargetRegisterClass *DstRC) const;
+
+  const MCInstrDesc &getIndirectRegWritePseudo(
+    unsigned VecSize, unsigned EltSize, bool IsSGPR) const;
 
   LLVM_READONLY
   int commuteOpcode(unsigned Opc) const;
@@ -291,9 +297,8 @@ public:
     SmallVectorImpl<MachineOperand> &Cond) const override;
 
   bool canInsertSelect(const MachineBasicBlock &MBB,
-                       ArrayRef<MachineOperand> Cond,
-                       unsigned TrueReg, unsigned FalseReg,
-                       int &CondCycles,
+                       ArrayRef<MachineOperand> Cond, unsigned DstReg,
+                       unsigned TrueReg, unsigned FalseReg, int &CondCycles,
                        int &TrueCycles, int &FalseCycles) const override;
 
   void insertSelect(MachineBasicBlock &MBB,
@@ -692,6 +697,10 @@ public:
 
   bool isInlineConstant(const APInt &Imm) const;
 
+  bool isInlineConstant(const APFloat &Imm) const {
+    return isInlineConstant(Imm.bitcastToAPInt());
+  }
+
   bool isInlineConstant(const MachineOperand &MO, uint8_t OperandType) const;
 
   bool isInlineConstant(const MachineOperand &MO,
@@ -922,7 +931,7 @@ public:
   uint64_t getScratchRsrcWords23() const;
 
   bool isLowLatencyInstruction(const MachineInstr &MI) const;
-  bool isHighLatencyInstruction(const MachineInstr &MI) const;
+  bool isHighLatencyDef(int Opc) const override;
 
   /// Return the descriptor of the target-specific machine instruction
   /// that corresponds to the specified pseudo or native opcode.
@@ -977,7 +986,7 @@ public:
   MachineInstr *createPHISourceCopy(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator InsPt,
                                     const DebugLoc &DL, Register Src,
-                                    Register SrcSubReg,
+                                    unsigned SrcSubReg,
                                     Register Dst) const override;
 
   bool isWave32() const;
@@ -1017,6 +1026,10 @@ public:
   /// not exist. If Opcode is not a pseudo instruction, this is identity.
   int pseudoToMCOpcode(int Opcode) const;
 
+  /// \brief Check if this instruction should only be used by assembler.
+  /// Return true if this opcode should not be used by codegen.
+  bool isAsmOnlyOpcode(int MCOp) const;
+
   const TargetRegisterClass *getRegClass(const MCInstrDesc &TID, unsigned OpNum,
                                          const TargetRegisterInfo *TRI,
                                          const MachineFunction &MF)
@@ -1027,6 +1040,17 @@ public:
   }
 
   void fixImplicitOperands(MachineInstr &MI) const;
+
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                                      ArrayRef<unsigned> Ops,
+                                      MachineBasicBlock::iterator InsertPt,
+                                      int FrameIndex,
+                                      LiveIntervals *LIS = nullptr,
+                                      VirtRegMap *VRM = nullptr) const override;
+
+  unsigned getInstrLatency(const InstrItineraryData *ItinData,
+                           const MachineInstr &MI,
+                           unsigned *PredCost = nullptr) const override;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class

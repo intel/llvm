@@ -11,6 +11,7 @@
 #include "ToolChains/Arch/ARM.h"
 #include "ToolChains/Clang.h"
 #include "ToolChains/InterfaceStubs.h"
+#include "ToolChains/Flang.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Config/config.h"
@@ -151,6 +152,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"cpp", "--driver-mode=cpp"},
       {"cl", "--driver-mode=cl"},
       {"++", "--driver-mode=g++"},
+      {"flang", "--driver-mode=flang"},
   };
 
   for (size_t i = 0; i < llvm::array_lengthof(DriverSuffixes); ++i) {
@@ -166,7 +168,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
 /// Normalize the program name from argv[0] by stripping the file extension if
 /// present and lower-casing the string on Windows.
 static std::string normalizeProgramName(llvm::StringRef Argv0) {
-  std::string ProgName = llvm::sys::path::stem(Argv0);
+  std::string ProgName = std::string(llvm::sys::path::stem(Argv0));
 #ifdef _WIN32
   // Transform to lowercase for case insensitive file systems.
   std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(), ::tolower);
@@ -219,8 +221,10 @@ ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
   StringRef Prefix(ProgName);
   Prefix = Prefix.slice(0, LastComponent);
   std::string IgnoredError;
-  bool IsRegistered = llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError);
-  return ParsedClangName{Prefix, ModeSuffix, DS->ModeFlag, IsRegistered};
+  bool IsRegistered =
+      llvm::TargetRegistry::lookupTarget(std::string(Prefix), IgnoredError);
+  return ParsedClangName{std::string(Prefix), ModeSuffix, DS->ModeFlag,
+                         IsRegistered};
 }
 
 StringRef ToolChain::getDefaultUniversalArchName() const {
@@ -252,6 +256,12 @@ Tool *ToolChain::getClang() const {
   if (!Clang)
     Clang.reset(new tools::Clang(*this));
   return Clang.get();
+}
+
+Tool *ToolChain::getFlang() const {
+  if (!Flang)
+    Flang.reset(new tools::Flang(*this));
+  return Flang.get();
 }
 
 Tool *ToolChain::buildAssembler() const {
@@ -314,6 +324,12 @@ Tool *ToolChain::getSPIRCheck() const {
   return SPIRCheck.get();
 }
 
+Tool *ToolChain::getSYCLPostLink() const {
+  if (!SYCLPostLink)
+    SYCLPostLink.reset(new tools::SYCLPostLink(*this));
+  return SYCLPostLink.get();
+}
+
 Tool *ToolChain::getBackendCompiler() const {
   if (!BackendCompiler)
     BackendCompiler.reset(buildBackendCompiler());
@@ -362,6 +378,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::SPIRCheckJobClass:
     return getSPIRCheck();
 
+  case Action::SYCLPostLinkJobClass:
+    return getSYCLPostLink();
+
   case Action::BackendCompileJobClass:
     return getBackendCompiler();
   }
@@ -408,7 +427,7 @@ std::string ToolChain::getCompilerRTPath() const {
   } else {
     llvm::sys::path::append(Path, "lib", getOSLibName());
   }
-  return Path.str();
+  return std::string(Path.str());
 }
 
 std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
@@ -438,7 +457,7 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
     SmallString<128> P(LibPath);
     llvm::sys::path::append(P, Prefix + Twine("clang_rt.") + Component + Suffix);
     if (getVFS().exists(P))
-      return P.str();
+      return std::string(P.str());
   }
 
   StringRef Arch = getArchNameForCompilerRTLib(*this, Args);
@@ -446,7 +465,7 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
   SmallString<128> Path(getCompilerRTPath());
   llvm::sys::path::append(Path, Prefix + Twine("clang_rt.") + Component + "-" +
                                     Arch + Env + Suffix);
-  return Path.str();
+  return std::string(Path.str());
 }
 
 const char *ToolChain::getCompilerRTArgString(const llvm::opt::ArgList &Args,
@@ -463,13 +482,13 @@ Optional<std::string> ToolChain::getRuntimePath() const {
   P.assign(D.ResourceDir);
   llvm::sys::path::append(P, "lib", D.getTargetTriple());
   if (getVFS().exists(P))
-    return llvm::Optional<std::string>(P.str());
+    return llvm::Optional<std::string>(std::string(P.str()));
 
   // Second try the normalized triple.
   P.assign(D.ResourceDir);
   llvm::sys::path::append(P, "lib", Triple.str());
   if (getVFS().exists(P))
-    return llvm::Optional<std::string>(P.str());
+    return llvm::Optional<std::string>(std::string(P.str()));
 
   return None;
 }
@@ -481,13 +500,13 @@ Optional<std::string> ToolChain::getCXXStdlibPath() const {
   P.assign(D.Dir);
   llvm::sys::path::append(P, "..", "lib", D.getTargetTriple(), "c++");
   if (getVFS().exists(P))
-    return llvm::Optional<std::string>(P.str());
+    return llvm::Optional<std::string>(std::string(P.str()));
 
   // Second try the normalized triple.
   P.assign(D.Dir);
   llvm::sys::path::append(P, "..", "lib", Triple.str(), "c++");
   if (getVFS().exists(P))
-    return llvm::Optional<std::string>(P.str());
+    return llvm::Optional<std::string>(std::string(P.str()));
 
   return None;
 }
@@ -496,7 +515,7 @@ std::string ToolChain::getArchSpecificLibPath() const {
   SmallString<128> Path(getDriver().ResourceDir);
   llvm::sys::path::append(Path, "lib", getOSLibName(),
                           llvm::Triple::getArchTypeName(getArch()));
-  return Path.str();
+  return std::string(Path.str());
 }
 
 bool ToolChain::needsProfileRT(const ArgList &Args) {
@@ -524,6 +543,7 @@ bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
 }
 
 Tool *ToolChain::SelectTool(const JobAction &JA) const {
+  if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
   if (getDriver().ShouldUseClangCompiler(JA)) return getClang();
   Action::ActionClass AC = JA.getKind();
   if (AC == Action::AssembleJobClass && useIntegratedAs())
@@ -547,7 +567,7 @@ std::string ToolChain::GetLinkerPath() const {
     // If we're passed what looks like an absolute path, don't attempt to
     // second-guess that.
     if (llvm::sys::fs::can_execute(UseLinker))
-      return UseLinker;
+      return std::string(UseLinker);
   } else if (UseLinker.empty() || UseLinker == "ld") {
     // If we're passed -fuse-ld= with no argument, or with the argument ld,
     // then use whatever the default system linker is.
@@ -572,7 +592,15 @@ std::string ToolChain::GetLinkerPath() const {
 }
 
 types::ID ToolChain::LookupTypeForExtension(StringRef Ext) const {
-  return types::lookupTypeForExtension(Ext);
+  types::ID id = types::lookupTypeForExtension(Ext);
+
+  // Flang always runs the preprocessor and has no notion of "preprocessed
+  // fortran". Here, TY_PP_Fortran is coerced to TY_Fortran to avoid treating
+  // them differently.
+  if (D.IsFlangMode() && id == types::TY_PP_Fortran)
+    id = types::TY_Fortran;
+
+  return id;
 }
 
 bool ToolChain::HasNativeLLVMSupport() const {
@@ -651,6 +679,8 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
     Triple.setArchName("arm64");
     return Triple.getTriple();
   }
+  case llvm::Triple::aarch64_32:
+    return getTripleString();
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
@@ -862,7 +892,7 @@ void ToolChain::addExternCSystemIncludeIfExists(const ArgList &DriverArgs,
 /*static*/ void ToolChain::addSystemIncludes(const ArgList &DriverArgs,
                                              ArgStringList &CC1Args,
                                              ArrayRef<StringRef> Paths) {
-  for (const auto Path : Paths) {
+  for (const auto &Path : Paths) {
     CC1Args.push_back("-internal-isystem");
     CC1Args.push_back(DriverArgs.MakeArgString(Path));
   }

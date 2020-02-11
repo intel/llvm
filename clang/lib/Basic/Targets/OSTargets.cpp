@@ -25,7 +25,7 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
   Builder.defineMacro("__APPLE_CC__", "6000");
   Builder.defineMacro("__APPLE__");
   Builder.defineMacro("__STDC_NO_THREADS__");
-  Builder.defineMacro("OBJC_NEW_PROPERTIES");
+
   // AddressSanitizer doesn't play well with source fortification, which is on
   // by default on Darwin.
   if (Opts.Sanitize.has(SanitizerKind::Address))
@@ -180,7 +180,7 @@ static void addVisualCDefines(const LangOptions &Opts, MacroBuilder &Builder) {
 
     if (Opts.isCompatibleWithMSVC(LangOptions::MSVC2015)) {
       if (Opts.CPlusPlus2a)
-        Builder.defineMacro("_MSVC_LANG", "201704L");
+        Builder.defineMacro("_MSVC_LANG", "201705L");
       else if (Opts.CPlusPlus17)
         Builder.defineMacro("_MSVC_LANG", "201703L");
       else if (Opts.CPlusPlus14)

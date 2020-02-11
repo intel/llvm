@@ -83,6 +83,7 @@
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
@@ -353,15 +354,11 @@ bool MergedLoadStoreMotion::run(Function &F, AliasAnalysis &AA) {
   // optimization opportunities.
   // This loop doesn't care about newly inserted/split blocks 
   // since they never will be diamond heads.
-  for (Function::iterator FI = F.begin(), FE = F.end(); FI != FE;) {
-    BasicBlock *BB = &*FI++;
-
+  for (BasicBlock &BB : make_early_inc_range(F))
     // Hoist equivalent loads and sink stores
     // outside diamonds when possible
-    if (isDiamondHead(BB)) {
-      Changed |= mergeStores(BB);
-    }
-  }
+    if (isDiamondHead(&BB))
+      Changed |= mergeStores(&BB);
   return Changed;
 }
 

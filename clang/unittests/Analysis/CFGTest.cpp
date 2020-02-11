@@ -7,10 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "CFGBuildResult.h"
+#include "clang/AST/Decl.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
+#include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Tooling/Tooling.h"
 #include "gtest/gtest.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -28,6 +32,22 @@ TEST(CFG, RangeBasedForOverDependentType) {
                      "  }\n"
                      "}\n";
   EXPECT_EQ(BuildResult::SawFunctionBody, BuildCFG(Code).getStatus());
+}
+
+TEST(CFG, StaticInitializerLastCondition) {
+  const char *Code = "void f() {\n"
+                     "  int i = 5 ;\n"
+                     "  static int j = 3 ;\n"
+                     "}\n";
+  CFG::BuildOptions Options;
+  Options.AddStaticInitBranches = true;
+  Options.setAllAlwaysAdd();
+  BuildResult B = BuildCFG(Code, Options);
+  EXPECT_EQ(BuildResult::BuiltCFG, B.getStatus());
+  EXPECT_EQ(1u, B.getCFG()->getEntry().succ_size());
+  CFGBlock *Block = *B.getCFG()->getEntry().succ_begin();
+  EXPECT_TRUE(isa<DeclStmt>(Block->getTerminatorStmt()));
+  EXPECT_EQ(nullptr, Block->getLastCondition());
 }
 
 // Constructing a CFG containing a delete expression on a dependent type should
@@ -57,14 +77,14 @@ TEST(CFG, IsLinear) {
     EXPECT_EQ(IsLinear, B.getCFG()->isLinear());
   };
 
-  expectLinear(true,  "void foo() {}");
-  expectLinear(true,  "void foo() { if (true) return; }");
-  expectLinear(true,  "void foo() { if constexpr (false); }");
+  expectLinear(true, "void foo() {}");
+  expectLinear(true, "void foo() { if (true) return; }");
+  expectLinear(true, "void foo() { if constexpr (false); }");
   expectLinear(false, "void foo(bool coin) { if (coin) return; }");
   expectLinear(false, "void foo() { for(;;); }");
   expectLinear(false, "void foo() { do {} while (true); }");
-  expectLinear(true,  "void foo() { do {} while (false); }");
-  expectLinear(true,  "void foo() { foo(); }"); // Recursion is not our problem.
+  expectLinear(true, "void foo() { do {} while (false); }");
+  expectLinear(true, "void foo() { foo(); }"); // Recursion is not our problem.
 }
 
 TEST(CFG, ElementRefIterator) {
@@ -198,6 +218,54 @@ TEST(CFG, ElementRefIterator) {
             CMainBlock->rref_end());
   EXPECT_EQ(CMainBlock->rref_begin()++, CMainBlock->rref_begin());
   EXPECT_EQ(++(CMainBlock->rref_begin()), CMainBlock->rref_begin() + 1);
+}
+
+TEST(CFG, Worklists) {
+  const char *Code = "int f(bool cond) {\n"
+                     "  int a = 5;\n"
+                     "  if (cond)\n"
+                     "    a += 1;\n"
+                     "  return a;\n"
+                     "}\n";
+  BuildResult B = BuildCFG(Code);
+  EXPECT_EQ(BuildResult::BuiltCFG, B.getStatus());
+  const FunctionDecl *Func = B.getFunc();
+  AnalysisDeclContext AC(nullptr, Func);
+  auto *CFG = AC.getCFG();
+
+  std::vector<const CFGBlock *> ReferenceOrder;
+  for (const auto *B : *AC.getAnalysis<PostOrderCFGView>())
+    ReferenceOrder.push_back(B);
+
+  {
+    ForwardDataflowWorklist ForwardWorklist(*CFG, AC);
+    for (const auto *B : *CFG)
+      ForwardWorklist.enqueueBlock(B);
+
+    std::vector<const CFGBlock *> ForwardNodes;
+    while (const CFGBlock *B = ForwardWorklist.dequeue())
+      ForwardNodes.push_back(B);
+
+    EXPECT_EQ(ForwardNodes.size(), ReferenceOrder.size());
+    EXPECT_TRUE(std::equal(ReferenceOrder.begin(), ReferenceOrder.end(),
+                           ForwardNodes.begin()));
+  }
+
+  std::reverse(ReferenceOrder.begin(), ReferenceOrder.end());
+
+  {
+    BackwardDataflowWorklist BackwardWorklist(*CFG, AC);
+    for (const auto *B : *CFG)
+      BackwardWorklist.enqueueBlock(B);
+
+    std::vector<const CFGBlock *> BackwardNodes;
+    while (const CFGBlock *B = BackwardWorklist.dequeue())
+      BackwardNodes.push_back(B);
+
+    EXPECT_EQ(BackwardNodes.size(), ReferenceOrder.size());
+    EXPECT_TRUE(std::equal(ReferenceOrder.begin(), ReferenceOrder.end(),
+                           BackwardNodes.begin()));
+  }
 }
 
 } // namespace

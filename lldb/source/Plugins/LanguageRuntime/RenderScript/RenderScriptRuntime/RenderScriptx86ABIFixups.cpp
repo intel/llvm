@@ -1,4 +1,4 @@
-//===-- RenderScriptx86ABIFixups.cpp ----------------------------*- C++ -*-===//
+//===-- RenderScriptx86ABIFixups.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -72,7 +72,7 @@ bool isRSAllocationTyCallSite(llvm::Module &module, llvm::CallInst *call_inst) {
   (void)module;
   if (!call_inst->hasByValArgument())
     return false;
-  for (const auto &param : call_inst->operand_values())
+  for (const auto *param : call_inst->operand_values())
     if (isRSAllocationPtrTy(param->getType()))
       return true;
   return false;

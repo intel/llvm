@@ -47,6 +47,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -649,7 +650,7 @@ InsertSafepointPoll(Instruction *InsertBefore,
 
   // Do the actual inlining
   InlineFunctionInfo IFI;
-  bool InlineStatus = InlineFunction(PollCall, IFI);
+  bool InlineStatus = InlineFunction(PollCall, IFI).isSuccess();
   assert(InlineStatus && "inline must succeed");
   (void)InlineStatus; // suppress warning in release-asserts
 

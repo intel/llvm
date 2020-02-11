@@ -145,6 +145,8 @@ int main() {
     return 0;
   }
   if (Queue.get_device().has_extension("cl_intel_subgroups")) {
+    typedef bool aligned_char __attribute__((aligned(16)));
+    check<aligned_char>(Queue);
     typedef int aligned_int __attribute__((aligned(16)));
     check<aligned_int>(Queue);
     check<aligned_int, 1>(Queue);

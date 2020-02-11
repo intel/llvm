@@ -33,6 +33,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/User.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Scalar.h"
@@ -67,7 +68,7 @@ static bool simplifyLoopInst(Loop &L, DominatorTree &DT, LoopInfo &LI,
 
   // While simplifying we may discover dead code or cause code to become dead.
   // Keep track of all such instructions and we will delete them at the end.
-  SmallVector<Instruction *, 8> DeadInsts;
+  SmallVector<WeakTrackingVH, 8> DeadInsts;
 
   // First we want to create an RPO traversal of the loop body. By processing in
   // RPO we can ensure that definitions are processed prior to uses (for non PHI
@@ -226,7 +227,8 @@ PreservedAnalyses LoopInstSimplifyPass::run(Loop &L, LoopAnalysisManager &AM,
   Optional<MemorySSAUpdater> MSSAU;
   if (AR.MSSA) {
     MSSAU = MemorySSAUpdater(AR.MSSA);
-    AR.MSSA->verifyMemorySSA();
+    if (VerifyMemorySSA)
+      AR.MSSA->verifyMemorySSA();
   }
   if (!simplifyLoopInst(L, AR.DT, AR.LI, AR.AC, AR.TLI,
                         MSSAU.hasValue() ? MSSAU.getPointer() : nullptr))

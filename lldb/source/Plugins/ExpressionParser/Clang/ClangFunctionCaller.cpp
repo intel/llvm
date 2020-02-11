@@ -1,4 +1,4 @@
-//===-- ClangFunctionCaller.cpp ---------------------------------*- C++ -*-===//
+//===-- ClangFunctionCaller.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,12 +21,12 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/IR/Module.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectList.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -41,6 +41,8 @@
 #include "lldb/Utility/State.h"
 
 using namespace lldb_private;
+
+char ClangFunctionCaller::ID;
 
 // ClangFunctionCaller constructor
 ClangFunctionCaller::ClangFunctionCaller(ExecutionContextScope &exe_scope,
@@ -186,10 +188,10 @@ ClangFunctionCaller::CompileFunction(lldb::ThreadSP thread_to_use_sp,
   lldb::ProcessSP jit_process_sp(m_jit_process_wp.lock());
   if (jit_process_sp) {
     const bool generate_debug_info = true;
-    m_parser.reset(new ClangExpressionParser(jit_process_sp.get(), *this,
-                                             generate_debug_info));
-
-    num_errors = m_parser->Parse(diagnostic_manager);
+    auto *clang_parser = new ClangExpressionParser(jit_process_sp.get(), *this,
+                                                   generate_debug_info);
+    num_errors = clang_parser->Parse(diagnostic_manager);
+    m_parser.reset(clang_parser);
   } else {
     diagnostic_manager.PutString(eDiagnosticSeverityError,
                                  "no process - unable to inject function");

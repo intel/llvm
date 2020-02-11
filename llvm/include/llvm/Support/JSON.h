@@ -122,6 +122,8 @@ public:
   std::pair<iterator, bool> try_emplace(ObjectKey &&K, Ts &&... Args) {
     return M.try_emplace(std::move(K), std::forward<Ts>(Args)...);
   }
+  bool erase(StringRef K);
+  void erase(iterator I) { M.erase(I); }
 
   iterator find(StringRef K) { return M.find_as(K); }
   const_iterator find(StringRef K) const { return M.find_as(K); }
@@ -555,12 +557,15 @@ inline Object::Object(std::initializer_list<KV> Properties) {
 inline std::pair<Object::iterator, bool> Object::insert(KV E) {
   return try_emplace(std::move(E.K), std::move(E.V));
 }
+inline bool Object::erase(StringRef K) {
+  return M.erase(ObjectKey(K));
+}
 
 // Standard deserializers are provided for primitive types.
 // See comments on Value.
 inline bool fromJSON(const Value &E, std::string &Out) {
   if (auto S = E.getAsString()) {
-    Out = *S;
+    Out = std::string(*S);
     return true;
   }
   return false;
@@ -593,6 +598,13 @@ inline bool fromJSON(const Value &E, bool &Out) {
   }
   return false;
 }
+inline bool fromJSON(const Value &E, std::nullptr_t &Out) {
+  if (auto S = E.getAsNull()) {
+    Out = *S;
+    return true;
+  }
+  return false;
+}
 template <typename T> bool fromJSON(const Value &E, llvm::Optional<T> &Out) {
   if (E.getAsNull()) {
     Out = llvm::None;
@@ -620,7 +632,7 @@ bool fromJSON(const Value &E, std::map<std::string, T> &Out) {
   if (auto *O = E.getAsObject()) {
     Out.clear();
     for (const auto &KV : *O)
-      if (!fromJSON(KV.second, Out[llvm::StringRef(KV.first)]))
+      if (!fromJSON(KV.second, Out[std::string(llvm::StringRef(KV.first))]))
         return false;
     return true;
   }
@@ -709,7 +721,7 @@ public:
 ///         J.attribute("timestamp", int64_t(E.Time));
 ///         J.attributeArray("participants", [&] {
 ///           for (const Participant &P : E.Participants)
-///             J.string(P.toString());
+///             J.value(P.toString());
 ///         });
 ///       });
 ///   });

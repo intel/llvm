@@ -5,10 +5,14 @@ ifeq "$(OS)" ""
 endif
 
 ifeq "$(OS)" "Darwin"
-    LDFLAGS = $(CFLAGS) -Xlinker -dead_strip
+    LD_EXTRAS = -Xlinker -dead_strip
 else
-    CFLAGS += -fdata-sections -ffunction-sections
-    LDFLAGS = $(CFLAGS) -Wl,--gc-sections
+    CFLAGS_EXTRAS += -fdata-sections -ffunction-sections
+    ifeq "$(OS)" "Windows_NT"
+        LD_EXTRAS = -Xlinker /OPT:REF
+    else
+        LD_EXTRAS = -Wl,--gc-sections
+    endif
 endif
 
 MAKE_DSYM := NO

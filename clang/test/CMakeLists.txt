@@ -9,22 +9,14 @@ endif ()
 
 string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
 
-if(CLANG_BUILT_STANDALONE)
-  # Set HAVE_LIBZ according to recorded LLVM_ENABLE_ZLIB value. This
-  # value is forced to 0 if zlib was not found, so it is fine to use it
-  # instead of HAVE_LIBZ (not recorded).
-  if(LLVM_ENABLE_ZLIB)
-    set(HAVE_LIBZ 1)
-  endif()
-endif()
-
 llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
   CLANG_ENABLE_ARCMT
   CLANG_ENABLE_STATIC_ANALYZER
+  CLANG_SPAWN_CC1
   ENABLE_BACKTRACES
   ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER
-  HAVE_LIBZ
+  LLVM_ENABLE_ZLIB
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_PLUGINS
   LLVM_ENABLE_THREADS)
@@ -136,6 +128,11 @@ if (CLANG_ENABLE_STATIC_ANALYZER)
       )
   endif()
 endif()
+
+# Copy gen_ast_dump_json_test.py to the clang build dir. This allows invoking
+# it without having to pass the --clang= argument
+configure_file(AST/gen_ast_dump_json_test.py
+  ${CLANG_BINARY_DIR}/bin/gen_ast_dump_json_test.py COPYONLY)
 
 add_custom_target(clang-test-depends DEPENDS ${CLANG_TEST_DEPS})
 set_target_properties(clang-test-depends PROPERTIES FOLDER "Clang tests")

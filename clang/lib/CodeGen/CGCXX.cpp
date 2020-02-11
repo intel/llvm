@@ -12,10 +12,11 @@
 
 // We might split this into multiple files if it gets too unwieldy
 
-#include "CodeGenModule.h"
 #include "CGCXXABI.h"
 #include "CodeGenFunction.h"
+#include "CodeGenModule.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
@@ -262,8 +263,8 @@ static CGCallee BuildAppleKextVirtualCall(CodeGenFunction &CGF,
                  AddressPoint.AddressPointIndex;
   llvm::Value *VFuncPtr =
     CGF.Builder.CreateConstInBoundsGEP1_64(VTable, VTableIndex, "vfnkxt");
-  llvm::Value *VFunc =
-    CGF.Builder.CreateAlignedLoad(VFuncPtr, CGF.PointerAlignInBytes);
+  llvm::Value *VFunc = CGF.Builder.CreateAlignedLoad(
+      VFuncPtr, llvm::Align(CGF.PointerAlignInBytes));
   CGCallee Callee(GD, VFunc);
   return Callee;
 }

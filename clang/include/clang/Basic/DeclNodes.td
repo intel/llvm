@@ -1,7 +1,7 @@
-class AttrSubject;
+include "clang/Basic/ASTNode.td"
 
 class DeclNode<DeclNode base, string diagSpelling = "", bit abstract = 0>
-    : AttrSubject {
+    : ASTNode, AttrSubject {
   DeclNode Base = base;
   bit Abstract = abstract;
   string DiagSpelling = diagSpelling;
@@ -100,4 +100,6 @@ def OMPThreadPrivate : DeclNode<Decl>;
 def OMPAllocate : DeclNode<Decl>;
 def OMPRequires : DeclNode<Decl>;
 def Empty : DeclNode<Decl>;
+def RequiresExprBody : DeclNode<Decl>, DeclContext;
+def LifetimeExtendedTemporary : DeclNode<Decl>;
 

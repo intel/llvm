@@ -1,4 +1,4 @@
-//===-- RegisterContextWindows.cpp ------------------------------*- C++ -*-===//
+//===-- RegisterContextWindows.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -154,15 +154,8 @@ bool RegisterContextWindows::CacheAllRegisterValues() {
     return true;
 
   TargetThreadWindows &wthread = static_cast<TargetThreadWindows &>(m_thread);
-  uint8_t buffer[2048];
-  memset(buffer, 0, sizeof(buffer));
-  PCONTEXT tmpContext = NULL;
-  DWORD contextLength = (DWORD)sizeof(buffer);
-  if (!::InitializeContext(buffer, kWinContextFlags, &tmpContext,
-                           &contextLength)) {
-    return false;
-  }
-  memcpy(&m_context, tmpContext, sizeof(m_context));
+  memset(&m_context, 0, sizeof(m_context));
+  m_context.ContextFlags = kWinContextFlags;
   if (::SuspendThread(
           wthread.GetHostThread().GetNativeThread().GetSystemHandle()) ==
       (DWORD)-1) {

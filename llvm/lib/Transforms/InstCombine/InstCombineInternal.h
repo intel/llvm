@@ -369,7 +369,8 @@ public:
   Instruction *visitFNeg(UnaryOperator &I);
   Instruction *visitAdd(BinaryOperator &I);
   Instruction *visitFAdd(BinaryOperator &I);
-  Value *OptimizePointerDifference(Value *LHS, Value *RHS, Type *Ty);
+  Value *OptimizePointerDifference(
+      Value *LHS, Value *RHS, Type *Ty, bool isNUW);
   Instruction *visitSub(BinaryOperator &I);
   Instruction *visitFSub(BinaryOperator &I);
   Instruction *visitMul(BinaryOperator &I);
@@ -446,6 +447,7 @@ public:
   Instruction *visitLandingPadInst(LandingPadInst &LI);
   Instruction *visitVAStartInst(VAStartInst &I);
   Instruction *visitVACopyInst(VACopyInst &I);
+  Instruction *visitFreeze(FreezeInst &I);
 
   /// Specify what to return for unhandled instructions.
   Instruction *visitInstruction(Instruction &I) { return nullptr; }
@@ -465,10 +467,14 @@ public:
   /// \return true if successful.
   bool replacePointer(Instruction &I, Value *V);
 
+  LoadInst *combineLoadToNewType(LoadInst &LI, Type *NewTy,
+                                 const Twine &Suffix = "");
+
 private:
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
   Value *dyn_castNegVal(Value *V) const;
+  Value *freelyNegateValue(Value *V);
   Type *FindElementAtOffset(PointerType *PtrTy, int64_t Offset,
                             SmallVectorImpl<Value *> &NewIndices);
 
@@ -642,7 +648,7 @@ public:
            "New instruction already inserted into a basic block!");
     BasicBlock *BB = Old.getParent();
     BB->getInstList().insert(Old.getIterator(), New); // Insert inst
-    Worklist.Add(New);
+    Worklist.push(New);
     return New;
   }
 
@@ -663,7 +669,7 @@ public:
     // no changes were made to the program.
     if (I.use_empty()) return nullptr;
 
-    Worklist.AddUsersToWorkList(I); // Add all modified instrs to worklist.
+    Worklist.pushUsersToWorkList(I); // Add all modified instrs to worklist.
 
     // If we are replacing the instruction with itself, this must be in a
     // segment of unreachable code, so just clobber the instruction.
@@ -674,6 +680,13 @@ public:
                       << "    with " << *V << '\n');
 
     I.replaceAllUsesWith(V);
+    return &I;
+  }
+
+  /// Replace operand of instruction and add old operand to the worklist.
+  Instruction *replaceOperand(Instruction &I, unsigned OpNum, Value *V) {
+    Worklist.addValue(I.getOperand(OpNum));
+    I.setOperand(OpNum, V);
     return &I;
   }
 
@@ -705,16 +718,16 @@ public:
   Instruction *eraseInstFromFunction(Instruction &I) {
     LLVM_DEBUG(dbgs() << "IC: ERASE " << I << '\n');
     assert(I.use_empty() && "Cannot erase instruction that is used!");
-    salvageDebugInfo(I);
+    salvageDebugInfoOrMarkUndef(I);
 
     // Make sure that we reprocess all operands now that we reduced their
     // use counts.
     if (I.getNumOperands() < 8) {
       for (Use &Operand : I.operands())
         if (auto *Inst = dyn_cast<Instruction>(Operand))
-          Worklist.Add(Inst);
+          Worklist.push(Inst);
     }
-    Worklist.Remove(&I);
+    Worklist.remove(&I);
     I.eraseFromParent();
     MadeIRChange = true;
     return nullptr; // Don't do anything with FI

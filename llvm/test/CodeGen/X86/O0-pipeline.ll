@@ -14,6 +14,7 @@
 ; CHECK-NEXT: Scoped NoAlias Alias Analysis
 ; CHECK-NEXT: Assumption Cache Tracker
 ; CHECK-NEXT: Create Garbage Collector Module Metadata
+; CHECK-NEXT: Profile summary info
 ; CHECK-NEXT: Machine Branch Probability Analysis
 ; CHECK-NEXT:   ModulePass Manager
 ; CHECK-NEXT:     Pre-ISel Intrinsic Lowering
@@ -37,6 +38,10 @@
 ; CHECK-NEXT:       Safe Stack instrumentation pass
 ; CHECK-NEXT:       Insert stack protectors
 ; CHECK-NEXT:       Module Verifier
+; CHECK-NEXT:       Dominator Tree Construction
+; CHECK-NEXT:       Natural Loop Information
+; CHECK-NEXT:       Lazy Branch Probability Analysis
+; CHECK-NEXT:       Lazy Block Frequency Analysis
 ; CHECK-NEXT:       X86 DAG->DAG Instruction Selection
 ; CHECK-NEXT:       X86 PIC Global Base Reg Initialization
 ; CHECK-NEXT:       Finalize ISel and expand pseudo-instructions
@@ -56,16 +61,17 @@
 ; CHECK-NEXT:       Post-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       X86 pseudo instruction expansion pass
 ; CHECK-NEXT:       Analyze Machine Code For Garbage Collection
+; CHECK-NEXT:       Insert fentry calls
+; CHECK-NEXT:       Insert XRay ops
+; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:       X86 Indirect Branch Tracking
 ; CHECK-NEXT:       X86 vzeroupper inserter
 ; CHECK-NEXT:       X86 Discriminate Memory Operands
 ; CHECK-NEXT:       X86 Insert Cache Prefetches
+; CHECK-NEXT:       X86 insert wait instruction
 ; CHECK-NEXT:       Contiguously Lay Out Funclets
 ; CHECK-NEXT:       StackMap Liveness Analysis
 ; CHECK-NEXT:       Live DEBUG_VALUE analysis
-; CHECK-NEXT:       Insert fentry calls
-; CHECK-NEXT:       Insert XRay ops
-; CHECK-NEXT:       Implement the 'patchable-function' attribute
 ; CHECK-NEXT:       X86 Retpoline Thunks
 ; CHECK-NEXT:       Check CFA info and insert CFI instructions if needed
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis

@@ -14,6 +14,7 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/Stack.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
@@ -30,6 +31,7 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
@@ -58,7 +60,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
       if (llvm::ErrorOr<std::string> P =
               llvm::sys::findProgramByName(ExecutablePath))
         ExecutablePath = *P;
-    return ExecutablePath.str();
+    return std::string(ExecutablePath.str());
   }
 
   // This just needs to be some symbol in the binary; C++ doesn't
@@ -69,7 +71,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
 
 static const char *GetStableCStr(std::set<std::string> &SavedStrings,
                                  StringRef S) {
-  return SavedStrings.insert(S).first->c_str();
+  return SavedStrings.insert(std::string(S)).first->c_str();
 }
 
 /// ApplyQAOverride - Apply a list of edits to the input argument lists.
@@ -263,13 +265,13 @@ static void FixupDiagPrefixExeName(TextDiagnosticPrinter *DiagClient,
   StringRef ExeBasename(llvm::sys::path::stem(Path));
   if (ExeBasename.equals_lower("cl"))
     ExeBasename = "clang-cl";
-  DiagClient->setPrefix(ExeBasename);
+  DiagClient->setPrefix(std::string(ExeBasename));
 }
 
 // This lets us create the DiagnosticsEngine with a properly-filled-out
 // DiagnosticOptions instance.
 static DiagnosticOptions *
-CreateAndPopulateDiagOpts(ArrayRef<const char *> argv) {
+CreateAndPopulateDiagOpts(ArrayRef<const char *> argv, bool &UseNewCC1Process) {
   auto *DiagOpts = new DiagnosticOptions;
   unsigned MissingArgIndex, MissingArgCount;
   InputArgList Args = getDriverOptTable().ParseArgs(
@@ -278,6 +280,12 @@ CreateAndPopulateDiagOpts(ArrayRef<const char *> argv) {
   // Any errors that would be diagnosed here will also be diagnosed later,
   // when the DiagnosticsEngine actually exists.
   (void)ParseDiagnosticArgs(*DiagOpts, Args);
+
+  UseNewCC1Process =
+      Args.hasFlag(clang::driver::options::OPT_fno_integrated_cc1,
+                   clang::driver::options::OPT_fintegrated_cc1,
+                   /*Default=*/CLANG_SPAWN_CC1);
+
   return DiagOpts;
 }
 
@@ -303,15 +311,27 @@ static void SetInstallDir(SmallVectorImpl<const char *> &argv,
     TheDriver.setInstalledDir(InstalledPathParent);
 }
 
-static int ExecuteCC1Tool(ArrayRef<const char *> argv, StringRef Tool) {
-  void *GetExecutablePathVP = (void *)(intptr_t) GetExecutablePath;
-  if (Tool == "")
-    return cc1_main(argv.slice(2), argv[0], GetExecutablePathVP);
-  if (Tool == "as")
-    return cc1as_main(argv.slice(2), argv[0], GetExecutablePathVP);
-  if (Tool == "gen-reproducer")
-    return cc1gen_reproducer_main(argv.slice(2), argv[0], GetExecutablePathVP);
+static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
+  // If we call the cc1 tool from the clangDriver library (through
+  // Driver::CC1Main), we need to clean up the options usage count. The options
+  // are currently global, and they might have been used previously by the
+  // driver.
+  llvm::cl::ResetAllOptionOccurrences();
 
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+  llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV,
+                                /*MarkEOLs=*/false);
+  StringRef Tool = ArgV[1];
+  void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
+  if (Tool == "-cc1")
+    return cc1_main(makeArrayRef(ArgV).slice(2), ArgV[0], GetExecutablePathVP);
+  if (Tool == "-cc1as")
+    return cc1as_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+                      GetExecutablePathVP);
+  if (Tool == "-cc1gen-reproducer")
+    return cc1gen_reproducer_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+                                  GetExecutablePathVP);
   // Reject unknown tools.
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
@@ -379,9 +399,11 @@ int main(int argc_, const char **argv_) {
       auto newEnd = std::remove(argv.begin(), argv.end(), nullptr);
       argv.resize(newEnd - argv.begin());
     }
-    return ExecuteCC1Tool(argv, argv[1] + 4);
+    return ExecuteCC1Tool(argv);
   }
 
+  // Handle options that need handling before the real command line parsing in
+  // Driver::BuildCompilation()
   bool CanonicalPrefixes = true;
   for (int i = 1, size = argv.size(); i < size; ++i) {
     // Skip end-of-line response file markers
@@ -426,8 +448,14 @@ int main(int argc_, const char **argv_) {
 
   std::string Path = GetExecutablePath(argv[0], CanonicalPrefixes);
 
+  // Whether the cc1 tool should be called inside the current process, or if we
+  // should spawn a new clang subprocess (old behavior).
+  // Not having an additional process saves some execution time of Windows,
+  // and makes debugging and profiling easier.
+  bool UseNewCC1Process;
+
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts =
-      CreateAndPopulateDiagOpts(argv);
+      CreateAndPopulateDiagOpts(argv, UseNewCC1Process);
 
   TextDiagnosticPrinter *DiagClient
     = new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
@@ -454,6 +482,12 @@ int main(int argc_, const char **argv_) {
   insertTargetAndModeArgs(TargetAndMode, argv, SavedStrings);
 
   SetBackdoorDriverOutputsFromEnvVars(TheDriver);
+
+  if (!UseNewCC1Process) {
+    TheDriver.CC1Main = &ExecuteCC1Tool;
+    // Ensure the CC1Command actually catches cc1 crashes
+    llvm::CrashRecoveryContext::Enable();
+  }
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(argv));
   int Res = 1;
@@ -503,7 +537,7 @@ int main(int argc_, const char **argv_) {
 
 #ifdef _WIN32
   // Exit status should not be negative on Win32, unless abnormal termination.
-  // Once abnormal termiation was caught, negative status should not be
+  // Once abnormal termination was caught, negative status should not be
   // propagated.
   if (Res < 0)
     Res = 1;

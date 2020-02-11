@@ -2,7 +2,6 @@
 Test lldb Python commands.
 """
 
-from __future__ import print_function
 
 import sys
 import lldb
@@ -87,12 +86,12 @@ class CmdPythonTestCase(TestBase):
                         substrs=["Python command defined by @lldb.command"])
 
         self.expect("help",
-                    substrs=['For more information run',
-                             'welcome'] + decorated_commands)
+                    substrs=['For more information run']
+                             + decorated_commands + ['welcome'])
 
         self.expect("help -a",
-                    substrs=['For more information run',
-                             'welcome'] + decorated_commands)
+                    substrs=['For more information run']
+                             + decorated_commands + ['welcome'])
 
         self.expect("help -u", matching=False,
                     substrs=['For more information run'])

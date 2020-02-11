@@ -225,8 +225,7 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC) {
       [=](CallInst *, std::vector<Value *> &Args) {
         std::swap(Args[1], Args[3]);
         Args.resize(2);
-        return mapAtomicName(OC == OpAtomicUMin ? OpAtomicSMin : OpAtomicSMax,
-                             CI->getType());
+        return mapAtomicName(OC, CI->getType());
       },
       &Attrs);
 }

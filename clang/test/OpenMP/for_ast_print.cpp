@@ -114,22 +114,30 @@ T tmain(T argc) {
 // CHECK-NEXT: a = 2;
 #pragma omp parallel
 #pragma omp for allocate(argc) private(argc, b), firstprivate(c, d), lastprivate(d, f) collapse(N) schedule(static, N) ordered(N) nowait
-  for (auto &x : arr)
-  for (int i = 0; i < 2; ++i)
-    for (int j = 0; j < 2; ++j)
+  for (auto &x : arr) {
+    int j, hhh = 0;
+    for (int i = 0; i < 2; ++i) {
+      int j, hhh = 0;
       for (int j = 0; j < 2; ++j)
         for (int j = 0; j < 2; ++j)
           for (int j = 0; j < 2; ++j)
-  for (int i = 0; i < 2; ++i)
-    for (int j = 0; j < 2; ++j)
-      for (int j = 0; j < 2; ++j)
-        for (int j = 0; j < 2; ++j)
-          for (int j = 0; j < 2; ++j)
-            foo();
+            for (int j = 0; j < 2; ++j)
+              for (int i = 0; i < 2; ++i)
+                for (int j = 0; j < 2; ++j)
+                  for (int j = 0; j < 2; ++j)
+                    for (int j = 0; j < 2; ++j)
+                      for (int j = 0; j < 2; ++j)
+                        foo();
+      ++hhh;
+    }
+    ++hhh;
+  }
   // CHECK-NEXT: #pragma omp parallel
   // CHECK-NEXT: #pragma omp for allocate(argc) private(argc,b) firstprivate(c,d) lastprivate(d,f) collapse(N) schedule(static, N) ordered(N) nowait
-  // CHECK-NEXT: for (auto &x : arr)
-  // CHECK-NEXT: for (int i = 0; i < 2; ++i)
+  // CHECK-NEXT: for (auto &x : arr) {
+  // CHECK-NEXT: int j, hhh = 0;
+  // CHECK-NEXT: for (int i = 0; i < 2; ++i) {
+  // CHECK-NEXT: int j, hhh = 0;
   // CHECK-NEXT: for (int j = 0; j < 2; ++j)
   // CHECK-NEXT: for (int j = 0; j < 2; ++j)
   // CHECK-NEXT: for (int j = 0; j < 2; ++j)
@@ -140,6 +148,10 @@ T tmain(T argc) {
   // CHECK-NEXT: for (int j = 0; j < 2; ++j)
   // CHECK-NEXT: for (int j = 0; j < 2; ++j)
   // CHECK-NEXT: foo();
+  // CHECK-NEXT: ++hhh;
+  // CHECK-NEXT: }
+  // CHECK-NEXT: ++hhh;
+  // CHECK-NEXT: }
   return T();
 }
 
@@ -149,8 +161,8 @@ int main(int argc, char **argv) {
   float arr[20];
   static int a;
 // CHECK: static int a;
-#pragma omp for schedule(guided, argc) reduction(+:argv[0][:1])
-  // CHECK-NEXT: #pragma omp for schedule(guided, argc) reduction(+: argv[0][:1])
+#pragma omp for schedule(guided, argc) reduction(+:argv[0][:1]) order(concurrent)
+  // CHECK-NEXT: #pragma omp for schedule(guided, argc) reduction(+: argv[0][:1]) order(concurrent)
   for (int i = 0; i < 2; ++i)
     a = 2;
 // CHECK-NEXT: for (int i = 0; i < 2; ++i)

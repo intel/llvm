@@ -89,7 +89,7 @@ public:
           llvm::raw_string_ostream buffer(storage);
           buffer << llvm::format("L%03d", _unnamedCounter++);
           StringRef newName = copyString(buffer.str());
-          _refNames[target] = newName;
+          _refNames[target] = std::string(newName);
           DEBUG_WITH_TYPE("WriterYAML",
                           llvm::dbgs() << "unnamed atom: creating ref-name: '"
                                        << newName << "' ("
@@ -119,9 +119,9 @@ public:
       llvm::raw_string_ostream buffer(Storage);
       buffer << atom.name() << llvm::format(".%03d", ++_collisionCount);
       StringRef newName = copyString(buffer.str());
-      _refNames[&atom] = newName;
+      _refNames[&atom] = std::string(newName);
       DEBUG_WITH_TYPE("WriterYAML",
-                      llvm::dbgs() << "name collsion: creating ref-name: '"
+                      llvm::dbgs() << "name collision: creating ref-name: '"
                                    << newName << "' ("
                                    << (const void *)newName.data()
                                    << ", " << newName.size() << ")\n");
@@ -133,9 +133,9 @@ public:
         llvm::raw_string_ostream buffer2(Storage2);
         buffer2 << prevAtom->name() << llvm::format(".%03d", ++_collisionCount);
         StringRef newName2 = copyString(buffer2.str());
-        _refNames[prevAtom] = newName2;
+        _refNames[prevAtom] = std::string(newName2);
         DEBUG_WITH_TYPE("WriterYAML",
-                        llvm::dbgs() << "name collsion: creating ref-name: '"
+                        llvm::dbgs() << "name collision: creating ref-name: '"
                                      << newName2 << "' ("
                                      << (const void *)newName2.data() << ", "
                                      << newName2.size() << ")\n");

@@ -2,7 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -57,12 +56,9 @@ class CppDataFormatterTestCase(TestBase):
         self.runCmd("type format add -C yes -f c Type1")
 
         # The type format list should show our custom formats.
-        self.expect("type format list",
-                    substrs=['RealNumber',
-                             'Speed',
-                             'BitField',
-                             'Type1',
-                             'Type2'])
+        self.expect(
+            "type format list",
+            substrs=['Speed', 'BitField', 'RealNumber', 'Type2', 'Type1'])
 
         self.expect("frame variable",
                     patterns=['\(Speed\) SPILookHex = 0x[0-9a-f]+'  # Speed should look hex-ish now.

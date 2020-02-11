@@ -5,13 +5,13 @@
 ; RUN:     FileCheck -check-prefix=DWARF-DUMP %s
 
 ; Check that we actually have relocations, otherwise this is kind of pointless.
-; READOBJ-RELOCS:  Section (8) .rela.debug_info {
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_info {
 ; READOBJ-RELOCS:    0x1B R_RISCV_ADD32 - 0x0
 ; READOBJ-RELOCS-NEXT:    0x1B R_RISCV_SUB32 - 0x0
-; READOBJ-RELOCS:  Section (15) .rela.debug_frame {
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_frame {
 ; READOBJ-RELOCS:    0x20 R_RISCV_ADD32 - 0x0
 ; READOBJ-RELOCS-NEXT:    0x20 R_RISCV_SUB32 - 0x0
-; READOBJ-RELOCS:  Section (17) .rela.debug_line {
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_line {
 ; READOBJ-RELOCS:    0x5A R_RISCV_ADD16 - 0x0
 ; READOBJ-RELOCS-NEXT:    0x5A R_RISCV_SUB16 - 0x0
 
@@ -85,7 +85,7 @@ entry:
   ret i32 0, !dbg !11
 }
 
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+relax" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+relax" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

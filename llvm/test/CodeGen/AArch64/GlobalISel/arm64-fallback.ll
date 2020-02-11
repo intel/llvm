@@ -85,7 +85,7 @@ define i64 @atomic_ops(i64* %addr) {
 ; Make sure we don't mess up metadata arguments.
 declare void @llvm.write_register.i64(metadata, i64)
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction: call: ' call void @llvm.write_register.i64(metadata !0, i64 0)' (in function: test_write_register_intrin)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_WRITE_REGISTER !0, %0:_(s64) (in function: test_write_register_intrin)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for test_write_register_intrin
 ; FALLBACK-WITH-REPORT-LABEL: test_write_register_intrin:
 define void @test_write_register_intrin() {
@@ -167,7 +167,7 @@ define void @nonpow2_load_narrowing() {
   ret void
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %5:fpr32(s32) = G_EXTRACT %{{[0-9]+}}:fpr(s128), 64 (in function: nonpow2_store_narrowing)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %{{[0-9]+}}:gpr64(s64), %{{[0-9]+}}:gpr(s1) = G_UADDE %{{[0-9]+}}:gpr, %{{[0-9]+}}:gpr, %{{[0-9]+}}:gpr (in function: nonpow2_store_narrowing)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_store_narrowing
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_store_narrowing:
 define void @nonpow2_store_narrowing(i96* %c) {
@@ -200,3 +200,21 @@ entry:
   call void @use_s128(i128 %p2, i128 %p6)
   ret i32 0
 }
+
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %2:fpr(<4 x s16>) = G_ZEXT %0:fpr(<4 x s8>) (in function: zext_v4s8)
+; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for zext_v4s8
+; FALLBACK-WITH-REPORT-OUT-LABEL: zext_v4s8
+define <4 x i16> @zext_v4s8(<4 x i8> %in) {
+  %ext = zext <4 x i8> %in to <4 x i16>
+  ret <4 x i16> %ext
+}
+
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: RET_ReallyLR implicit $x0 (in function: strict_align_feature)
+; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for strict_align_feature
+; FALLBACK-WITH-REPORT-OUT-LABEL: strict_align_feature
+define i64 @strict_align_feature(i64* %p) #0 {
+  %x = load i64, i64* %p, align 1
+  ret i64 %x
+}
+
+attributes #0 = { "target-features"="+strict-align" }

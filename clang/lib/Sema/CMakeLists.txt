@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
   Support
   )
 
@@ -29,6 +30,7 @@ add_clang_library(clangSema
   Sema.cpp
   SemaAccess.cpp
   SemaAttr.cpp
+  SemaAvailability.cpp
   SemaCXXScopeSpec.cpp
   SemaCast.cpp
   SemaChecking.cpp

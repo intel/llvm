@@ -920,3 +920,60 @@ define double @fmuladd_nan_addend_neginf_inf(double %x, i1 %y) {
   %r = call double @llvm.fmuladd.f64(double %notnan, double 0xfff0000000000000, double 0x7ff0000000000000)
   ret double %r
 }
+
+declare float @llvm.copysign.f32(float, float)
+declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
+
+define float @copysign_same_operand(float %x) {
+; CHECK-LABEL: @copysign_same_operand(
+; CHECK-NEXT:    ret float [[X:%.*]]
+;
+  %r = call float @llvm.copysign.f32(float %x, float %x)
+  ret float %r
+}
+
+define <2 x double> @copysign_same_operand_vec(<2 x double> %x) {
+; CHECK-LABEL: @copysign_same_operand_vec(
+; CHECK-NEXT:    ret <2 x double> [[X:%.*]]
+;
+  %r = call <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %x)
+  ret <2 x double> %r
+}
+
+define float @negated_sign_arg(float %x) {
+; CHECK-LABEL: @negated_sign_arg(
+; CHECK-NEXT:    [[NEGX:%.*]] = fsub ninf float -0.000000e+00, [[X:%.*]]
+; CHECK-NEXT:    ret float [[NEGX]]
+;
+  %negx = fsub ninf float -0.0, %x
+  %r = call arcp float @llvm.copysign.f32(float %x, float %negx)
+  ret float %r
+}
+
+define <2 x double> @negated_sign_arg_vec(<2 x double> %x) {
+; CHECK-LABEL: @negated_sign_arg_vec(
+; CHECK-NEXT:    [[NEGX:%.*]] = fneg afn <2 x double> [[X:%.*]]
+; CHECK-NEXT:    ret <2 x double> [[NEGX]]
+;
+  %negx = fneg afn <2 x double> %x
+  %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %negx)
+  ret <2 x double> %r
+}
+
+define float @negated_mag_arg(float %x) {
+; CHECK-LABEL: @negated_mag_arg(
+; CHECK-NEXT:    ret float [[X:%.*]]
+;
+  %negx = fneg nnan float %x
+  %r = call ninf float @llvm.copysign.f32(float %negx, float %x)
+  ret float %r
+}
+
+define <2 x double> @negated_mag_arg_vec(<2 x double> %x) {
+; CHECK-LABEL: @negated_mag_arg_vec(
+; CHECK-NEXT:    ret <2 x double> [[X:%.*]]
+;
+  %negx = fneg afn <2 x double> %x
+  %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %negx, <2 x double> %x)
+  ret <2 x double> %r
+}

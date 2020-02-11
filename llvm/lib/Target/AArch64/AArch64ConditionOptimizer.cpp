@@ -74,6 +74,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -298,7 +299,7 @@ void AArch64ConditionOptimizer::modifyCmp(MachineInstr *CmpMI,
   ++NumConditionsAdjusted;
 }
 
-// Parse a condition code returned by AnalyzeBranch, and compute the CondCode
+// Parse a condition code returned by analyzeBranch, and compute the CondCode
 // corresponding to TBB.
 // Returns true if parsing was successful, otherwise false is returned.
 static bool parseCond(ArrayRef<MachineOperand> Cond, AArch64CC::CondCode &CC) {

@@ -54,6 +54,8 @@ public:
   RTDyldObjectLinkingLayer(ExecutionSession &ES,
                            GetMemoryManagerFunction GetMemoryManager);
 
+  ~RTDyldObjectLinkingLayer();
+
   /// Emit the object.
   void emit(MaterializationResponsibility R,
             std::unique_ptr<MemoryBuffer> O) override;
@@ -168,7 +170,7 @@ protected:
       if (!SymEntry->second.getFlags().isExported() && ExportedSymbolsOnly)
         return nullptr;
       if (!Finalized)
-        return JITSymbol(getSymbolMaterializer(Name),
+        return JITSymbol(getSymbolMaterializer(std::string(Name)),
                          SymEntry->second.getFlags());
       return JITSymbol(SymEntry->second);
     }

@@ -108,9 +108,9 @@ public:
   ///     A const reference to the Right Hand Side object to compare.
   ///
   /// \return
-  ///     \li -1 if \a lhs is less than \a rhs
-  ///     \li 0 if \a lhs is equal to \a rhs
-  ///     \li 1 if \a lhs is greater than \a rhs
+  ///     -1 if \a lhs is less than \a rhs
+  ///     0 if \a lhs is equal to \a rhs
+  ///     1 if \a lhs is greater than \a rhs
   static int Compare(const Mangled &lhs, const Mangled &rhs);
 
   /// Dump a description of this object to a Stream \a s.
@@ -132,13 +132,13 @@ public:
   ///
   /// \return
   ///     A const reference to the demangled name string object.
-  ConstString GetDemangledName(lldb::LanguageType language) const;
+  ConstString GetDemangledName() const;
 
   /// Display demangled name get accessor.
   ///
   /// \return
   ///     A const reference to the display demangled name string object.
-  ConstString GetDisplayDemangledName(lldb::LanguageType language) const;
+  ConstString GetDisplayDemangledName() const;
 
   void SetDemangledName(ConstString name) { m_demangled = name; }
 
@@ -165,8 +165,7 @@ public:
   ///     A const reference to the preferred name string object if this
   ///     object has a valid name of that kind, else a const reference to the
   ///     other name is returned.
-  ConstString GetName(lldb::LanguageType language,
-                      NamePreference preference = ePreferDemangled) const;
+  ConstString GetName(NamePreference preference = ePreferDemangled) const;
 
   /// Check if "name" matches either the mangled or demangled name.
   ///
@@ -175,13 +174,12 @@ public:
   ///
   /// \return
   ///     \b True if \a name matches either name, \b false otherwise.
-  bool NameMatches(ConstString name, lldb::LanguageType language) const {
+  bool NameMatches(ConstString name) const {
     if (m_mangled == name)
       return true;
-    return GetDemangledName(language) == name;
+    return GetDemangledName() == name;
   }
-  bool NameMatches(const RegularExpression &regex,
-                   lldb::LanguageType language) const;
+  bool NameMatches(const RegularExpression &regex) const;
 
   /// Get the memory cost of this object.
   ///
@@ -260,6 +258,15 @@ public:
   ///     True on success, false otherwise.
   bool DemangleWithRichManglingInfo(RichManglingContext &context,
                                     SkipMangledNameFn *skip_mangled_name);
+
+  /// Try to identify the mangling scheme used.
+  /// \param[in] name
+  ///     The name we are attempting to identify the mangling scheme for.
+  ///
+  /// \return
+  ///     eManglingSchemeNone if no known mangling scheme could be identified
+  ///     for s, otherwise the enumerator for the mangling scheme detected.
+  static Mangled::ManglingScheme GetManglingScheme(llvm::StringRef const name);
 
 private:
   /// Mangled member variables.

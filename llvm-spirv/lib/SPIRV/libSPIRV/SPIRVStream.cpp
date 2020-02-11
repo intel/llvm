@@ -42,6 +42,8 @@
 #include "SPIRVNameMapEnum.h"
 #include "SPIRVOpCode.h"
 
+#include <limits> // std::numeric_limits
+
 namespace SPIRV {
 
 /// Write string with quote. Replace " with \".
@@ -256,6 +258,12 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
     }
   }
 
+  if (!M.getErrorLog().checkError(Entry->isImplemented(),
+                                  SPIRVEC_UnimplementedOpCode,
+                                  std::to_string(Entry->getOpCode()))) {
+    M.setInvalid();
+  }
+
   assert(!IS.bad() && !IS.fail() && "SPIRV stream fails");
   return Entry;
 }
@@ -265,6 +273,20 @@ void SPIRVDecoder::validate() const {
   assert(WordCount && "Invalid word count");
   assert(!IS.bad() && "Bad iInput stream");
 }
+
+// Skip \param n words in SPIR-V binary stream.
+// In case of SPIR-V text format always skip until the end of the line.
+void SPIRVDecoder::ignore(size_t N) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+  if (SPIRVUseTextFormat) {
+    IS.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    return;
+  }
+#endif
+  IS.ignore(N * sizeof(SPIRVWord));
+}
+
+void SPIRVDecoder::ignoreInstruction() { ignore(WordCount - 1); }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVNL &E) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT

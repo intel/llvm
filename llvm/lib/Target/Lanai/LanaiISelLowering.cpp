@@ -213,7 +213,7 @@ SDValue LanaiTargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 
 Register LanaiTargetLowering::getRegisterByName(
-  const char *RegName, EVT /*VT*/,
+  const char *RegName, LLT /*VT*/,
   const MachineFunction & /*MF*/) const {
   // Only unallocatable registers should be matched here.
   Register Reg = StringSwitch<unsigned>(RegName)
@@ -633,13 +633,13 @@ SDValue LanaiTargetLowering::LowerCCCCallTo(
 
     SDValue Arg = OutVals[I];
     unsigned Size = Flags.getByValSize();
-    unsigned Align = Flags.getByValAlign();
+    Align Alignment = Flags.getNonZeroByValAlign();
 
-    int FI = MFI.CreateStackObject(Size, Align, false);
+    int FI = MFI.CreateStackObject(Size, Alignment, false);
     SDValue FIPtr = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
     SDValue SizeNode = DAG.getConstant(Size, DL, MVT::i32);
 
-    Chain = DAG.getMemcpy(Chain, DL, FIPtr, Arg, SizeNode, Align,
+    Chain = DAG.getMemcpy(Chain, DL, FIPtr, Arg, SizeNode, Alignment,
                           /*IsVolatile=*/false,
                           /*AlwaysInline=*/false,
                           /*isTailCall=*/false, MachinePointerInfo(),

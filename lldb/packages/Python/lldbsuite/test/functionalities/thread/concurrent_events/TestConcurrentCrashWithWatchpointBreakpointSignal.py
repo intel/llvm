@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 import unittest2
 
@@ -15,7 +14,6 @@ class ConcurrentCrashWithWatchpointBreakpointSignal(ConcurrentEventsBase):
     @skipIfFreeBSD  # timing out on buildbot
     # Atomic sequences are not supported yet for MIPS in LLDB.
     @skipIf(triple='^mips')
-    @expectedFailureNetBSD
     @add_test_categories(["watchpoint"])
     def test(self):
         """ Test a thread that crashes while other threads generate a signal and hit a watchpoint and breakpoint. """

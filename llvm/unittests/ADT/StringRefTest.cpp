@@ -59,6 +59,16 @@ TEST(StringRefTest, Construction) {
   EXPECT_EQ("hello", StringRef("hello"));
   EXPECT_EQ("hello", StringRef("hello world", 5));
   EXPECT_EQ("hello", StringRef(std::string("hello")));
+#if __cplusplus > 201402L
+  EXPECT_EQ("hello", StringRef(std::string_view("hello")));
+#endif
+}
+
+TEST(StringRefTest, Conversion) {
+  EXPECT_EQ("hello", std::string(StringRef("hello")));
+#if __cplusplus > 201402L
+  EXPECT_EQ("hello", std::string_view(StringRef("hello")));
+#endif
 }
 
 TEST(StringRefTest, EmptyInitializerList) {
@@ -324,16 +334,20 @@ TEST(StringRefTest, Trim) {
   StringRef Str0("hello");
   StringRef Str1(" hello ");
   StringRef Str2("  hello  ");
+  StringRef Str3("\t\n\v\f\r  hello  \t\n\v\f\r");
 
   EXPECT_EQ(StringRef("hello"), Str0.rtrim());
   EXPECT_EQ(StringRef(" hello"), Str1.rtrim());
   EXPECT_EQ(StringRef("  hello"), Str2.rtrim());
+  EXPECT_EQ(StringRef("\t\n\v\f\r  hello"), Str3.rtrim());
   EXPECT_EQ(StringRef("hello"), Str0.ltrim());
   EXPECT_EQ(StringRef("hello "), Str1.ltrim());
   EXPECT_EQ(StringRef("hello  "), Str2.ltrim());
+  EXPECT_EQ(StringRef("hello  \t\n\v\f\r"), Str3.ltrim());
   EXPECT_EQ(StringRef("hello"), Str0.trim());
   EXPECT_EQ(StringRef("hello"), Str1.trim());
   EXPECT_EQ(StringRef("hello"), Str2.trim());
+  EXPECT_EQ(StringRef("hello"), Str3.trim());
 
   EXPECT_EQ(StringRef("ello"), Str0.trim("hhhhhhhhhhh"));
 
@@ -505,6 +519,14 @@ TEST(StringRefTest, Count) {
   EXPECT_EQ(1U, Str.count("hello"));
   EXPECT_EQ(1U, Str.count("ello"));
   EXPECT_EQ(0U, Str.count("zz"));
+  EXPECT_EQ(0U, Str.count(""));
+
+  StringRef OverlappingAbba("abbabba");
+  EXPECT_EQ(1U, OverlappingAbba.count("abba"));
+  StringRef NonOverlappingAbba("abbaabba");
+  EXPECT_EQ(2U, NonOverlappingAbba.count("abba"));
+  StringRef ComplexAbba("abbabbaxyzabbaxyz");
+  EXPECT_EQ(2U, ComplexAbba.count("abba"));
 }
 
 TEST(StringRefTest, EditDistance) {

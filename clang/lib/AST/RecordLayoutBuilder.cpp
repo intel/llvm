@@ -2199,8 +2199,9 @@ static bool mustSkipTailPadding(TargetCXXABI ABI, const CXXRecordDecl *RD) {
   llvm_unreachable("bad tail-padding use kind");
 }
 
-static bool isMsLayout(const ASTContext &Context) {
-  return Context.getTargetInfo().getCXXABI().isMicrosoft();
+static bool isMsLayout(const ASTContext &Context, bool CheckAuxABI = false) {
+  return (CheckAuxABI) ? Context.getAuxTargetInfo()->getCXXABI().isMicrosoft()
+                       : Context.getTargetInfo().getCXXABI().isMicrosoft();
 }
 
 // This section contains an implementation of struct layout that is, up to the
@@ -2956,7 +2957,7 @@ void MicrosoftRecordLayoutBuilder::computeVtorDispSet(
     const CXXRecordDecl *RD) const {
   // /vd2 or #pragma vtordisp(2): Always use vtordisps for virtual bases with
   // vftables.
-  if (RD->getMSVtorDispMode() == MSVtorDispAttr::ForVFTable) {
+  if (RD->getMSVtorDispMode() == MSVtorDispMode::ForVFTable) {
     for (const CXXBaseSpecifier &Base : RD->vbases()) {
       const CXXRecordDecl *BaseDecl = Base.getType()->getAsCXXRecordDecl();
       const ASTRecordLayout &Layout = Context.getASTRecordLayout(BaseDecl);
@@ -2979,12 +2980,12 @@ void MicrosoftRecordLayoutBuilder::computeVtorDispSet(
   // * A user declared constructor or destructor aren't declared.
   // * #pragma vtordisp(0) or the /vd0 flag are in use.
   if ((!RD->hasUserDeclaredConstructor() && !RD->hasUserDeclaredDestructor()) ||
-      RD->getMSVtorDispMode() == MSVtorDispAttr::Never)
+      RD->getMSVtorDispMode() == MSVtorDispMode::Never)
     return;
   // /vd1 or #pragma vtordisp(1): Try to guess based on whether we think it's
   // possible for a partially constructed object with virtual base overrides to
   // escape a non-trivial constructor.
-  assert(RD->getMSVtorDispMode() == MSVtorDispAttr::ForVBaseOverride);
+  assert(RD->getMSVtorDispMode() == MSVtorDispMode::ForVBaseOverride);
   // Compute a set of base classes which define methods we override.  A virtual
   // base in this set will require a vtordisp.  A virtual base that transitively
   // contains one of these bases as a non-virtual base will also require a
@@ -3025,6 +3026,9 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
   // as soon as we begin to parse the definition.  That definition is
   // not a complete definition (which is what isDefinition() tests)
   // until we *finish* parsing the definition.
+  bool CheckAuxABI = false;
+  if (getLangOpts().SYCLIsDevice && (getAuxTargetInfo() != nullptr))
+    CheckAuxABI = true;
 
   if (D->hasExternalLexicalStorage() && !D->getDefinition())
     getExternalSource()->CompleteType(const_cast<RecordDecl*>(D));
@@ -3042,7 +3046,7 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
 
   const ASTRecordLayout *NewEntry = nullptr;
 
-  if (isMsLayout(*this)) {
+  if (isMsLayout(*this, CheckAuxABI)) {
     MicrosoftRecordLayoutBuilder Builder(*this);
     if (const auto *RD = dyn_cast<CXXRecordDecl>(D)) {
       Builder.cxxLayout(RD);

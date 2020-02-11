@@ -2,7 +2,6 @@
 Test process attach/resume.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -16,6 +15,7 @@ exe_name = "AttachResume"  # Must match Makefile
 class AttachResumeTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     @skipIfRemote
     @expectedFailureAll(oslist=['freebsd'], bugnumber='llvm.org/pr19310')

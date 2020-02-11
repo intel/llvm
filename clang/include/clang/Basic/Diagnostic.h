@@ -95,7 +95,7 @@ public:
     FixItHint Hint;
     Hint.RemoveRange =
       CharSourceRange::getCharRange(InsertionLoc, InsertionLoc);
-    Hint.CodeToInsert = Code;
+    Hint.CodeToInsert = std::string(Code);
     Hint.BeforePreviousInsertions = BeforePreviousInsertions;
     return Hint;
   }
@@ -130,7 +130,7 @@ public:
                                      StringRef Code) {
     FixItHint Hint;
     Hint.RemoveRange = RemoveRange;
-    Hint.CodeToInsert = Code;
+    Hint.CodeToInsert = std::string(Code);
     return Hint;
   }
 
@@ -176,6 +176,9 @@ public:
 
     /// IdentifierInfo
     ak_identifierinfo,
+
+    /// address space
+    ak_addrspace,
 
     /// Qualifiers
     ak_qual,
@@ -472,6 +475,9 @@ private:
 
   /// Second string argument for the delayed diagnostic.
   std::string DelayedDiagArg2;
+
+  /// Third string argument for the delayed diagnostic.
+  std::string DelayedDiagArg3;
 
   /// Optional flag value.
   ///
@@ -874,8 +880,12 @@ public:
   /// \param Arg2 A string argument that will be provided to the
   /// diagnostic. A copy of this string will be stored in the
   /// DiagnosticsEngine object itself.
+  ///
+  /// \param Arg3 A string argument that will be provided to the
+  /// diagnostic. A copy of this string will be stored in the
+  /// DiagnosticsEngine object itself.
   void SetDelayedDiagnostic(unsigned DiagID, StringRef Arg1 = "",
-                            StringRef Arg2 = "");
+                            StringRef Arg2 = "", StringRef Arg3 = "");
 
   /// Clear out the current diagnostic.
   void Clear() { CurDiagID = std::numeric_limits<unsigned>::max(); }
@@ -1145,7 +1155,7 @@ public:
     assert(NumArgs < DiagnosticsEngine::MaxArguments &&
            "Too many arguments to diagnostic!");
     DiagObj->DiagArgumentsKind[NumArgs] = DiagnosticsEngine::ak_std_string;
-    DiagObj->DiagArgumentsStr[NumArgs++] = S;
+    DiagObj->DiagArgumentsStr[NumArgs++] = std::string(S);
   }
 
   void AddTaggedVal(intptr_t V, DiagnosticsEngine::ArgumentKind Kind) const {
@@ -1167,7 +1177,7 @@ public:
       DiagObj->DiagFixItHints.push_back(Hint);
   }
 
-  void addFlagValue(StringRef V) const { DiagObj->FlagValue = V; }
+  void addFlagValue(StringRef V) const { DiagObj->FlagValue = std::string(V); }
 };
 
 struct AddFlagValue {

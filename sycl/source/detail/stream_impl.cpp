@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <cstdio>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 

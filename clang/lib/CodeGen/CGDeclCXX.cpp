@@ -10,11 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CodeGenFunction.h"
 #include "CGCXXABI.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenMPRuntime.h"
+#include "CodeGenFunction.h"
 #include "TargetInfo.h"
+#include "clang/AST/Attr.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Intrinsics.h"
@@ -56,10 +57,11 @@ static void EmitDeclInit(CodeGenFunction &CGF, const VarDecl &D,
     CGF.EmitComplexExprIntoLValue(Init, lv, /*isInit*/ true);
     return;
   case TEK_Aggregate:
-    CGF.EmitAggExpr(Init, AggValueSlot::forLValue(lv,AggValueSlot::IsDestructed,
-                                          AggValueSlot::DoesNotNeedGCBarriers,
-                                                  AggValueSlot::IsNotAliased,
-                                                  AggValueSlot::DoesNotOverlap));
+    CGF.EmitAggExpr(Init,
+                    AggValueSlot::forLValue(lv, CGF, AggValueSlot::IsDestructed,
+                                            AggValueSlot::DoesNotNeedGCBarriers,
+                                            AggValueSlot::IsNotAliased,
+                                            AggValueSlot::DoesNotOverlap));
     return;
   }
   llvm_unreachable("bad evaluation kind");

@@ -16,15 +16,15 @@
 
 #include <cstring>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
-    PI_CALL(RT::piQueueGetInfo(m_CommandQueue,
-                               PI_QUEUE_INFO_REFERENCE_COUNT,
-                               sizeof(result), &result, nullptr));
+    getPlugin().call<PiApiKind::piQueueGetInfo>(
+        MCommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+        nullptr);
   return result;
 }
 
@@ -36,7 +36,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-event queue_impl::memset(std::shared_ptr<detail::queue_impl> Impl, void *Ptr,
+event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
                          int Value, size_t Count) {
   context Context = get_context();
   RT::PiEvent Event = nullptr;
@@ -48,13 +48,11 @@ event queue_impl::memset(std::shared_ptr<detail::queue_impl> Impl, void *Ptr,
   return event(pi::cast<cl_event>(Event), Context);
 }
 
-event queue_impl::memcpy(std::shared_ptr<detail::queue_impl> Impl, void *Dest,
+event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
                          const void *Src, size_t Count) {
   context Context = get_context();
   RT::PiEvent Event = nullptr;
-  // Not entirely sure when UseExclusiveQueue should be true
-  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {},
-                          /*ExclusiveQueue*/ false, Event);
+  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {}, Event);
 
   if (Context.is_host())
     return event();
@@ -69,11 +67,10 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
   }
 
   // non-Host device
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-      getSyclObjImpl(Context)->getUSMDispatch();
   RT::PiEvent Event = nullptr;
-
-  USMDispatch->memAdvise(getHandleRef(), Ptr, Length, Advice, &Event);
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
+                                                   Advice, &Event);
 
   return event(pi::cast<cl_event>(Event), Context);
 }

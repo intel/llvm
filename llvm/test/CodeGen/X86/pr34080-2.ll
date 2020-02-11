@@ -62,13 +62,13 @@ define void @computeJD(%struct.DateTime*) nounwind {
 ; CHECK-NEXT:    imull $60000, 24(%ebx), %ecx # imm = 0xEA60
 ; CHECK-NEXT:    addl %eax, %ecx
 ; CHECK-NEXT:    fldl 28(%ebx)
+; CHECK-NEXT:    fmuls {{\.LCPI.*}}
 ; CHECK-NEXT:    fnstcw {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    movzwl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    orl $3072, %eax # imm = 0xC00
 ; CHECK-NEXT:    movw %ax, {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    movl %ecx, %eax
 ; CHECK-NEXT:    sarl $31, %eax
-; CHECK-NEXT:    fmuls {{\.LCPI.*}}
 ; CHECK-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    fistpll {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    fldcw {{[0-9]+}}(%esp)
@@ -133,4 +133,4 @@ define void @computeJD(%struct.DateTime*) nounwind {
   ret void
 }
 
-attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="i486" "target-features"="+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="i486" "target-features"="+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }

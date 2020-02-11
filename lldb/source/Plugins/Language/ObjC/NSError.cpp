@@ -1,4 +1,4 @@
-//===-- NSError.cpp ---------------------------------------------*- C++ -*-===//
+//===-- NSError.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,10 @@
 
 #include "Cocoa.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/ProcessStructReader.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -86,10 +86,10 @@ bool lldb_private::formatters::NSError_SummaryProvider(
 
   ValueObjectSP domain_str_sp = ValueObject::CreateValueObjectFromData(
       "domain_str", isw.GetAsData(process_sp->GetByteOrder()),
-      valobj.GetExecutionContextRef(), process_sp->GetTarget()
-                                           .GetScratchClangASTContext()
-                                           ->GetBasicType(lldb::eBasicTypeVoid)
-                                           .GetPointerType());
+      valobj.GetExecutionContextRef(),
+      TypeSystemClang::GetScratch(process_sp->GetTarget())
+          ->GetBasicType(lldb::eBasicTypeVoid)
+          .GetPointerType());
 
   if (!domain_str_sp)
     return false;
@@ -156,8 +156,8 @@ public:
     m_child_sp = CreateValueObjectFromData(
         "_userInfo", isw.GetAsData(process_sp->GetByteOrder()),
         m_backend.GetExecutionContextRef(),
-        process_sp->GetTarget().GetScratchClangASTContext()->GetBasicType(
-            lldb::eBasicTypeObjCID));
+        TypeSystemClang::GetScratch(process_sp->GetTarget())
+            ->GetBasicType(lldb::eBasicTypeObjCID));
     return false;
   }
 

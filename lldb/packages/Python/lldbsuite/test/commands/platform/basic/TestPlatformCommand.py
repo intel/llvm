@@ -2,7 +2,6 @@
 Test some lldb platform commands.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -43,8 +42,9 @@ class PlatformCommandTestCase(TestBase):
                 'Platform',
                 'Triple',
                 'OS Version',
+                'Hostname',
                 'Kernel',
-                'Hostname'])
+            ])
 
     @expectedFailureAll(oslist=["windows"])
     @no_debug_info_test

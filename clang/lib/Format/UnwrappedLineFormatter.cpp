@@ -326,6 +326,19 @@ private:
               FormatStyle::BWACS_Always)
                  ? tryMergeSimpleBlock(I, E, Limit)
                  : 0;
+    } else if (I[1]->First->is(tok::l_brace) &&
+               TheLine->First->isOneOf(tok::kw_else, tok::kw_catch) &&
+               Style.BraceWrapping.AfterControlStatement ==
+                   FormatStyle::BWACS_MultiLine) {
+      // This case if different from the upper BWACS_MultiLine processing
+      // in that a preceding r_brace is not on the same line as else/catch
+      // most likely because of BeforeElse/BeforeCatch set to true.
+      // If the line length doesn't fit ColumnLimit, leave l_brace on the
+      // next line to respect the BWACS_MultiLine.
+      return (Style.ColumnLimit == 0 ||
+              TheLine->Last->TotalLength <= Style.ColumnLimit)
+                 ? 1
+                 : 0;
     }
     // Try to merge either empty or one-line block if is precedeed by control
     // statement token
@@ -580,9 +593,10 @@ private:
         FormatToken *RecordTok = Line.First;
         // Skip record modifiers.
         while (RecordTok->Next &&
-               RecordTok->isOneOf(tok::kw_typedef, tok::kw_export,
-                                  Keywords.kw_declare, Keywords.kw_abstract,
-                                  tok::kw_default))
+               RecordTok->isOneOf(
+                   tok::kw_typedef, tok::kw_export, Keywords.kw_declare,
+                   Keywords.kw_abstract, tok::kw_default, tok::kw_public,
+                   tok::kw_private, tok::kw_protected, Keywords.kw_internal))
           RecordTok = RecordTok->Next;
         if (RecordTok &&
             RecordTok->isOneOf(tok::kw_class, tok::kw_union, tok::kw_struct,

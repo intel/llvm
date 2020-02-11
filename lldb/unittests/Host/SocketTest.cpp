@@ -1,4 +1,4 @@
-//===-- SocketTest.cpp ------------------------------------------*- C++ -*-===//
+//===-- SocketTest.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "SocketTestUtilities.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Utility/UriParser.h"
 #include "gtest/gtest.h"
 
@@ -14,11 +16,7 @@ using namespace lldb_private;
 
 class SocketTest : public testing::Test {
 public:
-  void SetUp() override {
-    ASSERT_THAT_ERROR(Socket::Initialize(), llvm::Succeeded());
-  }
-
-  void TearDown() override { Socket::Terminate(); }
+  SubsystemRAII<Socket> subsystems;
 };
 
 TEST_F(SocketTest, DecodeHostAndPort) {
@@ -87,7 +85,7 @@ TEST_F(SocketTest, DecodeHostAndPort) {
   EXPECT_TRUE(error.Success());
 }
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 TEST_F(SocketTest, DomainListenConnectAccept) {
   llvm::SmallString<64> Path;
   std::error_code EC = llvm::sys::fs::createUniqueDirectory("DomainListenConnectAccept", Path);
@@ -191,7 +189,7 @@ TEST_F(SocketTest, UDPGetConnectURI) {
   EXPECT_EQ(scheme, "udp");
 }
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 TEST_F(SocketTest, DomainGetConnectURI) {
   llvm::SmallString<64> domain_path;
   std::error_code EC =

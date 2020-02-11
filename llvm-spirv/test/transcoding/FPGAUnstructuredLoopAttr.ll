@@ -13,18 +13,24 @@
 ; CHECK-SPIRV: 5 Name [[FOR:[0-9]+]] "for.cond"
 ; CHECK-SPIRV: 4 Name [[ENTRY_2:[0-9]+]] "entry"
 ; CHECK-SPIRV: 5 Name [[WHILE:[0-9]+]] "while.body"
+
 ; CHECK-SPIRV: 5 Function 2 [[FOO]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 2 Label [[ENTRY_1]]
 ; CHECK-SPIRV: 2 Branch [[FOR]]
 ; CHECK-SPIRV: 2 Label [[FOR]]
-; CHECK-SPIRV: 3 LoopControlINTEL 8 2
-; CHECK-SPIRV: 2 Branch [[FOR]]
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; MaxConcurrencyINTEL = 0x20000 (131072)
+; CHECK-SPIRV: 3 LoopControlINTEL 131072 2
+; CHECK-SPIRV-NEXT: 2 Branch [[FOR]]
+
 ; CHECK-SPIRV: 5 Function 2 [[BOO]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 2 Label [[ENTRY_2]]
 ; CHECK-SPIRV: 2 Branch [[WHILE]]
 ; CHECK-SPIRV: 2 Label [[WHILE]]
-; CHECK-SPIRV: 2 LoopControlINTEL 4
-; CHECK-SPIRV: 2 Branch [[WHILE]]
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; InitiationIntervalINTEL = 0x10000 (65536)
+; CHECK-SPIRV: 3 LoopControlINTEL 65536 2
+; CHECK-SPIRV-NEXT: 2 Branch [[WHILE]]
 
 ; ModuleID = 'infinite.cl'
 source_filename = "infinite.cl"
@@ -64,11 +70,11 @@ attributes #0 = { nounwind }
 !1 = !{i32 1, i32 2}
 !2 = !{!"clang version 9.0.0"}
 !3 = distinct !{!3, !4}
-!4 = !{!"llvm.loop.ivdep.safelen", i32 2}
+!4 = !{!"llvm.loop.max_concurrency.count", i32 2}
 !5 = distinct !{!5, !6}
-!6 = !{!"llvm.loop.ivdep.enable"}
+!6 = !{!"llvm.loop.ii.count", i32 2}
 
 ; CHECK-LLVM: ![[MD_1]] = distinct !{![[MD_1]], ![[LOOP_MD_1:[0-9]+]]}
-; CHECK-LLVM: ![[LOOP_MD_1]] = !{!"llvm.loop.ivdep.safelen", i32 2}
+; CHECK-LLVM: ![[LOOP_MD_1]] = !{!"llvm.loop.max_concurrency.count", i32 2}
 ; CHECK-LLVM: ![[MD_2]] = distinct !{![[MD_2]], ![[LOOP_MD_2:[0-9]+]]}
-; CHECK-LLVM: ![[LOOP_MD_2]] = !{!"llvm.loop.ivdep.enable"}
+; CHECK-LLVM: ![[LOOP_MD_2]] = !{!"llvm.loop.ii.count", i32 2}

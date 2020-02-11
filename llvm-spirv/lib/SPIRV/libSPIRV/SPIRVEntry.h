@@ -296,6 +296,9 @@ public:
   bool hasMemberDecorate(Decoration Kind, size_t Index = 0,
                          SPIRVWord MemberNumber = 0,
                          SPIRVWord *Result = 0) const;
+  std::vector<SPIRVWord> getDecorationLiterals(Decoration Kind) const;
+  std::vector<SPIRVWord>
+  getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
   std::vector<std::string>
   getMemberDecorationStringLiteral(Decoration Kind,
@@ -768,10 +771,6 @@ template <spv::Op OC> bool isa(SPIRVEntry *E) {
 _SPIRV_OP(Nop)
 _SPIRV_OP(SourceContinued)
 _SPIRV_OP(TypeRuntimeArray)
-_SPIRV_OP(SpecConstantTrue)
-_SPIRV_OP(SpecConstantFalse)
-_SPIRV_OP(SpecConstant)
-_SPIRV_OP(SpecConstantComposite)
 _SPIRV_OP(Image)
 _SPIRV_OP(ImageTexelPointer)
 _SPIRV_OP(ImageSampleDrefImplicitLod)
@@ -784,9 +783,7 @@ _SPIRV_OP(ImageFetch)
 _SPIRV_OP(ImageGather)
 _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
-_SPIRV_OP(Transpose)
 _SPIRV_OP(ArrayLength)
-_SPIRV_OP(MatrixTimesMatrix)
 _SPIRV_OP(OuterProduct)
 _SPIRV_OP(IAddCarry)
 _SPIRV_OP(ISubBorrow)

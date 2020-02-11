@@ -1,4 +1,4 @@
-//===-- CommandObjectLog.cpp ------------------------------------*- C++ -*-===//
+//===-- CommandObjectLog.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,23 +8,13 @@
 
 #include "CommandObjectLog.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/Options.h"
-#include "lldb/Symbol/LineTable.h"
-#include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/SymbolFile.h"
-#include "lldb/Symbol/SymbolVendor.h"
-#include "lldb/Target/Process.h"
-#include "lldb/Target/Target.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/Timer.h"
 
@@ -166,7 +156,7 @@ protected:
     }
 
     // Store into a std::string since we're about to shift the channel off.
-    const std::string channel = args[0].ref();
+    const std::string channel = std::string(args[0].ref());
     args.Shift(); // Shift off the channel
     char log_file[PATH_MAX];
     if (m_options.log_file)
@@ -239,7 +229,7 @@ protected:
       return false;
     }
 
-    const std::string channel = args[0].ref();
+    const std::string channel = std::string(args[0].ref());
     args.Shift(); // Shift off the channel
     if (channel == "all") {
       Log::DisableAllLogChannels();

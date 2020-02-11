@@ -16,6 +16,7 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugInfoEntry.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRnglists.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
@@ -199,17 +200,17 @@ class DWARFUnit {
   const DWARFDebugAbbrev *Abbrev;
   const DWARFSection *RangeSection;
   uint64_t RangeSectionBase;
-  /// We either keep track of the location list section or its data, depending
-  /// on whether we are handling a split DWARF section or not.
-  union {
-    const DWARFSection *LocSection;
-    StringRef LocSectionData;
-  };
+  const DWARFSection *LocSection;
+  uint64_t LocSectionBase;
+
+  /// Location table of this unit.
+  std::unique_ptr<DWARFLocationTable> LocTable;
+
   const DWARFSection &LineSection;
   StringRef StringSection;
   const DWARFSection &StringOffsetSection;
   const DWARFSection *AddrOffsetSection;
-  uint32_t AddrOffsetSectionBase = 0;
+  Optional<uint64_t> AddrOffsetSectionBase;
   bool isLittleEndian;
   bool IsDWO;
   const DWARFUnitVector &UnitVector;
@@ -220,6 +221,7 @@ class DWARFUnit {
 
   /// A table of range lists (DWARF v5 and later).
   Optional<DWARFDebugRnglistTable> RngListTable;
+  Optional<DWARFListTableHeader> LoclistTableHeader;
 
   mutable const DWARFAbbreviationDeclarationSet *Abbrevs;
   llvm::Optional<object::SectionedAddress> BaseAddr;
@@ -274,8 +276,6 @@ public:
   bool isDWOUnit() const { return IsDWO; }
   DWARFContext& getContext() const { return Context; }
   const DWARFSection &getInfoSection() const { return InfoSection; }
-  const DWARFSection *getLocSection() const { return LocSection; }
-  StringRef getLocSectionData() const { return LocSectionData; }
   uint64_t getOffset() const { return Header.getOffset(); }
   const dwarf::FormParams &getFormParams() const {
     return Header.getFormParams();
@@ -308,6 +308,14 @@ public:
     RangeSection = RS;
     RangeSectionBase = Base;
   }
+  void setLocSection(const DWARFSection *LS, uint64_t Base) {
+    LocSection = LS;
+    LocSectionBase = Base;
+  }
+
+  uint64_t getLocSectionBase() const {
+    return LocSectionBase;
+  }
 
   Optional<object::SectionedAddress>
   getAddrOffsetSectionItem(uint32_t Index) const;
@@ -318,6 +326,8 @@ public:
   DataExtractor getStringExtractor() const {
     return DataExtractor(StringSection, false, 0);
   }
+
+  const DWARFLocationTable &getLocationTable() { return *LocTable; }
 
   /// Extract the range list referenced by this compile unit from the
   /// .debug_ranges section. If the extraction is unsuccessful, an error
@@ -361,26 +371,6 @@ public:
     return false;
   }
 
-  /// Return the number of bytes for the header of a unit of
-  /// UnitType type.
-  ///
-  /// This function must be called with a valid unit type which in
-  /// DWARF5 is defined as one of the following six types.
-  static uint32_t getDWARF5HeaderSize(uint8_t UnitType) {
-    switch (UnitType) {
-    case dwarf::DW_UT_compile:
-    case dwarf::DW_UT_partial:
-      return 12;
-    case dwarf::DW_UT_skeleton:
-    case dwarf::DW_UT_split_compile:
-      return 20;
-    case dwarf::DW_UT_type:
-    case dwarf::DW_UT_split_type:
-      return 24;
-    }
-    llvm_unreachable("Invalid UnitType.");
-  }
-
   llvm::Optional<object::SectionedAddress> getBaseAddress();
 
   DWARFDie getUnitDIE(bool ExtractUnitDIEOnly = true) {
@@ -417,12 +407,24 @@ public:
   /// an entry in the rangelist table's offset array and is supplied by
   /// DW_FORM_rnglistx.
   Optional<uint64_t> getRnglistOffset(uint32_t Index) {
-    if (RngListTable)
-      return RngListTable->getOffsetEntry(Index);
+    if (!RngListTable)
+      return None;
+    if (Optional<uint64_t> Off = RngListTable->getOffsetEntry(Index))
+      return *Off + RangeSectionBase;
     return None;
   }
 
+  Optional<uint64_t> getLoclistOffset(uint32_t Index) {
+    if (!LoclistTableHeader)
+      return None;
+    if (Optional<uint64_t> Off = LoclistTableHeader->getOffsetEntry(Index))
+      return *Off + getLocSectionBase();
+    return None;
+  }
   Expected<DWARFAddressRangesVector> collectAddressRanges();
+
+  Expected<DWARFLocationExpressionsVector>
+  findLoclistFromOffset(uint64_t Offset);
 
   /// Returns subprogram DIE with address range encompassing the provided
   /// address. The pointer is alive as long as parsed compile unit DIEs are not

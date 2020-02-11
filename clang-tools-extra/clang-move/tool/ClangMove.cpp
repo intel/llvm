@@ -1,4 +1,4 @@
-//===-- ClangMove.cpp - move defintion to new file --------------*- C++ -*-===//
+//===-- ClangMove.cpp - move definition to new file -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -124,7 +124,8 @@ int main(int argc, const char **argv) {
                              Twine(EC.message()));
 
   move::ClangMoveContext Context{Spec, Tool.getReplacements(),
-                                 InitialDirectory.str(), Style, DumpDecls};
+                                 std::string(InitialDirectory.str()), Style,
+                                 DumpDecls};
   move::DeclarationReporter Reporter;
   move::ClangMoveActionFactory Factory(&Context, &Reporter);
 

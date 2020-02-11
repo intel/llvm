@@ -2,7 +2,6 @@
 Test calling a function that hits a signal set to auto-restart, make sure the call completes.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -27,6 +26,7 @@ class ExprCommandThatRestartsTestCase(TestBase):
     @skipIfDarwin  # llvm.org/pr19246: intermittent failure
     @skipIfWindows  # Test relies on signals, unsupported on Windows
     @expectedFlakeyAndroid(bugnumber="llvm.org/pr19246")
+    @expectedFailureNetBSD
     def test(self):
         """Test calling function that hits a signal and restarts."""
         self.build()

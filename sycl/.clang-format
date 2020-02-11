@@ -1,0 +1,2 @@
+BasedOnStyle: LLVM
+TypenameMacros: ['PI_CALL' ,'PI_CALL_THROW', 'PI_CALL_NOCHECK']

@@ -149,7 +149,7 @@ void update(FileIndex &M, llvm::StringRef Basename, llvm::StringRef Code) {
   TestTU File;
   File.Filename = (Basename + ".cpp").str();
   File.HeaderFilename = (Basename + ".h").str();
-  File.HeaderCode = Code;
+  File.HeaderCode = std::string(Code);
   auto AST = File.build();
   M.updatePreamble(File.Filename, AST.getASTContext(), AST.getPreprocessorPtr(),
                    AST.getCanonicalIncludes());
@@ -326,14 +326,14 @@ TEST(FileIndexTest, Refs) {
   // Add test.cc
   TestTU Test;
   Test.HeaderCode = HeaderCode;
-  Test.Code = MainCode.code();
+  Test.Code = std::string(MainCode.code());
   Test.Filename = "test.cc";
   auto AST = Test.build();
   Index.updateMain(Test.Filename, AST);
   // Add test2.cc
   TestTU Test2;
   Test2.HeaderCode = HeaderCode;
-  Test2.Code = MainCode.code();
+  Test2.Code = std::string(MainCode.code());
   Test2.Filename = "test2.cc";
   AST = Test2.build();
   Index.updateMain(Test2.Filename, AST);
@@ -343,6 +343,40 @@ TEST(FileIndexTest, Refs) {
                              FileURI("unittest:///test.cc")),
                        AllOf(RefRange(MainCode.range("foo")),
                              FileURI("unittest:///test2.cc"))}));
+}
+
+TEST(FileIndexTest, MacroRefs) {
+  Annotations HeaderCode(R"cpp(
+    #define $def1[[HEADER_MACRO]](X) (X+1)
+  )cpp");
+  Annotations MainCode(R"cpp(
+  #define $def2[[MAINFILE_MACRO]](X) (X+1)
+  void f() {
+    int a = $ref1[[HEADER_MACRO]](2);
+    int b = $ref2[[MAINFILE_MACRO]](1);
+  }
+  )cpp");
+
+  FileIndex Index;
+  // Add test.cc
+  TestTU Test;
+  Test.HeaderCode = std::string(HeaderCode.code());
+  Test.Code = std::string(MainCode.code());
+  Test.Filename = "test.cc";
+  auto AST = Test.build();
+  Index.updateMain(Test.Filename, AST);
+
+  auto HeaderMacro = findSymbol(Test.headerSymbols(), "HEADER_MACRO");
+  EXPECT_THAT(getRefs(Index, HeaderMacro.ID),
+              RefsAre({AllOf(RefRange(MainCode.range("ref1")),
+                             FileURI("unittest:///test.cc"))}));
+
+  auto MainFileMacro = findSymbol(Test.headerSymbols(), "MAINFILE_MACRO");
+  EXPECT_THAT(getRefs(Index, MainFileMacro.ID),
+              RefsAre({AllOf(RefRange(MainCode.range("def2")),
+                             FileURI("unittest:///test.cc")),
+                       AllOf(RefRange(MainCode.range("ref2")),
+                             FileURI("unittest:///test.cc"))}));
 }
 
 TEST(FileIndexTest, CollectMacros) {
@@ -373,12 +407,11 @@ TEST(FileIndexTest, ReferencesInMainFileWithPreamble) {
   TestTU TU;
   TU.HeaderCode = "class Foo{};";
   Annotations Main(R"cpp(
-    #include "foo.h"
     void f() {
       [[Foo]] foo;
     }
   )cpp");
-  TU.Code = Main.code();
+  TU.Code = std::string(Main.code());
   auto AST = TU.build();
   FileIndex Index;
   Index.updateMain(testPath(TU.Filename), AST);

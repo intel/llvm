@@ -50,10 +50,10 @@
 namespace llvm {
 class Module;
 class Type;
-class Value;
 class Instruction;
 class CallInst;
 class BasicBlock;
+class Loop;
 class Function;
 class GlobalVariable;
 class LLVMContext;
@@ -129,9 +129,8 @@ public:
   ///
   /// These functions are translated to functions with array type argument
   /// first, then post-processed to have pointer arguments.
-  bool
-  postProcessOCLBuiltinWithArrayArguments(Function *F,
-                                          const std::string &DemangledName);
+  bool postProcessOCLBuiltinWithArrayArguments(Function *F,
+                                               StringRef DemangledName);
 
   /// \brief Post-process OpImageSampleExplicitLod.
   ///   sampled_image = __spirv_SampledImage__(image, sampler);
@@ -222,6 +221,7 @@ private:
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
+  bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();
   bool transOCLBuiltinFromVariable(GlobalVariable *GV,
                                    SPIRVBuiltinVariableKind Kind);
@@ -255,7 +255,7 @@ private:
   Value *oclTransConstantPipeStorage(SPIRV::SPIRVConstantPipeStorage *BCPS);
   void setName(llvm::Value *V, SPIRVValue *BV);
   template <typename LoopInstType>
-  void setLLVMLoopMetadata(const LoopInstType *LM, Instruction *BI);
+  void setLLVMLoopMetadata(const LoopInstType *LM, const Loop *LoopObj);
   void transLLVMLoopMetadata(const Function *F);
   inline llvm::Metadata *getMetadataFromName(std::string Name);
   inline std::vector<llvm::Metadata *>

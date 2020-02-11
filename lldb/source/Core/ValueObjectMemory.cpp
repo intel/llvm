@@ -1,4 +1,4 @@
-//===-- ValueObjectMemory.cpp ---------------------------------*- C++ -*-===//
+//===-- ValueObjectMemory.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -82,8 +82,6 @@ ValueObjectMemory::ValueObjectMemory(ExecutionContextScope *exe_scope,
   TargetSP target_sp(GetTargetSP());
 
   SetName(ConstString(name));
-  //    m_value.SetContext(Value::eContextTypeClangType,
-  //    m_compiler_type.GetOpaqueQualType());
   m_value.SetCompilerType(m_compiler_type);
   lldb::addr_t load_address = m_address.GetLoadAddress(target_sp.get());
   if (load_address != LLDB_INVALID_ADDRESS) {
@@ -204,8 +202,6 @@ bool ValueObjectMemory::UpdateValue() {
         if (m_type_sp)
           value.SetContext(Value::eContextTypeLLDBType, m_type_sp.get());
         else {
-          // value.SetContext(Value::eContextTypeClangType,
-          // m_compiler_type.GetOpaqueQualType());
           value.SetCompilerType(m_compiler_type);
         }
 

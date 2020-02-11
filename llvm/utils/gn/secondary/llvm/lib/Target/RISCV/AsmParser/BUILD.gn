@@ -1,7 +1,10 @@
 import("//llvm/utils/TableGen/tablegen.gni")
 
 tablegen("RISCVGenAsmMatcher") {
-  visibility = [ ":AsmParser" ]
+  visibility = [
+    ":AsmParser",
+    "//llvm/lib/Target/RISCV:LLVMRISCVCodeGen",
+  ]
   args = [ "-gen-asm-matcher" ]
   td_file = "../RISCV.td"
 }
@@ -19,6 +22,7 @@ static_library("AsmParser") {
   ]
   include_dirs = [ ".." ]
   sources = [
+    # Make `gn format` not collapse this, for sync_source_lists_from_cmake.py.
     "RISCVAsmParser.cpp",
   ]
 }

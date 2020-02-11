@@ -496,27 +496,50 @@ void replace_extension(SmallVectorImpl<char> &path, const Twine &extension,
   path.append(ext.begin(), ext.end());
 }
 
-void replace_path_prefix(SmallVectorImpl<char> &Path,
+bool replace_path_prefix(SmallVectorImpl<char> &Path,
                          const StringRef &OldPrefix, const StringRef &NewPrefix,
-                         Style style) {
+                         Style style, bool strict) {
   if (OldPrefix.empty() && NewPrefix.empty())
-    return;
+    return false;
 
   StringRef OrigPath(Path.begin(), Path.size());
-  if (!OrigPath.startswith(OldPrefix))
-    return;
+  StringRef OldPrefixDir;
+
+  if (!strict && OldPrefix.size() > OrigPath.size())
+    return false;
+
+  // Ensure OldPrefixDir does not have a trailing separator.
+  if (!OldPrefix.empty() && is_separator(OldPrefix.back()))
+    OldPrefixDir = parent_path(OldPrefix, style);
+  else
+    OldPrefixDir = OldPrefix;
+
+  if (!OrigPath.startswith(OldPrefixDir))
+    return false;
+
+  if (OrigPath.size() > OldPrefixDir.size())
+    if (!is_separator(OrigPath[OldPrefixDir.size()], style) && strict)
+      return false;
 
   // If prefixes have the same size we can simply copy the new one over.
-  if (OldPrefix.size() == NewPrefix.size()) {
+  if (OldPrefixDir.size() == NewPrefix.size() && !strict) {
     llvm::copy(NewPrefix, Path.begin());
-    return;
+    return true;
   }
 
-  StringRef RelPath = OrigPath.substr(OldPrefix.size());
+  StringRef RelPath = OrigPath.substr(OldPrefixDir.size());
   SmallString<256> NewPath;
   path::append(NewPath, style, NewPrefix);
-  path::append(NewPath, style, RelPath);
+  if (!RelPath.empty()) {
+    if (!is_separator(RelPath[0], style) || !strict)
+      path::append(NewPath, style, RelPath);
+    else
+      path::append(NewPath, style, relative_path(RelPath, style));
+  }
+
   Path.swap(NewPath);
+
+  return true;
 }
 
 void native(const Twine &path, SmallVectorImpl<char> &result, Style style) {
@@ -555,7 +578,7 @@ void native(SmallVectorImpl<char> &Path, Style style) {
 
 std::string convert_to_slash(StringRef path, Style style) {
   if (real_style(style) != Style::windows)
-    return path;
+    return std::string(path);
 
   std::string s = path.str();
   std::replace(s.begin(), s.end(), '\\', '/');
@@ -1091,7 +1114,7 @@ void directory_entry::replace_filename(const Twine &Filename, file_type Type,
                                        basic_file_status Status) {
   SmallString<128> PathStr = path::parent_path(Path);
   path::append(PathStr, Filename);
-  this->Path = PathStr.str();
+  this->Path = std::string(PathStr.str());
   this->Type = Type;
   this->Status = Status;
 }
@@ -1119,7 +1142,8 @@ ErrorOr<perms> getPermissions(const Twine &Path) {
 namespace llvm {
 namespace sys {
 namespace fs {
-TempFile::TempFile(StringRef Name, int FD) : TmpName(Name), FD(FD) {}
+TempFile::TempFile(StringRef Name, int FD)
+    : TmpName(std::string(Name)), FD(FD) {}
 TempFile::TempFile(TempFile &&Other) { *this = std::move(Other); }
 TempFile &TempFile::operator=(TempFile &&Other) {
   TmpName = std::move(Other.TmpName);

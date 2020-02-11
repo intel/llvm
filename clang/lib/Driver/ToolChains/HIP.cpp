@@ -62,6 +62,34 @@ static const char *getOutputFileName(Compilation &C, StringRef Base,
   }
   return OutputFileName;
 }
+
+static void addOptLevelArgs(const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs,
+                            bool IsLlc = false) {
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    StringRef OOpt = "3";
+    if (A->getOption().matches(options::OPT_O4) ||
+        A->getOption().matches(options::OPT_Ofast))
+      OOpt = "3";
+    else if (A->getOption().matches(options::OPT_O0))
+      OOpt = "0";
+    else if (A->getOption().matches(options::OPT_O)) {
+      // Clang and opt support -Os/-Oz; llc only supports -O0, -O1, -O2 and -O3
+      // so we map -Os/-Oz to -O2.
+      // Only clang supports -Og, and maps it to -O1.
+      // We map anything else to -O2.
+      OOpt = llvm::StringSwitch<const char *>(A->getValue())
+                 .Case("1", "1")
+                 .Case("2", "2")
+                 .Case("3", "3")
+                 .Case("s", IsLlc ? "2" : "s")
+                 .Case("z", IsLlc ? "2" : "z")
+                 .Case("g", "1")
+                 .Default("2");
+    }
+    CmdArgs.push_back(Args.MakeArgString("-O" + OOpt));
+  }
+}
 } // namespace
 
 const char *AMDGCN::Linker::constructLLVMLinkCommand(
@@ -77,9 +105,8 @@ const char *AMDGCN::Linker::constructLLVMLinkCommand(
   CmdArgs.push_back("-o");
   auto OutputFileName = getOutputFileName(C, OutputFilePrefix, "-linked", "bc");
   CmdArgs.push_back(OutputFileName);
-  SmallString<128> ExecPath(C.getDriver().Dir);
-  llvm::sys::path::append(ExecPath, "llvm-link");
-  const char *Exec = Args.MakeArgString(ExecPath);
+  const char *Exec =
+      Args.MakeArgString(getToolChain().GetProgramPath("llvm-link"));
   C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
   return OutputFileName;
 }
@@ -93,25 +120,7 @@ const char *AMDGCN::Linker::constructOptCommand(
   // The input to opt is the output from llvm-link.
   OptArgs.push_back(InputFileName);
   // Pass optimization arg to opt.
-  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-    StringRef OOpt = "3";
-    if (A->getOption().matches(options::OPT_O4) ||
-        A->getOption().matches(options::OPT_Ofast))
-      OOpt = "3";
-    else if (A->getOption().matches(options::OPT_O0))
-      OOpt = "0";
-    else if (A->getOption().matches(options::OPT_O)) {
-      // -Os, -Oz, and -O(anything else) map to -O2
-      OOpt = llvm::StringSwitch<const char *>(A->getValue())
-                 .Case("1", "1")
-                 .Case("2", "2")
-                 .Case("3", "3")
-                 .Case("s", "2")
-                 .Case("z", "2")
-                 .Default("2");
-    }
-    OptArgs.push_back(Args.MakeArgString("-O" + OOpt));
-  }
+  addOptLevelArgs(Args, OptArgs);
   OptArgs.push_back("-mtriple=amdgcn-amd-amdhsa");
   OptArgs.push_back(Args.MakeArgString("-mcpu=" + SubArchName));
 
@@ -123,9 +132,8 @@ const char *AMDGCN::Linker::constructOptCommand(
   auto OutputFileName =
       getOutputFileName(C, OutputFilePrefix, "-optimized", "bc");
   OptArgs.push_back(OutputFileName);
-  SmallString<128> OptPath(C.getDriver().Dir);
-  llvm::sys::path::append(OptPath, "opt");
-  const char *OptExec = Args.MakeArgString(OptPath);
+  const char *OptExec =
+      Args.MakeArgString(getToolChain().GetProgramPath("opt"));
   C.addCommand(std::make_unique<Command>(JA, *this, OptExec, OptArgs, Inputs));
   return OutputFileName;
 }
@@ -136,10 +144,15 @@ const char *AMDGCN::Linker::constructLlcCommand(
     llvm::StringRef OutputFilePrefix, const char *InputFileName,
     bool OutputIsAsm) const {
   // Construct llc command.
-  ArgStringList LlcArgs{
-      InputFileName, "-mtriple=amdgcn-amd-amdhsa",
-      Args.MakeArgString(Twine("-filetype=") + (OutputIsAsm ? "asm" : "obj")),
-      Args.MakeArgString("-mcpu=" + SubArchName)};
+  ArgStringList LlcArgs;
+  // The input to llc is the output from opt.
+  LlcArgs.push_back(InputFileName);
+  // Pass optimization arg to llc.
+  addOptLevelArgs(Args, LlcArgs, /*IsLlc=*/true);
+  LlcArgs.push_back("-mtriple=amdgcn-amd-amdhsa");
+  LlcArgs.push_back(Args.MakeArgString("-mcpu=" + SubArchName));
+  LlcArgs.push_back(
+      Args.MakeArgString(Twine("-filetype=") + (OutputIsAsm ? "asm" : "obj")));
 
   // Extract all the -m options
   std::vector<llvm::StringRef> Features;
@@ -165,9 +178,7 @@ const char *AMDGCN::Linker::constructLlcCommand(
   auto LlcOutputFile =
       getOutputFileName(C, OutputFilePrefix, "", OutputIsAsm ? "s" : "o");
   LlcArgs.push_back(LlcOutputFile);
-  SmallString<128> LlcPath(C.getDriver().Dir);
-  llvm::sys::path::append(LlcPath, "llc");
-  const char *Llc = Args.MakeArgString(LlcPath);
+  const char *Llc = Args.MakeArgString(getToolChain().GetProgramPath("llc"));
   C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, Inputs));
   return LlcOutputFile;
 }
@@ -181,9 +192,7 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   // The output from ld.lld is an HSA code object file.
   ArgStringList LldArgs{
       "-flavor", "gnu", "-shared", "-o", Output.getFilename(), InputFileName};
-  SmallString<128> LldPath(C.getDriver().Dir);
-  llvm::sys::path::append(LldPath, "lld");
-  const char *Lld = Args.MakeArgString(LldPath);
+  const char *Lld = Args.MakeArgString(getToolChain().GetProgramPath("lld"));
   C.addCommand(std::make_unique<Command>(JA, *this, Lld, LldArgs, Inputs));
 }
 
@@ -211,13 +220,12 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   BundlerArgs.push_back(Args.MakeArgString(BundlerTargetArg));
   BundlerArgs.push_back(Args.MakeArgString(BundlerInputArg));
 
-  auto BundlerOutputArg =
-      Args.MakeArgString(std::string("-outputs=").append(OutputFileName));
+  auto BundlerOutputArg = Args.MakeArgString(
+      std::string("-outputs=").append(std::string(OutputFileName)));
   BundlerArgs.push_back(BundlerOutputArg);
 
-  SmallString<128> BundlerPath(C.getDriver().Dir);
-  llvm::sys::path::append(BundlerPath, "clang-offload-bundler");
-  const char *Bundler = Args.MakeArgString(BundlerPath);
+  const char *Bundler = Args.MakeArgString(
+      T.getToolChain().GetProgramPath("clang-offload-bundler"));
   C.addCommand(std::make_unique<Command>(JA, T, Bundler, BundlerArgs, Inputs));
 }
 
@@ -280,10 +288,6 @@ void HIPToolChain::addClangTargetOptions(
   CC1Args.push_back(DriverArgs.MakeArgStringRef(GpuArch));
   CC1Args.push_back("-fcuda-is-device");
 
-  if (DriverArgs.hasFlag(options::OPT_fcuda_flush_denormals_to_zero,
-                         options::OPT_fno_cuda_flush_denormals_to_zero, false))
-    CC1Args.push_back("-fcuda-flush-denormals-to-zero");
-
   if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                          options::OPT_fno_cuda_approx_transcendentals, false))
     CC1Args.push_back("-fcuda-approx-transcendentals");
@@ -291,6 +295,14 @@ void HIPToolChain::addClangTargetOptions(
   if (DriverArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                          false))
     CC1Args.push_back("-fgpu-rdc");
+
+  StringRef MaxThreadsPerBlock =
+      DriverArgs.getLastArgValue(options::OPT_gpu_max_threads_per_block_EQ);
+  if (!MaxThreadsPerBlock.empty()) {
+    std::string ArgStr =
+        std::string("--gpu-max-threads-per-block=") + MaxThreadsPerBlock.str();
+    CC1Args.push_back(DriverArgs.MakeArgStringRef(ArgStr));
+  }
 
   if (DriverArgs.hasFlag(options::OPT_fgpu_allow_device_init,
                          options::OPT_fno_gpu_allow_device_init, false))
@@ -315,7 +327,7 @@ void HIPToolChain::addClangTargetOptions(
        DriverArgs.getAllArgValues(options::OPT_hip_device_lib_path_EQ))
     LibraryPaths.push_back(DriverArgs.MakeArgString(Path));
 
-  addDirectoryList(DriverArgs, LibraryPaths, "-L", "HIP_DEVICE_LIB_PATH");
+  addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
 
   llvm::SmallVector<std::string, 10> BCLibs;
 
@@ -343,12 +355,12 @@ void HIPToolChain::addClangTargetOptions(
     else
       WaveFrontSizeBC = "oclc_wavefrontsize64_off.amdgcn.bc";
 
-    BCLibs.append({"hip.amdgcn.bc", "opencl.amdgcn.bc", "ocml.amdgcn.bc",
-                   "ockl.amdgcn.bc", "oclc_finite_only_off.amdgcn.bc",
-                   FlushDenormalControlBC,
+    BCLibs.append({"hip.amdgcn.bc", "ocml.amdgcn.bc", "ockl.amdgcn.bc",
+                   "oclc_finite_only_off.amdgcn.bc",
+                   std::string(FlushDenormalControlBC),
                    "oclc_correctly_rounded_sqrt_on.amdgcn.bc",
                    "oclc_unsafe_math_off.amdgcn.bc", ISAVerBC,
-                   WaveFrontSizeBC});
+                   std::string(WaveFrontSizeBC)});
   }
   for (auto Lib : BCLibs)
     addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);

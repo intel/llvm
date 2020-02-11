@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CodeGenFunction.h"
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
 #include "CGObjCRuntime.h"
+#include "CodeGenFunction.h"
 #include "ConstantEmitter.h"
 #include "TargetInfo.h"
 #include "clang/AST/Mangle.h"
@@ -21,8 +21,9 @@
 #include "clang/AST/StmtObjC.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/TargetBuiltins.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -1884,7 +1885,7 @@ void CodeGenFunction::startOutlinedSEHHelper(CodeGenFunction &ParentCGF,
                 OutlinedStmt->getBeginLoc(), OutlinedStmt->getBeginLoc());
   CurSEHParent = ParentCGF.CurSEHParent;
 
-  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FnInfo, CurFn);
+  CGM.SetInternalFunctionAttributes(GlobalDecl(), CurFn, FnInfo);
   EmitCapturedLocals(ParentCGF, OutlinedStmt, IsFilter);
 }
 

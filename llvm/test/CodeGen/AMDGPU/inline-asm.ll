@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck --check-prefix=CHECK --check-prefix=PRE-GFX8 %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck  --check-prefix=CHECK --check-prefix=GFX8 %s
 
 ; CHECK-LABEL: {{^}}inline_asm:
 ; CHECK: s_endpgm
@@ -21,11 +21,30 @@ entry:
 }
 
 
-; CHECK: {{^}}branch_on_asm:
-; Make sure inline assembly is treted as divergent.
-; CHECK: s_mov_b32 s{{[0-9]+}}, 0
+; CHECK-LABEL: {{^}}branch_on_asm_vgpr:
+; Make sure VGPR inline assembly is treated as divergent.
+; CHECK: v_mov_b32 v{{[0-9]+}}, 0
+; CHECK: v_cmp_eq_u32
 ; CHECK: s_and_saveexec_b64
-define amdgpu_kernel void @branch_on_asm(i32 addrspace(1)* %out) {
+define amdgpu_kernel void @branch_on_asm_vgpr(i32 addrspace(1)* %out) {
+	%zero = call i32 asm "v_mov_b32 $0, 0", "=v"()
+	%cmp = icmp eq i32 %zero, 0
+	br i1 %cmp, label %if, label %endif
+
+if:
+	store i32 0, i32 addrspace(1)* %out
+	br label %endif
+
+endif:
+  ret void
+}
+
+; CHECK-LABEL: {{^}}branch_on_asm_sgpr:
+; Make sure SGPR inline assembly is treated as uniform
+; CHECK: s_mov_b32 s{{[0-9]+}}, 0
+; CHECK: s_cmp_lg_u32
+; CHECK: s_cbranch_scc0
+define amdgpu_kernel void @branch_on_asm_sgpr(i32 addrspace(1)* %out) {
 	%zero = call i32 asm "s_mov_b32 $0, 0", "=s"()
 	%cmp = icmp eq i32 %zero, 0
 	br i1 %cmp, label %if, label %endif
@@ -198,8 +217,7 @@ entry:
 }
 
 ; CHECK-LABEL: {{^}}i1_imm_input_phys_vgpr:
-; CHECK: s_mov_b64 [[MASK:s\[[0-9]+:[0-9]+\]]], -1
-; CHECK-NEXT: v_cndmask_b32_e64 v0, 0, -1, [[MASK]]
+; CHECK: v_mov_b32_e32 v0, 1{{$}}
 ; CHECK: ; use v0
 define amdgpu_kernel void @i1_imm_input_phys_vgpr() {
 entry:
@@ -207,14 +225,14 @@ entry:
   ret void
 }
 
+
+; FIXME: This behavior is nonsense. We should probably disallow i1 asm
+
 ; CHECK-LABEL: {{^}}i1_input_phys_vgpr:
 ; CHECK: {{buffer|flat}}_load_ubyte [[LOAD:v[0-9]+]]
-; CHECK: v_and_b32_e32 [[LOAD]], 1, [[LOAD]]
-; CHECK-NEXT: v_cmp_eq_u32_e32 vcc, 1, [[LOAD]]
-; CHECK-NEXT: v_cndmask_b32_e64 v0, 0, -1, vcc
+; CHECK-NOT: [[LOAD]]
 ; CHECK: ; use v0
-; CHECK: v_cmp_ne_u32_e32 vcc, 0, v1
-; CHECK: v_cndmask_b32_e64 [[STORE:v[0-9]+]], 0, 1, vcc
+; CHECK: v_and_b32_e32 [[STORE:v[0-9]+]], 1, v1
 ; CHECK: {{buffer|flat}}_store_byte [[STORE]],
 define amdgpu_kernel void @i1_input_phys_vgpr() {
 entry:
@@ -224,12 +242,12 @@ entry:
   ret void
 }
 
-; FIXME: Should be scheduled to shrink vcc
+; FIXME: Should prodbably be masking high bits of load.
 ; CHECK-LABEL: {{^}}i1_input_phys_vgpr_x2:
-; CHECK: v_cmp_eq_u32_e32 vcc, 1, v0
-; CHECK: v_cndmask_b32_e64 v0, 0, -1, vcc
-; CHECK: v_cmp_eq_u32_e32 vcc, 1, v1
-; CHECK: v_cndmask_b32_e64 v1, 0, -1, vcc
+; CHECK: buffer_load_ubyte v0
+; CHECK-NEXT: buffer_load_ubyte v1
+; CHECK-NEXT: s_waitcnt
+; CHECK-NEXT: ASMSTART
 define amdgpu_kernel void @i1_input_phys_vgpr_x2() {
 entry:
   %val0 = load volatile i1, i1 addrspace(1)* undef
@@ -242,7 +260,8 @@ entry:
 ; CHECK: ; def v0
 ; CHECK: v_mov_b32_e32 v1, v0
 ; CHECK: ; def v0
-; CHECK: v_lshlrev_b32_e32 v{{[0-9]+}}, v0, v1
+; PRE-GFX8: v_lshl_b32_e32 v{{[0-9]+}}, v1, v0
+; GFX8: v_lshlrev_b32_e32 v{{[0-9]+}}, v0, v1
 define amdgpu_kernel void @muliple_def_phys_vgpr() {
 entry:
   %def0 = call i32 asm sideeffect "; def $0 ", "={v0}"()

@@ -21,7 +21,6 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/Utils/Local.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
@@ -177,6 +176,7 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
 
   // When we enter here we should have already checked that it is safe
   BasicBlock *Header = L->getHeader();
+  assert(Header && "No header.");
   assert(L->getSubLoops().size() == 1);
   Loop *SubLoop = *L->begin();
 
@@ -247,8 +247,9 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
 
   BasicBlock *Preheader = L->getLoopPreheader();
   BasicBlock *LatchBlock = L->getLoopLatch();
+  assert(Preheader && "No preheader");
+  assert(LatchBlock && "No latch block");
   BranchInst *BI = dyn_cast<BranchInst>(LatchBlock->getTerminator());
-  assert(Preheader && LatchBlock && Header);
   assert(BI && !BI->isUnconditional());
   bool ContinueOnTrue = L->contains(BI->getSuccessor(0));
   BasicBlock *LoopExit = BI->getSuccessor(ContinueOnTrue);
@@ -283,8 +284,7 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
 
   // Move any instructions from fore phi operands from AftBlocks into Fore.
   moveHeaderPhiOperandsToForeBlocks(
-      Header, LatchBlock, SubLoop->getLoopPreheader()->getTerminator(),
-      AftBlocks);
+      Header, LatchBlock, ForeBlocksLast[0]->getTerminator(), AftBlocks);
 
   // The current on-the-fly SSA update requires blocks to be processed in
   // reverse postorder so that LastValueMap contains the correct value at each
@@ -311,7 +311,7 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
 
   // Copy all blocks
   for (unsigned It = 1; It != Count; ++It) {
-    std::vector<BasicBlock *> NewBlocks;
+    SmallVector<BasicBlock *, 8> NewBlocks;
     // Maps Blocks[It] -> Blocks[It-1]
     DenseMap<Value *, Value *> PrevItValueMap;
 
@@ -378,9 +378,9 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
     }
 
     // Remap all instructions in the most recent iteration
+    remapInstructionsInBlocks(NewBlocks, LastValueMap);
     for (BasicBlock *NewBlock : NewBlocks) {
       for (Instruction &I : *NewBlock) {
-        ::remapInstruction(&I, LastValueMap);
         if (auto *II = dyn_cast<IntrinsicInst>(&I))
           if (II->getIntrinsicID() == Intrinsic::assume)
             AC->registerAssumption(II);
@@ -446,8 +446,8 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
   // Update ForeBlocks successors and phi nodes
   BranchInst *ForeTerm =
       cast<BranchInst>(ForeBlocksLast.back()->getTerminator());
-  BasicBlock *Dest = SubLoopBlocksFirst[0];
-  ForeTerm->setSuccessor(0, Dest);
+  assert(ForeTerm->getNumSuccessors() == 1 && "Expecting one successor");
+  ForeTerm->setSuccessor(0, SubLoopBlocksFirst[0]);
 
   if (CompletelyUnroll) {
     while (PHINode *Phi = dyn_cast<PHINode>(ForeBlocksFirst[0]->begin())) {
@@ -464,8 +464,8 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
     // Remap ForeBlock successors from previous iteration to this
     BranchInst *ForeTerm =
         cast<BranchInst>(ForeBlocksLast[It - 1]->getTerminator());
-    BasicBlock *Dest = ForeBlocksFirst[It];
-    ForeTerm->setSuccessor(0, Dest);
+    assert(ForeTerm->getNumSuccessors() == 1 && "Expecting one successor");
+    ForeTerm->setSuccessor(0, ForeBlocksFirst[It]);
   }
 
   // Subloop successors and phis
@@ -494,12 +494,14 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
   }
 
   // Aft blocks successors and phis
-  BranchInst *Term = cast<BranchInst>(AftBlocksLast.back()->getTerminator());
+  BranchInst *AftTerm = cast<BranchInst>(AftBlocksLast.back()->getTerminator());
   if (CompletelyUnroll) {
-    BranchInst::Create(LoopExit, Term);
-    Term->eraseFromParent();
+    BranchInst::Create(LoopExit, AftTerm);
+    AftTerm->eraseFromParent();
   } else {
-    Term->setSuccessor(!ContinueOnTrue, ForeBlocksFirst[0]);
+    AftTerm->setSuccessor(!ContinueOnTrue, ForeBlocksFirst[0]);
+    assert(AftTerm->getSuccessor(ContinueOnTrue) == LoopExit &&
+           "Expecting the ContinueOnTrue successor of AftTerm to be LoopExit");
   }
   updatePHIBlocks(AftBlocksFirst[0], SubLoopBlocksLast[0],
                   SubLoopBlocksLast.back());
@@ -567,20 +569,25 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
   NumCompletelyUnrolledAndJammed += CompletelyUnroll;
   ++NumUnrolledAndJammed;
 
+  // Update LoopInfo if the loop is completely removed.
+  if (CompletelyUnroll)
+    LI->erase(L);
+
 #ifndef NDEBUG
   // We shouldn't have done anything to break loop simplify form or LCSSA.
-  Loop *OuterL = L->getParentLoop();
-  Loop *OutestLoop = OuterL ? OuterL : (!CompletelyUnroll ? L : SubLoop);
+  Loop *OutestLoop = SubLoop->getParentLoop()
+                         ? SubLoop->getParentLoop()->getParentLoop()
+                               ? SubLoop->getParentLoop()->getParentLoop()
+                               : SubLoop->getParentLoop()
+                         : SubLoop;
+  assert(DT->verify());
+  LI->verify(*DT);
   assert(OutestLoop->isRecursivelyLCSSAForm(*DT, *LI));
   if (!CompletelyUnroll)
     assert(L->isLoopSimplifyForm());
   assert(SubLoop->isLoopSimplifyForm());
-  assert(DT->verify());
+  SE->verify();
 #endif
-
-  // Update LoopInfo if the loop is completely removed.
-  if (CompletelyUnroll)
-    LI->erase(L);
 
   return CompletelyUnroll ? LoopUnrollResult::FullyUnrolled
                           : LoopUnrollResult::PartiallyUnrolled;

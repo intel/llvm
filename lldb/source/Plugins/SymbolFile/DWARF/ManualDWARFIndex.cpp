@@ -1,4 +1,4 @@
-//===-- ManualDWARFIndex.cpp -----------------------------------*- C++ -*-===//
+//===-- ManualDWARFIndex.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -89,7 +89,7 @@ void ManualDWARFIndex::Index() {
 
 void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, IndexSet &set) {
   assert(
-      !unit.GetSymbolFileDWARF().GetBaseCompileUnit() &&
+      !unit.IsDWOUnit() &&
       "DWARFUnit associated with .dwo or .dwp should not be indexed directly");
 
   Log *log = LogChannelDWARF::GetLogIfAll(DWARF_LOG_LOOKUPS);
@@ -100,7 +100,7 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, IndexSet &set) {
         unit.GetOffset());
   }
 
-  const LanguageType cu_language = unit.GetLanguageType();
+  const LanguageType cu_language = SymbolFileDWARF::GetLanguage(unit);
 
   IndexUnitImpl(unit, cu_language, set);
 
@@ -401,8 +401,6 @@ void ManualDWARFIndex::GetFunctions(ConstString name, SymbolFileDWARF &dwarf,
 
   if (name_type_mask & eFunctionNameTypeFull) {
     DIEArray offsets;
-    m_set.function_basenames.Find(name, offsets);
-    m_set.function_methods.Find(name, offsets);
     m_set.function_fullnames.Find(name, offsets);
     for (const DIERef &die_ref: offsets) {
       DWARFDIE die = dwarf.GetDIE(die_ref);

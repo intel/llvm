@@ -10,6 +10,7 @@
 #define liblldb_Module_h_
 
 #include "lldb/Core/Address.h"
+#include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContextScope.h"
@@ -190,7 +191,7 @@ public:
   lldb::ModuleSP CalculateSymbolContextModule() override;
 
   void
-  GetDescription(Stream *s,
+  GetDescription(llvm::raw_ostream &s,
                  lldb::DescriptionLevel level = lldb::eDescriptionLevelFull);
 
   /// Get the module path and object name.
@@ -291,9 +292,6 @@ public:
   /// \param[in] name
   ///     The name of the compile unit we are looking for.
   ///
-  /// \param[in] namespace_decl
-  ///     If valid, a namespace to search in.
-  ///
   /// \param[in] name_type_mask
   ///     A bit mask of bits that indicate what kind of names should
   ///     be used when doing the lookup. Bits include fully qualified
@@ -316,10 +314,6 @@ public:
   ///
   /// \param[in] regex
   ///     A regular expression to use when matching the name.
-  ///
-  /// \param[in] append
-  ///     If \b true, any matches will be appended to \a sc_list, else
-  ///     matches replace the contents of \a sc_list.
   ///
   /// \param[out] sc_list
   ///     A symbol context list that gets filled in with all of the
@@ -416,7 +410,7 @@ public:
   ///     omitted to make finding types that a user may type
   ///     easier.
   ///
-  /// \param[out] type_list
+  /// \param[out] types
   ///     A type list gets populated with any matches.
   ///
   void
@@ -429,7 +423,11 @@ public:
   /// This behaves like the other FindTypes method but allows to
   /// specify a DeclContext and a language for the type being searched
   /// for.
+  ///
+  /// \param searched_symbol_files
+  ///     Prevents one file from being visited multiple times.
   void FindTypes(llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
+                 llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
                  TypeMap &types);
 
   lldb::TypeSP FindFirstType(const SymbolContext &sc,
@@ -443,12 +441,8 @@ public:
   ///     The name of a type within a namespace that should not include
   ///     any qualifying namespaces (just a type basename).
   ///
-  /// \param[in] namespace_decl
-  ///     The namespace declaration that this type must exist in.
-  ///
   /// \param[out] type_list
   ///     A type list gets populated with any matches.
-  ///
   void FindTypesInNamespace(ConstString type_name,
                             const CompilerDeclContext *parent_decl_ctx,
                             size_t max_matches, TypeList &type_list);
@@ -973,10 +967,10 @@ protected:
   ///references to them
   TypeSystemMap m_type_system_map;   ///< A map of any type systems associated
                                      ///with this module
-  PathMappingList m_source_mappings; ///< Module specific source remappings for
-                                     ///when you have debug info for a module
-                                     ///that doesn't match where the sources
-                                     ///currently are
+  /// Module specific source remappings for when you have debug info for a
+  /// module that doesn't match where the sources currently are.
+  PathMappingList m_source_mappings =
+      ModuleList::GetGlobalModuleListProperties().GetSymlinkMappings();
   lldb::SectionListUP m_sections_up; ///< Unified section list for module that
                                      /// is used by the ObjectFile and and
                                      /// ObjectFile instances for the debug info

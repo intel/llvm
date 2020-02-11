@@ -825,8 +825,8 @@ class Base(unittest2.TestCase):
         self.darwinWithFramework = self.platformIsDarwin()
         if sys.platform.startswith("darwin"):
             # Handle the framework environment variable if it is set
-            if hasattr(lldbtest_config, 'lldbFrameworkPath'):
-                framework_path = lldbtest_config.lldbFrameworkPath
+            if hasattr(lldbtest_config, 'lldb_framework_path'):
+                framework_path = lldbtest_config.lldb_framework_path
                 # Framework dir should be the directory containing the framework
                 self.framework_dir = framework_path[:framework_path.rfind('LLDB.framework')]
             # If a framework dir was not specified assume the Xcode build
@@ -1169,26 +1169,10 @@ class Base(unittest2.TestCase):
                 if test is self:
                     print(traceback, file=self.session)
 
-        # put footer (timestamp/rerun instructions) into session
-        testMethod = getattr(self, self._testMethodName)
-        if getattr(testMethod, "__benchmarks_test__", False):
-            benchmarks = True
-        else:
-            benchmarks = False
-
         import datetime
         print(
             "Session info generated @",
             datetime.datetime.now().ctime(),
-            file=self.session)
-        print(
-            "To rerun this test, issue the following command from the 'test' directory:\n",
-            file=self.session)
-        print(
-            "./dotest.py %s -v %s %s" %
-            (self.getRunOptions(),
-             ('+b' if benchmarks else '-t'),
-                self.getRerunArgs()),
             file=self.session)
         self.session.close()
         del self.session
@@ -1415,7 +1399,7 @@ class Base(unittest2.TestCase):
         stdflag = self.getstdFlag()
         stdlibflag = self.getstdlibFlag()
 
-        lib_dir = os.environ["LLDB_LIB_DIR"]
+        lib_dir = configuration.lldb_libs_dir
         if self.hasDarwinFramework():
             d = {'CXX_SOURCES': sources,
                  'EXE': exe_name,
@@ -1442,7 +1426,7 @@ class Base(unittest2.TestCase):
                                                  os.path.join(
                                                      os.environ["LLDB_SRC"],
                                                      "include")),
-                'LD_EXTRAS': "-L%s/../lib -llldb -Wl,-rpath,%s/../lib" % (lib_dir, lib_dir)}
+                'LD_EXTRAS': "-L%s -llldb -Wl,-rpath,%s" % (lib_dir, lib_dir)}
         if self.TraceOn():
             print(
                 "Building LLDB Driver (%s) from sources %s" %
@@ -1455,7 +1439,7 @@ class Base(unittest2.TestCase):
 
         stdflag = self.getstdFlag()
 
-        lib_dir = os.environ["LLDB_LIB_DIR"]
+        lib_dir = configuration.lldb_libs_dir
         if self.hasDarwinFramework():
             d = {'DYLIB_CXX_SOURCES': sources,
                  'DYLIB_NAME': lib_name,
@@ -1480,7 +1464,7 @@ class Base(unittest2.TestCase):
                                                     os.path.join(
                                                         os.environ["LLDB_SRC"],
                                                         "include")),
-                'LD_EXTRAS': "-shared -L%s/../lib -llldb -Wl,-rpath,%s/../lib" % (lib_dir, lib_dir)}
+                'LD_EXTRAS': "-shared -L%s -llldb -Wl,-rpath,%s" % (lib_dir, lib_dir)}
         if self.TraceOn():
             print(
                 "Building LLDB Library (%s) from sources %s" %
@@ -1938,6 +1922,15 @@ class TestBase(Base):
 
         return environment
 
+    def registerSanitizerLibrariesWithTarget(self, target):
+        runtimes = []
+        for m in target.module_iter():
+            libspec = m.GetFileSpec()
+            if "clang_rt" in libspec.GetFilename():
+                runtimes.append(os.path.join(libspec.GetDirectory(),
+                                             libspec.GetFilename()))
+        return self.registerSharedLibrariesWithTarget(target, runtimes)
+
     # utility methods that tests can use to access the current objects
     def target(self):
         if not self.dbg:
@@ -2268,6 +2261,7 @@ FileCheck output:
             substrs=None,
             trace=False,
             error=False,
+            ordered=True,
             matching=True,
             exe=True,
             inHistory=False):
@@ -2279,6 +2273,10 @@ FileCheck output:
         message.  We expect the output from running the command to start with
         'startstr', matches the substrings contained in 'substrs', and regexp
         matches the patterns contained in 'patterns'.
+
+        When matching is true and ordered is true, which are both the default,
+        the strings in the substrs array have to appear in the command output
+        in the order in which they appear in the array.
 
         If the keyword argument error is set to True, it signifies that the API
         client is expecting the command to fail.  In this case, the error stream
@@ -2348,8 +2346,11 @@ FileCheck output:
         # Look for sub strings, if specified.
         keepgoing = matched if matching else not matched
         if substrs and keepgoing:
+            start = 0
             for substr in substrs:
-                matched = output.find(substr) != -1
+                index = output[start:].find(substr)
+                start = start + index if ordered and matching else 0
+                matched = index != -1
                 with recording(self, trace) as sbuf:
                     print("%s sub string: %s" % (heading, substr), file=sbuf)
                     print("Matched" if matched else "Not matched", file=sbuf)
@@ -2371,7 +2372,47 @@ FileCheck output:
                     break
 
         self.assertTrue(matched if matching else not matched,
-                        msg if msg else EXP_MSG(str, output, exe))
+                        msg + "\nCommand output:\n" + EXP_MSG(str, output, exe)
+                        if msg else EXP_MSG(str, output, exe))
+
+    def expect_expr(
+            self,
+            expr,
+            result_summary=None,
+            result_value=None,
+            result_type=None,
+            error_msg=None,
+            ):
+        """
+        Evaluates the given expression and verifies the result.
+        :param expr: The expression as a string.
+        :param result_summary: The summary that the expression should have. None if the summary should not be checked.
+        :param result_value: The value that the expression should have. None if the value should not be checked.
+        :param result_type: The type that the expression result should have. None if the type should not be checked.
+        :param error_msg: The error message the expression should return. None if the error output should not be checked.
+        """
+        self.assertTrue(expr.strip() == expr, "Expression contains trailing/leading whitespace: '" + expr + "'")
+
+        frame = self.frame()
+        eval_result = frame.EvaluateExpression(expr)
+
+        if error_msg:
+            self.assertFalse(eval_result.IsValid())
+            self.assertEqual(error_msg, eval_result.GetError().GetCString())
+            return
+
+        if not eval_result.GetError().Success():
+            self.assertTrue(eval_result.GetError().Success(),
+                "Unexpected failure with msg: " + eval_result.GetError().GetCString())
+
+        if result_type:
+            self.assertEqual(result_type, eval_result.GetTypeName())
+
+        if result_value:
+            self.assertEqual(result_value, eval_result.GetValue())
+
+        if result_summary:
+            self.assertEqual(result_summary, eval_result.GetSummary())
 
     def invoke(self, obj, name, trace=False):
         """Use reflection to call a method dynamically with no argument."""

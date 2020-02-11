@@ -1,4 +1,4 @@
-//===-- CommandObjectPlugin.cpp ---------------------------------*- C++ -*-===//
+//===-- CommandObjectPlugin.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "CommandObjectPlugin.h"
-#include "lldb/Host/Host.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 

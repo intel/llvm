@@ -121,6 +121,35 @@
 // CHECK028-NOT: "-ffp-contract=fast"
 // CHECK028: {{hexagon-link|ld}}
 
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv65 -march=hexagon\
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK029 %s
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mv65 -march=hexagon\
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK029 %s
+// CHECK029: "-cc1" {{.*}} "-target-cpu" "hexagonv65"
+// CHECK029: {{hexagon-link|ld}}{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v65/crt0
+
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv67 -fuse-ld=hexagon-link\
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK02A %s
+// CHECK02A: "-cc1" {{.*}} "-target-cpu" "hexagonv67"
+// CHECK02A: hexagon-link{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v67/crt0
+
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv67t \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK02B %s
+// CHECK02B: "-cc1" {{.*}} "-target-cpu" "hexagonv67t"
+// CHECK02B: hexagon-link{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v67t/crt0
+
 // -----------------------------------------------------------------------------
 // Test Linker related args
 // -----------------------------------------------------------------------------
@@ -523,3 +552,27 @@
 // RUN:   | FileCheck -check-prefix=CHECK080 %s
 // CHECK080:      "-cc1"
 // CHECK080:      "-Wreturn-type"
+
+// -----------------------------------------------------------------------------
+// Default, hexagon-link is used
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   -fuse-ld=fake-value-to-ignore-CLANG_DEFAULT_LINKER \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK081 %s
+// REQUIRES: hexagon-registered-target
+// CHECK081:      "-march=hexagon"
+// CHECK081:      "-mcpu=hexagonv60"
+// -----------------------------------------------------------------------------
+// Passing -fuse-ld=lld
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   -fuse-ld=lld \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK082 %s
+// CHECK082-NOT:      -march=
+// CHECK082-NOT:      -mcpu=

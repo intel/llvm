@@ -925,7 +925,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
   SmallVector<const Argument *, 4> NoAliasArgs;
 
   for (const Argument &Arg : CalledFunc->args())
-    if (Arg.hasNoAliasAttr() && !Arg.use_empty())
+    if (CS.paramHasAttr(Arg.getArgNo(), Attribute::NoAlias) && !Arg.use_empty())
       NoAliasArgs.push_back(&Arg);
 
   if (NoAliasArgs.empty())
@@ -951,7 +951,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
   for (unsigned i = 0, e = NoAliasArgs.size(); i != e; ++i) {
     const Argument *A = NoAliasArgs[i];
 
-    std::string Name = CalledFunc->getName();
+    std::string Name = std::string(CalledFunc->getName());
     if (A->hasName()) {
       Name += ": %";
       Name += A->getName();
@@ -1002,8 +1002,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
         IsFuncCall = true;
         if (CalleeAAR) {
           FunctionModRefBehavior MRB = CalleeAAR->getModRefBehavior(Call);
-          if (MRB == FMRB_OnlyAccessesArgumentPointees ||
-              MRB == FMRB_OnlyReadsArgumentPointees)
+          if (AAResults::onlyAccessesArgPointees(MRB))
             IsArgMemOnlyCall = true;
         }
 
@@ -1059,7 +1058,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
         // completely describe the aliasing properties using alias.scope
         // metadata (and, thus, won't add any).
         if (const Argument *A = dyn_cast<Argument>(V)) {
-          if (!A->hasNoAliasAttr())
+          if (!CS.paramHasAttr(A->getArgNo(), Attribute::NoAlias))
             UsesAliasingPtr = true;
         } else {
           UsesAliasingPtr = true;
@@ -1254,7 +1253,8 @@ static void HandleByValArgumentInit(Value *Dst, Value *Src, Module *M,
   // Always generate a memcpy of alignment 1 here because we don't know
   // the alignment of the src pointer.  Other optimizations can infer
   // better alignment.
-  Builder.CreateMemCpy(Dst, /*DstAlign*/1, Src, /*SrcAlign*/1, Size);
+  Builder.CreateMemCpy(Dst, /*DstAlign*/ Align(1), Src,
+                       /*SrcAlign*/ Align(1), Size);
 }
 
 /// When inlining a call site that has a byval argument,
@@ -1355,34 +1355,6 @@ static DebugLoc inlineDebugLoc(DebugLoc OrigDL, DILocation *InlinedAt,
                        IA);
 }
 
-/// Returns the LoopID for a loop which has has been cloned from another
-/// function for inlining with the new inlined-at start and end locs.
-static MDNode *inlineLoopID(const MDNode *OrigLoopId, DILocation *InlinedAt,
-                            LLVMContext &Ctx,
-                            DenseMap<const MDNode *, MDNode *> &IANodes) {
-  assert(OrigLoopId && OrigLoopId->getNumOperands() > 0 &&
-         "Loop ID needs at least one operand");
-  assert(OrigLoopId && OrigLoopId->getOperand(0).get() == OrigLoopId &&
-         "Loop ID should refer to itself");
-
-  // Save space for the self-referential LoopID.
-  SmallVector<Metadata *, 4> MDs = {nullptr};
-
-  for (unsigned i = 1; i < OrigLoopId->getNumOperands(); ++i) {
-    Metadata *MD = OrigLoopId->getOperand(i);
-    // Update the DILocations to encode the inlined-at metadata.
-    if (DILocation *DL = dyn_cast<DILocation>(MD))
-      MDs.push_back(inlineDebugLoc(DL, InlinedAt, Ctx, IANodes));
-    else
-      MDs.push_back(MD);
-  }
-
-  MDNode *NewLoopID = MDNode::getDistinct(Ctx, MDs);
-  // Insert the self-referential LoopID.
-  NewLoopID->replaceOperandWith(0, NewLoopID);
-  return NewLoopID;
-}
-
 /// Update inlined instructions' line numbers to
 /// to encode location where these instructions are inlined.
 static void fixupLineNumbers(Function *Fn, Function::iterator FI,
@@ -1405,31 +1377,37 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
   // other.
   DenseMap<const MDNode *, MDNode *> IANodes;
 
+  // Check if we are not generating inline line tables and want to use
+  // the call site location instead.
+  bool NoInlineLineTables = Fn->hasFnAttribute("no-inline-line-tables");
+
   for (; FI != Fn->end(); ++FI) {
     for (BasicBlock::iterator BI = FI->begin(), BE = FI->end();
          BI != BE; ++BI) {
       // Loop metadata needs to be updated so that the start and end locs
       // reference inlined-at locations.
-      if (MDNode *LoopID = BI->getMetadata(LLVMContext::MD_loop)) {
-        MDNode *NewLoopID =
-            inlineLoopID(LoopID, InlinedAtNode, BI->getContext(), IANodes);
-        BI->setMetadata(LLVMContext::MD_loop, NewLoopID);
-      }
+      auto updateLoopInfoLoc = [&Ctx, &InlinedAtNode, &IANodes](
+                                   const DILocation &Loc) -> DILocation * {
+        return inlineDebugLoc(&Loc, InlinedAtNode, Ctx, IANodes).get();
+      };
+      updateLoopMetadataDebugLocations(*BI, updateLoopInfoLoc);
 
-      if (DebugLoc DL = BI->getDebugLoc()) {
-        DebugLoc IDL =
-            inlineDebugLoc(DL, InlinedAtNode, BI->getContext(), IANodes);
-        BI->setDebugLoc(IDL);
+      if (!NoInlineLineTables)
+        if (DebugLoc DL = BI->getDebugLoc()) {
+          DebugLoc IDL =
+              inlineDebugLoc(DL, InlinedAtNode, BI->getContext(), IANodes);
+          BI->setDebugLoc(IDL);
+          continue;
+        }
+
+      if (CalleeHasDebugInfo && !NoInlineLineTables)
         continue;
-      }
 
-      if (CalleeHasDebugInfo)
-        continue;
-
-      // If the inlined instruction has no line number, make it look as if it
-      // originates from the call location. This is important for
-      // ((__always_inline__, __nodebug__)) functions which must use caller
-      // location for all instructions in their function body.
+      // If the inlined instruction has no line number, or if inline info
+      // is not being generated, make it look as if it originates from the call
+      // location. This is important for ((__always_inline, __nodebug__))
+      // functions which must use caller location for all instructions in their
+      // function body.
 
       // Don't update static allocas, as they may get moved later.
       if (auto *AI = dyn_cast<AllocaInst>(BI))
@@ -1438,6 +1416,19 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
 
       BI->setDebugLoc(TheCallDL);
     }
+
+    // Remove debug info intrinsics if we're not keeping inline info.
+    if (NoInlineLineTables) {
+      BasicBlock::iterator BI = FI->begin();
+      while (BI != FI->end()) {
+        if (isa<DbgInfoIntrinsic>(BI)) {
+          BI = BI->eraseFromParent();
+          continue;
+        }
+        ++BI;
+      }
+    }
+
   }
 }
 
@@ -1453,7 +1444,7 @@ static void updateCallerBFI(BasicBlock *CallSiteBlock,
                             BlockFrequencyInfo *CalleeBFI,
                             const BasicBlock &CalleeEntryBlock) {
   SmallPtrSet<BasicBlock *, 16> ClonedBBs;
-  for (auto const &Entry : VMap) {
+  for (auto Entry : VMap) {
     if (!isa<BasicBlock>(Entry.first) || !Entry.second)
       continue;
     auto *OrigBB = cast<BasicBlock>(Entry.first);
@@ -1508,22 +1499,25 @@ void llvm::updateProfileCallee(
   else
     newEntryCount = priorEntryCount + entryDelta;
 
-  Callee->setEntryCount(newEntryCount);
-
   // During inlining ?
   if (VMap) {
     uint64_t cloneEntryCount = priorEntryCount - newEntryCount;
-    for (auto const &Entry : *VMap)
+    for (auto Entry : *VMap)
       if (isa<CallInst>(Entry.first))
         if (auto *CI = dyn_cast_or_null<CallInst>(Entry.second))
           CI->updateProfWeight(cloneEntryCount, priorEntryCount);
   }
-  for (BasicBlock &BB : *Callee)
-    // No need to update the callsite if it is pruned during inlining.
-    if (!VMap || VMap->count(&BB))
-      for (Instruction &I : BB)
-        if (CallInst *CI = dyn_cast<CallInst>(&I))
-          CI->updateProfWeight(newEntryCount, priorEntryCount);
+
+  if (entryDelta) {
+    Callee->setEntryCount(newEntryCount);
+
+    for (BasicBlock &BB : *Callee)
+      // No need to update the callsite if it is pruned during inlining.
+      if (!VMap || VMap->count(&BB))
+        for (Instruction &I : BB)
+          if (CallInst *CI = dyn_cast<CallInst>(&I))
+            CI->updateProfWeight(newEntryCount, priorEntryCount);
+  }
 }
 
 /// This function inlines the called function into the basic block of the
@@ -1544,7 +1538,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
 
   // FIXME: we don't inline callbr yet.
   if (isa<CallBrInst>(TheCall))
-    return false;
+    return InlineResult::failure("We don't inline callbr yet.");
 
   // If IFI has any state in it, zap it before we fill it in.
   IFI.reset();
@@ -1552,7 +1546,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   Function *CalledFunc = CS.getCalledFunction();
   if (!CalledFunc ||               // Can't inline external function or indirect
       CalledFunc->isDeclaration()) // call!
-    return "external or indirect";
+    return InlineResult::failure("external or indirect");
 
   // The inliner does not know how to inline through calls with operand bundles
   // in general ...
@@ -1566,7 +1560,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
       if (Tag == LLVMContext::OB_funclet)
         continue;
 
-      return "unsupported operand bundle";
+      return InlineResult::failure("unsupported operand bundle");
     }
   }
 
@@ -1585,7 +1579,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     if (!Caller->hasGC())
       Caller->setGC(CalledFunc->getGC());
     else if (CalledFunc->getGC() != Caller->getGC())
-      return "incompatible GC";
+      return InlineResult::failure("incompatible GC");
   }
 
   // Get the personality function from the callee if it contains a landing pad.
@@ -1609,7 +1603,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     // TODO: This isn't 100% true. Some personality functions are proper
     //       supersets of others and can be used in place of the other.
     else if (CalledPersonality != CallerPersonality)
-      return "incompatible personality";
+      return InlineResult::failure("incompatible personality");
   }
 
   // We need to figure out which funclet the callsite was in so that we may
@@ -1634,7 +1628,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
             // for catchpads.
             for (const BasicBlock &CalledBB : *CalledFunc) {
               if (isa<CatchSwitchInst>(CalledBB.getFirstNonPHI()))
-                return "catch in cleanup funclet";
+                return InlineResult::failure("catch in cleanup funclet");
             }
           }
         } else if (isAsynchronousEHPersonality(Personality)) {
@@ -1642,7 +1636,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
           // funclet in the callee.
           for (const BasicBlock &CalledBB : *CalledFunc) {
             if (CalledBB.isEHPad())
-              return "SEH in cleanup funclet";
+              return InlineResult::failure("SEH in cleanup funclet");
           }
         }
       }
@@ -1842,6 +1836,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
       // Scan for the block of allocas that we can move over, and move them
       // all at once.
       while (isa<AllocaInst>(I) &&
+             !cast<AllocaInst>(I)->use_empty() &&
              allocaWouldBeStaticInEntry(cast<AllocaInst>(I))) {
         IFI.StaticAllocas.push_back(cast<AllocaInst>(I));
         ++I;
@@ -2251,7 +2246,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     Returns[0]->eraseFromParent();
 
     // We are now done with the inlining.
-    return true;
+    return InlineResult::success();
   }
 
   // Otherwise, we have the normal case, of more than one block to inline or
@@ -2413,5 +2408,5 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     }
   }
 
-  return true;
+  return InlineResult::success();
 }

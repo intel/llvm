@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/Metadata.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
@@ -95,7 +96,7 @@ protected:
         Context, 1, getFile(), "clang", false, "-g", 2, "",
         DICompileUnit::FullDebug, getTuple(), getTuple(), getTuple(),
         getTuple(), getTuple(), 0, true, false,
-        DICompileUnit::DebugNameTableKind::Default, false);
+        DICompileUnit::DebugNameTableKind::Default, false, "/");
   }
   DIType *getBasicType(StringRef Name) {
     return DIBasicType::get(Context, dwarf::DW_TAG_unspecified_type, Name);
@@ -1708,11 +1709,12 @@ TEST_F(DICompileUnitTest, get) {
   MDTuple *ImportedEntities = getTuple();
   uint64_t DWOId = 0x10000000c0ffee;
   MDTuple *Macros = getTuple();
+  StringRef SysRoot = "/";
   auto *N = DICompileUnit::getDistinct(
       Context, SourceLanguage, File, Producer, IsOptimized, Flags,
       RuntimeVersion, SplitDebugFilename, EmissionKind, EnumTypes,
       RetainedTypes, GlobalVariables, ImportedEntities, Macros, DWOId, true,
-      false, DICompileUnit::DebugNameTableKind::Default, false);
+      false, DICompileUnit::DebugNameTableKind::Default, false, SysRoot);
 
   EXPECT_EQ(dwarf::DW_TAG_compile_unit, N->getTag());
   EXPECT_EQ(SourceLanguage, N->getSourceLanguage());
@@ -1729,6 +1731,7 @@ TEST_F(DICompileUnitTest, get) {
   EXPECT_EQ(ImportedEntities, N->getImportedEntities().get());
   EXPECT_EQ(Macros, N->getMacros().get());
   EXPECT_EQ(DWOId, N->getDWOId());
+  EXPECT_EQ(SysRoot, N->getSysRoot());
 
   TempDICompileUnit Temp = N->clone();
   EXPECT_EQ(dwarf::DW_TAG_compile_unit, Temp->getTag());
@@ -1745,7 +1748,7 @@ TEST_F(DICompileUnitTest, get) {
   EXPECT_EQ(GlobalVariables, Temp->getGlobalVariables().get());
   EXPECT_EQ(ImportedEntities, Temp->getImportedEntities().get());
   EXPECT_EQ(Macros, Temp->getMacros().get());
-  EXPECT_EQ(DWOId, Temp->getDWOId());
+  EXPECT_EQ(SysRoot, Temp->getSysRoot());
 
   auto *TempAddress = Temp.get();
   auto *Clone = MDNode::replaceWithPermanent(std::move(Temp));
@@ -1766,11 +1769,12 @@ TEST_F(DICompileUnitTest, replaceArrays) {
   MDTuple *RetainedTypes = MDTuple::getDistinct(Context, None);
   MDTuple *ImportedEntities = MDTuple::getDistinct(Context, None);
   uint64_t DWOId = 0xc0ffee;
+  StringRef SysRoot = "/";
   auto *N = DICompileUnit::getDistinct(
       Context, SourceLanguage, File, Producer, IsOptimized, Flags,
       RuntimeVersion, SplitDebugFilename, EmissionKind, EnumTypes,
       RetainedTypes, nullptr, ImportedEntities, nullptr, DWOId, true, false,
-      DICompileUnit::DebugNameTableKind::Default, false);
+      DICompileUnit::DebugNameTableKind::Default, false, SysRoot);
 
   auto *GlobalVariables = MDTuple::getDistinct(Context, None);
   EXPECT_EQ(nullptr, N->getGlobalVariables().get());
@@ -2049,28 +2053,19 @@ TEST_F(DIModuleTest, get) {
   StringRef Name = "module";
   StringRef ConfigMacro = "-DNDEBUG";
   StringRef Includes = "-I.";
-  StringRef Sysroot = "/";
 
-  auto *N = DIModule::get(Context, Scope, Name, ConfigMacro, Includes, Sysroot);
+  auto *N = DIModule::get(Context, Scope, Name, ConfigMacro, Includes);
 
   EXPECT_EQ(dwarf::DW_TAG_module, N->getTag());
   EXPECT_EQ(Scope, N->getScope());
   EXPECT_EQ(Name, N->getName());
   EXPECT_EQ(ConfigMacro, N->getConfigurationMacros());
   EXPECT_EQ(Includes, N->getIncludePath());
-  EXPECT_EQ(Sysroot, N->getISysRoot());
-  EXPECT_EQ(N, DIModule::get(Context, Scope, Name,
-                             ConfigMacro, Includes, Sysroot));
-  EXPECT_NE(N, DIModule::get(Context, getFile(), Name,
-                             ConfigMacro, Includes, Sysroot));
-  EXPECT_NE(N, DIModule::get(Context, Scope, "other",
-                             ConfigMacro, Includes, Sysroot));
-  EXPECT_NE(N, DIModule::get(Context, Scope, Name,
-                             "other", Includes, Sysroot));
-  EXPECT_NE(N, DIModule::get(Context, Scope, Name,
-                             ConfigMacro, "other", Sysroot));
-  EXPECT_NE(N, DIModule::get(Context, Scope, Name,
-                             ConfigMacro, Includes, "other"));
+  EXPECT_EQ(N, DIModule::get(Context, Scope, Name, ConfigMacro, Includes));
+  EXPECT_NE(N, DIModule::get(Context, getFile(), Name, ConfigMacro, Includes));
+  EXPECT_NE(N, DIModule::get(Context, Scope, "other", ConfigMacro, Includes));
+  EXPECT_NE(N, DIModule::get(Context, Scope, Name, "other", Includes));
+  EXPECT_NE(N, DIModule::get(Context, Scope, Name, ConfigMacro, "other"));
 
   TempDIModule Temp = N->clone();
   EXPECT_EQ(N, MDNode::replaceWithUniqued(std::move(Temp)));
@@ -2392,6 +2387,49 @@ TEST_F(DIExpressionTest, isValid) {
 
 #undef EXPECT_VALID
 #undef EXPECT_INVALID
+}
+
+TEST_F(DIExpressionTest, createFragmentExpression) {
+#define EXPECT_VALID_FRAGMENT(Offset, Size, ...)                               \
+  do {                                                                         \
+    uint64_t Elements[] = {__VA_ARGS__};                                       \
+    DIExpression* Expression = DIExpression::get(Context, Elements);           \
+    EXPECT_TRUE(DIExpression::createFragmentExpression(                        \
+      Expression, Offset, Size).hasValue());                                   \
+  } while (false)
+#define EXPECT_INVALID_FRAGMENT(Offset, Size, ...)                             \
+  do {                                                                         \
+    uint64_t Elements[] = {__VA_ARGS__};                                       \
+    DIExpression* Expression = DIExpression::get(Context, Elements);           \
+    EXPECT_FALSE(DIExpression::createFragmentExpression(                       \
+      Expression, Offset, Size).hasValue());                                   \
+  } while (false)
+
+  // createFragmentExpression adds correct ops.
+  Optional<DIExpression*> R = DIExpression::createFragmentExpression(
+    DIExpression::get(Context, {}), 0, 32);
+  EXPECT_EQ(R.hasValue(), true);
+  EXPECT_EQ(3u, (*R)->getNumElements());
+  EXPECT_EQ(dwarf::DW_OP_LLVM_fragment, (*R)->getElement(0));
+  EXPECT_EQ(0u, (*R)->getElement(1));
+  EXPECT_EQ(32u, (*R)->getElement(2));
+
+  // Valid fragment expressions.
+  EXPECT_VALID_FRAGMENT(0, 32, {});
+  EXPECT_VALID_FRAGMENT(0, 32, dwarf::DW_OP_deref);
+  EXPECT_VALID_FRAGMENT(0, 32, dwarf::DW_OP_LLVM_fragment, 0, 32);
+  EXPECT_VALID_FRAGMENT(16, 16, dwarf::DW_OP_LLVM_fragment, 0, 32);
+
+  // Invalid fragment expressions (incompatible ops).
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 6, dwarf::DW_OP_plus);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 14, dwarf::DW_OP_minus);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shr);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shl);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_constu, 16, dwarf::DW_OP_shra);
+  EXPECT_INVALID_FRAGMENT(0, 32, dwarf::DW_OP_plus_uconst, 6);
+
+#undef EXPECT_VALID_FRAGMENT
+#undef EXPECT_INVALID_FRAGMENT
 }
 
 typedef MetadataTest DIObjCPropertyTest;
@@ -2853,5 +2891,42 @@ TEST_F(DistinctMDOperandPlaceholderTest, TrackingMDRefAndDistinctMDNode) {
   }
 }
 #endif
+
+typedef MetadataTest DebugVariableTest;
+TEST_F(DebugVariableTest, DenseMap) {
+  DenseMap<DebugVariable, uint64_t> DebugVariableMap;
+
+  DILocalScope *Scope = getSubprogram();
+  DIFile *File = getFile();
+  DIType *Type = getDerivedType();
+  DINode::DIFlags Flags = static_cast<DINode::DIFlags>(7);
+
+  DILocation *InlinedLoc = DILocation::get(Context, 2, 7, Scope);
+
+  DILocalVariable *VarA =
+      DILocalVariable::get(Context, Scope, "A", File, 5, Type, 2, Flags, 8);
+  DILocalVariable *VarB =
+      DILocalVariable::get(Context, Scope, "B", File, 7, Type, 3, Flags, 8);
+
+  DebugVariable DebugVariableA(VarA, NoneType(), nullptr);
+  DebugVariable DebugVariableInlineA(VarA, NoneType(), InlinedLoc);
+  DebugVariable DebugVariableB(VarB, NoneType(), nullptr);
+  DebugVariable DebugVariableFragB(VarB, {{16, 16}}, nullptr);
+
+  DebugVariableMap.insert({DebugVariableA, 2});
+  DebugVariableMap.insert({DebugVariableInlineA, 3});
+  DebugVariableMap.insert({DebugVariableB, 6});
+  DebugVariableMap.insert({DebugVariableFragB, 12});
+
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableA), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableInlineA), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableB), 1u);
+  EXPECT_EQ(DebugVariableMap.count(DebugVariableFragB), 1u);
+
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableA)->second, 2u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableInlineA)->second, 3u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableB)->second, 6u);
+  EXPECT_EQ(DebugVariableMap.find(DebugVariableFragB)->second, 12u);
+}
 
 } // end namespace

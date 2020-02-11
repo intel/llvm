@@ -1,4 +1,4 @@
-//===-- SBValue.cpp ---------------------------------------------*- C++ -*-===//
+//===-- SBValue.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -386,25 +386,6 @@ const char *SBValue::GetObjectDescription() {
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
     cstr = value_sp->GetObjectDescription();
-  }
-
-  return cstr;
-}
-
-const char *SBValue::GetTypeValidatorResult() {
-  LLDB_RECORD_METHOD_NO_ARGS(const char *, SBValue, GetTypeValidatorResult);
-
-  const char *cstr = nullptr;
-  ValueLocker locker;
-  lldb::ValueObjectSP value_sp(GetSP(locker));
-  if (value_sp) {
-    const auto &validation(value_sp->GetValidationStatus());
-    if (TypeValidatorResult::Failure == validation.first) {
-      if (validation.second.empty())
-        cstr = "unknown error";
-      else
-        cstr = validation.second.c_str();
-    }
   }
 
   return cstr;
@@ -1173,7 +1154,7 @@ bool SBValue::GetExpressionPath(SBStream &description) {
   ValueLocker locker;
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
-    value_sp->GetExpressionPath(description.ref(), false);
+    value_sp->GetExpressionPath(description.ref());
     return true;
   }
   return false;
@@ -1187,7 +1168,7 @@ bool SBValue::GetExpressionPath(SBStream &description,
   ValueLocker locker;
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
-    value_sp->GetExpressionPath(description.ref(), qualify_cxx_base_classes);
+    value_sp->GetExpressionPath(description.ref());
     return true;
   }
   return false;
@@ -1512,7 +1493,7 @@ lldb::SBWatchpoint SBValue::Watch(bool resolve_location, bool read, bool write,
           StreamString ss;
           // True to show fullpath for declaration file.
           decl.DumpStopContext(&ss, true);
-          watchpoint_sp->SetDeclInfo(ss.GetString());
+          watchpoint_sp->SetDeclInfo(std::string(ss.GetString()));
         }
       }
     }
@@ -1585,7 +1566,6 @@ void RegisterMethods<SBValue>(Registry &R) {
   LLDB_REGISTER_METHOD(const char *, SBValue, GetValue, ());
   LLDB_REGISTER_METHOD(lldb::ValueType, SBValue, GetValueType, ());
   LLDB_REGISTER_METHOD(const char *, SBValue, GetObjectDescription, ());
-  LLDB_REGISTER_METHOD(const char *, SBValue, GetTypeValidatorResult, ());
   LLDB_REGISTER_METHOD(lldb::SBType, SBValue, GetType, ());
   LLDB_REGISTER_METHOD(bool, SBValue, GetValueDidChange, ());
   LLDB_REGISTER_METHOD(const char *, SBValue, GetSummary, ());

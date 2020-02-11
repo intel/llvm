@@ -52,10 +52,12 @@ add_lld_library(lldELF
   BitWriter
   Core
   DebugInfoDWARF
+  Demangle
   LTO
   MC
   Object
   Option
+  Passes
   Support
 
   LINK_LIBS

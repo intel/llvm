@@ -1,4 +1,4 @@
-//===-- ThreadGDBRemote.cpp -------------------------------------*- C++ -*-===//
+//===-- ThreadGDBRemote.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -301,13 +301,14 @@ ThreadGDBRemote::CreateRegisterContextForFrame(StackFrame *frame) {
     if (process_sp) {
       ProcessGDBRemote *gdb_process =
           static_cast<ProcessGDBRemote *>(process_sp.get());
-      // read_all_registers_at_once will be true if 'p' packet is not
-      // supported.
+      bool pSupported =
+          gdb_process->GetGDBRemote().GetpPacketSupported(GetID());
       bool read_all_registers_at_once =
-          !gdb_process->GetGDBRemote().GetpPacketSupported(GetID());
+          !pSupported || gdb_process->m_use_g_packet_for_reading;
+      bool write_all_registers_at_once = !pSupported;
       reg_ctx_sp = std::make_shared<GDBRemoteRegisterContext>(
           *this, concrete_frame_idx, gdb_process->m_register_info,
-          read_all_registers_at_once);
+          read_all_registers_at_once, write_all_registers_at_once);
     }
   } else {
     Unwind *unwinder = GetUnwinder();

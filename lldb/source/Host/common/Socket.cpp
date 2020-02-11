@@ -1,4 +1,4 @@
-//===-- Socket.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Socket.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,7 +22,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/WindowsError.h"
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include "lldb/Host/posix/DomainSocket.h"
 
 #include <arpa/inet.h>
@@ -122,7 +122,7 @@ std::unique_ptr<Socket> Socket::Create(const SocketProtocol protocol,
         std::make_unique<UDPSocket>(true, child_processes_inherit);
     break;
   case ProtocolUnixDomain:
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
     socket_up =
         std::make_unique<DomainSocket>(true, child_processes_inherit);
 #else
@@ -309,7 +309,7 @@ bool Socket::DecodeHostAndPort(llvm::StringRef host_and_port,
   host_str.clear();
   port_str.clear();
   if (to_integer(host_and_port, port, 10) && port < UINT16_MAX) {
-    port_str = host_and_port;
+    port_str = std::string(host_and_port);
     if (error_ptr)
       error_ptr->Clear();
     return true;

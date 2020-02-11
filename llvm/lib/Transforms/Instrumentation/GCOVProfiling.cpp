@@ -30,6 +30,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -128,9 +129,9 @@ private:
   // Checksum, produced by hash of EdgeDestinations
   SmallVector<uint32_t, 4> FileChecksums;
 
-  Module *M;
+  Module *M = nullptr;
   std::function<const TargetLibraryInfo &(Function &F)> GetTLI;
-  LLVMContext *Ctx;
+  LLVMContext *Ctx = nullptr;
   SmallVector<std::unique_ptr<GCOVFunction>, 16> Funcs;
   std::vector<Regex> FilterRe;
   std::vector<Regex> ExcludeRe;
@@ -267,8 +268,7 @@ namespace {
         write(Lines[i]);
     }
 
-    GCOVLines(StringRef F, raw_ostream *os)
-      : Filename(F) {
+    GCOVLines(StringRef F, raw_ostream *os) : Filename(std::string(F)) {
       this->os = os;
     }
 
@@ -384,7 +384,7 @@ namespace {
       return EdgeDestinations;
     }
 
-    uint32_t getFuncChecksum() {
+    uint32_t getFuncChecksum() const {
       return FuncChecksum;
     }
 
@@ -536,7 +536,8 @@ std::string GCOVProfiler::mangleName(const DICompileUnit *CU,
         MDString *DataFile = dyn_cast<MDString>(N->getOperand(1));
         if (!NotesFile || !DataFile)
           continue;
-        return Notes ? NotesFile->getString() : DataFile->getString();
+        return std::string(Notes ? NotesFile->getString()
+                                 : DataFile->getString());
       }
 
       MDString *GCovFile = dyn_cast<MDString>(N->getOperand(0));
@@ -545,7 +546,7 @@ std::string GCOVProfiler::mangleName(const DICompileUnit *CU,
 
       SmallString<128> Filename = GCovFile->getString();
       sys::path::replace_extension(Filename, Notes ? "gcno" : "gcda");
-      return Filename.str();
+      return std::string(Filename.str());
     }
   }
 
@@ -553,9 +554,10 @@ std::string GCOVProfiler::mangleName(const DICompileUnit *CU,
   sys::path::replace_extension(Filename, Notes ? "gcno" : "gcda");
   StringRef FName = sys::path::filename(Filename);
   SmallString<128> CurPath;
-  if (sys::fs::current_path(CurPath)) return FName;
+  if (sys::fs::current_path(CurPath))
+    return std::string(FName);
   sys::path::append(CurPath, FName);
-  return CurPath.str();
+  return std::string(CurPath.str());
 }
 
 bool GCOVProfiler::runOnModule(
@@ -713,7 +715,10 @@ void GCOVProfiler::emitProfileNotes() {
       // to have a counter for the function definition.
       uint32_t Line = SP->getLine();
       auto Filename = getFilename(SP);
-      Func.getBlock(&EntryBlock).getFile(Filename).addLine(Line);
+
+      // Artificial functions such as global initializers
+      if (!SP->isArtificial())
+        Func.getBlock(&EntryBlock).getFile(Filename).addLine(Line);
 
       for (auto &BB : F) {
         GCOVBlock &Block = Func.getBlock(&BB);

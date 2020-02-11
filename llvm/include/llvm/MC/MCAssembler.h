@@ -191,11 +191,8 @@ private:
   bool layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec);
 
   bool relaxInstruction(MCAsmLayout &Layout, MCRelaxableFragment &IF);
-
-  bool relaxPaddingFragment(MCAsmLayout &Layout, MCPaddingFragment &PF);
-
   bool relaxLEB(MCAsmLayout &Layout, MCLEBFragment &IF);
-
+  bool relaxBoundaryAlign(MCAsmLayout &Layout, MCBoundaryAlignFragment &BF);
   bool relaxDwarfLineAddr(MCAsmLayout &Layout, MCDwarfLineAddrFragment &DF);
   bool relaxDwarfCallFrameFragment(MCAsmLayout &Layout,
                                    MCDwarfCallFrameFragment &DF);
@@ -443,7 +440,7 @@ public:
 
   void addFileName(StringRef FileName) {
     if (!is_contained(FileNames, FileName))
-      FileNames.push_back(FileName);
+      FileNames.push_back(std::string(FileName));
   }
 
   /// Write the necessary bundle padding to \p OS.

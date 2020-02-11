@@ -143,7 +143,7 @@ Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
 }
 
 Attribute Attribute::getWithAlignment(LLVMContext &Context, Align A) {
-  assert(A <= 0x40000000 && "Alignment too large.");
+  assert(A <= llvm::Value::MaximumAlignment && "Alignment too large.");
   return get(Context, Alignment, A.value());
 }
 
@@ -174,6 +174,37 @@ Attribute::getWithAllocSizeArgs(LLVMContext &Context, unsigned ElemSizeArg,
   assert(!(ElemSizeArg == 0 && NumElemsArg && *NumElemsArg == 0) &&
          "Invalid allocsize arguments -- given allocsize(0, 0)");
   return get(Context, AllocSize, packAllocSizeArgs(ElemSizeArg, NumElemsArg));
+}
+
+Attribute::AttrKind Attribute::getAttrKindFromName(StringRef AttrName) {
+  return StringSwitch<Attribute::AttrKind>(AttrName)
+#define GET_ATTR_NAMES
+#define ATTRIBUTE_ENUM(ENUM_NAME, DISPLAY_NAME)                                \
+  .Case(#DISPLAY_NAME, Attribute::ENUM_NAME)
+#include "llvm/IR/Attributes.inc"
+      .Default(Attribute::None);
+}
+
+StringRef Attribute::getNameFromAttrKind(Attribute::AttrKind AttrKind) {
+  switch (AttrKind) {
+#define GET_ATTR_NAMES
+#define ATTRIBUTE_ENUM(ENUM_NAME, DISPLAY_NAME)                                \
+  case Attribute::ENUM_NAME:                                                   \
+    return #DISPLAY_NAME;
+#include "llvm/IR/Attributes.inc"
+  case Attribute::None:
+    return "none";
+  default:
+    llvm_unreachable("invalid Kind");
+  }
+}
+
+bool Attribute::doesAttrKindHaveArgument(Attribute::AttrKind AttrKind) {
+  return AttrKind == Attribute::Alignment ||
+         AttrKind == Attribute::StackAlignment ||
+         AttrKind == Attribute::Dereferenceable ||
+         AttrKind == Attribute::AllocSize ||
+         AttrKind == Attribute::DereferenceableOrNull;
 }
 
 //===----------------------------------------------------------------------===//
@@ -466,7 +497,7 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     std::string Result;
     Result += (Twine('"') + getKindAsString() + Twine('"')).str();
 
-    std::string AttrVal = pImpl->getValueAsString();
+    std::string AttrVal = std::string(pImpl->getValueAsString());
     if (AttrVal.empty()) return Result;
 
     // Since some attribute strings contain special characters that cannot be
@@ -489,6 +520,10 @@ bool Attribute::operator<(Attribute A) const {
   if (!pImpl) return true;
   if (!A.pImpl) return false;
   return *pImpl < *A.pImpl;
+}
+
+void Attribute::Profile(FoldingSetNodeID &ID) const {
+  ID.AddPointer(pImpl);
 }
 
 //===----------------------------------------------------------------------===//
@@ -618,7 +653,7 @@ AttributeSet AttributeSet::addAttributes(LLVMContext &C,
     return *this;
 
   AttrBuilder B(AS);
-  for (const auto I : *this)
+  for (const auto &I : *this)
     B.addAttribute(I);
 
  return get(C, B);
@@ -725,7 +760,7 @@ AttributeSetNode::AttributeSetNode(ArrayRef<Attribute> Attrs)
                     sizeof(AvailableAttrs) * CHAR_BIT,
                 "Too many attributes");
 
-  for (const auto I : *this) {
+  for (const auto &I : *this) {
     if (!I.isStringAttribute()) {
       Attribute::AttrKind Kind = I.getKindAsEnum();
       AvailableAttrs[Kind / 8] |= 1ULL << (Kind % 8);
@@ -745,7 +780,7 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C,
   SmallVector<Attribute, 8> SortedAttrs(Attrs.begin(), Attrs.end());
   llvm::sort(SortedAttrs);
 
-  for (const auto Attr : SortedAttrs)
+  for (const auto &Attr : SortedAttrs)
     Attr.Profile(ID);
 
   void *InsertPoint;
@@ -813,7 +848,7 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C, const AttrBuilder &B) {
 }
 
 bool AttributeSetNode::hasAttribute(StringRef Kind) const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Kind))
       return true;
   return false;
@@ -821,7 +856,7 @@ bool AttributeSetNode::hasAttribute(StringRef Kind) const {
 
 Attribute AttributeSetNode::getAttribute(Attribute::AttrKind Kind) const {
   if (hasAttribute(Kind)) {
-    for (const auto I : *this)
+    for (const auto &I : *this)
       if (I.hasAttribute(Kind))
         return I;
   }
@@ -829,42 +864,42 @@ Attribute AttributeSetNode::getAttribute(Attribute::AttrKind Kind) const {
 }
 
 Attribute AttributeSetNode::getAttribute(StringRef Kind) const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Kind))
       return I;
   return {};
 }
 
 MaybeAlign AttributeSetNode::getAlignment() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::Alignment))
       return I.getAlignment();
   return None;
 }
 
 MaybeAlign AttributeSetNode::getStackAlignment() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::StackAlignment))
       return I.getStackAlignment();
   return None;
 }
 
 Type *AttributeSetNode::getByValType() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::ByVal))
       return I.getValueAsType();
   return 0;
 }
 
 uint64_t AttributeSetNode::getDereferenceableBytes() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::Dereferenceable))
       return I.getDereferenceableBytes();
   return 0;
 }
 
 uint64_t AttributeSetNode::getDereferenceableOrNullBytes() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::DereferenceableOrNull))
       return I.getDereferenceableOrNullBytes();
   return 0;
@@ -872,7 +907,7 @@ uint64_t AttributeSetNode::getDereferenceableOrNullBytes() const {
 
 std::pair<unsigned, Optional<unsigned>>
 AttributeSetNode::getAllocSizeArgs() const {
-  for (const auto I : *this)
+  for (const auto &I : *this)
     if (I.hasAttribute(Attribute::AllocSize))
       return I.getAllocSizeArgs();
   return std::make_pair(0, 0);
@@ -914,7 +949,7 @@ AttributeListImpl::AttributeListImpl(LLVMContext &C,
                 "Too many attributes");
   static_assert(attrIdxToArrayIdx(AttributeList::FunctionIndex) == 0U,
                 "function should be stored in slot 0");
-  for (const auto I : Sets[0]) {
+  for (const auto &I : Sets[0]) {
     if (!I.isStringAttribute()) {
       Attribute::AttrKind Kind = I.getKindAsEnum();
       AvailableFunctionAttrs[Kind / 8] |= 1ULL << (Kind % 8);
@@ -1030,7 +1065,7 @@ AttributeList::get(LLVMContext &C,
     MaxIndex = Attrs[Attrs.size() - 2].first;
 
   SmallVector<AttributeSet, 4> AttrVec(attrIdxToArrayIdx(MaxIndex) + 1);
-  for (const auto Pair : Attrs)
+  for (const auto &Pair : Attrs)
     AttrVec[attrIdxToArrayIdx(Pair.first)] = Pair.second;
 
   return getImpl(C, AttrVec);
@@ -1098,7 +1133,7 @@ AttributeList AttributeList::get(LLVMContext &C, unsigned Index,
 AttributeList AttributeList::get(LLVMContext &C, unsigned Index,
                                  ArrayRef<StringRef> Kinds) {
   SmallVector<std::pair<unsigned, Attribute>, 8> Attrs;
-  for (const auto K : Kinds)
+  for (const auto &K : Kinds)
     Attrs.emplace_back(Index, Attribute::get(C, K));
   return get(C, Attrs);
 }
@@ -1111,7 +1146,7 @@ AttributeList AttributeList::get(LLVMContext &C,
     return Attrs[0];
 
   unsigned MaxSize = 0;
-  for (const auto List : Attrs)
+  for (const auto &List : Attrs)
     MaxSize = std::max(MaxSize, List.getNumAttrSets());
 
   // If every list was empty, there is no point in merging the lists.
@@ -1121,7 +1156,7 @@ AttributeList AttributeList::get(LLVMContext &C,
   SmallVector<AttributeSet, 8> NewAttrSets(MaxSize);
   for (unsigned I = 0; I < MaxSize; ++I) {
     AttrBuilder CurBuilder;
-    for (const auto List : Attrs)
+    for (const auto &List : Attrs)
       CurBuilder.merge(List.getAttributes(I - 1));
     NewAttrSets[I] = AttributeSet::get(C, CurBuilder);
   }
@@ -1445,8 +1480,7 @@ void AttrBuilder::clear() {
 
 AttrBuilder &AttrBuilder::addAttribute(Attribute::AttrKind Val) {
   assert((unsigned)Val < Attribute::EndAttrKinds && "Attribute out of range!");
-  assert(Val != Attribute::Alignment && Val != Attribute::StackAlignment &&
-         Val != Attribute::Dereferenceable && Val != Attribute::AllocSize &&
+  assert(!Attribute::doesAttrKindHaveArgument(Val) &&
          "Adding integer attribute without adding a value!");
   Attrs[Val] = true;
   return *this;
@@ -1477,7 +1511,7 @@ AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
 }
 
 AttrBuilder &AttrBuilder::addAttribute(StringRef A, StringRef V) {
-  TargetDepAttrs[A] = V;
+  TargetDepAttrs[std::string(A)] = std::string(V);
   return *this;
 }
 
@@ -1521,7 +1555,7 @@ AttrBuilder &AttrBuilder::addAlignmentAttr(MaybeAlign Align) {
   if (!Align)
     return *this;
 
-  assert(*Align <= 0x40000000 && "Alignment too large.");
+  assert(*Align <= llvm::Value::MaximumAlignment && "Alignment too large.");
 
   Attrs[Attribute::Alignment] = true;
   Alignment = Align;
@@ -1659,7 +1693,7 @@ bool AttrBuilder::hasAttributes() const {
 bool AttrBuilder::hasAttributes(AttributeList AL, uint64_t Index) const {
   AttributeSet AS = AL.getAttributes(Index);
 
-  for (const auto Attr : AS) {
+  for (const auto &Attr : AS) {
     if (Attr.isEnumAttribute() || Attr.isIntAttribute()) {
       if (contains(Attr.getKindAsEnum()))
         return true;
@@ -1846,8 +1880,49 @@ adjustNullPointerValidAttr(Function &Caller, const Function &Callee) {
   }
 }
 
+struct EnumAttr {
+  static bool isSet(const Function &Fn,
+                    Attribute::AttrKind Kind) {
+    return Fn.hasFnAttribute(Kind);
+  }
+
+  static void set(Function &Fn,
+                  Attribute::AttrKind Kind, bool Val) {
+    if (Val)
+      Fn.addFnAttr(Kind);
+    else
+      Fn.removeFnAttr(Kind);
+  }
+};
+
+struct StrBoolAttr {
+  static bool isSet(const Function &Fn,
+                    StringRef Kind) {
+    auto A = Fn.getFnAttribute(Kind);
+    return A.getValueAsString().equals("true");
+  }
+
+  static void set(Function &Fn,
+                  StringRef Kind, bool Val) {
+    Fn.addFnAttr(Kind, Val ? "true" : "false");
+  }
+};
+
+#define GET_ATTR_NAMES
+#define ATTRIBUTE_ENUM(ENUM_NAME, DISPLAY_NAME)                                \
+  struct ENUM_NAME##Attr : EnumAttr {                                          \
+    static enum Attribute::AttrKind getKind() {                                \
+      return llvm::Attribute::ENUM_NAME;                                       \
+    }                                                                          \
+  };
+#define ATTRIBUTE_STRBOOL(ENUM_NAME, DISPLAY_NAME)                             \
+  struct ENUM_NAME##Attr : StrBoolAttr {                                       \
+    static StringRef getKind() { return #DISPLAY_NAME; }                       \
+  };
+#include "llvm/IR/Attributes.inc"
+
 #define GET_ATTR_COMPAT_FUNC
-#include "AttributesCompatFunc.inc"
+#include "llvm/IR/Attributes.inc"
 
 bool AttributeFuncs::areInlineCompatible(const Function &Caller,
                                          const Function &Callee) {

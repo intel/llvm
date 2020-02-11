@@ -253,7 +253,7 @@ bool MipsDAGToDAGISel::selectVecAddAsVecSubIfProfitable(SDNode *Node) {
   SDLoc DL(Node);
 
   SDValue NegC = CurDAG->FoldConstantArithmetic(
-      ISD::SUB, DL, VT, CurDAG->getConstant(0, DL, VT).getNode(), C.getNode());
+      ISD::SUB, DL, VT, {CurDAG->getConstant(0, DL, VT), C});
   assert(NegC && "Constant-folding failed!");
   SDValue NewNode = CurDAG->getNode(ISD::SUB, DL, VT, X, NegC);
 
@@ -314,7 +314,6 @@ SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
   switch(ConstraintID) {
   default:
     llvm_unreachable("Unexpected asm memory constraint");
-  case InlineAsm::Constraint_i:
   case InlineAsm::Constraint_m:
   case InlineAsm::Constraint_R:
   case InlineAsm::Constraint_ZC:

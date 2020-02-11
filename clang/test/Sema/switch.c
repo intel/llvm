@@ -283,6 +283,10 @@ void test16() {
   }
 }
 
+struct bitfield_member {
+  unsigned bf : 1;
+};
+
 // PR7359
 void test17(int x) {
   switch (x >= 17) { // expected-warning {{switch condition has boolean value}}
@@ -291,6 +295,13 @@ void test17(int x) {
 
   switch ((int) (x <= 17)) {
   case 0: return;
+  }
+
+  struct bitfield_member bm;
+  switch (bm.bf) { // no warning
+  case 0:
+  case 1:
+    return;
   }
 }
 
@@ -372,7 +383,7 @@ void switch_on_ExtendedEnum1(enum ExtendedEnum1 e) {
   case EE1_b: break;
   case EE1_c: break; // no-warning
   case EE1_d: break; // expected-warning {{case value not in enumerated type 'enum ExtendedEnum1'}}
-  // expected-warning@-1 {{comparison of two values with different enumeration types in switch statement ('enum ExtendedEnum1' and 'enum ExtendedEnum1_unrelated')}}
+  // expected-warning@-1 {{comparison of different enumeration types in switch statement ('enum ExtendedEnum1' and 'enum ExtendedEnum1_unrelated')}}
   }
 }
 

@@ -896,7 +896,7 @@ Error DumpOutputStyle::dumpUdtStats() {
                       return L.Stat.Size > R.Stat.Size;
                     });
   for (const auto &Stat : NamespacedStatsSorted) {
-    std::string Label = formatv("namespace '{0}'", Stat.Key);
+    std::string Label = std::string(formatv("namespace '{0}'", Stat.Key));
     P.formatLine("{0} | {1:N}  {2:N}",
                  fmt_align(Label, AlignStyle::Right, FieldWidth),
                  fmt_align(Stat.Stat.Count, AlignStyle::Right, CD),
@@ -1039,7 +1039,7 @@ Error DumpOutputStyle::dumpXmi() {
           }
           std::vector<std::string> TIs;
           for (const auto I : Xmi.Imports)
-            TIs.push_back(formatv("{0,+10:X+}", fmtle(I)));
+            TIs.push_back(std::string(formatv("{0,+10:X+}", fmtle(I))));
           std::string Result =
               typesetItemList(TIs, P.getIndentLevel() + 35, 12, " ");
           P.formatLine("{0,+32} | {1}", Module, Result);
@@ -1407,7 +1407,7 @@ Error DumpOutputStyle::dumpTypesFromObjectFile() {
 
       P.formatLine("Local / Global hashes:");
       TypeIndex TI(TypeIndex::FirstNonSimpleIndex);
-      for (const auto &H : zip(LocalHashes, GlobalHashes)) {
+      for (auto H : zip(LocalHashes, GlobalHashes)) {
         AutoIndent Indent2(P);
         LocallyHashedType &L = std::get<0>(H);
         GloballyHashedType &G = std::get<1>(H);

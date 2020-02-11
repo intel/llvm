@@ -401,7 +401,7 @@ int main (int argc, const char * argv[])
 
 	    [mutableGetConst length];
 
-	    NSData *immutableData = [[NSData alloc] initWithBytes:"HELLO" length:4];
+	    NSData *immutableData = [[NSData alloc] initWithBytes:"HELLO" length:5];
 	    NSData *mutableData = [[NSMutableData alloc] initWithBytes:"NODATA" length:6];
 
 	    // No-copy versions of NSData initializers use NSConcreteData if over 2^16 elements are specified.
@@ -492,16 +492,16 @@ int main (int argc, const char * argv[])
 	        nsurl0 = [bundle bundleURL];
 	    }
 
-	    NSException* except0 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName" reason:@"cuz it's funny" userInfo:nil];
-	    NSException* except1 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName~1" reason:@"cuz it's funny" userInfo:nil];
-	    NSException* except2 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName`2" reason:@"cuz it's funny" userInfo:nil];
-	    NSException* except3 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName/3" reason:@"cuz it's funny" userInfo:nil];
+	    NSException* except0 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName" reason:@"First" userInfo:nil];
+	    NSException* except1 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName~1" reason:@"Second" userInfo:nil];
+	    NSException* except2 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName`2" reason:@"Third" userInfo:nil];
+	    NSException* except3 = [[NSException alloc] initWithName:@"TheGuyWhoHasNoName/3" reason:@"Fourth" userInfo:nil];
 
 	    NSURL *nsurl = [[NSURL alloc] initWithString:@"http://www.foo.bar"];
 	    NSURL *nsurl2 = [NSURL URLWithString:@"page.html" relativeToURL:nsurl];
 	    NSURL *nsurl3 = [NSURL URLWithString:@"?whatever" relativeToURL:nsurl2];
     
-		NSDate *date1 = [NSDate dateWithNaturalLanguageString:@"6pm April 10, 1985"];
+		NSDate *date1 = [NSDate dateWithTimeIntervalSince1970:133890*60*60]; // 6pm April 10, 1985 GMT
 		NSDate *date2 = [NSDate dateWithNaturalLanguageString:@"12am January 1, 2011"];
 		NSDate *date3 = [NSDate date];
 		NSDate *date4 = [NSDate dateWithTimeIntervalSince1970:24*60*60];

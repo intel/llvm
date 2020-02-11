@@ -45,7 +45,7 @@ Unit tests
 ----------
 
 Unit tests are written using `Google Test <https://github.com/google/googletest/blob/master/googletest/docs/primer.md>`_
-and `Google Mock <https://github.com/google/googletest/blob/master/googlemock/docs/ForDummies.md>`_
+and `Google Mock <https://github.com/google/googletest/blob/master/googlemock/docs/for_dummies.md>`_
 and are located in the ``llvm/unittests`` directory.
 
 Regression tests
@@ -548,6 +548,13 @@ RUN lines:
    ``i686-pc-win32`` target, ``%itanium_abi_triple`` will expand to
    ``i686-pc-mingw32``. This allows a test to run with a specific ABI without
    constraining it to a specific triple.
+
+**FileCheck-specific substitutions:**
+
+``%ProtectFileCheckOutput``
+   This should precede a ``FileCheck`` call if and only if the call's textual
+   output affects test results.  It's usually easy to tell: just look for
+   redirection or piping of the ``FileCheck`` call's stdout or stderr.
 
 To add more substituations, look at ``test/lit.cfg`` or ``lit.local.cfg``.
 

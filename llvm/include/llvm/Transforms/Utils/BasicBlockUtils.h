@@ -79,7 +79,8 @@ void FoldSingleEntryPHINodes(BasicBlock *BB,
 /// recursively delete any operands that become dead as a result. This includes
 /// tracing the def-use list from the PHI to see if it is ultimately unused or
 /// if it reaches an unused cycle. Return true if any PHIs were deleted.
-bool DeleteDeadPHIs(BasicBlock *BB, const TargetLibraryInfo *TLI = nullptr);
+bool DeleteDeadPHIs(BasicBlock *BB, const TargetLibraryInfo *TLI = nullptr,
+                    MemorySSAUpdater *MSSAU = nullptr);
 
 /// Attempts to merge a block into its predecessor, if possible. The return
 /// value indicates success or failure.
@@ -93,6 +94,10 @@ bool MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU = nullptr,
                                MemorySSAUpdater *MSSAU = nullptr,
                                MemoryDependenceResults *MemDep = nullptr,
                                bool PredecessorWithTwoSuccessors = false);
+
+/// Try to remove redundant dbg.value instructions from given basic block.
+/// Returns true if at least one instruction was removed.
+bool RemoveRedundantDbgInstrs(BasicBlock *BB);
 
 /// Replace all uses of an instruction (specified by BI) with a value, then
 /// remove and delete the original instruction.

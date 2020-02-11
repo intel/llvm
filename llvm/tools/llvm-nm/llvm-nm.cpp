@@ -707,9 +707,22 @@ static bool symbolIsDefined(const NMSymbol &Sym) {
   return Sym.TypeChar != 'U' && Sym.TypeChar != 'w' && Sym.TypeChar != 'v';
 }
 
+static void writeFileName(raw_ostream &S, StringRef ArchiveName,
+                          StringRef ArchitectureName) {
+  if (!ArchitectureName.empty())
+    S << "(for architecture " << ArchitectureName << "):";
+  if (OutputFormat == posix && !ArchiveName.empty())
+    S << ArchiveName << "[" << CurrentFilename << "]: ";
+  else {
+    if (!ArchiveName.empty())
+      S << ArchiveName << ":";
+    S << CurrentFilename << ": ";
+  }
+}
+
 static void sortAndPrintSymbolList(SymbolicFile &Obj, bool printName,
-                                   const std::string &ArchiveName,
-                                   const std::string &ArchitectureName) {
+                                   StringRef ArchiveName,
+                                   StringRef ArchitectureName) {
   if (!NoSort) {
     using Comparator = bool (*)(const NMSymbol &, const NMSymbol &);
     Comparator Cmp;
@@ -773,24 +786,6 @@ static void sortAndPrintSymbolList(SymbolicFile &Obj, bool printName,
     }
   }
 
-  auto writeFileName = [&](raw_ostream &S) {
-    if (!ArchitectureName.empty())
-      S << "(for architecture " << ArchitectureName << "):";
-    if (OutputFormat == posix && !ArchiveName.empty())
-      S << ArchiveName << "[" << CurrentFilename << "]: ";
-    else {
-      if (!ArchiveName.empty())
-        S << ArchiveName << ":";
-      S << CurrentFilename << ": ";
-    }
-  };
-
-  if (SymbolList.empty()) {
-    if (PrintFileName)
-      writeFileName(errs());
-    errs() << "no symbols\n";
-  }
-
   for (const NMSymbol &S : SymbolList) {
     uint32_t SymFlags;
     std::string Name = S.Name.str();
@@ -811,7 +806,7 @@ static void sortAndPrintSymbolList(SymbolicFile &Obj, bool printName,
         (!Global && ExternalOnly) || (Weak && NoWeakSymbols))
       continue;
     if (PrintFileName)
-      writeFileName(outs());
+      writeFileName(outs(), ArchiveName, ArchitectureName);
     if ((JustSymbolName ||
          (UndefinedOnly && MachO && OutputFormat != darwin)) &&
         OutputFormat != posix) {
@@ -1133,13 +1128,16 @@ static char getNMSectionTagAndName(SymbolicFile &Obj, basic_symbol_iterator I,
     Ret = getSymbolNMTypeChar(*MachO, I);
   else if (WasmObjectFile *Wasm = dyn_cast<WasmObjectFile>(&Obj))
     Ret = getSymbolNMTypeChar(*Wasm, I);
-  else
-    Ret = getSymbolNMTypeChar(cast<ELFObjectFileBase>(Obj), I);
+  else if (ELFObjectFileBase *ELF = dyn_cast<ELFObjectFileBase>(&Obj)) {
+    if (ELFSymbolRef(*I).getELFType() == ELF::STT_GNU_IFUNC)
+      return 'i';
+    Ret = getSymbolNMTypeChar(*ELF, I);
+    if (ELFSymbolRef(*I).getBinding() == ELF::STB_GNU_UNIQUE)
+      return Ret;
+  } else
+    llvm_unreachable("unknown binary format");
 
   if (!(Symflags & object::SymbolRef::SF_Global))
-    return Ret;
-
-  if (Obj.isELF() && ELFSymbolRef(*I).getBinding() == ELF::STB_GNU_UNIQUE)
     return Ret;
 
   return toupper(Ret);
@@ -1181,10 +1179,9 @@ static unsigned getNsectInMachO(MachOObjectFile &Obj, BasicSymbolRef Sym) {
   return (STE.n_type & MachO::N_TYPE) == MachO::N_SECT ? STE.n_sect : 0;
 }
 
-static void
-dumpSymbolNamesFromObject(SymbolicFile &Obj, bool printName,
-                          const std::string &ArchiveName = std::string(),
-                          const std::string &ArchitectureName = std::string()) {
+static void dumpSymbolNamesFromObject(SymbolicFile &Obj, bool printName,
+                                      StringRef ArchiveName = {},
+                                      StringRef ArchitectureName = {}) {
   auto Symbols = Obj.symbols();
   if (DynamicSyms) {
     const auto *E = dyn_cast<ELFObjectFileBase>(&Obj);
@@ -1206,7 +1203,7 @@ dumpSymbolNamesFromObject(SymbolicFile &Obj, bool printName,
     if (Nsect == 0)
       return;
   }
-  if (!MachO || !DyldInfoOnly) {
+  if (!(MachO && DyldInfoOnly)) {
     for (BasicSymbolRef Sym : Symbols) {
       uint32_t SymFlags = Sym.getFlags();
       if (!DebugSyms && (SymFlags & SymbolRef::SF_FormatSpecific))
@@ -1736,6 +1733,12 @@ dumpSymbolNamesFromObject(SymbolicFile &Obj, bool printName,
   }
 
   CurrentFilename = Obj.getFileName();
+
+  if (Symbols.empty() && SymbolList.empty()) {
+    writeFileName(errs(), ArchiveName, ArchitectureName);
+    errs() << "no symbols\n";
+  }
+
   sortAndPrintSymbolList(Obj, printName, ArchiveName, ArchitectureName);
 }
 
@@ -1900,7 +1903,7 @@ static void dumpSymbolNamesFromFile(std::string &Filename) {
                 if (SymbolicFile *O =
                         dyn_cast<SymbolicFile>(&*ChildOrErr.get())) {
                   if (PrintFileName) {
-                    ArchiveName = A->getFileName();
+                    ArchiveName = std::string(A->getFileName());
                     if (ArchFlags.size() > 1)
                       ArchitectureName = I->getArchFlagName();
                   } else {
@@ -1969,7 +1972,7 @@ static void dumpSymbolNamesFromFile(std::string &Filename) {
               if (SymbolicFile *O =
                       dyn_cast<SymbolicFile>(&*ChildOrErr.get())) {
                 if (PrintFileName)
-                  ArchiveName = A->getFileName();
+                  ArchiveName = std::string(A->getFileName());
                 else
                   outs() << "\n" << A->getFileName() << "(" << O->getFileName()
                          << ")"
@@ -2034,7 +2037,7 @@ static void dumpSymbolNamesFromFile(std::string &Filename) {
           }
           if (SymbolicFile *F = dyn_cast<SymbolicFile>(&*ChildOrErr.get())) {
             if (PrintFileName) {
-              ArchiveName = A->getFileName();
+              ArchiveName = std::string(A->getFileName());
               if (isa<MachOObjectFile>(F) && moreThanOneArch)
                 ArchitectureName = O.getArchFlagName();
             } else {

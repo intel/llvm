@@ -20,6 +20,9 @@ unittest("LLVMExegesisMipsTests") {
     "//llvm/tools/llvm-exegesis/lib",
   ]
   sources = [
+    "BenchmarkResultTest.cpp",
+    "RegisterAliasingTest.cpp",
+    "SnippetGeneratorTest.cpp",
     "TargetTest.cpp",
   ]
 }

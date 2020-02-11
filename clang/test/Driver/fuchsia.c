@@ -6,17 +6,24 @@
 // RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
 // RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
 // RUN:     | FileCheck -check-prefixes=CHECK,CHECK-AARCH64 %s
+// RUN: %clang %s -### -no-canonical-prefixes --target=riscv64-fuchsia \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
+// RUN:     | FileCheck -check-prefixes=CHECK,CHECK-RISCV64 %s
 // CHECK: {{.*}}clang{{.*}}" "-cc1"
+// CHECK-X86_64: "-triple" "x86_64-unknown-fuchsia"
+// CHECK-AARCH64: "-triple" "aarch64-unknown-fuchsia"
+// CHECK-RISCV64: "-triple" "riscv64-unknown-fuchsia"
 // CHECK: "--mrelax-relocations"
 // CHECK: "-munwind-tables"
-// CHECK: "-fuse-init-array"
 // CHECK: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
 // CHECK: "-isysroot" "[[SYSROOT:[^"]+]]"
 // CHECK: "-internal-externc-isystem" "[[SYSROOT]]{{/|\\\\}}include"
-// CHECK: "-fsanitize=safe-stack"
+// CHECK-AARCH64: "-fsanitize=shadow-call-stack"
+// CHECK-X86_64: "-fsanitize=safe-stack"
 // CHECK: "-stack-protector" "2"
 // CHECK: "-fno-common"
-// CHECK: {{.*}}ld.lld{{.*}}" "-z" "rodynamic" "-z" "separate-loadable-segments"
+// CHECK: {{.*}}ld.lld{{.*}}" "-z" "now" "-z" "rodynamic" "-z" "separate-loadable-segments"
 // CHECK: "--sysroot=[[SYSROOT]]"
 // CHECK: "-pie"
 // CHECK: "--build-id"
@@ -28,6 +35,7 @@
 // CHECK: "-L[[SYSROOT]]{{/|\\\\}}lib"
 // CHECK-X86_64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}x86_64-fuchsia{{/|\\\\}}libclang_rt.builtins.a"
 // CHECK-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.builtins.a"
+// CHECK-RISCV64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}riscv64-fuchsia{{/|\\\\}}libclang_rt.builtins.a"
 // CHECK: "-lc"
 // CHECK-NOT: crtend.o
 // CHECK-NOT: crtn.o
@@ -102,7 +110,7 @@
 // RUN:     -fuse-ld=lld \
 // RUN:     | FileCheck %s -check-prefix=CHECK-ASAN-AARCH64
 // CHECK-ASAN-AARCH64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
-// CHECK-ASAN-AARCH64: "-fsanitize=address"
+// CHECK-ASAN-AARCH64: "-fsanitize=address,shadow-call-stack"
 // CHECK-ASAN-AARCH64: "-fsanitize-address-globals-dead-stripping"
 // CHECK-ASAN-AARCH64: "-dynamic-linker" "asan/ld.so.1"
 // CHECK-ASAN-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.asan.so"
@@ -134,7 +142,7 @@
 // RUN:     -fuse-ld=lld \
 // RUN:     | FileCheck %s -check-prefix=CHECK-FUZZER-AARCH64
 // CHECK-FUZZER-AARCH64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
-// CHECK-FUZZER-AARCH64: "-fsanitize=fuzzer,fuzzer-no-link,safe-stack"
+// CHECK-FUZZER-AARCH64: "-fsanitize=fuzzer,fuzzer-no-link,shadow-call-stack"
 // CHECK-FUZZER-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.fuzzer.a"
 
 // RUN: %clang %s -### --target=x86_64-fuchsia \
@@ -153,7 +161,7 @@
 // RUN:     -fuse-ld=lld \
 // RUN:     | FileCheck %s -check-prefix=CHECK-SCUDO-AARCH64
 // CHECK-SCUDO-AARCH64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
-// CHECK-SCUDO-AARCH64: "-fsanitize=safe-stack,scudo"
+// CHECK-SCUDO-AARCH64: "-fsanitize=shadow-call-stack,scudo"
 // CHECK-SCUDO-AARCH64: "-pie"
 // CHECK-SCUDO-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.scudo.so"
 
@@ -165,6 +173,35 @@
 // CHECK-SCUDO-SHARED: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
 // CHECK-SCUDO-SHARED: "-fsanitize=safe-stack,scudo"
 // CHECK-SCUDO-SHARED: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}x86_64-fuchsia{{/|\\\\}}libclang_rt.scudo.so"
+
+// RUN: %clang %s -### --target=aarch64-fuchsia \
+// RUN:     -fsanitize=leak 2>&1 \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     -fuse-ld=lld \
+// RUN:     | FileCheck %s -check-prefix=CHECK-LSAN-AARCH64
+// CHECK-LSAN-AARCH64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
+// CHECK-LSAN-AARCH64: "-fsanitize=leak,shadow-call-stack"
+// CHECK-LSAN-AARCH64: "-pie"
+// CHECK-LSAN-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.lsan.a"
+
+// RUN: %clang %s -### --target=x86_64-fuchsia \
+// RUN:     -fsanitize=leak 2>&1 \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     -fuse-ld=lld \
+// RUN:     | FileCheck %s -check-prefix=CHECK-LSAN-X86
+// CHECK-LSAN-X86: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
+// CHECK-LSAN-X86: "-fsanitize=leak,safe-stack"
+// CHECK-LSAN-X86: "-pie"
+// CHECK-LSAN-X86: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}x86_64-fuchsia{{/|\\\\}}libclang_rt.lsan.a"
+
+// RUN: %clang %s -### --target=aarch64-fuchsia \
+// RUN:     -fsanitize=leak -fPIC -shared 2>&1 \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     -fuse-ld=lld \
+// RUN:     | FileCheck %s -check-prefix=CHECK-LSAN-SHARED
+// CHECK-LSAN-SHARED: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
+// CHECK-LSAN-SHARED: "-fsanitize=leak,shadow-call-stack"
+// CHECK-LSAN-SHARED-NOT: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-fuchsia{{/|\\\\}}libclang_rt.lsan.a"
 
 // RUN: %clang %s -### --target=x86_64-fuchsia \
 // RUN:     -fxray-instrument -fxray-modes=xray-basic \

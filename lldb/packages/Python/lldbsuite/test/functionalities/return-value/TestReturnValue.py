@@ -2,7 +2,6 @@
 Test getting return-values correctly when stepping out
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -18,6 +17,9 @@ class ReturnValueTestCase(TestBase):
     def affected_by_pr33042(self):
         return ("clang" in self.getCompiler() and self.getArchitecture() ==
             "aarch64" and self.getPlatform() == "linux")
+
+    def affected_by_pr44132(self):
+        return (self.getArchitecture() == "aarch64" and self.getPlatform() == "linux")
 
     # ABIMacOSX_arm can't fetch simple values inside a structure
     def affected_by_radar_34562999(self):
@@ -123,7 +125,7 @@ class ReturnValueTestCase(TestBase):
 
         #self.assertTrue(in_float == return_float)
 
-        if not self.affected_by_radar_34562999():
+        if not self.affected_by_radar_34562999() and not self.affected_by_pr44132():
             self.return_and_test_struct_value("return_one_int")
             self.return_and_test_struct_value("return_two_int")
             self.return_and_test_struct_value("return_three_int")
@@ -182,10 +184,12 @@ class ReturnValueTestCase(TestBase):
 
         self.return_and_test_struct_value("return_vector_size_float32_8")
         self.return_and_test_struct_value("return_vector_size_float32_16")
-        self.return_and_test_struct_value("return_vector_size_float32_32")
+        if not self.affected_by_pr44132():
+            self.return_and_test_struct_value("return_vector_size_float32_32")
         self.return_and_test_struct_value("return_ext_vector_size_float32_2")
         self.return_and_test_struct_value("return_ext_vector_size_float32_4")
-        self.return_and_test_struct_value("return_ext_vector_size_float32_8")
+        if not self.affected_by_pr44132():
+            self.return_and_test_struct_value("return_ext_vector_size_float32_8")
 
     # limit the nested struct and class tests to only x86_64
     @skipIf(archs=no_match(['x86_64']))

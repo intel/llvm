@@ -1,4 +1,4 @@
-//===-- MinidumpParser.cpp ---------------------------------------*- C++ -*-===//
+//===-- MinidumpParser.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -174,6 +174,7 @@ ArchSpec MinidumpParser::GetArchitecture() {
     triple.setArch(llvm::Triple::ArchType::arm);
     break;
   case ProcessorArchitecture::ARM64:
+  case ProcessorArchitecture::BP_ARM64:
     triple.setArch(llvm::Triple::ArchType::aarch64);
     break;
   default:

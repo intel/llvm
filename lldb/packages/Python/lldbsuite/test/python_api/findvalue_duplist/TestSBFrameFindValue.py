@@ -1,6 +1,5 @@
 """Test that SBFrame::FindValue finds things but does not duplicate the entire variables list"""
 
-from __future__ import print_function
 
 
 import lldb
@@ -12,6 +11,7 @@ from lldbsuite.test import lldbutil
 class SBFrameFindValueTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     @add_test_categories(['pyapi'])
     def test_formatters_api(self):

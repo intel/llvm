@@ -12,7 +12,7 @@
 #include <functional>
 #include <stdexcept>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <int dimensions> class id;
 template <int dimensions> class range;

@@ -58,6 +58,7 @@ namespace clang {
 
 class ExtQuals;
 class QualType;
+class ConceptDecl;
 class TagDecl;
 class Type;
 
@@ -65,6 +66,11 @@ enum {
   TypeAlignmentInBits = 4,
   TypeAlignment = 1 << TypeAlignmentInBits
 };
+
+namespace serialization {
+  template <class T> class AbstractTypeReader;
+  template <class T> class AbstractTypeWriter;
+}
 
 } // namespace clang
 
@@ -80,7 +86,7 @@ namespace llvm {
       return static_cast< ::clang::Type*>(P);
     }
 
-    enum { NumLowBitsAvailable = clang::TypeAlignmentInBits };
+    static constexpr int NumLowBitsAvailable = clang::TypeAlignmentInBits;
   };
 
   template<>
@@ -91,7 +97,7 @@ namespace llvm {
       return static_cast< ::clang::ExtQuals*>(P);
     }
 
-    enum { NumLowBitsAvailable = clang::TypeAlignmentInBits };
+    static constexpr int NumLowBitsAvailable = clang::TypeAlignmentInBits;
   };
 
 } // namespace llvm
@@ -472,7 +478,10 @@ public:
     return A == B ||
            // Otherwise in OpenCLC v2.0 s6.5.5: every address space except
            // for __constant can be used as __generic.
-           (A == LangAS::opencl_generic && B != LangAS::opencl_constant);
+           (A == LangAS::opencl_generic && B != LangAS::opencl_constant) ||
+           // Consider pointer size address spaces to be equivalent to default.
+           ((isPtrSizeAddressSpace(A) || A == LangAS::Default) &&
+            (isPtrSizeAddressSpace(B) || B == LangAS::Default));
   }
 
   /// Returns true if the address space in these qualifiers is equal to or
@@ -560,6 +569,8 @@ public:
 
   std::string getAsString() const;
   std::string getAsString(const PrintingPolicy &Policy) const;
+
+  static std::string getAddrSpaceAsString(LangAS AS);
 
   bool isEmptyWhenPrinted(const PrintingPolicy &Policy) const;
   void print(raw_ostream &OS, const PrintingPolicy &Policy,
@@ -1054,6 +1065,9 @@ public:
     ID.AddPointer(getAsOpaquePtr());
   }
 
+  /// Check if this type has any address space qualifier.
+  inline bool hasAddressSpace() const;
+
   /// Return the address space of this type.
   inline LangAS getAddressSpace() const;
 
@@ -1290,7 +1304,7 @@ struct PointerLikeTypeTraits<clang::QualType> {
   }
 
   // Various qualifiers go in low bits.
-  enum { NumLowBitsAvailable = 0 };
+  static constexpr int NumLowBitsAvailable = 0;
 };
 
 } // namespace llvm
@@ -1678,6 +1692,15 @@ protected:
     /// Was this placeholder type spelled as 'auto', 'decltype(auto)',
     /// or '__auto_type'?  AutoTypeKeyword value.
     unsigned Keyword : 2;
+
+    /// The number of template arguments in the type-constraints, which is
+    /// expected to be able to hold at least 1024 according to [implimits].
+    /// However as this limit is somewhat easy to hit with template
+    /// metaprogramming we'd prefer to keep it as large as possible.
+    /// At the moment it has been left as a non-bitfield since this type
+    /// safely fits in 64 bits as an unsigned, so there is no reason to
+    /// introduce the performance impact of a bitfield.
+    unsigned NumArgs;
   };
 
   class SubstTemplateTypeParmPackTypeBitfields {
@@ -1850,6 +1873,8 @@ protected:
 public:
   friend class ASTReader;
   friend class ASTWriter;
+  template <class T> friend class serialization::AbstractTypeReader;
+  template <class T> friend class serialization::AbstractTypeWriter;
 
   Type(const Type &) = delete;
   Type(Type &&) = delete;
@@ -1969,6 +1994,7 @@ public:
 
   /// Determine whether this type is an integral or unscoped enumeration type.
   bool isIntegralOrUnscopedEnumerationType() const;
+  bool isUnscopedEnumerationType() const;
 
   /// Floating point categories.
   bool isRealFloatingType() const; // C99 6.2.5p10 (float, double, long double)
@@ -2000,6 +2026,7 @@ public:
   bool isReferenceType() const;
   bool isLValueReferenceType() const;
   bool isRValueReferenceType() const;
+  bool isObjectPointerType() const;
   bool isFunctionPointerType() const;
   bool isFunctionReferenceType() const;
   bool isMemberPointerType() const;
@@ -2077,6 +2104,8 @@ public:
   bool isAlignValT() const;                     // C++17 std::align_val_t
   bool isStdByteType() const;                   // C++17 std::byte
   bool isAtomicType() const;                    // C11 _Atomic()
+  bool isUndeducedAutoType() const;             // C++11 auto or
+                                                // C++14 decltype(auto)
 
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   bool is##Id##Type() const;
@@ -3734,9 +3763,9 @@ class FunctionProtoType final
     : public FunctionType,
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<
-          FunctionProtoType, QualType, FunctionType::FunctionTypeExtraBitfields,
-          FunctionType::ExceptionType, Expr *, FunctionDecl *,
-          FunctionType::ExtParameterInfo, Qualifiers> {
+          FunctionProtoType, QualType, SourceLocation,
+          FunctionType::FunctionTypeExtraBitfields, FunctionType::ExceptionType,
+          Expr *, FunctionDecl *, FunctionType::ExtParameterInfo, Qualifiers> {
   friend class ASTContext; // ASTContext creates these.
   friend TrailingObjects;
 
@@ -3746,6 +3775,9 @@ class FunctionProtoType final
   // * An array of getNumParams() QualType holding the parameter types.
   //   Always present. Note that for the vast majority of FunctionProtoType,
   //   these will be the only trailing objects.
+  //
+  // * Optionally if the function is variadic, the SourceLocation of the
+  //   ellipsis.
   //
   // * Optionally if some extra data is stored in FunctionTypeExtraBitfields
   //   (see FunctionTypeExtraBitfields and FunctionTypeBitfields):
@@ -3818,6 +3850,7 @@ public:
     RefQualifierKind RefQualifier = RQ_None;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos = nullptr;
+    SourceLocation EllipsisLoc;
 
     ExtProtoInfo() : Variadic(false), HasTrailingReturn(false) {}
 
@@ -3834,6 +3867,10 @@ public:
 private:
   unsigned numTrailingObjects(OverloadToken<QualType>) const {
     return getNumParams();
+  }
+
+  unsigned numTrailingObjects(OverloadToken<SourceLocation>) const {
+    return isVariadic();
   }
 
   unsigned numTrailingObjects(OverloadToken<FunctionTypeExtraBitfields>) const {
@@ -3947,20 +3984,11 @@ public:
     ExtProtoInfo EPI;
     EPI.ExtInfo = getExtInfo();
     EPI.Variadic = isVariadic();
+    EPI.EllipsisLoc = getEllipsisLoc();
     EPI.HasTrailingReturn = hasTrailingReturn();
-    EPI.ExceptionSpec.Type = getExceptionSpecType();
+    EPI.ExceptionSpec = getExceptionSpecInfo();
     EPI.TypeQuals = getMethodQuals();
     EPI.RefQualifier = getRefQualifier();
-    if (EPI.ExceptionSpec.Type == EST_Dynamic) {
-      EPI.ExceptionSpec.Exceptions = exceptions();
-    } else if (isComputedNoexcept(EPI.ExceptionSpec.Type)) {
-      EPI.ExceptionSpec.NoexceptExpr = getNoexceptExpr();
-    } else if (EPI.ExceptionSpec.Type == EST_Uninstantiated) {
-      EPI.ExceptionSpec.SourceDecl = getExceptionSpecDecl();
-      EPI.ExceptionSpec.SourceTemplate = getExceptionSpecTemplate();
-    } else if (EPI.ExceptionSpec.Type == EST_Unevaluated) {
-      EPI.ExceptionSpec.SourceDecl = getExceptionSpecDecl();
-    }
     EPI.ExtParameterInfos = getExtParameterInfosOrNull();
     return EPI;
   }
@@ -3990,6 +4018,23 @@ public:
   /// Return whether this function has an instantiation-dependent exception
   /// spec.
   bool hasInstantiationDependentExceptionSpec() const;
+
+  /// Return all the available information about this type's exception spec.
+  ExceptionSpecInfo getExceptionSpecInfo() const {
+    ExceptionSpecInfo Result;
+    Result.Type = getExceptionSpecType();
+    if (Result.Type == EST_Dynamic) {
+      Result.Exceptions = exceptions();
+    } else if (isComputedNoexcept(Result.Type)) {
+      Result.NoexceptExpr = getNoexceptExpr();
+    } else if (Result.Type == EST_Uninstantiated) {
+      Result.SourceDecl = getExceptionSpecDecl();
+      Result.SourceTemplate = getExceptionSpecTemplate();
+    } else if (Result.Type == EST_Unevaluated) {
+      Result.SourceDecl = getExceptionSpecDecl();
+    }
+    return Result;
+  }
 
   /// Return the number of types in the exception specification.
   unsigned getNumExceptions() const {
@@ -4047,6 +4092,11 @@ public:
 
   /// Whether this function prototype is variadic.
   bool isVariadic() const { return FunctionTypeBits.Variadic; }
+
+  SourceLocation getEllipsisLoc() const {
+    return isVariadic() ? *getTrailingObjects<SourceLocation>()
+                        : SourceLocation();
+  }
 
   /// Determines whether this function prototype contains a
   /// parameter pack at the end.
@@ -4428,6 +4478,7 @@ public:
 
 class TagType : public Type {
   friend class ASTReader;
+  template <class T> friend class serialization::AbstractTypeReader;
 
   /// Stores the TagDecl associated with this type. The decl may point to any
   /// TagDecl that declares the entity.
@@ -4781,8 +4832,7 @@ public:
 
 /// Common base class for placeholders for types that get replaced by
 /// placeholder type deduction: C++11 auto, C++14 decltype(auto), C++17 deduced
-/// class template types, and (eventually) constrained type names from the C++
-/// Concepts TS.
+/// class template types, and constrained type names.
 ///
 /// These types are usually a placeholder for a deduced type. However, before
 /// the initializer is attached, or (usually) if the initializer is
@@ -4827,18 +4877,50 @@ public:
   }
 };
 
-/// Represents a C++11 auto or C++14 decltype(auto) type.
-class AutoType : public DeducedType, public llvm::FoldingSetNode {
+/// Represents a C++11 auto or C++14 decltype(auto) type, possibly constrained
+/// by a type-constraint.
+class alignas(8) AutoType : public DeducedType, public llvm::FoldingSetNode {
   friend class ASTContext; // ASTContext creates these
 
+  ConceptDecl *TypeConstraintConcept;
+
   AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
-           bool IsDeducedAsDependent, bool IsDeducedAsPack)
-      : DeducedType(Auto, DeducedAsType, IsDeducedAsDependent,
-                    IsDeducedAsDependent, IsDeducedAsPack) {
-    AutoTypeBits.Keyword = (unsigned)Keyword;
+           bool IsDeducedAsDependent, bool IsDeducedAsPack, ConceptDecl *CD,
+           ArrayRef<TemplateArgument> TypeConstraintArgs);
+
+  const TemplateArgument *getArgBuffer() const {
+    return reinterpret_cast<const TemplateArgument*>(this+1);
+  }
+
+  TemplateArgument *getArgBuffer() {
+    return reinterpret_cast<TemplateArgument*>(this+1);
   }
 
 public:
+  /// Retrieve the template arguments.
+  const TemplateArgument *getArgs() const {
+    return getArgBuffer();
+  }
+
+  /// Retrieve the number of template arguments.
+  unsigned getNumArgs() const {
+    return AutoTypeBits.NumArgs;
+  }
+
+  const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
+
+  ArrayRef<TemplateArgument> getTypeConstraintArguments() const {
+    return {getArgs(), getNumArgs()};
+  }
+
+  ConceptDecl *getTypeConstraintConcept() const {
+    return TypeConstraintConcept;
+  }
+
+  bool isConstrained() const {
+    return TypeConstraintConcept != nullptr;
+  }
+
   bool isDecltypeAuto() const {
     return getKeyword() == AutoTypeKeyword::DecltypeAuto;
   }
@@ -4847,18 +4929,15 @@ public:
     return (AutoTypeKeyword)AutoTypeBits.Keyword;
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getDeducedType(), getKeyword(), isDependentType(),
-            containsUnexpandedParameterPack());
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
+    Profile(ID, Context, getDeducedType(), getKeyword(), isDependentType(),
+            getTypeConstraintConcept(), getTypeConstraintArguments());
   }
 
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Deduced,
-                      AutoTypeKeyword Keyword, bool IsDependent, bool IsPack) {
-    ID.AddPointer(Deduced.getAsOpaquePtr());
-    ID.AddInteger((unsigned)Keyword);
-    ID.AddBoolean(IsDependent);
-    ID.AddBoolean(IsPack);
-  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      QualType Deduced, AutoTypeKeyword Keyword,
+                      bool IsDependent, ConceptDecl *CD,
+                      ArrayRef<TemplateArgument> Arguments);
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == Auto;
@@ -5065,6 +5144,7 @@ class InjectedClassNameType : public Type {
   friend class ASTReader; // FIXME: ASTContext::getInjectedClassNameType is not
                           // currently suitable for AST reading, too much
                           // interdependencies.
+  template <class T> friend class serialization::AbstractTypeReader;
 
   CXXRecordDecl *Decl;
 
@@ -5823,6 +5903,7 @@ class ObjCInterfaceType : public ObjCObjectType {
   friend class ASTContext; // ASTContext creates these.
   friend class ASTReader;
   friend class ObjCInterfaceDecl;
+  template <class T> friend class serialization::AbstractTypeReader;
 
   mutable ObjCInterfaceDecl *Decl;
 
@@ -6144,6 +6225,33 @@ public:
   QualType apply(const ASTContext &Context, const Type* T) const;
 };
 
+/// A container of type source information.
+///
+/// A client can read the relevant info using TypeLoc wrappers, e.g:
+/// @code
+/// TypeLoc TL = TypeSourceInfo->getTypeLoc();
+/// TL.getBeginLoc().print(OS, SrcMgr);
+/// @endcode
+class alignas(8) TypeSourceInfo {
+  // Contains a memory block after the class, used for type source information,
+  // allocated by ASTContext.
+  friend class ASTContext;
+
+  QualType Ty;
+
+  TypeSourceInfo(QualType ty) : Ty(ty) {}
+
+public:
+  /// Return the type wrapped by this type source info.
+  QualType getType() const { return Ty; }
+
+  /// Return the TypeLoc wrapper for the type source info.
+  TypeLoc getTypeLoc() const; // implemented in TypeLoc.h
+
+  /// Override the type stored in this TypeSourceInfo. Use with caution!
+  void overrideType(QualType T) { Ty = T; }
+};
+
 // Inline function definitions.
 
 inline SplitQualType SplitQualType::getSingleStepDesugaredType() const {
@@ -6266,6 +6374,11 @@ inline void QualType::removeLocalCVRQualifiers(unsigned Mask) {
 
   // Fast path: we don't need to touch the slow qualifiers.
   removeLocalFastQualifiers(Mask);
+}
+
+/// Check if this type has any address space qualifier.
+inline bool QualType::hasAddressSpace() const {
+  return getQualifiers().hasAddressSpace();
 }
 
 /// Return the address space of this type.
@@ -6420,6 +6533,16 @@ inline bool Type::isRValueReferenceType() const {
   return isa<RValueReferenceType>(CanonicalType);
 }
 
+inline bool Type::isObjectPointerType() const {
+  // Note: an "object pointer type" is not the same thing as a pointer to an
+  // object type; rather, it is a pointer to an object type or a pointer to cv
+  // void.
+  if (const auto *T = getAs<PointerType>())
+    return !T->getPointeeType()->isFunctionType();
+  else
+    return false;
+}
+
 inline bool Type::isFunctionPointerType() const {
   if (const auto *T = getAs<PointerType>())
     return T->getPointeeType()->isFunctionType();
@@ -6515,6 +6638,10 @@ inline bool Type::isObjCObjectOrInterfaceType() const {
 
 inline bool Type::isAtomicType() const {
   return isa<AtomicType>(CanonicalType);
+}
+
+inline bool Type::isUndeducedAutoType() const {
+  return isa<AutoType>(CanonicalType);
 }
 
 inline bool Type::isObjCQualifiedIdType() const {
@@ -6817,6 +6944,23 @@ inline const Type *Type::getPointeeOrArrayElementType() const {
   else if (type->isArrayType())
     return type->getBaseElementTypeUnsafe();
   return type;
+}
+/// Insertion operator for diagnostics. This allows sending address spaces into
+/// a diagnostic with <<.
+inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
+                                           LangAS AS) {
+  DB.AddTaggedVal(static_cast<std::underlying_type_t<LangAS>>(AS),
+                  DiagnosticsEngine::ArgumentKind::ak_addrspace);
+  return DB;
+}
+
+/// Insertion operator for partial diagnostics. This allows sending adress
+/// spaces into a diagnostic with <<.
+inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
+                                           LangAS AS) {
+  PD.AddTaggedVal(static_cast<std::underlying_type_t<LangAS>>(AS),
+                  DiagnosticsEngine::ArgumentKind::ak_addrspace);
+  return PD;
 }
 
 /// Insertion operator for diagnostics. This allows sending Qualifiers into a

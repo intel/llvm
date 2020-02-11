@@ -272,7 +272,7 @@ LLVM-specific variables
   Generate build targets for the LLVM benchmarks. Defaults to ON.
 
 **LLVM_APPEND_VC_REV**:BOOL
-  Embed version control revision info (svn revision number or Git revision id).
+  Embed version control revision info (Git revision id).
   The version info is provided by the ``LLVM_REVISION`` macro in
   ``llvm/include/llvm/Support/VCSRevision.h``. Developers using git who don't
   need revision info can disable this option to avoid re-linking most binaries
@@ -570,11 +570,13 @@ LLVM-specific variables
   is also ON.
   The components in the library can be customised by setting LLVM_DYLIB_COMPONENTS
   to a list of the desired components.
+  This option is not available on Windows.
 
 **LLVM_LINK_LLVM_DYLIB**:BOOL
   If enabled, tools will be linked with the libLLVM shared library. Defaults
   to OFF. Setting LLVM_LINK_LLVM_DYLIB to ON also sets LLVM_BUILD_LLVM_DYLIB
   to ON.
+  This option is not available on Windows.
 
 **BUILD_SHARED_LIBS**:BOOL
   Flag indicating if each LLVM component (e.g. Support) is built as a shared

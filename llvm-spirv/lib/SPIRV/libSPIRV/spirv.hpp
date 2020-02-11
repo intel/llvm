@@ -126,6 +126,10 @@ enum ExecutionMode {
     ExecutionModeFinalizer = 34,
     ExecutionModeSubgroupSize = 35,
     ExecutionModeSubgroupsPerWorkgroup = 36,
+    ExecutionModeMaxWorkgroupSizeINTEL = 5893,
+    ExecutionModeMaxWorkDimINTEL = 5894,
+    ExecutionModeNoGlobalOffsetINTEL = 5895,
+    ExecutionModeNumSIMDWorkitemsINTEL = 5896,
     ExecutionModeMax = 0x7fffffff,
 };
 
@@ -400,6 +404,7 @@ enum Decoration {
     DecorationMaxReplicatesINTEL = 5832,
     DecorationSimpleDualPortINTEL = 5833,
     DecorationMergeINTEL = 5834,
+    DecorationBankBitsINTEL = 5835,
     DecorationMax = 0x7fffffff,
 };
 
@@ -494,12 +499,9 @@ enum LoopControlMask {
     LoopControlIterationMultipleMask = 0x00000040,
     LoopControlPeelCountMask = 0x00000080,
     LoopControlPartialCountMask = 0x00000100,
-    LoopControlExtendedControlsMask = 0x80000000,
-};
-
-enum ExtendedControls {
-    InitiationIntervalINTEL = 5889,
-    MaxConcurrencyINTEL = 5890,
+    InitiationIntervalINTEL = 0x10000,
+    MaxConcurrencyINTEL = 0x20000,
+    DependencyArrayINTEL = 0x40000,
 };
 
 enum FunctionControlShift {
@@ -686,6 +688,8 @@ enum Capability {
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
   CapabilityFPGARegINTEL = 5948,
+  CapabilityKernelAttributesINTEL= 5892,
+  CapabilityFPGAKernelAttributesINTEL= 5897,
   CapabilityMax = 0x7fffffff,
 };
 

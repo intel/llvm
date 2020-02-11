@@ -6,7 +6,6 @@ untagged structures.
 Ticket: https://llvm.org/bugs/show_bug.cgi?id=26790
 """
 
-from __future__ import print_function
 
 import lldb
 
@@ -42,4 +41,4 @@ class TestExprLookupAnonStructTypedef(TestBase):
         )
 
         self.runCmd("run", RUN_SUCCEEDED)
-        self.expect("expr multiply(&s)", substrs=['$0 = 1'])
+        self.expect_expr("multiply(&s)", result_type="double", result_value="1")

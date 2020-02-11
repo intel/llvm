@@ -1,4 +1,4 @@
-//===-- CommandObjectRegister.cpp -------------------------------*- C++ -*-===//
+//===-- CommandObjectRegister.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,6 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/DumpRegisterValue.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
 #include "lldb/Interpreter/OptionValueArray.h"
@@ -25,7 +24,6 @@
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/RegisterValue.h"
-#include "lldb/Utility/Scalar.h"
 #include "llvm/Support/Errno.h"
 
 using namespace lldb;

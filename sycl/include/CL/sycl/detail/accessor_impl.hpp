@@ -9,16 +9,16 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
+#include <CL/sycl/stl.hpp>
 
-#include <memory>
-
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
+
+class Command;
 
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
@@ -70,10 +70,8 @@ public:
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer) {}
 
-  ~AccessorImplHost() {
-    if (BlockingEvent)
-      BlockingEvent->setComplete();
-  }
+  ~AccessorImplHost();
+
   AccessorImplHost(const AccessorImplHost &Other)
       : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
@@ -97,10 +95,10 @@ public:
 
   void *MData = nullptr;
 
-  EventImplPtr BlockingEvent;
+  Command *MBlockedCmd = nullptr;
 };
 
-using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
+using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
 
 class AccessorBaseHost {
 public:
@@ -108,9 +106,9 @@ public:
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false) {
-    impl = std::make_shared<AccessorImplHost>(
+    impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer);
+        ElemSize, OffsetInBytes, IsSubBuffer));
   }
 
 protected:
@@ -160,10 +158,13 @@ public:
   }
 };
 
+using LocalAccessorImplPtr = shared_ptr_class<LocalAccessorImplHost>;
+
 class LocalAccessorBaseHost {
 public:
   LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize) {
-    impl = std::make_shared<LocalAccessorImplHost>(Size, Dims, ElemSize);
+    impl = shared_ptr_class<LocalAccessorImplHost>(
+        new LocalAccessorImplHost(Size, Dims, ElemSize));
   }
   sycl::range<3> &getSize() { return impl->MSize; }
   const sycl::range<3> &getSize() const { return impl->MSize; }
@@ -179,7 +180,7 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
-  std::shared_ptr<LocalAccessorImplHost> impl;
+  shared_ptr_class<LocalAccessorImplHost> impl;
 };
 
 using Requirement = AccessorImplHost;

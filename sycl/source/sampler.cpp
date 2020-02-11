@@ -8,7 +8,7 @@
 
 #include <CL/sycl/sampler.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode)

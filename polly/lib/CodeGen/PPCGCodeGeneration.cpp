@@ -25,9 +25,11 @@
 #include "polly/Support/SCEVValidator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -1400,13 +1402,14 @@ const std::map<std::string, std::string> IntrinsicToLibdeviceFunc = {
 /// so that we use intrinsics whenever possible.
 ///
 /// Return "" if we are not compiling for CUDA.
-std::string getCUDALibDeviceFuntion(StringRef Name) {
+std::string getCUDALibDeviceFuntion(StringRef NameRef) {
+  std::string Name = NameRef.str();
   auto It = IntrinsicToLibdeviceFunc.find(Name);
   if (It != IntrinsicToLibdeviceFunc.end())
     return getCUDALibDeviceFuntion(It->second);
 
   if (CUDALibDeviceFunctions.count(Name))
-    return ("__nv_" + Name).str();
+    return ("__nv_" + Name);
 
   return "";
 }
@@ -1758,7 +1761,7 @@ GPUNodeBuilder::createLaunchParameters(ppcg_kernel *Kernel, Function *F,
 void GPUNodeBuilder::setupKernelSubtreeFunctions(
     SetVector<Function *> SubtreeFunctions) {
   for (auto Fn : SubtreeFunctions) {
-    const std::string ClonedFnName = Fn->getName();
+    const std::string ClonedFnName = Fn->getName().str();
     Function *Clone = GPUModule->getFunction(ClonedFnName);
     if (!Clone)
       Clone =
@@ -2241,7 +2244,7 @@ void GPUNodeBuilder::createKernelVariables(ppcg_kernel *Kernel, Function *FN) {
       auto GlobalVar = new GlobalVariable(
           *M, ArrayTy, false, GlobalValue::InternalLinkage, 0, Var.name,
           nullptr, GlobalValue::ThreadLocalMode::NotThreadLocal, 3);
-      GlobalVar->setAlignment(EleTy->getPrimitiveSizeInBits() / 8);
+      GlobalVar->setAlignment(llvm::Align(EleTy->getPrimitiveSizeInBits() / 8));
       GlobalVar->setInitializer(Constant::getNullValue(ArrayTy));
 
       Allocation = GlobalVar;
@@ -2367,8 +2370,7 @@ std::string GPUNodeBuilder::createKernelASM() {
 
   PM.add(createTargetTransformInfoWrapperPass(TargetM->getTargetIRAnalysis()));
 
-  if (TargetM->addPassesToEmitFile(PM, ASMStream, nullptr,
-                                   TargetMachine::CGFT_AssemblyFile,
+  if (TargetM->addPassesToEmitFile(PM, ASMStream, nullptr, CGFT_AssemblyFile,
                                    true /* verify */)) {
     errs() << "The target does not support generation of this file type!\n";
     return "";
@@ -2376,7 +2378,7 @@ std::string GPUNodeBuilder::createKernelASM() {
 
   PM.run(*GPUModule);
 
-  return ASMStream.str();
+  return ASMStream.str().str();
 }
 
 bool GPUNodeBuilder::requiresCUDALibDevice() {

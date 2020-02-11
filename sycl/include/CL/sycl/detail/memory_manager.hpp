@@ -16,7 +16,7 @@
 #include <memory>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 
@@ -36,13 +36,14 @@ public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
   static void release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
-                      void *MemAllocation, std::vector<RT::PiEvent> DepEvents,
+                      void *MemAllocation, std::vector<EventImplPtr> DepEvents,
                       RT::PiEvent &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
-                        bool InitFromUserData, std::vector<RT::PiEvent> DepEvents,
+                        bool InitFromUserData, void *HostPtr,
+                        std::vector<EventImplPtr> DepEvents,
                         RT::PiEvent &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified
@@ -50,7 +51,7 @@ public:
   static void *allocateMemSubBuffer(ContextImplPtr TargetContext,
                                     void *ParentMemObj, size_t ElemSize,
                                     size_t Offset, range<3> Range,
-                                    std::vector<RT::PiEvent> DepEvents,
+                                    std::vector<EventImplPtr> DepEvents,
                                     RT::PiEvent &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
@@ -103,8 +104,7 @@ public:
                    QueueImplPtr TgtQueue, unsigned int DimDst,
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                   std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
-                   RT::PiEvent &OutEvent);
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
@@ -120,11 +120,11 @@ public:
 
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                     void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
-                    bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+                    RT::PiEvent &OutEvent);
 
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                       bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+                       RT::PiEvent &OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern, std::vector<RT::PiEvent> DepEvents,

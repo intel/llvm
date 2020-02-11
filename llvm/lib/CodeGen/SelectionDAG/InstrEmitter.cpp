@@ -751,9 +751,9 @@ InstrEmitter::EmitDbgValue(SDDbgValue *SD,
 
   // Indirect addressing is indicated by an Imm as the second parameter.
   if (SD->isIndirect())
-    Expr = DIExpression::append(Expr, {dwarf::DW_OP_deref});
-
-  MIB.addReg(0U, RegState::Debug);
+    MIB.addImm(0U);
+  else
+    MIB.addReg(0U, RegState::Debug);
 
   MIB.addMetadata(Var);
   MIB.addMetadata(Expr);
@@ -882,8 +882,8 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
     if (Flags.hasExact())
       MI->setFlag(MachineInstr::MIFlag::IsExact);
 
-    if (Flags.hasFPExcept())
-      MI->setFlag(MachineInstr::MIFlag::FPExcept);
+    if (Flags.hasNoFPExcept())
+      MI->setFlag(MachineInstr::MIFlag::NoFPExcept);
   }
 
   // Emit all of the actual operands of this instruction, adding them to the

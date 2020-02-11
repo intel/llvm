@@ -1,4 +1,4 @@
-//===-- ConnectionFileDescriptorPosix.cpp -----------------------*- C++ -*-===//
+//===-- ConnectionFileDescriptorPosix.cpp ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,7 +26,7 @@
 #include <string.h>
 #include <sys/types.h>
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -179,7 +179,7 @@ ConnectionStatus ConnectionFileDescriptor::Connect(llvm::StringRef path,
       // unix-abstract-connect://SOCKNAME
       return UnixAbstractSocketConnect(*addr, error_ptr);
     }
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
     else if ((addr = GetURLAddress(path, FD_SCHEME))) {
       // Just passing a native file descriptor within this current process that
       // is already opened (possibly from a service or other source).
@@ -223,7 +223,7 @@ ConnectionStatus ConnectionFileDescriptor::Connect(llvm::StringRef path,
             m_write_sp =
                 std::make_shared<NativeFile>(fd, File::eOpenOptionWrite, false);
           }
-          m_uri = *addr;
+          m_uri = std::string(*addr);
           return eConnectionStatusSuccess;
         }
       }
@@ -652,7 +652,7 @@ ConnectionFileDescriptor::NamedSocketAccept(llvm::StringRef socket_name,
   if (error.Fail()) {
     return eConnectionStatusError;
   }
-  m_uri.assign(socket_name);
+  m_uri.assign(std::string(socket_name));
   return eConnectionStatusSuccess;
 }
 
@@ -669,7 +669,7 @@ ConnectionFileDescriptor::NamedSocketConnect(llvm::StringRef socket_name,
   if (error.Fail()) {
     return eConnectionStatusError;
   }
-  m_uri.assign(socket_name);
+  m_uri.assign(std::string(socket_name));
   return eConnectionStatusSuccess;
 }
 
@@ -686,7 +686,7 @@ ConnectionFileDescriptor::UnixAbstractSocketConnect(llvm::StringRef socket_name,
   if (error.Fail()) {
     return eConnectionStatusError;
   }
-  m_uri.assign(socket_name);
+  m_uri.assign(std::string(socket_name));
   return eConnectionStatusSuccess;
 }
 
@@ -730,7 +730,7 @@ ConnectionStatus ConnectionFileDescriptor::ConnectTCP(llvm::StringRef s,
   if (error.Fail()) {
     return eConnectionStatusError;
   }
-  m_uri.assign(s);
+  m_uri.assign(std::string(s));
   return eConnectionStatusSuccess;
 }
 
@@ -745,7 +745,7 @@ ConnectionStatus ConnectionFileDescriptor::ConnectUDP(llvm::StringRef s,
   if (error.Fail()) {
     return eConnectionStatusError;
   }
-  m_uri.assign(s);
+  m_uri.assign(std::string(s));
   return eConnectionStatusSuccess;
 }
 

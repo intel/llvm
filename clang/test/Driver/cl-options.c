@@ -182,7 +182,7 @@
 // Oy_2: -O2
 
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_aarch64 %s
-// Oy_aarch64: -mframe-pointer=all
+// Oy_aarch64: -mframe-pointer=non-leaf
 // Oy_aarch64: -O2
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /O2 /O2 -### -- %s 2>&1 | FileCheck -check-prefix=O2O2 %s
@@ -458,6 +458,7 @@
 // RUN:     /openmp:experimental \
 // RUN:     /Qfast_transcendentals \
 // RUN:     /QIfist \
+// RUN:     /QIntel-jcc-erratum \
 // RUN:     /Qimprecise_fwaits \
 // RUN:     /Qpar \
 // RUN:     /Qpar-report:1 \
@@ -597,9 +598,14 @@
 // NOCFGUARD-NOT: -cfguard
 
 // RUN: %clang_cl /guard:cf -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
-// RUN: %clang_cl /guard:cf,nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
-// RUN: %clang_cl /guard:nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
 // CFGUARD: -cfguard
+// CFGUARD-NOT: -cfguard-no-checks
+
+// RUN: %clang_cl /guard:cf,nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDNOCHECKS %s
+// CFGUARDNOCHECKS: -cfguard-no-checks
+
+// RUN: %clang_cl /guard:nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDNOCHECKSINVALID %s
+// CFGUARDNOCHECKSINVALID: invalid value 'nochecks' in '/guard:'
 
 // RUN: %clang_cl /guard:foo -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDINVALID %s
 // CFGUARDINVALID: invalid value 'foo' in '/guard:'
@@ -622,6 +628,7 @@
 // RUN:     -fdiagnostics-color \
 // RUN:     -fno-diagnostics-color \
 // RUN:     -fdebug-compilation-dir . \
+// RUN:     -fdebug-compilation-dir=. \
 // RUN:     -fdiagnostics-parseable-fixits \
 // RUN:     -fdiagnostics-absolute-paths \
 // RUN:     -ferror-limit=10 \

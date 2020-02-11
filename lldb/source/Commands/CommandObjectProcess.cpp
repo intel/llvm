@@ -1,4 +1,4 @@
-//===-- CommandObjectProcess.cpp --------------------------------*- C++ -*-===//
+//===-- CommandObjectProcess.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,6 @@
 #include "lldb/Breakpoint/BreakpointSite.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Host/Host.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -760,7 +759,7 @@ public:
 
       switch (short_option) {
       case 'p':
-        plugin_name.assign(option_arg);
+        plugin_name.assign(std::string(option_arg));
         break;
 
       default:
@@ -1014,10 +1013,10 @@ protected:
 class CommandObjectProcessSignal : public CommandObjectParsed {
 public:
   CommandObjectProcessSignal(CommandInterpreter &interpreter)
-      : CommandObjectParsed(interpreter, "process signal",
-                            "Send a UNIX signal to the current target process.",
-                            nullptr, eCommandRequiresProcess |
-                                         eCommandTryTargetAPILock) {
+      : CommandObjectParsed(
+            interpreter, "process signal",
+            "Send a UNIX signal to the current target process.", nullptr,
+            eCommandRequiresProcess | eCommandTryTargetAPILock) {
     CommandArgumentEntry arg;
     CommandArgumentData signal_arg;
 
@@ -1224,7 +1223,7 @@ public:
     const uint32_t start_frame = 0;
     const uint32_t num_frames = 1;
     const uint32_t num_frames_with_source = 1;
-    const bool     stop_format = true;
+    const bool stop_format = true;
     process->GetStatus(strm);
     process->GetThreadStatus(strm, only_threads_with_stop_reason, start_frame,
                              num_frames, num_frames_with_source, stop_format);
@@ -1253,13 +1252,13 @@ public:
 
       switch (short_option) {
       case 's':
-        stop = option_arg;
+        stop = std::string(option_arg);
         break;
       case 'n':
-        notify = option_arg;
+        notify = std::string(option_arg);
         break;
       case 'p':
-        pass = option_arg;
+        pass = std::string(option_arg);
         break;
       default:
         llvm_unreachable("Unimplemented option");

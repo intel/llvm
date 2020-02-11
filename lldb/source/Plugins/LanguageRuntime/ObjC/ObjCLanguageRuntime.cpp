@@ -1,4 +1,4 @@
-//===-- ObjCLanguageRuntime.cpp ---------------------------------*- C++ -*-===//
+//===-- ObjCLanguageRuntime.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,11 @@
 
 #include "ObjCLanguageRuntime.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/MappedHash.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/ValueObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/Type.h"
@@ -127,7 +127,7 @@ ObjCLanguageRuntime::LookupInCompleteClassCache(ConstString &name) {
     for (uint32_t i = 0; i < types.GetSize(); ++i) {
       TypeSP type_sp(types.GetTypeAtIndex(i));
 
-      if (ClangASTContext::IsObjCObjectOrInterfaceType(
+      if (TypeSystemClang::IsObjCObjectOrInterfaceType(
               type_sp->GetForwardCompilerType())) {
         if (type_sp->IsCompleteObjCClass()) {
           m_complete_class_cache[name] = type_sp;
@@ -222,14 +222,6 @@ ObjCLanguageRuntime::GetParentClass(ObjCLanguageRuntime::ObjCISA isa) {
   return 0;
 }
 
-ConstString
-ObjCLanguageRuntime::GetActualTypeName(ObjCLanguageRuntime::ObjCISA isa) {
-  ClassDescriptorSP objc_class_sp(GetNonKVOClassDescriptor(isa));
-  if (objc_class_sp)
-    return objc_class_sp->GetClassName();
-  return ConstString();
-}
-
 ObjCLanguageRuntime::ClassDescriptorSP
 ObjCLanguageRuntime::GetClassDescriptorFromClassName(
     ConstString class_name) {
@@ -311,14 +303,6 @@ ObjCLanguageRuntime::EncodingToType::RealizeType(const char *name,
   if (m_scratch_ast_ctx_up)
     return RealizeType(*m_scratch_ast_ctx_up, name, for_expression);
   return CompilerType();
-}
-
-CompilerType ObjCLanguageRuntime::EncodingToType::RealizeType(
-    ClangASTContext &ast_ctx, const char *name, bool for_expression) {
-  clang::ASTContext *clang_ast = ast_ctx.getASTContext();
-  if (!clang_ast)
-    return CompilerType();
-  return RealizeType(*clang_ast, name, for_expression);
 }
 
 ObjCLanguageRuntime::EncodingToType::~EncodingToType() {}
@@ -403,9 +387,9 @@ ObjCLanguageRuntime::GetRuntimeType(CompilerType base_type) {
   CompilerType class_type;
   bool is_pointer_type = false;
 
-  if (ClangASTContext::IsObjCObjectPointerType(base_type, &class_type))
+  if (TypeSystemClang::IsObjCObjectPointerType(base_type, &class_type))
     is_pointer_type = true;
-  else if (ClangASTContext::IsObjCObjectOrInterfaceType(base_type))
+  else if (TypeSystemClang::IsObjCObjectOrInterfaceType(base_type))
     class_type = base_type;
   else
     return llvm::None;

@@ -128,7 +128,7 @@ static void ReplaceFrameIndex(MachineBasicBlock::iterator II,
 ARCRegisterInfo::ARCRegisterInfo() : ARCGenRegisterInfo(ARC::BLINK) {}
 
 bool ARCRegisterInfo::needsFrameMoves(const MachineFunction &MF) {
-  return MF.getMMI().hasDebugInfo() || MF.getFunction().needsUnwindTableEntry();
+  return MF.needsFrameMoves();
 }
 
 const MCPhysReg *
@@ -149,11 +149,6 @@ BitVector ARCRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 }
 
 bool ARCRegisterInfo::requiresRegisterScavenging(
-    const MachineFunction &MF) const {
-  return true;
-}
-
-bool ARCRegisterInfo::trackLivenessAfterRegAlloc(
     const MachineFunction &MF) const {
   return true;
 }

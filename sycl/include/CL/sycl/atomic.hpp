@@ -23,7 +23,7 @@
   static_assert(!std::is_same<T, float>::value,                                \
                 "SYCL atomic function not available for float type")
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class memory_order : int { relaxed };
@@ -66,7 +66,7 @@ template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
 
 #ifndef __SYCL_DEVICE_ONLY__
 // host implementation of SYCL atomics
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 // Translate cl::sycl::memory_order or __spv::MemorySemanticsMask
@@ -161,7 +161,7 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope S,
 
 #endif // !defined(__SYCL_DEVICE_ONLY__)
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 template <typename T, access::address_space addressSpace =

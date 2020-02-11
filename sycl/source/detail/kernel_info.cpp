@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/device.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 template <>

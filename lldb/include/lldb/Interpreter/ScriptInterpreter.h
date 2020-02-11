@@ -315,8 +315,7 @@ public:
 
   Status SetBreakpointCommandCallbackFunction(
       std::vector<BreakpointOptions *> &bp_options_vec,
-      const char *function_name, 
-      StructuredData::ObjectSP extra_args_sp);
+      const char *function_name, StructuredData::ObjectSP extra_args_sp);
 
   /// Set a script function as the callback for the breakpoint.
   virtual Status
@@ -458,12 +457,9 @@ public:
   virtual bool CheckObjectExists(const char *name) { return false; }
 
   virtual bool
-  LoadScriptingModule(const char *filename, bool can_reload, bool init_session,
+  LoadScriptingModule(const char *filename, bool init_session,
                       lldb_private::Status &error,
-                      StructuredData::ObjectSP *module_sp = nullptr) {
-    error.SetErrorString("loading unimplemented");
-    return false;
-  }
+                      StructuredData::ObjectSP *module_sp = nullptr);
 
   virtual bool IsReservedWord(const char *word) { return false; }
 
@@ -472,9 +468,9 @@ public:
   const char *GetScriptInterpreterPtyName();
 
   int GetMasterFileDescriptor();
-  
-  virtual llvm::Expected<size_t> 
-  GetNumFixedArgumentsForCallable(const llvm::StringRef &callable_name) { 
+
+  virtual llvm::Expected<unsigned>
+  GetMaxPositionalArgumentsForCallable(const llvm::StringRef &callable_name) {
     return llvm::createStringError(
     llvm::inconvertibleErrorCode(), "Unimplemented function");
   }

@@ -12,6 +12,7 @@ from lldbsuite.test import lldbutil
 class TestWatchpointEvents (TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().
@@ -20,11 +21,6 @@ class TestWatchpointEvents (TestBase):
         self.main_source = "main.c"
 
     @add_test_categories(['pyapi'])
-    @expectedFailureAll(
-        oslist=["linux"],
-        archs=["aarch64"],
-        triple=no_match(".*-android"),
-        bugnumber="llvm.org/pr27710")
     def test_with_python_api(self):
         """Test that adding, deleting and modifying watchpoints sends the appropriate events."""
         self.build()

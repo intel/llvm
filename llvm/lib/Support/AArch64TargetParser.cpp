@@ -191,7 +191,7 @@ AArch64::ArchKind AArch64::parseArch(StringRef Arch) {
     return ArchKind::INVALID;
 
   StringRef Syn = ARM::getArchSynonym(Arch);
-  for (const auto A : AArch64ARCHNames) {
+  for (const auto &A : AArch64ARCHNames) {
     if (A.getName().endswith(Syn))
       return A.ID;
   }
@@ -199,7 +199,7 @@ AArch64::ArchKind AArch64::parseArch(StringRef Arch) {
 }
 
 AArch64::ArchExtKind AArch64::parseArchExt(StringRef ArchExt) {
-  for (const auto A : AArch64ARCHExtNames) {
+  for (const auto &A : AArch64ARCHExtNames) {
     if (ArchExt == A.getName())
       return static_cast<ArchExtKind>(A.ID);
   }
@@ -207,9 +207,57 @@ AArch64::ArchExtKind AArch64::parseArchExt(StringRef ArchExt) {
 }
 
 AArch64::ArchKind AArch64::parseCPUArch(StringRef CPU) {
-  for (const auto C : AArch64CPUNames) {
+  for (const auto &C : AArch64CPUNames) {
     if (CPU == C.getName())
       return C.ArchID;
   }
   return ArchKind::INVALID;
+}
+
+// Parse a branch protection specification, which has the form
+//   standard | none | [bti,pac-ret[+b-key,+leaf]*]
+// Returns true on success, with individual elements of the specification
+// returned in `PBP`. Returns false in error, with `Err` containing
+// an erroneous part of the spec.
+bool AArch64::parseBranchProtection(StringRef Spec, ParsedBranchProtection &PBP,
+                                    StringRef &Err) {
+  PBP = {"none", "a_key", false};
+  if (Spec == "none")
+    return true; // defaults are ok
+
+  if (Spec == "standard") {
+    PBP.Scope = "non-leaf";
+    PBP.BranchTargetEnforcement = true;
+    return true;
+  }
+
+  SmallVector<StringRef, 4> Opts;
+  Spec.split(Opts, "+");
+  for (int I = 0, E = Opts.size(); I != E; ++I) {
+    StringRef Opt = Opts[I].trim();
+    if (Opt == "bti") {
+      PBP.BranchTargetEnforcement = true;
+      continue;
+    }
+    if (Opt == "pac-ret") {
+      PBP.Scope = "non-leaf";
+      for (; I + 1 != E; ++I) {
+        StringRef PACOpt = Opts[I + 1].trim();
+        if (PACOpt == "leaf")
+          PBP.Scope = "all";
+        else if (PACOpt == "b-key")
+          PBP.Key = "b_key";
+        else
+          break;
+      }
+      continue;
+    }
+    if (Opt == "")
+      Err = "<empty>";
+    else
+      Err = Opt;
+    return false;
+  }
+
+  return true;
 }

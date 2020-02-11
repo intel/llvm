@@ -2,7 +2,6 @@
 Use lldb Python API to verify that expression evaluation for property references uses the correct getters and setters
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -110,6 +109,11 @@ class ObjCPropertyTestCase(TestBase):
         self.assertTrue(backing_value.IsValid())
         self.assertTrue(backed_value.GetValueAsUnsigned(12345)
                         == backing_value.GetValueAsUnsigned(23456))
+
+        value_from_typedef = frame.EvaluateExpression("typedefd.backedInt", False)
+        self.assertTrue(value_from_typedef.GetError().Success())
+        self.assertEqual(value_from_typedef.GetValueAsUnsigned(12345),
+                         backing_value.GetValueAsUnsigned(23456))
 
         unbacked_value = frame.EvaluateExpression("mine.unbackedInt", False)
         unbacked_error = unbacked_value.GetError()

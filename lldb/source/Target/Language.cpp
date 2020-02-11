@@ -1,5 +1,4 @@
-//===-- Language.cpp -------------------------------------------------*- C++
-//-*-===//
+//===-- Language.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -131,11 +130,6 @@ HardcodedFormatters::HardcodedSummaryFinder Language::GetHardcodedSummaries() {
 
 HardcodedFormatters::HardcodedSyntheticFinder
 Language::GetHardcodedSynthetics() {
-  return {};
-}
-
-HardcodedFormatters::HardcodedValidatorFinder
-Language::GetHardcodedValidators() {
   return {};
 }
 

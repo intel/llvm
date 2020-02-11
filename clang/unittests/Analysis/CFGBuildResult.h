@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Analysis/CFG.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Tooling/Tooling.h"
+#include <memory>
 
 namespace clang {
 namespace analysis {
@@ -22,20 +23,30 @@ public:
     BuiltCFG,
   };
 
-  BuildResult(Status S, std::unique_ptr<CFG> Cfg = nullptr)
-      : S(S), Cfg(std::move(Cfg)) {}
+  BuildResult(Status S, const FunctionDecl *Func = nullptr,
+              std::unique_ptr<CFG> Cfg = nullptr,
+              std::unique_ptr<ASTUnit> AST = nullptr)
+      : S(S), Cfg(std::move(Cfg)), AST(std::move(AST)), Func(Func) {}
 
   Status getStatus() const { return S; }
   CFG *getCFG() const { return Cfg.get(); }
+  ASTUnit *getAST() const { return AST.get(); }
+  const FunctionDecl *getFunc() const { return Func; }
 
 private:
   Status S;
   std::unique_ptr<CFG> Cfg;
+  std::unique_ptr<ASTUnit> AST;
+  const FunctionDecl *Func;
 };
 
 class CFGCallback : public ast_matchers::MatchFinder::MatchCallback {
 public:
+  CFGCallback(std::unique_ptr<ASTUnit> AST) : AST(std::move(AST)) {}
+
+  std::unique_ptr<ASTUnit> AST;
   BuildResult TheBuildResult = BuildResult::ToolRan;
+  CFG::BuildOptions Options;
 
   void run(const ast_matchers::MatchFinder::MatchResult &Result) override {
     const auto *Func = Result.Nodes.getNodeAs<FunctionDecl>("func");
@@ -43,25 +54,27 @@ public:
     if (!Body)
       return;
     TheBuildResult = BuildResult::SawFunctionBody;
-    CFG::BuildOptions Options;
     Options.AddImplicitDtors = true;
     if (std::unique_ptr<CFG> Cfg =
             CFG::buildCFG(nullptr, Body, Result.Context, Options))
-      TheBuildResult = {BuildResult::BuiltCFG, std::move(Cfg)};
+      TheBuildResult = {BuildResult::BuiltCFG, Func, std::move(Cfg),
+                        std::move(AST)};
   }
 };
 
-inline BuildResult BuildCFG(const char *Code) {
-  CFGCallback Callback;
-
-  ast_matchers::MatchFinder Finder;
-  Finder.addMatcher(ast_matchers::functionDecl().bind("func"), &Callback);
-  std::unique_ptr<tooling::FrontendActionFactory> Factory(
-      tooling::newFrontendActionFactory(&Finder));
+inline BuildResult BuildCFG(const char *Code, CFG::BuildOptions Options = {}) {
   std::vector<std::string> Args = {"-std=c++11",
                                    "-fno-delayed-template-parsing"};
-  if (!tooling::runToolOnCodeWithArgs(Factory->create(), Code, Args))
+  std::unique_ptr<ASTUnit> AST = tooling::buildASTFromCodeWithArgs(Code, Args);
+  if (!AST)
     return BuildResult::ToolFailed;
+
+  CFGCallback Callback(std::move(AST));
+  Callback.Options = Options;
+  ast_matchers::MatchFinder Finder;
+  Finder.addMatcher(ast_matchers::functionDecl().bind("func"), &Callback);
+
+  Finder.matchAST(Callback.AST->getASTContext());
   return std::move(Callback.TheBuildResult);
 }
 

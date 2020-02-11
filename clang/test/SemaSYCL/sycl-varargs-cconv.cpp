@@ -1,4 +1,32 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DEF %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DECL %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID1 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 %s
+
+#if defined(PRINTF_INVALID_DECL)
+extern "C" int __spirv_ocl_printf(const char *__format, ...);
+namespace A {
+  int __spirv_ocl_printf(const char *__format, ...);
+}
+#elif defined(PRINTF_INVALID_DEF)
+int __spirv_ocl_printf(const char *__format, ...) {
+  return 42;
+}
+#elif defined(PRINTF_VALID1)
+class A {
+  friend int __spirv_ocl_printf(const char *__format, ...);
+};
+int __spirv_ocl_printf(const char *__format, ...);
+#elif defined(PRINTF_VALID2)
+extern "C" {
+  extern "C++" {
+    int __spirv_ocl_printf(const char *__format, ...);
+  }
+}
+#else
+int __spirv_ocl_printf(const char *__format, ...);
+#endif
 
 int __cdecl foo(int, ...); // expected-no-error
 
@@ -11,7 +39,7 @@ void bar() {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc();
+  kernelFunc(); //expected-note 2+ {{called by 'kernel_single_task}}
 }
 
 int main() {
@@ -19,6 +47,19 @@ int main() {
   kernel_single_task<class fake_kernel>([]() { foo(6); });
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { bar(9.0); });
+
+#if defined(PRINTF_INVALID_DECL)
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { A::__spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+#elif defined(PRINTF_INVALID_DEF)
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+#else
+  kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+#endif
+
   bar();
   return 0;
 }

@@ -222,13 +222,15 @@ unsigned AArch64RegisterBankInfo::copyCost(const RegisterBank &A,
   return RegisterBankInfo::copyCost(A, B, Size);
 }
 
-const RegisterBank &AArch64RegisterBankInfo::getRegBankFromRegClass(
-    const TargetRegisterClass &RC) const {
+const RegisterBank &
+AArch64RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                                LLT) const {
   switch (RC.getID()) {
   case AArch64::FPR8RegClassID:
   case AArch64::FPR16RegClassID:
   case AArch64::FPR32RegClassID:
   case AArch64::FPR64RegClassID:
+  case AArch64::FPR64_loRegClassID:
   case AArch64::FPR128RegClassID:
   case AArch64::FPR128_loRegClassID:
   case AArch64::DDRegClassID:
@@ -529,7 +531,7 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     // Arithmetic ops.
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB:
-  case TargetOpcode::G_GEP:
+  case TargetOpcode::G_PTR_ADD:
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_SDIV:
   case TargetOpcode::G_UDIV:

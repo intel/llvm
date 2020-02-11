@@ -208,7 +208,7 @@ public:
 
   /// ReductionList contains the reduction descriptors for all
   /// of the reductions that were found in the loop.
-  using ReductionList = DenseMap<PHINode *, RecurrenceDescriptor>;
+  using ReductionList = MapVector<PHINode *, RecurrenceDescriptor>;
 
   /// InductionList saves induction variables and maps them to the
   /// induction descriptor.
@@ -311,6 +311,12 @@ public:
 
   // Returns true if the NoNaN attribute is set on the function.
   bool hasFunNoNaNAttr() const { return HasFunNoNaNAttr; }
+
+  /// Returns all assume calls in predicated blocks. They need to be dropped
+  /// when flattening the CFG.
+  const SmallPtrSetImpl<Instruction *> &getConditionalAssumes() const {
+    return ConditionalAssumes;
+  }
 
 private:
   /// Return true if the pre-header, exiting and latch blocks of \p Lp and all
@@ -468,6 +474,10 @@ private:
   /// While vectorizing these instructions we have to generate a
   /// call to the appropriate masked intrinsic
   SmallPtrSet<const Instruction *, 8> MaskedOp;
+
+  /// Assume instructions in predicated blocks must be dropped if the CFG gets
+  /// flattened.
+  SmallPtrSet<Instruction *, 8> ConditionalAssumes;
 };
 
 } // namespace llvm

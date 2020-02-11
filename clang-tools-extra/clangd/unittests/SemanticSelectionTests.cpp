@@ -26,11 +26,6 @@ namespace clangd {
 namespace {
 using ::testing::ElementsAreArray;
 
-class IgnoreDiagnostics : public DiagnosticsConsumer {
-  void onDiagnosticsReady(PathRef File,
-                          std::vector<Diag> Diagnostics) override {}
-};
-
 TEST(SemanticSelection, All) {
   const char *Tests[] = {
       R"cpp( // Single statement in a function body.
@@ -88,11 +83,8 @@ TEST(SemanticSelection, All) {
       R"cpp( // Single statement in TU.
         [[int v = [[1^00]]]];
       )cpp",
-      // FIXME: No node found associated to the position.
       R"cpp( // Cursor at end of VarDecl.
-        void func() {
-          int v = 100 + 100^;
-        }
+        [[int v = [[100]]^]];
       )cpp",
       // FIXME: No node found associated to the position.
       R"cpp( // Cursor in between spaces.
@@ -149,9 +141,8 @@ TEST(SemanticSelection, All) {
 
 TEST(SemanticSelection, RunViaClangDServer) {
   MockFSProvider FS;
-  IgnoreDiagnostics DiagConsumer;
   MockCompilationDatabase CDB;
-  ClangdServer Server(CDB, FS, DiagConsumer, ClangdServer::optsForTest());
+  ClangdServer Server(CDB, FS, ClangdServer::optsForTest());
 
   auto FooH = testPath("foo.h");
   FS.Files[FooH] = R"cpp(
@@ -168,7 +159,7 @@ TEST(SemanticSelection, RunViaClangDServer) {
   }]]]]
   )cpp";
   Annotations SourceAnnotations(SourceContents);
-  FS.Files[FooCpp] = SourceAnnotations.code();
+  FS.Files[FooCpp] = std::string(SourceAnnotations.code());
   Server.addDocument(FooCpp, SourceAnnotations.code());
 
   auto Ranges = runSemanticRanges(Server, FooCpp, SourceAnnotations.point());

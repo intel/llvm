@@ -2,7 +2,6 @@
 Test thread step-in, step-over and step-out work with the "Avoid no debug" option.
 """
 
-from __future__ import print_function
 
 
 
@@ -50,6 +49,8 @@ class StepAvoidsNoDebugTestCase(TestBase):
         archs=["i386"],
         bugnumber="llvm.org/pr28549")
     @expectedFailureAll(oslist=["ios", "tvos", "bridgeos"], bugnumber="<rdar://problem/34026777>")  # lldb doesn't step past last source line in function on arm64
+    @expectedFailureAll(archs=["aarch64"], oslist=["linux"],
+                        bugnumber="llvm.org/pr44057")
     def test_step_in_with_python(self):
         """Test stepping in using avoid-no-debug with dwarf."""
         self.build()

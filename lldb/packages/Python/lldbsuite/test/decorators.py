@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from __future__ import print_function
 
 # System modules
 from distutils.version import LooseVersion
@@ -364,7 +363,7 @@ def apple_simulator_test(platform):
             else:
                 return "%s simulator is not supported on this system." % platform
         except subprocess.CalledProcessError:
-            return "%s is not supported on this system (xcodebuild failed)." % feature
+            return "Simulators are unsupported on this system (xcodebuild failed)"
 
     return skipTestIfFn(should_skip_simulator_test)
 
@@ -517,6 +516,9 @@ def skipIfRemote(func):
 def skipIfNoSBHeaders(func):
     """Decorate the item to mark tests that should be skipped when LLDB is built with no SB API headers."""
     def are_sb_headers_missing():
+        if lldb.remote_platform:
+            return "skip because SBHeaders tests make no sense remotely"
+
         if lldbplatformutil.getHostPlatform() == 'darwin':
             header = os.path.join(
                 os.environ["LLDB_LIB_DIR"],
@@ -805,6 +807,9 @@ def skipIfCursesSupportMissing(func):
 
 def skipIfXmlSupportMissing(func):
     return _get_bool_config_skip_if_decorator("xml")(func)
+
+def skipIfEditlineSupportMissing(func):
+    return _get_bool_config_skip_if_decorator("editline")(func)
 
 def skipIfLLVMTargetMissing(target):
     config = lldb.SBDebugger.GetBuildConfiguration()
