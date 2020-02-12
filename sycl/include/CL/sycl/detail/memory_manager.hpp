@@ -16,7 +16,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -36,14 +36,14 @@ public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
   static void release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
-                      void *MemAllocation, std::vector<RT::PiEvent> DepEvents,
+                      void *MemAllocation, std::vector<EventImplPtr> DepEvents,
                       RT::PiEvent &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                         bool InitFromUserData, void *HostPtr,
-                        std::vector<RT::PiEvent> DepEvents,
+                        std::vector<EventImplPtr> DepEvents,
                         RT::PiEvent &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified
@@ -51,7 +51,7 @@ public:
   static void *allocateMemSubBuffer(ContextImplPtr TargetContext,
                                     void *ParentMemObj, size_t ElemSize,
                                     size_t Offset, range<3> Range,
-                                    std::vector<RT::PiEvent> DepEvents,
+                                    std::vector<EventImplPtr> DepEvents,
                                     RT::PiEvent &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
@@ -137,4 +137,4 @@ public:
 };
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

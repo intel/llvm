@@ -14,7 +14,7 @@
 #include <initializer_list>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -99,7 +99,7 @@ template <int N> struct Boolean {
 
 private:
   template <int Num> friend struct Assigner;
-  alignas(VectorAlignment<bool, N>::value) DataType value;
+  alignas(detail::vector_alignment<bool, N>::value) DataType value;
 };
 
 template <> struct Boolean<1> {
@@ -140,4 +140,4 @@ private:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

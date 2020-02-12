@@ -12,12 +12,17 @@
 #include <CL/sycl/detail/generic_type_lists.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>
-#include <CL/sycl/half_type.hpp>
 
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
 
 // Forward declaration
 template <typename ElementType, access::address_space Space> class multi_ptr;
@@ -37,6 +42,16 @@ template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
 struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
+
+// 4.10.2.6 Memory layout and alignment
+template <typename T, int N>
+struct vector_alignment_impl
+    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
+                    int_constant<sizeof(T) * N>> {};
+
+template <typename T, int N>
+struct vector_alignment
+    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -233,32 +248,6 @@ template <typename T, int N, typename TL> struct make_type_impl<vec<T, N>, TL> {
 template <typename T, typename TL>
 using make_type_t = typename make_type_impl<T, TL>::type;
 
-// nan_types
-template <typename T, typename Enable = void> struct nan_types;
-
-template <typename T>
-struct nan_types<
-    T, enable_if_t<is_contained<T, gtl::unsigned_short_list>::value, T>> {
-  using ret_type = change_base_type_t<T, half>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_short_list, half>;
-};
-
-template <typename T>
-struct nan_types<
-    T, enable_if_t<is_contained<T, gtl::unsigned_int_list>::value, T>> {
-  using ret_type = change_base_type_t<T, float>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_int_list, float>;
-};
-
-template <typename T>
-struct nan_types<
-    T,
-    enable_if_t<is_contained<T, gtl::unsigned_long_integer_list>::value, T>> {
-  using ret_type = change_base_type_t<T, double>;
-  using arg_type =
-      find_same_size_type_t<gtl::scalar_unsigned_long_integer_list, double>;
-};
-
 // make_larger_t
 template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
@@ -297,4 +286,4 @@ template <typename T> using make_larger_t = typename make_larger<T>::type;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

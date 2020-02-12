@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -17,8 +18,8 @@ using namespace cl::sycl;
 class PlatformTest : public ::testing::Test {
 protected:
   std::vector<pi_platform> _platforms;
-
-  PlatformTest() : _platforms{} { detail::pi::initialize(); };
+  std::vector<detail::plugin> Plugins;
+  PlatformTest() : _platforms{} { Plugins = detail::pi::initialize(); };
 
   ~PlatformTest() override = default;
 
@@ -32,7 +33,10 @@ protected:
     // Initialize the logged number of platforms before the following assertion.
     RecordProperty(platform_count_key, platform_count);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(0, nullptr, &platform_count)),
+    // TODO: Change the test to check this for all plugins present.
+    // Currently, it is only checking for the first plugin attached.
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  0, nullptr, &platform_count)),
               PI_SUCCESS);
 
     // Overwrite previous log value with queried number of platforms.
@@ -49,8 +53,8 @@ protected:
 
     _platforms.resize(platform_count, nullptr);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(_platforms.size(),
-                                               _platforms.data(), nullptr)),
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  _platforms.size(), _platforms.data(), nullptr)),
               PI_SUCCESS);
   }
 };
@@ -61,17 +65,17 @@ TEST_F(PlatformTest, piPlatformsGet) {
 }
 
 TEST_F(PlatformTest, piPlatformGetInfo) {
-  auto get_info_test = [](pi_platform platform, _pi_platform_info info) {
+  auto get_info_test = [&](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    EXPECT_EQ((PI_CALL_NOCHECK(piPlatformGetInfo)(platform, info, 0u, nullptr,
-                                                  &reported_string_length)),
+    EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+                  platform, info, 0u, nullptr, &reported_string_length)),
               PI_SUCCESS);
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
     EXPECT_EQ(
-        (PI_CALL_NOCHECK(piPlatformGetInfo)(platform, info, param_value.size(),
-                                            param_value.data(), nullptr)),
+        (Plugins[0].call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+            platform, info, param_value.size(), param_value.data(), nullptr)),
         PI_SUCCESS)
         << "piPlatformGetInfo for " << RT::platformInfoToString(info)
         << " failed.\n";

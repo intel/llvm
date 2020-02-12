@@ -13,12 +13,13 @@
 #include <CL/sycl/detail/scheduler/commands.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -33,7 +34,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // The MemObjRecord is created for each memory object used in command
 // groups. There should be only one MemObjRecord for SYCL memory object.
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, size_t LeafLimit)
+  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
       : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
                                                              CurContext} {}
 
@@ -75,6 +76,10 @@ public:
   // memory assigned to the memory object. It's called from the sycl::buffer and
   // sycl::image destructors.
   void removeMemoryObject(detail::SYCLMemObjI *MemObj);
+
+  // Removes finished non-leaf non-alloca commands from the subgraph (assuming
+  // that all its commands have been waited for).
+  void cleanupFinishedCommands(Command *FinishedCmd);
 
   // Creates nodes in the graph, that update Req with the pointer to the host
   // memory which contains the latest data of the memory object. New operations
@@ -124,8 +129,9 @@ protected:
     // Event passed and its dependencies.
     void optimize(EventImplPtr Event);
 
-    // Removes unneeded commands from the graph.
-    void cleanupCommands(bool CleanupReleaseCommands = false);
+    // Removes finished non-leaf non-alloca commands from the subgraph (assuming
+    // that all its commands have been waited for).
+    void cleanupFinishedCommands(Command *FinishedCmd);
 
     // Reschedules command passed using Queue provided. this can lead to
     // rescheduling of all dependent commands. This can be used when user
@@ -138,6 +144,9 @@ protected:
     // Return nullptr if there the record is not found.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                           Requirement *Req);
+
+    // Decrements leaf counters for all leaves of the record.
+    void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     // Removes commands that use given MemObjRecord from the graph.
     void cleanupCommandsForRecord(MemObjRecord *Record);
@@ -229,4 +238,4 @@ protected:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

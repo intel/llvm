@@ -20,7 +20,7 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 class event;
@@ -33,6 +33,14 @@ template <int Dims> class h_item;
 enum class memory_order;
 
 namespace detail {
+inline void memcpy(void *Dst, const void *Src, size_t Size) {
+  char *Destination = reinterpret_cast<char *>(Dst);
+  const char *Source = reinterpret_cast<const char *>(Src);
+  for (size_t I = 0; I < Size; ++I) {
+    Destination[I] = Source[I];
+  }
+}
+
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
@@ -208,4 +216,4 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

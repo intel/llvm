@@ -14,7 +14,7 @@
 
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 class program;
@@ -127,7 +127,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::kernel> {

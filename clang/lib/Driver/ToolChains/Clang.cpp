@@ -21,6 +21,7 @@
 #include "MSP430.h"
 #include "InputInfo.h"
 #include "PS4CPU.h"
+#include "SYCL.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LangOptions.h"
@@ -7079,14 +7080,17 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   InputInfo Input = Inputs.front();
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
+  bool IsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  types::ID InputType(Input.getType());
 
-  // For objects, we have initial support for fat archives (archives which
+  // For Linux, we have initial support for fat archives (archives which
   // contain bundled objects). We will perform partial linking against the
-  // object and specific offload target archives which will be sent to the
-  // unbundler to produce a list of target objects.
-  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      Input.getType() == types::TY_Object &&
-      TCArgs.hasArg(options::OPT_foffload_static_lib_EQ)) {
+  // specific offload target archives which will be sent to the unbundler to
+  // produce a list of target objects.
+  // FIXME: This should be a separate job in the toolchain.
+  if (!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group) &&
+      (types::isArchive(InputType) || InputType == types::TY_Object)) {
     TypeArg = "oo";
     ArgStringList LinkArgs;
     LinkArgs.push_back("-r");
@@ -7096,18 +7100,38 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           llvm::sys::path::stem(Input.getFilename()).str() + "-prelink", "o");
     InputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
     LinkArgs.push_back(InputFileName);
-    // Input files consist of fat libraries and the object(s) to be unbundled.
-    for (const auto &I : Inputs)
-      LinkArgs.push_back(I.getFilename());
+    const ToolChain *HTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    // Add crt objects
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crt1.o")));
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crti.o")));
     // Add -L<dir> search directories.
     TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
-    for (const auto &A :
-            TCArgs.getAllArgValues(options::OPT_foffload_static_lib_EQ))
-      LinkArgs.push_back(TCArgs.MakeArgString(A));
+
+    // TODO - We can potentially go through the args and add the known linker
+    // pass through args of --whole-archive and --no-whole-archive.  This
+    // would allow to support user commands like: -Wl,--whole-archive
+    // -foffload-static-lib=<lib> -Wl,--no-whole-archive
+    // Input files consist of fat libraries and the object(s) to be unbundled.
+    bool IsWholeArchive = false;
+    for (const auto &I : Inputs) {
+      if (I.getType() == types::TY_WholeArchive && !IsWholeArchive) {
+        LinkArgs.push_back("--whole-archive");
+        IsWholeArchive = true;
+      } else if (I.getType() == types::TY_Archive && IsWholeArchive) {
+        LinkArgs.push_back("--no-whole-archive");
+        IsWholeArchive = false;
+      }
+      LinkArgs.push_back(I.getFilename());
+    }
+    // Disable whole archive if it was enabled for the previous inputs.
+    if (IsWholeArchive)
+      LinkArgs.push_back("--no-whole-archive");
+    // Add crt objects
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(std::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
-  } else if (Input.getType() == types::TY_FPGA_AOCX ||
-             Input.getType() == types::TY_FPGA_AOCR) {
+  } else if (InputType == types::TY_FPGA_AOCX ||
+             InputType == types::TY_FPGA_AOCR) {
     // Override type with archive object
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
@@ -7115,9 +7139,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (Input.getType() == types::TY_FPGA_AOCO ||
-      (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-       Input.getType() == types::TY_Archive))
+  if (InputType == types::TY_FPGA_AOCO ||
+      (IsMSVCEnv && types::isArchive(InputType)))
     TypeArg = "aoo";
 
   // Get the type.
@@ -7132,12 +7155,12 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // FPGA device triples are 'transformed' for the bundler when creating
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
-    if (types::isFPGA(Input.getType())) {
+    if (types::isFPGA(InputType)) {
       if (getToolChain().getTriple().getSubArch() ==
               llvm::Triple::SPIRSubArch_fpga &&
           Dep.DependentOffloadKind == Action::OFK_SYCL) {
         llvm::Triple TT;
-        TT.setArchName(types::getTypeName(Input.getType()));
+        TT.setArchName(types::getTypeName(InputType));
         TT.setVendorName("intel");
         TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
@@ -7151,10 +7174,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (Input.getType() == types::TY_Archive ||
-               (Input.getType() == types::TY_Object &&
-                TCArgs.hasArg(options::OPT_fintelfpga) &&
-                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
+    } else if (types::isArchive(InputType) || (InputType == types::TY_Object &&
+               ((!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group)) ||
+                (TCArgs.hasArg(options::OPT_fintelfpga) &&
+                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
       // host link command just as normal libraries.  Do not extract the host
@@ -7250,6 +7273,31 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
+    // Grab any Target specific options that need to be added to the wrapper
+    // information.
+    ArgStringList BuildArgs;
+    auto createArgString = [&](const char *Opt) {
+      if (BuildArgs.empty())
+        return;
+      SmallString<128> AL;
+      for (const char *A : BuildArgs) {
+        if (AL.empty()) {
+          AL = A;
+          continue;
+        }
+        AL += " ";
+        AL += A;
+      }
+      WrapperArgs.push_back(C.getArgs().MakeArgString(
+          Twine(Opt) + Twine("\"") + AL + Twine("\"")));
+    };
+    const toolchains::SYCLToolChain &TC =
+              static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+    createArgString("-compile-opts=");
+    BuildArgs.clear();
+    TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+    createArgString("-link-opts=");
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 

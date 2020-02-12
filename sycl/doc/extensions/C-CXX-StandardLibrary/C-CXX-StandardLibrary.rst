@@ -23,10 +23,97 @@ or, in case of Windows:
    clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
 
 List of supported functions from C standard library:
-  - assert macro (from <assert.h> or <cassert>)
+  - assert macro          (from <assert.h> or <cassert>)
+  - logf, log             (from <math.h> or <cmath>)
+  - expf, exp             (from <math.h> or <cmath>)
+  - frexpf, frexp         (from <math.h> or <cmath>)
+  - ldexpf, ldexp         (from <math.h> or <cmath>)
+  - log10f, log10         (from <math.h> or <cmath>)
+  - modff, modf           (from <math.h> or <cmath>)
+  - exp2f, exp2           (from <math.h> or <cmath>)
+  - expm1f, expm1         (from <math.h> or <cmath>)
+  - ilogbf, ilogb         (from <math.h> or <cmath>)
+  - log1pf, log1p         (from <math.h> or <cmath>)
+  - log2f, log2           (from <math.h> or <cmath>)
+  - logbf, logb           (from <math.h> or <cmath>)
+  - sqrtf, sqrt           (from <math.h> or <cmath>)
+  - cbrtf, cbrt           (from <math.h> or <cmath>)
+  - hypotf, hypot         (from <math.h> or <cmath>)
+  - erff, erf             (from <math.h> or <cmath>)
+  - erfcf, erfc           (from <math.h> or <cmath>)
+  - tgammaf, tgamma       (from <math.h> or <cmath>)
+  - lgammaf, lgamma       (from <math.h> or <cmath>)
+  - fmodf, fmod           (from <math.h> or <cmath>)
+  - remainderf, remainder (from <math.h> or <cmath>)
+  - remquof, remquo       (from <math.h> or <cmath>)
+  - nextafterf, nextafter (from <math.h> or <cmath>)
+  - fdimf, fdim           (from <math.h> or <cmath>)
+  - fmaf, fma             (from <math.h> or <cmath>)
+  - sinf, sin             (from <math.h> or <cmath>)
+  - cosf, cos             (from <math.h> or <cmath>)
+  - tanf, tan             (from <math.h> or <cmath>)
+  - powf, pow             (from <math.h> or <cmath>)
+  - acosf, acos           (from <math.h> or <cmath>)
+  - asinf, asin           (from <math.h> or <cmath>)
+  - atanf, atan           (from <math.h> or <cmath>)
+  - atan2f, atan2         (from <math.h> or <cmath>)
+  - coshf, cosh           (from <math.h> or <cmath>)
+  - sinhf, sinh           (from <math.h> or <cmath>)
+  - tanhf, tanh           (from <math.h> or <cmath>)
+  - acoshf, acosh         (from <math.h> or <cmath>)
+  - asinhf, asinh         (from <math.h> or <cmath>)
+  - atanhf, atanh         (from <math.h> or <cmath>)
+  - cimagf, cimag         (from <complex.h>)
+  - crealf, creal         (from <complex.h>)
+  - cargf, carg           (from <complex.h>)
+  - cabsf, cabs           (from <complex.h>)
+  - cprojf, cproj         (from <complex.h>)
+  - cexpf, cexp           (from <complex.h>)
+  - clogf, clog           (from <complex.h>)
+  - cpowf, cpow           (from <complex.h>)
+  - cpolarf, cpolar       (from <complex.h>)
+  - csqrtf, csqrt         (from <complex.h>)
+  - csinhf, csinh         (from <complex.h>)
+  - ccoshf, ccosh         (from <complex.h>)
+  - ctanhf, ctanh         (from <complex.h>)
+  - csinf, csin           (from <complex.h>)
+  - ccosf, ccos           (from <complex.h>)
+  - ctanf, ctan           (from <complex.h>)
+  - casinhf, casinh       (from <complex.h>)
+  - cacoshf, cacosh       (from <complex.h>)
+  - catanhf, catanh       (from <complex.h>)
+  - casinf, casin         (from <complex.h>)
+  - cacosf, cacos         (from <complex.h>)
+  - catanf, catan         (from <complex.h>)
 
-NOTE: only the GNU glibc and Microsoft C libraries are currently
-supported.
+All functions are grouped into different device libraries based on
+functionalities. C and C++ standard library groups functions and
+classes by purpose(e.g. <math.h> for mathematical operations and
+transformations) and device library infrastructure uses this as
+a baseline.
+NOTE: Only the GNU glibc, Microsoft C libraries are currently
+supported. The device libraries for <math.h> and <complex.h> are
+ready for Linux and Windows support will be added in the future.
+Not all functions from <math.h> are supported right now, following
+math functions are not supported now:
+ - abs
+ - ceilf, ceil
+ - copysignf, copysign
+ - fabsf, fabs
+ - floorf, floor
+ - fmaxf, fmax
+ - fminf, fmin
+ - nextafterf, nextafter
+ - rintf, rint
+ - roundf, round
+ - truncf, trunc
+ - scalbnf, scalbn
+ - nearbyintf, nearbyint
+ - lrintf, lrint
+ - nexttowardf, nexttoward
+ - nanf, nan
+Device libraries can't support both single and double precision as some
+underlying device may not support double precision.
 
 Example of usage
 ================
@@ -57,6 +144,31 @@ Example of usage
      });
      deviceQueue.wait_and_throw();
    }
+
+
+.. code: c++
+   #include <math.h>
+   #include <CL/sycl.hpp>
+
+   void device_sin_test() {
+     cl::sycl::queue deviceQueue;
+     cl::sycl::range<1> numOfItems{1};
+     float  result_f = -1.f;
+     double result_d = -1.d;
+     {
+       cl::sycl::buffer<float, 1> buffer1(&result_f, numOfItems);
+       cl::sycl::buffer<double, 1> buffer2(&result_d, numOfItems);
+       deviceQueue.submit([&](cl::sycl::handler &cgh) {
+         auto res_access1 = buffer1.get_access<sycl_write>(cgh);
+         auto res_access2 = buffer2.get_access<sycl_write>(cgh);
+         cgh.single_task<class DeviceSin>([=]() {
+           res_access1[0] = sinf(0.f);
+           res_access2[0] = sin(0.0);
+         });
+       });
+     }
+     assert((result_f == 0.f) && (result_d == 0.0));
+  }
 
 Frontend
 ========

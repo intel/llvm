@@ -14,7 +14,7 @@
 
 // TODO: 4.3.4 Properties
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class handler;
 class queue;
@@ -195,8 +195,10 @@ public:
       : Range{0} {
 
     size_t BufSize = 0;
-    PI_CALL(piMemGetInfo)(detail::pi::cast<detail::RT::PiMem>(MemObject),
-                          CL_MEM_SIZE, sizeof(size_t), &BufSize, nullptr);
+    const detail::plugin &Plugin = detail::getSyclObjImpl(SyclContext)->getPlugin();
+    Plugin.call<detail::PiApiKind::piMemGetInfo>(
+        detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+        sizeof(size_t), &BufSize, nullptr);
 
     Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
@@ -394,7 +396,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 #endif // __cpp_deduction_guides
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

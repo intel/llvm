@@ -16,7 +16,7 @@
 
 #include <cstdlib>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 using alloc = cl::sycl::usm::alloc;
@@ -43,12 +43,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
 
     switch (Kind) {
     case alloc::host: {
-      Error = PI_CALL_NOCHECK(piextUSMHostAlloc)(&RetVal, C, nullptr, Size,
-                                                 Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMHostAlloc>(
+          &RetVal, C, nullptr, Size, Alignment);
       break;
     }
     case alloc::device:
@@ -91,20 +92,21 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
     pi_device Id;
 
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piextUSMDeviceAlloc)(&RetVal, C, Id, nullptr,
-                                                   Size, Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+          &RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = PI_CALL_NOCHECK(piextUSMSharedAlloc)(&RetVal, C, Id, nullptr,
-                                                   Size, Alignment);
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+          &RetVal, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::host:
@@ -130,7 +132,8 @@ void free(void *Ptr, const context &Ctxt) {
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
-    PI_CALL(piextUSMFree)(C, Ptr);
+    const detail::plugin &Plugin = CtxImpl->getPlugin();
+    Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
 }
 
@@ -231,5 +234,82 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind);
 }
 
+// Pointer queries
+/// Query the allocation type from a USM pointer
+/// Returns alloc::host for all pointers in a host context.
+///
+/// @param ptr is the USM pointer to query
+/// @param ctxt is the sycl context the ptr was allocated in
+alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  // Everything on a host device is just system malloc so call it host
+  if (Ctxt.is_host())
+    return alloc::host;
+
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context PICtx = CtxImpl->getHandleRef();
+  pi_usm_type AllocTy;
+
+  // query type using PI function
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy, nullptr);
+
+  alloc ResultAlloc;
+  switch (AllocTy) {
+  case PI_MEM_TYPE_HOST:
+    ResultAlloc = alloc::host;
+    break;
+  case PI_MEM_TYPE_DEVICE:
+    ResultAlloc = alloc::device;
+    break;
+  case PI_MEM_TYPE_SHARED:
+    ResultAlloc = alloc::shared;
+    break;
+  default:
+    ResultAlloc = alloc::unknown;
+    break;
+  }
+
+  return ResultAlloc;
+}
+
+/// Queries the device against which the pointer was allocated
+///
+/// @param ptr is the USM pointer to query
+/// @param ctxt is the sycl context the ptr was allocated in
+device get_pointer_device(const void *Ptr, const context &Ctxt) {
+  // Just return the host device in the host context
+  if (Ctxt.is_host())
+    return Ctxt.get_devices()[0];
+
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+
+  // Check if ptr is a host allocation
+  if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
+    auto Devs = CtxImpl->getDevices();
+    if (Devs.size() == 0)
+      throw runtime_error("No devices in passed context!");
+
+    // Just return the first device in the context
+    return Devs[0];
+  }
+
+  pi_context PICtx = CtxImpl->getHandleRef();
+  pi_device DeviceId;
+
+  // query device using PI function
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
+
+  for (const device &Dev : CtxImpl->getDevices()) {
+    // Try to find the real sycl device used in the context
+    if (detail::getSyclObjImpl(Dev)->getHandleRef() == DeviceId)
+      return Dev;
+  }
+
+  throw runtime_error("Cannot find device associated with USM allocation!");
+}
+
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

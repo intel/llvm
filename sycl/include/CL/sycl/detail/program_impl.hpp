@@ -21,7 +21,7 @@
 #include <fstream>
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declarations
@@ -234,6 +234,12 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
+  // @return the Plugin associated withh the context of this program.
+  const plugin &getPlugin() const {
+    assert(!is_host() && "Plugin is not available for Host.");
+    return MContext->getPlugin();
+  }
+
   /// @return a vector of devices that are associated with this program.
   vector_class<device> get_devices() const { return MDevices; }
 
@@ -380,4 +386,4 @@ vector_class<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

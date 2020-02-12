@@ -10,9 +10,10 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -21,18 +22,19 @@ template <typename T, info::platform param> struct get_platform_info {};
 
 template <info::platform param>
 struct get_platform_info<string_class, param> {
-  static string_class get(RT::PiPlatform plt) {
+  static string_class get(RT::PiPlatform plt, const plugin &Plugin) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piPlatformGetInfo)(plt, pi::cast<pi_platform_info>(param), 0,
-                               nullptr, &resultSize);
+    Plugin.call<PiApiKind::piPlatformGetInfo>(
+        plt, pi::cast<pi_platform_info>(param), 0, nullptr, &resultSize);
     if (resultSize == 0) {
       return "";
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piPlatformGetInfo)(plt, pi::cast<pi_platform_info>(param),
-                               resultSize, result.get(), nullptr);
+    Plugin.call<PiApiKind::piPlatformGetInfo>(
+        plt, pi::cast<pi_platform_info>(param), resultSize, result.get(),
+        nullptr);
     return result.get();
   }
 };
@@ -40,9 +42,11 @@ struct get_platform_info<string_class, param> {
 template <>
 struct get_platform_info<vector_class<string_class>,
                          info::platform::extensions> {
-  static vector_class<string_class> get(RT::PiPlatform plt) {
+  static vector_class<string_class> get(RT::PiPlatform plt,
+                                        const plugin &Plugin) {
     string_class result =
-        get_platform_info<string_class, info::platform::extensions>::get(plt);
+        get_platform_info<string_class, info::platform::extensions>::get(
+            plt, Plugin);
     return split_string(result, ' ');
   }
 };
@@ -65,4 +69,4 @@ vector_class<string_class> get_platform_info_host<info::platform::extensions>();
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

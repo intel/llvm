@@ -18,6 +18,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_USE_KERNEL_SPV | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `cl::sycl::runtime_error` exception is thrown.|
 | SYCL_DUMP_IMAGES | Any(*) | Dump device image binaries to file. Control has no effect if SYCL_USE_KERNEL_SPV is set. |
 | SYCL_PRINT_EXECUTION_GRAPH | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
+| SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP | Any(*) | Disable cleanup of finished command nodes at host-device synchronization points. |
 | SYCL_THROW_ON_BLOCK | Any(*) | Throw an exception on attempt to wait for a blocked command.  |
 | SYCL_DEVICELIB_INHIBIT_NATIVE | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | SYCL_DEVICE_ALLOWLIST | A list of devices and their minimum driver version following the pattern: DeviceName:{{XXX}},DriverVersion:{{X.Y.Z.W}}. Also may contain PlatformName and PlatformVersion | Filter out devices that do not match the pattern specified. Regular expression can be passed and the SYCL RT will select only those devices which satisfy the regex. |

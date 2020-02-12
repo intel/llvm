@@ -9,41 +9,22 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/event_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <CL/sycl/detail/host_profiling_info.hpp>
 
 #include <cassert>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 namespace detail {
+class plugin;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
-
-/// Profiling info for the host execution.
-class HostProfilingInfo {
-  cl_ulong StartTime = 0;
-  cl_ulong EndTime = 0;
-
-public:
-  /// Returns event's start time.
-  ///
-  /// @return event's start time in nanoseconds.
-  cl_ulong getStartTime() const { return StartTime; }
-  /// Returns event's end time.
-  ///
-  /// @return event's end time in nanoseconds.
-  cl_ulong getEndTime() const { return EndTime; }
-
-  /// Measures event's start time.
-  void start();
-  /// Measures event's end time.
-  void end();
-};
 
 class event_impl {
 public:
@@ -135,6 +116,10 @@ public:
   /// @return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
+  // @return the Plugin associated with the context of this event.
+  // Should be called when this is not a Host Event.
+  const plugin &getPlugin() const;
+
   /// Associate event with the context.
   ///
   /// Provided PiContext inside ContextImplPtr must be associated
@@ -170,4 +155,4 @@ private:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

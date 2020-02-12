@@ -54,7 +54,7 @@ template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
           cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -1287,4 +1287,4 @@ private:
   friend class detail::stream_impl;
 };
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

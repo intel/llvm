@@ -81,6 +81,12 @@ your application.
     specified with `-foffload-static-lib` are treated as host libraries and are
     only used during the final host link.
 
+**`-foffload-whole-static-lib=<lib>`**
+
+    Similar to `-foffload-static-lib` but uses the whole archive when
+    performing the device code extraction.  This is helpful when creating
+    shared objects from fat static archives.
+
 **`-fsycl-device-code-split=<value>`**
 
     Perform SYCL device code split. There are three possible values for this

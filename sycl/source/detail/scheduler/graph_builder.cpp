@@ -17,12 +17,13 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <queue>
 #include <set>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -137,13 +138,15 @@ void Scheduler::GraphBuilder::UpdateLeaves(const std::set<Command *> &Cmds,
   if (ReadOnlyReq)
     return;
 
-  for (const Command *Cmd : Cmds) {
+  for (Command *Cmd : Cmds) {
     auto NewEnd = std::remove(Record->MReadLeaves.begin(),
                               Record->MReadLeaves.end(), Cmd);
+    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MReadLeaves.end());
     Record->MReadLeaves.erase(NewEnd, Record->MReadLeaves.end());
 
     NewEnd = std::remove(Record->MWriteLeaves.begin(),
                          Record->MWriteLeaves.end(), Cmd);
+    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MWriteLeaves.end());
     Record->MWriteLeaves.erase(NewEnd, Record->MWriteLeaves.end());
   }
 }
@@ -165,8 +168,10 @@ void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
     Dep.MDepCommand = OldLeaf;
     Cmd->addDep(Dep);
     OldLeaf->addUser(Cmd);
+    --(OldLeaf->MLeafCounter);
   }
   Leaves.push_back(Cmd);
+  ++(Cmd->MLeafCounter);
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
@@ -559,6 +564,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
     Record->MAllocaCommands.push_back(AllocaCmd);
     Record->MWriteLeaves.push_back(AllocaCmd);
+    ++(AllocaCmd->MLeafCounter);
   }
   return AllocaCmd;
 }
@@ -632,49 +638,125 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   return NewCmd.release();
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
-  if (Record->MAllocaCommands.empty())
-    return;
-
-  std::queue<Command *> RemoveQueue;
-  std::set<Command *> Visited;
-
-  // TODO: release commands need special handling here as they are not reachable
-  // from alloca commands
-
-  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
-    if (Visited.find(AllocaCmd) == Visited.end())
-      RemoveQueue.push(AllocaCmd);
-    // Use BFS to find and process all users of removal candidate
-    while (!RemoveQueue.empty()) {
-      Command *CandidateCommand = RemoveQueue.front();
-      RemoveQueue.pop();
-
-      if (Visited.insert(CandidateCommand).second) {
-        for (Command *UserCmd : CandidateCommand->MUsers) {
-          // As candidate command is about to be freed, we need
-          // to remove it from dependency list of other commands.
-          auto NewEnd =
-              std::remove_if(UserCmd->MDeps.begin(), UserCmd->MDeps.end(),
-                             [CandidateCommand](const DepDesc &Dep) {
-                               return Dep.MDepCommand == CandidateCommand;
-                             });
-          UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
-
-          // Commands that have no unsatisfied dependencies can be executed
-          // and are good candidates for clean up.
-          if (UserCmd->MDeps.empty())
-            RemoveQueue.push(UserCmd);
-        }
-        CandidateCommand->getEvent()->setCommand(nullptr);
-        delete CandidateCommand;
-      }
-    }
+void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
+    MemObjRecord *Record) {
+  for (Command *Cmd : Record->MReadLeaves) {
+    --(Cmd->MLeafCounter);
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    --(Cmd->MLeafCounter);
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommands(bool CleanupReleaseCommands) {
-  // TODO: Implement.
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
+  std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
+  if (AllocaCommands.empty())
+    return;
+
+  std::queue<Command *> ToVisit;
+  std::set<Command *> Visited;
+  std::vector<Command *> CmdsToDelete;
+  // First, mark all allocas for deletion and their direct users for traversal
+  // Dependencies of the users will be cleaned up during the traversal
+  for (Command *AllocaCmd : AllocaCommands) {
+    Visited.insert(AllocaCmd);
+    for (Command *UserCmd : AllocaCmd->MUsers)
+      ToVisit.push(UserCmd);
+    CmdsToDelete.push_back(AllocaCmd);
+    // These commands will be deleted later, clear users now to avoid
+    // updating them during edge removal
+    AllocaCmd->MUsers.clear();
+  }
+
+  // Traverse the graph using BFS
+  while (!ToVisit.empty()) {
+    Command *Cmd = ToVisit.front();
+    ToVisit.pop();
+
+    if (!Visited.insert(Cmd).second)
+      continue;
+
+    for (Command *UserCmd : Cmd->MUsers)
+      ToVisit.push(UserCmd);
+
+    // Delete all dependencies on any allocations being removed
+    // Track which commands should have their users updated
+    std::map<Command *, bool> ShouldBeUpdated;
+    auto NewEnd = std::remove_if(
+        Cmd->MDeps.begin(), Cmd->MDeps.end(), [&](const DepDesc &Dep) {
+          if (std::find(AllocaCommands.begin(), AllocaCommands.end(),
+                        Dep.MAllocaCmd) != AllocaCommands.end()) {
+            ShouldBeUpdated.insert({Dep.MDepCommand, true});
+            return true;
+          }
+          ShouldBeUpdated[Dep.MDepCommand] = false;
+          return false;
+        });
+    Cmd->MDeps.erase(NewEnd, Cmd->MDeps.end());
+
+    // Update users of removed dependencies
+    for (auto DepCmdIt : ShouldBeUpdated) {
+      if (!DepCmdIt.second)
+        continue;
+      DepCmdIt.first->MUsers.erase(Cmd);
+    }
+
+    // If all dependencies have been removed this way, mark the command for
+    // deletion
+    if (Cmd->MDeps.empty()) {
+      CmdsToDelete.push_back(Cmd);
+      Cmd->MUsers.clear();
+    }
+  }
+
+  for (Command *Cmd : CmdsToDelete) {
+    Cmd->getEvent()->setCommand(nullptr);
+    delete Cmd;
+  }
+}
+
+void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
+  std::queue<Command *> CmdsToVisit({FinishedCmd});
+  std::set<Command *> Visited;
+
+  // Traverse the graph using BFS
+  while (!CmdsToVisit.empty()) {
+    Command *Cmd = CmdsToVisit.front();
+    CmdsToVisit.pop();
+
+    if (!Visited.insert(Cmd).second)
+      continue;
+
+    for (const DepDesc &Dep : Cmd->MDeps) {
+      if (Dep.MDepCommand)
+        CmdsToVisit.push(Dep.MDepCommand);
+    }
+
+    // Do not clean up the node if it is a leaf for any memory object
+    if (Cmd->MLeafCounter > 0)
+      continue;
+    // Do not clean up allocation commands
+    Command::CommandType CmdT = Cmd->getType();
+    if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
+      continue;
+
+    for (Command *UserCmd : Cmd->MUsers) {
+      for (DepDesc &Dep : UserCmd->MDeps) {
+        // Link the users of the command to the alloca command(s) instead
+        if (Dep.MDepCommand == Cmd) {
+          Dep.MDepCommand = Dep.MAllocaCmd;
+          Dep.MDepCommand->MUsers.insert(UserCmd);
+        }
+      }
+    }
+    // Update dependency users
+    for (DepDesc &Dep : Cmd->MDeps) {
+      Command *DepCmd = Dep.MDepCommand;
+      DepCmd->MUsers.erase(Cmd);
+    }
+    Cmd->getEvent()->setCommand(nullptr);
+    delete Cmd;
+  }
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
@@ -688,4 +770,4 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

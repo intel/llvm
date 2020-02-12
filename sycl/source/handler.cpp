@@ -17,7 +17,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 event handler::finalize() {
   sycl::event EventRet;
@@ -243,4 +243,4 @@ string_class handler::getKernelName() {
   return MSyclKernel->get_info<info::kernel::function_name>();
 }
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

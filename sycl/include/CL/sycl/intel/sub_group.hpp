@@ -19,13 +19,12 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
-#include <cstring> // std::memcpy
 #include <numeric> // std::bit_cast
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 
@@ -86,7 +85,7 @@ template <typename To, typename From> To bit_cast(const From &from) {
   return __builtin_bit_cast(To, from);
 #else
   To to;
-  std::memcpy(&to, &from, sizeof(To));
+  detail::memcpy(&to, &from, sizeof(To));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 #endif // __cpp_lib_bit_cast
@@ -168,9 +167,9 @@ __SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd<T>, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
 
 #undef __SYCL_SG_CALC_OVERLOAD
 
@@ -374,7 +373,7 @@ protected:
 };
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #else
 #include <CL/sycl/intel/sub_group_host.hpp>
 #endif

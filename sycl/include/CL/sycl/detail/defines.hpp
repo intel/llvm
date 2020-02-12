@@ -9,9 +9,9 @@
 #pragma once
 
 #ifndef __SYCL_DISABLE_NAMESPACE_INLINE__
-#define __SYCL_INLINE inline
+#define __SYCL_INLINE_NAMESPACE(X) inline namespace X
 #else
-#define __SYCL_INLINE
+#define __SYCL_INLINE_NAMESPACE(X) namespace X
 #endif // __SYCL_DISABLE_NAMESPACE_INLINE__
 
 #ifndef __has_attribute
@@ -26,4 +26,14 @@
 
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
+#endif
+
+#if __cplusplus >= 201402
+  #define __SYCL_DEPRECATED__                                                  \
+    [[deprecated("Replaced by in_order queue property")]]
+#elif !defined _MSC_VER
+  #define __SYCL_DEPRECATED__ __attribute__                                    \
+    ((deprecated("Replaced by in_order queue property")))
+#else
+  #define __SYCL_DEPRECATED__
 #endif

@@ -22,7 +22,7 @@
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -33,7 +33,7 @@ static inline std::string codeToString(cl_int code){
          stringifyErrorCode(code) + ")");
 }
 
-}}} // namespace cl::sycl::detail
+}}} // __SYCL_INLINE_NAMESPACE(cl)::sycl::detail
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -87,7 +87,7 @@ static inline std::string codeToString(cl_int code){
 #define CHECK_OCL_CODE_NO_EXC(X) REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -252,4 +252,4 @@ constexpr KernelSetId LastKSId = SpvFileKSId;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

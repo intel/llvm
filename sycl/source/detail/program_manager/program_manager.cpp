@@ -27,9 +27,11 @@
 #include <mutex>
 #include <sstream>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -43,32 +45,36 @@ ProgramManager &ProgramManager::getInstance() {
   return Instance;
 }
 
-static RT::PiDevice getFirstDevice(RT::PiContext Context) {
+static RT::PiDevice getFirstDevice(const ContextImplPtr &Context) {
   cl_uint NumDevices = 0;
-  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_NUM_DEVICES,
-                            sizeof(NumDevices), &NumDevices,
-                            /*param_value_size_ret=*/nullptr);
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
+                                           PI_CONTEXT_INFO_NUM_DEVICES,
+                                           sizeof(NumDevices), &NumDevices,
+                                           /*param_value_size_ret=*/nullptr);
   assert(NumDevices > 0 && "Context without devices?");
 
   vector_class<RT::PiDevice> Devices(NumDevices);
   size_t ParamValueSize = 0;
-  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_DEVICES,
-                            sizeof(cl_device_id) * NumDevices, &Devices[0],
-                            &ParamValueSize);
+  Plugin.call<PiApiKind::piContextGetInfo>(
+      Context->getHandleRef(), PI_CONTEXT_INFO_DEVICES,
+      sizeof(cl_device_id) * NumDevices, &Devices[0], &ParamValueSize);
   assert(ParamValueSize == sizeof(cl_device_id) * NumDevices &&
          "Number of CL_CONTEXT_DEVICES should match CL_CONTEXT_NUM_DEVICES.");
   return Devices[0];
 }
 
-static RT::PiProgram createBinaryProgram(const RT::PiContext Context,
+static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
                                          const unsigned char *Data,
                                          size_t DataLen) {
   // FIXME: we don't yet support multiple devices with a single binary.
+  const detail::plugin &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   cl_uint NumDevices = 0;
-  PI_CALL(piContextGetInfo)(Context, PI_CONTEXT_INFO_NUM_DEVICES,
-                            sizeof(NumDevices), &NumDevices,
-                            /*param_value_size_ret=*/nullptr);
+  Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
+                                           PI_CONTEXT_INFO_NUM_DEVICES,
+                                           sizeof(NumDevices), &NumDevices,
+                                           /*param_value_size_ret=*/nullptr);
   assert(NumDevices > 0 &&
          "Only a single device is supported for AOT compilation");
 #endif
@@ -76,17 +82,19 @@ static RT::PiProgram createBinaryProgram(const RT::PiContext Context,
   RT::PiDevice Device = getFirstDevice(Context);
   pi_int32 BinaryStatus = CL_SUCCESS;
   RT::PiProgram Program;
-  PI_CALL(piclProgramCreateWithBinary)(Context, 1 /*one binary*/, &Device,
-                                       &DataLen, &Data, &BinaryStatus,
-                                       &Program);
+  Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
+      Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
+      &BinaryStatus, &Program);
   return Program;
 }
 
-static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
+static RT::PiProgram createSpirvProgram(const ContextImplPtr Context,
                                         const unsigned char *Data,
                                         size_t DataLen) {
   RT::PiProgram Program = nullptr;
-  PI_CALL(piProgramCreate)(Context, Data, DataLen, &Program);
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piProgramCreate>(Context->getHandleRef(), Data,
+                                          DataLen, &Program);
   return Program;
 }
 
@@ -267,7 +275,7 @@ RT::PiProgram ProgramManager::createPIProgram(const DeviceImage &Img,
         "Online compilation is not supported in this context");
 
   // Load the image
-  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
   RT::PiProgram Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
                           ? createSpirvProgram(Ctx, Img.BinaryStart, ImgSize)
                           : createBinaryProgram(Ctx, Img.BinaryStart, ImgSize);
@@ -284,7 +292,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
-  std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiProgramT = KernelProgramCache::PiProgramT;
   using ProgramCacheT = KernelProgramCache::ProgramCacheT;
@@ -300,17 +308,17 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   auto BuildF = [this, &M, &KSId, &Context] {
     const DeviceImage &Img = getDeviceImage(M, KSId, Context);
 
+    ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+    const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram Prg = createPIProgram(Img, Context);
-    ProgramPtr ProgramManaged(
-          Prg, RT::PluginInformation.PiFunctionTable.piProgramRelease);
+    ProgramPtr ProgramManaged(Prg,
+                              Plugin.MPlugin.PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
     // Pre-compiled programs are supposed to be already linked.
     const bool LinkDeviceLibs = getFormat(Img) == PI_DEVICE_BINARY_TYPE_SPIRV;
 
-    context_impl *ContextImpl = getRawSyclObjImpl(Context);
-    RT::PiContext PiContext = ContextImpl->getHandleRef();
     const std::vector<device> &Devices = ContextImpl->getDevices();
     std::vector<RT::PiDevice> PiDevices(Devices.size());
     std::transform(
@@ -318,7 +326,7 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
         [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
 
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), PiContext, Img.CompileOptions,
+        build(std::move(ProgramManaged), ContextImpl, Img.CompileOptions,
               Img.LinkOptions, PiDevices, ContextImpl->getCachedLibPrograms(),
               LinkDeviceLibs);
 
@@ -338,7 +346,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
   }
 
   RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName);
-  std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
   using KernelCacheT = KernelProgramCache::KernelCacheT;
@@ -352,12 +360,14 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
   auto GetF = [&Program] (const Locked<KernelCacheT> &LockedCache) -> KernelByNameT& {
     return LockedCache.get()[Program];
   };
-  auto BuildF = [this, &Program, &KernelName] {
+  auto BuildF = [this, &Program, &KernelName, &Ctx] {
     PiKernelT *Result = nullptr;
 
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-    PI_CALL(piKernelCreate)(Program, KernelName.c_str(), &Result);
+    const detail::plugin &Plugin = Ctx->getPlugin();
+    Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
+                                           &Result);
 
     return Result;
   };
@@ -366,31 +376,39 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
         Cache, KernelName, AcquireF, GetF, BuildF);
 }
 
-RT::PiProgram ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel) {
+RT::PiProgram
+ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
+                                         const ContextImplPtr Context) {
   RT::PiProgram Program;
-  PI_CALL(piKernelGetInfo)(Kernel, CL_KERNEL_PROGRAM, sizeof(cl_program),
-                           &Program, nullptr);
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piKernelGetInfo>(
+      Kernel, CL_KERNEL_PROGRAM, sizeof(cl_program), &Program, nullptr);
   return Program;
 }
 
-string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
+string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
+                                                const ContextImplPtr Context) {
   size_t Size = 0;
-  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES, 0, nullptr, &Size);
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, CL_PROGRAM_DEVICES, 0,
+                                           nullptr, &Size);
   vector_class<RT::PiDevice> PIDevices(Size / sizeof(RT::PiDevice));
-  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES, Size, PIDevices.data(),
-                            nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, CL_PROGRAM_DEVICES, Size,
+                                           PIDevices.data(), nullptr);
   string_class Log = "The program was built for " +
                      std::to_string(PIDevices.size()) + " devices";
   for (RT::PiDevice &Device : PIDevices) {
-    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_LOG, 0,
-                                   nullptr, &Size);
+    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &Size);
     vector_class<char> DeviceBuildInfo(Size);
-    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_LOG, Size,
-                                   DeviceBuildInfo.data(), nullptr);
-    PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_NAME, 0, nullptr, &Size);
+    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+        Program, Device, CL_PROGRAM_BUILD_LOG, Size, DeviceBuildInfo.data(),
+        nullptr);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
+                                            nullptr, &Size);
     vector_class<char> DeviceName(Size);
-    PI_CALL(piDeviceGetInfo)(Device, PI_DEVICE_INFO_NAME, Size,
-                             DeviceName.data(), nullptr);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, Size,
+                                            DeviceName.data(), nullptr);
 
     Log += "\nBuild program log for '" + string_class(DeviceName.data()) +
            "':\n" + string_class(DeviceBuildInfo.data());
@@ -398,7 +416,7 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
   return Log;
 }
 
-static bool loadDeviceLib(const RT::PiContext &Context, const char *Name,
+static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           RT::PiProgram &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
@@ -423,6 +441,14 @@ static const char* getDeviceLibFilename(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
     return "libsycl-fallback-cassert.spv";
+  case cl_intel_devicelib_math:
+    return "libsycl-fallback-cmath.spv";
+  case cl_intel_devicelib_math_fp64:
+    return "libsycl-fallback-cmath-fp64.spv";
+  case cl_intel_devicelib_complex:
+    return "libsycl-fallback-complex.spv";
+  case cl_intel_devicelib_complex_fp64:
+    return "libsycl-fallback-complex-fp64.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension");
 }
@@ -431,14 +457,20 @@ static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
     return "cl_intel_devicelib_assert";
+  case cl_intel_devicelib_math:
+    return "cl_intel_devicelib_math";
+  case cl_intel_devicelib_math_fp64:
+    return "cl_intel_devicelib_math_fp64";
+  case cl_intel_devicelib_complex:
+    return "cl_intel_devicelib_complex";
+  case cl_intel_devicelib_complex_fp64:
+    return "cl_intel_devicelib_complex_fp64";
   }
   throw compile_program_error("Unhandled (new?) device library extension");
 }
 
-static RT::PiProgram
-loadDeviceLibFallback(
-    const RT::PiContext &Context,
-    DeviceLibExt Extension,
+static RT::PiProgram loadDeviceLibFallback(
+    const ContextImplPtr Context, DeviceLibExt Extension,
     const std::vector<RT::PiDevice> &Devices,
     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
 
@@ -458,7 +490,8 @@ loadDeviceLibFallback(
     throw compile_program_error(std::string("Failed to load ") + LibFileName);
   }
 
-  RT::PiResult Error = PI_CALL_NOCHECK(piProgramCompile)(
+  const detail::plugin &Plugin = Context->getPlugin();
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       LibProg,
       // Assume that Devices contains all devices from Context.
       Devices.size(), Devices.data(),
@@ -469,7 +502,8 @@ loadDeviceLibFallback(
       "", 0, nullptr, nullptr, nullptr, nullptr);
   if (Error != PI_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(ProgramManager::getProgramBuildLog(LibProg));
+    throw compile_program_error(
+        ProgramManager::getProgramBuildLog(LibProg, Context));
   }
 
   return LibProg;
@@ -541,7 +575,7 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   std::vector<DeviceImage *> &Imgs = *m_DeviceImages[KSId];
-  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
   DeviceImage *Img = nullptr;
 
   // TODO: There may be cases with cl::sycl::program class usage in source code
@@ -551,8 +585,8 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   if (Imgs.size() > 1) {
-    PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs.data(),
-                                     (cl_uint)Imgs.size(), &Img);
+    Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
+        getFirstDevice(Ctx), Imgs.data(), (cl_uint)Imgs.size(), &Img);
   } else
     Img = Imgs[0];
 
@@ -568,30 +602,53 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
-static std::vector<RT::PiProgram> getDeviceLibPrograms(
-    const RT::PiContext Context,
-    const std::vector<RT::PiDevice> &Devices,
-    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
-
+// TODO: getDeviceLibPrograms should also support Windows but
+// current implementation doesn't work on Windows when multiple
+// device libraries exist and this problem should be fixed.
+static std::vector<RT::PiProgram>
+getDeviceLibPrograms(const ContextImplPtr Context,
+                     const std::vector<RT::PiDevice> &Devices,
+                     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
   std::vector<RT::PiProgram> Programs;
 
   // TODO: SYCL compiler should generate a list of required extensions for a
   // particular program in order to allow us do a more fine-grained check here.
   // Require *all* possible devicelib extensions for now.
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
-      {cl_intel_devicelib_assert, /* is fallback loaded? */ false}
+      {cl_intel_devicelib_assert, /* is fallback loaded? */ false},
+      {cl_intel_devicelib_math, false},
+      {cl_intel_devicelib_math_fp64, false},
+      {cl_intel_devicelib_complex, false},
+      {cl_intel_devicelib_complex_fp64, false}
   };
+
+  // Disable all devicelib extensions requiring fp64 support if at least
+  // one underlying device doesn't support cl_khr_fp64.
+  bool fp64Support = true;
+  for (RT::PiDevice Dev : Devices) {
+    std::string DevExtList =
+	get_device_info<std::string, info::device::extensions>::get(
+            Dev, Context->getPlugin());
+    fp64Support = fp64Support &&
+	          (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+  }
 
   // Load a fallback library for an extension if at least one device does not
   // support it.
   for (RT::PiDevice Dev : Devices) {
     std::string DevExtList =
-        get_device_info<std::string, info::device::extensions>::get(Dev);
+        get_device_info<std::string, info::device::extensions>::get(
+            Dev, Context->getPlugin());
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
       bool &FallbackIsLoaded = Pair.second;
 
       if (FallbackIsLoaded) {
+        continue;
+      }
+
+      if ((Ext == cl_intel_devicelib_math_fp64 ||
+	  Ext == cl_intel_devicelib_complex_fp64) && !fp64Support) {
         continue;
       }
 
@@ -615,7 +672,7 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
 }
 
 ProgramManager::ProgramPtr
-ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
+ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
                       const string_class &CompileOptions,
                       const string_class &LinkOptions,
                       const std::vector<RT::PiDevice> &Devices,
@@ -642,29 +699,30 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
     LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
   }
 
+  const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
     std::string Opts(CompileOpts);
     Opts += " ";
     Opts += LinkOpts;
 
-    RT::PiResult Error = PI_CALL_NOCHECK(piProgramBuild)(
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
         nullptr);
     if (Error != PI_SUCCESS)
-      throw compile_program_error(getProgramBuildLog(Program.get()));
+      throw compile_program_error(getProgramBuildLog(Program.get(), Context));
     return Program;
   }
 
   // Include the main program and compile/link everything together
-  PI_CALL(piProgramCompile)(Program.get(), Devices.size(), Devices.data(),
-                            CompileOpts, 0, nullptr, nullptr, nullptr, nullptr);
+  Plugin.call<PiApiKind::piProgramCompile>(Program.get(), Devices.size(),
+                                           Devices.data(), CompileOpts, 0,
+                                           nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
-
-  RT::PiResult Error = PI_CALL_NOCHECK(piProgramLink)(
-      Context, Devices.size(), Devices.data(), LinkOpts, LinkPrograms.size(),
-      LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      Context->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+      LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
@@ -673,9 +731,9 @@ ProgramManager::build(ProgramPtr Program, RT::PiContext Context,
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
       // an incomplete (but valid) LinkedProg, and throw.
-      throw compile_program_error(getProgramBuildLog(LinkedProg));
+      throw compile_program_error(getProgramBuildLog(LinkedProg, Context));
     }
-    pi::checkPiResult(Error);
+    Plugin.checkPiResult(Error);
   }
   return Program;
 }
@@ -846,7 +904,7 @@ void ProgramManager::dumpImage(const DeviceImage &Img, KernelSetId KSId) const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   cl::sycl::detail::ProgramManager::getInstance().addImages(desc);

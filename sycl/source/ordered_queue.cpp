@@ -12,7 +12,7 @@
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 ordered_queue::ordered_queue(const context &syclContext,
                              const device_selector &deviceSelector,
@@ -50,9 +50,10 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
                              const async_handler &asyncHandler) {
   cl_command_queue_properties reportedProps;
   RT::PiQueue m_CommandQueue = detail::pi::cast<detail::RT::PiQueue>(clQueue);
-  PI_CALL(piQueueGetInfo)
-  (m_CommandQueue, PI_QUEUE_INFO_DEVICE, sizeof(reportedProps), &reportedProps,
-   nullptr);
+  const detail::plugin &Plugin = detail::getSyclObjImpl(syclContext)->getPlugin();
+  Plugin.call<detail::PiApiKind::piQueueGetInfo>(
+      m_CommandQueue, PI_QUEUE_INFO_DEVICE, sizeof(reportedProps),
+      &reportedProps, nullptr);
   if (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
     throw runtime_error(
         "Failed to build a sycl ordered queue from a cl OOO queue.");
@@ -118,4 +119,4 @@ ordered_queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 ordered_queue::get_property<property::queue::enable_profiling>() const;
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

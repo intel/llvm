@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -17,16 +18,7 @@
 #include <memory>
 #include <utility>
 
-#ifdef __has_cpp_attribute
-  #if __has_cpp_attribute(deprecated)
-    #define __SYCL_DEPRECATED__ [[deprecated("Replaced by in_order queue property")]]
-  #endif
-#endif
-#ifndef __SYCL_DEPRECATED__
-  #define __SYCL_DEPRECATED__
-#endif
-
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -176,7 +168,7 @@ private:
 #undef __SYCL_DEPRECATED__
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::ordered_queue> {

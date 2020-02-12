@@ -13,7 +13,7 @@
 #include <CL/sycl/stl.hpp>
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -23,16 +23,21 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
-class platform_impl_pi;
+using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
 class device_impl {
 public:
   /// Constructs a SYCL device instance as a host device.
   device_impl();
+
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(RT::PiDevice Device);
+  explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform);
+
+  /// Constructs a SYCL device instance using the provided
+  /// PI device instance.
+  explicit device_impl(RT::PiDevice Device, const plugin &Plugin);
 
   ~device_impl();
 
@@ -100,6 +105,9 @@ public:
   /// @return The associated SYCL platform.
   platform get_platform() const;
 
+  /// @return the associated plugin with this device.
+  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+
   /// Check SYCL extension support by device
   ///
   /// @param ExtensionName is a name of queried extension.
@@ -165,7 +173,7 @@ public:
     }
     return get_device_info<
         typename info::param_traits<info::device, param>::return_type,
-        param>::get(this->getHandleRef());
+        param>::get(this->getHandleRef(), this->getPlugin());
   }
 
   /// Check if affinity partitioning by specified domain is supported by device
@@ -176,12 +184,15 @@ public:
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
 private:
+  explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
+                       const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;
   bool MIsHostDevice;
+  PlatformImplPtr MPlatform;
 }; // class device_impl
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

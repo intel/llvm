@@ -17,7 +17,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
@@ -25,9 +25,9 @@ namespace sycl {
 namespace __sycl_std = __host_std;
 #endif
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)
@@ -1546,6 +1546,6 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 
 } // namespace half_precision
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __NOEXC

@@ -51,6 +51,9 @@ enum KernelInvocationKind {
   InvokeParallelForWorkGroup
 };
 
+const static std::string InitMethodName = "__init";
+const static std::string FinalizeMethodName = "__finalize";
+
 /// Various utilities.
 class Util {
 public:
@@ -135,48 +138,52 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
+  case Builtin::BIceil:
+  case Builtin::BI__builtin_ceil:
+  case Builtin::BIcopysign:
+  case Builtin::BI__builtin_copysign:
+  case Builtin::BIfabs:
+  case Builtin::BI__builtin_fabs:
+  case Builtin::BIfloor:
+  case Builtin::BI__builtin_floor:
+  case Builtin::BIfmax:
+  case Builtin::BI__builtin_fmax:
+  case Builtin::BIfmin:
+  case Builtin::BI__builtin_fmin:
+  case Builtin::BInearbyint:
+  case Builtin::BI__builtin_nearbyint:
+  case Builtin::BIrint:
+  case Builtin::BI__builtin_rint:
+  case Builtin::BIround:
+  case Builtin::BI__builtin_round:
+  case Builtin::BItrunc:
+  case Builtin::BI__builtin_trunc:
   case Builtin::BIceilf:
   case Builtin::BI__builtin_ceilf:
   case Builtin::BIcopysignf:
   case Builtin::BI__builtin_copysignf:
-  case Builtin::BIcosf:
-  case Builtin::BI__builtin_cosf:
-  case Builtin::BIexpf:
-  case Builtin::BI__builtin_expf:
-  case Builtin::BIexp2f:
-  case Builtin::BI__builtin_exp2f:
   case Builtin::BIfabsf:
   case Builtin::BI__builtin_fabsf:
   case Builtin::BIfloorf:
   case Builtin::BI__builtin_floorf:
-  case Builtin::BIfmaf:
-  case Builtin::BI__builtin_fmaf:
   case Builtin::BIfmaxf:
   case Builtin::BI__builtin_fmaxf:
   case Builtin::BIfminf:
   case Builtin::BI__builtin_fminf:
-  case Builtin::BIfmodf:
-  case Builtin::BI__builtin_fmodf:
-  case Builtin::BIlogf:
-  case Builtin::BI__builtin_logf:
-  case Builtin::BIlog10f:
-  case Builtin::BI__builtin_log10f:
-  case Builtin::BIlog2f:
-  case Builtin::BI__builtin_log2f:
-  case Builtin::BIpowf:
-  case Builtin::BI__builtin_powf:
+  case Builtin::BInearbyintf:
+  case Builtin::BI__builtin_nearbyintf:
   case Builtin::BIrintf:
   case Builtin::BI__builtin_rintf:
   case Builtin::BIroundf:
   case Builtin::BI__builtin_roundf:
-  case Builtin::BIsinf:
-  case Builtin::BI__builtin_sinf:
-  case Builtin::BIsqrtf:
-  case Builtin::BI__builtin_sqrtf:
   case Builtin::BItruncf:
   case Builtin::BI__builtin_truncf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
+  case Builtin::BI__builtin_fpclassify:
+  case Builtin::BI__builtin_isfinite:
+  case Builtin::BI__builtin_isinf:
+  case Builtin::BI__builtin_isnormal:
     return false;
   default:
     break;
@@ -466,12 +473,12 @@ public:
           FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
         }
       }
-      if (auto *A = FD->getAttr<SYCLIntelUsesGlobalWorkOffsetAttr>()) {
+      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.insert(A);
         } else {
           SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelUsesGlobalWorkOffsetAttr>();
+          FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
         }
       }
 
@@ -670,15 +677,16 @@ static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
   }
 }
 
-/// Return __init method
-static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
-  CXXMethodDecl *InitMethod;
+/// Return method by name
+static CXXMethodDecl *getMethodByName(const CXXRecordDecl *CRD,
+                                      const std::string &MethodName) {
+  CXXMethodDecl *Method;
   auto It = std::find_if(CRD->methods().begin(), CRD->methods().end(),
-                         [](const CXXMethodDecl *Method) {
-                           return Method->getNameAsString() == "__init";
+                         [&MethodName](const CXXMethodDecl *Method) {
+                           return Method->getNameAsString() == MethodName;
                          });
-  InitMethod = (It != CRD->methods().end()) ? *It : nullptr;
-  return InitMethod;
+  Method = (It != CRD->methods().end()) ? *It : nullptr;
+  return Method;
 }
 
 static KernelInvocationKind
@@ -700,7 +708,10 @@ static CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
 static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                                             FunctionDecl *KernelCallerFunc,
                                             DeclContext *KernelDecl) {
-  llvm::SmallVector<Stmt *, 16> BodyStmts;
+  using BodyStmtsT = llvm::SmallVector<Stmt *, 16>;
+
+  BodyStmtsT BodyStmts;
+  BodyStmtsT FinalizeStmts;
   CXXRecordDecl *LC = getKernelObjectType(KernelCallerFunc);
   assert(LC && "Kernel object must be available");
 
@@ -763,12 +774,14 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
       auto getExprForSpecialSYCLObj = [&](const QualType &paramTy,
                                           FieldDecl *Field,
                                           const CXXRecordDecl *CRD,
-                                          Expr *Base) {
-        // All special SYCL objects must have __init method
-        CXXMethodDecl *InitMethod = getInitMethod(CRD);
-        assert(InitMethod &&
-               "The accessor/sampler/stream must have the __init method");
-        unsigned NumParams = InitMethod->getNumParams();
+                                          Expr *Base,
+                                          const std::string &MethodName,
+                                          BodyStmtsT &Statements) {
+        CXXMethodDecl *Method = getMethodByName(CRD, MethodName);
+        assert(Method &&
+               "The accessor/sampler/stream must have the __init method. Stream"
+               " must also have __finalize method");
+        unsigned NumParams = Method->getNumParams();
         llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
         auto KFP = KernelFuncParam;
         for (size_t I = 0; I < NumParams; ++KFP, ++I) {
@@ -790,29 +803,29 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // [kernel_obj or wrapper object].special_obj.__init
-        DeclAccessPair MethodDAP = DeclAccessPair::make(InitMethod, AS_none);
+        DeclAccessPair MethodDAP = DeclAccessPair::make(Method, AS_none);
         auto ME = MemberExpr::Create(
             S.Context, SpecialObjME, false, SourceLocation(),
-            NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
-            DeclarationNameInfo(InitMethod->getDeclName(), SourceLocation()),
-            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+            NestedNameSpecifierLoc(), SourceLocation(), Method, MethodDAP,
+            DeclarationNameInfo(Method->getDeclName(), SourceLocation()),
+            nullptr, Method->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // Not referenced -> not emitted
-        S.MarkFunctionReferenced(SourceLocation(), InitMethod, true);
+        S.MarkFunctionReferenced(SourceLocation(), Method, true);
 
-        QualType ResultTy = InitMethod->getReturnType();
+        QualType ResultTy = Method->getReturnType();
         ExprValueKind VK = Expr::getValueKindForType(ResultTy);
         ResultTy = ResultTy.getNonLValueExprType(S.Context);
 
         llvm::SmallVector<Expr *, 4> ParamStmts;
-        const auto *Proto = cast<FunctionProtoType>(InitMethod->getType());
-        S.GatherArgumentsForCall(SourceLocation(), InitMethod, Proto, 0,
+        const auto *Proto = cast<FunctionProtoType>(Method->getType());
+        S.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
                                  ParamDREs, ParamStmts);
         // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
         // range<int>, range<int>, id<int>)
         CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
             S.Context, ME, ParamStmts, ResultTy, VK, SourceLocation());
-        BodyStmts.push_back(Call);
+        Statements.push_back(Call);
       };
 
       // Recursively search for accessor fields to initialize them with kernel
@@ -832,7 +845,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                       // object.
                       KernelFuncParam++;
                       getExprForSpecialSYCLObj(FldType, WrapperFld,
-                                               WrapperFldCRD, Base);
+                                               WrapperFldCRD, Base,
+                                               InitMethodName, BodyStmts);
                     } else {
                       // Field is a structure or class so change the wrapper
                       // object and recursively search for accessor field.
@@ -874,7 +888,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         InitializationSequence InitSeq(S, Entity, InitKind, None);
         ExprResult MemberInit = InitSeq.Perform(S, Entity, InitKind, None);
         InitExprs.push_back(MemberInit.get());
-        getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
+        getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef,
+                                 InitMethodName, BodyStmts);
       } else if (CRD || FieldType->isScalarType()) {
         // If field has built-in or a structure/class type just initialize
         // this field with corresponding kernel argument using copy
@@ -912,7 +927,13 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
           if (Util::isSyclStreamType(FieldType)) {
             // Generate call to the __init method of the stream class after
             // initializing accessors wrapped by this stream object
-            getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
+            getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef,
+                                     InitMethodName, BodyStmts);
+
+            // Generate call to the __finalize method of stream class.
+            // Will put it later to the end of function body.
+            getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef,
+                                     FinalizeMethodName, FinalizeStmts);
           }
         }
       } else {
@@ -944,6 +965,9 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   KernelBodyTransform KBT(MappingPair, S);
   Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
   BodyStmts.push_back(NewBody);
+
+  BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(), FinalizeStmts.end());
+
   return CompoundStmt::Create(S.Context, BodyStmts, SourceLocation(),
                               SourceLocation());
 }
@@ -988,7 +1012,7 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     const auto *RecordDecl = ArgTy->getAsCXXRecordDecl();
     assert(RecordDecl && "Special SYCL object must be of a record type");
 
-    CXXMethodDecl *InitMethod = getInitMethod(RecordDecl);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
     unsigned NumParams = InitMethod->getNumParams();
     for (size_t I = 0; I < NumParams; ++I) {
@@ -1045,10 +1069,7 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
           continue;
         }
       }
-      // TODO: Make stream class trivially copyable and remove the check on
-      // stream class.
-      if (!ArgTy.isTriviallyCopyableType(Context) &&
-          !Util::isSyclStreamType(ArgTy)) {
+      if (!ArgTy.isTriviallyCopyableType(Context)) {
         Context.getDiagnostics().Report(
             Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
             << ArgTy;
@@ -1154,7 +1175,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
       const auto *SamplerTy = ArgTy->getAsCXXRecordDecl();
       assert(SamplerTy && "sampler must be of a record type");
 
-      CXXMethodDecl *InitMethod = getInitMethod(SamplerTy);
+      CXXMethodDecl *InitMethod = getMethodByName(SamplerTy, InitMethodName);
       assert(InitMethod && "sampler must have __init method");
 
       // sampler __init method has only one argument
@@ -1367,7 +1388,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
-        case attr::Kind::SYCLIntelUsesGlobalWorkOffset: {
+        case attr::Kind::SYCLIntelNoGlobalWorkOffset: {
           SYCLKernel->addAttr(A);
           break;
         }
@@ -1651,7 +1672,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
 
-  O << "__SYCL_INLINE namespace cl {\n";
+  O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
   O << "namespace sycl {\n";
   O << "namespace detail {\n";
 
@@ -1744,7 +1765,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "\n";
   O << "} // namespace detail\n";
   O << "} // namespace sycl\n";
-  O << "} // namespace cl\n";
+  O << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   O << "\n";
 }
 

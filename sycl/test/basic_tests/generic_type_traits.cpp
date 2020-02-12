@@ -2,6 +2,7 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/half_type.hpp>
 #include <cassert>
 #include <iostream>
 
@@ -260,6 +261,9 @@ int main() {
           value,
       "");
 #endif
+  static_assert(std::is_same<d::ConvertToOpenCLType_t<s::half>,
+                             d::half_impl::BIsRepresentationT>::value,
+                "");
 
   s::multi_ptr<int, s::access::address_space::global_space> mp;
   int *dp = mp;

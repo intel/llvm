@@ -15,14 +15,13 @@
 #include <memory>
 #include <utility>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 class device_selector;
 namespace detail {
 class device_impl;
 }
-
 class device {
 public:
   /// Constructs a SYCL device instance as a host device.
@@ -168,7 +167,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::device> {

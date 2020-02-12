@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
   namespace sycl {
   template <int dimensions> class range;
   template <int dimensions, bool with_offset> class item;
@@ -271,4 +271,4 @@ __SYCL_INLINE namespace cl {
 #endif
 
   } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

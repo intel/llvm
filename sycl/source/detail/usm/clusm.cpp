@@ -19,7 +19,7 @@
 
 cl::sycl::detail::usm::CLUSM *gCLUSM = nullptr;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace usm {
@@ -379,4 +379,4 @@ cl_int CLUSM::writeParamToMemory(size_t param_value_size, T param,
 } // namespace usm
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

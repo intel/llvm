@@ -13,14 +13,15 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
 
 platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl>(
-          detail::pi::cast<detail::RT::PiPlatform>(PlatformId))) {}
+          detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
+          RT::GlobalPlugin)) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -56,4 +57,4 @@ platform::get_info() const {
 #undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

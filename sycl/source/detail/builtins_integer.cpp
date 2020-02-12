@@ -17,7 +17,7 @@
 namespace s = cl::sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
@@ -779,4 +779,4 @@ s::cl_int s_mul24(s::cl_int x, s::cl_int y) __NOEXC { return __mul24(x, y); }
 MAKE_1V_2V(s_mul24, s::cl_int, s::cl_int, s::cl_int)
 
 } // namespace __host_std
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

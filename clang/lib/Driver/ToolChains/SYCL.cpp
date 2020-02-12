@@ -114,8 +114,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     for (const auto &II : InputFiles)
       CmdArgs.push_back(II.getFilename());
 
-  // Add additional options from -Xsycl-target-linker
-  TranslateSYCLLinkerArgs(C, Args, getToolChain(), CmdArgs);
   // Add an intermediate output file.
   CmdArgs.push_back("-o");
   const char *OutputFileName = Output.getFilename();
@@ -183,113 +181,6 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
                            SpirvInputs);
-}
-
-void SYCL::TranslateSYCLTargetArgs(Compilation &C,
-   const llvm::opt::ArgList &Args, const ToolChain &TC,
-   llvm::opt::ArgStringList &CmdArgs) {
-
-  // Handle -Xsycl-target and -Xs flags.
-  for (auto *A : Args) {
-    // When parsing the target args, the -Xs<opt> type option applies to all
-    // target compilations is not associated with a specific triple.  The
-    // option can be used in 3 different ways:
-    //   -Xs -DFOO -Xs -DBAR
-    //   -Xs "-DFOO -DBAR"
-    //   -XsDFOO -XsDBAR
-    // All of the above examples will pass -DFOO -DBAR to the backend compiler.
-    if (A->getOption().matches(options::OPT_Xs)) {
-      // Take the arg and create an option out of it.
-      CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
-      A->claim();
-      continue;
-    }
-    if (A->getOption().matches(options::OPT_Xs_separate)) {
-      StringRef ArgString(A->getValue());
-      // Do a simple parse of the args to pass back
-      SmallVector<StringRef, 16> TargetArgs;
-      ArgString.split(TargetArgs, ' ', -1, false);
-      for (const auto &TA : TargetArgs)
-        CmdArgs.push_back(Args.MakeArgString(TA));
-      A->claim();
-      continue;
-    }
-    bool XSYCLTargetNoTriple;
-    XSYCLTargetNoTriple = A->getOption().matches(options::OPT_Xsycl_backend);
-    if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
-      // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
-      if (A->getValue() != TC.getTripleString())
-        // Provided triple does not match current tool chain.
-        continue;
-    } else if (!XSYCLTargetNoTriple)
-      // Don't worry about any of the other args, we only want to pass what is
-      // passed in -Xsycl-target-backend.
-      continue;
-
-    // Add the argument from -Xsycl-target-backend.
-    StringRef ArgString;
-    if (XSYCLTargetNoTriple) {
-      // With multiple -fsycl-targets, a triple is required so we know where
-      // the options should go.
-      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
-            << A->getSpelling();
-        continue;
-      }
-      // No triple, so just add the argument.
-      ArgString = A->getValue();
-    } else
-      // Triple found, add the next argument in line.
-      ArgString = A->getValue(1);
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
-    A->claim();
-  }
-}
-
-void SYCL::TranslateSYCLLinkerArgs(Compilation &C,
-   const llvm::opt::ArgList &Args, const ToolChain &TC,
-   llvm::opt::ArgStringList &CmdArgs) {
-
-  // Handle -Xsycl-target-linker flag.
-  for (auto *A : Args) {
-    bool XSYCLLinkerNoTriple;
-    XSYCLLinkerNoTriple = A->getOption().matches(options::OPT_Xsycl_linker);
-    if (A->getOption().matches(options::OPT_Xsycl_linker_EQ)) {
-      // Passing llvm-link args: -Xsycl-target-linker=<triple> -opt=val.
-      if (A->getValue() != TC.getTripleString())
-        // Provided triple does not match current tool chain.
-        continue;
-    } else if (!XSYCLLinkerNoTriple)
-      // Don't worry about any of the other args, we only want to pass what is
-      // passed in -Xsycl-target-linker.
-      continue;
-
-    // Add the argument from -Xsycl-target-linker.
-    StringRef ArgString;
-    if (XSYCLLinkerNoTriple) {
-      // With multiple -fsycl-targets, a triple is required so we know where
-      // the options should go.
-      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
-            << A->getSpelling();
-        continue;
-      }
-      // No triple, so just add the argument.
-      ArgString = A->getValue();
-    } else
-      // Triple found, add the next argument in line.
-      ArgString = A->getValue(1);
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
-    A->claim();
-  }
 }
 
 void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
@@ -383,7 +274,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-output-report-folder=") + ReportOptArg));
-  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+  // Add -Xsycl-target* options.
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  TC.TranslateBackendTargetArgs(Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
@@ -421,7 +316,11 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
-  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+  // Add -Xsycl-target* options.
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  TC.TranslateBackendTargetArgs(Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
@@ -448,7 +347,11 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
       ForeachInputs.push_back(II);
     CmdArgs.push_back(Args.MakeArgString(Filename));
   }
-  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+  // Add -Xsycl-target* options.
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  TC.TranslateBackendTargetArgs(Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
@@ -494,6 +397,93 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                       BoundArch);
   }
   return DAL;
+}
+
+// Expects a specific type of option (e.g. -Xsycl-target-backend) and will
+// extract the arguments.
+void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs, OptSpecifier Opt,
+    OptSpecifier Opt_EQ) const {
+  for (auto *A : Args) {
+    bool OptNoTriple;
+    OptNoTriple = A->getOption().matches(Opt);
+    if (A->getOption().matches(Opt_EQ)) {
+      // Passing device args: -X<Opt>=<triple> -opt=val.
+      if (A->getValue() != getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!OptNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -X<Opt>
+      continue;
+
+    // Add the argument from -X<Opt>
+    StringRef ArgString;
+    if (OptNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+
+    // Do a simple parse of the args to pass back
+    SmallVector<StringRef, 16> TargetArgs;
+    // TODO: Improve parsing, as this only handles arguments separated by
+    // spaces.
+    ArgString.split(TargetArgs, ' ', -1, false);
+    for (const auto &TA : TargetArgs)
+      CmdArgs.push_back(Args.MakeArgString(TA));
+    A->claim();
+  }
+}
+
+void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Handle -Xs flags.
+  for (auto *A : Args) {
+    // When parsing the target args, the -Xs<opt> type option applies to all
+    // target compilations is not associated with a specific triple.  The
+    // option can be used in 3 different ways:
+    //   -Xs -DFOO -Xs -DBAR
+    //   -Xs "-DFOO -DBAR"
+    //   -XsDFOO -XsDBAR
+    // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+    if (A->getOption().matches(options::OPT_Xs)) {
+      // Take the arg and create an option out of it.
+      CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
+      A->claim();
+      continue;
+    }
+    if (A->getOption().matches(options::OPT_Xs_separate)) {
+      StringRef ArgString(A->getValue());
+      // Do a simple parse of the args to pass back
+      SmallVector<StringRef, 16> TargetArgs;
+      // TODO: Improve parsing, as this only handles arguments separated by
+      // spaces.
+      ArgString.split(TargetArgs, ' ', -1, false);
+      for (const auto &TA : TargetArgs)
+        CmdArgs.push_back(Args.MakeArgString(TA));
+      A->claim();
+      continue;
+    }
+  }
+  // Handle -Xsycl-target-backend.
+  TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
+      options::OPT_Xsycl_backend_EQ);
+}
+
+void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Handle -Xsycl-target-linker.
+  TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
+      options::OPT_Xsycl_linker_EQ);
 }
 
 Tool *SYCLToolChain::buildBackendCompiler() const {

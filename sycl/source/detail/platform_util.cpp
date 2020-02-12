@@ -16,7 +16,7 @@
 #include <intrin.h>
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -143,4 +143,4 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

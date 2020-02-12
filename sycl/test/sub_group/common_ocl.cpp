@@ -16,7 +16,9 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+
 using namespace cl::sycl;
 struct Data {
   unsigned int local_id;

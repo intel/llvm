@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <map>
+#include <unordered_map>
 #include <vector>
 
 // +++ Entry points referenced by the offload wrapper object {
@@ -29,11 +29,13 @@ extern "C" void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 namespace detail {
 
+class context_impl;
+using ContextImplPtr = std::shared_ptr<context_impl>;
 using DeviceImage = pi_device_binary_struct;
 
 // Custom deleter for the DeviceImage. Must only be called for "orphan" images
@@ -42,7 +44,11 @@ using DeviceImage = pi_device_binary_struct;
 struct ImageDeleter;
 
 enum DeviceLibExt {
-  cl_intel_devicelib_assert = 0
+  cl_intel_devicelib_assert = 0,
+  cl_intel_devicelib_math,
+  cl_intel_devicelib_math_fp64,
+  cl_intel_devicelib_complex,
+  cl_intel_devicelib_complex_fp64
 };
 
 // Provides single loading and building OpenCL programs with unique contexts
@@ -58,13 +64,15 @@ public:
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                  const string_class &KernelName);
-  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel);
+                                 const string_class &KernelName);
+  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel,
+                                         const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
-  static string_class getProgramBuildLog(const RT::PiProgram &Program);
+  static string_class getProgramBuildLog(const RT::PiProgram &Program,
+                                         const ContextImplPtr Context);
 
 private:
   ProgramManager();
@@ -76,7 +84,7 @@ private:
                               const context &Context);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, RT::PiContext Context,
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
                    const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,
@@ -112,18 +120,19 @@ private:
   /// Organizes the images as a map from a kernel set id to the vector of images
   /// containing kernels from that set.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>> m_DeviceImages;
+  std::unordered_map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>
+      m_DeviceImages;
 
-  using StrToKSIdMap = std::map<string_class, KernelSetId>;
+  using StrToKSIdMap = std::unordered_map<string_class, KernelSetId>;
   /// Maps names of kernels from a specific OS module (.exe .dll) to their set
   /// id (the sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
+  std::unordered_map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
 
   /// Keeps kernel sets for OS modules containing images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
+  std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
@@ -135,4 +144,4 @@ private:
 };
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

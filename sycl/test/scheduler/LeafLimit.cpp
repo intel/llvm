@@ -2,45 +2,16 @@
 // RUN: %t.out
 #include <CL/sycl.hpp>
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <vector>
+
+#include "SchedulerTestUtils.hpp"
 
 // This test checks the leaf limit imposed on the execution graph
 
 using namespace cl::sycl;
-
-class FakeCommand : public detail::Command {
-public:
-  FakeCommand(detail::QueueImplPtr Queue, detail::Requirement Req)
-      : Command{detail::Command::ALLOCA, Queue}, MRequirement{std::move(Req)} {}
-
-  void printDot(std::ostream &Stream) const override {}
-
-  const detail::Requirement *getRequirement() const final {
-    return &MRequirement;
-  };
-
-  cl_int enqueueImp() override { return MRetVal; }
-
-  cl_int MRetVal = CL_SUCCESS;
-
-protected:
-  detail::Requirement MRequirement;
-};
-
-class TestScheduler : public detail::Scheduler {
-public:
-  void AddNodeToLeaves(detail::MemObjRecord *Rec, detail::Command *Cmd,
-                       access::mode Mode) {
-    return MGraphBuilder.AddNodeToLeaves(Rec, Cmd, Mode);
-  }
-
-  detail::MemObjRecord *
-  getOrInsertMemObjRecord(const detail::QueueImplPtr &Queue,
-                          detail::Requirement *Req) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
-  }
-};
 
 int main() {
   TestScheduler TS;
@@ -61,7 +32,7 @@ int main() {
 
   // Create commands that will be added as leaves exceeding the limit by 1
   std::vector<FakeCommand *> LeavesToAdd;
-  for (size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
+  for (std::size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
     LeavesToAdd.push_back(
         new FakeCommand(detail::getSyclObjImpl(Queue), FakeReq));
   }
@@ -72,21 +43,23 @@ int main() {
   }
   // Add edges as leaves and exceed the leaf limit
   for (auto LeafPtr : LeavesToAdd) {
-    TS.AddNodeToLeaves(Rec, LeafPtr, access::mode::read_write);
+    TS.AddNodeToLeaves(Rec, LeafPtr);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead
   const detail::CircularBuffer<detail::Command *> &Leaves = Rec->MWriteLeaves;
   assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd.front()) ==
          Leaves.end());
-  for (size_t i = 1; i < LeavesToAdd.size(); ++i) {
+  for (std::size_t i = 1; i < LeavesToAdd.size(); ++i) {
     assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd[i]) !=
            Leaves.end());
   }
   FakeCommand *OldestLeaf = LeavesToAdd.front();
   FakeCommand *NewestLeaf = LeavesToAdd.back();
   assert(OldestLeaf->MUsers.size() == 1);
-  assert(OldestLeaf->MUsers[0] == NewestLeaf);
+  assert(OldestLeaf->MUsers.count(NewestLeaf));
   assert(NewestLeaf->MDeps.size() == 2);
-  assert(NewestLeaf->MDeps[1].MDepCommand == OldestLeaf);
+  assert(std::any_of(
+      NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
+      [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
 }

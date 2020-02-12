@@ -669,15 +669,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelUsesGlobalWorkOffsetAttr *A =
-          FD->getAttr<SYCLIntelUsesGlobalWorkOffsetAttr>()) {
-    bool IsEnabled = A->getEnabled();
-    if (!IsEnabled) {
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt32(IsEnabled))};
-      Fn->setMetadata("uses_global_work_offset",
-                      llvm::MDNode::get(Context, AttrMDArgs));
-    }
+  if (const SYCLIntelNoGlobalWorkOffsetAttr *A =
+          FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+    if (A->getEnabled())
+      Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 }
 

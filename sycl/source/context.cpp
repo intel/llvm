@@ -21,7 +21,7 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 context::context(const async_handler &AsyncHandler)
     : context(default_selector().select_device(), AsyncHandler) {}
@@ -60,7 +60,8 @@ context::context(const vector_class<device> &DeviceList,
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   impl = std::make_shared<detail::context_impl>(
-          detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler);
+      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler,
+      *RT::GlobalPlugin);
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
@@ -87,4 +88,4 @@ vector_class<device> context::get_devices() const {
 context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

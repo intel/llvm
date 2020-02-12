@@ -21,7 +21,7 @@
 #include <cmath>
 #include <iostream>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -1083,5 +1083,5 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif

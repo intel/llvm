@@ -18,7 +18,7 @@
 #include <limits>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -232,6 +232,32 @@ using is_genptr = bool_constant<
 
 template <typename T> using is_nan_type = is_contained<T, gtl::nan_list>;
 
+// nan_types
+template <typename T, typename Enable = void> struct nan_types;
+
+template <typename T>
+struct nan_types<
+    T, enable_if_t<is_contained<T, gtl::unsigned_short_list>::value, T>> {
+  using ret_type = change_base_type_t<T, half>;
+  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_short_list, half>;
+};
+
+template <typename T>
+struct nan_types<
+    T, enable_if_t<is_contained<T, gtl::unsigned_int_list>::value, T>> {
+  using ret_type = change_base_type_t<T, float>;
+  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_int_list, float>;
+};
+
+template <typename T>
+struct nan_types<
+    T,
+    enable_if_t<is_contained<T, gtl::unsigned_long_integer_list>::value, T>> {
+  using ret_type = change_base_type_t<T, double>;
+  using arg_type =
+      find_same_size_type_t<gtl::scalar_unsigned_long_integer_list, double>;
+};
+
 template <typename T> using nan_return_t = typename nan_types<T, T>::ret_type;
 
 template <typename T>
@@ -364,10 +390,14 @@ using select_cl_scalar_intergal_t =
 // select_cl_scalar_t picks corresponding cl_* type for input
 // scalar T or returns T if T is not scalar.
 template <typename T>
-using select_cl_scalar_t =
-    conditional_t<std::is_integral<T>::value, select_cl_scalar_intergal_t<T>,
-                  conditional_t<std::is_floating_point<T>::value,
-                                select_cl_scalar_float_t<T>, T>>;
+using select_cl_scalar_t = conditional_t<
+    std::is_integral<T>::value, select_cl_scalar_intergal_t<T>,
+    conditional_t<
+        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+        // half is a special case: it is implemented differently on host and
+        // device and therefore, might lower to different types
+        conditional_t<std::is_same<T, half>::value,
+                      cl::sycl::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar does cl_* type selection for element type of
 // a vector type T and does scalar type substitution.  If T is not
@@ -378,7 +408,13 @@ template <typename T>
 struct select_cl_vector_or_scalar<
     T, typename std::enable_if<is_vgentype<T>::value>::type> {
   using type =
-      vec<select_cl_scalar_t<typename T::element_type>, T::get_count()>;
+      // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
+      // class with _Float16 DataType, which is not expected there
+      // So, leave vector<half, N> as-is
+      vec<conditional_t<std::is_same<typename T::element_type, half>::value,
+                        typename T::element_type,
+                        select_cl_scalar_t<typename T::element_type>>,
+          T::get_count()>;
 };
 
 template <typename T>
@@ -592,4 +628,4 @@ template <typename... Args> inline void check_vector_size() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -16,14 +16,15 @@
 
 #include <cstring>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
-    PI_CALL(piQueueGetInfo)(MCommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT,
-                            sizeof(result), &result, nullptr);
+    getPlugin().call<PiApiKind::piQueueGetInfo>(
+        MCommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+        nullptr);
   return result;
 }
 
@@ -67,11 +68,12 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
 
   // non-Host device
   RT::PiEvent Event = nullptr;
-  PI_CALL(piextUSMEnqueueMemAdvise)(getHandleRef(), Ptr, Length, Advice,
-                                    &Event);
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
+                                                   Advice, &Event);
 
   return event(pi::cast<cl_event>(Event), Context);
 }
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

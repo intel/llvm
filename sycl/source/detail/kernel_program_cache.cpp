@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/kernel_program_cache.hpp>
+#include <CL/sycl/detail/plugin.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
@@ -28,11 +30,14 @@ KernelProgramCache::~KernelProgramCache() {
       KernelWithBuildStateT &KernelWithState = p.second;
       PiKernelT *Kern = KernelWithState.Ptr.load();
 
-      if (Kern)
-        PI_CALL(piKernelRelease)(Kern);
+      if (Kern) {
+        const detail::plugin &Plugin = MParentContext->getPlugin();
+        Plugin.call<PiApiKind::piKernelRelease>(Kern);
+      }
     }
 
-    PI_CALL(piProgramRelease)(ToBeDeleted);
+    const detail::plugin &Plugin = MParentContext->getPlugin();
+    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
 }

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <vector>
 
 // This test contains basic checks for cl::sycl::detail::CircularBuffer
@@ -14,7 +15,7 @@ void checkEquality(const cl::sycl::detail::CircularBuffer<int> &CB,
 }
 
 int main() {
-  const size_t Capacity = 6;
+  const std::size_t Capacity = 6;
   cl::sycl::detail::CircularBuffer<int> CB{Capacity};
   assert(CB.capacity() == Capacity);
   assert(CB.empty());
