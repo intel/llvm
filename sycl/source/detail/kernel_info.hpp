@@ -58,7 +58,7 @@ struct get_kernel_work_group_info {
     T Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, cl_kernel_work_group_info(Param), sizeof(T), &Result,
+        Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T), &Result,
         nullptr);
     return Result;
   }
@@ -71,8 +71,8 @@ struct get_kernel_work_group_info<cl::sycl::range<3>, Param> {
     size_t Result[3];
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, cl_kernel_work_group_info(Param), sizeof(size_t) * 3,
-        Result, nullptr);
+        Kernel, Device, pi::cast<pi_kernel_group_info>(Param),
+        sizeof(size_t) * 3, Result, nullptr);
     return cl::sycl::range<3>(Result[0], Result[1], Result[2]);
   }
 };
