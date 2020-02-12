@@ -74,7 +74,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 
   RT::PiContext TempContext;
   getPlugin().call<PiApiKind::piEventGetInfo>(
-      MEvent, CL_EVENT_CONTEXT, sizeof(RT::PiContext), &TempContext, nullptr);
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(RT::PiContext), &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
