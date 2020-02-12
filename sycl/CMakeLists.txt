@@ -51,7 +51,6 @@ endif()
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
 set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
-set(LLVM_PYTHON_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/python")
 set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
 
 # Find OpenCL headers and libraries installed in the system and use them to
@@ -151,12 +150,6 @@ COMMENT "Copying SYCL headers ...")
 # Configure SYCL headers
 install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
 
-# Auxilliary extras for SYCL headers
-add_custom_target(sycl-headers-extras ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/xmethods ${dst_dir}
-COMMENT "Copying SYCL header xmethod scripts ...")
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/xmethods" DESTINATION ${LLVM_PYTHON_DIRECTORY} COMPONENT sycl-headers-extras)
-
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
   list(APPEND SYCL_RT_LIBS sycld)
@@ -193,6 +186,11 @@ endfunction(add_common_options)
 
 # SYCL runtime library
 add_subdirectory( source )
+
+# Auxilliary extras for SYCL headers/library
+if (NOT WIN32)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py" DESTINATION lib COMPONENT sycl-headers-extras)
+endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
