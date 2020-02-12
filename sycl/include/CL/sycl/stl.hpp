@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
  template < class T, class Alloc = std::allocator<T> >

@@ -16,7 +16,7 @@
 
 #include <cstdlib>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 using alloc = cl::sycl::usm::alloc;
@@ -312,4 +312,4 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

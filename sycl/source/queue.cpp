@@ -15,7 +15,7 @@
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
@@ -126,4 +126,4 @@ template property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

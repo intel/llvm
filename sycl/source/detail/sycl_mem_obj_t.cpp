@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
@@ -83,4 +83,4 @@ void SYCLMemObjT::updateHostMemory() {
 }
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

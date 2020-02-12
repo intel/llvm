@@ -10,9 +10,9 @@
 
 #include <CL/sycl/intel/pipes.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = intel::pipe<name, dataT, min_capacity>;
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

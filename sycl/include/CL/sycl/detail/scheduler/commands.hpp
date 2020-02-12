@@ -10,13 +10,14 @@
 
 #include <atomic>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -98,7 +99,7 @@ public:
 
   void addDep(EventImplPtr Event) { MDepsEvents.push_back(std::move(Event)); }
 
-  void addUser(Command *NewUser) { MUsers.push_back(NewUser); }
+  void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
   // Return type of the command, e.g. Allocate, MemoryCopy.
   CommandType getType() const { return MType; }
@@ -149,11 +150,13 @@ public:
   // Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   // Contains list of commands that depend on the command
-  std::vector<Command *> MUsers;
+  std::unordered_set<Command *> MUsers;
   // Indicates whether the command can be blocked from enqueueing
   bool MIsBlockable = false;
   // Indicates whether the command is blocked from enqueueing
   std::atomic<bool> MCanEnqueue;
+  // Counts the number of memory objects this command is a leaf for
+  unsigned MLeafCounter = 0;
 
   const char *MBlockReason = "Unknown";
 };
@@ -384,4 +387,4 @@ private:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

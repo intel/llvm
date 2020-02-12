@@ -19,7 +19,7 @@
 #include <mutex>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 class context_impl;

@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/stream_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class stream_manipulator {
@@ -477,7 +477,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 namespace std {
 template <> struct hash<cl::sycl::stream> {
   size_t operator()(const cl::sycl::stream &S) const {

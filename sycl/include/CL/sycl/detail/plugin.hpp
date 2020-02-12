@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -73,4 +73,4 @@ private:
 }; // class plugin
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -9,7 +9,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace access {
 
@@ -180,4 +180,4 @@ struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
 } // namespace detail
 
 }  // namespace sycl
-}  // namespace cl
+}  // __SYCL_INLINE_NAMESPACE(cl)

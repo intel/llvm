@@ -27,7 +27,7 @@
 #include <mutex>
 #include <sstream>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -904,7 +904,7 @@ void ProgramManager::dumpImage(const DeviceImage &Img, KernelSetId KSId) const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   cl::sycl::detail::ProgramManager::getInstance().addImages(desc);

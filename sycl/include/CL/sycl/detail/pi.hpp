@@ -17,7 +17,7 @@
 #include <cassert>
 #include <string>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -154,4 +154,4 @@ template <class To, class From> To pi::cast(From value) {
 namespace RT = cl::sycl::detail::pi;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

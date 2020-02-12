@@ -14,7 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -421,4 +421,4 @@ struct get_device_info<bool, info::device::usm_system_allocator> {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

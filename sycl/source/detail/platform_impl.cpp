@@ -16,7 +16,7 @@
 #include <cstring>
 #include <regex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -268,4 +268,4 @@ platform_impl::get_info() const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

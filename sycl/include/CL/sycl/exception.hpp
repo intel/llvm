@@ -15,7 +15,7 @@
 
 #include <exception>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -109,4 +109,4 @@ class feature_not_supported : public device_error {
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

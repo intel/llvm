@@ -20,7 +20,7 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 class event;
@@ -216,4 +216,4 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

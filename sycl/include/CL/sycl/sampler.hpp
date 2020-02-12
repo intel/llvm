@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,
@@ -84,7 +84,7 @@ private:
   friend class detail::image_accessor;
 };
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::sampler> {

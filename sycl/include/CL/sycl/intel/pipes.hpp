@@ -12,7 +12,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace intel {
 
@@ -86,4 +86,4 @@ private:
 
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

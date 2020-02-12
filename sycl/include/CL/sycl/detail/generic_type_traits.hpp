@@ -18,7 +18,7 @@
 #include <limits>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -628,4 +628,4 @@ template <typename... Args> inline void check_vector_size() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

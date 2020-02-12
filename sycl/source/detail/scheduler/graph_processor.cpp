@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -90,4 +90,4 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -15,7 +15,7 @@
 
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace half_impl {
@@ -286,4 +286,4 @@ template <typename T> using make_larger_t = typename make_larger<T>::type;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

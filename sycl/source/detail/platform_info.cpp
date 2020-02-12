@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/platform_info.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -37,4 +37,4 @@ get_platform_info_host<info::platform::extensions>() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

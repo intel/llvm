@@ -18,7 +18,7 @@
 #include <iostream>
 #include <limits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace host_half_impl {
@@ -209,7 +209,7 @@ inline float cast_if_host_half(half_impl::half val) {
 } // namespace detail
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 using half = cl::sycl::detail::half_impl::half;
 

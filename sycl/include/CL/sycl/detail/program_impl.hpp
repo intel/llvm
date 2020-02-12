@@ -21,7 +21,7 @@
 #include <fstream>
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declarations
@@ -386,4 +386,4 @@ vector_class<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
