@@ -17890,7 +17890,8 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
     FunctionDecl *Def = FD->getDefinition();
 
     if (Def &&
-        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
+        && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
       return FunctionEmissionStatus::Emitted;
   }
 
@@ -17907,8 +17908,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
     FunctionDecl *Def = FD->getDefinition();
 
     if (Def &&
-        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
-        && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
       return FunctionEmissionStatus::Emitted;
   }
 

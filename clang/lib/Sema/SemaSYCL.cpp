@@ -1462,9 +1462,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
-  // TODO Diagnostics that must be emitted if and only if callee is emitted
-  //      must be put here with setting DiagKind to either
-  //      K_ImmediateWithCallStack or K_Deferred
+  // TODO Put here emission of deferred diagnostics
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
