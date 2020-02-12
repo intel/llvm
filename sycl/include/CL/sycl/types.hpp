@@ -47,6 +47,7 @@
 #include <CL/sycl/aliases.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 #include <CL/sycl/multi_ptr.hpp>
@@ -593,7 +594,7 @@ public:
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     asT Result;
-    std::memcpy(&Result.m_Data, &m_Data, sizeof(decltype(Result.m_Data)));
+    detail::memcpy(&Result.m_Data, &m_Data, sizeof(decltype(Result.m_Data)));
     return Result;
   }
 
