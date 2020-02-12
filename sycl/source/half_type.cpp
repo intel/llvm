@@ -116,7 +116,7 @@ static float half2Float(const uint16_t &Val) {
   return Result;
 }
 
-namespace half_impl {
+namespace host_half_impl {
 
 half::half(const float &RHS) : Buf(float2Half(RHS)) {}
 

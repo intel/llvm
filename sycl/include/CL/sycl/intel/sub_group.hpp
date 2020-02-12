@@ -167,9 +167,9 @@ __SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
 __SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd<T>, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
+__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
 
 #undef __SYCL_SG_CALC_OVERLOAD
 
