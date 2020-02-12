@@ -735,14 +735,41 @@
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xs "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS %s
 // CHK-TOOLS-FPGA-OPTS: aoc{{.*}} "-o" {{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-FPGA-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS %s
 // CHK-TOOLS-GEN-OPTS: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-GEN-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS %s
 // CHK-TOOLS-CPU-OPTS: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-CPU-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
+// CHK-TOOLS-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
+
+/// Check -Xsycl-target-linker option passing
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS2 %s
+// CHK-TOOLS-FPGA-OPTS2: aoc{{.*}} "-o" {{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-FPGA-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS2 %s
+// CHK-TOOLS-GEN-OPTS2: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-GEN-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS2 %s
+// CHK-TOOLS-CPU-OPTS2: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-CPU-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
+// CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
 
 /// ###########################################################################
 

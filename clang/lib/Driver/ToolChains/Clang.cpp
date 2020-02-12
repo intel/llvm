@@ -21,6 +21,7 @@
 #include "MSP430.h"
 #include "InputInfo.h"
 #include "PS4CPU.h"
+#include "SYCL.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LangOptions.h"
@@ -7250,6 +7251,31 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
+    // Grab any Target specific options that need to be added to the wrapper
+    // information.
+    ArgStringList BuildArgs;
+    auto createArgString = [&](const char *Opt) {
+      if (BuildArgs.empty())
+        return;
+      SmallString<128> AL;
+      for (const char *A : BuildArgs) {
+        if (AL.empty()) {
+          AL = A;
+          continue;
+        }
+        AL += " ";
+        AL += A;
+      }
+      WrapperArgs.push_back(C.getArgs().MakeArgString(
+          Twine(Opt) + Twine("\"") + AL + Twine("\"")));
+    };
+    const toolchains::SYCLToolChain &TC =
+              static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+    createArgString("-compile-opts=");
+    BuildArgs.clear();
+    TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+    createArgString("-link-opts=");
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 
