@@ -51,6 +51,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -1510,6 +1511,34 @@ bool hasLoopMetadata(const Module *M) {
         return true;
     }
   return false;
+}
+
+// Returns true if type(s) and number of elements (if vector) is valid
+bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
+  switch (II->getIntrinsicID()) {
+  case Intrinsic::fabs:
+  case Intrinsic::ceil: {
+    Type *Ty = II->getType();
+    if (II->getArgOperand(0)->getType() != Ty)
+      return false;
+    int NumElems = 1;
+    if (Ty->isVectorTy()) {
+      NumElems = Ty->getVectorNumElements();
+      Ty = cast<VectorType>(Ty)->getElementType();
+    }
+    if ((!Ty->isFloatTy() && !Ty->isDoubleTy()) ||
+        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
+                                   II->getCalledValue()->getName().str(), "",
+                                   __FILE__, __LINE__);
+      return false;
+    }
+    break;
+  }
+  default:
+    break;
+  }
+  return true;
 }
 
 } // namespace SPIRV
