@@ -7,10 +7,10 @@ fpga_reg is used to help compiler infer that at least one register is on the cor
 
 ## Implementation
 
-The implementation is a wrapper class to map fpga_reg function call to built-in \_\_builtin_intel_fpga_reg()
-only when parsing for SYCL device code.
+The implementation is a wrapper class to map fpga_reg function call to a Clang built-in
+\_\_builtin_intel_fpga_reg() only when parsing for SYCL device code.
 ```c++
-#if defined(__clang__) && __has_builtin(__builtin_intel_fpga_reg)
+#if __has_builtin(__builtin_intel_fpga_reg)
   return __builtin_intel_fpga_reg(t);
 #else
   return t;
