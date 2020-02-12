@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/platform_util.hpp>
 #include <cstring>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -184,4 +184,4 @@ bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

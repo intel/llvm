@@ -5,7 +5,7 @@
 
 // CHECK: class wrapped_access;
 
-// CHECK: namespace cl {
+// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 

@@ -18,7 +18,7 @@ extern int __spirv_ocl_printf(const CONSTANT_AS char *__format, ...);
 #define CONSTANT_AS
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace intel {
 namespace experimental {
@@ -72,6 +72,6 @@ int printf(const CONSTANT_AS char *__format, Args... args) {
 } // namespace experimental
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef CONSTANT_AS

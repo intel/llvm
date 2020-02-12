@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/device.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <>
@@ -50,4 +50,4 @@ get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

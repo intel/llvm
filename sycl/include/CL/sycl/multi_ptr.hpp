@@ -14,7 +14,7 @@
 #include <cassert>
 #include <cstddef>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
@@ -637,4 +637,4 @@ bool operator<=(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

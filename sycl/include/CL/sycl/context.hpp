@@ -14,7 +14,7 @@
 #include <type_traits>
 // 4.6.2 Context class
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 class device;
@@ -139,7 +139,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::context> {

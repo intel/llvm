@@ -18,7 +18,7 @@
 #include <memory>
 #include <utility>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -168,7 +168,7 @@ private:
 #undef __SYCL_DEPRECATED__
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::ordered_queue> {

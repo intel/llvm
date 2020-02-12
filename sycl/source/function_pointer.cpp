@@ -10,7 +10,7 @@
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/program_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 intel::device_func_ptr_holder_t
@@ -28,4 +28,4 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

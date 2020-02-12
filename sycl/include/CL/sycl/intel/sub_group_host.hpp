@@ -15,7 +15,7 @@
 #include <CL/sycl/types.hpp>
 #ifndef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {
@@ -159,5 +159,5 @@ protected:
 };
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif

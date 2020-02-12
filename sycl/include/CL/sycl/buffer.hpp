@@ -14,7 +14,7 @@
 
 // TODO: 4.3.4 Properties
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class handler;
 class queue;
@@ -396,7 +396,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 #endif // __cpp_deduction_guides
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

@@ -13,7 +13,7 @@
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // TODO: make code thread-safe
 
@@ -110,7 +110,7 @@ private:
 
 }; // class platform
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::platform> {

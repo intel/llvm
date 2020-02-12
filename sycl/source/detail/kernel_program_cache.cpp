@@ -10,7 +10,7 @@
 #include <CL/sycl/detail/kernel_program_cache.hpp>
 #include <CL/sycl/detail/plugin.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {

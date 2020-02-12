@@ -15,7 +15,7 @@
 
 #include <chrono>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -181,4 +181,4 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

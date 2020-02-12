@@ -13,7 +13,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
@@ -57,4 +57,4 @@ platform::get_info() const {
 #undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
