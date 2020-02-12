@@ -24,7 +24,7 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -118,4 +118,4 @@ public:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

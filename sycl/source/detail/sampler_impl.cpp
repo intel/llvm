@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -84,4 +84,4 @@ sampler_impl::get_coordinate_normalization_mode() const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

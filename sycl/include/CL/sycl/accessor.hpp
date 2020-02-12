@@ -143,7 +143,7 @@
 // accessor_common contains several helpers common for both accessor(1) and
 // accessor(3)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -1264,7 +1264,7 @@ public:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,

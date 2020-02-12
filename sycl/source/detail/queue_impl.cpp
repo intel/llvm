@@ -16,7 +16,7 @@
 
 #include <cstring>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
@@ -76,4 +76,4 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
 }
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

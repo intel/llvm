@@ -14,7 +14,7 @@
 
 #include <mutex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -32,6 +32,6 @@ private:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif //__SYCL_DEVICE_ONLY

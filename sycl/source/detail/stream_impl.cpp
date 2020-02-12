@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <cstdio>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -42,5 +42,5 @@ void stream_impl::flush() {
 }
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 

@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename T, int N> class vec;
 namespace detail {
@@ -22,7 +22,7 @@ class half;
 } // namespace half_impl
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 // FIXME: line below exports 'half' into global namespace, which seems incorrect
 // However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
@@ -69,7 +69,7 @@ using half = cl::sycl::detail::half_impl::half;
   MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                                      \
   MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 using byte = std::uint8_t;
 using schar = signed char;
@@ -101,7 +101,7 @@ MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef MAKE_VECTOR_ALIAS
 #undef MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES

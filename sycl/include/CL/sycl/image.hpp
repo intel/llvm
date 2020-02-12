@@ -16,7 +16,7 @@
 #include <CL/sycl/types.hpp>
 #include <cstddef>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class image_channel_order : unsigned int {
@@ -292,7 +292,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <int Dimensions, typename AllocatorT>

@@ -15,7 +15,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/plugin.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -188,4 +188,4 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

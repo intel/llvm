@@ -15,7 +15,7 @@
 
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
@@ -84,4 +84,4 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
 }
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

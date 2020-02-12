@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/util.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -20,4 +20,4 @@ Sync &Sync::getInstance() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

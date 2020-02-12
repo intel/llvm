@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/id.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 class program;
@@ -283,4 +283,4 @@ template <typename T, T param> class param_traits {};
 
 } // namespace info
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

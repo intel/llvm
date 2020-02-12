@@ -44,7 +44,7 @@
 
 #endif // SYCL_RT_OS
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -261,4 +261,4 @@ void OSUtil::alignedFree(void *Ptr) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

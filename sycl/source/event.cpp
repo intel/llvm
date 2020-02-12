@@ -19,7 +19,7 @@
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
@@ -85,4 +85,4 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 #undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

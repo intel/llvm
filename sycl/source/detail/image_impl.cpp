@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/image.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -418,4 +418,4 @@ template class image_impl<3>;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

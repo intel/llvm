@@ -100,7 +100,7 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -235,7 +235,7 @@ IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef INVOKE_SPIRV_CALL_ARG1
 #undef IMAGETY_DEFINE

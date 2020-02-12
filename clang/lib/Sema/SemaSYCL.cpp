@@ -1672,7 +1672,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
 
-  O << "__SYCL_INLINE namespace cl {\n";
+  O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
   O << "namespace sycl {\n";
   O << "namespace detail {\n";
 
@@ -1765,7 +1765,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "\n";
   O << "} // namespace detail\n";
   O << "} // namespace sycl\n";
-  O << "} // namespace cl\n";
+  O << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   O << "\n";
 }
 

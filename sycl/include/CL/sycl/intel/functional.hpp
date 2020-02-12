@@ -9,7 +9,7 @@
 #pragma once
 #include <functional>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace intel {
 
@@ -55,4 +55,4 @@ template <typename T = void> using plus = std::plus<T>;
 
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -62,7 +62,7 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
@@ -1755,7 +1755,7 @@ __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
@@ -1819,7 +1819,7 @@ using __half8_vec_t = cl::sycl::detail::half_impl::Vec8StorageT;
 using __half16_vec_t = cl::sycl::detail::half_impl::Vec16StorageT;
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
@@ -1995,6 +1995,6 @@ DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef DECLARE_SCALAR_SCHAR_CONVERTER
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef SYCL_ALIGNAS

@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -69,4 +69,4 @@ vector_class<string_class> get_platform_info_host<info::platform::extensions>();
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -21,7 +21,7 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 context::context(const async_handler &AsyncHandler)
     : context(default_selector().select_device(), AsyncHandler) {}
@@ -88,4 +88,4 @@ vector_class<device> context::get_devices() const {
 context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

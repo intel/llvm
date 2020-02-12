@@ -12,7 +12,7 @@
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 ordered_queue::ordered_queue(const context &syclContext,
                              const device_selector &deviceSelector,
@@ -119,4 +119,4 @@ ordered_queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 ordered_queue::get_property<property::queue::enable_profiling>() const;
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

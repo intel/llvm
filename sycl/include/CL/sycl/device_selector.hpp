@@ -10,7 +10,7 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declarations
@@ -51,4 +51,4 @@ public:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

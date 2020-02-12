@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -32,4 +32,4 @@ template <info::context param> struct get_context_info {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

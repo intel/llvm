@@ -11,7 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/os_util.hpp> // for DLL_LOCAL used in int. header
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -83,4 +83,4 @@ template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
