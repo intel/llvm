@@ -117,6 +117,11 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
+void Scheduler::cleanupFinishedCommands(Command *FinishedCmd) {
+  std::lock_guard<std::mutex> lock(MGraphLock);
+  MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+}
+
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
@@ -125,6 +130,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     // No operations were performed on the mem object
     return;
   waitForRecordToFinish(Record);
+  MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }

@@ -2,64 +2,16 @@
 // RUN: %t.out
 #include <CL/sycl.hpp>
 
-#include <functional>
 #include <memory>
 #include <utility>
 
-#include "FakeCommand.hpp"
+#include "SchedulerTestUtils.hpp"
 
 // This test checks that the execution graph cleanup on memory object
 // destruction traverses the entire graph, rather than only the immediate users
 // of deleted commands.
 
 using namespace cl::sycl;
-
-class TestScheduler : public detail::Scheduler {
-public:
-  void cleanupCommandsForRecord(detail::MemObjRecord *Rec) {
-    MGraphBuilder.cleanupCommandsForRecord(Rec);
-  }
-
-  void removeRecordForMemObj(detail::SYCLMemObjI *MemObj) {
-    MGraphBuilder.removeRecordForMemObj(MemObj);
-  }
-
-  detail::MemObjRecord *
-  getOrInsertMemObjRecord(const detail::QueueImplPtr &Queue,
-                          detail::Requirement *Req) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
-  }
-};
-
-class FakeCommandWithCallback : public FakeCommand {
-public:
-  FakeCommandWithCallback(detail::QueueImplPtr Queue, detail::Requirement Req,
-                          std::function<void()> Callback)
-      : FakeCommand(Queue, Req), MCallback(std::move(Callback)) {}
-
-  ~FakeCommandWithCallback() override { MCallback(); }
-
-protected:
-  std::function<void()> MCallback;
-};
-
-template <typename MemObjT>
-detail::Requirement getFakeRequirement(const MemObjT &MemObj) {
-  return {{0, 0, 0},
-          {0, 0, 0},
-          {0, 0, 0},
-          access::mode::read_write,
-          detail::getSyclObjImpl(MemObj).get(),
-          0,
-          0,
-          0};
-}
-
-void addEdge(detail::Command *User, detail::Command *Dep,
-             detail::AllocaCommandBase *Alloca) {
-  User->addDep(detail::DepDesc{Dep, User->getRequirement(), Alloca});
-  Dep->addUser(User);
-}
 
 int main() {
   TestScheduler TS;
