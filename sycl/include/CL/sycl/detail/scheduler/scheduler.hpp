@@ -146,7 +146,7 @@ protected:
                                           Requirement *Req);
 
     // Decrements leaf counters for all leaves of the record.
-    void updateLeafCountersForRecord(MemObjRecord *Record);
+    void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     // Removes commands that use given MemObjRecord from the graph.
     void cleanupCommandsForRecord(MemObjRecord *Record);

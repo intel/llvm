@@ -638,7 +638,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   return NewCmd.release();
 }
 
-void Scheduler::GraphBuilder::updateLeafCountersForRecord(
+void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);

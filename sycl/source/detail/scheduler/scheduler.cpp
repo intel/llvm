@@ -130,7 +130,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     // No operations were performed on the mem object
     return;
   waitForRecordToFinish(Record);
-  MGraphBuilder.updateLeafCountersForRecord(Record);
+  MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
