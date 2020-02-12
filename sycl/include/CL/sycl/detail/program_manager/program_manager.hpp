@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <map>
+#include <unordered_map>
 #include <vector>
 
 // +++ Entry points referenced by the offload wrapper object {
@@ -120,18 +120,19 @@ private:
   /// Organizes the images as a map from a kernel set id to the vector of images
   /// containing kernels from that set.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>> m_DeviceImages;
+  std::unordered_map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>
+      m_DeviceImages;
 
-  using StrToKSIdMap = std::map<string_class, KernelSetId>;
+  using StrToKSIdMap = std::unordered_map<string_class, KernelSetId>;
   /// Maps names of kernels from a specific OS module (.exe .dll) to their set
   /// id (the sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
+  std::unordered_map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
 
   /// Keeps kernel sets for OS modules containing images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
+  std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
