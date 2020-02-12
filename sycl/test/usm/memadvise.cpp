@@ -36,7 +36,7 @@ int main() {
   if (s_head == nullptr) {
     return -1;
   }
-  q.mem_advise(s_head, sizeof(Node), 42);
+  q.mem_advise(s_head, sizeof(Node), PI_MEM_ADVICE_SET_READ_MOSTLY);
   Node *s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
@@ -47,7 +47,7 @@ int main() {
       if (s_cur->pNext == nullptr) {
         return -1;
       }
-      q.mem_advise(s_cur->pNext, sizeof(Node), 42);
+      q.mem_advise(s_cur->pNext, sizeof(Node), PI_MEM_ADVICE_SET_READ_MOSTLY);
     } else {
       s_cur->pNext = nullptr;
     }

@@ -930,9 +930,9 @@ cl_int ExecCGCommand::enqueueImp() {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-        cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
+        RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(cl_mem), &MemArg);
+                                               sizeof(RT::PiMem), &MemArg);
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {

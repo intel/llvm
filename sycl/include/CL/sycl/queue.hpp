@@ -218,7 +218,7 @@ public:
   /// @param Length is a number of bytes in the allocation.
   /// @param Advice is a device-defined advice for the specified allocation.
   /// @return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, int Advice);
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
