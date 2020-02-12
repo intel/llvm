@@ -223,8 +223,8 @@ While the modern C++ `usm_allocator` interface is sufficient for specifying USM 
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_device(size_t size, 
-                          const sycl::device& dev, 
+void* sycl::malloc_device(size_t num_bytes, 
+                          const sycl::device& dev,
                           const sycl::context& ctxt);
 
 (2)
@@ -235,7 +235,7 @@ T* sycl::malloc_device(size_t count,
 ----
 
 Parameters::
- * (1) `size_t size` - number of bytes to allocate
+ * (1) `size_t num_bytes` - number of bytes to allocate
  * (2) `size_t count` - number of elements of type `T` to allocate
  * `const sycl::device& dev` - the SYCL `device` to allocate on
  * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -245,17 +245,17 @@ Return value:: Returns a pointer to the newly allocated memory on the specified 
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_device(size_t size,
+void* sycl::malloc_device(size_t num_bytes,
                           const sycl::queue& q);
 
 (2)
 template <typename T>
 T* sycl::malloc_device(size_t count,
-                        const sycl::queue& q);
+                       const sycl::queue& q);
 ----
 
 Parameters::
- * (1) `size_t size` - number of bytes to allocate
+ * (1) `size_t num_bytes` - number of bytes to allocate
  * (2) `size_t count` - number of elements of type `T` to allocate
  * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
 
@@ -266,7 +266,7 @@ Return value:: Returns a pointer to the newly allocated memory on the `device` a
 ----
 (1)
 void* sycl::aligned_alloc_device(size_t alignment,
-                                 size_t size,
+                                 size_t num_bytes,
                                  const sycl::device& dev, 
                                  const sycl::context& ctxt);
 
@@ -280,7 +280,7 @@ T* sycl::aligned_alloc_device(size_t alignment,
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::device& dev` - the `device` to allocate on
   * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -315,53 +315,68 @@ class handler {
  ...
  public:
   ...
-  void memcpy(void* dest, const void* src, size_t count);
+  void memcpy(void* dest, const void* src, size_t num_bytes);
 };
 
 class queue {
  ...
  public:
   ...
-  event memcpy(void* dest, const void* src, size_t count);
+  event memcpy(void* dest, const void* src, size_t num_bytes);
 };
 ----
 Parameters::
   * `void* dest` - pointer to the destination memory
   * `const void* src` - pointer to the source memory
-  * `size_t count` - number of bytes to copy
+  * `size_t num_bytes` - number of bytes to copy
 Return value:: Returns an event representing the copy operation.
 
-===== memfill
+===== memset
 [source,cpp]
 ----
 class handler {
  ...
  public:
   ...
-  (1)
-  void memfill(void* ptr, const void* pattern, size_t pattern_size, size_t count);
-  (2)
-  template <typename T>
-  void memfill(void* ptr, const T* pattern, size_t count)
+  void memset(void* ptr, int value, size_t num_bytes);
 };
 
 class queue {
  ...
  public:
   ...
-  (1)
-  event memfill(void* ptr, const void* pattern, size_t pattern_size, size_t count);
-  (2)
-  template <typename T>
-  void memfill(void* ptr, const T* pattern, size_t count);
+  event memset(void* ptr, int value, size_t num_bytes);
 };
 ----
 Parameters::
   * `void* ptr` - pointer to the memory to fill
-  * (1) `const void* pattern` - pattern to be filled
-  * (1) `size_t pattern_size` - size of the pattern in bytes
-  * (2) `const T* pattern` - pattern to be filled
-  * `size_t count` - number of bytes to fill
+  * `int value` - value to be set. Value is interpreted as an `unsigned char`
+  * `size_t num_bytes` - number of bytes to fill
+Return value:: Returns an event representing the fill operation.
+
+===== fill
+[source,cpp]
+----
+class handler {
+ ...
+ public:
+  ...
+  template <typename T>
+  void fill(void* ptr, const T& pattern, size_t count)
+};
+
+class queue {
+ ...
+ public:
+  ...
+  template <typename T>
+  void fill(void* ptr, const T& pattern, size_t count);
+};
+----
+Parameters::
+  * `void* ptr` - pointer to the memory to fill
+  * `const T& pattern` - pattern to be filled.  `T` should be trivially copyable.
+  * `size_t count` - number of times to fill `pattern` into `ptr`
 Return value:: Returns an event representing the fill operation.
 
 '''
@@ -372,14 +387,14 @@ Restricted USM includes all of the Utility Functions of Explicit USM.  It additi
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_host(size_t size, const sycl::context& ctxt);
+void* sycl::malloc_host(size_t num_bytes, const sycl::context& ctxt);
 (2)
 template <typename T>
 T* sycl::malloc_host(size_t count, const sycl::context& ctxt);
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::context& ctxt` - the SYCL `context` that contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::malloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
@@ -387,14 +402,14 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_host(size_t size, const sycl::queue& q);
+void* sycl::malloc_host(size_t num_bytes, const sycl::queue& q);
 (2)
 template <typename T>
 T* sycl::malloc_host(size_t count, const sycl::queue& q);
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `queue` whose `context` contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::malloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
@@ -402,7 +417,7 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_shared(size_t size, 
+void* sycl::malloc_shared(size_t num_bytes, 
                           const sycl::device& dev, 
                           const sycl::context& ctxt);
 (2)
@@ -413,7 +428,7 @@ T* sycl::malloc_shared(size_t count,
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::device& dev` - the SYCL device to allocate on
   * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -422,7 +437,7 @@ Return value:: Returns a pointer to the newly allocated `shared` memory on the s
 [source,cpp]
 ----
 (1)
-void* sycl::malloc_shared(size_t size,
+void* sycl::malloc_shared(size_t num_bytes,
                           const sycl::queue& q);
 (2)
 template <typename T>
@@ -431,7 +446,7 @@ T* sycl::malloc_shared(size_t count,
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
 
@@ -441,7 +456,7 @@ Return value:: Returns a pointer to the newly allocated `shared` memory on the `
 [source,cpp]
 ----
 (1)
-void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::context& ctxt);
+void* sycl::aligned_alloc_host(size_t alignment, size_t num_bytes, const sycl::context& ctxt);
 (2)
 template <typename T>
 T* sycl::aligned_alloc_host(size_t alignment, size_t count, const sycl::context& ctxt);
@@ -449,7 +464,7 @@ T* sycl::aligned_alloc_host(size_t alignment, size_t count, const sycl::context&
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::context& ctxt` - the SYCL `context` that contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::aligned_alloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
@@ -457,7 +472,7 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 [source,cpp]
 ----
 (1)
-void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::queue& q);
+void* sycl::aligned_alloc_host(size_t alignment, size_t num_bytes, const sycl::queue& q);
 (2)
 template <typename T>
 void* sycl::aligned_alloc_host(size_t alignment, size_t count, const sycl::queue& q);
@@ -465,7 +480,7 @@ void* sycl::aligned_alloc_host(size_t alignment, size_t count, const sycl::queue
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `q` whose `context` contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::aligned_alloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
@@ -474,7 +489,7 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 ----
 (1)
 void* sycl::aligned_alloc_shared(size_t alignment, 
-                                 size_t size, 
+                                 size_t num_bytes, 
                                  const sycl::device& dev, 
                                  const sycl::context& ctxt);
 (2)
@@ -487,7 +502,7 @@ T* sycl::aligned_alloc_shared(size_t alignment,
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::device& dev` - the SYCL `device` to allocate on
   * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -497,7 +512,7 @@ Return value:: Returns a pointer to the newly allocated `shared` memory on the s
 ----
 (1)
 void* sycl::aligned_alloc_shared(size_t alignment,
-                                 size_t size,
+                                 size_t num_bytes,
                                  const sycl::queue& q);
 (2)
 template <typename T>
@@ -508,7 +523,7 @@ T* sycl::aligned_alloc_shared(size_t alignment,
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `q` that provides the `device` and `context` to allocate against
 Return value:: Returns a pointer to the newly allocated `shared` memory on the `device` associated with `q` on success.  Memory allocated by `sycl::aligned_alloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
@@ -523,19 +538,19 @@ class handler {
  ...
  public:
   ...
-  void prefetch(const void* ptr, size_t count);
+  void prefetch(const void* ptr, size_t num_bytes);
 };
 
 class queue {
  ...
  public:
   ...
-  void prefetch(const void* ptr, size_t count);
+  void prefetch(const void* ptr, size_t num_bytes);
 };
 ----
 Parameters::
   * `const void* ptr` - pointer to the memory to be prefetched to the device
-  * `size_t count` - number of bytes requested to be prefetched
+  * `size_t num_bytes` - number of bytes requested to be prefetched
 Return value:: none
 
 '''
@@ -553,13 +568,13 @@ class queue {
  ...
  public:
   ...
-  event mem_advise(void *addr, size_t length, int advice);
+  event mem_advise(const void *addr, size_t num_bytes, int advice);
 };
 ----
 
 Parameters::
  * `void* addr` - address of allocation
- * `size_t length` - number of bytes in the allocation
+ * `size_t num_bytes` - number of bytes in the allocation
  * `int advice` - device-defined advice for the specified allocation
 Return Value:: Returns an event representing the operation.
 
@@ -569,7 +584,7 @@ Return Value:: Returns an event representing the operation.
 [source,cpp]
 ----
 (1)
-void *sycl::malloc(size_t size, 
+void *sycl::malloc(size_t num_bytes,
                    const sycl::device& dev,
                    const sycl::context& ctxt,
                    usm::alloc kind);
@@ -582,7 +597,7 @@ T *sycl::malloc(size_t count,
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::device& dev` - the SYCL device to allocate on (if applicable)
   * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -592,7 +607,7 @@ Return value:: Returns a pointer to the newly allocated `kind` memory on the spe
 [source,cpp]
 ----
 (1)
-void *sycl::malloc(size_t size,
+void *sycl::malloc(size_t num_bytes,
                    const sycl::queue& q,
                    usm::alloc kind);
 (2)
@@ -603,7 +618,7 @@ T *sycl::malloc(size_t count,
 ----
 
 Parameters::
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `q` that provides the `device` (if applicable) and `context` to allocate against
   * `usm::alloc kind` - the type of allocation to perform
@@ -613,8 +628,8 @@ Return value:: Returns a pointer to the newly allocated `kind` memory on success
 [source,cpp]
 ----
 (1)
-void *sycl::aligned_alloc(size_t alignment, 
-                          size_t size, 
+void *sycl::aligned_alloc(size_t alignment,
+                          size_t num_bytes,
                           const sycl::device& dev,
                           const sycl::context& ctxt,
                           usm::alloc kind);
@@ -629,7 +644,7 @@ T* sycl::aligned_alloc(size_t alignment,
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::device& dev` - the SYCL device to allocate on (if applicable)
   * `const sycl::context& ctxt` - the SYCL `context` to which `device` belongs
@@ -640,7 +655,7 @@ Return value:: Returns a pointer to the newly allocated `kind` memory on the spe
 ----
 (1)
 void *sycl::aligned_alloc(size_t alignment,
-                          size_t size,
+                          size_t num_bytes,
                           const sycl::queue& q,
                           usm::alloc kind);
 (2)
@@ -653,7 +668,7 @@ T* sycl::aligned_alloc(size_t alignment,
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * (1) `size_t size` - number of bytes to allocate
+  * (1) `size_t num_bytes` - number of bytes to allocate
   * (2) `size_t count` - number of elements of type `T` to allocate
   * `const sycl::queue& q` - the SYCL `q` that provides the `device` (if applicable) and `context` to allocate against. 
   * `usm::alloc kind` - the type of allocation to perform
@@ -687,9 +702,9 @@ Return value:: none
 usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 ----
 Parameters::
-  * `const void* ptr` - the pointer to query
+  * `const void* ptr` - the pointer to query.
   * `const sycl::context& ctxt` - the SYCL `context` to which the USM allocation belongs
-Return value:: Returns the USM allocation type for the allocation pointed to by `ptr`.  If `ctxt` is a host `context`, returns `usm::alloc::host`.
+Return value:: Returns the USM allocation type for `ptr` if `ptr` falls inside a valid USM allocation.  If `ctxt` is a host `context`, returns `usm::alloc::host`.  Returns `usm::alloc::unknown` if `ptr` is not a valid USM allocation.
 
 ===== get_pointer_device
 [source,cpp]
@@ -699,7 +714,7 @@ sycl::device get_pointer_device(const void *ptr, const context &ctxt);
 Parameters::
  * `const void* ptr` - the pointer to query
  * `const sycl::context& ctxt` - the SYCL `context` to which the USM allocation belongs
- Return value:: Returns the `device` associated with the USM allocation.  If `ctxt` is a host `context`, returns the host `device` in `ctxt`.  If `ptr` is an allocation of type `usm::alloc::host`, returns the first device in `ctxt`.
+ Return value:: Returns the `device` associated with the USM allocation.  If `ctxt` is a host `context`, returns the host `device` in `ctxt`.  If `ptr` is an allocation of type `usm::alloc::host`, returns the first device in `ctxt`.  Throws an error if `ptr` is not a valid USM allocation.
 
 ==== Device Information Descriptors
 [cols="^25,^15,60",options="header"]
