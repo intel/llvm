@@ -260,7 +260,10 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
           nullptr);
 
   // PI_INVALID_VALUE means USM doesn't know about this ptr
-  if ((Err != PI_SUCCESS) && (Err != PI_INVALID_VALUE)) {
+  if (Err == PI_INVALID_VALUE)
+    return alloc::unknown;
+  // otherwise PI_SUCCESS is expected
+  if (Err != PI_SUCCESS) {
     throw runtime_error("Error querying USM pointer: ", Err);
   }
 
