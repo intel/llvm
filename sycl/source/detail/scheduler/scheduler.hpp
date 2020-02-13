@@ -36,7 +36,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 struct MemObjRecord {
   MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
       : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
-                                                              CurContext} {}
+                                                             CurContext} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
@@ -61,7 +61,7 @@ public:
   // event object that can be used for waiting later. It's called by SYCL's
   // queue.submit.
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                      QueueImplPtr Queue);
+                     QueueImplPtr Queue);
 
   EventImplPtr addCopyBack(Requirement *Req);
 
@@ -113,10 +113,10 @@ protected:
     // command that represents command group execution. It's called by SYCL's
     // queue::submit.
     Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                    QueueImplPtr Queue);
+                   QueueImplPtr Queue);
 
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                              QueueImplPtr HostQueue);
+                             QueueImplPtr HostQueue);
 
     Command *addCopyBack(Requirement *Req);
     Command *addHostAccessor(Requirement *Req);
@@ -173,23 +173,22 @@ protected:
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
-                            const QueueImplPtr &Queue);
+                           const QueueImplPtr &Queue);
 
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                       const ContextImplPtr &Context);
 
     // Finds a command dependency corresponding to the record
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
 
     // Searches for suitable alloca in memory record.
-    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
-                                        Requirement *Req,
+    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
                                         const ContextImplPtr &Context);
     // Searches for suitable alloca in memory record.
     // If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
-                                                Requirement *Req,
-                                                QueueImplPtr Queue);
+                                               Requirement *Req,
+                                               QueueImplPtr Queue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
@@ -223,7 +222,7 @@ protected:
     // device. Returns true is the command is successfully enqueued. Sets
     // EnqueueResult to the specific status otherwise.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                                BlockingT Blocking = NON_BLOCKING);
+                               BlockingT Blocking = NON_BLOCKING);
   };
 
   void waitForRecordToFinish(MemObjRecord *Record);

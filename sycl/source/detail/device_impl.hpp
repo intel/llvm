@@ -56,8 +56,7 @@ public:
   /// @return non-constant reference to PI device
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
-      throw invalid_object_error(
-          "This instance of device is a host instance");
+      throw invalid_object_error("This instance of device is a host instance");
 
     return MDevice;
   }
@@ -69,8 +68,7 @@ public:
   /// @return constant reference to PI device
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
-      throw invalid_object_error(
-          "This instance of device is a host instance");
+      throw invalid_object_error("This instance of device is a host instance");
 
     return MDevice;
   }
@@ -83,16 +81,12 @@ public:
   /// Check if device is a CPU device
   ///
   /// @return true if SYCL device is a CPU device
-  bool is_cpu() const {
-    return (!is_host() && (MType == PI_DEVICE_TYPE_CPU));
-  }
+  bool is_cpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_CPU)); }
 
   /// Check if device is a GPU device
   ///
   /// @return true if SYCL device is a GPU device
-  bool is_gpu() const {
-    return (!is_host() && (MType == PI_DEVICE_TYPE_GPU));
-  }
+  bool is_gpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_GPU)); }
 
   /// Check if device is an accelerator device
   ///
@@ -124,7 +118,7 @@ public:
 
   vector_class<device>
   create_sub_devices(const cl_device_partition_property *Properties,
-                      size_t SubDevicesCount) const;
+                     size_t SubDevicesCount) const;
 
   /// Partition device into sub devices
   ///
@@ -201,7 +195,7 @@ public:
 
 private:
   explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
-                        const plugin &Plugin);
+                       const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;

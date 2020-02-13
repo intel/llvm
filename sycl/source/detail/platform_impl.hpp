@@ -38,7 +38,7 @@ public:
       : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
 
   explicit platform_impl(RT::PiPlatform APlatform,
-                          std::shared_ptr<plugin> APlugin)
+                         std::shared_ptr<plugin> APlugin)
       : MPlatform(APlatform), MPlugin(APlugin) {}
 
   ~platform_impl() = default;

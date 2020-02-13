@@ -69,7 +69,7 @@ public:
   /// @param ProgramList is a list of program_impl instances.
   /// @param LinkOptions is a string containing valid OpenCL link options.
   program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
-                string_class LinkOptions = "");
+               string_class LinkOptions = "");
 
   /// Constructs a program instance from plugin interface interoperability
   /// handle.
@@ -145,7 +145,7 @@ public:
   /// @param KernelSource is a string containing OpenCL C kernel source code.
   /// @param CompileOptions is a string containing OpenCL compile options.
   void compile_with_source(string_class KernelSource,
-                            string_class CompileOptions = "");
+                           string_class CompileOptions = "");
 
   /// Builds the SYCL kernel function into encapsulated raw program.
   ///
@@ -178,7 +178,7 @@ public:
   /// @param KernelSource is a string containing OpenCL C kernel source code.
   /// @param BuildOptions is a string containing OpenCL build options.
   void build_with_source(string_class KernelSource,
-                          string_class BuildOptions = "");
+                         string_class BuildOptions = "");
 
   /// Links encapsulated raw program.
   ///

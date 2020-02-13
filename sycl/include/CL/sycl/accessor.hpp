@@ -426,8 +426,8 @@ public:
         MImageCount(ImageRef.get_count()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
-        checkDeviceFeatureSupported<info::device::image_support>(
-            getDeviceFromHandler(CommandGroupHandlerRef));
+    checkDeviceFeatureSupported<info::device::image_support>(
+        getDeviceFromHandler(CommandGroupHandlerRef));
   }
 #endif
 

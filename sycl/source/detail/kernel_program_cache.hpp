@@ -63,9 +63,7 @@ public:
 
   ~KernelProgramCache();
 
-  void setContextPtr(const ContextPtr &AContext) {
-    MParentContext = AContext;
-  }
+  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
   Locked<ProgramCacheT> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
@@ -96,4 +94,4 @@ private:
 };
 } // namespace detail
 } // namespace sycl
-}
+} // __SYCL_INLINE_NAMESPACE(cl)

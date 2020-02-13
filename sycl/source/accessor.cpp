@@ -15,6 +15,6 @@ namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
   return CommandGroupHandlerRef.MQueue->get_device();
 }
-}
-}
-}
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

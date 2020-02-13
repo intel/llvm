@@ -40,7 +40,7 @@ enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 struct EnqueueResultT {
   enum ResultT { SUCCESS, BLOCKED, FAILED };
   EnqueueResultT(ResultT Result = SUCCESS, Command *Cmd = nullptr,
-                  cl_int ErrCode = CL_SUCCESS)
+                 cl_int ErrCode = CL_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   // Indicates result of enqueueing
   ResultT MResult;
@@ -54,12 +54,11 @@ struct EnqueueResultT {
 struct DepDesc {
   DepDesc(Command *DepCommand, const Requirement *Req,
           AllocaCommandBase *AllocaCmd)
-      : MDepCommand(DepCommand), MDepRequirement(Req), MAllocaCmd(AllocaCmd) {
-  }
+      : MDepCommand(DepCommand), MDepRequirement(Req), MAllocaCmd(AllocaCmd) {}
 
   friend bool operator<(const DepDesc &Lhs, const DepDesc &Rhs) {
     return std::tie(Lhs.MDepRequirement, Lhs.MDepCommand) <
-            std::tie(Rhs.MDepRequirement, Rhs.MDepCommand);
+           std::tie(Rhs.MDepRequirement, Rhs.MDepCommand);
   }
 
   // The actual dependency command.
@@ -134,7 +133,7 @@ protected:
   std::vector<EventImplPtr> MDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                      RT::PiEvent &Event);
+                     RT::PiEvent &Event);
   std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
 
   // Private interface. Derived classes should implement this method.
@@ -184,8 +183,8 @@ private:
 class ReleaseCommand : public Command {
 public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-      : Command(CommandType::RELEASE, std::move(Queue)),
-        MAllocaCmd(AllocaCmd) {}
+      : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+  }
 
   void printDot(std::ostream &Stream) const final;
 
@@ -241,8 +240,8 @@ public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr)
-      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue),
-                          std::move(Req), LinkedAllocaCmd),
+      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
+                          LinkedAllocaCmd),
         MInitFromUserData(InitFromUserData) {
     addDep(DepDesc(nullptr, getRequirement(), this));
   }
@@ -279,8 +278,8 @@ private:
 
 class MapMemObject : public Command {
 public:
-  MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
-                void **DstPtr, QueueImplPtr Queue);
+  MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
+               QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -296,7 +295,7 @@ private:
 class UnMapMemObject : public Command {
 public:
   UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
-                  void **SrcPtr, QueueImplPtr Queue);
+                 void **SrcPtr, QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
@@ -371,10 +370,9 @@ private:
 class UpdateHostRequirementCommand : public Command {
 public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
-                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
+                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
       : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
-        MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)),
-        MDstPtr(DstPtr) {}
+        MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {}
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }

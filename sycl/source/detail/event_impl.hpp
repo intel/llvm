@@ -91,8 +91,7 @@ public:
   ///
   /// @return depends on the information being requested.
   template <info::event param>
-  typename info::param_traits<info::event, param>::return_type
-  get_info() const;
+  typename info::param_traits<info::event, param>::return_type get_info() const;
 
   ~event_impl();
 
@@ -143,9 +142,7 @@ public:
   /// Returns host profiling information.
   ///
   /// @return a pointer to HostProfilingInfo instance.
-  HostProfilingInfo *getHostProfilingInfo() {
-    return MHostProfilingInfo.get();
-  }
+  HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
 private:
   RT::PiEvent MEvent = nullptr;

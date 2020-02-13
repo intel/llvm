@@ -45,12 +45,12 @@ public:
   /// @param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
-  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
-              QueueOrder Order, const property_list &PropList)
+  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler, QueueOrder Order,
+             const property_list &PropList)
       : queue_impl(Device,
-                    detail::getSyclObjImpl(
-                        context(createSyclObjFromImpl<device>(Device))),
-                    AsyncHandler, Order, PropList){};
+                   detail::getSyclObjImpl(
+                       context(createSyclObjFromImpl<device>(Device))),
+                   AsyncHandler, Order, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -64,8 +64,8 @@ public:
   /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
-              async_handler AsyncHandler, QueueOrder Order,
-              const property_list &PropList)
+             async_handler AsyncHandler, QueueOrder Order,
+             const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
@@ -85,7 +85,7 @@ public:
   /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
-              const async_handler &AsyncHandler)
+             const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
         MOpenCLInterop(true) {
 
@@ -96,7 +96,8 @@ public:
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueGetInfo>(MCommandQueue, PI_QUEUE_INFO_DEVICE,
                                            sizeof(Device), &Device, nullptr);
-    MDevice = DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
+    MDevice =
+        DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueRetain>(MCommandQueue);
@@ -138,8 +139,7 @@ public:
   ///
   /// The return type depends on information being queried.
   template <info::queue param>
-  typename info::param_traits<info::queue, param>::return_type
-  get_info() const;
+  typename info::param_traits<info::queue, param>::return_type get_info() const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -152,8 +152,8 @@ public:
   /// @return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const function_class<void(handler &)> &CGF,
-                shared_ptr_class<queue_impl> Self,
-                shared_ptr_class<queue_impl> SecondQueue) {
+               shared_ptr_class<queue_impl> Self,
+               shared_ptr_class<queue_impl> SecondQueue) {
     try {
       return submit_impl(CGF, Self);
     } catch (...) {
@@ -172,7 +172,7 @@ public:
   /// @param Self is a shared_ptr to this queue.
   /// @return a SYCL event object for the submitted command group.
   event submit(const function_class<void(handler &)> &CGF,
-                shared_ptr_class<queue_impl> Self) {
+               shared_ptr_class<queue_impl> Self) {
     return submit_impl(CGF, std::move(Self));
   }
 
@@ -316,7 +316,7 @@ public:
   /// @param Count is a number of bytes to fill.
   /// @return an event representing fill operation.
   event memset(shared_ptr_class<queue_impl> Impl, void *Ptr, int Value,
-                size_t Count);
+               size_t Count);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -325,7 +325,7 @@ public:
   /// @param Src is a USM pointer to the source memory.
   /// @param Count is a number of bytes to copy.
   event memcpy(shared_ptr_class<queue_impl> Impl, void *Dest, const void *Src,
-                size_t Count);
+               size_t Count);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///

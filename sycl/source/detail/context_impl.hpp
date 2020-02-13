@@ -50,7 +50,7 @@ public:
   /// @param DeviceList is a list of SYCL device instances.
   /// @param AsyncHandler is an instance of async_handler.
   context_impl(const vector_class<cl::sycl::device> Devices,
-                async_handler AsyncHandler);
+               async_handler AsyncHandler);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -62,7 +62,7 @@ public:
   /// @param &Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
-                const plugin &Plugin);
+               const plugin &Plugin);
 
   ~context_impl();
 
