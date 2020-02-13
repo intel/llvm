@@ -60,11 +60,11 @@ int main() {
 
   FakeCommand LeafB{detail::getSyclObjImpl(Queue), FakeReqB};
   addEdge(&LeafB, &AllocaB, &AllocaB);
-  TS.AddNodeToLeaves(RecC, &LeafB);
+  TS.addNodeToLeaves(RecC, &LeafB);
 
   FakeCommand LeafA{detail::getSyclObjImpl(Queue), FakeReqA};
   addEdge(&LeafA, InnerC, &AllocaA);
-  TS.AddNodeToLeaves(RecC, &LeafA);
+  TS.addNodeToLeaves(RecC, &LeafA);
 
   FakeCommand *InnerB = new FakeCommandWithCallback(
       detail::getSyclObjImpl(Queue), FakeReqB, Callback);
