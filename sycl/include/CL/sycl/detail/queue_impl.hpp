@@ -352,12 +352,14 @@ private:
     handler Handler(std::move(Self), MHostQueue);
     CGF(Handler);
     event Event = Handler.finalize();
-    {
-      std::lock_guard<mutex_class> Guard(MMutex);
-      MEvents.push_back(Event);
-    }
+    addEvent(Event);
     return Event;
   }
+
+  /// Stores an event that should be associated with the queue
+  ///
+  /// @param Event is the event to be stored
+  void addEvent(event Event);
 
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;
