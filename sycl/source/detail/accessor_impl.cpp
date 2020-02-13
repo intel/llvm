@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -16,6 +17,12 @@ namespace detail {
 AccessorImplHost::~AccessorImplHost() {
   if (MBlockedCmd)
     detail::Scheduler::getInstance().releaseHostAccessor(this);
+}
+
+void addHostAccessorAndWait(Requirement* Req) {
+  detail::EventImplPtr Event =
+      detail::Scheduler::getInstance().addHostAccessor(Req);
+  Event->wait(Event);
 }
 }
 }

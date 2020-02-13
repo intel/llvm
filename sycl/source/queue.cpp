@@ -134,5 +134,8 @@ template bool queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
+bool queue::is_in_order() const {
+  return impl->has_property<property::queue::in_order>();
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

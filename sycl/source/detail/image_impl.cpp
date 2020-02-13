@@ -412,11 +412,6 @@ image_impl<Dimensions>::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }
 
-template <int Dimensions>
-const detail::plugin &image_impl<Dimensions>::getContextPlugin(const ContextImplPtr Context) {
-  return Context->getPlugin();
-}
-
 template class image_impl<1>;
 template class image_impl<2>;
 template class image_impl<3>;

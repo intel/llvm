@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/scheduler/scheduler.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
 

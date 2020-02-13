@@ -16,7 +16,6 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_accessor_util.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
@@ -397,10 +396,7 @@ public:
         MImageCount(ImageRef.get_count()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
-    detail::EventImplPtr Event =
-        detail::Scheduler::getInstance().addHostAccessor(
-            AccessorBaseHost::impl.get());
-    Event->wait(Event);
+    addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
 #endif
 
@@ -428,8 +424,8 @@ public:
         MImageCount(ImageRef.get_count()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
-    checkDeviceFeatureSupported<info::device::image_support>(
-        CommandGroupHandlerRef.MQueue->get_device());
+//    checkDeviceFeatureSupported<info::device::image_support>(
+//        CommandGroupHandlerRef.MQueue->get_device());
   }
 #endif
 
@@ -770,12 +766,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    if (!IsPlaceH) {
-      detail::EventImplPtr Event =
-          detail::Scheduler::getInstance().addHostAccessor(
-              AccessorBaseHost::impl.get());
-      Event->wait(Event);
-    }
+    if (!IsPlaceH)
+      addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
   }
 
@@ -814,12 +806,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    if (!IsPlaceH) {
-      detail::EventImplPtr Event =
-          detail::Scheduler::getInstance().addHostAccessor(
-              AccessorBaseHost::impl.get());
-      Event->wait(Event);
-    }
+    if (!IsPlaceH)
+      addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
 #endif
 
@@ -858,12 +846,8 @@ public:
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    if (!IsPlaceH) {
-      detail::EventImplPtr Event =
-          detail::Scheduler::getInstance().addHostAccessor(
-              AccessorBaseHost::impl.get());
-      Event->wait(Event);
-    }
+    if (!IsPlaceH)
+      addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
 #endif
 

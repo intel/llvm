@@ -90,8 +90,6 @@ private:
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 
-  const detail::plugin &getContextPlugin(const ContextImplPtr Context);
-
 public:
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,

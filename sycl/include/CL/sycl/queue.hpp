@@ -9,9 +9,11 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
@@ -447,9 +449,7 @@ public:
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()
-  bool is_in_order() const {
-    return impl->has_property<property::queue::in_order>();
-  }
+  bool is_in_order() const;
 
 private:
   shared_ptr_class<detail::queue_impl> impl;

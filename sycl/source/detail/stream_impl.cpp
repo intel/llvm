@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <cstdio>
 
