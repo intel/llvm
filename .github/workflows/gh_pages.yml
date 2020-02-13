@@ -1,0 +1,47 @@
+name: GitHub Pages
+
+on:
+  schedule:
+  - cron: 0 1 * * *
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/repo
+        cd $GITHUB_WORKSPACE/repo
+        git clone https://github.com/$GITHUB_REPOSITORY .
+    - name: Install deps
+      run: sudo apt-get install -y doxygen graphviz ssh
+    - name: Build Docs
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        cmake -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
+        -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
+        -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$GITHUB_WORKSPACE/repo/sycl \
+        -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$GITHUB_WORKSPACE/repo/llvm-spirv \
+        -DLLVM_ENABLE_DOXYGEN=ON \
+        $GITHUB_WORKSPACE/repo/llvm
+        cmake --build . --target doxygen-sycl
+    - name: Deploy
+      env:
+        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add -k ~/.ssh/id_rsa
+        mkdir -p $GITHUB_WORKSPACE/docs
+        cd $GITHUB_WORKSPACE/docs
+        git clone --single-branch --branch gh-pages git@github.com:$GITHUB_REPOSITORY.git .
+        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* .
+        git config --global user.name "iclsrc"
+        git config --global user.email "ia.compiler.tools.git@intel.com"
+        git add .
+        git diff-index --quiet HEAD || git commit -m "Update docs" -s
+        git push
