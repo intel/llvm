@@ -32,8 +32,9 @@ public:
     pi_int32 Code;
 
     /// Equals to true if the Msg and Code are initialized. This flag is added
-    /// due to possibility of Code equal to zero even if there is a
-    /// cl::sycl::exception thrown
+    /// due to the possibility of error code being equal to zero even in case 
+    // if build is failed and cl::sycl::exception is thrown
+
     bool FilledIn;
   };
 
