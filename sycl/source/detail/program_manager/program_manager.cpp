@@ -111,7 +111,8 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
 template <typename ExceptionT, typename RetT>
 RetT *waitUntilBuilt(KernelProgramCache &Cache,
-                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
+                     KernelProgramCache::BuildResult<RetT> *BuildResult,
+                     bool &TryAgain) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
   Cache.waitUntilBuilt([BuildResult]() {
@@ -127,7 +128,9 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 
   RetT *Result = BuildResult->Ptr.load();
 
-  assert(Result && "An exception should have been thrown");
+  // if the result is still null then there was no SYCL exception and we may try
+  // to build kernel/program once more to generate the original exception
+  TryAgain = !Result;
 
   return Result;
 }
@@ -170,10 +173,29 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
-    return waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
+    bool TryAgain = false;
+
+    for (;;) {
+      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult, TryAgain);
+
+      if (TryAgain) {
+        // Previous build is failed. There was no SYCL exception though.
+        // We might try to build once more.
+        int Expected = BS_Failed;
+        int Desired = BS_InProgress;
+
+        if (BuildResult->State.compare_exchange_strong(Expected, Desired)) {
+          // this thread is the building thread now
+          break;
+        }
+
+        continue;
+      } else // no need to try once more
+        return Result;
+    }
   }
 
-  // only the building thread will run this, and only once.
+  // only the building thread will run this
   try {
     RetT *Desired = Build();
 
@@ -184,7 +206,7 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
       // We've got a funny story here
       assert(false && "We've build an entity that is already have been built.");
 #else
-    WithState->Ptr.store(Desired);
+    BuildResult->Ptr.store(Desired);
 #endif
 
     BuildResult->State.store(BS_Done);

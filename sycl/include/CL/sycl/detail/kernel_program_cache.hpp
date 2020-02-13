@@ -25,9 +25,15 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
+  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// class instance.
   struct BuildError {
     std::string Msg;
-    cl_int Code;
+    pi_int32 Code;
+
+    /// Equals to true if the Msg and Code are initialized. This flag is added
+    /// due to possibility of Code equal to zero even if there is a
+    /// cl::sycl::exception thrown
     bool FilledIn;
   };
 
