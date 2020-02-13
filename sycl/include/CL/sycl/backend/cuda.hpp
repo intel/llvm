@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace backend {
 namespace cuda {
