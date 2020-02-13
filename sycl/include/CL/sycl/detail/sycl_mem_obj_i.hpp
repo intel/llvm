@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/stl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <memory>
 
@@ -64,7 +65,7 @@ public:
 protected:
   // Pointer to the record that contains the memory commands. This is managed
   // by the scheduler.
-  std::unique_ptr<MemObjRecord> MRecord;
+  std::shared_ptr<MemObjRecord> MRecord;
   friend class Scheduler;
 };
 

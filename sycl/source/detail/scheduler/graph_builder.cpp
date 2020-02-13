@@ -765,7 +765,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
       [MemObject](const SYCLMemObjI *Obj) { return Obj == MemObject; });
   if (It != MMemObjs.end())
     MMemObjs.erase(It);
-  MemObject->MRecord.reset(nullptr);
+  MemObject->MRecord.reset();
 }
 
 } // namespace detail
