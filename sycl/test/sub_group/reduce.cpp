@@ -34,10 +34,10 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               acc[NdItem.get_global_id(0)] =
-                  sg.reduce(T(NdItem.get_global_id(0)), op);
+                  reduce(sg, T(NdItem.get_global_id(0)), op);
             } else {
               acc[NdItem.get_global_id(0)] =
-                  sg.reduce(T(NdItem.get_global_id(0)), init, op);
+                  reduce(sg, T(NdItem.get_global_id(0)), init, op);
             }
           });
     });

@@ -36,14 +36,14 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
             } else {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), init, op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), init, op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op, init);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op, init);
             }
           });
     });
