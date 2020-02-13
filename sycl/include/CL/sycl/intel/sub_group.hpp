@@ -132,6 +132,12 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
 namespace intel {
 
 struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = 1;
+
   /* --- common interface members --- */
 
   id<1> get_local_id() const {
