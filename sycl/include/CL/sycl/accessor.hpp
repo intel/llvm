@@ -166,6 +166,8 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   return NewObj;
 }
 
+device getDeviceFromHandler(handler &CommandGroupHandlerRef);
+
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class accessor_common {
@@ -424,8 +426,8 @@ public:
         MImageCount(ImageRef.get_count()),
         MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
         MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
-    //    checkDeviceFeatureSupported<info::device::image_support>(
-    //        CommandGroupHandlerRef.MQueue->get_device());
+        checkDeviceFeatureSupported<info::device::image_support>(
+            getDeviceFromHandler(CommandGroupHandlerRef));
   }
 #endif
 

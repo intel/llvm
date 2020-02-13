@@ -109,10 +109,7 @@ public:
   /// @param SyclDevice is an instance of SYCL device.
   /// @param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device &SyclDevice,
-        const property_list &PropList = {})
-      : queue(SyclContext, SyclDevice,
-              detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-              PropList) {};
+        const property_list &PropList = {});
 
   /// Constructs a SYCL queue associated with the given context, device,
   /// asynchronous exception handler and optional properties list.

@@ -74,6 +74,12 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
             detail::getSyclObjImpl(syclContext)->get_async_handler(),
             propList) {}
 
+queue::queue(const context &SyclContext, const device &SyclDevice,
+        const property_list &PropList)
+      : queue(SyclContext, SyclDevice,
+              detail::getSyclObjImpl(SyclContext)->get_async_handler(),
+              PropList) {};
+
 cl_command_queue queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }
