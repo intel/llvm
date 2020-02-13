@@ -27,7 +27,7 @@ namespace sycl {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
+using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
@@ -72,6 +72,10 @@ public:
     if (!MHostQueue) {
       MCommandQueue = createQueue(Order);
     }
+    if (!Context->hasDevice(Device))
+      throw cl::sycl::invalid_parameter_error(
+          "Queue cannot be constructed with the given context and device "
+          "as the context does not contain the given device.");
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -92,8 +96,7 @@ public:
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueGetInfo>(MCommandQueue, PI_QUEUE_INFO_DEVICE,
                                            sizeof(Device), &Device, nullptr);
-    MDevice =
-        std::make_shared<device_impl>(Device, Context->getPlatformImpl());
+    MDevice = DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueRetain>(MCommandQueue);

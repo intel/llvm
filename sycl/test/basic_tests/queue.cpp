@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %t.out
 //==--------------- queue.cpp - SYCL queue test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -99,5 +100,24 @@ int main() {
     context Context(Device);
     queue Queue(Context, Selector);
     assert(Context == Queue.get_context());
+  }
+
+  {
+    context Context(deviceA);
+    queue Queue(Context, deviceA);
+    assert(Context == Queue.get_context());
+  }
+
+  if (devices.size() > 1) {
+    bool GotException = false;
+    try {
+      context Context(deviceA);
+      queue Queue(Context, deviceB);
+      assert(Context == Queue.get_context());
+    } catch (std::exception &e) {
+      std::cout << "Exception check passed: " << e.what() << std::endl;
+      GotException = true;
+    }
+    assert(GotException);
   }
 }
