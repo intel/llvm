@@ -24,6 +24,10 @@
 #define ALWAYS_INLINE
 #endif
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif // __has_builtin
+
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif
