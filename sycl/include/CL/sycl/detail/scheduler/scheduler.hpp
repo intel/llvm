@@ -155,11 +155,11 @@ protected:
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
 
     // Add new command to leaves if needed.
-    void AddNodeToLeaves(MemObjRecord *Record, Command *Cmd,
+    void addNodeToLeaves(MemObjRecord *Record, Command *Cmd,
                          access::mode AccessMode);
 
     // Removes commands from leaves.
-    void UpdateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
+    void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode);
 
     std::vector<SYCLMemObjI *> MMemObjs;

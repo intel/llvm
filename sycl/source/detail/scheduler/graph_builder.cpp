@@ -130,7 +130,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
 }
 
 // Helper function which removes all values in Cmds from Leaves
-void Scheduler::GraphBuilder::UpdateLeaves(const std::set<Command *> &Cmds,
+void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
                                            MemObjRecord *Record,
                                            access::mode AccessMode) {
 
@@ -151,7 +151,7 @@ void Scheduler::GraphBuilder::UpdateLeaves(const std::set<Command *> &Cmds,
   }
 }
 
-void Scheduler::GraphBuilder::AddNodeToLeaves(MemObjRecord *Record,
+void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
   CircularBuffer<Command *> &Leaves{AccessMode == access::mode::read
@@ -191,8 +191,8 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
   }
-  UpdateLeaves(Deps, Record, Req->MAccessMode);
-  AddNodeToLeaves(Record, UpdateCommand, Req->MAccessMode);
+  updateLeaves(Deps, Record, Req->MAccessMode);
+  addNodeToLeaves(Record, UpdateCommand, Req->MAccessMode);
   return UpdateCommand;
 }
 
@@ -292,8 +292,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     NewCmd->addDep(DepDesc{Dep, NewCmd->getRequirement(), AllocaCmdDst});
     Dep->addUser(NewCmd);
   }
-  UpdateLeaves(Deps, Record, access::mode::read_write);
-  AddNodeToLeaves(Record, NewCmd, access::mode::read_write);
+  updateLeaves(Deps, Record, access::mode::read_write);
+  addNodeToLeaves(Record, NewCmd, access::mode::read_write);
   Record->MCurContext = Queue->getContextImplPtr();
   return NewCmd;
 }
@@ -330,8 +330,8 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
     Dep->addUser(MemCpyCmd);
   }
 
-  UpdateLeaves(Deps, Record, Req->MAccessMode);
-  AddNodeToLeaves(Record, MemCpyCmd, Req->MAccessMode);
+  updateLeaves(Deps, Record, Req->MAccessMode);
+  addNodeToLeaves(Record, MemCpyCmd, Req->MAccessMode);
   if (MPrintOptionsArray[AfterAddCopyBack])
     printGraphAsDot("after_addCopyBack");
   return MemCpyCmd;
@@ -367,8 +367,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
   EmptyCmd->MCanEnqueue = false;
   EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
-  UpdateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
-  AddNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
+  addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -504,7 +504,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
-      UpdateLeaves(findDepsForReq(Record, Req, Queue->getContextImplPtr()),
+      updateLeaves(findDepsForReq(Record, Req, Queue->getContextImplPtr()),
                    Record, access::mode::read_write);
     } else {
 
@@ -624,8 +624,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     Dep.MDepCommand->addUser(NewCmd.get());
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-    UpdateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
-    AddNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
+    updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
   }
 
   // Register all the events as dependencies
