@@ -90,6 +90,8 @@ private:
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 
+  const detail::plugin &getContextPlugin(const ContextImplPtr Context);
+
 public:
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
@@ -222,7 +224,7 @@ private:
   template <typename T>
   void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
                     T &Dest) {
-    const detail::plugin &Plugin = Context->getPlugin();
+    const detail::plugin &Plugin = getContextPlugin(Context);
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
                                               nullptr);

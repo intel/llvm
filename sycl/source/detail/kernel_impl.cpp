@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/kernel_info.hpp>
+#include <detail/kernel_info.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/program.hpp>
 #include <detail/context_impl.hpp>

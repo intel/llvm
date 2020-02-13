@@ -12,7 +12,7 @@
 #include <CL/cl.h>
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/kernel_info.hpp>
+#include <detail/kernel_info.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
