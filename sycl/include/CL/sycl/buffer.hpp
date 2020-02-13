@@ -370,6 +370,10 @@ private:
       return newRange[0] == 1 && newRange[2] == parentRange[2];
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
+
+  static_assert (dimensions > 0 && dimensions <= 3,
+		  "Dimensions can be 1/2/3 for buffer.");
+
 };
 
 #ifdef __cpp_deduction_guides
