@@ -17,6 +17,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cassert>
+#include <map>
 
 using namespace cl::sycl;
 

@@ -12,6 +12,7 @@
 
 #include <CL/cl.h>
 #include <CL/sycl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 using namespace cl::sycl;
 

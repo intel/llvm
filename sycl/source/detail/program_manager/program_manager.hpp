@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <map>
 #include <unordered_map>
 #include <vector>
 
