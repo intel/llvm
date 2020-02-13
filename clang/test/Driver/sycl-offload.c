@@ -711,7 +711,7 @@
 /// Verify that -save-temps does not crash
 // RUN: %clang -fsycl -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
 // RUN: %clang -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
-// RUN: %clangxx -fsycl -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK-FSYCL-SAVE-TEMPS
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME:[a-z0-9-]+]].ii"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME]].bc"{{.*}} "[[DEVICE_BASE_NAME]].ii"
