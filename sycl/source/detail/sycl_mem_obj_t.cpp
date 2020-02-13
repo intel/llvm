@@ -83,7 +83,7 @@ void SYCLMemObjT::updateHostMemory() {
 }
 const plugin &SYCLMemObjT::getPlugin() const {
   assert((MInteropContext != nullptr) &&
-          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
+         "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
   return (MInteropContext->getPlugin());
 }
 } // namespace detail

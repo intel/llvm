@@ -54,8 +54,7 @@ template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
 
 template <typename T, info::kernel_work_group Param>
 struct get_kernel_work_group_info {
-  static T get(RT::PiKernel Kernel, RT::PiDevice Device,
-               const plugin &Plugin) {
+  static T get(RT::PiKernel Kernel, RT::PiDevice Device, const plugin &Plugin) {
     T Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(

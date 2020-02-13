@@ -19,7 +19,7 @@ AccessorImplHost::~AccessorImplHost() {
     detail::Scheduler::getInstance().releaseHostAccessor(this);
 }
 
-void addHostAccessorAndWait(Requirement* Req) {
+void addHostAccessorAndWait(Requirement *Req) {
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
   Event->wait(Event);

@@ -195,7 +195,8 @@ public:
       : Range{0} {
 
     size_t BufSize = 0;
-    const detail::plugin &Plugin = getContextPlugin(detail::getSyclObjImpl(SyclContext));
+    const detail::plugin &Plugin =
+        getContextPlugin(detail::getSyclObjImpl(SyclContext));
     Plugin.call<detail::PiApiKind::piMemGetInfo>(
         detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
         sizeof(size_t), &BufSize, nullptr);

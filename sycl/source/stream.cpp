@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/queue_impl.hpp>
 #include <CL/sycl/stream.hpp>
+#include <detail/queue_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
