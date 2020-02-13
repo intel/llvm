@@ -121,6 +121,8 @@ def SDT_X86WIN_ALLOCA : SDTypeProfile<0, 1, [SDTCisVT<0, iPTR>]>;
 
 def SDT_X86SEG_ALLOCA : SDTypeProfile<1, 1, [SDTCisVT<0, iPTR>, SDTCisVT<1, iPTR>]>;
 
+def SDT_X86PROBED_ALLOCA : SDTypeProfile<1, 1, [SDTCisVT<0, iPTR>, SDTCisVT<1, iPTR>]>;
+
 def SDT_X86EHRET : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 
 def SDT_X86TCRET : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
@@ -151,8 +153,6 @@ def X86brcond  : SDNode<"X86ISD::BRCOND",   SDTX86BrCond,
                         [SDNPHasChain]>;
 def X86setcc   : SDNode<"X86ISD::SETCC",    SDTX86SetCC>;
 def X86setcc_c : SDNode<"X86ISD::SETCC_CARRY", SDTX86SetCC_C>;
-
-def X86sahf    : SDNode<"X86ISD::SAHF",     SDTX86sahf>;
 
 def X86rdrand  : SDNode<"X86ISD::RDRAND",   SDTX86rdrand,
                         [SDNPHasChain, SDNPSideEffect]>;
@@ -292,6 +292,9 @@ def X86WinAlloca : SDNode<"X86ISD::WIN_ALLOCA", SDT_X86WIN_ALLOCA,
                           [SDNPHasChain, SDNPOutGlue]>;
 
 def X86SegAlloca : SDNode<"X86ISD::SEG_ALLOCA", SDT_X86SEG_ALLOCA,
+                          [SDNPHasChain]>;
+
+def X86ProbedAlloca : SDNode<"X86ISD::PROBED_ALLOCA", SDT_X86PROBED_ALLOCA,
                           [SDNPHasChain]>;
 
 def X86TLSCall : SDNode<"X86ISD::TLSCALL", SDT_X86TLSCALL,
@@ -1787,9 +1790,8 @@ def MOV8rm_NOREX : I<0x8A, MRMSrcMem,
 
 // Condition code ops, incl. set if equal/not equal/...
 let SchedRW = [WriteLAHFSAHF] in {
-let Defs = [EFLAGS], Uses = [AH] in
-def SAHF     : I<0x9E, RawFrm, (outs),  (ins), "sahf",
-                 [(set EFLAGS, (X86sahf AH))]>,
+let Defs = [EFLAGS], Uses = [AH], hasSideEffects = 0 in
+def SAHF     : I<0x9E, RawFrm, (outs),  (ins), "sahf", []>,  // flags = AH
                  Requires<[HasLAHFSAHF]>;
 let Defs = [AH], Uses = [EFLAGS], hasSideEffects = 0 in
 def LAHF     : I<0x9F, RawFrm, (outs),  (ins), "lahf", []>,  // AH = flags

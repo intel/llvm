@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/AffineOps/AffineOps.h"
+#include "mlir/Dialect/AffineOps/AffineValueMap.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
@@ -233,6 +234,10 @@ void AffineApplyOp::build(Builder *builder, OperationState &result,
   result.addOperands(operands);
   result.types.append(map.getNumResults(), builder->getIndexType());
   result.addAttribute("map", AffineMapAttr::get(map));
+}
+
+AffineValueMap AffineApplyOp::getAffineValueMap() {
+  return AffineValueMap(getAffineMap(), getOperands(), getResult());
 }
 
 ParseResult AffineApplyOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -1332,7 +1337,7 @@ static void printBound(AffineMapAttr boundMap,
 }
 
 static void print(OpAsmPrinter &p, AffineForOp op) {
-  p << "affine.for ";
+  p << op.getOperationName() << ' ';
   p.printOperand(op.getBody()->getArgument(0));
   p << " = ";
   printBound(op.getLowerBoundMapAttr(), op.getLowerBoundOperands(), "max", p);
@@ -1935,22 +1940,41 @@ LogicalResult AffineStoreOp::fold(ArrayRef<Attribute> cstOperands,
 }
 
 //===----------------------------------------------------------------------===//
-// AffineMinOp
+// AffineMinMaxOpBase
 //===----------------------------------------------------------------------===//
-//
-//   %0 = affine.min (d0) -> (1000, d0 + 512) (%i0)
-//
 
-static ParseResult parseAffineMinOp(OpAsmParser &parser,
-                                    OperationState &result) {
+template <typename T>
+static LogicalResult verifyAffineMinMaxOp(T op) {
+  // Verify that operand count matches affine map dimension and symbol count.
+  if (op.getNumOperands() != op.map().getNumDims() + op.map().getNumSymbols())
+    return op.emitOpError(
+        "operand count and affine map dimension and symbol count must match");
+  return success();
+}
+
+template <typename T>
+static void printAffineMinMaxOp(OpAsmPrinter &p, T op) {
+  p << op.getOperationName() << ' ' << op.getAttr(T::getMapAttrName());
+  auto operands = op.getOperands();
+  unsigned numDims = op.map().getNumDims();
+  p << '(' << operands.take_front(numDims) << ')';
+
+  if (operands.size() != numDims)
+    p << '[' << operands.drop_front(numDims) << ']';
+  p.printOptionalAttrDict(op.getAttrs(),
+                          /*elidedAttrs=*/{T::getMapAttrName()});
+}
+
+template <typename T>
+static ParseResult parseAffineMinMaxOp(OpAsmParser &parser,
+                                       OperationState &result) {
   auto &builder = parser.getBuilder();
   auto indexType = builder.getIndexType();
   SmallVector<OpAsmParser::OperandType, 8> dim_infos;
   SmallVector<OpAsmParser::OperandType, 8> sym_infos;
   AffineMapAttr mapAttr;
   return failure(
-      parser.parseAttribute(mapAttr, AffineMinOp::getMapAttrName(),
-                            result.attributes) ||
+      parser.parseAttribute(mapAttr, T::getMapAttrName(), result.attributes) ||
       parser.parseOperandList(dim_infos, OpAsmParser::Delimiter::Paren) ||
       parser.parseOperandList(sym_infos,
                               OpAsmParser::Delimiter::OptionalSquare) ||
@@ -1960,25 +1984,12 @@ static ParseResult parseAffineMinOp(OpAsmParser &parser,
       parser.addTypeToList(indexType, result.types));
 }
 
-static void print(OpAsmPrinter &p, AffineMinOp op) {
-  p << op.getOperationName() << ' '
-    << op.getAttr(AffineMinOp::getMapAttrName());
-  auto operands = op.getOperands();
-  unsigned numDims = op.map().getNumDims();
-  p << '(' << operands.take_front(numDims) << ')';
-
-  if (operands.size() != numDims)
-    p << '[' << operands.drop_front(numDims) << ']';
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
-}
-
-static LogicalResult verify(AffineMinOp op) {
-  // Verify that operand count matches affine map dimension and symbol count.
-  if (op.getNumOperands() != op.map().getNumDims() + op.map().getNumSymbols())
-    return op.emitOpError(
-        "operand count and affine map dimension and symbol count must match");
-  return success();
-}
+//===----------------------------------------------------------------------===//
+// AffineMinOp
+//===----------------------------------------------------------------------===//
+//
+//   %0 = affine.min (d0) -> (1000, d0 + 512) (%i0)
+//
 
 OpFoldResult AffineMinOp::fold(ArrayRef<Attribute> operands) {
   // Fold the affine map.
@@ -2001,6 +2012,36 @@ OpFoldResult AffineMinOp::fold(ArrayRef<Attribute> operands) {
   if (minIndex < 0)
     return {};
   return results[minIndex];
+}
+
+//===----------------------------------------------------------------------===//
+// AffineMaxOp
+//===----------------------------------------------------------------------===//
+//
+//   %0 = affine.max (d0) -> (1000, d0 + 512) (%i0)
+//
+
+OpFoldResult AffineMaxOp::fold(ArrayRef<Attribute> operands) {
+  // Fold the affine map.
+  // TODO(andydavis, ntv, ouhang) Fold more cases: partial static information,
+  // max(some_affine, some_affine + constant, ...).
+  SmallVector<Attribute, 2> results;
+  if (failed(map().constantFold(operands, results)))
+    return {};
+
+  // Compute and return max of folded map results.
+  int64_t max = std::numeric_limits<int64_t>::min();
+  int maxIndex = -1;
+  for (unsigned i = 0, e = results.size(); i < e; ++i) {
+    auto intAttr = results[i].cast<IntegerAttr>();
+    if (intAttr.getInt() > max) {
+      max = intAttr.getInt();
+      maxIndex = i;
+    }
+  }
+  if (maxIndex < 0)
+    return {};
+  return results[maxIndex];
 }
 
 //===----------------------------------------------------------------------===//

@@ -96,7 +96,13 @@ llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
   return Result;
 }
 
+// By default, we blacklist C++ standard symbols and protobuf symbols as rename
+// these symbols would change system/generated files which are unlikely to be
+// modified.
 bool isBlacklisted(const NamedDecl &RenameDecl) {
+  if (isProtoFile(RenameDecl.getLocation(),
+                  RenameDecl.getASTContext().getSourceManager()))
+    return true;
   static const auto *StdSymbols = new llvm::DenseSet<llvm::StringRef>({
 #define SYMBOL(Name, NameSpace, Header) {#NameSpace #Name},
 #include "StdSymbolMap.inc"
@@ -306,6 +312,8 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
   bool HasMore = Index.refs(RQuest, [&](const Ref &R) {
     if (AffectedFiles.size() > MaxLimitFiles)
       return;
+    if ((R.Kind & RefKind::Spelled) == RefKind::Unknown)
+      return;
     if (auto RefFilePath = filePath(R.Location, /*HintFilePath=*/MainFile)) {
       if (*RefFilePath != MainFile)
         AffectedFiles[*RefFilePath].push_back(toRange(R.Location));
@@ -344,9 +352,6 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
 // index (background index) is relatively stale. We choose the dirty buffers
 // as the file content we rename on, and fallback to file content on disk if
 // there is no dirty buffer.
-//
-// FIXME: Our index may return implicit references, which are not eligible for
-// rename, we should filter out these references.
 llvm::Expected<FileEdits> renameOutsideFile(
     const NamedDecl &RenameDecl, llvm::StringRef MainFilePath,
     llvm::StringRef NewName, const SymbolIndex &Index,

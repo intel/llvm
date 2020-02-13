@@ -223,7 +223,6 @@ define i1 @ret_undef() {
 
 define void @cond_br_on_undef_interproc() {
 ; ATTRIBUTOR-LABEL: @cond_br_on_undef_interproc(
-; ATTRIBUTOR-NEXT:    %cond = call i1 @ret_undef()
 ; ATTRIBUTOR-NEXT:    unreachable
 ; ATTRIBUTOR:       t:
 ; ATTRIBUTOR-NEXT:    unreachable
@@ -249,7 +248,6 @@ e:
 ; More complicated interproc deduction of undef
 define void @cond_br_on_undef_interproc2() {
 ; ATTRIBUTOR-LABEL: @cond_br_on_undef_interproc2(
-; ATTRIBUTOR-NEXT:    %cond = call i1 @ret_undef2()
 ; ATTRIBUTOR-NEXT:    unreachable
 ; ATTRIBUTOR:       t:
 ; ATTRIBUTOR-NEXT:    unreachable
@@ -265,15 +263,14 @@ e:
 
 ; Branch on undef that depends on propagation of
 ; undef of a previous instruction.
-; FIXME: Currently it doesn't propagate the undef.
 define i32 @cond_br_on_undef3() {
 ; ATTRIBUTOR-LABEL: @cond_br_on_undef3(
 ; ATTRIBUTOR-NEXT:    %cond = icmp ne i32 1, undef
 ; ATTRIBUTOR-NEXT:    br i1 %cond, label %t, label %e
 ; ATTRIBUTOR:       t:
-; ATTRIBUTOR-NEXT:    ret i32 1
+; ATTRIBUTOR-NEXT:    unreachable
 ; ATTRIBUTOR:       e:
-; ATTRIBUTOR-NEXT:    ret i32 2
+; ATTRIBUTOR-NEXT:    unreachable
 
   %cond = icmp ne i32 1, undef
   br i1 %cond, label %t, label %e

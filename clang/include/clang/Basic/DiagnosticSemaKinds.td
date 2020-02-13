@@ -819,10 +819,27 @@ def ext_no_declarators : ExtWarn<"declaration does not declare anything">,
 def ext_typedef_without_a_name : ExtWarn<"typedef requires a name">,
   InGroup<MissingDeclarations>;
 def err_typedef_not_identifier : Error<"typedef name must be an identifier">;
-def err_typedef_changes_linkage : Error<"unsupported: typedef changes linkage"
-  " of anonymous type, but linkage was already computed">;
-def note_typedef_changes_linkage : Note<"use a tag name here to establish "
-  "linkage prior to definition">;
+
+def ext_non_c_like_anon_struct_in_typedef : ExtWarn<
+  "anonymous non-C-compatible type given name for linkage purposes "
+  "by %select{typedef|alias}0 declaration; "
+  "add a tag name here">, InGroup<DiagGroup<"non-c-typedef-for-linkage">>;
+def err_non_c_like_anon_struct_in_typedef : Error<
+  "anonymous non-C-compatible type given name for linkage purposes "
+  "by %select{typedef|alias}0 declaration after its linkage was computed; "
+  "add a tag name here to establish linkage prior to definition">;
+def err_typedef_changes_linkage : Error<
+  "unsupported: anonymous type given name for linkage purposes "
+  "by %select{typedef|alias}0 declaration after its linkage was computed; "
+  "add a tag name here to establish linkage prior to definition">;
+def note_non_c_like_anon_struct : Note<
+  "type is not C-compatible due to this "
+  "%select{base class|default member initializer|lambda expression|"
+  "friend declaration|member declaration}0">;
+def note_typedef_for_linkage_here : Note<
+  "type is given name %0 for linkage purposes by this "
+  "%select{typedef|alias}1 declaration">;
+
 def err_statically_allocated_object : Error<
   "interface type cannot be statically allocated">;
 def err_object_cannot_be_passed_returned_by_value : Error<
@@ -1827,8 +1844,13 @@ def note_nontrivial_objc_ownership : Note<
   "because type %0 has a member with %select{no|no|__strong|__weak|"
   "__autoreleasing}1 ownership">;
 
+/// Selector for a TagTypeKind value.
+def select_tag_type_kind : TextSubstitution<
+  "%select{struct|interface|union|class|enum}0">;
+
 def err_static_data_member_not_allowed_in_anon_struct : Error<
-  "static data member %0 not allowed in anonymous struct">;
+  "static data member %0 not allowed in anonymous "
+  "%sub{select_tag_type_kind}1">;
 def ext_static_data_member_in_union : ExtWarn<
   "static data member %0 in union is a C++11 extension">, InGroup<CXX11>;
 def warn_cxx98_compat_static_data_member_in_union : Warning<
@@ -1918,19 +1940,36 @@ def err_destructor_return_type : Error<"destructor cannot have a return type">;
 def err_destructor_redeclared : Error<"destructor cannot be redeclared">;
 def err_destructor_with_params : Error<"destructor cannot have any parameters">;
 def err_destructor_variadic : Error<"destructor cannot be variadic">;
-def err_destructor_typedef_name : Error<
-  "destructor cannot be declared using a %select{typedef|type alias}1 %0 of the class name">;
+def ext_destructor_typedef_name : ExtWarn<
+  "destructor cannot be declared using a %select{typedef|type alias}1 %0 "
+  "of the class name">, DefaultError, InGroup<DiagGroup<"dtor-typedef">>;
+def err_undeclared_destructor_name : Error<
+  "undeclared identifier %0 in destructor name">;
 def err_destructor_name : Error<
   "expected the class name after '~' to name the enclosing class">;
-def err_destructor_class_name : Error<
-  "expected the class name after '~' to name a destructor">;
-def err_ident_in_dtor_not_a_type : Error<
+def err_destructor_name_nontype : Error<
+  "identifier %0 after '~' in destructor name does not name a type">;
+def err_destructor_expr_mismatch : Error<
+  "identifier %0 in object destruction expression does not name the type "
+  "%1 of the object being destroyed">;
+def err_destructor_expr_nontype : Error<
   "identifier %0 in object destruction expression does not name a type">;
 def err_destructor_expr_type_mismatch : Error<
   "destructor type %0 in object destruction expression does not match the "
   "type %1 of the object being destroyed">;
 def note_destructor_type_here : Note<
-  "type %0 is declared here">;
+  "type %0 found by destructor name lookup">;
+def note_destructor_nontype_here : Note<
+  "non-type declaration found by destructor name lookup">;
+def ext_dtor_named_in_wrong_scope : Extension<
+  "ISO C++ requires the name after '::~' to be found in the same scope as "
+  "the name before '::~'">, InGroup<DtorName>;
+def ext_dtor_name_missing_template_arguments : Extension<
+  "ISO C++ requires template argument list in destructor name">,
+  InGroup<DtorName>;
+def ext_qualified_dtor_named_in_lexical_scope : ExtWarn<
+  "qualified destructor name only found in lexical scope; omit the qualifier "
+  "to find this type name by unqualified lookup">, InGroup<DtorName>;
 
 def err_destroy_attr_on_non_static_var : Error<
   "%select{no_destroy|always_destroy}0 attribute can only be applied to a"
@@ -6801,6 +6840,10 @@ def err_bad_cxx_cast_scalar_to_vector_different_size : Error<
 def err_bad_cxx_cast_vector_to_vector_different_size : Error<
   "%select{||reinterpret_cast||C-style cast|}0 from vector %1 "
   "to vector %2 of different size">;
+def warn_bad_cxx_cast_nested_pointer_addr_space : Warning<
+  "%select{reinterpret_cast|C-style cast}0 from %1 to %2 "
+  "changes address space of nested pointers">,
+  InGroup<IncompatiblePointerTypesDiscardsQualifiers>;
 def err_bad_lvalue_to_rvalue_cast : Error<
   "cannot cast from lvalue of type %1 to rvalue reference type %2; types are "
   "not compatible">;
@@ -8155,7 +8198,7 @@ def err_reference_to_local_in_enclosing_context : Error<
   "%select{%3|block literal|lambda expression|context}2">;
 
 def err_static_data_member_not_allowed_in_local_class : Error<
-  "static data member %0 not allowed in local class %1">;
+  "static data member %0 not allowed in local %sub{select_tag_type_kind}2 %1">;
 
 // C++ derived classes
 def err_base_clause_on_union : Error<"unions cannot have base classes">;
@@ -9693,7 +9736,11 @@ def note_omp_atomic_capture: Note<
   "%select{expected assignment expression|expected compound statement|expected exactly two expression statements|expected in right hand side of the first expression}0">;
 def err_omp_atomic_several_clauses : Error<
   "directive '#pragma omp atomic' cannot contain more than one 'read', 'write', 'update' or 'capture' clause">;
-def note_omp_atomic_previous_clause : Note<
+def err_omp_several_mem_order_clauses : Error<
+  "directive '#pragma omp %0' cannot contain more than one %select{'seq_cst', 'relaxed', |}1'acq_rel', 'acquire' or 'release' clause">;
+def err_omp_atomic_incompatible_mem_order_clause : Error<
+  "directive '#pragma omp atomic%select{ %0|}1' cannot be used with '%2' clause">;
+def note_omp_previous_mem_order_clause : Note<
   "'%0' clause used here">;
 def err_omp_target_contains_not_only_teams : Error<
   "target construct with nested teams region contains statements outside of the teams construct">;
@@ -9846,10 +9893,10 @@ def err_omp_requires_clause_redeclaration : Error <
   "Only one %0 clause can appear on a requires directive in a single translation unit">;
 def note_omp_requires_previous_clause : Note <
   "%0 clause previously used here">;
-def err_omp_target_before_requires : Error <
-  "target region encountered before requires directive with '%0' clause">;
-def note_omp_requires_encountered_target : Note <
-  "target previously encountered here">;
+def err_omp_directive_before_requires : Error <
+  "'%0' region encountered before requires directive with '%1' clause">;
+def note_omp_requires_encountered_directive : Note <
+  "'%0' previously encountered here">;
 def err_omp_invalid_scope : Error <
   "'#pragma omp %0' directive must appear only in file scope">;
 def note_omp_invalid_length_on_this_ptr_mapping : Note <
@@ -9931,6 +9978,10 @@ def err_omp_one_defaultmap_each_category: Error<
 def err_omp_lastprivate_conditional_non_scalar : Error<
   "expected list item of scalar type in 'lastprivate' clause with 'conditional' modifier"
   >;
+def err_omp_flush_order_clause_and_list : Error<
+  "'flush' directive with memory order clause '%0' cannot have the list">;
+def note_omp_flush_order_clause_here : Note<
+  "memory order clause '%0' is specified here">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {

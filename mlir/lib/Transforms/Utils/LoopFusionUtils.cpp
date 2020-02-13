@@ -271,7 +271,7 @@ void mlir::fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
   }
 
   // Promote any single iteration slice loops.
-  for (auto forOp : sliceLoops)
+  for (AffineForOp forOp : sliceLoops)
     promoteIfSingleIteration(forOp);
 }
 

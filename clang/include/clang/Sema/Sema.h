@@ -3612,6 +3612,9 @@ public:
     /// operator overloading. This lookup is similar to ordinary name
     /// lookup, but will ignore any declarations that are class members.
     LookupOperatorName,
+    /// Look up a name following ~ in a destructor name. This is an ordinary
+    /// lookup, but prefers tags to typedefs.
+    LookupDestructorName,
     /// Look up of a name that precedes the '::' scope resolution
     /// operator in C++. This lookup completely ignores operator, object,
     /// function, and enumerator names (C++ [basic.lookup.qual]p1).
@@ -8103,12 +8106,10 @@ public:
                                         SourceLocation ReturnLoc,
                                         Expr *&RetExpr, AutoType *AT);
 
-  FunctionTemplateDecl *getMoreSpecializedTemplate(FunctionTemplateDecl *FT1,
-                                                   FunctionTemplateDecl *FT2,
-                                                   SourceLocation Loc,
-                                           TemplatePartialOrderingContext TPOC,
-                                                   unsigned NumCallArguments1,
-                                                   unsigned NumCallArguments2);
+  FunctionTemplateDecl *getMoreSpecializedTemplate(
+      FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
+      TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
+      unsigned NumCallArguments2, bool Reversed = false);
   UnresolvedSetIterator
   getMostSpecialized(UnresolvedSetIterator SBegin, UnresolvedSetIterator SEnd,
                      TemplateSpecCandidateSet &FailedCandidates,
@@ -10480,6 +10481,18 @@ public:
   /// Called on well-formed 'seq_cst' clause.
   OMPClause *ActOnOpenMPSeqCstClause(SourceLocation StartLoc,
                                      SourceLocation EndLoc);
+  /// Called on well-formed 'acq_rel' clause.
+  OMPClause *ActOnOpenMPAcqRelClause(SourceLocation StartLoc,
+                                     SourceLocation EndLoc);
+  /// Called on well-formed 'acquire' clause.
+  OMPClause *ActOnOpenMPAcquireClause(SourceLocation StartLoc,
+                                      SourceLocation EndLoc);
+  /// Called on well-formed 'release' clause.
+  OMPClause *ActOnOpenMPReleaseClause(SourceLocation StartLoc,
+                                      SourceLocation EndLoc);
+  /// Called on well-formed 'relaxed' clause.
+  OMPClause *ActOnOpenMPRelaxedClause(SourceLocation StartLoc,
+                                      SourceLocation EndLoc);
   /// Called on well-formed 'threads' clause.
   OMPClause *ActOnOpenMPThreadsClause(SourceLocation StartLoc,
                                       SourceLocation EndLoc);

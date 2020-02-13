@@ -169,7 +169,8 @@ def WWM : PseudoInstSI <(outs unknown:$vdst), (ins unknown:$src0)>;
 } // End let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Uses = [EXEC]
 
 def ENTER_WWM : SPseudoInstSI <(outs SReg_1:$sdst), (ins i64imm:$src0)> {
-  let Defs = [EXEC];
+  let Uses = [EXEC];
+  let Defs = [EXEC, SCC];
   let hasSideEffects = 0;
   let mayLoad = 0;
   let mayStore = 0;
@@ -732,12 +733,6 @@ def : GCNPat<
 >;
 
 def : Pat <
-  // -1.0 as i32 (LowerINTRINSIC_VOID converts all other constants to -1.0)
-  (AMDGPUkill (i32 -1082130432)),
-  (SI_KILL_I1_PSEUDO (i1 0), 0)
->;
-
-def : Pat <
   (int_amdgcn_kill i1:$src),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, 0)
 >;
@@ -745,11 +740,6 @@ def : Pat <
 def : Pat <
   (int_amdgcn_kill (i1 (not i1:$src))),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, -1)
->;
-
-def : Pat <
-  (AMDGPUkill i32:$src),
-  (SI_KILL_F32_COND_IMM_PSEUDO VSrc_b32:$src, 0, 3) // 3 means SETOGE
 >;
 
 def : Pat <

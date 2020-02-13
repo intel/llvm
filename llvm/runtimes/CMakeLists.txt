@@ -27,12 +27,6 @@ if(LLVM_ENABLE_RUNTIMES STREQUAL "all" )
   set(LLVM_ENABLE_RUNTIMES ${LLVM_ALL_RUNTIMES})
 endif()
 foreach(proj ${LLVM_ENABLE_RUNTIMES})
-  # TODO: libunwind and libcxxabi don't currently build on Windows so filter them out.
-  if(MSVC AND ("${proj}" MATCHES "libunwind|libcxxabi"))
-    message(WARNING "Skipping ${proj} which is not supported in MSVC yet")
-    continue()
-  endif()
-
   set(proj_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../${proj}")
   if(IS_DIRECTORY ${proj_dir} AND EXISTS ${proj_dir}/CMakeLists.txt)
     list(APPEND runtimes ${proj_dir})
@@ -251,7 +245,6 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_TARGET=${TARGET_TRIPLE}
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
-                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES COMPILER_RT
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
@@ -397,7 +390,6 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_CXX_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
-                                        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
@@ -533,6 +525,11 @@ else() # if this is included from LLVM's CMake
           add_custom_target(runtimes-test-depends)
           set(test_targets "")
         endif()
+        foreach(runtime_name ${runtime_names})
+          add_custom_target(${runtime_name})
+          add_custom_target(install-${runtime_name})
+          add_custom_target(install-${runtime_name}-stripped)
+        endforeach()
         if(LLVM_RUNTIME_DISTRIBUTION_COMPONENTS)
           foreach(component ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
             add_custom_target(${component})
@@ -554,6 +551,11 @@ else() # if this is included from LLVM's CMake
           add_dependencies(check-runtimes check-runtimes-${name})
           add_dependencies(runtimes-test-depends runtimes-test-depends-${name})
         endif()
+        foreach(runtime_name ${runtime_names})
+          add_dependencies(${runtime_name} ${runtime_name}-${name})
+          add_dependencies(install-${runtime_name} install-${runtime_name}-${name})
+          add_dependencies(install-${runtime_name}-stripped install-${runtime_name}-${name}-stripped)
+        endforeach()
       endforeach()
 
       foreach(multilib ${LLVM_RUNTIME_MULTILIBS})
@@ -566,6 +568,11 @@ else() # if this is included from LLVM's CMake
           add_dependencies(runtimes-configure runtimes-${name}+${multilib}-configure)
           add_dependencies(install-runtimes install-runtimes-${name}+${multilib})
           add_dependencies(install-runtimes-stripped install-runtimes-${name}+${multilib}-stripped)
+          foreach(runtime_name ${runtime_names})
+            add_dependencies(${runtime_name} ${runtime_name}-${name}+${multilib})
+            add_dependencies(install-${runtime_name} install-${runtime_name}-${name}+${multilib})
+            add_dependencies(install-${runtime_name}-stripped install-${runtime_name}-${name}+${multilib}-stripped)
+          endforeach()
         endforeach()
       endforeach()
     endif()

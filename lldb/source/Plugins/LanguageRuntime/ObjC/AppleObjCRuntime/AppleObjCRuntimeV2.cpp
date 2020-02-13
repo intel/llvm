@@ -895,12 +895,12 @@ size_t AppleObjCRuntimeV2::GetByteOffsetForIvar(CompilerType &parent_ast_type,
                                                 const char *ivar_name) {
   uint32_t ivar_offset = LLDB_INVALID_IVAR_OFFSET;
 
-  const char *class_name = parent_ast_type.GetConstTypeName().AsCString();
-  if (class_name && class_name[0] && ivar_name && ivar_name[0]) {
+  ConstString class_name = parent_ast_type.GetTypeName();
+  if (!class_name.IsEmpty() && ivar_name && ivar_name[0]) {
     // Make the objective C V2 mangled name for the ivar offset from the class
     // name and ivar name
     std::string buffer("OBJC_IVAR_$_");
-    buffer.append(class_name);
+    buffer.append(class_name.AsCString());
     buffer.push_back('.');
     buffer.append(ivar_name);
     ConstString ivar_const_str(buffer.c_str());
@@ -2666,6 +2666,8 @@ class ObjCExceptionRecognizedStackFrame : public RecognizedStackFrame {
 
     m_arguments = ValueObjectListSP(new ValueObjectList());
     m_arguments->Append(exception);
+
+    m_stop_desc = "hit Objective-C exception";
   }
 
   ValueObjectSP exception;
@@ -2689,6 +2691,7 @@ static void RegisterObjCExceptionRecognizer() {
     std::tie(module, function) = AppleObjCRuntime::GetExceptionThrowLocation();
     StackFrameRecognizerManager::AddRecognizer(
         StackFrameRecognizerSP(new ObjCExceptionThrowFrameRecognizer()),
-        module.GetFilename(), function, /*first_instruction_only*/ true);
+        module.GetFilename(), function, /*alternate_symbol*/ {},
+        /*first_instruction_only*/ true);
   });
 }

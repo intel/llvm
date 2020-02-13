@@ -9413,11 +9413,6 @@ bool AArch64TargetLowering::lowerInterleavedStore(StoreInst *SI,
   return true;
 }
 
-static bool memOpAlign(unsigned DstAlign, unsigned SrcAlign,
-                       unsigned AlignCheck) {
-  return ((SrcAlign == 0 || SrcAlign % AlignCheck == 0) &&
-          (DstAlign == 0 || DstAlign % AlignCheck == 0));
-}
 
 EVT AArch64TargetLowering::getOptimalMemOpType(
     const MemOp &Op, const AttributeList &FuncAttributes) const {
@@ -9429,8 +9424,8 @@ EVT AArch64TargetLowering::getOptimalMemOpType(
   // taken one instruction to materialize the v2i64 zero and one store (with
   // restrictive addressing mode). Just do i64 stores.
   bool IsSmallMemset = Op.isMemset() && Op.size() < 32;
-  auto AlignmentIsAcceptable = [&](EVT VT, unsigned AlignCheck) {
-    if (memOpAlign(Op.getSrcAlign(), Op.getDstAlign(), AlignCheck))
+  auto AlignmentIsAcceptable = [&](EVT VT, Align AlignCheck) {
+    if (Op.isAligned(AlignCheck))
       return true;
     bool Fast;
     return allowsMisalignedMemoryAccesses(VT, 0, 1, MachineMemOperand::MONone,
@@ -9439,13 +9434,13 @@ EVT AArch64TargetLowering::getOptimalMemOpType(
   };
 
   if (CanUseNEON && Op.isMemset() && !IsSmallMemset &&
-      AlignmentIsAcceptable(MVT::v2i64, 16))
+      AlignmentIsAcceptable(MVT::v2i64, Align(16)))
     return MVT::v2i64;
-  if (CanUseFP && !IsSmallMemset && AlignmentIsAcceptable(MVT::f128, 16))
+  if (CanUseFP && !IsSmallMemset && AlignmentIsAcceptable(MVT::f128, Align(16)))
     return MVT::f128;
-  if (Op.size() >= 8 && AlignmentIsAcceptable(MVT::i64, 8))
+  if (Op.size() >= 8 && AlignmentIsAcceptable(MVT::i64, Align(8)))
     return MVT::i64;
-  if (Op.size() >= 4 && AlignmentIsAcceptable(MVT::i32, 4))
+  if (Op.size() >= 4 && AlignmentIsAcceptable(MVT::i32, Align(4)))
     return MVT::i32;
   return MVT::Other;
 }
@@ -9460,8 +9455,8 @@ LLT AArch64TargetLowering::getOptimalMemOpLLT(
   // taken one instruction to materialize the v2i64 zero and one store (with
   // restrictive addressing mode). Just do i64 stores.
   bool IsSmallMemset = Op.isMemset() && Op.size() < 32;
-  auto AlignmentIsAcceptable = [&](EVT VT, unsigned AlignCheck) {
-    if (memOpAlign(Op.getSrcAlign(), Op.getDstAlign(), AlignCheck))
+  auto AlignmentIsAcceptable = [&](EVT VT, Align AlignCheck) {
+    if (Op.isAligned(AlignCheck))
       return true;
     bool Fast;
     return allowsMisalignedMemoryAccesses(VT, 0, 1, MachineMemOperand::MONone,
@@ -9470,13 +9465,13 @@ LLT AArch64TargetLowering::getOptimalMemOpLLT(
   };
 
   if (CanUseNEON && Op.isMemset() && !IsSmallMemset &&
-      AlignmentIsAcceptable(MVT::v2i64, 16))
+      AlignmentIsAcceptable(MVT::v2i64, Align(16)))
     return LLT::vector(2, 64);
-  if (CanUseFP && !IsSmallMemset && AlignmentIsAcceptable(MVT::f128, 16))
+  if (CanUseFP && !IsSmallMemset && AlignmentIsAcceptable(MVT::f128, Align(16)))
     return LLT::scalar(128);
-  if (Op.size() >= 8 && AlignmentIsAcceptable(MVT::i64, 8))
+  if (Op.size() >= 8 && AlignmentIsAcceptable(MVT::i64, Align(8)))
     return LLT::scalar(64);
-  if (Op.size() >= 4 && AlignmentIsAcceptable(MVT::i32, 4))
+  if (Op.size() >= 4 && AlignmentIsAcceptable(MVT::i32, Align(4)))
     return LLT::scalar(32);
   return LLT();
 }
@@ -13046,10 +13041,12 @@ static void ReplaceCMP_SWAP_128Results(SDNode *N,
     unsigned SubReg1 = AArch64::sube64, SubReg2 = AArch64::subo64;
     if (DAG.getDataLayout().isBigEndian())
       std::swap(SubReg1, SubReg2);
-    Results.push_back(DAG.getTargetExtractSubreg(SubReg1, SDLoc(N), MVT::i64,
-                                                 SDValue(CmpSwap, 0)));
-    Results.push_back(DAG.getTargetExtractSubreg(SubReg2, SDLoc(N), MVT::i64,
-                                                 SDValue(CmpSwap, 0)));
+    SDValue Lo = DAG.getTargetExtractSubreg(SubReg1, SDLoc(N), MVT::i64,
+                                            SDValue(CmpSwap, 0));
+    SDValue Hi = DAG.getTargetExtractSubreg(SubReg2, SDLoc(N), MVT::i64,
+                                            SDValue(CmpSwap, 0));
+    Results.push_back(
+        DAG.getNode(ISD::BUILD_PAIR, SDLoc(N), MVT::i128, Lo, Hi));
     Results.push_back(SDValue(CmpSwap, 1)); // Chain out
     return;
   }
@@ -13065,8 +13062,8 @@ static void ReplaceCMP_SWAP_128Results(SDNode *N,
   MachineMemOperand *MemOp = cast<MemSDNode>(N)->getMemOperand();
   DAG.setNodeMemRefs(cast<MachineSDNode>(CmpSwap), {MemOp});
 
-  Results.push_back(SDValue(CmpSwap, 0));
-  Results.push_back(SDValue(CmpSwap, 1));
+  Results.push_back(DAG.getNode(ISD::BUILD_PAIR, SDLoc(N), MVT::i128,
+                                SDValue(CmpSwap, 0), SDValue(CmpSwap, 1)));
   Results.push_back(SDValue(CmpSwap, 3));
 }
 

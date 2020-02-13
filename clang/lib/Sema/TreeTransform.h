@@ -8813,6 +8813,34 @@ TreeTransform<Derived>::TransformOMPSeqCstClause(OMPSeqCstClause *C) {
 
 template <typename Derived>
 OMPClause *
+TreeTransform<Derived>::TransformOMPAcqRelClause(OMPAcqRelClause *C) {
+  // No need to rebuild this clause, no template-dependent parameters.
+  return C;
+}
+
+template <typename Derived>
+OMPClause *
+TreeTransform<Derived>::TransformOMPAcquireClause(OMPAcquireClause *C) {
+  // No need to rebuild this clause, no template-dependent parameters.
+  return C;
+}
+
+template <typename Derived>
+OMPClause *
+TreeTransform<Derived>::TransformOMPReleaseClause(OMPReleaseClause *C) {
+  // No need to rebuild this clause, no template-dependent parameters.
+  return C;
+}
+
+template <typename Derived>
+OMPClause *
+TreeTransform<Derived>::TransformOMPRelaxedClause(OMPRelaxedClause *C) {
+  // No need to rebuild this clause, no template-dependent parameters.
+  return C;
+}
+
+template <typename Derived>
+OMPClause *
 TreeTransform<Derived>::TransformOMPThreadsClause(OMPThreadsClause *C) {
   // No need to rebuild this clause, no template-dependent parameters.
   return C;

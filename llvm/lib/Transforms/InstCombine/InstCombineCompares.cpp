@@ -1642,51 +1642,57 @@ Instruction *InstCombiner::foldICmpAndShift(ICmpInst &Cmp, BinaryOperator *And,
   bool IsShl = ShiftOpcode == Instruction::Shl;
   const APInt *C3;
   if (match(Shift->getOperand(1), m_APInt(C3))) {
-    bool CanFold = false;
+    APInt NewAndCst, NewCmpCst;
+    bool AnyCmpCstBitsShiftedOut;
     if (ShiftOpcode == Instruction::Shl) {
       // For a left shift, we can fold if the comparison is not signed. We can
       // also fold a signed comparison if the mask value and comparison value
       // are not negative. These constraints may not be obvious, but we can
       // prove that they are correct using an SMT solver.
-      if (!Cmp.isSigned() || (!C2.isNegative() && !C1.isNegative()))
-        CanFold = true;
-    } else {
-      bool IsAshr = ShiftOpcode == Instruction::AShr;
+      if (Cmp.isSigned() && (C2.isNegative() || C1.isNegative()))
+        return nullptr;
+
+      NewCmpCst = C1.lshr(*C3);
+      NewAndCst = C2.lshr(*C3);
+      AnyCmpCstBitsShiftedOut = NewCmpCst.shl(*C3) != C1;
+    } else if (ShiftOpcode == Instruction::LShr) {
       // For a logical right shift, we can fold if the comparison is not signed.
       // We can also fold a signed comparison if the shifted mask value and the
       // shifted comparison value are not negative. These constraints may not be
       // obvious, but we can prove that they are correct using an SMT solver.
+      NewCmpCst = C1.shl(*C3);
+      NewAndCst = C2.shl(*C3);
+      AnyCmpCstBitsShiftedOut = NewCmpCst.lshr(*C3) != C1;
+      if (Cmp.isSigned() && (NewAndCst.isNegative() || NewCmpCst.isNegative()))
+        return nullptr;
+    } else {
       // For an arithmetic shift right we can do the same, if we ensure
       // the And doesn't use any bits being shifted in. Normally these would
       // be turned into lshr by SimplifyDemandedBits, but not if there is an
       // additional user.
-      if (!IsAshr || (C2.shl(*C3).lshr(*C3) == C2)) {
-        if (!Cmp.isSigned() ||
-            (!C2.shl(*C3).isNegative() && !C1.shl(*C3).isNegative()))
-          CanFold = true;
-      }
+      assert(ShiftOpcode == Instruction::AShr && "Unknown shift opcode");
+      NewCmpCst = C1.shl(*C3);
+      NewAndCst = C2.shl(*C3);
+      AnyCmpCstBitsShiftedOut = NewCmpCst.lshr(*C3) != C1;
+      if (NewAndCst.lshr(*C3) != C2)
+        return nullptr;
+      if (Cmp.isSigned() && (NewAndCst.isNegative() || NewCmpCst.isNegative()))
+        return nullptr;
     }
 
-    if (CanFold) {
-      APInt NewCst = IsShl ? C1.lshr(*C3) : C1.shl(*C3);
-      APInt SameAsC1 = IsShl ? NewCst.shl(*C3) : NewCst.lshr(*C3);
-      // Check to see if we are shifting out any of the bits being compared.
-      if (SameAsC1 != C1) {
-        // If we shifted bits out, the fold is not going to work out. As a
-        // special case, check to see if this means that the result is always
-        // true or false now.
-        if (Cmp.getPredicate() == ICmpInst::ICMP_EQ)
-          return replaceInstUsesWith(Cmp, ConstantInt::getFalse(Cmp.getType()));
-        if (Cmp.getPredicate() == ICmpInst::ICMP_NE)
-          return replaceInstUsesWith(Cmp, ConstantInt::getTrue(Cmp.getType()));
-      } else {
-        Cmp.setOperand(1, ConstantInt::get(And->getType(), NewCst));
-        APInt NewAndCst = IsShl ? C2.lshr(*C3) : C2.shl(*C3);
-        And->setOperand(1, ConstantInt::get(And->getType(), NewAndCst));
-        And->setOperand(0, Shift->getOperand(0));
-        Worklist.push(Shift); // Shift is dead.
-        return &Cmp;
-      }
+    if (AnyCmpCstBitsShiftedOut) {
+      // If we shifted bits out, the fold is not going to work out. As a
+      // special case, check to see if this means that the result is always
+      // true or false now.
+      if (Cmp.getPredicate() == ICmpInst::ICMP_EQ)
+        return replaceInstUsesWith(Cmp, ConstantInt::getFalse(Cmp.getType()));
+      if (Cmp.getPredicate() == ICmpInst::ICMP_NE)
+        return replaceInstUsesWith(Cmp, ConstantInt::getTrue(Cmp.getType()));
+    } else {
+      Value *NewAnd = Builder.CreateAnd(
+          Shift->getOperand(0), ConstantInt::get(And->getType(), NewAndCst));
+      return new ICmpInst(Cmp.getPredicate(),
+          NewAnd, ConstantInt::get(And->getType(), NewCmpCst));
     }
   }
 
@@ -4154,9 +4160,7 @@ Instruction *InstCombiner::foldICmpEquality(ICmpInst &I) {
     if (X) { // Build (X^Y) & Z
       Op1 = Builder.CreateXor(X, Y);
       Op1 = Builder.CreateAnd(Op1, Z);
-      I.setOperand(0, Op1);
-      I.setOperand(1, Constant::getNullValue(Op1->getType()));
-      return &I;
+      return new ICmpInst(Pred, Op1, Constant::getNullValue(Op1->getType()));
     }
   }
 
@@ -6026,14 +6030,11 @@ Instruction *InstCombiner::visitFCmpInst(FCmpInst &I) {
   // If we're just checking for a NaN (ORD/UNO) and have a non-NaN operand,
   // then canonicalize the operand to 0.0.
   if (Pred == CmpInst::FCMP_ORD || Pred == CmpInst::FCMP_UNO) {
-    if (!match(Op0, m_PosZeroFP()) && isKnownNeverNaN(Op0, &TLI)) {
-      I.setOperand(0, ConstantFP::getNullValue(OpType));
-      return &I;
-    }
-    if (!match(Op1, m_PosZeroFP()) && isKnownNeverNaN(Op1, &TLI)) {
-      I.setOperand(1, ConstantFP::getNullValue(OpType));
-      return &I;
-    }
+    if (!match(Op0, m_PosZeroFP()) && isKnownNeverNaN(Op0, &TLI))
+      return replaceOperand(I, 0, ConstantFP::getNullValue(OpType));
+
+    if (!match(Op1, m_PosZeroFP()) && isKnownNeverNaN(Op1, &TLI))
+      return replaceOperand(I, 1, ConstantFP::getNullValue(OpType));
   }
 
   // fcmp pred (fneg X), (fneg Y) -> fcmp swap(pred) X, Y
@@ -6058,10 +6059,8 @@ Instruction *InstCombiner::visitFCmpInst(FCmpInst &I) {
 
   // The sign of 0.0 is ignored by fcmp, so canonicalize to +0.0:
   // fcmp Pred X, -0.0 --> fcmp Pred X, 0.0
-  if (match(Op1, m_AnyZeroFP()) && !match(Op1, m_PosZeroFP())) {
-    I.setOperand(1, ConstantFP::getNullValue(OpType));
-    return &I;
-  }
+  if (match(Op1, m_AnyZeroFP()) && !match(Op1, m_PosZeroFP()))
+    return replaceOperand(I, 1, ConstantFP::getNullValue(OpType));
 
   // Handle fcmp with instruction LHS and constant RHS.
   Instruction *LHSI;

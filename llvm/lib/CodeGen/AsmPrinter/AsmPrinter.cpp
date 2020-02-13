@@ -2563,17 +2563,17 @@ static void emitGlobalConstantFP(APFloat APF, Type *ET, AsmPrinter &AP) {
     int Chunk = API.getNumWords() - 1;
 
     if (TrailingBytes)
-      AP.OutStreamer->EmitIntValue(p[Chunk--], TrailingBytes);
+      AP.OutStreamer->EmitIntValueInHexWithPadding(p[Chunk--], TrailingBytes);
 
     for (; Chunk >= 0; --Chunk)
-      AP.OutStreamer->EmitIntValue(p[Chunk], sizeof(uint64_t));
+      AP.OutStreamer->EmitIntValueInHexWithPadding(p[Chunk], sizeof(uint64_t));
   } else {
     unsigned Chunk;
     for (Chunk = 0; Chunk < NumBytes / sizeof(uint64_t); ++Chunk)
-      AP.OutStreamer->EmitIntValue(p[Chunk], sizeof(uint64_t));
+      AP.OutStreamer->EmitIntValueInHexWithPadding(p[Chunk], sizeof(uint64_t));
 
     if (TrailingBytes)
-      AP.OutStreamer->EmitIntValue(p[Chunk], TrailingBytes);
+      AP.OutStreamer->EmitIntValueInHexWithPadding(p[Chunk], TrailingBytes);
   }
 
   // Emit the tail padding for the long double.
@@ -3180,8 +3180,8 @@ void AsmPrinter::emitXRayTable() {
   MCSection *InstMap = nullptr;
   MCSection *FnSledIndex = nullptr;
   if (MF->getSubtarget().getTargetTriple().isOSBinFormatELF()) {
-    auto Associated = dyn_cast<MCSymbolELF>(CurrentFnSym);
-    assert(Associated != nullptr);
+    auto LinkedToSym = dyn_cast<MCSymbolELF>(CurrentFnSym);
+    assert(LinkedToSym != nullptr);
     auto Flags = ELF::SHF_WRITE | ELF::SHF_ALLOC | ELF::SHF_LINK_ORDER;
     std::string GroupName;
     if (F.hasComdat()) {
@@ -3192,10 +3192,10 @@ void AsmPrinter::emitXRayTable() {
     auto UniqueID = ++XRayFnUniqueID;
     InstMap =
         OutContext.getELFSection("xray_instr_map", ELF::SHT_PROGBITS, Flags, 0,
-                                 GroupName, UniqueID, Associated);
+                                 GroupName, UniqueID, LinkedToSym);
     FnSledIndex =
         OutContext.getELFSection("xray_fn_idx", ELF::SHT_PROGBITS, Flags, 0,
-                                 GroupName, UniqueID, Associated);
+                                 GroupName, UniqueID, LinkedToSym);
   } else if (MF->getSubtarget().getTargetTriple().isOSBinFormatMachO()) {
     InstMap = OutContext.getMachOSection("__DATA", "xray_instr_map", 0,
                                          SectionKind::getReadOnlyWithRel());

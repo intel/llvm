@@ -629,6 +629,10 @@ class Attr<Pred condition, string descr = ""> :
   // Requires a constBuilderCall defined.
   string defaultValue = ?;
 
+  // The value type of this attribute. This corresponds to the mlir::Type that
+  // this attribute returns via `getType()`.
+  Type valueType = ?;
+
   // Whether the attribute is optional. Typically requires a custom
   // convertFromStorage method to handle the case where the attribute is
   // not present.
@@ -660,6 +664,7 @@ class DefaultValuedAttr<Attr attr, string val> :
   let convertFromStorage = attr.convertFromStorage;
   let constBuilderCall = attr.constBuilderCall;
   let defaultValue = val;
+  let valueType = attr.valueType;
 
   let baseAttr = attr;
 }
@@ -673,6 +678,7 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.description> {
   let returnType = "Optional<" # attr.returnType #">";
   let convertFromStorage = "$_self ? " # returnType # "(" #
                            attr.convertFromStorage # ") : (llvm::None)";
+  let valueType = attr.valueType;
   let isOptional = 1;
 
   let baseAttr = attr;
@@ -681,14 +687,15 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.description> {
 //===----------------------------------------------------------------------===//
 // Primitive attribute kinds
 
-// A generic attribute that must be constructed around a specific type
+// A generic attribute that must be constructed around a specific buildable type
 // `attrValType`. Backed by MLIR attribute kind `attrKind`.
-class TypedAttrBase<BuildableType attrValType, string attrKind,
-                    Pred condition, string descr> :
+class TypedAttrBase<Type attrValType, string attrKind, Pred condition,
+                    string descr> :
     Attr<condition, descr> {
   let constBuilderCall = "$_builder.get" # attrKind # "(" #
                          attrValType.builderCall # ", $0)";
   let storageType = attrKind;
+  let valueType = attrValType;
 }
 
 // Any attribute.
@@ -1033,6 +1040,26 @@ class IntElementsAttr<int width> : ElementsAttrBase<
 def I32ElementsAttr : IntElementsAttr<32>;
 def I64ElementsAttr : IntElementsAttr<64>;
 
+// A `width`-bit integer elements attribute. The attribute should be ranked and
+// has a shape as specified in `dims`.
+class RankedIntElementsAttr<int width, list<int> dims> : IntElementsAttr<width> {
+  // Check that this has the specified shape.
+  let predicate = And<[
+    IntElementsAttr<width>.predicate,
+    CPred<"$_self.cast<DenseIntElementsAttr>().getType().getShape() == "
+        "ArrayRef<int64_t>({" # StrJoinInt<dims>.result # "})">]>;
+
+  let description = width # "-bit int elements attribute of shape [" #
+                    StrJoinInt<dims>.result # "]";
+
+  let constBuilderCall = "DenseIntElementsAttr::get("
+    "RankedTensorType::get({" # StrJoinInt<dims>.result #
+    "}, $_builder.getIntegerType(" # width # ")), makeArrayRef($0))";
+}
+
+class RankedI32ElementsAttr<list<int> dims> : RankedIntElementsAttr<32, dims>;
+class RankedI64ElementsAttr<list<int> dims> : RankedIntElementsAttr<64, dims>;
+
 class FloatElementsAttr<int width> : ElementsAttrBase<
   CPred<"$_self.isa<DenseFPElementsAttr>() &&"
       "$_self.cast<DenseElementsAttr>().getType()."
@@ -1227,6 +1254,7 @@ class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
   let convertFromStorage = attr.convertFromStorage;
   let constBuilderCall = attr.constBuilderCall;
   let defaultValue = attr.defaultValue;
+  let valueType = attr.valueType;
   let isOptional = attr.isOptional;
 
   let baseAttr = attr;

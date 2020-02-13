@@ -116,6 +116,10 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_update:
   case OMPC_capture:
   case OMPC_seq_cst:
+  case OMPC_acq_rel:
+  case OMPC_acquire:
+  case OMPC_release:
+  case OMPC_relaxed:
   case OMPC_depend:
   case OMPC_threads:
   case OMPC_simd:
@@ -190,6 +194,10 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_update:
   case OMPC_capture:
   case OMPC_seq_cst:
+  case OMPC_acq_rel:
+  case OMPC_acquire:
+  case OMPC_release:
+  case OMPC_relaxed:
   case OMPC_depend:
   case OMPC_device:
   case OMPC_threads:
@@ -1332,6 +1340,22 @@ void OMPClausePrinter::VisitOMPCaptureClause(OMPCaptureClause *) {
 
 void OMPClausePrinter::VisitOMPSeqCstClause(OMPSeqCstClause *) {
   OS << "seq_cst";
+}
+
+void OMPClausePrinter::VisitOMPAcqRelClause(OMPAcqRelClause *) {
+  OS << "acq_rel";
+}
+
+void OMPClausePrinter::VisitOMPAcquireClause(OMPAcquireClause *) {
+  OS << "acquire";
+}
+
+void OMPClausePrinter::VisitOMPReleaseClause(OMPReleaseClause *) {
+  OS << "release";
+}
+
+void OMPClausePrinter::VisitOMPRelaxedClause(OMPRelaxedClause *) {
+  OS << "relaxed";
 }
 
 void OMPClausePrinter::VisitOMPThreadsClause(OMPThreadsClause *) {

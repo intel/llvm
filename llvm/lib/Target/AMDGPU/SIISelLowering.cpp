@@ -1251,9 +1251,11 @@ bool SITargetLowering::allowsMisalignedMemoryAccessesImpl(
     // If we have an uniform constant load, it still requires using a slow
     // buffer instruction if unaligned.
     if (IsFast) {
+      // Accesses can really be issued as 1-byte aligned or 4-byte aligned, so
+      // 2-byte alignment is worse than 1 unless doing a 2-byte accesss.
       *IsFast = (AddrSpace == AMDGPUAS::CONSTANT_ADDRESS ||
                  AddrSpace == AMDGPUAS::CONSTANT_ADDRESS_32BIT) ?
-        (Align % 4 == 0) : true;
+        Align >= 4 : Align != 2;
     }
 
     return true;
@@ -1299,10 +1301,10 @@ EVT SITargetLowering::getOptimalMemOpType(
   // use. Make sure we switch these to 64-bit accesses.
 
   if (Op.size() >= 16 &&
-      Op.getDstAlign() >= 4) // XXX: Should only do for global
+      Op.isDstAligned(Align(4))) // XXX: Should only do for global
     return MVT::v4i32;
 
-  if (Op.size() >= 8 && Op.getDstAlign() >= 4)
+  if (Op.size() >= 8 && Op.isDstAligned(Align(4)))
     return MVT::v2i32;
 
   // Use the default.
@@ -3303,7 +3305,7 @@ computeIndirectRegAndOffset(const SIRegisterInfo &TRI,
   if (Offset >= NumElts || Offset < 0)
     return std::make_pair(AMDGPU::sub0, Offset);
 
-  return std::make_pair(AMDGPU::sub0 + Offset, 0);
+  return std::make_pair(SIRegisterInfo::getSubRegFromChannel(Offset), 0);
 }
 
 // Return true if the index is an SGPR and was set.
@@ -5401,7 +5403,7 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
   const MVT VAddrScalarVT = VAddrVT.getScalarType();
   if (((VAddrScalarVT == MVT::f16) || (VAddrScalarVT == MVT::i16))) {
     // Illegal to use a16 images
-    if (!ST->hasFeature(AMDGPU::FeatureR128A16))
+    if (!ST->hasFeature(AMDGPU::FeatureR128A16) && !ST->hasFeature(AMDGPU::FeatureGFX10A16))
       return Op;
 
     IsA16 = true;
@@ -5546,10 +5548,12 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
     Ops.push_back(DLC);
   Ops.push_back(GLC);
   Ops.push_back(SLC);
-  Ops.push_back(IsA16 &&  // a16 or r128
+  Ops.push_back(IsA16 &&  // r128, a16 for gfx9
                 ST->hasFeature(AMDGPU::FeatureR128A16) ? True : False);
-  Ops.push_back(TFE); // tfe
-  Ops.push_back(LWE); // lwe
+  if (IsGFX10)
+    Ops.push_back(IsA16 ? True : False);
+  Ops.push_back(TFE);
+  Ops.push_back(LWE);
   if (!IsGFX10)
     Ops.push_back(DimInfo->DA ? True : False);
   if (BaseOpcode->HasD16)
@@ -5805,29 +5809,23 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return lowerImplicitZextParam(DAG, Op, MVT::i16,
                                   SI::KernelInputOffsets::LOCAL_SIZE_Z);
   case Intrinsic::amdgcn_workgroup_id_x:
-  case Intrinsic::r600_read_tgid_x:
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_X);
   case Intrinsic::amdgcn_workgroup_id_y:
-  case Intrinsic::r600_read_tgid_y:
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_Y);
   case Intrinsic::amdgcn_workgroup_id_z:
-  case Intrinsic::r600_read_tgid_z:
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_Z);
   case Intrinsic::amdgcn_workitem_id_x:
-  case Intrinsic::r600_read_tidig_x:
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDX);
   case Intrinsic::amdgcn_workitem_id_y:
-  case Intrinsic::r600_read_tidig_y:
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDY);
   case Intrinsic::amdgcn_workitem_id_z:
-  case Intrinsic::r600_read_tidig_z:
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDZ);
@@ -7418,19 +7416,12 @@ SDValue SITargetLowering::lowerFastUnsafeFDIV(SDValue Op,
   EVT VT = Op.getValueType();
   const SDNodeFlags Flags = Op->getFlags();
 
-  bool FastUnsafeRcpLegal = DAG.getTarget().Options.UnsafeFPMath ||
-         (Flags.hasAllowReciprocal() &&
-          ((VT == MVT::f32 && hasFP32Denormals(DAG.getMachineFunction())) ||
-            VT == MVT::f16 ||
-            Flags.hasApproximateFuncs()));
+  bool AllowInaccurateRcp = DAG.getTarget().Options.UnsafeFPMath ||
+                            Flags.hasApproximateFuncs();
 
-  // Do rcp optimization only when fast unsafe rcp is legal here.
-  // NOTE: We already performed RCP optimization to insert intrinsics in
-  // AMDGPUCodeGenPrepare. Ideally there should have no opportunity here to
-  // rcp optimization.
-  //   However, there are cases like FREM, which is expended into a sequence
-  // of instructions including FDIV, which may expose new opportunities.
-  if (!FastUnsafeRcpLegal)
+  // Without !fpmath accuracy information, we can't do more because we don't
+  // know exactly whether rcp is accurate enough to meet !fpmath requirement.
+  if (!AllowInaccurateRcp)
     return SDValue();
 
   if (const ConstantFPSDNode *CLHS = dyn_cast<ConstantFPSDNode>(LHS)) {
@@ -10868,7 +10859,15 @@ SITargetLowering::getRegClassFor(MVT VT, bool isDivergent) const {
   return RC;
 }
 
-static bool hasCFUser(const Value *V, SmallPtrSet<const Value *, 16> &Visited) {
+static bool hasCFUser(const Value *V, SmallPtrSet<const Value *, 16> &Visited,
+                      unsigned WaveSize) {
+  // FIXME: We asssume we never cast the mask results of a control flow
+  // intrinsic.
+  // Early exit if the type won't be consistent as a compile time hack.
+  IntegerType *IT = dyn_cast<IntegerType>(V->getType());
+  if (!IT || IT->getBitWidth() != WaveSize)
+    return false;
+
   if (!isa<Instruction>(V))
     return false;
   if (!Visited.insert(V).second)
@@ -10900,7 +10899,7 @@ static bool hasCFUser(const Value *V, SmallPtrSet<const Value *, 16> &Visited) {
         }
       }
     } else {
-      Result = hasCFUser(U, Visited);
+      Result = hasCFUser(U, Visited, WaveSize);
     }
     if (Result)
       break;
@@ -10959,5 +10958,5 @@ bool SITargetLowering::requiresUniformRegister(MachineFunction &MF,
     }
   }
   SmallPtrSet<const Value *, 16> Visited;
-  return hasCFUser(V, Visited);
+  return hasCFUser(V, Visited, Subtarget->getWavefrontSize());
 }

@@ -628,6 +628,8 @@ public:
 
   // Implementation of the MCTargetAsmParser interface:
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+                                        SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
   bool ParseDirective(AsmToken DirectiveID) override;
@@ -3883,6 +3885,14 @@ bool ARMAsmParser::ParseRegister(unsigned &RegNo,
   RegNo = tryParseRegister();
 
   return (RegNo == (unsigned)-1);
+}
+
+OperandMatchResultTy ARMAsmParser::tryParseRegister(unsigned &RegNo,
+                                                    SMLoc &StartLoc,
+                                                    SMLoc &EndLoc) {
+  if (ParseRegister(RegNo, StartLoc, EndLoc))
+    return MatchOperand_NoMatch;
+  return MatchOperand_Success;
 }
 
 /// Try to parse a register name.  The token must be an Identifier when called,
@@ -7945,6 +7955,40 @@ bool ARMAsmParser::validateInstruction(MCInst &Inst,
     if (static_cast<ARMOperand &>(*Operands[3]).getVectorIndex() !=
         static_cast<ARMOperand &>(*Operands[5]).getVectorIndex() + 2)
       return Error (Operands[3]->getStartLoc(), "Q-register indexes must be 2 and 0 or 3 and 1");
+    break;
+  }
+  case ARM::UMAAL:
+  case ARM::UMLAL:
+  case ARM::UMULL:
+  case ARM::t2UMAAL:
+  case ARM::t2UMLAL:
+  case ARM::t2UMULL:
+  case ARM::SMLAL:
+  case ARM::SMLALBB:
+  case ARM::SMLALBT:
+  case ARM::SMLALD:
+  case ARM::SMLALDX:
+  case ARM::SMLALTB:
+  case ARM::SMLALTT:
+  case ARM::SMLSLD:
+  case ARM::SMLSLDX:
+  case ARM::SMULL:
+  case ARM::t2SMLAL:
+  case ARM::t2SMLALBB:
+  case ARM::t2SMLALBT:
+  case ARM::t2SMLALD:
+  case ARM::t2SMLALDX:
+  case ARM::t2SMLALTB:
+  case ARM::t2SMLALTT:
+  case ARM::t2SMLSLD:
+  case ARM::t2SMLSLDX:
+  case ARM::t2SMULL: {
+    unsigned RdHi = Inst.getOperand(0).getReg();
+    unsigned RdLo = Inst.getOperand(1).getReg();
+    if(RdHi == RdLo) {
+      return Error(Loc,
+                   "unpredictable instruction, RdHi and RdLo must be different");
+    }
     break;
   }
   }

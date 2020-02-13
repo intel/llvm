@@ -823,6 +823,10 @@ TEST_F(FindExplicitReferencesTest, All) {
         "1: targets = {vector}\n"
         "2: targets = {x}\n"},
        // Handle UnresolvedLookupExpr.
+       // FIXME
+       // This case fails when expensive checks are enabled.
+       // Seems like the order of ns1::func and ns2::func isn't defined.
+       #ifndef EXPENSIVE_CHECKS
        {R"cpp(
             namespace ns1 { void func(char*); }
             namespace ns2 { void func(int*); }
@@ -836,6 +840,7 @@ TEST_F(FindExplicitReferencesTest, All) {
         )cpp",
         "0: targets = {ns1::func, ns2::func}\n"
         "1: targets = {t}\n"},
+        #endif
        // Handle UnresolvedMemberExpr.
        {R"cpp(
             struct X {
@@ -1162,7 +1167,41 @@ TEST_F(FindExplicitReferencesTest, All) {
           )cpp",
            "0: targets = {f}\n"
            "1: targets = {I::x}\n"
-           "2: targets = {I::setY:}\n"}};
+           "2: targets = {I::setY:}\n"},
+       // Designated initializers.
+       {R"cpp(
+            void foo() {
+              struct $0^Foo {
+                int $1^Bar;
+              };
+              $2^Foo $3^f { .$4^Bar = 42 };
+            }
+        )cpp",
+        "0: targets = {Foo}, decl\n"
+        "1: targets = {foo()::Foo::Bar}, decl\n"
+        "2: targets = {Foo}\n"
+        "3: targets = {f}, decl\n"
+        "4: targets = {foo()::Foo::Bar}\n"},
+       {R"cpp(
+            void foo() {
+              struct $0^Baz {
+                int $1^Field;
+              };
+              struct $2^Bar {
+                $3^Baz $4^Foo;
+              };
+              $5^Bar $6^bar { .$7^Foo.$8^Field = 42 };
+            }
+        )cpp",
+        "0: targets = {Baz}, decl\n"
+        "1: targets = {foo()::Baz::Field}, decl\n"
+        "2: targets = {Bar}, decl\n"
+        "3: targets = {Baz}\n"
+        "4: targets = {foo()::Bar::Foo}, decl\n"
+        "5: targets = {Bar}\n"
+        "6: targets = {bar}, decl\n"
+        "7: targets = {foo()::Bar::Foo}\n"
+        "8: targets = {foo()::Baz::Field}\n"}};
 
   for (const auto &C : Cases) {
     llvm::StringRef ExpectedCode = C.first;

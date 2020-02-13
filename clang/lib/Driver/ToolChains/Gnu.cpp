@@ -534,7 +534,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Add crtfastmath.o if available and fast math is enabled.
-    ToolChain.AddFastMathRuntimeIfAvailable(Args, CmdArgs);
+    ToolChain.addFastMathRuntimeIfAvailable(Args, CmdArgs);
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
