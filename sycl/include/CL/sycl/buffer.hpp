@@ -372,7 +372,7 @@ private:
   }
 
   static_assert (dimensions > 0 && dimensions <= 3,
-		  "Dimensions can be 1/2/3 for buffer.");
+		  "Range can only be 1/2/3 dimensional.");
 
 };
 
