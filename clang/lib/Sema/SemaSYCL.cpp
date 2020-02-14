@@ -1462,7 +1462,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
-  // TODO Put here emission of deferred diagnostics
+  // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;

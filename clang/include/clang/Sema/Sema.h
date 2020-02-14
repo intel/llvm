@@ -12303,11 +12303,19 @@ public:
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_thread_unsupported);
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
 
-  /// Checks if Callee function is a device function and emits
-  /// diagnostics if it is known that it is a device function, adds this
-  /// function to the DeviceCallGraph otherwise.
+  /// Check whether we're allowed to call Callee from the current context.
   ///
-  /// \return false if Callee is not a device function
+  /// - If the call is never allowed in a semantically-correct program
+  ///   emits an error and returns false.
+  ///
+  /// - If the call is allowed in semantically-correct programs, but only if
+  ///   it's never codegen'ed, creates a deferred diagnostic to be emitted if
+  ///   and when the caller is codegen'ed, and returns true.
+  ///
+  /// - Otherwise, returns true without emitting any diagnostics.
+  ///
+  /// Adds Callee to DeviceCallGraph if we don't know if its caller will be
+  /// codegen'ed yet.
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 
   /// Emit diagnostic that can't be emitted with deferred diagnostics mechanism.
