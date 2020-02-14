@@ -241,6 +241,9 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
 /// @param ptr is the USM pointer to query
 /// @param ctxt is the sycl context the ptr was allocated in
 alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  if (!Ptr)
+    return alloc::unknown;
+
   // Everything on a host device is just system malloc so call it host
   if (Ctxt.is_host())
     return alloc::host;
@@ -251,8 +254,18 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   // query type using PI function
   const detail::plugin &Plugin = CtxImpl->getPlugin();
-  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy, nullptr);
+  RT::PiResult Err =
+      Plugin.call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+          PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy,
+          nullptr);
+
+  // PI_INVALID_VALUE means USM doesn't know about this ptr
+  if (Err == PI_INVALID_VALUE)
+    return alloc::unknown;
+  // otherwise PI_SUCCESS is expected
+  if (Err != PI_SUCCESS) {
+    throw runtime_error("Error querying USM pointer: ", Err);
+  }
 
   alloc ResultAlloc;
   switch (AllocTy) {
@@ -278,6 +291,10 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 /// @param ptr is the USM pointer to query
 /// @param ctxt is the sycl context the ptr was allocated in
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
+  // Check if ptr is a valid USM pointer
+  if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)
+    throw runtime_error("Ptr not a valid USM allocation!");
+
   // Just return the host device in the host context
   if (Ctxt.is_host())
     return Ctxt.get_devices()[0];
