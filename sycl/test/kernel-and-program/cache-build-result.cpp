@@ -2,20 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
-// FIXME do not use internal methods in tests.
-#include <CL/sycl/detail/program_impl.hpp>
-
-namespace RT = cl::sycl::RT;
-namespace detail = cl::sycl::detail;
-namespace pi = detail::pi;
-
-using ProgramCacheT = detail::KernelProgramCache::ProgramCacheT;
-using KernelCacheT = detail::KernelProgramCache::KernelCacheT;
-
-class Functor {
-public:
-  void operator()(cl::sycl::item<1> Item) { (void)Item; }
-};
 
 SYCL_EXTERNAL
 void undefined();

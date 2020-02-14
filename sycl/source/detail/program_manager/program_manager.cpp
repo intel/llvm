@@ -173,9 +173,8 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
-    bool TryAgain = false;
-
     for (;;) {
+      bool TryAgain = false;
       RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult, TryAgain);
 
       if (TryAgain) {
