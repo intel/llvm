@@ -19,17 +19,17 @@ int __spirv_ocl_printf(const char *__format, ...) {
 class A {
   friend int __spirv_ocl_printf(const char *__format, ...);
 };
-__SYCL_HAS_DEFINITION__
+__SYCL_EXTERNAL_WITH_PTR__
 int __spirv_ocl_printf(const char *__format, ...);
 #elif defined(PRINTF_VALID2)
 extern "C" {
   extern "C++" {
-    __SYCL_HAS_DEFINITION__
+    __SYCL_EXTERNAL_WITH_PTR__
     int __spirv_ocl_printf(const char *__format, ...);
   }
 }
 #else
-__SYCL_HAS_DEFINITION__
+__SYCL_EXTERNAL_WITH_PTR__
 int __spirv_ocl_printf(const char *, ...);
 #endif
 

@@ -2103,17 +2103,10 @@ def SYCLDeviceDocs : Documentation {
 This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other device functions. All ``sycl_device`` function callees
-implicitly inherit this attribute.
-  }];
-}
-
-def SYCLHasDefinitionDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "sycl_has_definition";
-  let Content = [{
-This attribute can only be applied to declarations of functions and indicates
-that the function's definition is somehow available at JIT. Use of this
-attribute in user code is not recommended.
+implicitly inherit this attribute. The attribute has a parameter. Value of 0
+means the default behaviour.. Value of 1 lifts a restriction to use this
+attribute with functions which accept raw-pointer arguments or return
+raw-pointer.
   }];
 }
 

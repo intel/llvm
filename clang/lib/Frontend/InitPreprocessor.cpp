@@ -1098,9 +1098,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
-    Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
-    Builder.defineMacro("__SYCL_HAS_DEFINITION__",
-                        "__attribute__((sycl_has_definition))");
+    Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device(0)))");
+    Builder.defineMacro("__SYCL_EXTERNAL_WITH_PTR__",
+                        "__attribute__((sycl_device(1)))");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");

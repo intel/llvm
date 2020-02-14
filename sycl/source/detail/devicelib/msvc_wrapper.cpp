@@ -42,5 +42,4 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
                           __spirv_BuiltInLocalInvocationId.y,
                           __spirv_BuiltInLocalInvocationId.z);
 }
-
 #endif // __SYCL_DEVICE_ONLY__

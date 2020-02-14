@@ -8,7 +8,7 @@ namespace std {
   typedef __typeof__(sizeof(int)) size_t;
 }
 
-__SYCL_HAS_DEFINITION__
+__SYCL_EXTERNAL_WITH_PTR__
 void* operator new(std::size_t);
 
 namespace Check_User_Operators {

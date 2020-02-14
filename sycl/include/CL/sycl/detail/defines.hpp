@@ -28,8 +28,8 @@
 #define SYCL_EXTERNAL
 #endif
 
-#ifndef __SYCL_HAS_DEFINITION__
-#define __SYCL_HAS_DEFINITION__
+#ifndef __SYCL_EXTERNAL_WITH_PTR__
+#define __SYCL_EXTERNAL_WITH_PTR__
 #endif
 
 #if __cplusplus >= 201402
