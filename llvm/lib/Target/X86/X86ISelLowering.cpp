@@ -11704,7 +11704,7 @@ static int matchShuffleAsBitRotate(ArrayRef<int> Mask, int NumSubElts) {
   return RotateAmt;
 }
 
-/// Lower shuffle using ISD::ROTL rotations.
+/// Lower shuffle using X86ISD::VROTLI rotations.
 static SDValue lowerShuffleAsBitRotate(const SDLoc &DL, MVT VT, SDValue V1,
                                        ArrayRef<int> Mask,
                                        const X86Subtarget &Subtarget,
@@ -11716,25 +11716,46 @@ static SDValue lowerShuffleAsBitRotate(const SDLoc &DL, MVT VT, SDValue V1,
   assert(EltSizeInBits < 64 && "Can't rotate 64-bit integers");
 
   // Only XOP + AVX512 targets have bit rotation instructions.
+  // If we at least have SSSE3 (PSHUFB) then we shouldn't attempt to use this.
   bool IsLegal =
       (VT.is128BitVector() && Subtarget.hasXOP()) || Subtarget.hasAVX512();
-  if (!IsLegal)
+  if (!IsLegal && Subtarget.hasSSE3())
     return SDValue();
 
   // AVX512 only has vXi32/vXi64 rotates, so limit the rotation sub group size.
-  int MinSubElts = Subtarget.hasXOP() ? 2 : std::max(32 / EltSizeInBits, 2);
+  int MinSubElts = Subtarget.hasAVX512() ? std::max(32 / EltSizeInBits, 2) : 2;
   int MaxSubElts = 64 / EltSizeInBits;
   for (int NumSubElts = MinSubElts; NumSubElts <= MaxSubElts; NumSubElts *= 2) {
     int RotateAmt = matchShuffleAsBitRotate(Mask, NumSubElts);
     if (RotateAmt < 0)
       continue;
-    int RotateAmtInBits = RotateAmt * EltSizeInBits;
+
     int NumElts = VT.getVectorNumElements();
     MVT RotateSVT = MVT::getIntegerVT(EltSizeInBits * NumSubElts);
     MVT RotateVT = MVT::getVectorVT(RotateSVT, NumElts / NumSubElts);
+
+    // For pre-SSSE3 targets, if we are shuffling vXi8 elts then ISD::ROTL,
+    // expanded to OR(SRL,SHL), will be more efficient, but if they can
+    // widen to vXi16 or more then existing lowering should will be better.
+    int RotateAmtInBits = RotateAmt * EltSizeInBits;
+    if (!IsLegal) {
+      if ((RotateAmtInBits % 16) == 0)
+        return SDValue();
+      // TODO: Use getTargetVShiftByConstNode.
+      unsigned ShlAmt = RotateAmtInBits;
+      unsigned SrlAmt = RotateSVT.getScalarSizeInBits() - RotateAmtInBits;
+      V1 = DAG.getBitcast(RotateVT, V1);
+      SDValue SHL = DAG.getNode(X86ISD::VSHLI, DL, RotateVT, V1,
+                                DAG.getTargetConstant(ShlAmt, DL, MVT::i8));
+      SDValue SRL = DAG.getNode(X86ISD::VSRLI, DL, RotateVT, V1,
+                                DAG.getTargetConstant(SrlAmt, DL, MVT::i8));
+      SDValue Rot = DAG.getNode(ISD::OR, DL, RotateVT, SHL, SRL);
+      return DAG.getBitcast(VT, Rot);
+    }
+
     SDValue Rot =
-        DAG.getNode(ISD::ROTL, DL, RotateVT, DAG.getBitcast(RotateVT, V1),
-                    DAG.getConstant(RotateAmtInBits, DL, RotateVT));
+        DAG.getNode(X86ISD::VROTLI, DL, RotateVT, DAG.getBitcast(RotateVT, V1),
+                    DAG.getTargetConstant(RotateAmtInBits, DL, MVT::i8));
     return DAG.getBitcast(VT, Rot);
   }
 
@@ -21645,8 +21666,14 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
     bool IsSignaling = Op.getOpcode() == ISD::STRICT_FSETCCS;
     SDValue Chain = IsStrict ? Op.getOperand(0) : SDValue();
 
+    // If we have a strict compare with a vXi1 result and the input is 128/256
+    // bits we can't use a masked compare unless we have VLX. If we use a wider
+    // compare like we do for non-strict, we might trigger spurious exceptions
+    // from the upper elements. Instead emit a AVX compare and convert to mask.
     unsigned Opc;
-    if (Subtarget.hasAVX512() && VT.getVectorElementType() == MVT::i1) {
+    if (Subtarget.hasAVX512() && VT.getVectorElementType() == MVT::i1 &&
+        (!IsStrict || Subtarget.hasVLX() ||
+         Op0.getSimpleValueType().is512BitVector())) {
       assert(VT.getVectorNumElements() <= 16);
       Opc = IsStrict ? X86ISD::STRICT_CMPM : X86ISD::CMPM;
     } else {
@@ -21742,10 +21769,19 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
             Opc, dl, VT, Op0, Op1, DAG.getTargetConstant(SSECC, dl, MVT::i8));
     }
 
-    // If this is SSE/AVX CMPP, bitcast the result back to integer to match the
-    // result type of SETCC. The bitcast is expected to be optimized away
-    // during combining/isel.
-    Cmp = DAG.getBitcast(Op.getSimpleValueType(), Cmp);
+    if (VT.getSizeInBits() > Op.getSimpleValueType().getSizeInBits()) {
+      // We emitted a compare with an XMM/YMM result. Finish converting to a
+      // mask register using a vptestm.
+      EVT CastVT = EVT(VT).changeVectorElementTypeToInteger();
+      Cmp = DAG.getBitcast(CastVT, Cmp);
+      Cmp = DAG.getSetCC(dl, Op.getSimpleValueType(), Cmp,
+                         DAG.getConstant(0, dl, CastVT), ISD::SETNE);
+    } else {
+      // If this is SSE/AVX CMPP, bitcast the result back to integer to match
+      // the result type of SETCC. The bitcast is expected to be optimized
+      // away during combining/isel.
+      Cmp = DAG.getBitcast(Op.getSimpleValueType(), Cmp);
+    }
 
     if (IsStrict)
       return DAG.getMergeValues({Cmp, Chain}, dl);
