@@ -125,6 +125,14 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
+bool
+context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
+  for (auto D : MDevices)
+    if (getSyclObjImpl(D) == Device)
+      return true;
+  return false;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

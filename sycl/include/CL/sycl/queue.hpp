@@ -83,7 +83,7 @@ public:
   /// Constructs a SYCL queue instance that is associated with the context
   /// provided, using the device returned by the device selector.
   ///
-  /// @param SyclDevice is an instance of SYCL device.
+  /// @param SyclContext is an instance of SYCL context.
   /// @param DeviceSelector is an instance of SYCL device selector.
   /// @param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device_selector &DeviceSelector,
@@ -93,11 +93,33 @@ public:
   /// with the context provided, using the device returned by the device
   /// selector.
   ///
-  /// @param SyclDevice is an instance of SYCL device.
+  /// @param SyclContext is an instance of SYCL context.
   /// @param DeviceSelector is an instance of SYCL device selector.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   /// @param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {});
+
+  /// Constructs a SYCL queue associated with the given context, device
+  /// and optional properties list.
+  ///
+  /// @param SyclContext is an instance of SYCL context.
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
+        const property_list &PropList = {})
+      : queue(SyclContext, SyclDevice,
+              detail::getSyclObjImpl(SyclContext)->get_async_handler(),
+              PropList) {};
+
+  /// Constructs a SYCL queue associated with the given context, device,
+  /// asynchronous exception handler and optional properties list.
+  ///
+  /// @param SyclContext is an instance of SYCL context.
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL

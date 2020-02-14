@@ -138,6 +138,9 @@ public:
 
   KernelProgramCache &getKernelProgramCache() const;
 
+  /// Returns true if and only if context contains the given device.
+  bool hasDevice(shared_ptr_class<detail::device_impl> Device) const;
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
