@@ -1539,6 +1539,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
   }
+  case Intrinsic::sqrt: {
+    return BM->addExtInst(transType(II->getType()),
+                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Sqrt,
+                          {transValue(II->getOperand(0), BB)}, BB);
+  }
   case Intrinsic::ctlz:
   case Intrinsic::cttz: {
     SPIRVWord ExtOp = II->getIntrinsicID() == Intrinsic::ctlz ? OpenCLLIB::Clz
