@@ -370,14 +370,14 @@ class queue {
  public:
   ...
   template <typename T>
-  void fill(void* ptr, const T& pattern, size_t count);
+  event fill(void* ptr, const T& pattern, size_t count);
 };
 ----
 Parameters::
   * `void* ptr` - pointer to the memory to fill
   * `const T& pattern` - pattern to be filled.  `T` should be trivially copyable.
   * `size_t count` - number of times to fill `pattern` into `ptr`
-Return value:: Returns an event representing the fill operation.
+Return value:: Returns an event representing the fill operation or void if on the `handler`.
 
 '''
 ==== Restricted USM 
