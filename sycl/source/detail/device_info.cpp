@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/device.hpp>
-#include <chrono>
+#include <detail/device_info.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/platform_util.hpp>
+
+#include <chrono>
 #include <thread>
 
 #ifdef __GNUG__

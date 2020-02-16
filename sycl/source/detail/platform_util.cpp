@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/platform_util.hpp>
 
 #if defined(SYCL_RT_OS_LINUX)
 #include <cpuid.h>

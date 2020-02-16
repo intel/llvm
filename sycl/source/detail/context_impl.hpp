@@ -10,7 +10,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
@@ -18,6 +17,7 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/usm/usm_dispatch.hpp>
 
 #include <map>
 #include <memory>
