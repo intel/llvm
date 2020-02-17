@@ -166,9 +166,9 @@ bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 }
 
 // Load the plugin based on SYCL_BE.
-// TODO: Currently only accepting OpenCL and CUDA plugins. Edit it to identify and load
-// other kinds of plugins, do the required changes in the findPlugins,
-// loadPlugin and bindPlugin functions.
+// TODO: Currently only accepting OpenCL and CUDA plugins. Edit it to identify
+// and load other kinds of plugins, do the required changes in the
+// findPlugins, loadPlugin and bindPlugin functions.
 vector_class<plugin> initialize() {
   vector_class<plugin> Plugins;
 
@@ -196,11 +196,18 @@ vector_class<plugin> initialize() {
       std::cerr << "Failed to bind PI APIs to the plugin: " << PluginNames[I]
                 << std::endl;
     }
+    if (useBackend(SYCL_BE_PI_OPENCL) &&
+        PluginNames[I].find("opencl") != std::string::npos) {
+      // Use the OpenCL plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation);
+    }
+    if (useBackend(SYCL_BE_PI_CUDA) &&
+        PluginNames[I].find("cuda") != std::string::npos) {
+      // Use the CUDA plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation);
+    }
     Plugins.push_back(plugin(PluginInformation));
   }
-  // TODO: Correct the logic to store the appropriate plugin into GlobalPlugin
-  // variable. Currently it saves the last plugin found.
-  GlobalPlugin = std::make_shared<plugin>(PluginInformation);
   return Plugins;
 }
 
