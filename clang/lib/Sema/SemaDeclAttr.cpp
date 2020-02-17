@@ -4489,17 +4489,20 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!checkAttributeAtMostNumArgs(S, AL, 1))
     return;
 
-  const Expr *TypeExpr = AL.getArgAsExpr(0);
-  int Type;
+  unsigned int Mask = 0;
+  llvm::SmallVector<StringRef, 4> Opts;
+  for (size_t Idx = 0; Idx < AL.getNumArgs(); ++Idx) {
+    llvm::StringRef Opt;
+    if (!S.checkStringLiteralArgumentAttr(AL, Idx, Opt))
+      return;
 
-  // Parameter indices are 1-indexed, hence Index=1
-  if (!checkPositiveIntArgument(S, AL, TypeExpr, Type, /*Idx=*/1))
-    return;
+    if (Opt.equals(SYCLDeviceAttr::RawPtrFnOpt))
+      Mask |= SYCLDeviceAttr::RawPtrFnBit;
 
-  if (Type > SYCLDeviceAttr::RawPtrFnType)
-    return;
+    Opts.push_back(Opt);
+  }
 
-  const bool IsRawPtrFnType = (Type == SYCLDeviceAttr::RawPtrFnType);
+  const bool IsRawPtrFnType = !!(Mask & SYCLDeviceAttr::RawPtrFnBit);
 
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
@@ -4525,8 +4528,11 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   S.addSyclDeviceDecl(D);
 
-  D->addAttr(::new (S.Context)
-                 SYCLDeviceAttr(S.Context, AL, Type));
+  SYCLDeviceAttr *A = ::new (S.Context)
+      SYCLDeviceAttr(S.Context, AL, Opts.data(), Opts.size());
+  A->Mask = Mask;
+
+  D->addAttr(A);
 }
 
 static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
@@ -4545,7 +4551,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 
   S.addSyclDeviceDecl(D);
   D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context,
-                                            SYCLDeviceAttr::DefaultType));
+                                            nullptr, 0));
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
 

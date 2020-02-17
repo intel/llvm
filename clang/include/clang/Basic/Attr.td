@@ -1078,13 +1078,15 @@ def CUDAShared : InheritableAttr {
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
   let Subjects = SubjectList<[Function]>;
-  let Args = [UnsignedArgument<"Type", /*opt*/ 0>];
+  let Args = [VariadicStringArgument<"Opts">];
 
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceDocs];
   let AdditionalMembers = [{
-    static const int DefaultType = 0;
-    static const int RawPtrFnType = 1;
+    static constexpr const char *RawPtrFnOpt = "raw_ptr_fn";
+    static const unsigned int RawPtrFnBit = 0x01;
+
+    unsigned int Mask = 0;
   }];
 }
 

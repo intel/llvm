@@ -2103,8 +2103,8 @@ def SYCLDeviceDocs : Documentation {
 This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other device functions. All ``sycl_device`` function callees
-implicitly inherit this attribute. The attribute has a parameter. Value of 0
-means the default behaviour.. Value of 1 lifts a restriction to use this
+implicitly inherit this attribute. The attribute has a tag list. No tags means
+the default behaviour. Tag "raw_ptr_fn" is used to lift restriction to use this
 attribute with functions which accept raw-pointer arguments or return
 raw-pointer.
   }];

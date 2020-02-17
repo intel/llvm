@@ -8,7 +8,7 @@
 // CHECK-ANY-SYCL-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-ANY-SYCL:#define CL_SYCL_LANGUAGE_VERSION 121
 // CHECK-SYCL:#define CL_SYCL_LANGUAGE_VERSION 121
-// CHECK-SYCL:#define SYCL_EXTERNAL __attribute__((sycl_device(0)))
-// CHECK-SYCL:#define __SYCL_EXTERNAL_WITH_PTR__ __attribute__((sycl_device(1)))
+// CHECK-SYCL:#define SYCL_EXTERNAL __attribute__((sycl_device))
+// CHECK-SYCL:#define __SYCL_EXTERNAL_WITH_PTR__ __attribute__((sycl_device("raw_ptr_fn")))
 // CHECK-MSVC-NOT: __GNUC__
 // CHECK-MSVC-NOT: __STDC__

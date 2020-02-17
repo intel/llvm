@@ -3,7 +3,7 @@
 // expected-no-warning@+1
 __inline __cdecl int printf(char const* const _Format, ...) { return 0; }
 // expected-no-warning@+1
-__inline __cdecl __attribute__((sycl_device(0))) int foo() { return 0; }
+__inline __cdecl __attribute__((sycl_device)) int foo() { return 0; }
 // expected-no-warning@+1
 __inline __cdecl int moo() { return 0; }
 
