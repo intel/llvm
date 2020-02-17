@@ -1,3 +1,5 @@
+// REQUIRES: opencl-interop
+
 // RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t1.out
 // RUN: %clangxx -I %sycl_source_dir %s -o %t3.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
