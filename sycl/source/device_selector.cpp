@@ -36,15 +36,16 @@ int default_selector::operator()(const device &dev) const {
   const char *SYCL_BE = std::getenv("SYCL_BE");
   std::string backend = (SYCL_BE ? SYCL_BE : "");
   if (backend != "") {
-    const std::string DriverVersion = dev.get_info<info::device::driver_version>();
-    // If we have a cuda device but aren't using PI_CUDA, don't use this device
-    if (DriverVersion.find("CUDA") == std::string::npos && backend == "PI_CUDA") {
+    // Taking the version information from the platform gives us more useful
+    // information than the driver_version of the device.
+    const platform Platform = dev.get_info<info::device::platform>();
+    const std::string PlatformVersion = Platform.get_info<info::platform::version>();
+    // If using PI_CUDA, don't accept a non-CUDA device
+    if (PlatformVersion.find("CUDA") == std::string::npos && backend == "PI_CUDA") {
       return -1;
     }
-    // We can't easily check for an OpenCL device as there is no common string
-    // to search for on all devices, so just guarantee we don't choose a cuda
-    // device when PI_OPENCL is used
-    if (DriverVersion.find("CUDA") != std::string::npos && backend == "PI_OPENCL") {
+    // If using PI_OPENCL, don't accept a non-OpenCL device
+    if (PlatformVersion.find("OpenCL") == std::string::npos && backend == "PI_OPENCL") {
       return -1;
     }
   }
