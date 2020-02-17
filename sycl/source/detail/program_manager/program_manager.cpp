@@ -111,8 +111,7 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
 template <typename ExceptionT, typename RetT>
 RetT *waitUntilBuilt(KernelProgramCache &Cache,
-                     KernelProgramCache::BuildResult<RetT> *BuildResult,
-                     bool &TryAgain) {
+                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
   Cache.waitUntilBuilt([BuildResult]() {
@@ -127,10 +126,6 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
   }
 
   RetT *Result = BuildResult->Ptr.load();
-
-  // if the result is still null then there was no SYCL exception and we may try
-  // to build kernel/program once more to generate the original exception
-  TryAgain = !Result;
 
   return Result;
 }
@@ -174,23 +169,18 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
   // in the cache
   if (!InsertionTookPlace) {
     for (;;) {
-      bool TryAgain = false;
-      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult, TryAgain);
+      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
 
-      if (TryAgain) {
-        // Previous build is failed. There was no SYCL exception though.
-        // We might try to build once more.
-        int Expected = BS_Failed;
-        int Desired = BS_InProgress;
+      if (Result)
+          return Result;
 
-        if (BuildResult->State.compare_exchange_strong(Expected, Desired)) {
-          // this thread is the building thread now
-          break;
-        }
+      // Previous build is failed. There was no SYCL exception though.
+      // We might try to build once more.
+      int Expected = BS_Failed;
+      int Desired = BS_InProgress;
 
-        continue;
-      } else // no need to try once more
-        return Result;
+      if (BuildResult->State.compare_exchange_strong(Expected, Desired))
+        break; // this thread is the building thread now
     }
   }
 
