@@ -11887,8 +11887,7 @@ void OMPClauseReader::VisitOMPCollapseClause(OMPCollapseClause *C) {
 }
 
 void OMPClauseReader::VisitOMPDefaultClause(OMPDefaultClause *C) {
-  C->setDefaultKind(
-       static_cast<OpenMPDefaultClauseKind>(Record.readInt()));
+  C->setDefaultKind(static_cast<llvm::omp::DefaultKind>(Record.readInt()));
   C->setLParenLoc(Record.readSourceLocation());
   C->setDefaultKindKwLoc(Record.readSourceLocation());
 }
@@ -12613,10 +12612,10 @@ void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {
   C->setKindKwLoc(Record.readSourceLocation());
 }
 
-OMPTraitInfo *ASTRecordReader::readOMPTraitInfo() {
-  OMPTraitInfo *TI = new OMPTraitInfo();
-  TI->Sets.resize(readUInt32());
-  for (auto &Set : TI->Sets) {
+OMPTraitInfo ASTRecordReader::readOMPTraitInfo() {
+  OMPTraitInfo TI;
+  TI.Sets.resize(readUInt32());
+  for (auto &Set : TI.Sets) {
     Set.Kind = readEnum<llvm::omp::TraitSet>();
     Set.Selectors.resize(readUInt32());
     for (auto &Selector : Set.Selectors) {

@@ -59,6 +59,7 @@ struct OverloadedNewDelete {
 
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  // expected-note@+1 {{called by 'isa_B'}}
   if (f1 == f2) return false;
 
   Check_VLA_Restriction::restriction(7);
@@ -76,6 +77,7 @@ bool isa_B(A *a) {
 
 template<typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
+  // expected-note@+1 3{{called by 'kernel1<kernel_name}}
   l();
 }
 }
@@ -126,6 +128,7 @@ void eh_not_ok(void)
 
 void usage(myFuncDef functionPtr) {
 
+  // expected-note@+1 {{called by 'usage'}}
   eh_not_ok();
 
 #if ALLOW_FP
@@ -137,8 +140,10 @@ void usage(myFuncDef functionPtr) {
     // expected-error@+2 {{SYCL kernel cannot use a global variable}}
     // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
     b.f();
+  // expected-note@+1 3{{called by 'usage'}}
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
   Check_RTTI_Restriction::A *a;
+  // expected-note@+1 3{{called by 'operator()'}}
   Check_RTTI_Restriction::isa_B(a); });
 
   // expected-error@+1 {{__float128 is not supported on this target}}
@@ -174,29 +179,26 @@ int use2 ( a_type ab, a_type *abp ) {
   return ns::glob +
   // expected-error@+1 {{SYCL kernel cannot use a global variable}}
     AnotherNS::moar_globals;
-  // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
   Check_RTTI_Restriction:: A *a;
-  // expected-note@+1 2{{called by 'use2'}}
   Check_RTTI_Restriction:: isa_B(a);
-  // expected-note@+1 {{called by 'use2'}}
   usage(&addInt);
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
-  // expected-note@+1 {{called by 'use2'}}
   if (f1 == f2) return false;
 }
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+  // expected-note@+1 5{{called by 'kernel_single_task<fake_kernel}}
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 5{{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 
 int main() {
   a_type ab;
+  // expected-note@+1 5{{called by 'operator()'}}
   kernel_single_task<class fake_kernel>([]() { usage(  &addInt ); });
   return 0;
 }
