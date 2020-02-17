@@ -1223,6 +1223,36 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
                            transValue(SF->getOperand(1), BB), Comp, BB));
   }
 
+  if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
+    AtomicRMWInst::BinOp Op = ARMW->getOperation();
+    if (!BM->getErrorLog().checkError(
+            !AtomicRMWInst::isFPOperation(Op) && Op != AtomicRMWInst::Nand,
+            SPIRVEC_InvalidInstruction,
+            OCLUtil::toString(V) + "\nAtomic " +
+                AtomicRMWInst::getOperationName(Op).str() +
+                " is not supported in SPIR-V!\n"))
+      return nullptr;
+
+    spv::Op OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
+    AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
+    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
+    std::vector<Value *> Operands(4);
+    Operands[0] = ARMW->getPointerOperand();
+    // To get the memory scope argument we might use ARMW->getSyncScopeID(), but
+    // atomicrmw LLVM instruction is not aware of OpenCL(or SPIR-V) memory scope
+    // enumeration. And assuming the produced SPIR-V module will be consumed in
+    // an OpenCL environment, we can use the same memory scope as OpenCL atomic
+    // functions that don't have memory_scope argument i.e. memory_scope_device.
+    // See the OpenCL C specification p6.13.11. "Atomic Functions"
+    Operands[1] = getUInt32(M, spv::ScopeDevice);
+    Operands[2] = getUInt32(M, MemSem);
+    Operands[3] = ARMW->getValOperand();
+    std::vector<SPIRVId> Ops = BM->getIds(transValue(Operands, BB));
+    SPIRVType *Ty = transType(ARMW->getType());
+
+    return mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
+  }
+
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(V)) {
     SPIRVValue *BV = transIntrinsicInst(II, BB);
     return BV ? mapValue(V, BV) : nullptr;
