@@ -16,7 +16,7 @@
 #ifndef __SYCL_DEVICE_ONLY__
 #define __SYCL_STR(X) #X
 #define __SYCL_XSTR(X) __SYCL_STR(X)
-#define __SYCL_FILE__ __FILE__ ":" __LINE__ 
+#define __SYCL_FILE__ __FILE__ ":" __SYCL_XSTR(__LINE__)
 #define __SYCL_ASSERT(X, ...)                                                  \
   sycl::detail::sycl_assert(__SYCL_FILE__, X, __SYCL_XSTR(X), __VA_ARGS__)
 
