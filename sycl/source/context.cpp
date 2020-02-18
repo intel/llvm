@@ -14,8 +14,9 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
-#include <algorithm>
 #include <detail/context_impl.hpp>
+
+#include <algorithm>
 #include <memory>
 #include <utility>
 
