@@ -6546,7 +6546,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
   llvm::Function *F = cast<llvm::Function>(GV);
 
   // Perform special handling in OpenCL mode
-  if (M.getLangOpts().OpenCL) {
+  if (M.getLangOpts().OpenCL || M.getLangOpts().SYCLIsDevice) {
     // Use OpenCL function attributes to check for kernel functions
     // By default, all functions are device functions
     if (FD->hasAttr<OpenCLKernelAttr>()) {

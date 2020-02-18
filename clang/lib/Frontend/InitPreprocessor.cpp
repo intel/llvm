@@ -1099,6 +1099,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
+
+    if (TI.getTriple().isNVPTX()) {
+        Builder.defineMacro("__SYCL_NVPTX__", "1");
+    }
+
+    if (!getenv("DISABLE_INFER_AS"))
+      Builder.defineMacro("__SYCL_ENABLE_INFER_AS__", "1");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");

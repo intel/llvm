@@ -615,6 +615,11 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 }
 
 static bool isValidSYCLTriple(llvm::Triple T) {
+#ifdef SYCL_HAVE_PI_CUDA
+  // NVPTX is valid for SYCL.
+  if (T.isNVPTX())
+    return true;
+#endif
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
   if (!T.isSPIR())
@@ -3250,10 +3255,36 @@ class OffloadingActionBuilder final {
     /// Type of output file for FPGA device compilation.
     types::ID FPGAOutType = types::TY_FPGA_AOCX;
 
+    /// List of CUDA architectures to use in this compilation with NVPTX targets.
+    SmallVector<CudaArch, 8> GpuArchList;
+
+    /// Build the last steps for CUDA after all BC files have been linked.
+    Action *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
+      auto *BA = C.getDriver().ConstructPhaseAction(
+          C, Args, phases::Backend, Input, AssociatedOffloadKind);
+      if (TT.getOS() != llvm::Triple::NVCL) {
+        auto *AA = C.getDriver().ConstructPhaseAction(
+            C, Args, phases::Assemble, BA, AssociatedOffloadKind);
+        ActionList DeviceActions = {BA, AA};
+        return C.MakeAction<LinkJobAction>(DeviceActions,
+                                           types::TY_CUDA_FATBIN);
+      }
+      return BA;
+    }
+
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL) {}
+
+    void withBoundArchForToolChain(const ToolChain* TC,
+                                   llvm::function_ref<void(const char *)> Op) {
+      if (TC->getTriple().isNVPTX())
+        for (CudaArch A : GpuArchList)
+          Op(CudaArchToString(A));
+      else
+        Op(nullptr);
+    }
 
     ActionBuilderReturnCode
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
@@ -3272,8 +3303,11 @@ class OffloadingActionBuilder final {
               C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
           A = C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
         }
-        DA.add(*DeviceCompilerInput, *ToolChains.front(), /*BoundArch=*/nullptr,
-               Action::OFK_SYCL);
+        const auto *TC = ToolChains.front();
+        const char *BoundArch = nullptr;
+        if (TC->getTriple().isNVPTX())
+          BoundArch = CudaArchToString(GpuArchList.front());
+        DA.add(*DeviceCompilerInput, *TC, BoundArch, Action::OFK_SYCL);
         // Clear the input file, it is already a dependence to a host
         // action.
         DeviceCompilerInput = nullptr;
@@ -3329,9 +3363,17 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
+      auto TC = ToolChains.begin();
       for (Action *&A : SYCLDeviceActions) {
+        if ((*TC)->getTriple().isNVPTX() && CurPhase >= phases::Backend) {
+          // For CUDA, stop to emit LLVM IR so it can be linked later on.
+          ++TC;
+          continue;
+        }
+
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
+        ++TC;
       }
 
       return ABRT_Success;
@@ -3430,7 +3472,9 @@ class OffloadingActionBuilder final {
       auto TI = ToolChains.begin();
       for (auto *A : SYCLDeviceActions) {
         OffloadAction::DeviceDependences Dep;
-        Dep.add(*A, **TI, /*BoundArch=*/nullptr, Action::OFK_SYCL);
+        withBoundArchForToolChain(*TI, [&](const char *BoundArch) {
+          Dep.add(*A, **TI, BoundArch, Action::OFK_SYCL);
+        });
         AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
         ++TI;
       }
@@ -3514,22 +3558,27 @@ class OffloadingActionBuilder final {
           else
             LinkObjects.push_back(Input);
         }
-        auto *DeviceLinkAction =
+        Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
         ActionList WrapperInputs;
-        Action *SPIRVInput = DeviceLinkAction;
         types::ID OutType = types::TY_SPIRV;
         if (DeviceCodeSplit) {
           auto *SplitAction = C.MakeAction<SYCLPostLinkJobAction>(
               DeviceLinkAction, types::TY_Tempfilelist);
           auto *EntryGenAction = C.MakeAction<SYCLPostLinkJobAction>(
               DeviceLinkAction, types::TY_TempEntriesfilelist);
-          SPIRVInput = SplitAction;
+          DeviceLinkAction = SplitAction;
           WrapperInputs.push_back(EntryGenAction);
           OutType = types::TY_Tempfilelist;
         }
-        auto *SPIRVTranslateAction =
-            C.MakeAction<SPIRVTranslatorJobAction>(SPIRVInput, OutType);
+        auto isNVPTX = (*TC)->getTriple().isNVPTX();
+        if (isNVPTX) {
+          DeviceLinkAction =
+              finalizeNVPTXDependences(DeviceLinkAction, (*TC)->getTriple());
+        }
+        else
+          DeviceLinkAction =
+            C.MakeAction<SPIRVTranslatorJobAction>(DeviceLinkAction, OutType);
 
         auto TT = SYCLTripleList[I];
         bool SYCLAOTCompile =
@@ -3550,7 +3599,7 @@ class OffloadingActionBuilder final {
           // triple calls for it (provided a valid subarch).
           Action *DeviceBECompileAction;
           ActionList BEActionList;
-          BEActionList.push_back(SPIRVTranslateAction);
+          BEActionList.push_back(DeviceLinkAction);
           for (const auto &A : DeviceLibObjects)
             BEActionList.push_back(A);
           DeviceBECompileAction =
@@ -3561,11 +3610,12 @@ class OffloadingActionBuilder final {
           DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                  Action::OFK_SYCL);
         } else {
-          WrapperInputs.push_back(SPIRVTranslateAction);
+          WrapperInputs.push_back(DeviceLinkAction);
           auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
               WrapperInputs, types::TY_Object);
-          DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                 Action::OFK_SYCL);
+          withBoundArchForToolChain(*TC, [&](const char *BoundArch) {
+            DA.add(*DeviceWrappingAction, **TC, BoundArch, Action::OFK_SYCL);
+          });
         }
         ++TC;
         ++I;
@@ -3594,6 +3644,43 @@ class OffloadingActionBuilder final {
         DA.add(*DeviceWrappingAction, **SYCLDeviceTC,
                /*BoundArch=*/nullptr, Action::OFK_SYCL);
       }
+    }
+
+    /// Initialize the GPU architecture list from arguments - this populates `GpuArchList` from
+    /// `--cuda-gpu-arch` flags. Only relevant if compiling to CUDA. Return true if any
+    /// initialization errors are found.
+    bool initializeGpuArchMap() {
+      const OptTable &Opts = C.getDriver().getOpts();
+      for (auto *A : Args) {
+        unsigned Index;
+
+        if (A->getOption().matches(options::OPT_Xsycl_backend_EQ))
+          // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
+          if (llvm::Triple(A->getValue(0)).isNVPTX())
+            Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
+          else
+            continue;
+        else if (A->getOption().matches(options::OPT_Xsycl_backend))
+          // Passing device args: -Xsycl-target-backend -opt=val.
+          Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
+        else
+          continue;
+
+        A->claim();
+        auto ParsedArg = Opts.ParseOneArg(Args, Index);
+        // TODO: Support --no-cuda-gpu-arch, --{,no-}cuda-gpu-arch=all.
+        if (ParsedArg->getOption().matches(options::OPT_cuda_gpu_arch_EQ)) {
+          ParsedArg->claim();
+          GpuArchList.push_back(StringToCudaArch(ParsedArg->getValue(0)));
+        }
+      }
+
+      // If there are no CUDA architectures provided then default to SM_30.
+      if (GpuArchList.empty()) {
+        GpuArchList.push_back(CudaArch::SM_30);
+      }
+
+      return false;
     }
 
     bool initialize() override {
@@ -3671,7 +3758,7 @@ class OffloadingActionBuilder final {
                          ? types::TY_FPGA_AOCR : types::TY_FPGA_AOCX;
 
       DeviceLinkerInputs.resize(ToolChains.size());
-      return false;
+      return initializeGpuArchMap();
     }
 
     bool canUseBundlerUnbundler() const override {
@@ -6054,6 +6141,11 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           case llvm::Triple::spir64:
             TC = std::make_unique<toolchains::SYCLToolChain>(
               *this, Target, HostTC, Args);
+            break;
+          case llvm::Triple::nvptx:
+          case llvm::Triple::nvptx64:
+            TC = std::make_unique<toolchains::CudaToolChain>(
+              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
           break;
