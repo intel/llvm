@@ -11,6 +11,11 @@ struct B {
   B (const B& x) : i(x.i) {}
 };
 
+struct C : A {
+  const A C2;
+  C() : A{0}, C2{2}{}
+};
+
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -20,9 +25,11 @@ void test() {
   A IamGood;
   IamGood.i = 0;
   B IamBad(1);
+  C IamAlsoGood;
   kernel_single_task<class kernel_capture_refs>([=] {
     int a = IamGood.i;
-    // expected-error@+1 {{kernel parameter has non-trivially copyable class/struct type}}
+    // expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
     int b = IamBad.i;
+    int C = IamAlsoGood.i;
   });
 }

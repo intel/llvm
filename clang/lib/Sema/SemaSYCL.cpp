@@ -1069,7 +1069,10 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
           continue;
         }
       }
-      if (!ArgTy.isTriviallyCopyableType(Context)) {
+
+      CXXRecordDecl *RD =
+          cast<CXXRecordDecl>(ArgTy->getAs<RecordType>()->getDecl());
+      if (!RD->hasTrivialCopyConstructor()) {
         Context.getDiagnostics().Report(
             Fld->getLocation(), diag::err_sycl_non_trivially_copyable_type)
             << ArgTy;

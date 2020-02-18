@@ -10491,7 +10491,7 @@ def err_sycl_virtual_types : Error<
 def note_sycl_used_here : Note<"used here">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_non_trivially_copyable_type : Error<
-  "kernel parameter has non-trivially copyable class/struct type %0">;
+  "kernel parameter has non-trivially copy constructible class/struct type %0">;
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
