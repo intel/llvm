@@ -1566,18 +1566,14 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                              transValue(II->getArgOperand(2), BB), BB);
   }
   case Intrinsic::memset: {
-    // Generally memset can't be translated with current version of SPIRV spec.
-    // But in most cases it turns out that memset is emited by Clang to do
-    // zero-initializtion in default constructors.
-    // The code below handles only cases with val = 0 and constant len.
+    // Generally there is no direct mapping of memset to SPIR-V.  But it turns
+    // out that memset is emitted by Clang for initialization in default
+    // constructors so we need some basic support.  The code below only handles
+    // cases with constant value and constant length.
     MemSetInst *MSI = cast<MemSetInst>(II);
     Value *Val = MSI->getValue();
     if (!isa<Constant>(Val)) {
       assert(!"Can't translate llvm.memset with non-const `value` argument");
-      return nullptr;
-    }
-    if (!cast<Constant>(Val)->isZeroValue()) {
-      assert(!"Can't translate llvm.memset with non-zero `value` argument");
       return nullptr;
     }
     Value *Len = MSI->getLength();
@@ -1588,7 +1584,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
-    SPIRVValue *Init = BM->addNullConstant(CompositeTy);
+    SPIRVValue *Init;
+    if (cast<Constant>(Val)->isZeroValue()) {
+      Init = BM->addNullConstant(CompositeTy);
+    } else {
+      std::vector<SPIRVValue *> Elts{NumElements, transValue(Val, BB)};
+      Init = BM->addCompositeConstant(CompositeTy, Elts);
+    }
     SPIRVType *VarTy = transType(PointerType::get(AT, SPIRV::SPIRAS_Constant));
     SPIRVValue *Var =
         BM->addVariable(VarTy, /*isConstant*/ true, spv::LinkageTypeInternal,
