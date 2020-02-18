@@ -25,29 +25,42 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes pointer to some entity with its state.
+  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// class instance.
+  struct BuildError {
+    std::string Msg;
+    pi_int32 Code;
+
+    /// Equals to true if the Msg and Code are initialized. This flag is added
+    /// due to the possibility of error code being equal to zero even in case 
+    /// if build is failed and cl::sycl::exception is thrown.
+    bool FilledIn;
+  };
+
+  /// Denotes pointer to some entity with its general state and build error.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
   template<typename T>
-  struct EntityWithState {
+  struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
+    BuildError Error;
 
-    EntityWithState(T* P, int S)
-      : Ptr{P}, State{S}
+    BuildResult(T* P, int S)
+      : Ptr{P}, State{S}, Error{"", 0, false}
     {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
   using PiProgramPtrT = std::atomic<PiProgramT *>;
-  using ProgramWithBuildStateT = EntityWithState<PiProgramT>;
+  using ProgramWithBuildStateT = BuildResult<PiProgramT>;
   using ProgramCacheT = std::map<OSModuleHandle, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
   using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = EntityWithState<PiKernelT>;
+  using KernelWithBuildStateT = BuildResult<PiKernelT>;
   using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
