@@ -24,7 +24,7 @@ function(add_sycl_unittest test_dirname)
     )
   target_include_directories(${test_dirname} PRIVATE SYSTEM
       ${sycl_inc_dir}
-      ${CMAKE_SOURCE_DIR}/../sycl/source/
+      ${SYCL_SOURCE_DIR}/source/
     )
   # LLVM gtest uses LLVM utilities that require C++-14
   # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.

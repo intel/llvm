@@ -6,7 +6,6 @@ set(CLANGXX_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang++")
 set(CLANGCL_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang-cl")
 
 get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
-get_target_property(SYCL_SOURCE_DIR sycl-toolchain SOURCE_DIR)
 
 set(SYCL_INCLUDE "${dst_dir}")
 

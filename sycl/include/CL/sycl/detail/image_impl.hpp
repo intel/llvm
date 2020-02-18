@@ -222,7 +222,7 @@ private:
   template <typename T>
   void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
                     T &Dest) {
-    const detail::plugin &Plugin = getContextPlugin(Context);
+    const detail::plugin &Plugin = getPluginFromContext(Context);
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
                                               nullptr);

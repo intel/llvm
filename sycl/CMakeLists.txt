@@ -184,6 +184,8 @@ function( add_common_options LIB_NAME)
   endif()
 endfunction(add_common_options)
 
+set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
 # SYCL runtime library
 add_subdirectory( source )
 

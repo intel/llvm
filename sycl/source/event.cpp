@@ -13,7 +13,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
-
 #include <CL/sycl/stl.hpp>
 
 #include <memory>

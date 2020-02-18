@@ -8,7 +8,6 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
-#include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

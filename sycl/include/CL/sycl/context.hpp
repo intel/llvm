@@ -22,7 +22,7 @@ class platform;
 namespace detail {
 class context_impl;
 const detail::plugin &
-getContextPlugin(const shared_ptr_class<context_impl> Context);
+getPluginFromContext(const shared_ptr_class<context_impl> Context);
 }
 
 class context {

@@ -89,7 +89,7 @@ context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
 
 namespace detail {
 const detail::plugin &
-getContextPlugin(const shared_ptr_class<context_impl> Context) {
+getPluginFromContext(const shared_ptr_class<context_impl> Context) {
   return Context->getPlugin();
 }
 } // namespace detail
