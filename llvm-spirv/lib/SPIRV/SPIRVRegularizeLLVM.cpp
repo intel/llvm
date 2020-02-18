@@ -49,6 +49,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <set>
+#include <vector>
 
 using namespace llvm;
 using namespace SPIRV;
@@ -112,9 +113,10 @@ bool SPIRVRegularizeLLVM::regularize() {
       continue;
     }
 
-    for (auto BI = F->begin(), BE = F->end(); BI != BE; ++BI) {
-      for (auto II = BI->begin(), IE = BI->end(); II != IE; ++II) {
-        if (auto Call = dyn_cast<CallInst>(II)) {
+    std::vector<Instruction *> ToErase;
+    for (BasicBlock &BB : *F) {
+      for (Instruction &II : BB) {
+        if (auto Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
           if (CF && CF->isIntrinsic())
@@ -122,7 +124,7 @@ bool SPIRVRegularizeLLVM::regularize() {
         }
 
         // Remove optimization info not supported by SPIRV
-        if (auto BO = dyn_cast<BinaryOperator>(II)) {
+        if (auto BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
@@ -133,11 +135,67 @@ bool SPIRVRegularizeLLVM::regularize() {
             "range",
         };
         for (auto &MDName : MDs) {
-          if (II->getMetadata(MDName)) {
-            II->setMetadata(MDName, nullptr);
+          if (II.getMetadata(MDName)) {
+            II.setMetadata(MDName, nullptr);
           }
         }
+        if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
+          Value *Ptr = Cmpxchg->getPointerOperand();
+          // To get memory scope argument we might use Cmpxchg->getSyncScopeID()
+          // but LLVM's cmpxchg instruction is not aware of OpenCL(or SPIR-V)
+          // memory scope enumeration. And assuming the produced SPIR-V module
+          // will be consumed in an OpenCL environment, we can use the same
+          // memory scope as OpenCL atomic functions that do not have
+          // memory_scope argument, i.e. memory_scope_device. See the OpenCL C
+          // specification p6.13.11. Atomic Functions
+          Value *MemoryScope = getInt32(M, spv::ScopeDevice);
+          auto SuccessOrder = static_cast<OCLMemOrderKind>(
+              llvm::toCABI(Cmpxchg->getSuccessOrdering()));
+          auto FailureOrder = static_cast<OCLMemOrderKind>(
+              llvm::toCABI(Cmpxchg->getFailureOrdering()));
+          Value *EqualSem = getInt32(M, OCLMemOrderMap::map(SuccessOrder));
+          Value *UnequalSem = getInt32(M, OCLMemOrderMap::map(FailureOrder));
+          Value *Val = Cmpxchg->getNewValOperand();
+          Value *Comparator = Cmpxchg->getCompareOperand();
+
+          llvm::Value *Args[] = {Ptr,        MemoryScope, EqualSem,
+                                 UnequalSem, Val,         Comparator};
+          auto *Res = addCallInstSPIRV(M, "__spirv_AtomicCompareExchange",
+                                       Cmpxchg->getCompareOperand()->getType(),
+                                       Args, nullptr, &II, "cmpxchg.res");
+          // cmpxchg LLVM instruction returns a pair: the original value and
+          // a flag indicating success (true) or failure (false).
+          // OpAtomicCompareExchange SPIR-V instruction returns only the
+          // original value. So we replace all uses of the original value
+          // extracted from the pair with the result of OpAtomicCompareExchange
+          // instruction. And we replace all uses of the flag with result of an
+          // OpIEqual instruction. The OpIEqual instruction returns true if the
+          // original value equals to the comparator which matches with
+          // semantics of cmpxchg.
+          for (User *U : Cmpxchg->users()) {
+            if (auto *Extract = dyn_cast<ExtractValueInst>(U)) {
+              if (Extract->getIndices()[0] == 0) {
+                Extract->replaceAllUsesWith(Res);
+              } else if (Extract->getIndices()[0] == 1) {
+                auto *Cmp = new ICmpInst(Extract, CmpInst::ICMP_EQ, Res,
+                                         Comparator, "cmpxchg.success");
+                Extract->replaceAllUsesWith(Cmp);
+              } else {
+                llvm_unreachable("Unxpected cmpxchg pattern");
+              }
+              assert(Extract->user_empty());
+              Extract->dropAllReferences();
+              ToErase.push_back(Extract);
+            }
+          }
+          if (Cmpxchg->user_empty())
+            ToErase.push_back(Cmpxchg);
+        }
       }
+    }
+    for (Instruction *V : ToErase) {
+      assert(V->user_empty());
+      V->eraseFromParent();
     }
   }
 

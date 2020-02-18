@@ -154,15 +154,35 @@ public:
   }
 
   uint64_t size() const { return Size; }
-  uint64_t getDstAlign() const {
-    return DstAlignCanChange ? 0 : DstAlign.value();
+  Align getDstAlign() const {
+    assert(!DstAlignCanChange);
+    return DstAlign;
   }
+  bool isFixedDstAlign() const { return !DstAlignCanChange; }
   bool allowOverlap() const { return AllowOverlap; }
   bool isMemset() const { return IsMemset; }
   bool isMemcpy() const { return !IsMemset; }
-  bool isZeroMemset() const { return ZeroMemset; }
-  bool isMemcpyStrSrc() const { return MemcpyStrSrc; }
-  uint64_t getSrcAlign() const { return isMemset() ? 0 : SrcAlign.value(); }
+  bool isMemcpyWithFixedDstAlign() const {
+    return isMemcpy() && !DstAlignCanChange;
+  }
+  bool isZeroMemset() const { return isMemset() && ZeroMemset; }
+  bool isMemcpyStrSrc() const {
+    assert(isMemcpy() && "Must be a memcpy");
+    return MemcpyStrSrc;
+  }
+  Align getSrcAlign() const {
+    assert(isMemcpy() && "Must be a memcpy");
+    return SrcAlign;
+  }
+  bool isSrcAligned(Align AlignCheck) const {
+    return isMemset() || llvm::isAligned(AlignCheck, SrcAlign.value());
+  }
+  bool isDstAligned(Align AlignCheck) const {
+    return DstAlignCanChange || llvm::isAligned(AlignCheck, DstAlign.value());
+  }
+  bool isAligned(Align AlignCheck) const {
+    return isSrcAligned(AlignCheck) && isDstAligned(AlignCheck);
+  }
 };
 
 /// This base class for TargetLowering contains the SelectionDAG-independent
@@ -233,6 +253,13 @@ public:
     Always,            // Always expand the instruction.
     OnlyLegalOrCustom, // Only expand when the resulting instructions are legal
                        // or custom.
+  };
+
+  /// Enum that specifies when a float negation is beneficial.
+  enum class NegatibleCost {
+    Expensive = 0,  // Negated expression is more expensive.
+    Neutral = 1,    // Negated expression has the same cost.
+    Cheaper = 2     // Negated expression is cheaper.
   };
 
   class ArgListEntry {
@@ -1707,6 +1734,10 @@ public:
 
   /// Returns the name of the symbol used to emit stack probes or the empty
   /// string if not applicable.
+  virtual bool hasStackProbeSymbol(MachineFunction &MF) const { return false; }
+
+  virtual bool hasInlineStackProbe(MachineFunction &MF) const { return false; }
+
   virtual StringRef getStackProbeSymbolName(MachineFunction &MF) const {
     return "";
   }
@@ -3408,20 +3439,6 @@ public:
     return true;
   }
 
-  // Return true if it is profitable to combine a BUILD_VECTOR with a stride-pattern
-  // to a shuffle and a truncate.
-  // Example of such a combine:
-  // v4i32 build_vector((extract_elt V, 1),
-  //                    (extract_elt V, 3),
-  //                    (extract_elt V, 5),
-  //                    (extract_elt V, 7))
-  //  -->
-  // v4i32 truncate (bitcast (shuffle<1,u,3,u,5,u,7,u> V, u) to v4i64)
-  virtual bool isDesirableToCombineBuildVectorToShuffleTruncate(
-      ArrayRef<int> ShuffleMask, EVT SrcVT, EVT TruncVT) const {
-    return false;
-  }
-
   /// Return true if the target has native support for the specified value type
   /// and it is 'desirable' to use the type for the given node type. e.g. On x86
   /// i16 is legal, but undesirable since i16 instruction encodings are longer
@@ -3475,14 +3492,14 @@ public:
     llvm_unreachable("Not Implemented");
   }
 
-  /// Return 1 if we can compute the negated form of the specified expression
-  /// for the same cost as the expression itself, or 2 if we can compute the
-  /// negated form more cheaply than the expression itself. Else return 0.
-  virtual char isNegatibleForFree(SDValue Op, SelectionDAG &DAG,
-                                  bool LegalOperations, bool ForCodeSize,
-                                  unsigned Depth = 0) const;
+  /// Returns whether computing the negated form of the specified expression is
+  /// more expensive, the same cost or cheaper.
+  virtual NegatibleCost getNegatibleCost(SDValue Op, SelectionDAG &DAG,
+                                         bool LegalOperations, bool ForCodeSize,
+                                         unsigned Depth = 0) const;
 
-  /// If isNegatibleForFree returns true, return the newly negated expression.
+  /// If getNegatibleCost returns Neutral/Cheaper, return the newly negated
+  /// expression.
   virtual SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG,
                                        bool LegalOperations, bool ForCodeSize,
                                        unsigned Depth = 0) const;

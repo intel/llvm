@@ -60,7 +60,7 @@ static unsigned computeTOCSaveOffset(const PPCSubtarget &STI) {
 }
 
 static unsigned computeFramePointerSaveOffset(const PPCSubtarget &STI) {
-  // SVR4 ABI: First slot in the general register save area.
+  // First slot in the general register save area.
   return STI.isPPC64() ? -8U : -4U;
 }
 
@@ -1800,11 +1800,19 @@ void PPCFrameLowering::determineCalleeSaves(MachineFunction &MF,
   }
 
   // For 32-bit SVR4, allocate the nonvolatile CR spill slot iff the
-  // function uses CR 2, 3, or 4.
-  if (Subtarget.is32BitELFABI() &&
+  // function uses CR 2, 3, or 4. For 64-bit SVR4 we create a FixedStack
+  // object at the offset of the CR-save slot in the linkage area. The actual
+  // save and restore of the condition register will be created as part of the
+  // prologue and epilogue insertion, but the FixedStack object is needed to
+  // keep the CalleSavedInfo valid.
+  if (Subtarget.isSVR4ABI() &&
       (SavedRegs.test(PPC::CR2) || SavedRegs.test(PPC::CR3) ||
        SavedRegs.test(PPC::CR4))) {
-    int FrameIdx = MFI.CreateFixedObject((uint64_t)4, (int64_t)-4, true);
+    const uint64_t SpillSize = 4; // Condition register is always 4 bytes.
+    const int64_t SpillOffset = Subtarget.isPPC64() ? 8 : -4;
+    int FrameIdx =
+        MFI.CreateFixedObject(SpillSize, SpillOffset,
+                              /* IsImmutable */ true, /* IsAliased */ false);
     FI->setCRSpillFrameIndex(FrameIdx);
   }
 }
@@ -2154,12 +2162,9 @@ bool PPCFrameLowering::assignCalleeSavedSpillSlots(
   return AllSpilledToReg;
 }
 
-
-bool
-PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
-                                     MachineBasicBlock::iterator MI,
-                                     const std::vector<CalleeSavedInfo> &CSI,
-                                     const TargetRegisterInfo *TRI) const {
+bool PPCFrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
 
   // Currently, this function only handles SVR4 32- and 64-bit ABIs.
   // Return false otherwise to maintain pre-existing behavior.
@@ -2233,37 +2238,37 @@ PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
         // Use !IsLiveIn for the kill flag.
         // We do not want to kill registers that are live in this function
         // before their use because they will become undefined registers.
-        TII.storeRegToStackSlot(MBB, MI, Reg, !IsLiveIn,
-                                CSI[i].getFrameIdx(), RC, TRI);
+        // Functions without NoUnwind need to preserve the order of elements in
+        // saved vector registers.
+        if (Subtarget.needsSwapsForVSXMemOps() &&
+            !MF->getFunction().hasFnAttribute(Attribute::NoUnwind))
+          TII.storeRegToStackSlotNoUpd(MBB, MI, Reg, !IsLiveIn,
+                                       CSI[i].getFrameIdx(), RC, TRI);
+        else
+          TII.storeRegToStackSlot(MBB, MI, Reg, !IsLiveIn, CSI[i].getFrameIdx(),
+                                  RC, TRI);
       }
     }
   }
   return true;
 }
 
-static void
-restoreCRs(bool isPPC64, bool is31,
-           bool CR2Spilled, bool CR3Spilled, bool CR4Spilled,
-           MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-           const std::vector<CalleeSavedInfo> &CSI, unsigned CSIIndex) {
+static void restoreCRs(bool is31, bool CR2Spilled, bool CR3Spilled,
+                       bool CR4Spilled, MachineBasicBlock &MBB,
+                       MachineBasicBlock::iterator MI,
+                       ArrayRef<CalleeSavedInfo> CSI, unsigned CSIIndex) {
 
   MachineFunction *MF = MBB.getParent();
   const PPCInstrInfo &TII = *MF->getSubtarget<PPCSubtarget>().getInstrInfo();
   DebugLoc DL;
-  unsigned RestoreOp, MoveReg;
+  unsigned MoveReg = PPC::R12;
 
-  if (isPPC64)
-    // This is handled during epilogue generation.
-    return;
-  else {
-    // 32-bit:  FP-relative
-    MBB.insert(MI, addFrameReference(BuildMI(*MF, DL, TII.get(PPC::LWZ),
-                                             PPC::R12),
-                                     CSI[CSIIndex].getFrameIdx()));
-    RestoreOp = PPC::MTOCRF;
-    MoveReg = PPC::R12;
-  }
+  // 32-bit:  FP-relative
+  MBB.insert(MI,
+             addFrameReference(BuildMI(*MF, DL, TII.get(PPC::LWZ), MoveReg),
+                               CSI[CSIIndex].getFrameIdx()));
 
+  unsigned RestoreOp = PPC::MTOCRF;
   if (CR2Spilled)
     MBB.insert(MI, BuildMI(*MF, DL, TII.get(RestoreOp), PPC::CR2)
                .addReg(MoveReg, getKillRegState(!CR3Spilled && !CR4Spilled)));
@@ -2316,6 +2321,10 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
   return MBB.erase(I);
 }
 
+static bool isCalleeSavedCR(unsigned Reg) {
+  return PPC::CR2 == Reg || Reg == PPC::CR3 || Reg == PPC::CR4;
+}
+
 bool
 PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
@@ -2354,6 +2363,11 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
     if ((Reg == PPC::X2 || Reg == PPC::R2) && MustSaveTOC)
       continue;
 
+    // Restore of callee saved condition register field is handled during
+    // epilogue insertion.
+    if (isCalleeSavedCR(Reg) && !Subtarget.is32BitELFABI())
+      continue;
+
     if (Reg == PPC::CR2) {
       CR2Spilled = true;
       // The spill slot is associated only with CR2, which is the
@@ -2369,12 +2383,10 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
     } else {
       // When we first encounter a non-CR register after seeing at
       // least one CR register, restore all spilled CRs together.
-      if ((CR2Spilled || CR3Spilled || CR4Spilled)
-          && !(PPC::CR2 <= Reg && Reg <= PPC::CR4)) {
+      if (CR2Spilled || CR3Spilled || CR4Spilled) {
         bool is31 = needsFP(*MF);
-        restoreCRs(Subtarget.isPPC64(), is31,
-                   CR2Spilled, CR3Spilled, CR4Spilled,
-                   MBB, I, CSI, CSIIndex);
+        restoreCRs(is31, CR2Spilled, CR3Spilled, CR4Spilled, MBB, I, CSI,
+                   CSIIndex);
         CR2Spilled = CR3Spilled = CR4Spilled = false;
       }
 
@@ -2386,7 +2398,16 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
       } else {
        // Default behavior for non-CR saves.
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-        TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
+
+        // Functions without NoUnwind need to preserve the order of elements in
+        // saved vector registers.
+        if (Subtarget.needsSwapsForVSXMemOps() &&
+            !MF->getFunction().hasFnAttribute(Attribute::NoUnwind))
+          TII.loadRegFromStackSlotNoUpd(MBB, I, Reg, CSI[i].getFrameIdx(), RC,
+                                        TRI);
+        else
+          TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
+
         assert(I != MBB.begin() &&
                "loadRegFromStackSlot didn't insert any code!");
       }
@@ -2403,9 +2424,10 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
 
   // If we haven't yet spilled the CRs, do so now.
   if (CR2Spilled || CR3Spilled || CR4Spilled) {
+    assert(Subtarget.is32BitELFABI() &&
+           "Only set CR[2|3|4]Spilled on 32-bit SVR4.");
     bool is31 = needsFP(*MF);
-    restoreCRs(Subtarget.isPPC64(), is31, CR2Spilled, CR3Spilled, CR4Spilled,
-               MBB, I, CSI, CSIIndex);
+    restoreCRs(is31, CR2Spilled, CR3Spilled, CR4Spilled, MBB, I, CSI, CSIIndex);
   }
 
   return true;
@@ -2416,8 +2438,6 @@ unsigned PPCFrameLowering::getTOCSaveOffset() const {
 }
 
 unsigned PPCFrameLowering::getFramePointerSaveOffset() const {
-  if (Subtarget.isAIXABI())
-    report_fatal_error("FramePointer is not implemented on AIX yet.");
   return FramePointerSaveOffset;
 }
 

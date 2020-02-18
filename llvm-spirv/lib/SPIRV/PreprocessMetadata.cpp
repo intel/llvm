@@ -214,6 +214,11 @@ void PreprocessMetadata::visit(Module *M) {
           .done();
     }
 
+    // !{void (i32 addrspace(1)*)* @kernel, i32 no_global_work_offset}
+    if (Kernel.getMetadata(kSPIR2MD::NoGlobalOffset)) {
+      EM.addOp().add(&Kernel).add(spv::ExecutionModeNoGlobalOffsetINTEL).done();
+    }
+
     // !{void (i32 addrspace(1)*)* @kernel, i32 max_global_work_dim, i32 dim}
     if (MDNode *MaxWorkDimINTEL = Kernel.getMetadata(kSPIR2MD::MaxWGDim)) {
       EM.addOp()

@@ -124,6 +124,7 @@ static SmallVector<int64_t, 4> getI64SubArray(ArrayAttr arrayAttr,
 }
 
 namespace {
+
 class VectorBroadcastOpConversion : public LLVMOpLowering {
 public:
   explicit VectorBroadcastOpConversion(MLIRContext *context,
@@ -272,6 +273,100 @@ private:
   }
 };
 
+class VectorReductionOpConversion : public LLVMOpLowering {
+public:
+  explicit VectorReductionOpConversion(MLIRContext *context,
+                                       LLVMTypeConverter &typeConverter)
+      : LLVMOpLowering(vector::ReductionOp::getOperationName(), context,
+                       typeConverter) {}
+
+  PatternMatchResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto reductionOp = cast<vector::ReductionOp>(op);
+    auto kind = reductionOp.kind();
+    Type eltType = reductionOp.dest().getType();
+    Type llvmType = lowering.convertType(eltType);
+    if (eltType.isInteger(32) || eltType.isInteger(64)) {
+      // Integer reductions: add/mul/min/max/and/or/xor.
+      if (kind == "add")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_add>(
+            op, llvmType, operands[0]);
+      else if (kind == "mul")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_mul>(
+            op, llvmType, operands[0]);
+      else if (kind == "min")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_smin>(
+            op, llvmType, operands[0]);
+      else if (kind == "max")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_smax>(
+            op, llvmType, operands[0]);
+      else if (kind == "and")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_and>(
+            op, llvmType, operands[0]);
+      else if (kind == "or")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_or>(
+            op, llvmType, operands[0]);
+      else if (kind == "xor")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_xor>(
+            op, llvmType, operands[0]);
+      else
+        return matchFailure();
+      return matchSuccess();
+
+    } else if (eltType.isF32() || eltType.isF64()) {
+      // Floating-point reductions: add/mul/min/max
+      if (kind == "add") {
+        Value zero = rewriter.create<LLVM::ConstantOp>(
+            op->getLoc(), llvmType, rewriter.getZeroAttr(eltType));
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_v2_fadd>(
+            op, llvmType, zero, operands[0]);
+      } else if (kind == "mul") {
+        Value one = rewriter.create<LLVM::ConstantOp>(
+            op->getLoc(), llvmType, rewriter.getFloatAttr(eltType, 1.0));
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_v2_fmul>(
+            op, llvmType, one, operands[0]);
+      } else if (kind == "min")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_fmin>(
+            op, llvmType, operands[0]);
+      else if (kind == "max")
+        rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_fmax>(
+            op, llvmType, operands[0]);
+      else
+        return matchFailure();
+      return matchSuccess();
+    }
+    return matchFailure();
+  }
+};
+
+// TODO(ajcbik): merge Reduction and ReductionV2
+class VectorReductionV2OpConversion : public LLVMOpLowering {
+public:
+  explicit VectorReductionV2OpConversion(MLIRContext *context,
+                                         LLVMTypeConverter &typeConverter)
+      : LLVMOpLowering(vector::ReductionV2Op::getOperationName(), context,
+                       typeConverter) {}
+  PatternMatchResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto reductionOp = cast<vector::ReductionV2Op>(op);
+    auto kind = reductionOp.kind();
+    Type eltType = reductionOp.dest().getType();
+    Type llvmType = lowering.convertType(eltType);
+    if (kind == "add") {
+      rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_v2_fadd>(
+          op, llvmType, operands[1], operands[0]);
+      return matchSuccess();
+    } else if (kind == "mul") {
+      rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_v2_fmul>(
+          op, llvmType, operands[1], operands[0]);
+      return matchSuccess();
+    }
+    return matchFailure();
+  }
+};
+
 class VectorShuffleOpConversion : public LLVMOpLowering {
 public:
   explicit VectorShuffleOpConversion(MLIRContext *context,
@@ -410,6 +505,41 @@ public:
   }
 };
 
+/// Conversion pattern that turns a vector.fma on a 1-D vector
+/// into an llvm.intr.fmuladd. This is a trivial 1-1 conversion.
+/// This does not match vectors of n >= 2 rank.
+///
+/// Example:
+/// ```
+///  vector.fma %a, %a, %a : vector<8xf32>
+/// ```
+/// is converted to:
+/// ```
+///  llvm.intr.fma %va, %va, %va:
+///    (!llvm<"<8 x float>">, !llvm<"<8 x float>">, !llvm<"<8 x float>">)
+///    -> !llvm<"<8 x float>">
+/// ```
+class VectorFMAOp1DConversion : public LLVMOpLowering {
+public:
+  explicit VectorFMAOp1DConversion(MLIRContext *context,
+                                   LLVMTypeConverter &typeConverter)
+      : LLVMOpLowering(vector::FMAOp::getOperationName(), context,
+                       typeConverter) {}
+
+  PatternMatchResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto adaptor = vector::FMAOpOperandAdaptor(operands);
+    vector::FMAOp fmaOp = cast<vector::FMAOp>(op);
+    VectorType vType = fmaOp.getVectorType();
+    if (vType.getRank() != 1)
+      return matchFailure();
+    rewriter.replaceOpWithNewOp<LLVM::FMAOp>(op, adaptor.lhs(), adaptor.rhs(),
+                                             adaptor.acc());
+    return matchSuccess();
+  }
+};
+
 class VectorInsertElementOpConversion : public LLVMOpLowering {
 public:
   explicit VectorInsertElementOpConversion(MLIRContext *context,
@@ -498,6 +628,54 @@ public:
     }
 
     rewriter.replaceOp(op, inserted);
+    return matchSuccess();
+  }
+};
+
+/// Rank reducing rewrite for n-D FMA into (n-1)-D FMA where n > 1.
+///
+/// Example:
+/// ```
+///   %d = vector.fma %a, %b, %c : vector<2x4xf32>
+/// ```
+/// is rewritten into:
+/// ```
+///  %r = splat %f0: vector<2x4xf32>
+///  %va = vector.extractvalue %a[0] : vector<2x4xf32>
+///  %vb = vector.extractvalue %b[0] : vector<2x4xf32>
+///  %vc = vector.extractvalue %c[0] : vector<2x4xf32>
+///  %vd = vector.fma %va, %vb, %vc : vector<4xf32>
+///  %r2 = vector.insertvalue %vd, %r[0] : vector<4xf32> into vector<2x4xf32>
+///  %va2 = vector.extractvalue %a2[1] : vector<2x4xf32>
+///  %vb2 = vector.extractvalue %b2[1] : vector<2x4xf32>
+///  %vc2 = vector.extractvalue %c2[1] : vector<2x4xf32>
+///  %vd2 = vector.fma %va2, %vb2, %vc2 : vector<4xf32>
+///  %r3 = vector.insertvalue %vd2, %r2[1] : vector<4xf32> into vector<2x4xf32>
+///  // %r3 holds the final value.
+/// ```
+class VectorFMAOpNDRewritePattern : public OpRewritePattern<FMAOp> {
+public:
+  using OpRewritePattern<FMAOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(FMAOp op,
+                                     PatternRewriter &rewriter) const override {
+    auto vType = op.getVectorType();
+    if (vType.getRank() < 2)
+      return matchFailure();
+
+    auto loc = op.getLoc();
+    auto elemType = vType.getElementType();
+    Value zero = rewriter.create<ConstantOp>(loc, elemType,
+                                             rewriter.getZeroAttr(elemType));
+    Value desc = rewriter.create<SplatOp>(loc, vType, zero);
+    for (int64_t i = 0, e = vType.getShape().front(); i != e; ++i) {
+      Value extrLHS = rewriter.create<ExtractOp>(loc, op.lhs(), i);
+      Value extrRHS = rewriter.create<ExtractOp>(loc, op.rhs(), i);
+      Value extrACC = rewriter.create<ExtractOp>(loc, op.acc(), i);
+      Value fma = rewriter.create<FMAOp>(loc, extrLHS, extrRHS, extrACC);
+      desc = rewriter.create<InsertOp>(loc, fma, desc, i);
+    }
+    rewriter.replaceOp(op, desc);
     return matchSuccess();
   }
 };
@@ -674,9 +852,9 @@ public:
             loc, vRHS, acc, rewriter.getI64ArrayAttr(d));
       // 3. Compute aD outer b (plus accD, if relevant).
       Value aOuterbD =
-          accD ? rewriter.create<LLVM::FMulAddOp>(loc, vRHS, aD, b, accD)
-                     .getResult()
-               : rewriter.create<LLVM::FMulOp>(loc, aD, b).getResult();
+          accD
+              ? rewriter.create<LLVM::FMAOp>(loc, vRHS, aD, b, accD).getResult()
+              : rewriter.create<LLVM::FMulOp>(loc, aD, b).getResult();
       // 4. Insert as value `d` in the descriptor.
       desc = rewriter.create<LLVM::InsertValueOp>(loc, llvmArrayOfVectType,
                                                   desc, aOuterbD,
@@ -809,7 +987,11 @@ public:
     Type eltType = vectorType ? vectorType.getElementType() : printType;
     int64_t rank = vectorType ? vectorType.getRank() : 0;
     Operation *printer;
-    if (eltType.isF32())
+    if (eltType.isInteger(32))
+      printer = getPrintI32(op);
+    else if (eltType.isInteger(64))
+      printer = getPrintI64(op);
+    else if (eltType.isF32())
       printer = getPrintFloat(op);
     else if (eltType.isF64())
       printer = getPrintDouble(op);
@@ -872,6 +1054,16 @@ private:
   }
 
   // Helpers for method names.
+  Operation *getPrintI32(Operation *op) const {
+    LLVM::LLVMDialect *dialect = lowering.getDialect();
+    return getPrint(op, dialect, "print_i32",
+                    LLVM::LLVMType::getInt32Ty(dialect));
+  }
+  Operation *getPrintI64(Operation *op) const {
+    LLVM::LLVMDialect *dialect = lowering.getDialect();
+    return getPrint(op, dialect, "print_i64",
+                    LLVM::LLVMType::getInt64Ty(dialect));
+  }
   Operation *getPrintFloat(Operation *op) const {
     LLVM::LLVMDialect *dialect = lowering.getDialect();
     return getPrint(op, dialect, "print_f32",
@@ -955,14 +1147,17 @@ public:
 void mlir::populateVectorToLLVMConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
   MLIRContext *ctx = converter.getDialect()->getContext();
-  patterns.insert<VectorInsertStridedSliceOpDifferentRankRewritePattern,
+  patterns.insert<VectorFMAOpNDRewritePattern,
+                  VectorInsertStridedSliceOpDifferentRankRewritePattern,
                   VectorInsertStridedSliceOpSameRankRewritePattern,
                   VectorStridedSliceOpConversion>(ctx);
-  patterns.insert<VectorBroadcastOpConversion, VectorShuffleOpConversion,
+  patterns.insert<VectorBroadcastOpConversion, VectorReductionOpConversion,
+                  VectorReductionV2OpConversion, VectorShuffleOpConversion,
                   VectorExtractElementOpConversion, VectorExtractOpConversion,
-                  VectorInsertElementOpConversion, VectorInsertOpConversion,
-                  VectorOuterProductOpConversion, VectorTypeCastOpConversion,
-                  VectorPrintOpConversion>(ctx, converter);
+                  VectorFMAOp1DConversion, VectorInsertElementOpConversion,
+                  VectorInsertOpConversion, VectorOuterProductOpConversion,
+                  VectorTypeCastOpConversion, VectorPrintOpConversion>(
+      ctx, converter);
 }
 
 namespace {
@@ -972,11 +1167,12 @@ struct LowerVectorToLLVMPass : public ModulePass<LowerVectorToLLVMPass> {
 } // namespace
 
 void LowerVectorToLLVMPass::runOnModule() {
-  // Perform progressive lowering of operations on "slices".
-  // Folding and DCE get rid of all non-leaking tuple ops.
+  // Perform progressive lowering of operations on "slices" and
+  // all contraction operations. Also applies folding and DCE.
   {
     OwningRewritePatternList patterns;
     populateVectorSlicesLoweringPatterns(patterns, &getContext());
+    populateVectorContractLoweringPatterns(patterns, &getContext());
     applyPatternsGreedily(getModule(), patterns);
   }
 

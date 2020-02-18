@@ -210,6 +210,13 @@ def call          : SDNode<"VEISD::CALL", SDT_SPCall,
 
 def retflag       : SDNode<"VEISD::RET_FLAG", SDTNone,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+def getGOT        : Operand<iPTR>;
+
+// GETFUNPLT for PIC
+def GetFunPLT : SDNode<"VEISD::GETFUNPLT", SDTIntUnaryOp>;
+
+
 //===----------------------------------------------------------------------===//
 // VE Flag Conditions
 //===----------------------------------------------------------------------===//
@@ -262,6 +269,17 @@ multiclass RMm<string opcStr, bits<8>opc,
     let cy = 0;
     let sy = 0;
     let cz = 1;
+    let hasSideEffects = 0;
+  }
+  def zii : RM<
+    opc, (outs RC:$sx), (ins immOp:$sy, immOp2:$imm32),
+    !strconcat(opcStr, " $sx, ${imm32}(${sy})"),
+    [/* Not define DAG pattern here to avoid llvm uses LEAzii for all add
+        instructions.
+        (set Ty:$sx, (OpNode (Ty simm7:$sy), (Ty simm32:$imm32))) */]> {
+    let cy = 0;
+    let cz = 0;
+    let sz = 0;
     let hasSideEffects = 0;
   }
   def zzi : RM<
@@ -533,6 +551,41 @@ multiclass RRCMOVm<string opcStr, bits<8>opc,
   }
 }
 
+// Multiclass for RR type instructions with only 2 operands
+//   Used by pcnt, brv
+let hasSideEffects = 0 in
+multiclass RRI2m<string opcStr, bits<8>opc, RegisterClass RC, ValueType Ty,
+                 Operand immOp2, SDPatternOperator OpNode=null_frag> {
+  def r : RR<
+    opc, (outs RC:$sx), (ins RC:$sz),
+    !strconcat(opcStr, " $sx, $sz"),
+    [(set Ty:$sx, (OpNode Ty:$sz))]> {
+    let cy = 1;
+    let cz = 1;
+  }
+  def i : RR<
+    opc, (outs RC:$sx), (ins RC:$sz),
+    !strconcat(opcStr, " $sx, $sz"),
+    [(set Ty:$sx, (OpNode Ty:$sz))]> {
+    let cy = 0;
+    let cz = 1;
+  }
+  def m0 : RR<
+    opc, (outs RC:$sx), (ins immOp2:$sz),
+    !strconcat(opcStr, " $sx, (${sz})0")> {
+    let cy = 1;
+    let cz = 0;
+    let sz{6} = 1;
+  }
+  def m1 : RR<
+    opc, (outs RC:$sx), (ins immOp2:$sz),
+    !strconcat(opcStr, " $sx, (${sz})1")> {
+    let cy = 1;
+    let cz = 0;
+  }
+}
+
+
 // Branch multiclass
 let isBranch = 1, isTerminator = 1, hasDelaySlot = 1 in
 multiclass BCRm<string opcStr, string opcStrAt, bits<8> opc,
@@ -760,6 +813,16 @@ let cx = 0 in {
   }
 }
 
+// Bits operations
+
+let cx = 0 in {
+  defm PCNT : RRI2m<"pcnt", 0x38, I64, i64, uimm6Op64, ctpop>;
+  defm BRV : RRI2m<"brv", 0x39, I64, i64, uimm6Op64, bitreverse>;
+  defm LDZ : RRI2m<"ldz", 0x67, I64, i64, uimm6Op64, ctlz>;
+  defm BSWP : RRIm<"bswp", 0x2B, I64, i64, simm7Op64, uimm6Op64>;
+}
+
+
 
 // 5.3.2.4 Shift Instructions
 
@@ -986,6 +1049,11 @@ def MONC : RR<
     0x3F, (outs), (ins),
     "monc">;
 
+// Save Instruction Counter
+
+let cx = 0, cy = 0, sy = 0, cz = 0, sz = 0, hasSideEffects = 0 /* , Uses = [IC] */ in
+def SIC : RR<0x28, (outs I32:$sx), (ins), "sic $sx">;
+
 //===----------------------------------------------------------------------===//
 // Instructions for CodeGenOnly
 //===----------------------------------------------------------------------===//
@@ -1162,6 +1230,23 @@ def : Pat<(brcc cond:$cond, f64:$l, f64:$r, bb:$addr),
 //===----------------------------------------------------------------------===//
 // Pseudo Instructions
 //===----------------------------------------------------------------------===//
+
+// GETGOT for PIC
+let Defs = [SX15 /* %got */, SX16 /* %plt */], hasSideEffects = 0 in {
+  def GETGOT : Pseudo<(outs getGOT:$getpcseq), (ins), "$getpcseq">;
+}
+
+// GETFUNPLT for PIC
+let hasSideEffects = 0 in
+def GETFUNPLT : Pseudo<(outs I64:$dst), (ins i64imm:$addr),
+                       "$dst, $addr",
+                       [(set iPTR:$dst, (GetFunPLT tglobaladdr:$addr))] >;
+
+def : Pat<(GetFunPLT tglobaladdr:$dst),
+          (GETFUNPLT tglobaladdr:$dst)>;
+def : Pat<(GetFunPLT texternalsym:$dst),
+          (GETFUNPLT texternalsym:$dst)>;
+
 
 let Defs = [SX11], Uses = [SX11], hasSideEffects = 0 in {
 def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i64imm:$amt, i64imm:$amt2),
@@ -1425,6 +1510,19 @@ def : Pat<(i32 (bitconvert f32:$op)),
 def : Pat<(f32 (bitconvert i32:$op)),
           (EXTRACT_SUBREG (SLLri (INSERT_SUBREG (i64 (IMPLICIT_DEF)),
             $op, sub_i32), 32), sub_f32)>;
+
+// Bits operations pattern matchings.
+def : Pat<(i32 (ctpop i32:$src)),
+          (EXTRACT_SUBREG (PCNTr (ANDrm0 (INSERT_SUBREG
+            (i64 (IMPLICIT_DEF)), $src, sub_i32), 32)), sub_i32)>;
+def : Pat<(i32 (ctlz i32:$src)),
+          (EXTRACT_SUBREG (LDZr (SLLri (INSERT_SUBREG
+            (i64 (IMPLICIT_DEF)), $src, sub_i32), 32)), sub_i32)>;
+def : Pat<(i64 (bswap i64:$src)),
+          (BSWPri $src, 0)>;
+def : Pat<(i32 (bswap i32:$src)),
+          (EXTRACT_SUBREG (BSWPri (INSERT_SUBREG
+            (i64 (IMPLICIT_DEF)), $src, sub_i32), 1), sub_i32)>;
 
 // Several special pattern matches to optimize code
 
