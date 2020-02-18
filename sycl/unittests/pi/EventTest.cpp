@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl/detail/pi.hpp"
+#include <detail/plugin.hpp>
 #include <atomic>
 #include <gtest/gtest.h>
 #include <thread>
@@ -16,6 +17,8 @@ using namespace cl::sycl;
 namespace pi {
 class DISABLED_EventTest : public ::testing::Test {
 protected:
+  std::vector<detail::plugin> Plugins;
+
   pi_platform _platform;
   pi_context _context;
   pi_queue _queue;
@@ -25,39 +28,50 @@ protected:
   DISABLED_EventTest()
       : _context{nullptr}, _queue{nullptr}, _device{nullptr},
         _result{PI_INVALID_VALUE} {
-    detail::pi::initialize();
+    Plugins = detail::pi::initialize();
   }
 
   ~DISABLED_EventTest() override = default;
 
   void SetUp() override {
     pi_uint32 numPlatforms = 0;
+    ASSERT_FALSE(Plugins.empty());
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(0, nullptr, &numPlatforms)),
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ(
-        (PI_CALL_NOCHECK(piPlatformsGet)(numPlatforms, &_platform, nullptr)),
-        PI_SUCCESS)
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  numPlatforms, &_platform, nullptr)),
+              PI_SUCCESS)
         << "piPlatformsGet failed.\n";
     (void)numPlatforms; // Deal with unused variable warning
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piDevicesGet)(_platform, PI_DEVICE_TYPE_GPU, 1, &_device, nullptr)),
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+                  _platform, PI_DEVICE_TYPE_GPU, 1, &_device, nullptr)),
               PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piContextCreate)(nullptr, 1, &_device, nullptr, nullptr, &_context)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+                  nullptr, 1, &_device, nullptr, nullptr, &_context)),
+              PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piQueueCreate)(_context, _device, 0, &_queue)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piQueueCreate>(
+                  _context, _device, 0, &_queue)),
+              PI_SUCCESS);
 
     _result = PI_INVALID_VALUE;
   }
 
   void TearDown() override {
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piQueueRelease)(_queue)), PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
+        PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piContextRelease)(_context)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(
+                  _context)),
+              PI_SUCCESS);
   }
 };
 
@@ -66,84 +80,111 @@ protected:
 
 TEST_F(DISABLED_EventTest, PICreateEvent) {
   pi_event foo;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventCreate)(_context, &foo)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                       &foo)),
+            PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
-  EXPECT_EQ((PI_CALL_NOCHECK(piEventRelease)(foo)), PI_SUCCESS);
+  EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventRelease>(foo)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_EventTest, piEventGetInfo) {
 
   pi_event foo;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventCreate)(_context, &foo)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                       &foo)),
+            PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_uint64 paramValue = 0;
   pi_uint64 retSize = 0;
-  EXPECT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                               sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(paramValue),
+                &paramValue, &retSize)),
+            PI_SUCCESS);
 
   EXPECT_EQ(retSize, sizeof(pi_int32));
   EXPECT_EQ(paramValue, PI_EVENT_SUBMITTED);
 
-  EXPECT_EQ((PI_CALL_NOCHECK(piEventRelease)(foo)), PI_SUCCESS);
+  EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventRelease>(foo)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_EventTest, piEventSetStatus) {
 
   pi_event foo;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventCreate)(_context, &foo)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                       &foo)),
+            PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_event_status paramValue = PI_EVENT_QUEUED;
   size_t retSize = 0u;
-  PI_CALL_NOCHECK(piEventGetInfo)(foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                     sizeof(paramValue), &paramValue, &retSize);
+  Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+      foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(paramValue),
+      &paramValue, &retSize);
 
-  EXPECT_EQ((PI_CALL_NOCHECK(piEventSetStatus)(foo, PI_EVENT_COMPLETE)), PI_SUCCESS);
+  EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventSetStatus>(
+                foo, PI_EVENT_COMPLETE)),
+            PI_SUCCESS);
 
   paramValue = {};
   retSize = 0u;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                               sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(paramValue),
+                &paramValue, &retSize)),
+            PI_SUCCESS);
   ASSERT_EQ(paramValue, PI_EVENT_COMPLETE);
 
-  EXPECT_EQ((PI_CALL_NOCHECK(piEventRelease)(foo)), PI_SUCCESS);
+  EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventRelease>(foo)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_EventTest, WaitForManualEventOnOtherThread) {
 
   pi_event foo;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventCreate)(_context, &foo)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                       &foo)),
+            PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_event_status paramValue = {};
   size_t retSize = 0u;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                               sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(paramValue),
+                &paramValue, &retSize)),
+            PI_SUCCESS);
   ASSERT_EQ(paramValue, PI_EVENT_SUBMITTED);
 
   std::atomic<bool> started{false};
 
   auto tWaiter = std::thread([&]() {
     started = true;
-    ASSERT_EQ((PI_CALL_NOCHECK(piEventsWait)(1, &foo)), PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piEventsWait>(1, &foo)),
+        PI_SUCCESS);
   });
 
   while (!started) {
   };
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventSetStatus)(foo, PI_EVENT_COMPLETE)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventSetStatus>(
+                foo, PI_EVENT_COMPLETE)),
+            PI_SUCCESS);
 
   tWaiter.join();
 
   paramValue = {};
   retSize = 0u;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                               sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                foo, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(paramValue),
+                &paramValue, &retSize)),
+            PI_SUCCESS);
   ASSERT_EQ(paramValue, PI_EVENT_COMPLETE);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventRelease)(foo)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventRelease>(foo)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_EventTest, piEnqueueEventsWait) {
@@ -154,39 +195,56 @@ TEST_F(DISABLED_EventTest, piEnqueueEventsWait) {
   constexpr const size_t bytes = sizeof(data);
 
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(_context, PI_MEM_FLAGS_ACCESS_RW, bytes,
-                                 nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                _context, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj)),
+            PI_SUCCESS);
 
   pi_event events[4] = {nullptr, nullptr, nullptr, nullptr};
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueMemBufferWrite)(_queue, memObj, true, 0, bytes, data, 0,
-                                        nullptr, &events[0])), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+          _queue, memObj, true, 0, bytes, data, 0, nullptr, &events[0])),
+      PI_SUCCESS);
   ASSERT_NE(events[0], nullptr);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueMemBufferRead)(_queue, memObj, true, 0, bytes, output,
-                                       0, nullptr, &events[1])), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+          _queue, memObj, true, 0, bytes, output, 0, nullptr, &events[1])),
+      PI_SUCCESS);
   ASSERT_NE(events[1], nullptr);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventCreate)(_context, &events[2])), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventCreate>(
+                _context, &events[2])),
+            PI_SUCCESS);
   ASSERT_NE(events[2], nullptr);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueEventsWait)(_queue, 3, events, &events[3])), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueEventsWait>(
+                _queue, 3, events, &events[3])),
+            PI_SUCCESS);
   ASSERT_NE(events[3], nullptr);
 
   pi_event_status paramValue = {};
   size_t retSize = 0u;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(events[3], PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                         sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                events[3], PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                sizeof(paramValue), &paramValue, &retSize)),
+            PI_SUCCESS);
   ASSERT_NE(paramValue, PI_EVENT_COMPLETE);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventSetStatus)(events[2], PI_EVENT_COMPLETE)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventSetStatus>(
+                events[2], PI_EVENT_COMPLETE)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventsWait)(1, &events[3])), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piEventsWait>(1, &events[3])),
+      PI_SUCCESS);
 
   paramValue = {};
   retSize = 0u;
-  ASSERT_EQ((PI_CALL_NOCHECK(piEventGetInfo)(events[3], PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                         sizeof(paramValue), &paramValue, &retSize)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEventGetInfo>(
+                events[3], PI_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                sizeof(paramValue), &paramValue, &retSize)),
+            PI_SUCCESS);
   ASSERT_EQ(paramValue, PI_EVENT_COMPLETE);
 }
 

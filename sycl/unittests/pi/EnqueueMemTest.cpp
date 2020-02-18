@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/pi.hpp>
+#include <detail/plugin.hpp>
 #include <gtest/gtest.h>
 
 using namespace cl::sycl;
@@ -14,6 +15,8 @@ using namespace cl::sycl;
 namespace {
 class DISABLED_EnqueueMemTest : public ::testing::Test {
 protected:
+  std::vector<detail::plugin> Plugins;
+
   constexpr static size_t _numElementsX = 8;
   constexpr static size_t _numElementsY = 4;
 
@@ -27,30 +30,42 @@ protected:
   ~DISABLED_EnqueueMemTest() = default;
 
   void SetUp() override {
-    detail::pi::initialize();
+    Plugins = detail::pi::initialize();
+    ASSERT_FALSE(Plugins.empty());
 
     pi_platform platform = nullptr;
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(1, &platform, nullptr)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  1, &platform, nullptr)),
+              PI_SUCCESS);
 
-    ASSERT_EQ(
-        (PI_CALL_NOCHECK(piDevicesGet)(platform, PI_DEVICE_TYPE_GPU, 1, &_device, nullptr)),
-        PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+                  platform, PI_DEVICE_TYPE_GPU, 1, &_device, nullptr)),
+              PI_SUCCESS);
 
     pi_result result = PI_INVALID_VALUE;
-    result = PI_CALL_NOCHECK(piContextCreate)(nullptr, 1u, &_device, nullptr, nullptr, &_context);
+    result = Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+        nullptr, 1u, &_device, nullptr, nullptr, &_context);
     ASSERT_EQ(result, PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piQueueCreate)(_context, _device, 0, &_queue)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piQueueCreate>(
+                  _context, _device, 0, &_queue)),
+              PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(
-        _context, 0, _numElementsX * _numElementsY * sizeof(pi_int32),
-        nullptr, &_mem)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                  _context, 0, _numElementsX * _numElementsY * sizeof(pi_int32),
+                  nullptr, &_mem)),
+              PI_SUCCESS);
   }
 
   void TearDown() override {
-    ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(_mem)), PI_SUCCESS);
-    ASSERT_EQ((PI_CALL_NOCHECK(piQueueRelease)(_queue)), PI_SUCCESS);
-    ASSERT_EQ((PI_CALL_NOCHECK(piContextRelease)(_context)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(_mem)),
+              PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
+        PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(
+                  _context)),
+              PI_SUCCESS);
   }
 
   template <typename T> void TestBufferFill(const T &pattern) {
@@ -61,21 +76,24 @@ protected:
       ASSERT_NE(pattern, inValues[i]);
     }
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueMemBufferWrite)(_queue, _mem, PI_TRUE, 0,
-                                          _numElementsX * sizeof(T),
-                                          inValues, 0, nullptr, nullptr)),
-              PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+            _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), inValues, 0,
+            nullptr, nullptr)),
+        PI_SUCCESS);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueMemBufferFill)(_queue, _mem, &pattern, sizeof(T), 0,
-                                         sizeof(inValues), 0, nullptr,
-                                         nullptr)),
-              PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
+            _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0, nullptr,
+            nullptr)),
+        PI_SUCCESS);
 
     T outValues[_numElementsX] = {};
-    ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueMemBufferRead)(_queue, _mem, PI_TRUE, 0,
-                                         _numElementsX * sizeof(T),
-                                         outValues, 0, nullptr, nullptr)),
-              PI_SUCCESS);
+    ASSERT_EQ(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+            _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), outValues, 0,
+            nullptr, nullptr)),
+        PI_SUCCESS);
 
     for (size_t i = 0; i < _numElementsX; ++i) {
       ASSERT_EQ(pattern, outValues[i]);

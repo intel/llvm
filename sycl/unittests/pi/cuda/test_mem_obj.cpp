@@ -13,6 +13,7 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
 using namespace cl::sycl;
@@ -20,6 +21,8 @@ using namespace cl::sycl;
 struct DISABLED_CudaTestMemObj : public ::testing::Test {
 
 protected:
+  std::vector<detail::plugin> Plugins;
+
   pi_platform platform_;
   pi_device device_;
   pi_context context_;
@@ -27,27 +30,33 @@ protected:
   void SetUp() override {
     cuCtxSetCurrent(nullptr);
     pi_uint32 numPlatforms = 0;
+    ASSERT_FALSE(Plugins.empty());
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(0, nullptr, &numPlatforms)),
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ(
-        (PI_CALL_NOCHECK(piPlatformsGet)(numPlatforms, &platform_, nullptr)),
-        PI_SUCCESS)
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  numPlatforms, &platform_, nullptr)),
+              PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piDevicesGet)(platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)), PI_SUCCESS);
-    ASSERT_EQ((PI_CALL_NOCHECK(piContextCreate)(nullptr, 1, &device_, nullptr, nullptr, &context_)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+                  platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
+              PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+                  nullptr, 1, &device_, nullptr, nullptr, &context_)),
+              PI_SUCCESS);
     EXPECT_NE(context_, nullptr);
   }
 
   void TearDown() override {
-    PI_CALL(piDeviceRelease)(device_);
-    PI_CALL(piContextRelease)(context_);
+    Plugins[0].call<detail::PiApiKind::piDeviceRelease>(device_);
+    Plugins[0].call<detail::PiApiKind::piContextRelease>(context_);
   }
 
-  DISABLED_CudaTestMemObj() { detail::pi::initialize(); }
+  DISABLED_CudaTestMemObj() { Plugins = detail::pi::initialize(); }
 
   ~DISABLED_CudaTestMemObj() = default;
 };
@@ -55,9 +64,12 @@ protected:
 TEST_F(DISABLED_CudaTestMemObj, piMemBufferCreateSimple) {
   const size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_CudaTestMemObj, piMemBufferCreateNoActiveContext) {
@@ -80,9 +92,11 @@ TEST_F(DISABLED_CudaTestMemObj, piMemBufferCreateNoActiveContext) {
   // The context object is passed, even if its not active it should be used
   // to allocate the memory object
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW,
-                                        memSize, nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+            PI_SUCCESS);
   ASSERT_NE(memObj, nullptr);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
 }

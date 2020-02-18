@@ -12,6 +12,7 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
 using namespace cl::sycl;
@@ -19,6 +20,8 @@ using namespace cl::sycl;
 struct DISABLED_CudaKernelsTest : public ::testing::Test {
 
 protected:
+  std::vector<detail::plugin> Plugins;
+
   pi_platform platform_;
   pi_device device_;
   pi_context context_;
@@ -26,33 +29,40 @@ protected:
 
   void SetUp() override {
     pi_uint32 numPlatforms = 0;
+    ASSERT_FALSE(Plugins.empty());
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piPlatformsGet)(0, nullptr, &numPlatforms)),
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ(
-        (PI_CALL_NOCHECK(piPlatformsGet)(numPlatforms, &platform_, nullptr)),
-        PI_SUCCESS)
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                  numPlatforms, &platform_, nullptr)),
+              PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piDevicesGet)(platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)), PI_SUCCESS);
-    ASSERT_EQ((PI_CALL_NOCHECK(
-        piContextCreate)(nullptr, 1, &device_, nullptr, nullptr, &context_)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+                  platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
+              PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+                  nullptr, 1, &device_, nullptr, nullptr, &context_)),
+              PI_SUCCESS);
     ASSERT_NE(context_, nullptr);
 
-    ASSERT_EQ((PI_CALL_NOCHECK(piQueueCreate)(context_, device_, 0, &queue_)), PI_SUCCESS);
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piQueueCreate>(
+                  context_, device_, 0, &queue_)),
+              PI_SUCCESS);
     ASSERT_NE(queue_, nullptr);
     ASSERT_EQ(queue_->get_context(), context_);
   }
 
   void TearDown() override {
-    PI_CALL(piDeviceRelease)(device_);
-    PI_CALL(piQueueRelease)(queue_);
-    PI_CALL(piContextRelease)(context_);
+    Plugins[0].call<detail::PiApiKind::piDeviceRelease>(device_);
+    Plugins[0].call<detail::PiApiKind::piQueueRelease>(queue_);
+    Plugins[0].call<detail::PiApiKind::piContextRelease>(context_);
   }
 
-  DISABLED_CudaKernelsTest() { detail::pi::initialize(); }
+  DISABLED_CudaKernelsTest() { Plugins = detail::pi::initialize(); }
 
   ~DISABLED_CudaKernelsTest() = default;
 };
@@ -120,29 +130,43 @@ const char *threeParamsTwoLocal = "\n\
 TEST_F(DISABLED_CudaKernelsTest, PICreateProgramAndKernel) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&ptxSource, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "_Z8myKernelPi", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
   ASSERT_NE(kern, nullptr);
 }
 
 TEST_F(DISABLED_CudaKernelsTest, PIKernelArgumentSimple) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&ptxSource, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "_Z8myKernelPi", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 0, sizeof(int), &number)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 0, sizeof(int), &number)),
+            PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_EQ(kernArgs.size(), (size_t)1);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
@@ -152,23 +176,33 @@ TEST_F(DISABLED_CudaKernelsTest, PIKernelArgumentSimple) {
 TEST_F(DISABLED_CudaKernelsTest, PIKernelArgumentSetTwice) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&ptxSource, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "_Z8myKernelPi", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 0, sizeof(int), &number)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 0, sizeof(int), &number)),
+            PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_GT(kernArgs.size(), (size_t)0);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
   int otherNumber = 934;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 0, sizeof(int), &otherNumber)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 0, sizeof(int), &otherNumber)),
+            PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs2.size(), (size_t)1);
   storedValue = *(static_cast<const int *>(kernArgs2[0]));
@@ -178,20 +212,29 @@ TEST_F(DISABLED_CudaKernelsTest, PIKernelArgumentSetTwice) {
 TEST_F(DISABLED_CudaKernelsTest, PIKernelSetMemObj) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&ptxSource, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "_Z8myKernelPi", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW,
-                                        memSize, nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 0, sizeof(pi_mem), &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 0, sizeof(pi_mem), &memObj)),
+            PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_EQ(kernArgs.size(), (size_t)1);
   pi_mem storedValue = *(static_cast<pi_mem *>(kernArgs[0]));
@@ -201,66 +244,95 @@ TEST_F(DISABLED_CudaKernelsTest, PIKernelSetMemObj) {
 TEST_F(DISABLED_CudaKernelsTest, PIkerneldispatch) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&ptxSource, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "_Z8myKernelPi", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "_Z8myKernelPi", &kern)),
+            PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW,
-                                        memSize, nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piextKernelSetArgMemObj)(kern, 0, &memObj)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+          kern, 0, &memObj)),
+      PI_SUCCESS);
 
   size_t workDim = 1;
   size_t globalWorkOffset[] = {0};
   size_t globalWorkSize[] = {1};
   size_t localWorkSize[] = {1};
-  ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueKernelLaunch)(queue_, kern, workDim, globalWorkOffset,
-                                  globalWorkSize, localWorkSize, 0, nullptr,
-                                  nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
+                queue_, kern, workDim, globalWorkOffset, globalWorkSize,
+                localWorkSize, 0, nullptr, nullptr)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
 }
 
 TEST_F(DISABLED_CudaKernelsTest, PIkerneldispatchTwo) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&twoParams, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&twoParams, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "twoParamKernel", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "twoParamKernel", &kern)),
+            PI_SUCCESS);
 
   size_t memSize = 1024u;
   pi_mem memObj;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW,
-                                        memSize, nullptr, &memObj)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+            PI_SUCCESS);
 
   pi_mem memObj2;
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemBufferCreate)(context_, PI_MEM_FLAGS_ACCESS_RW,
-                                         memSize, nullptr, &memObj2)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj2)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piextKernelSetArgMemObj)(kern, 0, &memObj)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+          kern, 0, &memObj)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piextKernelSetArgMemObj)(kern, 1, &memObj2)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+          kern, 1, &memObj2)),
+      PI_SUCCESS);
 
   size_t workDim = 1;
   size_t globalWorkOffset[] = {0};
   size_t globalWorkSize[] = {1};
   size_t localWorkSize[] = {1};
-  ASSERT_EQ((PI_CALL_NOCHECK(piEnqueueKernelLaunch)(queue_, kern, workDim, globalWorkOffset,
-                                  globalWorkSize, localWorkSize, 0, nullptr,
-                                  nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(
+                queue_, kern, workDim, globalWorkOffset, globalWorkSize,
+                localWorkSize, 0, nullptr, nullptr)),
+            PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(memObj)), PI_SUCCESS);
-  ASSERT_EQ((PI_CALL_NOCHECK(piMemRelease)(memObj2)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piMemRelease>(memObj2)),
+            PI_SUCCESS);
 }
 
 
@@ -268,28 +340,40 @@ TEST_F(DISABLED_CudaKernelsTest, PIkerneldispatchTwo) {
 TEST_F(DISABLED_CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
 
   pi_program prog;
-  ASSERT_EQ((PI_CALL_NOCHECK(piclProgramCreateWithSource)(
-      context_, 1, (const char **)&threeParamsTwoLocal, nullptr, &prog)), PI_SUCCESS);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
+          context_, 1, (const char **)&threeParamsTwoLocal, nullptr, &prog)),
+      PI_SUCCESS);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piProgramBuild)(prog, 1, &device_, "", nullptr, nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piProgramBuild>(
+                prog, 1, &device_, "", nullptr, nullptr)),
+            PI_SUCCESS);
 
   pi_kernel kern;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelCreate)(prog, "twoParamKernelLocal", &kern)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelCreate>(
+                prog, "twoParamKernelLocal", &kern)),
+            PI_SUCCESS);
 
   int number = 10;
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 0, sizeof(int), &number)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 0, sizeof(int), &number)),
+            PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_GT(kernArgs.size(), (size_t)0);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 1, sizeof(int), nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 1, sizeof(int), nullptr)),
+            PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs2.size(), (size_t)2);
   storedValue = *(static_cast<const int *>(kernArgs2[1]));
   ASSERT_EQ(storedValue, 0);
 
-  ASSERT_EQ((PI_CALL_NOCHECK(piKernelSetArg)(kern, 2, sizeof(int), nullptr)), PI_SUCCESS);
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piKernelSetArg>(
+                kern, 2, sizeof(int), nullptr)),
+            PI_SUCCESS);
   const auto &kernArgs3 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs3.size(), (size_t)3);
   storedValue = *(static_cast<const int *>(kernArgs3[2]));
