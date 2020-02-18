@@ -72,7 +72,8 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   if (MIsHostDevice)
-    throw invalid_object_error("This instance of device is a host instance");
+    throw invalid_object_error("This instance of device is a host instance",
+                               PI_INVALID_DEVICE);
 
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -137,7 +138,8 @@ device_impl::create_sub_devices(size_t ComputeUnits) const {
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
@@ -156,7 +158,8 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_counts)) {
@@ -176,12 +179,8 @@ vector_class<device> device_impl::create_sub_devices(
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
-
-  // TODO: implement host device partitioning
-  if (MIsHostDevice)
-    throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||

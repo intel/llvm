@@ -243,11 +243,11 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     int OldRoundingDirection = std::fegetround();
     int Err = std::fesetround(FE_TONEAREST);
     if (Err)
-      throw runtime_error("Unable to set rounding mode to FE_TONEAREST");
+      throw std::runtime_error("Unable to set rounding mode to FE_TONEAREST");
     R Result = std::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
-      throw runtime_error("Unable to restore rounding mode.");
+      throw std::runtime_error("Unable to restore rounding mode.");
     return Result;
   }
     // Round toward zero.

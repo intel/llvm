@@ -506,7 +506,7 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found");
+  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
 void ExecCGCommand::flushStreams() {
@@ -764,7 +764,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
   case CG::CGTYPE::UPDATE_HOST: {
     assert(!"Update host should be handled by the Scheduler.");
-    throw runtime_error("Update host should be handled by the Scheduler.");
+    throw runtime_error("Update host should be handled by the Scheduler.",
+                        PI_INVALID_OPERATION);
   }
   case CG::CGTYPE::COPY_ACC_TO_PTR: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -1007,7 +1008,7 @@ cl_int ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::NONE:
   default:
-    throw runtime_error("CG type not implemented.");
+    throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
 }
 

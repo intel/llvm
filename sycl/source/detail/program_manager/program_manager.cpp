@@ -276,10 +276,12 @@ RT::PiProgram ProgramManager::createPIProgram(const DeviceImage &Img,
 
   // perform minimal sanity checks on the device image and the descriptor
   if (Img.BinaryEnd < Img.BinaryStart) {
-    throw runtime_error("Malformed device program image descriptor");
+    throw runtime_error("Malformed device program image descriptor",
+                        PI_INVALID_VALUE);
   }
   if (Img.BinaryEnd == Img.BinaryStart) {
-    throw runtime_error("Invalid device program image: size is zero");
+    throw runtime_error("Invalid device program image: size is zero",
+                        PI_INVALID_VALUE);
   }
   size_t ImgSize = static_cast<size_t>(Img.BinaryEnd - Img.BinaryStart);
 
@@ -295,7 +297,8 @@ RT::PiProgram ProgramManager::createPIProgram(const DeviceImage &Img,
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw feature_not_supported(
-        "Online compilation is not supported in this context");
+        "Online compilation is not supported in this context",
+        PI_INVALID_OPERATION);
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -473,7 +476,8 @@ static const char* getDeviceLibFilename(DeviceLibExt Extension) {
   case cl_intel_devicelib_complex_fp64:
     return "libsycl-fallback-complex-fp64.spv";
   }
-  throw compile_program_error("Unhandled (new?) device library extension");
+  throw compile_program_error("Unhandled (new?) device library extension",
+                              PI_INVALID_OPERATION);
 }
 
 static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
@@ -489,7 +493,8 @@ static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
   case cl_intel_devicelib_complex_fp64:
     return "cl_intel_devicelib_complex_fp64";
   }
-  throw compile_program_error("Unhandled (new?) device library extension");
+  throw compile_program_error("Unhandled (new?) device library extension",
+                              PI_INVALID_OPERATION);
 }
 
 static RT::PiProgram loadDeviceLibFallback(
@@ -510,7 +515,8 @@ static RT::PiProgram loadDeviceLibFallback(
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(std::string("Failed to load ") + LibFileName);
+    throw compile_program_error(std::string("Failed to load ") + LibFileName,
+                                PI_INVALID_VALUE);
   }
 
   const detail::plugin &Plugin = Context->getPlugin();
@@ -526,7 +532,7 @@ static RT::PiProgram loadDeviceLibFallback(
   if (Error != PI_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(
-        ProgramManager::getProgramBuildLog(LibProg, Context));
+        ProgramManager::getProgramBuildLog(LibProg, Context), Error);
   }
 
   return LibProg;
@@ -550,7 +556,8 @@ ProgramManager::ProgramManager() {
 
     if (!File.is_open())
       throw runtime_error(std::string("Can't open file specified via ") +
-                          UseSpvEnv + ": " + SpvFile);
+                          UseSpvEnv + ": " + SpvFile,
+                          PI_INVALID_VALUE);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
     std::unique_ptr<unsigned char[]> Data(new unsigned char[Size]);
@@ -559,7 +566,7 @@ ProgramManager::ProgramManager() {
     File.close();
     if (!File.good())
       throw runtime_error(std::string("read from ") + SpvFile +
-                          std::string(" failed"));
+                          std::string(" failed"), PI_INVALID_VALUE);
 
     std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(new DeviceImage(),
                                                       ImageDeleter());
@@ -732,7 +739,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
         Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
         nullptr);
     if (Error != PI_SUCCESS)
-      throw compile_program_error(getProgramBuildLog(Program.get(), Context));
+      throw compile_program_error(getProgramBuildLog(Program.get(), Context),
+                                  Error);
     return Program;
   }
 
@@ -754,7 +762,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
       // an incomplete (but valid) LinkedProg, and throw.
-      throw compile_program_error(getProgramBuildLog(LinkedProg, Context));
+      throw compile_program_error(getProgramBuildLog(LinkedProg, Context),
+                                  Error);
     }
     Plugin.checkPiResult(Error);
   }
@@ -868,7 +877,8 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
   if (ModuleKSIdIt != m_OSModuleKernelSets.end())
     return ModuleKSIdIt->second;
 
-  throw runtime_error("No kernel named " + KernelName + " was found");
+  throw runtime_error("No kernel named " + KernelName + " was found",
+                      PI_RESULT_INVALID_KERNEL_NAME);
 }
 
 RT::PiDeviceBinaryType ProgramManager::getFormat(const DeviceImage &Img) const {
@@ -918,7 +928,8 @@ void ProgramManager::dumpImage(const DeviceImage &Img, KernelSetId KSId) const {
   std::ofstream F(Fname, std::ios::binary);
 
   if (!F.is_open()) {
-    throw runtime_error(std::string("Can not write ") + Fname);
+    throw runtime_error(std::string("Can not write ") + Fname,
+                        PI_INVALID_VALUE);
   }
   size_t ImgSize = static_cast<size_t>(Img.BinaryEnd - Img.BinaryStart);
   F.write(reinterpret_cast<const char *>(Img.BinaryStart), ImgSize);

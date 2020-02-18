@@ -31,7 +31,8 @@ cl_event event_impl::get() const {
     return pi::cast<cl_event>(MEvent);
   }
   throw invalid_object_error(
-      "This instance of event doesn't support OpenCL interoperability.");
+      "This instance of event doesn't support OpenCL interoperability.",
+      PI_INVALID_DEVICE);
 }
 
 event_impl::~event_impl() {
@@ -69,7 +70,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
-        "clEvent.");
+        "clEvent.", PI_INVALID_DEVICE);
   }
 
   RT::PiContext TempContext;
@@ -78,7 +79,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   if (MContext->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
-        "clEvent.");
+        "clEvent.", PI_INVALID_CONTEXT);
   }
 
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
@@ -89,7 +90,7 @@ event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
       Queue->has_property<property::queue::enable_profiling>()) {
     MHostProfilingInfo.reset(new HostProfilingInfo());
     if (!MHostProfilingInfo)
-      throw runtime_error("Out of host memory");
+      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
   }
 }
 
@@ -128,7 +129,8 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
         this->getHandleRef(), this->getPlugin());
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.");
+    throw invalid_object_error("Profiling info is not available.",
+                               PI_INVALID_DEVICE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -140,7 +142,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
         this->getHandleRef(), this->getPlugin());
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.");
+    throw invalid_object_error("Profiling info is not available.",
+                               PI_INVALID_DEVICE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -152,7 +155,8 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
         this->getHandleRef(), this->getPlugin());
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.");
+    throw invalid_object_error("Profiling info is not available.",
+                               PI_INVALID_DEVICE);
   return MHostProfilingInfo->getEndTime();
 }
 

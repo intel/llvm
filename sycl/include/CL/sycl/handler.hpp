@@ -294,10 +294,12 @@ private:
   void verifySyclKernelInvoc(const kernel &SyclKernel) {
     if (is_host()) {
       throw invalid_object_error(
-          "This kernel invocation method cannot be used on the host");
+          "This kernel invocation method cannot be used on the host",
+          PI_INVALID_DEVICE);
     }
     if (SyclKernel.is_host()) {
-      throw invalid_object_error("Invalid kernel type, OpenCL expected");
+      throw invalid_object_error("Invalid kernel type, OpenCL expected",
+                                 PI_RESULT_INVALID_KERNEL_NAME);
     }
   }
 

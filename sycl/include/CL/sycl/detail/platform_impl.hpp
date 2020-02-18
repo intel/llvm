@@ -73,7 +73,7 @@ public:
   cl_platform_id get() const {
     if (is_host())
       throw invalid_object_error(
-          "This instance of platform is a host instance");
+          "This instance of platform is a host instance", PI_INVALID_DEVICE);
 
     return pi::cast<cl_platform_id>(MPlatform);
   }
@@ -88,7 +88,7 @@ public:
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error(
-          "This instance of platform is a host instance");
+          "This instance of platform is a host instance", PI_INVALID_DEVICE);
 
     return MPlatform;
   }

@@ -101,13 +101,13 @@ static std::vector<DevDescT> getWhiteListDesc() {
     }
 
     if (':' != *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list", PI_INVALID_VALUE);
 
     // Skip ':'
     str += 1;
 
     if ('{' != *str || '{' != *(str + 1))
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list", PI_INVALID_VALUE);
 
     // Skip opening sequence "{{"
     str += 2;
@@ -119,7 +119,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
       ++str;
 
     if ('\0' == *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list", PI_INVALID_VALUE);
 
     *size = str - *valuePtr;
 
@@ -133,7 +133,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
     if ('|' == *str)
       decDescs.emplace_back();
     else if (',' != *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list", PI_INVALID_VALUE);
 
     ++str;
   }

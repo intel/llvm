@@ -239,7 +239,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size",
+                                   PI_INVALID_VALUE);
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -280,7 +281,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size",
+                                   PI_INVALID_VALUE);
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 

@@ -65,7 +65,8 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void construct(pointer Ptr, const_reference Val) {
     throw feature_not_supported(
-        "Device pointers do not support construct on host");
+        "Device pointers do not support construct on host",
+        PI_INVALID_OPERATION);
   }
 
   /// Destroys an object.
@@ -85,7 +86,7 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void destroy(pointer Ptr) {
     throw feature_not_supported(
-        "Device pointers do not support destroy on host");
+        "Device pointers do not support destroy on host", PI_INVALID_OPERATION);
   }
 
   /// Note:: AllocKind == alloc::device is not allowed.
@@ -104,7 +105,7 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   pointer address(reference Val) const {
     throw feature_not_supported(
-        "Device pointers do not support address on host");
+        "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
 
   template <
@@ -119,7 +120,7 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   const_pointer address(const_reference Val) const {
     throw feature_not_supported(
-        "Device pointers do not support address on host");
+        "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
 
   /// Allocates memory.

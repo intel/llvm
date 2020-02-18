@@ -75,7 +75,8 @@ public:
   /// @return a valid cl_kernel instance
   cl_kernel get() const {
     if (is_host())
-      throw invalid_object_error("This instance of kernel is a host instance");
+      throw invalid_object_error("This instance of kernel is a host instance",
+                                 PI_INVALID_DEVICE);
     getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }

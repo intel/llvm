@@ -16,7 +16,8 @@ template <>
 cl::sycl::range<3>
 get_kernel_work_group_info_host<info::kernel_work_group::global_work_size>(
     const cl::sycl::device &Dev) {
-  throw invalid_object_error("This instance of kernel is a host instance");
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_INVALID_KERNEL);
 }
 
 template <>
