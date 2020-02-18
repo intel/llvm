@@ -3,12 +3,15 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
 
 ; Make sure we are generating DWARF version 3 when module flag says so.
 ; CHECK: Compile Unit: length = {{.*}} version = 0x0003
+
+; CHECK-LLVM: !{i32 7, !"Dwarf Version", i32 3}
 
 define i32 @main() #0 !dbg !4 {
 entry:

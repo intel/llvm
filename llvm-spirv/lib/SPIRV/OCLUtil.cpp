@@ -483,6 +483,14 @@ public:
       addUnsignedArg(0);
       setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
       setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
+    } else if (UnmangledName.find("atom_") == 0) {
+      setArgAttr(0, SPIR::ATTR_VOLATILE);
+      if (UnmangledName.find("atom_umax") == 0 ||
+          UnmangledName.find("atom_umin") == 0) {
+        addUnsignedArg(0);
+        addUnsignedArg(1);
+        UnmangledName.erase(5, 1);
+      }
     } else if (UnmangledName.find("atomic") == 0) {
       setArgAttr(0, SPIR::ATTR_VOLATILE);
       if (UnmangledName.find("atomic_umax") == 0 ||

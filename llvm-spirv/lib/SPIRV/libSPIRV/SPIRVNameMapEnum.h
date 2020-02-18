@@ -120,6 +120,7 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeVecTypeHint, "VecTypeHint");
   add(ExecutionModeContractionOff, "ContractionOff");
   add(ExecutionModeMaxWorkgroupSizeINTEL, "MaxWorkgroupSizeINTEL");
+  add(ExecutionModeNoGlobalOffsetINTEL, "NoGlobalOffsetINTEL");
   add(ExecutionModeMaxWorkDimINTEL, "MaxWorkDimINTEL");
   add(ExecutionModeNumSIMDWorkitemsINTEL, "NumSIMDWorkitemsINTEL");
 }

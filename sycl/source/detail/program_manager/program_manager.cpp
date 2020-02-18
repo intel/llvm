@@ -110,22 +110,22 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 }
 
 template <typename ExceptionT, typename RetT>
-RetT *
-waitUntilBuilt(KernelProgramCache &Cache,
-               KernelProgramCache::EntityWithState<RetT> *WithBuildState) {
+RetT *waitUntilBuilt(KernelProgramCache &Cache,
+                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
-  Cache.waitUntilBuilt([WithBuildState]() {
-    int State = WithBuildState->State.load();
+  Cache.waitUntilBuilt([BuildResult]() {
+    int State = BuildResult->State.load();
 
     return State == BS_Done || State == BS_Failed;
   });
 
-  RetT *Result = WithBuildState->Ptr.load();
+  if (BuildResult->Error.FilledIn) {
+    const KernelProgramCache::BuildError &Error = BuildResult->Error;
+    throw ExceptionT(Error.Msg, Error.Code);
+  }
 
-  if (!Result)
-    throw ExceptionT("The other thread tried to build the program/kernel but "
-                     "did not succeed.");
+  RetT *Result = BuildResult->Ptr.load();
 
   return Result;
 }
@@ -152,7 +152,7 @@ template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
 RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
                  AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
   bool InsertionTookPlace;
-  KernelProgramCache::EntityWithState<RetT> *WithState;
+  KernelProgramCache::BuildResult<RetT> *BuildResult;
 
   {
     auto LockedCache = Acquire(KPCache);
@@ -162,36 +162,59 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
                       std::forward_as_tuple(nullptr, BS_InProgress));
 
     InsertionTookPlace = Inserted.second;
-    WithState = &Inserted.first->second;
+    BuildResult = &Inserted.first->second;
   }
 
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
-    return waitUntilBuilt<ExceptionT>(KPCache, WithState);
+    for (;;) {
+      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
+
+      if (Result)
+          return Result;
+
+      // Previous build is failed. There was no SYCL exception though.
+      // We might try to build once more.
+      int Expected = BS_Failed;
+      int Desired = BS_InProgress;
+
+      if (BuildResult->State.compare_exchange_strong(Expected, Desired))
+        break; // this thread is the building thread now
+    }
   }
 
-  // only the building thread will run this, and only once.
+  // only the building thread will run this
   try {
     RetT *Desired = Build();
 
 #ifndef NDEBUG
     RetT *Expected = nullptr;
 
-    if (!WithState->Ptr.compare_exchange_strong(Expected, Desired))
+    if (!BuildResult->Ptr.compare_exchange_strong(Expected, Desired))
       // We've got a funny story here
       assert(false && "We've build an entity that is already have been built.");
 #else
-    WithState->Ptr.store(Desired);
+    BuildResult->Ptr.store(Desired);
 #endif
 
-    WithState->State.store(BS_Done);
+    BuildResult->State.store(BS_Done);
 
     KPCache.notifyAllBuild();
 
     return Desired;
+  } catch (const exception &Ex) {
+    BuildResult->Error.Msg = Ex.what();
+    BuildResult->Error.Code = Ex.get_cl_code();
+    BuildResult->Error.FilledIn = true;
+
+    BuildResult->State.store(BS_Failed);
+
+    KPCache.notifyAllBuild();
+
+    std::rethrow_exception(std::current_exception());
   } catch (...) {
-    WithState->State.store(BS_Failed);
+    BuildResult->State.store(BS_Failed);
 
     KPCache.notifyAllBuild();
 
