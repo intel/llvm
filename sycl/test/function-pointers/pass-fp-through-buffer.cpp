@@ -62,7 +62,7 @@ int main() {
           bufA.template get_access<cl::sycl::access::mode::read_write>(CGH);
       auto AccB = bufB.template get_access<cl::sycl::access::mode::read>(CGH);
       auto AccDT =
-          DispatchTable.template get_access<cl::sycl::access ::mode::read>(CGH);
+          DispatchTable.template get_access<cl::sycl::access::mode::read>(CGH);
       CGH.parallel_for<class K>(
           KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
         auto FP =
