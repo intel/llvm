@@ -231,6 +231,15 @@ image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
   }
 }
 
+template <typename T>
+static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
+                         T &Dest, RT::PiMem InteropMemObject) {
+  const detail::plugin &Plugin = Context->getPlugin();
+  RT::PiMem Mem = pi::cast<RT::PiMem>(InteropMemObject);
+  Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
+                                            nullptr);
+}
+
 template <int Dimensions>
 image_impl<Dimensions>::image_impl(
     cl_mem MemObject, const context &SyclContext, event AvailableEvent,
@@ -245,26 +254,26 @@ image_impl<Dimensions>::image_impl(
                                        &(BaseT::MSizeInBytes), nullptr);
 
   RT::PiMemImageFormat Format;
-  getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format);
+  getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format, Mem);
   MOrder = detail::convertChannelOrder(Format.image_channel_order);
   MType = detail::convertChannelType(Format.image_channel_data_type);
   MNumChannels = getImageNumberChannels(MOrder);
 
-  getImageInfo(Context, PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize);
+  getImageInfo(Context, PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize, Mem);
   assert(getImageElementSize(MNumChannels, MType) == MElementSize);
 
-  getImageInfo(Context, PI_IMAGE_INFO_ROW_PITCH, MRowPitch);
-  getImageInfo(Context, PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch);
+  getImageInfo(Context, PI_IMAGE_INFO_ROW_PITCH, MRowPitch, Mem);
+  getImageInfo(Context, PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch, Mem);
 
   switch (Dimensions) {
   case 3:
-    getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2]);
+    getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
     // fall through
   case 2:
-    getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1]);
+    getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1], Mem);
     // fall through
   case 1:
-    getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0]);
+    getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }
 }
 

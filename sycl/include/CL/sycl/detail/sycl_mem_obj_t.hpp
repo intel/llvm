@@ -256,6 +256,8 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
+  static size_t getBufSizeForContext(ContextImplPtr Context, cl_mem MemObject);
+
 protected:
   // Allocator used for allocation memory on host.
   unique_ptr_class<SYCLMemObjAllocator> MAllocator;

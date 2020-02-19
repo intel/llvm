@@ -86,6 +86,16 @@ const plugin &SYCLMemObjT::getPlugin() const {
          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
   return (MInteropContext->getPlugin());
 }
+
+size_t SYCLMemObjT::getBufSizeForContext(ContextImplPtr Context,
+                                         cl_mem MemObject) {
+  size_t BufSize = 0;
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+      detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+      sizeof(size_t), &BufSize, nullptr);
+  return BufSize;
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

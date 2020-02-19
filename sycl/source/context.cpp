@@ -88,11 +88,5 @@ vector_class<device> context::get_devices() const {
 
 context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
 
-namespace detail {
-const detail::plugin &
-getPluginFromContext(const shared_ptr_class<context_impl> Context) {
-  return Context->getPlugin();
-}
-} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
