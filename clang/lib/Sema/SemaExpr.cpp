@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
-#include "UsedDeclVisitor.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
@@ -292,6 +291,9 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
 
     if (getLangOpts().CUDA && !CheckCUDACall(Loc, FD))
       return true;
+
+    if (getLangOpts().SYCLIsDevice)
+      checkSYCLDeviceFunction(Loc, FD);
   }
 
   if (auto *MD = dyn_cast<CXXMethodDecl>(D)) {
@@ -1916,7 +1918,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   bool RefersToCapturedVariable =
       isa<VarDecl>(D) &&
       NeedToCaptureVariable(cast<VarDecl>(D), NameInfo.getLoc());
-  
+
   DeclRefExpr *E = DeclRefExpr::Create(
       Context, NNS, TemplateKWLoc, D, RefersToCapturedVariable, NameInfo, Ty,
       VK, FoundD, TemplateArgs, getNonOdrUseReasonInCurrentContext(D));
@@ -5258,7 +5260,7 @@ Sema::ConvertArgumentsForCall(CallExpr *Call, Expr *Fn,
 
       // Emit the location of the prototype.
       if (!TC && FDecl && !FDecl->getBuiltinID() && !IsExecConfig)
-        Diag(FDecl->getBeginLoc(), diag::note_callee_decl) << FDecl;
+        Diag(FDecl->getLocation(), diag::note_callee_decl) << FDecl;
 
       return true;
     }
@@ -5303,7 +5305,7 @@ Sema::ConvertArgumentsForCall(CallExpr *Call, Expr *Fn,
 
       // Emit the location of the prototype.
       if (!TC && FDecl && !FDecl->getBuiltinID() && !IsExecConfig)
-        Diag(FDecl->getBeginLoc(), diag::note_callee_decl) << FDecl;
+        Diag(FDecl->getLocation(), diag::note_callee_decl) << FDecl;
 
       // This deletes the extra arguments.
       Call->shrinkNumArgs(NumParams);
@@ -15820,6 +15822,8 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
 
   if (getLangOpts().CUDA)
     CheckCUDACall(Loc, Func);
+  if (getLangOpts().SYCLIsDevice)
+    checkSYCLDeviceFunction(Loc, Func);
 
   // If we need a definition, try to create one.
   if (NeedDefinition && !Func->getBody()) {
@@ -15962,8 +15966,13 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
     Func->markUsed(Context);
   }
 
-  if (LangOpts.OpenMP)
+  if (LangOpts.OpenMP) {
     markOpenMPDeclareVariantFuncsReferenced(Loc, Func, MightBeOdrUse);
+    if (LangOpts.OpenMPIsDevice)
+      checkOpenMPDeviceFunction(Loc, Func);
+    else
+      checkOpenMPHostFunction(Loc, Func);
+  }
 }
 
 /// Directly mark a variable odr-used. Given a choice, prefer to use
@@ -17355,33 +17364,71 @@ void Sema::MarkDeclarationsReferencedInType(SourceLocation Loc, QualType T) {
 }
 
 namespace {
-/// Helper class that marks all of the declarations referenced by
-/// potentially-evaluated subexpressions as "referenced".
-class EvaluatedExprMarker : public UsedDeclVisitor<EvaluatedExprMarker> {
-public:
-  typedef UsedDeclVisitor<EvaluatedExprMarker> Inherited;
-  bool SkipLocalVariables;
+  /// Helper class that marks all of the declarations referenced by
+  /// potentially-evaluated subexpressions as "referenced".
+  class EvaluatedExprMarker : public EvaluatedExprVisitor<EvaluatedExprMarker> {
+    Sema &S;
+    bool SkipLocalVariables;
 
-  EvaluatedExprMarker(Sema &S, bool SkipLocalVariables)
-      : Inherited(S), SkipLocalVariables(SkipLocalVariables) {}
+  public:
+    typedef EvaluatedExprVisitor<EvaluatedExprMarker> Inherited;
 
-  void visitUsedDecl(SourceLocation Loc, Decl *D) {
-    S.MarkFunctionReferenced(Loc, cast<FunctionDecl>(D));
-  }
+    EvaluatedExprMarker(Sema &S, bool SkipLocalVariables)
+      : Inherited(S.Context), S(S), SkipLocalVariables(SkipLocalVariables) { }
 
-  void VisitDeclRefExpr(DeclRefExpr *E) {
-    // If we were asked not to visit local variables, don't.
-    if (SkipLocalVariables) {
-      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl()))
-        if (VD->hasLocalStorage())
-          return;
+    void VisitDeclRefExpr(DeclRefExpr *E) {
+      // If we were asked not to visit local variables, don't.
+      if (SkipLocalVariables) {
+        if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl()))
+          if (VD->hasLocalStorage())
+            return;
+      }
+
+      S.MarkDeclRefReferenced(E);
     }
-    S.MarkDeclRefReferenced(E);
-  }
 
-  void VisitMemberExpr(MemberExpr *E) { S.MarkMemberReferenced(E); }
-};
-} // namespace
+    void VisitMemberExpr(MemberExpr *E) {
+      S.MarkMemberReferenced(E);
+      Inherited::VisitMemberExpr(E);
+    }
+
+    void VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
+      S.MarkFunctionReferenced(
+          E->getBeginLoc(),
+          const_cast<CXXDestructorDecl *>(E->getTemporary()->getDestructor()));
+      Visit(E->getSubExpr());
+    }
+
+    void VisitCXXNewExpr(CXXNewExpr *E) {
+      if (E->getOperatorNew())
+        S.MarkFunctionReferenced(E->getBeginLoc(), E->getOperatorNew());
+      if (E->getOperatorDelete())
+        S.MarkFunctionReferenced(E->getBeginLoc(), E->getOperatorDelete());
+      Inherited::VisitCXXNewExpr(E);
+    }
+
+    void VisitCXXDeleteExpr(CXXDeleteExpr *E) {
+      if (E->getOperatorDelete())
+        S.MarkFunctionReferenced(E->getBeginLoc(), E->getOperatorDelete());
+      QualType Destroyed = S.Context.getBaseElementType(E->getDestroyedType());
+      if (const RecordType *DestroyedRec = Destroyed->getAs<RecordType>()) {
+        CXXRecordDecl *Record = cast<CXXRecordDecl>(DestroyedRec->getDecl());
+        S.MarkFunctionReferenced(E->getBeginLoc(), S.LookupDestructor(Record));
+      }
+
+      Inherited::VisitCXXDeleteExpr(E);
+    }
+
+    void VisitCXXConstructExpr(CXXConstructExpr *E) {
+      S.MarkFunctionReferenced(E->getBeginLoc(), E->getConstructor());
+      Inherited::VisitCXXConstructExpr(E);
+    }
+
+    void VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
+      Visit(E->getExpr());
+    }
+  };
+}
 
 /// Mark any declarations that appear within this expression or any
 /// potentially-evaluated subexpressions as "referenced".
