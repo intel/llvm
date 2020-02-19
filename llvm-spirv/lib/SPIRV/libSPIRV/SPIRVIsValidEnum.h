@@ -564,6 +564,7 @@ inline bool isValid(spv::Capability V) {
   case CapabilityNamedBarrier:
   case CapabilityPipeStorage:
   case CapabilityFPGAMemoryAttributesINTEL:
+  case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:
   case CapabilityBlockingPipesINTEL:
   case CapabilityUnstructuredLoopControlsINTEL:
