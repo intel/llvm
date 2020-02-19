@@ -67,6 +67,7 @@ elif platform.system() == "Darwin":
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
+config.substitutions.append( ('%clang_cc1', ' ' + config.clang + ' -cc1 ') )
 config.substitutions.append( ('%clangxx', ' ' + config.clangxx ) )
 config.substitutions.append( ('%clang_cl', ' ' + config.clang_cl ) )
 config.substitutions.append( ('%clang', ' ' + config.clang ) )
