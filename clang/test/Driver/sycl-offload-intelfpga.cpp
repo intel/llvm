@@ -78,6 +78,14 @@
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUT]]" "-outputs=[[OUTPUT1:.+\.txt]]" "-unbundle"
 // CHK-FPGA-LINK-LIB: llvm-ar{{.*}} "cr" {{.*}} "@[[OUTPUT1]]"
 
+/// Check the warning's emission for -fsycl-link's appending behavior
+// RUN: touch dummy.a
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image %s -o dummy.a -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=early %s -o dummy.a -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN
+// CHK-FPGA-LINK-WARN: warning: appending to an existing archive 'dummy.a'
+
 /// -fintelfpga with AOCR library and additional object
 // RUN:  touch %t2.o
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.a %t2.o 2>&1 \
