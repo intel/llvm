@@ -67,13 +67,13 @@ elif platform.system() == "Darwin":
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
-config.substitutions.append( ('%clang_cc1', ' ' + config.clang + ' -cc1 ') )
-config.substitutions.append( ('%clangxx', ' ' + config.clangxx + ' -I'+config.opencl_include + ' -I'+config.sycl_source_dir ) )
-config.substitutions.append( ('%clang_cl', ' ' + config.clang_cl + ' /I '+config.opencl_include ) )
-config.substitutions.append( ('%clang', ' ' + config.clang + ' -I'+config.opencl_include ) )
+config.substitutions.append( ('%clangxx', ' ' + config.clangxx ) )
+config.substitutions.append( ('%clang_cl', ' ' + config.clang_cl ) )
+config.substitutions.append( ('%clang', ' ' + config.clang ) )
 config.substitutions.append( ('%llvm_build_libs_dir',  config.llvm_build_libs_dir ) )
-config.substitutions.append( ('%opencl_include',  config.opencl_include ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
+config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
+config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 
 tools = ['llvm-spirv']
 tool_dirs = [config.llvm_tools_dir]

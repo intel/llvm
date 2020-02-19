@@ -1,4 +1,4 @@
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
