@@ -27,7 +27,7 @@ function(add_sycl_rt_library LIB_NAME)
       set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
   endif()
 
-  if (SYCL_ENABLE_ASSERTIONS)
+  if (LLVM_ENABLE_ASSERTIONS)
     target_compile_definitions(${LIB_NAME} PRIVATE __SYCL_ENABLE_ASSERTIONS__)
   endif()
 

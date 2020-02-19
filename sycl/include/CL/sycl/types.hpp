@@ -260,7 +260,7 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   case rounding_mode::rtn:
     return std::floor(Value);
   default:
-    __SYCL_ASSERT(false, "Unsupported rounding mode!");
+    __SYCL_ASSERT(false && "Unsupported rounding mode!");
     return static_cast<R>(Value);
   };
 #else

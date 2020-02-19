@@ -314,7 +314,7 @@ public:
   bool operator==(const group<dimensions> &rhs) const {
     bool Result = (rhs.globalRange == globalRange) &&
                   (rhs.localRange == localRange) && (rhs.index == index);
-    __SYCL_ASSERT(rhs.groupRange == groupRange,
+    __SYCL_ASSERT(rhs.groupRange == groupRange &&
                   "inconsistent group class fields");
     return Result;
   }
