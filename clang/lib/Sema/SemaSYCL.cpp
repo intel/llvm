@@ -215,6 +215,8 @@ public:
 
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
+      assert(Callee && "Device function canonical decl must be available");
+
       // Remember that all SYCL kernel functions have deferred
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
@@ -254,7 +256,7 @@ public:
       }
       // Specifically check if the math library function corresponding to this
       // builtin is supported for SYCL
-      unsigned BuiltinID = (Callee ? Callee->getBuiltinID() : 0);
+      unsigned BuiltinID = Callee->getBuiltinID();
       if (BuiltinID && !IsSyclMathFunc(BuiltinID)) {
         StringRef Name = SemaRef.Context.BuiltinInfo.getName(BuiltinID);
         SemaRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
