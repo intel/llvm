@@ -3254,7 +3254,7 @@ class OffloadingActionBuilder final {
     types::ID FPGAOutType = types::TY_FPGA_AOCX;
 
     /// List of objects to extract FPGA dependency info from
-    ActionList FPGAObjects;
+    ActionList FPGAObjectInputs;
 
     /// List of CUDA architectures to use in this compilation with NVPTX targets.
     SmallVector<CudaArch, 8> GpuArchList;
@@ -3424,7 +3424,7 @@ class OffloadingActionBuilder final {
             if (!isObjectFile(FileName))
               return ABRT_Inactive;
             if (Args.hasArg(options::OPT_fintelfpga))
-              FPGAObjects.push_back(IA);
+              FPGAObjectInputs.push_back(IA);
           }
           // When creating FPGA device fat objects, all host objects are
           // partially linked.  Gather that list here.
@@ -3605,7 +3605,7 @@ class OffloadingActionBuilder final {
           Action *DeviceBECompileAction;
           ActionList BEActionList;
           BEActionList.push_back(DeviceLinkAction);
-          for (auto *A : FPGAObjects) {
+          for (Action *A : FPGAObjectInputs) {
             // Send any known objects through the unbundler to grab the
             // dependency file associated.
             ActionList AL;
