@@ -38,7 +38,7 @@ static inline std::string codeToString(cl_int code){
 #ifdef __SYCL_ENABLE_ASSERTIONS__
 #define __SYCL_ASSERT(X) assert(X)
 #else  // #ifdef __SYCL_ENABLE_ASSERTIONS__
-#define __SYCL_ASSERT(X, ...)
+#define __SYCL_ASSERT(X)
 #endif // #ifdef __SYCL_ENABLE_ASSERTIONS__
 
 #define OCL_ERROR_REPORT                                                       \
