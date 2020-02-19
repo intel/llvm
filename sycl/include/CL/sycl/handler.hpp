@@ -182,7 +182,7 @@ private:
     // Now if they are equal we extract argumets from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
-    __SYCL_ASSERT(MSyclKernel != nullptr && "MSyclKernel is not initialized");
+    __SYCL_ASSERT(MSyclKernel && "MSyclKernel is not initialized");
     const string_class LambdaName = detail::KernelInfo<LambdaNameT>::getName();
     const string_class KernelName = getKernelName();
     return LambdaName == KernelName;

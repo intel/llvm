@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/sycl_assert.hpp>
 
 // Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
 // Khronos ICD supports only latest OpenCL version
@@ -35,6 +34,12 @@ static inline std::string codeToString(cl_int code){
 }
 
 }}} // __SYCL_INLINE_NAMESPACE(cl)::sycl::detail
+
+#ifdef __SYCL_ENABLE_ASSERTIONS__
+#define __SYCL_ASSERT(X) assert(X)
+#else  // #ifdef __SYCL_ENABLE_ASSERTIONS__
+#define __SYCL_ASSERT(X, ...)
+#endif // #ifdef __SYCL_ENABLE_ASSERTIONS__
 
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " /*__FILE__*/                                           \
