@@ -270,7 +270,9 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     // SPIR-V 2.16.1. Universal Validation Rules: Scalar integer types can be
     // parameterized only as 32 bit, plus any additional sizes enabled by
     // capabilities.
-    if (BM->getErrorLog().checkError(
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+        BM->getErrorLog().checkError(
             BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
             SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
       return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));

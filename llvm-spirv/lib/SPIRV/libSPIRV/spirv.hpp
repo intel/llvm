@@ -692,6 +692,7 @@ enum Capability {
   CapabilitySubgroupAvcMotionEstimationIntraINTEL = 5697,
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
   CapabilityFPGAMemoryAttributesINTEL = 5824,
+  CapabilityArbitraryPrecisionIntegersINTEL = 5844,
   CapabilityUnstructuredLoopControlsINTEL = 5886,
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
