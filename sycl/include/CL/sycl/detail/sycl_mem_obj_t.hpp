@@ -10,7 +10,6 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
@@ -25,8 +24,9 @@ namespace sycl {
 namespace detail {
 
 // Forward declarations
-class event_impl;
 class context_impl;
+class event_impl;
+class plugin;
 
 using ContextImplPtr = shared_ptr_class<context_impl>;
 using EventImplPtr = shared_ptr_class<event_impl>;

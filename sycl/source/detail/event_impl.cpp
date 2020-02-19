@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/plugin.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
+#include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

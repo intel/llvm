@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin.hpp>
+#include <detail/plugin.hpp>
 #include <detail/usm/usm_dispatch.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
