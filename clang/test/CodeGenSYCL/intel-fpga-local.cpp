@@ -27,8 +27,8 @@
 
 // CHECK-BOTH: @llvm.global.annotations
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
-// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}, i32 39
-// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*) 
+// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}} i32 39
+// CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
 // CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ15attrs_on_staticvE15static_annotate to i8*)
 // CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}} i32 40
 
