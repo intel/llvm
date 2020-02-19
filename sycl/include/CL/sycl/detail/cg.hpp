@@ -385,7 +385,7 @@ public:
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
-    __SYCL_ASSERT(getType() == RUN_ON_HOST_INTEL || getType() == KERNEL &&
+    __SYCL_ASSERT((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
                   "Wrong type of exec kernel CG.");
   }
 
