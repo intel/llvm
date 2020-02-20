@@ -7082,7 +7082,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsFPGADepBundle) {
     Triples += ',';
     Triples += Action::GetOffloadKindName(Action::OFK_SYCL);;
-    Triples += "-spir64_fpga_depfile";
+    Triples += '-';
+    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
@@ -7270,7 +7271,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // separate this out to an explicit option in the bundler for the dependency
     // file as it does not match the type being bundled.
     Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
-    Triples += "-spir64_fpga_depfile";
+    Triples += '-';
+    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 

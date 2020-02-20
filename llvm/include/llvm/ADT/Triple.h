@@ -98,6 +98,7 @@ public:
     fpga_aoco,      // Intel FPGA: unlinked object file
     fpga_aocr,      // Intel FPGA: linked early image
     fpga_aocx,      // Intel FPGA: linked image
+    fpga_dep,       // Intel FPGA: dependency file
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
   };
