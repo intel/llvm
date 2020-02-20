@@ -174,6 +174,8 @@
 // RUN: touch %t-2.o
 // RUN: %clangxx -### -fsycl -fintelfpga %t-1.o %t-2.o 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-OBJ -DINPUT1=%t-1.o -DINPUT2=%t-2.o %s
+// RUN: %clang_cl -### -fsycl -fintelfpga %t-1.o %t-2.o 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-OBJ -DINPUT1=%t-1.o -DINPUT2=%t-2.o %s
 // CHK-FPGA-DEP-FILES-OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-fpga_dep" "-inputs=[[INPUT1]]" "-outputs=[[DEPFILE1:.+\.d]]" "-unbundle"
 // CHK-FPGA-DEP-FILES-OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-fpga_dep" "-inputs=[[INPUT2]]" "-outputs=[[DEPFILE2:.+\.d]]" "-unbundle"
 // CHK-FPGA-DEP-FILES-OBJ: aoc{{.*}} "-dep-files=[[DEPFILE1]],[[DEPFILE2]]
