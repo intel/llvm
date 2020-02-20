@@ -256,7 +256,8 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
-  static size_t getBufSizeForContext(ContextImplPtr Context, cl_mem MemObject);
+  static size_t getBufSizeForContext(const ContextImplPtr &Context,
+                                     cl_mem MemObject);
 
 protected:
   // Allocator used for allocation memory on host.

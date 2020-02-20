@@ -88,7 +88,7 @@ const plugin &SYCLMemObjT::getPlugin() const {
   return (MInteropContext->getPlugin());
 }
 
-size_t SYCLMemObjT::getBufSizeForContext(ContextImplPtr Context,
+size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          cl_mem MemObject) {
   size_t BufSize = 0;
   const detail::plugin &Plugin = Context->getPlugin();
