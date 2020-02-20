@@ -15,6 +15,7 @@ int calledFromKernel(int a){
   // expected-error@+1 {{__float128 is not supported on this target}}
   __float128 malFloat = 40;  
 
+  // not sure if 'no virtual function' is a _deferred_ diagnostic, testing anyway 
   S mal;
   // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
   mal.foo();  
@@ -47,8 +48,34 @@ public:
 }
 }
 
+/*
+  template used to specialize a function that contains a lambda that should
+  result in a deferred diagnostic being emitted.
+  HOWEVER, this is not working presently.  
+  TODO: re-test after new deferred diagnostic system is merged. 
+        restore the "FIX!!" tests below
+*/
+template <typename T>
+void setup_sycl_operation(const T VA[]) {
+    
+  cl::sycl::range<1> numOfItems;
+  cl::sycl::queue deviceQueue;
+
+  deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for<class AName>(numOfItems, [=](cl::sycl::id<1> wiID) {
+      // FIX!!  expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      int OverlookedBadArray[0]; 
+                       
+      // FIX!!   expected-error@+1 {{__float128 is not supported on this target}}
+      __float128 overlookedBadFloat = 40; 
+ 
+    });
+  });
+}
+
 int main(int argc, char **argv) {
 
+  // --- direct lambda testing ---
   cl::sycl::range<1> numOfItems;
   cl::sycl::queue deviceQueue;
 
@@ -60,13 +87,22 @@ int main(int argc, char **argv) {
       // expected-error@+1 {{__float128 is not supported on this target}}
       __float128 badFloat = 40; // this SHOULD  trigger a diagnostic
 
+      // not sure if 'no virtual function' is a _deferred_ diagnostic, but testing anyway.
       S s;
-      // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
       s.foo();   
 
       calledFromKernel(10);
     });
   });
+
+
+  // --- lambda in specialized function testing ---
+
+  //array A is only used to feed the template 
+  const int array_size = 4;
+  int A[array_size] = {1, 2, 3, 4};
+  setup_sycl_operation(A);
 
   return 0;
 }
