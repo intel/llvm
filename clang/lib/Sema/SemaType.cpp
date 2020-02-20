@@ -2342,11 +2342,10 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       }
 
       // SYCL kernels reject zero length arrays
-      if (getLangOpts().SYCLIsDevice) {
+      if (getLangOpts().SYCLIsDevice) 
         SYCLDiagIfDeviceCode(ArraySize->getBeginLoc(),
                              diag::err_typecheck_zero_array_size)
             << ArraySize->getSourceRange();
-      }
     } else if (!T->isDependentType() && !T->isVariablyModifiedType() &&
                !T->isIncompleteType() && !T->isUndeducedType()) {
       // Is the array too large?
