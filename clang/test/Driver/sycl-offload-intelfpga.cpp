@@ -178,6 +178,20 @@
 // CHK-FPGA-DEP-FILES-OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga_depfile" "-inputs=[[INPUT2]]" "-outputs=[[DEPFILE2:.+\.d]]" "-unbundle"
 // CHK-FPGA-DEP-FILES-OBJ: aoc{{.*}} "-dep-files=[[DEPFILE1]],[[DEPFILE2]]
 
+/// -fintelfpga dependency file use from object phases test
+// RUN: touch %t-1.o
+// RUN: %clangxx -fsycl -fintelfpga -ccc-print-phases -### %t-1.o 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-OBJ-PHASES -DINPUT=%t-1.o %s
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 0: input, "[[INPUT]]", object, (host-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 1: clang-offload-unbundler, {0}, object, (host-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 2: linker, {1}, image, (host-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 3: linker, {1}, ir, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 4: llvm-spirv, {3}, spirv, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 5: clang-offload-unbundler, {0}, dependencies
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 6: backend-compiler, {4, 5}, fpga_aocx, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 7: clang-offload-wrapper, {6}, object, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {7}, image
+
 /// -fintelfpga output report file test
 // RUN: mkdir -p %t_dir
 // RUN: %clangxx -### -fsycl -fintelfpga %s -o %t_dir/file.out 2>&1 \
