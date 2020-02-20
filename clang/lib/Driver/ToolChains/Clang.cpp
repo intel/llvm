@@ -7147,8 +7147,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
-  bool IsFPGADepUnbundle = (TCArgs.hasArg(options::OPT_fintelfpga) &&
-      JA.getType() == types::TY_Dependencies && Outputs.size() == 1);
+  bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
 
   // For Linux, we have initial support for fat archives (archives which
   // contain bundled objects). We will perform partial linking against the
