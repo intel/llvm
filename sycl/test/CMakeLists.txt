@@ -59,6 +59,7 @@ list(APPEND SYCL_DEPLOY_TEST_DEPS
 add_lit_testsuite(check-sycl "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_OPENCL"
   DEPENDS ${SYCL_TEST_DEPS}
   )
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
