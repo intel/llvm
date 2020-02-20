@@ -3612,7 +3612,7 @@ class OffloadingActionBuilder final {
             AL.push_back(A);
             Action *UnbundleAction =
                 C.MakeAction<OffloadUnbundlingJobAction>(AL,
-                types::TY_Dependencies);
+                types::TY_FPGA_Dependencies);
             BEActionList.push_back(UnbundleAction);
           }
           for (const auto &A : DeviceLibObjects)
@@ -5504,8 +5504,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
     // Do a check for a dependency file unbundle for FPGA.  This is out of line
     // from a regular unbundle, so just create and return the name of the
     // unbundled file.
-    if (JA->getType() == types::TY_Dependencies &&
-        C.getInputArgs().hasArg(options::OPT_fintelfpga)) {
+    if (JA->getType() == types::TY_FPGA_Dependencies) {
       // Unbundling of dependency file for FPGA is target only
       std::string TmpFileName = C.getDriver().GetTemporaryPath(
             llvm::sys::path::stem(BaseInput), "d");
