@@ -774,10 +774,10 @@ public:
   }
 
   template <int Dims = Dimensions, typename AllocatorT,
-	   typename = typename std::enable_if<
+	   typename = typename detail::enable_if_t<
 		   (Dims == 0) && 
                     (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>
-		    			::type>
+		    			>
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
 		  handler &CommandGroupHandler)
    
@@ -796,9 +796,9 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>::type>
+                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
 	accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
@@ -934,17 +934,17 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if<Dims == 0 &&
+  operator typename detail::enable_if_t<Dims == 0 &&
                                        AccessMode == access::mode::atomic,
-                                   atomic<DataT, AS>>::type() const {
+                                   atomic<DataT, AS>>() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if<(Dims > 0) && AccessMode == access::mode::atomic,
-                          atomic<DataT, AS>>::type
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                          atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -953,7 +953,7 @@ public:
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                               atomic<DataT, AS>>::type
+                               atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return atomic<DataT, AS>(
