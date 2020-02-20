@@ -63,6 +63,10 @@ using RPipeTy = __attribute__((pipe("read_only"))) const dataT;
 template <typename dataT>
 using WPipeTy = __attribute__((pipe("write_only"))) const dataT;
 
+// OpenCL vector types
+template <typename dataT, int dims>
+using __ocl_vec_t = dataT __attribute__((ext_vector_type(dims)));
+
 // Struct representing layout of pipe storage
 struct ConstantPipeStorage {
   int32_t _PacketSize;
