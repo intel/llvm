@@ -35,6 +35,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case fpga_aoco:      return "fpga_aoco";
   case fpga_aocr:      return "fpga_aocr";
   case fpga_aocx:      return "fpga_aocx";
+  case fpga_dep:       return "fpga_dep";
   case hexagon:        return "hexagon";
   case hsail64:        return "hsail64";
   case hsail:          return "hsail";
@@ -151,7 +152,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case fpga_aoco:
   case fpga_aocr:
-  case fpga_aocx:      return "fpga";
+  case fpga_aocx:
+  case fpga_dep:    return "fpga";
 
   case ve:          return "ve";
   }
@@ -328,6 +330,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("fpga_aoco", fpga_aoco)
     .Case("fpga_aocr", fpga_aocr)
     .Case("fpga_aocx", fpga_aocx)
+    .Case("fpga_dep", fpga_dep)
     .Case("ve", ve)
     .Default(UnknownArch);
 }
@@ -457,6 +460,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("fpga_aoco", Triple::fpga_aoco)
     .Case("fpga_aocr", Triple::fpga_aocr)
     .Case("fpga_aocx", Triple::fpga_aocx)
+    .Case("fpga_dep", Triple::fpga_dep)
     .Case("shave", Triple::shave)
     .Case("ve", Triple::ve)
     .Case("wasm32", Triple::wasm32)
