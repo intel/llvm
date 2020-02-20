@@ -30,7 +30,6 @@ config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.use_z3_solver = lit_config.params.get('USE_Z3_SOLVER', "@USE_Z3_SOLVER@")
 config.has_plugins = @LLVM_ENABLE_PLUGINS@
-config.sycl_pi_cuda = "@SYCL_HAVE_PI_CUDA@"
 
 # Support substitution of the tools and libs dirs with user parameters. This is
 # used when we can't determine the tool dir at configuration time.

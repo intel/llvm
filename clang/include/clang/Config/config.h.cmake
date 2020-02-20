@@ -80,9 +80,6 @@
 #cmakedefine01 CLANG_ENABLE_OBJC_REWRITER
 #cmakedefine01 CLANG_ENABLE_STATIC_ANALYZER
 
-/* Define if we have SYCL PI CUDA support */
-#cmakedefine01 SYCL_HAVE_PI_CUDA
-
 /* Spawn a new process clang.exe for the CC1 tool invocation, when necessary */
 #cmakedefine01 CLANG_SPAWN_CC1
 

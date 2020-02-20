@@ -462,10 +462,6 @@ if( LLVM_USE_PERF )
   endif( NOT CMAKE_SYSTEM_NAME MATCHES "Linux" )
 endif( LLVM_USE_PERF )
 
-option(SYCL_BUILD_PI_CUDA
-  "Selects the PI API backend. When set to ON, the CUDA backend is selected. \
-   When set to OFF, the OpenCL backend is selected." OFF)
-
 set(LLVM_USE_SANITIZER "" CACHE STRING
   "Define the sanitizer used to build binaries and tests.")
 option(LLVM_OPTIMIZE_SANITIZED_BUILDS "Pass -O1 on debug sanitizer builds" ON)

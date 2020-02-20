@@ -615,11 +615,9 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 }
 
 static bool isValidSYCLTriple(llvm::Triple T) {
-#ifdef SYCL_HAVE_PI_CUDA
   // NVPTX is valid for SYCL.
   if (T.isNVPTX())
     return true;
-#endif
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
   if (!T.isSPIR())

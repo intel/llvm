@@ -1,5 +1,5 @@
 /// Tests specific to `-fsycl-targets=nvptx64-nvidia-nvcl-sycldevice`
-// REQUIRES: clang-driver, sycl-pi-cuda
+// REQUIRES: clang-driver
 
 // UNSUPPORTED: system-windows
 
