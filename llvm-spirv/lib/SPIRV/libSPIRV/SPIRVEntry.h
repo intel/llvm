@@ -503,7 +503,8 @@ public:
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
-  SPIRVEntryPoint() : ExecModel(ExecutionModelKernel) {}
+  SPIRVEntryPoint() {}
+
   _SPIRV_DCL_ENCDEC
 protected:
   SPIRVExecutionModelKind ExecModel;
@@ -825,6 +826,9 @@ public:
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
       return getSet(ExtensionID::SPV_INTEL_float_controls2);
+    case CapabilityVectorComputeINTEL:
+    case CapabilityVectorAnyINTEL:
+      return getSet(ExtensionID::SPV_INTEL_vector_compute);
     default:
       return SPIRVExtSet();
     }

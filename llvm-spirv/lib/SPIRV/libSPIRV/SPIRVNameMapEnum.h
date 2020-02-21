@@ -133,6 +133,7 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeRoundingModeRTNINTEL, "RoundingModeRTNINTEL");
   add(ExecutionModeFloatingPointModeALTINTEL, "FloatingPointModeALTINTEL");
   add(ExecutionModeFloatingPointModeIEEEINTEL, "FloatingPointModeIEEEINTEL");
+  add(ExecutionModeSharedLocalMemorySizeINTEL, "SharedLocalMemorySizeINTEL");
 }
 SPIRV_DEF_NAMEMAP(ExecutionMode, SPIRVExecutionModeNameMap)
 
@@ -361,6 +362,11 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
+  add(DecorationVectorComputeFunctionINTEL, "VectorComputeFunctionINTEL");
+  add(DecorationStackCallINTEL, "StackCallINTEL");
+  add(DecorationVectorComputeVariableINTEL, "VectorComputeVariableINTEL");
+  add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
+  add(DecorationFuncParamIOKind, "FuncParamIOKind");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 
@@ -512,6 +518,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupImageMediaBlockIOINTEL,
       "SubgroupImageMediaBlockIOINTEL");
   add(CapabilityAsmINTEL, "AsmINTEL");
+  add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
+  add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
   add(CapabilityRoundToInfinityINTEL, "RoundToInfinityINTEL");
   add(CapabilityFloatingPointModeINTEL, "FloatingPointModeINTEL");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
