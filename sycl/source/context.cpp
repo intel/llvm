@@ -24,21 +24,21 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-context::context(const async_handler &AsyncHandler, bool usePrimaryContext)
+context::context(const async_handler &AsyncHandler, bool UsePrimaryContext)
     : context(default_selector().select_device(), AsyncHandler,
-              usePrimaryContext) {}
+              UsePrimaryContext) {}
 
 context::context(const device &Device, async_handler AsyncHandler,
-                 bool usePrimaryContext)
+                 bool UsePrimaryContext)
     : context(vector_class<device>(1, Device), AsyncHandler,
-              usePrimaryContext) {}
+              UsePrimaryContext) {}
 
 context::context(const platform &Platform, async_handler AsyncHandler,
-                 bool usePrimaryContext)
-    : context(Platform.get_devices(), AsyncHandler, usePrimaryContext) {}
+                 bool UsePrimaryContext)
+    : context(Platform.get_devices(), AsyncHandler, UsePrimaryContext) {}
 
 context::context(const vector_class<device> &DeviceList,
-                 async_handler AsyncHandler, bool usePrimaryContext) {
+                 async_handler AsyncHandler, bool UsePrimaryContext) {
   if (DeviceList.empty()) {
     throw invalid_parameter_error("DeviceList is empty.");
   }
@@ -48,7 +48,7 @@ context::context(const vector_class<device> &DeviceList,
   if (NonHostDeviceIter == DeviceList.end())
     impl =
         std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
-                                               usePrimaryContext);
+                                               UsePrimaryContext);
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
     const auto &NonHostPlatform = NonHostDevice.get_platform().get();
@@ -62,7 +62,7 @@ context::context(const vector_class<device> &DeviceList,
           "Can't add devices across platforms to a single context.");
     else
       impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
-                                                    usePrimaryContext);
+                                                    UsePrimaryContext);
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {

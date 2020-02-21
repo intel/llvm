@@ -21,4 +21,5 @@ target_include_directories(
   ${CUDA_INCLUDE_DIRS} 
   ${sycl_detail_inc_dir}
   ${sycl_inc_dir}
+  "${sycl_plugin_dir}/cuda/"
 )

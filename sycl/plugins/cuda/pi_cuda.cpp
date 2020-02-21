@@ -8,7 +8,7 @@
 
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/pi_cuda.hpp>
+#include <pi_cuda.hpp>
 #include <algorithm>
 #include <cassert>
 #include <cuda.h>

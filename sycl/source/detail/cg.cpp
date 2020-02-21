@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl/detail/cg.hpp"
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
-#include <CL/sycl/detail/scheduler/commands.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 
 #include <memory>
@@ -34,4 +34,4 @@ cl_mem interop_handler::getMemImpl(detail::Requirement* Req) const {
   }
 
 }  // sycl
-}  // sycl
+}  // cl

@@ -38,16 +38,16 @@ int default_selector::operator()(const device &dev) const {
     std::string backend = (SYCL_BE ? SYCL_BE : "");
     // Taking the version information from the platform gives us more useful
     // information than the driver_version of the device.
-    const platform Platform = dev.get_info<info::device::platform>();
-    const std::string PlatformVersion =
-        Platform.get_info<info::platform::version>();;
+    const platform platform = dev.get_info<info::device::platform>();
+    const std::string platformVersion =
+        platform.get_info<info::platform::version>();;
     // If using PI_CUDA, don't accept a non-CUDA device
-    if (PlatformVersion.find("CUDA") == std::string::npos &&
+    if (platformVersion.find("CUDA") == std::string::npos &&
         backend == "PI_CUDA") {
       return -1;
     }
     // If using PI_OPENCL, don't accept a non-OpenCL device
-    if (PlatformVersion.find("OpenCL") == std::string::npos &&
+    if (platformVersion.find("OpenCL") == std::string::npos &&
         backend == "PI_OPENCL") {
       return -1;
     }

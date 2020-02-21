@@ -773,9 +773,9 @@ public:
 #endif
   }
 
-  // Similar to single_task, but passed lambda will be executed on host
-  // dependencies are satisfied on the device.
-  // Functor takes an interop_handler argument
+  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
+  ///
+  /// @param Func is a lambda that is executed on the host
   template <typename FuncT> void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));

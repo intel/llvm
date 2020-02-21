@@ -13,7 +13,7 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
-#include "pi.h"
+#include "CL/sycl/detail/pi.h"
 #include <array>
 #include <atomic>
 #include <cassert>
