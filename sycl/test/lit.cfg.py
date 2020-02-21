@@ -74,7 +74,7 @@ if 'SYCL_BE' in os.environ:
     if config.environment['SYCL_BE'] != "PI_OPENCL":
         config.available_features.remove('opencl-interop')
 
-if 'SYCL_DEVICE_WHITE_LIST' in os.environ:
+if 'SYCL_DEVICE_ALLOWLIST' in os.environ:
     config.environment['SYCL_DEVICE_WHITE_LIST'] = os.environ['SYCL_DEVICE_WHITE_LIST']
 
 config.substitutions.append( ('%clang_cc1', ' ' + config.clang + ' -cc1 ') )
