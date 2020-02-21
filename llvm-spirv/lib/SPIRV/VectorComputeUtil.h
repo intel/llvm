@@ -71,6 +71,12 @@ enum VCFloatType {
   Float,
   Half,
 };
+
+VCRoundMode getVCRoundMode(unsigned FloatControl) noexcept;
+VCDenormMode getVCDenormPreserve(unsigned FloatControl,
+                                 VCFloatType FloatType) noexcept;
+VCFloatMode getVCFloatMode(unsigned FloatControl) noexcept;
+
 unsigned getVCFloatControl(VCRoundMode RoundMode) noexcept;
 unsigned getVCFloatControl(VCFloatMode FloatMode) noexcept;
 unsigned getVCFloatControl(VCDenormMode DenormMode,
