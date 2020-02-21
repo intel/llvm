@@ -212,7 +212,7 @@ std::string OSUtil::getCurrentDSODir() {
   (void)RetCode;
 
   return Path;
-};
+}
 
 #elif defined(SYCL_RT_OS_DARWIN)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
