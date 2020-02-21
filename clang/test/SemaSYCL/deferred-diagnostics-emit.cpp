@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
+// RUN: %clang_cc1 -I %S/Inputs -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
 
 //
 //    ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
 //
+
+#include <sycl.hpp>
 
 struct S {
   virtual void foo() {}
@@ -23,31 +25,6 @@ int calledFromKernel(int a){
   return a + 20;
 }
 
-inline namespace cl {
-namespace sycl {
-class queue {
-public:
-  template <typename T> void submit(T CGF) {}
-};
-
-template <int I> class id {};
-
-template <int I> class range {};
-
-class handler {
-public:
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType kernelFunc) {
-    kernelFunc(id<1>{});
-  }
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(range<Dims> NWI, KernelType kernelFunc) {
-    kernel_parallel_for<KernelName, KernelType, Dims>(kernelFunc);
-  }
-};
-}
-}
-
 
 //  template used to specialize a function that contains a lambda that should
 //  result in a deferred diagnostic being emitted.
@@ -62,7 +39,7 @@ void setup_sycl_operation(const T VA[]) {
   cl::sycl::queue deviceQueue;
 
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    cgh.parallel_for<class AName>(numOfItems, [=](cl::sycl::id<1> wiID) {
+    cgh.single_task<class AName>([=]() {
       // FIX!!  expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int OverlookedBadArray[0]; 
                        
@@ -80,7 +57,7 @@ int main(int argc, char **argv) {
   cl::sycl::queue deviceQueue;
 
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    cgh.parallel_for<class AName>(numOfItems, [=](cl::sycl::id<1> wiID) {
+    cgh.single_task<class AName>([=]() {
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0]; 
 
