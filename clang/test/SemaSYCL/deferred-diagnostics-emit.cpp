@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
 
 /*
     ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
