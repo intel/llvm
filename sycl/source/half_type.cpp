@@ -8,7 +8,8 @@
 
 #include <CL/sycl/half_type.hpp>
 // This is included to enable __builtin_expect()
-#include <CL/sycl/detail/platform_util.hpp>
+#include <detail/platform_util.hpp>
+
 #include <cstring>
 
 __SYCL_INLINE_NAMESPACE(cl) {

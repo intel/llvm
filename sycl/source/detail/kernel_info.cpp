@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/kernel_info.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

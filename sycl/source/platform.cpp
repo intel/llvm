@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/force_device.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

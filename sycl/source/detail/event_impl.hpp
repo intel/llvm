@@ -9,10 +9,10 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
 
 #include <cassert>
 
@@ -34,7 +34,8 @@ public:
   event_impl() = default;
   /// Constructs an event instance from a plug-in event handle.
   ///
-  /// The SyclContext must match the plug-in context associated with the ClEvent.
+  /// The SyclContext must match the plug-in context associated with the
+  /// ClEvent.
   ///
   /// @param Event is a valid instance of plug-in event.
   /// @param SyclContext is an instance of SYCL context.
@@ -63,21 +64,21 @@ public:
 
   /// Waits for the event.
   ///
-  /// If any uncaught asynchronous errors occurred on the context that the event
-  /// is waiting on executions from, then call that context's asynchronous error
-  /// handler with those errors.
-  /// Self is needed in order to pass shared_ptr to Scheduler.
+  /// If any uncaught asynchronous errors occurred on the context that the
+  /// event is waiting on executions from, then call that context's
+  /// asynchronous error handler with those errors. Self is needed in order to
+  /// pass shared_ptr to Scheduler.
   ///
   /// @param Self is a pointer to this event.
   void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
 
   /// Queries this event for profiling information.
   ///
-  /// If the requested info is not available when this member function is called
-  /// due to incompletion of command groups associated with the event, then the
-  /// call to this member function will block until the requested info is
-  /// available. If the queue which submitted the command group this event is
-  /// associated with was not constructed with the
+  /// If the requested info is not available when this member function is
+  /// called due to incompletion of command groups associated with the event,
+  /// then the call to this member function will block until the requested
+  /// info is available. If the queue which submitted the command group this
+  /// event is associated with was not constructed with the
   /// property::queue::enable_profiling property, an invalid_object_error SYCL
   /// exception is thrown.
   ///

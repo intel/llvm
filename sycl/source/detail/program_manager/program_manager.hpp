@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -55,8 +56,8 @@ enum DeviceLibExt {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
-  // Returns the single instance of the program manager for the entire process.
-  // Can only be called after staticInit is done.
+  // Returns the single instance of the program manager for the entire
+  // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
   DeviceImage &getDeviceImage(OSModuleHandle M, const string_class &KernelName,
                               const context &Context);
@@ -104,17 +105,16 @@ private:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
   /// kernels with identical names in different OS modules. The following
-  /// assumption is made: for any two device images in a SYCL application their
-  /// kernel sets are either identical or disjoint.
-  /// Based on this assumption, m_KernelSets is used to group kernels together
-  /// into sets by assigning a set ID to them during device image registration.
-  /// This ID is then mapped to a vector of device images containing kernels
-  /// from the set (m_DeviceImages).
-  /// An exception is made for device images with no entry information: a
-  /// special kernel set ID is used for them which is assigned to just the OS
-  /// module. These kernel set ids are stored in m_OSModuleKernelSets and device
-  /// images associated with them are assumed to contain all kernels coming from
-  /// that OS module.
+  /// assumption is made: for any two device images in a SYCL application
+  /// their kernel sets are either identical or disjoint. Based on this
+  /// assumption, m_KernelSets is used to group kernels together into sets by
+  /// assigning a set ID to them during device image registration. This ID is
+  /// then mapped to a vector of device images containing kernels from the set
+  /// (m_DeviceImages). An exception is made for device images with no entry
+  /// information: a special kernel set ID is used for them which is assigned
+  /// to just the OS module. These kernel set ids are stored in
+  /// m_OSModuleKernelSets and device images associated with them are assumed
+  /// to contain all kernels coming from that OS module.
 
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a kernel set id to the vector of images

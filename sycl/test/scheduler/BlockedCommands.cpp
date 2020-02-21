@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 //==------------------- BlockedCommands.cpp --------------------------------==//
 //
@@ -12,6 +12,7 @@
 
 #include <CL/cl.h>
 #include <CL/sycl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 using namespace cl::sycl;
 

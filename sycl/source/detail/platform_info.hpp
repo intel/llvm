@@ -10,8 +10,8 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/plugin.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -20,8 +20,7 @@ namespace detail {
 // The platform information methods
 template <typename T, info::platform param> struct get_platform_info {};
 
-template <info::platform param>
-struct get_platform_info<string_class, param> {
+template <info::platform param> struct get_platform_info<string_class, param> {
   static string_class get(RT::PiPlatform plt, const plugin &Plugin) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions

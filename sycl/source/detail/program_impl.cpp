@@ -8,8 +8,8 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <detail/program_impl.hpp>
 
 #include <algorithm>
 #include <fstream>

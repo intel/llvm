@@ -219,15 +219,6 @@ public:
   ~image_impl() { BaseT::updateHostMemory(); }
 
 private:
-  template <typename T>
-  void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
-                    T &Dest) {
-    const detail::plugin &Plugin = Context->getPlugin();
-    RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-    Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                              nullptr);
-  }
-
   vector_class<device> getDevices(const ContextImplPtr Context);
 
   template <info::device Param>

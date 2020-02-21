@@ -10,9 +10,9 @@
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -28,8 +28,8 @@ read_execution_bitfield(cl_device_exec_capabilities bits);
 
 // Mapping expected SYCL return types to those returned by PI calls
 template <typename T> struct sycl_to_pi { using type = T; };
-template <> struct sycl_to_pi<bool>     { using type = pi_bool; };
-template <> struct sycl_to_pi<device>   { using type = RT::PiDevice; };
+template <> struct sycl_to_pi<bool> { using type = pi_bool; };
+template <> struct sycl_to_pi<device> { using type = RT::PiDevice; };
 template <> struct sycl_to_pi<platform> { using type = RT::PiPlatform; };
 
 // Mapping fp_config device info types to the values used to check fp support
@@ -155,8 +155,8 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
 template <>
 struct get_device_info<vector_class<info::execution_capability>,
                        info::device::execution_capabilities> {
-  static vector_class<info::execution_capability>
-  get(RT::PiDevice dev, const plugin &Plugin) {
+  static vector_class<info::execution_capability> get(RT::PiDevice dev,
+                                                      const plugin &Plugin) {
     cl_device_exec_capabilities result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
@@ -273,8 +273,7 @@ struct get_device_info<info::partition_affinity_domain,
 template <>
 struct get_device_info<info::partition_property,
                        info::device::partition_type_property> {
-  static info::partition_property get(RT::PiDevice dev,
-                                      const plugin &Plugin) {
+  static info::partition_property get(RT::PiDevice dev, const plugin &Plugin) {
     size_t resultSize;
     Plugin.call<PiApiKind::piDeviceGetInfo>(dev, PI_DEVICE_INFO_PARTITION_TYPE,
                                             0, nullptr, &resultSize);
@@ -342,7 +341,7 @@ typename info::param_traits<info::device, param>::return_type
 get_device_info_host() = delete;
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-      template <> ret_type get_device_info_host<info::param_type::param>();
+  template <> ret_type get_device_info_host<info::param_type::param>();
 
 #include <CL/sycl/info/device_traits.def>
 
@@ -353,8 +352,7 @@ cl_uint get_native_vector_width(size_t idx);
 // USM
 
 // Specialization for device usm query.
-template <>
-struct get_device_info<bool, info::device::usm_device_allocations> {
+template <> struct get_device_info<bool, info::device::usm_device_allocations> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
@@ -366,8 +364,7 @@ struct get_device_info<bool, info::device::usm_device_allocations> {
 };
 
 // Specialization for host usm query.
-template <>
-struct get_device_info<bool, info::device::usm_host_allocations> {
+template <> struct get_device_info<bool, info::device::usm_host_allocations> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
@@ -379,8 +376,7 @@ struct get_device_info<bool, info::device::usm_host_allocations> {
 };
 
 // Specialization for shared usm query.
-template <>
-struct get_device_info<bool, info::device::usm_shared_allocations> {
+template <> struct get_device_info<bool, info::device::usm_shared_allocations> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
@@ -408,8 +404,7 @@ struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
 };
 
 // Specialization for system usm query
-template <>
-struct get_device_info<bool, info::device::usm_system_allocator> {
+template <> struct get_device_info<bool, info::device::usm_system_allocator> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(

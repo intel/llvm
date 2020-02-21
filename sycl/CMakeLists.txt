@@ -52,6 +52,7 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 
 set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
 set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
+set(dst_deploy_dir ${CMAKE_INSTALL_PREFIX}/lib/clang/${CLANG_VERSION}/include)
 
 # Find OpenCL headers and libraries installed in the system and use them to
 # build SYCL runtime.
@@ -183,6 +184,8 @@ function( add_common_options LIB_NAME)
 
   endif()
 endfunction(add_common_options)
+
+set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # SYCL runtime library
 add_subdirectory( source )

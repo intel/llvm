@@ -185,6 +185,8 @@ protected:
 
 using Requirement = AccessorImplHost;
 
+void addHostAccessorAndWait(Requirement *Req);
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
