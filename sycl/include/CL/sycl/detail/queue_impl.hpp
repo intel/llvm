@@ -118,7 +118,7 @@ public:
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability",
-        PI_INVALID_DEVICE);
+        PI_INVALID_OPERATION);
   }
 
   /// @return an associated SYCL context.

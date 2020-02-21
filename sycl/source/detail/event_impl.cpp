@@ -32,7 +32,7 @@ cl_event event_impl::get() const {
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.",
-      PI_INVALID_DEVICE);
+      PI_INVALID_OPERATION);
 }
 
 event_impl::~event_impl() {
@@ -70,7 +70,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
-        "clEvent.", PI_INVALID_DEVICE);
+        "clEvent.", PI_INVALID_CONTEXT);
   }
 
   RT::PiContext TempContext;
@@ -130,7 +130,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_INVALID_DEVICE);
+                               PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -143,7 +143,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_INVALID_DEVICE);
+                               PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -156,7 +156,7 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_INVALID_DEVICE);
+                               PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getEndTime();
 }
 

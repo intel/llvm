@@ -406,7 +406,7 @@ template <>
 cl_uint program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_DEVICE);
+                               PI_INVALID_OPERATION);
   }
   cl_uint Result;
   const detail::plugin &Plugin = getPlugin();

@@ -355,7 +355,7 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     assert(!"Not supported configuration of memcpy requested");
     throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_INVALID_VALUE);
+                        PI_INVALID_OPERATION);
   }
 
   DstOffset[0] *= DstElemSize;
@@ -429,7 +429,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     }
     assert(!"Not supported configuration of fill requested");
     throw runtime_error("Not supported configuration of fill requested",
-                        PI_INVALID_VALUE);
+                        PI_INVALID_OPERATION);
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
@@ -446,7 +446,7 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   if (Queue->is_host()) {
     assert(!"Not supported configuration of map requested");
     throw runtime_error("Not supported configuration of map requested",
-                        PI_INVALID_VALUE);
+                        PI_INVALID_OPERATION);
   }
 
   cl_map_flags Flags = 0;

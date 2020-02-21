@@ -297,7 +297,7 @@ private:
       if (!Device.get_info<param>()) {
         throw feature_not_supported(
             "Online compilation is not supported by this device",
-            PI_INVALID_DEVICE);
+            PI_COMPILER_NOT_AVAILABLE);
       }
     }
   }
