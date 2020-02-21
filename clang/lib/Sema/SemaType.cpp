@@ -2341,7 +2341,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
         ASM = ArrayType::Normal;
       }
 
-      // SYCL kernels reject zero length arrays
+      // Zero length arrays are disallowed in SYCL device code.
       if (getLangOpts().SYCLIsDevice) 
         SYCLDiagIfDeviceCode(ArraySize->getBeginLoc(),
                              diag::err_typecheck_zero_array_size)
