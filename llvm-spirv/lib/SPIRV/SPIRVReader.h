@@ -104,6 +104,7 @@ public:
   bool transFPContractMetadata();
   bool transMetadata();
   bool transOCLMetadata(SPIRVFunction *BF);
+  bool transVectorComputeMetadata(SPIRVFunction *BF);
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
