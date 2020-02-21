@@ -710,6 +710,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::fpga_aoco:
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
+  case Triple::fpga_dep:
   case Triple::hexagon:
   case Triple::hsail64:
   case Triple::hsail:
@@ -1283,6 +1284,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::fpga_aoco:
   case llvm::Triple::fpga_aocr:
   case llvm::Triple::fpga_aocx:
+  case llvm::Triple::fpga_dep:
   case llvm::Triple::hexagon:
   case llvm::Triple::hsail:
   case llvm::Triple::kalimba:
