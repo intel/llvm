@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/stream_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
+
 #include <cstdio>
 
 __SYCL_INLINE_NAMESPACE(cl) {

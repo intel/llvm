@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/device.hpp>
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/ordered_queue.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 

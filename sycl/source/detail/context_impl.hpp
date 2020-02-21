@@ -8,16 +8,16 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/kernel_program_cache.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
-#include <CL/sycl/detail/program_manager/program_manager.hpp>
-#include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/kernel_program_cache.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
+#include <detail/usm/usm_dispatch.hpp>
 
 #include <map>
 #include <memory>
@@ -32,8 +32,8 @@ class context_impl {
 public:
   /// Constructs a context_impl using a single SYCL devices.
   ///
-  /// The constructed context_impl will use the AsyncHandler parameter to handle
-  /// exceptions.
+  /// The constructed context_impl will use the AsyncHandler parameter to
+  /// handle exceptions.
   ///
   /// @param Device is an instance of SYCL device.
   /// @param AsyncHandler is an instance of async_handler.
@@ -44,8 +44,8 @@ public:
   /// Newly created instance will save each SYCL device in the list. This
   /// requres that all devices in the list are associated with the same
   /// SYCL platform.
-  /// The constructed context_impl will use the AsyncHandler parameter to handle
-  /// exceptions.
+  /// The constructed context_impl will use the AsyncHandler parameter to
+  /// handle exceptions.
   ///
   /// @param DeviceList is a list of SYCL device instances.
   /// @param AsyncHandler is an instance of async_handler.
@@ -54,13 +54,13 @@ public:
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
-  /// The constructed context_impl will use the AsyncHandler parameter to handle
-  /// exceptions.
+  /// The constructed context_impl will use the AsyncHandler parameter to
+  /// handle exceptions.
   ///
   /// @param PiContext is an instance of a valid plug-in context handle.
   /// @param AsyncHandler is an instance of async_handler.
-  /// @param &Plugin is the reference to the underlying Plugin that this context
-  /// is associated with.
+  /// @param &Plugin is the reference to the underlying Plugin that this
+  /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                const plugin &Plugin);
 
@@ -116,9 +116,7 @@ public:
 
   /// Unlike `get_info<info::context::devices>', this function returns a
   /// reference.
-  const vector_class<device> &getDevices() const {
-    return MDevices;
-  }
+  const vector_class<device> &getDevices() const { return MDevices; }
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_THROW_ON_BLOCK=1 %t.out
 //==--------------------------- HostAcc.cpp --------------------------------==//
 //

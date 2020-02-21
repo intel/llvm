@@ -70,11 +70,11 @@ struct DepDesc {
   AllocaCommandBase *MAllocaCmd = nullptr;
 };
 
-// The Command represents some action that needs to be performed on one or more
-// memory objects. The command has vector of Depdesc objects that represent
-// dependencies of the command. It has vector of pointer to commands that depend
-// on the command. It has pointer to sycl::queue object. And has event that is
-// associated with the command.
+// The Command represents some action that needs to be performed on one or
+// more memory objects. The command has vector of Depdesc objects that
+// represent dependencies of the command. It has vector of pointer to commands
+// that depend on the command. It has pointer to sycl::queue object. And has
+// event that is associated with the command.
 class Command {
 public:
   enum CommandType {
@@ -104,9 +104,9 @@ public:
   // Return type of the command, e.g. Allocate, MemoryCopy.
   CommandType getType() const { return MType; }
 
-  // The method checks if the command is enqueued, waits for it to be unblocked
-  // if "Blocking" argument is true, then calls enqueueImp.
-  // Returns true if the command is enqueued. Sets EnqueueResult to the specific
+  // The method checks if the command is enqueued, waits for it to be
+  // unblocked if "Blocking" argument is true, then calls enqueueImp. Returns
+  // true if the command is enqueued. Sets EnqueueResult to the specific
   // status otherwise.
   bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
@@ -251,8 +251,8 @@ public:
 private:
   cl_int enqueueImp() final;
 
-  // The flag indicates that alloca should try to reuse pointer provided by the
-  // user during memory object construction
+  // The flag indicates that alloca should try to reuse pointer provided by
+  // the user during memory object construction
   bool MInitFromUserData = false;
 };
 

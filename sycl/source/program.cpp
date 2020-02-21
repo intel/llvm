@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/program_impl.hpp>
 
 #include <vector>
 

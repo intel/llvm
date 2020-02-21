@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
+#include <detail/platform_impl.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -40,15 +40,12 @@ public:
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template<typename T>
-  struct BuildResult {
+  template<typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
 
-    BuildResult(T* P, int S)
-      : Ptr{P}, State{S}, Error{"", 0}
-    {}
+    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -75,16 +72,13 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  template<class Predicate>
-  void waitUntilBuilt(Predicate Pred) const {
+  template <class Predicate> void waitUntilBuilt(Predicate Pred) const {
     std::unique_lock<std::mutex> Lock(MBuildCVMutex);
 
     MBuildCV.wait(Lock, Pred);
   }
 
-  void notifyAllBuild() const {
-    MBuildCV.notify_all();
-  }
+  void notifyAllBuild() const { MBuildCV.notify_all(); }
 
 private:
   std::mutex MProgramCacheMutex;
@@ -97,6 +91,6 @@ private:
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
 };
-}
-}
-}
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

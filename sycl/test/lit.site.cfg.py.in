@@ -12,6 +12,7 @@ config.llvm_build_bins_dir = "@LLVM_BUILD_BINARY_DIRS@"
 config.llvm_binary_dir = "@LLVM_BINARY_DIR@"
 config.sycl_include = "@SYCL_INCLUDE@"
 config.sycl_obj_root = "@SYCL_BINARY_DIR@"
+config.sycl_source_dir = "@SYCL_SOURCE_DIR@/source"
 config.opencl_libs_dir = os.path.dirname("@OpenCL_LIBRARIES@")
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"

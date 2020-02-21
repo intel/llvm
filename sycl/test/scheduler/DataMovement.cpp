@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %t.out
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//

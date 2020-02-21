@@ -10,8 +10,8 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/circular_buffer.hpp>
-#include <CL/sycl/detail/scheduler/commands.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <detail/scheduler/commands.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -65,16 +65,16 @@ public:
 
   EventImplPtr addCopyBack(Requirement *Req);
 
-  // Blocking call that waits for the event passed. For the eager execution mode
-  // this method invokes corresponding function of device API. In the lazy
-  // execution mode the method may enqueue the command associated with the event
-  // passed and its dependency before calling device API.
+  // Blocking call that waits for the event passed. For the eager execution
+  // mode this method invokes corresponding function of device API. In the
+  // lazy execution mode the method may enqueue the command associated with
+  // the event passed and its dependency before calling device API.
   void waitForEvent(EventImplPtr Event);
 
   // Removes buffer pointed by MemObj from the graph: ensures all commands
-  // accessing the memory objects are executed and triggers deallocation of all
-  // memory assigned to the memory object. It's called from the sycl::buffer and
-  // sycl::image destructors.
+  // accessing the memory objects are executed and triggers deallocation of
+  // all memory assigned to the memory object. It's called from the
+  // sycl::buffer and sycl::image destructors.
   void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
   // Removes finished non-leaf non-alloca commands from the subgraph (assuming
@@ -82,11 +82,10 @@ public:
   void cleanupFinishedCommands(Command *FinishedCmd);
 
   // Creates nodes in the graph, that update Req with the pointer to the host
-  // memory which contains the latest data of the memory object. New operations
-  // with the same memory object that have side effects are blocked until
-  // releaseHostAccessor is called.
-  // Returns an event which indicates when these nodes are completed and host
-  // accessor is ready for using.
+  // memory which contains the latest data of the memory object. New
+  // operations with the same memory object that have side effects are blocked
+  // until releaseHostAccessor is called. Returns an event which indicates
+  // when these nodes are completed and host accessor is ready for using.
   EventImplPtr addHostAccessor(Requirement *Req);
 
   // Unblocks operations with the memory object.
@@ -125,8 +124,8 @@ protected:
     // [Provisional] Optimizes the whole graph.
     void optimize();
 
-    // [Provisional] Optimizes subgraph that consists of command associated with
-    // Event passed and its dependencies.
+    // [Provisional] Optimizes subgraph that consists of command associated
+    // with Event passed and its dependencies.
     void optimize(EventImplPtr Event);
 
     // Removes finished non-leaf non-alloca commands from the subgraph (assuming
@@ -191,8 +190,7 @@ protected:
                                                Requirement *Req,
                                                QueueImplPtr Queue);
 
-    void markModifiedIfWrite(MemObjRecord *Record,
-                             Requirement *Req);
+    void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
     // Print contents of graph to text file in DOT format
     void printGraphAsDot(const char *ModeName);
