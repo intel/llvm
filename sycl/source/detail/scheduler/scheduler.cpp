@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl/detail/sycl_mem_obj_i.hpp"
-#include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
 #include <mutex>

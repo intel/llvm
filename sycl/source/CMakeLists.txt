@@ -82,6 +82,7 @@ set(SYCL_SOURCES
     "detail/usm/usm_dispatch.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "accessor.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"

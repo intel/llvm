@@ -9,12 +9,12 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/program_impl.hpp>
 
 #include <cassert>
 #include <memory>
@@ -54,15 +54,13 @@ public:
   /// @param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-              ProgramImplPtr ProgramImpl,
-              bool IsCreatedFromSource);
+              ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
 
   /// Constructs a SYCL kernel for host device
   ///
   /// @param SyclContext is a valid SYCL context
   /// @param ProgramImpl is a valid instance of program_impl
-  kernel_impl(ContextImplPtr Context,
-              ProgramImplPtr ProgramImpl);
+  kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl);
 
   ~kernel_impl();
 
@@ -131,8 +129,8 @@ public:
   RT::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
-  /// @return a constant reference to a valid PiKernel instance with raw kernel
-  /// object.
+  /// @return a constant reference to a valid PiKernel instance with raw
+  /// kernel object.
   const RT::PiKernel &getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from

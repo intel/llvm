@@ -8,14 +8,14 @@
 
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/context_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/context_info.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

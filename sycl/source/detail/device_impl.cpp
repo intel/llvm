@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/device_impl.hpp>
 
 #include <algorithm>
 

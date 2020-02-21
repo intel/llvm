@@ -59,6 +59,7 @@ namespace sycl {
 
 // Forward declaration
 
+class handler;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 namespace detail {
 
@@ -104,6 +105,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
+device getDeviceFromHandler(handler &);
 } // namespace detail
 
 /// 4.8.3 Command group handler class
@@ -1278,6 +1280,7 @@ private:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+  friend device detail::getDeviceFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>

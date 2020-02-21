@@ -8,9 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/device_info.hpp>
+#include <detail/platform_impl.hpp>
+
 #include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -43,8 +45,8 @@ public:
 
   /// Get instance of OpenCL device
   ///
-  /// @return a valid cl_device_id instance in accordance with the requirements
-  /// described in 4.3.1.
+  /// @return a valid cl_device_id instance in accordance with the
+  /// requirements described in 4.3.1.
   cl_device_id get() const;
 
   /// Get reference to PI device
@@ -120,18 +122,21 @@ public:
 
   /// Partition device into sub devices
   ///
-  /// If this SYCL device does not support info::partition_property::partition_equally
-  /// a feature_not_supported exception must be thrown.
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_equally a feature_not_supported
+  /// exception must be thrown.
   ///
-  /// @param ComputeUnits is a desired count of compute units in each sub device.
+  /// @param ComputeUnits is a desired count of compute units in each sub
+  /// device.
   /// @return A vector class of sub devices partitioned equally from this
   /// SYCL device based on the ComputeUnits parameter.
   vector_class<device> create_sub_devices(size_t ComputeUnits) const;
 
   /// Partition device into sub devices
   ///
-  /// If this SYCL device does not support info::partition_property::partition_by_counts
-  /// a feature_not_supported exception must be thrown.
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_by_counts a feature_not_supported
+  /// exception must be thrown.
   ///
   /// @param Counts is a vector_class of desired compute units in sub devices.
   /// @return a vector_class of sub devices partitioned from this SYCL device
@@ -141,11 +146,13 @@ public:
 
   /// Partition device into sub devices
   ///
-  /// If this SYCL device does not support info::partition_property::partition_by_affinity_domain
-  /// or the SYCL device does not support info::affinity_domain provided
-  /// a feature_not_supported exception must be thrown.
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_by_affinity_domain or the SYCL
+  /// device does not support info::affinity_domain provided a
+  /// feature_not_supported exception must be thrown.
   ///
-  /// @param AffinityDomain is one of the values described in Table 4.20 of SYCL Spec
+  /// @param AffinityDomain is one of the values described in Table 4.20 of
+  /// SYCL Spec
   /// @return a vector class of sub devices partitioned from this SYCL device
   /// by affinity domain based on the AffinityDomain parameter
   vector_class<device>
@@ -158,7 +165,8 @@ public:
   /// @return true if Prop is supported by device.
   bool is_partition_supported(info::partition_property Prop) const;
 
-  /// Queries this SYCL device for information requested by the template parameter param
+  /// Queries this SYCL device for information requested by the template
+  /// parameter param
   ///
   /// Specializations of info::param_traits must be defined in accordance
   /// with the info parameters in Table 4.20 of SYCL Spec to facilitate
@@ -176,9 +184,11 @@ public:
         param>::get(this->getHandleRef(), this->getPlugin());
   }
 
-  /// Check if affinity partitioning by specified domain is supported by device
+  /// Check if affinity partitioning by specified domain is supported by
+  /// device
   ///
-  /// @param AffinityDomain is one of the values described in Table 4.20 of SYCL Spec
+  /// @param AffinityDomain is one of the values described in Table 4.20 of
+  /// SYCL Spec
   /// @return true if AffinityDomain is supported by device.
   bool
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
