@@ -16,7 +16,7 @@ def do_configure(args):
     llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot'
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
-    llvm_enable_assertions = 'OFF'
+    llvm_enable_assertions = 'ON'
 
     if platform.system() == 'Linux':
         icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so")
