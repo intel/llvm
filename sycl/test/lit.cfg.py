@@ -71,7 +71,7 @@ config.available_features.add('opencl-interop')
 if 'SYCL_BE' in os.environ:
     config.environment['SYCL_BE'] = os.environ['SYCL_BE']
     # There is no direct OpenCL interop when not running OpenCL BE.
-    if config.environment['SYCL_BE'] == "PI_OTHER":
+    if config.environment['SYCL_BE'] != "PI_OPENCL":
         config.available_features.remove('opencl-interop')
 
 if 'SYCL_DEVICE_WHITE_LIST' in os.environ:
