@@ -1,8 +1,8 @@
 // RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
 
-/*
-    ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
-*/
+//
+//    ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
+//
 
 struct S {
   virtual void foo() {}
@@ -48,13 +48,13 @@ public:
 }
 }
 
-/*
-  template used to specialize a function that contains a lambda that should
-  result in a deferred diagnostic being emitted.
-  HOWEVER, this is not working presently.  
-  TODO: re-test after new deferred diagnostic system is merged. 
-        restore the "FIX!!" tests below
-*/
+
+//  template used to specialize a function that contains a lambda that should
+//  result in a deferred diagnostic being emitted.
+//  HOWEVER, this is not working presently.  
+//  TODO: re-test after new deferred diagnostic system is merged. 
+//        restore the "FIX!!" tests below
+
 template <typename T>
 void setup_sycl_operation(const T VA[]) {
     
