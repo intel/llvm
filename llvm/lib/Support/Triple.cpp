@@ -1371,6 +1371,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::fpga_aoco:
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
+  case Triple::fpga_dep:
   case Triple::hexagon:
   case Triple::hsail:
   case Triple::kalimba:
@@ -1425,6 +1426,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::fpga_aoco:
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
+  case Triple::fpga_dep:
   case Triple::hexagon:
   case Triple::kalimba:
   case Triple::lanai:
