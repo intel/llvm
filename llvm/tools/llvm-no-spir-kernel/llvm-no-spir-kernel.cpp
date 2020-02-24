@@ -6,15 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This utility checks if the input module contains functions that is a spir
-// kernel. Return 0 if no, return 1 if yes. Use of an output file is not
-// required for a successful check. It is used to allow for proper input and
-// output flow within the driver toolchain.
+// This utility checks if the input module contains functions that are a SPIR
+// kernel.
+//
+// - Return 0 if the LLVM module is "clean" from SPIR kernels
+// - Return 1 upon the first SPIR kernel occurence
+//
+// Use of an output file is not required for a successful check. It is used
+// to allow for proper input and output flow within the driver toolchain.
 //
 // Usage: llvm-no-spir-kernel input.bc/input.ll -o output.bc/output.ll
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
@@ -44,15 +49,21 @@ int main(int argc, char **argv) {
 
   // Use lazy loading, since we only care about function calling convention
   SMDiagnostic Err;
+  const char *ProgramName = llvm::sys::path::filename(argv[0]).data();
   std::unique_ptr<Module> M = getLazyIRFileModule(InputFilename, Err, Context);
 
   if (!M.get()) {
-    Err.print(argv[0], errs());
+    Err.print(ProgramName, errs());
     return 1;
   }
 
   for (auto &F : *M) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      std::string SPIRKernelMsg =
+          "Unexpected SPIR kernel occurrence: " + demangle(F.getName().str());
+      SMDiagnostic SPIRKernelDiag(InputFilename, SourceMgr::DiagKind::DK_Error,
+                                  SPIRKernelMsg);
+      SPIRKernelDiag.print(ProgramName, errs());
       return 1;
     }
   }

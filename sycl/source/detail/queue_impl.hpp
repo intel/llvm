@@ -9,11 +9,6 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/plugin.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -21,6 +16,11 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/plugin.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,14 +39,14 @@ public:
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
-  /// the queue.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// to the queue.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
-  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
-             QueueOrder Order, const property_list &PropList)
+  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler, QueueOrder Order,
+             const property_list &PropList)
       : queue_impl(Device,
                    detail::getSyclObjImpl(
                        context(createSyclObjFromImpl<device>(Device))),
@@ -55,13 +55,13 @@ public:
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted to
-  /// the queue.
+  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// to the queue.
   /// @param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   /// @param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
              async_handler AsyncHandler, QueueOrder Order,
@@ -96,7 +96,8 @@ public:
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueGetInfo>(MCommandQueue, PI_QUEUE_INFO_DEVICE,
                                            sizeof(Device), &Device, nullptr);
-    MDevice = DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
+    MDevice =
+        DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueRetain>(MCommandQueue);
@@ -197,10 +198,10 @@ public:
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
-  /// Synchronous errors will be reported through SYCL exceptions. Asynchronous
-  /// errors will be passed to the async_handler passed to the queue on
-  /// construction. If no async_handler was provided then asynchronous
-  /// exceptions will be lost.
+  /// Synchronous errors will be reported through SYCL exceptions.
+  /// Asynchronous errors will be passed to the async_handler passed to the
+  /// queue on construction. If no async_handler was provided then
+  /// asynchronous exceptions will be lost.
   void throw_asynchronous() {
     std::unique_lock<mutex_class> lock(MMutex);
 
@@ -220,8 +221,8 @@ public:
 
   /// Creates PI queue.
   ///
-  /// @param Order specifies whether the queue being constructed as in-order or
-  /// out-of-order.
+  /// @param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
@@ -264,8 +265,8 @@ public:
       return MQueues.back();
     }
 
-    // If the limit of OpenCL queues is going to be exceeded - take the earliest
-    // used queue, wait until it finished and then reuse it.
+    // If the limit of OpenCL queues is going to be exceeded - take the
+    // earliest used queue, wait until it finished and then reuse it.
     MQueueNumber %= MaxNumQueues;
     size_t FreeQueueNum = MQueueNumber++;
 
@@ -273,8 +274,8 @@ public:
     return MQueues[FreeQueueNum];
   }
 
-  /// @return a raw PI queue handle. The returned handle is not retained. It is
-  /// caller responsibility to make sure queue is still alive.
+  /// @return a raw PI queue handle. The returned handle is not retained. It
+  /// is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getHandleRef() {
     if (MSupportOOO) {
       return MCommandQueue;

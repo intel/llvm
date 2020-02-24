@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/platform_info.hpp>
 
 #include <algorithm>
 #include <cstring>

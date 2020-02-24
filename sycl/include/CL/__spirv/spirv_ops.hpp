@@ -142,7 +142,14 @@ extern bool __spirv_GroupAny(__spv::Scope Execution, bool Predicate) noexcept;
 
 template <typename dataT>
 extern dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
-                                    uint32_t LocalId) noexcept;
+                                    size_t LocalId) noexcept;
+
+template <typename dataT>
+extern dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                                    __ocl_vec_t<size_t, 2> LocalId) noexcept;
+template <typename dataT>
+extern dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                                    __ocl_vec_t<size_t, 3> LocalId) noexcept;
 
 template <typename dataT>
 extern dataT __spirv_GroupIAdd(__spv::Scope Execution, __spv::GroupOperation Op,
