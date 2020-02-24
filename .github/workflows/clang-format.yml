@@ -1,0 +1,34 @@
+name: clang-format-check
+
+on:
+  pull_request:
+    branches:
+    - sycl
+    types: [open, edit, reopen, synchronize]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # checkout PR head
+        ref: '${{github.event.pull_request.head.sha}}'
+    - name: Fetch target branch
+      run: git fetch --no-tags --prune --depth=1 origin +refs/heads/${{github.base_ref}}:refs/remotes/origin/${{github.base_ref}}
+
+    - name: Get clang-format first
+      run: sudo apt-get install -yqq clang-format-9
+
+    - name: Run clang-format for the patch
+      run: |
+        git diff -U0 --no-color origin/${{github.base_ref}}..HEAD | ./clang/tools/clang-format/clang-format-diff.py -p1 -binary clang-format-9 > ./clang-format.patch
+
+    # Add patch with formatting fixes to CI job artifacts
+    - uses: actions/upload-artifact@v1
+      with:
+        name: clang-format-patch
+        path: ./clang-format.patch
+
+    - name: Check if clang-format patch is empty
+      run: bash -c "if [ -s ./clang-format.patch ]; then cat ./clang-format.patch; exit 1; fi"
