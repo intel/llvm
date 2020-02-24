@@ -16,11 +16,11 @@ extern "C" SYCL_EXTERNAL
 void __assert_fail(const char *expr, const char *file,
                    unsigned int line, const char *func) {
   __devicelib_assert_fail(expr, file, line, func,
-                          __spirv_BuiltInGlobalInvocationId.x,
-                          __spirv_BuiltInGlobalInvocationId.y,
-                          __spirv_BuiltInGlobalInvocationId.z,
-                          __spirv_BuiltInLocalInvocationId.x,
-                          __spirv_BuiltInLocalInvocationId.y,
-                          __spirv_BuiltInLocalInvocationId.z);
+                          __spirv_GlobalInvocationId_x(),
+                          __spirv_GlobalInvocationId_y(),
+                          __spirv_GlobalInvocationId_z(),
+                          __spirv_LocalInvocationId_x(),
+                          __spirv_LocalInvocationId_y(),
+                          __spirv_LocalInvocationId_z());
 }
 #endif // __SYCL_DEVICE_ONLY__

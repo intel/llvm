@@ -33,6 +33,12 @@ event handler::finalize() {
         std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
     break;
   }
+  case detail::CG::INTEROP_TASK_CODEPLAY:
+    CommandGroup.reset(new detail::CGInteropTask(
+        std::move(MInteropTask), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType));
+    break;
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
   case detail::CG::COPY_ACC_TO_ACC:

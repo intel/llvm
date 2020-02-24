@@ -20,6 +20,12 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req, 
+                                               const bool destructor) {
+  return cl::sycl::detail::Scheduler::getInstance().
+                                              addHostAccessor(Req, destructor);
+}
+
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
@@ -135,10 +141,11 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req, 
+                                        const bool destructor) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
   if (!NewCmd)
     return nullptr;

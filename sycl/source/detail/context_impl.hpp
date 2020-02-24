@@ -37,7 +37,10 @@ public:
   ///
   /// @param Device is an instance of SYCL device.
   /// @param AsyncHandler is an instance of async_handler.
-  context_impl(const device &Device, async_handler AsyncHandler);
+  /// @param useCUDAPrimaryContext is a bool determining whether to use the
+  ///        primary context in the CUDA backend.
+  context_impl(const device &Device, async_handler AsyncHandler,
+               bool UseCUDAPrimaryContext);
 
   /// Constructs a context_impl using a list of SYCL devices.
   ///
@@ -50,7 +53,7 @@ public:
   /// @param DeviceList is a list of SYCL device instances.
   /// @param AsyncHandler is an instance of async_handler.
   context_impl(const vector_class<cl::sycl::device> Devices,
-               async_handler AsyncHandler);
+               async_handler AsyncHandler, bool UseCUDAPrimaryContext);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -146,6 +149,8 @@ private:
   PlatformImplPtr MPlatform;
   bool MPluginInterop;
   bool MHostContext;
+  bool MUseCUDAPrimaryContext;
+  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
 };

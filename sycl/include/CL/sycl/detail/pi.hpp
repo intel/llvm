@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <sstream>
 
 #include <cassert>
 #include <string>
@@ -29,10 +30,33 @@ class plugin;
 namespace pi {
 
 #ifdef SYCL_RT_OS_WINDOWS
-#define PLUGIN_NAME "pi_opencl.dll"
+#define OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
-#define PLUGIN_NAME "libpi_opencl.so"
+#define OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
+
+// Report error and no return (keeps compiler happy about no return statements).
+[[noreturn]] void die(const char *Message);
+
+void assertion(bool Condition, const char *Message = nullptr);
+
+template <typename T>
+void handleUnknownParamName(const char *functionName, T parameter) {
+  std::stringstream stream;
+  stream << "Unknown parameter " << parameter << " passed to " << functionName
+         << "\n";
+  auto str = stream.str();
+  auto msg = str.c_str();
+  die(msg);
+}
+
+// This macro is used to report invalid enumerators being passed to PI API
+// GetInfo functions. It will print the name of the function that invoked it
+// and the value of the unknown enumerator.
+#define PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                                \
+  { cl::sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
@@ -71,18 +95,13 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
 // For selection of SYCL RT back-end, now manually through the "SYCL_BE"
 // environment variable.
-enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_OTHER };
+enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_CUDA, SYCL_BE_PI_OTHER };
 
 // Check for manually selected BE at run-time.
 bool useBackend(Backend Backend);
 
 // Get a string representing a _pi_platform_info enum
 std::string platformInfoToString(pi_platform_info info);
-
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] void die(const char *Message);
-
-void assertion(bool Condition, const char *Message = nullptr);
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);

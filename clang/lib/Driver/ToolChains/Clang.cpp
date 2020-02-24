@@ -3998,7 +3998,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  const llvm::Triple *AuxTriple = IsCuda ? TC.getAuxTriple() : nullptr;
+  const llvm::Triple *AuxTriple = (IsSYCL || IsCuda) ? TC.getAuxTriple() : nullptr;
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsIAMCU = RawTriple.isOSIAMCU();
   bool IsSYCLDevice = (RawTriple.getEnvironment() == llvm::Triple::SYCLDevice);
@@ -4106,7 +4106,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
 
-    CmdArgs.push_back("-disable-llvm-passes");
+    if (Triple.isSPIR()) {
+      CmdArgs.push_back("-disable-llvm-passes");
+    }
+
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");

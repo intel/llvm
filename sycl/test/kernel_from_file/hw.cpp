@@ -1,8 +1,13 @@
+//-fsycl-targets=%sycl_triple
 // RUN: %clangxx -fsycl-device-only -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv
 // RUN: %clangxx -include %t.h -g %s -o %t.out -lsycl
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
 
+// TODO: InvalidTargetTriple: Expects spir-unknown-unknown or spir64-unknown-unknown. Actual target triple is x86_64-unknown-linux-gnu
+
+// XFAIL: cuda
+// Currently unsupported on cuda as this test specifically tests a SPV path.
 
 #include <CL/sycl.hpp>
 #include <iostream>

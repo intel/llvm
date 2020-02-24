@@ -121,7 +121,8 @@ public:
   // run the LowerWGScope pass on the specified module
   bool runOnFunction(Function &F) override {
     FunctionAnalysisManager FAM;
-    auto PA = Impl.run(F, FAM);
+    auto TT = llvm::Triple(F.getParent()->getTargetTriple());
+    auto PA = Impl.run(F, TT, FAM);
     return !PA.areAllPreserved();
   }
 
@@ -185,8 +186,8 @@ enum class MemorySemantics : unsigned {
   ImageMemory = 0x800,
 };
 
-Instruction *genWGBarrier(Instruction &Before);
-Value *genLinearLocalID(Instruction &Before);
+Instruction *genWGBarrier(Instruction &Before, const Triple &TT);
+Value *genLinearLocalID(Instruction &Before, const Triple &TT);
 GlobalVariable *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
 } // namespace spirv
 
@@ -260,8 +261,9 @@ static bool mayHaveSideEffects(const Instruction *I) {
 //
 static void guardBlockWithIsLeaderCheck(BasicBlock *IfBB, BasicBlock *TrueBB,
                                         BasicBlock *MergeBB,
-                                        const DebugLoc &DbgLoc) {
-  Value *LinearLocalID = spirv::genLinearLocalID(*IfBB->getTerminator());
+                                        const DebugLoc &DbgLoc,
+                                        const Triple &TT) {
+  Value *LinearLocalID = spirv::genLinearLocalID(*IfBB->getTerminator(), TT);
   auto *Ty = LinearLocalID->getType();
   Value *Zero = Constant::getNullValue(Ty);
   IRBuilder<> Builder(IfBB->getContext());
@@ -338,7 +340,7 @@ using InstrRange = std::pair<Instruction *, Instruction *>;
 //   ...
 //   B
 //   ... USE2(%I1_new) ...
-static void tformRange(const InstrRange &R) {
+static void tformRange(const InstrRange &R, const Triple &TT) {
   // Instructions seen between the first and the last
   SmallPtrSet<Instruction *, 16> Seen;
   Instruction *FirstSE = R.first;
@@ -357,7 +359,7 @@ static void tformRange(const InstrRange &R) {
 
   // 1) insert the first "is work group leader" test (at the first split) for
   //     the worker WIs to detour the side effects instructions
-  guardBlockWithIsLeaderCheck(BBa, LeaderBB, BBb, FirstSE->getDebugLoc());
+  guardBlockWithIsLeaderCheck(BBa, LeaderBB, BBb, FirstSE->getDebugLoc(), TT);
 
   // 2) "Share" the output values of the instructions in the range
   for (auto *I : Seen)
@@ -365,7 +367,7 @@ static void tformRange(const InstrRange &R) {
 
   // 3) Insert work group barrier so that workers further read valid data
   //    (before the materialization reads inserted at step 2)
-  spirv::genWGBarrier(BBb->front());
+  spirv::genWGBarrier(BBb->front(), TT);
 }
 
 namespace {
@@ -440,13 +442,13 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 //
 static void materializeLocalsInWIScopeBlocksImpl(
     const DenseMap<BasicBlock *, std::unique_ptr<LocalsSet>> &BB2MatLocals,
-    const DenseMap<AllocaInst *, GlobalVariable *> &Local2Shadow) {
+    const DenseMap<AllocaInst *, GlobalVariable *> &Local2Shadow, const Triple &TT) {
   for (auto &P : BB2MatLocals) {
     // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
     BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
     // Add a barrier to the original block:
-    Instruction *At = spirv::genWGBarrier(*BB->getFirstNonPHI())->getNextNode();
+    Instruction *At = spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
 
     for (AllocaInst *L : *P.second.get()) {
       auto MapEntry = Local2Shadow.find(L);
@@ -469,7 +471,7 @@ static void materializeLocalsInWIScopeBlocksImpl(
     BasicBlock *TestBB =
         LeaderBB->splitBasicBlock(&LeaderBB->front(), "TestMat");
     std::swap(TestBB, LeaderBB);
-    guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc());
+    guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc(), TT);
   }
 }
 
@@ -533,7 +535,8 @@ static bool localMustBeMaterialized(const AllocaInst *L, const BasicBlock &BB) {
 //
 void materializeLocalsInWIScopeBlocks(
     SmallPtrSetImpl<AllocaInst *> &Locals,
-    SmallPtrSetImpl<BasicBlock *> &WIScopeBBs) {
+    SmallPtrSetImpl<BasicBlock *> &WIScopeBBs,
+    const Triple &TT) {
   // maps local variable to its "shadow" workgroup-shared global:
   DenseMap<AllocaInst *, GlobalVariable *> Local2Shadow;
   // records which locals must be materialized at the beginning of a block:
@@ -564,7 +567,7 @@ void materializeLocalsInWIScopeBlocks(
     }
   }
   // perform the materialization
-  materializeLocalsInWIScopeBlocksImpl(BB2MatLocals, Local2Shadow);
+  materializeLocalsInWIScopeBlocksImpl(BB2MatLocals, Local2Shadow, TT);
 }
 
 #ifndef NDEBUG
@@ -677,7 +680,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
 // Go through "byval" parameters which are passed as AS(0) pointers
 // and: (1) create local shadows for them (2) and initialize them from the
 // leader's copy and (3) replace usages with pointer to the shadow
-static void shareByValParams(Function &F) {
+static void shareByValParams(Function &F, const Triple &TT) {
   // split
   BasicBlock *EntryBB = &F.getEntryBlock();
   BasicBlock *LeaderBB = EntryBB->splitBasicBlock(&EntryBB->front(), "leader");
@@ -686,7 +689,7 @@ static void shareByValParams(Function &F) {
   // 1) rewire the above basic blocks so that LeaderBB is executed only for the
   // leader workitem
   guardBlockWithIsLeaderCheck(EntryBB, LeaderBB, MergeBB,
-                              EntryBB->back().getDebugLoc());
+                              EntryBB->back().getDebugLoc(), TT);
   Instruction &At = LeaderBB->back();
 
   for (auto &Arg : F.args()) {
@@ -712,10 +715,11 @@ static void shareByValParams(Function &F) {
                                 true /*private->shadow*/);
   }
   // 5) make sure workers use up-to-date shared values written by the leader
-  spirv::genWGBarrier(MergeBB->front());
+  spirv::genWGBarrier(MergeBB->front(), TT);
 }
 
 PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
+                                            const llvm::Triple &TT,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
@@ -793,7 +797,7 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
 
   // Perform the transformation
   for (auto &R : Ranges) {
-    tformRange(R);
+    tformRange(R, TT);
     Changed = true;
   }
   // There can be allocas not corresponding to any variable declared in user
@@ -810,14 +814,14 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
     WIScopeBBs.insert(I->getParent());
 
   // Now materialize the locals:
-  materializeLocalsInWIScopeBlocks(Allocas, WIScopeBBs);
+  materializeLocalsInWIScopeBlocks(Allocas, WIScopeBBs, TT);
 
   // Fixup captured addresses of private_memory instances in current WI
   for (auto *PFWICall : PFWICalls)
     fixupPrivateMemoryPFWILambdaCaptures(PFWICall);
 
   // Finally, create shadows for and replace usages of byval pointer params
-  shareByValParams(F);
+  shareByValParams(F, TT);
 
 #ifndef NDEBUG
   if (HaveChanges && Debug > 0)
@@ -863,37 +867,74 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Must correspond to the code in
 // llvm-spirv/lib/SPIRV/OCL20ToSPIRV.cpp
 // OCL20ToSPIRV::transWorkItemBuiltinsToVariables()
-Value *spirv::genLinearLocalID(Instruction &Before) {
+Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  StringRef Name = "__spirv_BuiltInLocalInvocationIndex";
-  GlobalVariable *G = M.getGlobalVariable(Name);
+  if (TT.isNVPTX()) {
+    LLVMContext &Ctx = Before.getContext();
+    Type *RetTy = getSizeTTy(M);
 
-  if (!G) {
-    Type *T = getSizeTTy(M);
-    G = new GlobalVariable(M,                              // module
-                           T,                              // type
-                           true,                           // isConstant
-                           GlobalValue::ExternalLinkage,   // Linkage
-                           nullptr,                        // Initializer
-                           Name,                           // Name
-                           nullptr,                        // InsertBefore
-                           GlobalVariable::NotThreadLocal, // ThreadLocalMode
-                           // TODO 'Input' crashes CPU Back-End
-                           // asUInt(spirv::AddrSpace::Input) // AddressSpace
-                           asUInt(spirv::AddrSpace::Global) // AddressSpace
-    );
-    unsigned Align = M.getDataLayout().getPreferredAlignment(G);
-    G->setAlignment(MaybeAlign(Align));
+    IRBuilder<> Bld(Ctx);
+    Bld.SetInsertPoint(&Before);
+
+#define CREATE_CALLEE(NAME, FN_NAME) \
+  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy); \
+  assert(FnCallee##NAME && "spirv intrinsic creation failed"); \
+  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
+
+      CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
+      CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
+      CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
+      CREATE_CALLEE(WorkgroupSize_Y, "_Z23__spirv_WorkgroupSize_yv");
+      CREATE_CALLEE(WorkgroupSize_Z, "_Z23__spirv_WorkgroupSize_zv");
+
+#undef CREATE_CALLEE
+
+    // 1:   ((__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_z())
+    // 2:    * __spirv_LocalInvocationId_x())
+    // 3: + (__spirv_WorkgroupSize_z() * __spirv_LocalInvocationId_y())
+    // 4: + (__spirv_LocalInvocationId_z())
+    return Bld.CreateAdd(
+      Bld.CreateAdd(
+        Bld.CreateMul(
+          Bld.CreateMul(WorkgroupSize_Y, WorkgroupSize_Z), // 1
+          LocalInvocationId_X), // 2
+        Bld.CreateMul(WorkgroupSize_Z, LocalInvocationId_Y)), // 3
+      LocalInvocationId_Z); // 4
+  } else {
+    StringRef Name = "__spirv_BuiltInLocalInvocationIndex";
+    GlobalVariable *G = M.getGlobalVariable(Name);
+
+    if (!G) {
+      Type *T = getSizeTTy(M);
+      G = new GlobalVariable(M,                              // module
+                             T,                              // type
+                             true,                           // isConstant
+                             GlobalValue::ExternalLinkage,   // Linkage
+                             nullptr,                        // Initializer
+                             Name,                           // Name
+                             nullptr,                        // InsertBefore
+                             GlobalVariable::NotThreadLocal, // ThreadLocalMode
+                             // TODO 'Input' crashes CPU Back-End
+                             // asUInt(spirv::AddrSpace::Input) // AddressSpace
+                             asUInt(spirv::AddrSpace::Global) // AddressSpace
+      );
+      unsigned Align = M.getDataLayout().getPreferredAlignment(G);
+      G->setAlignment(Align);
+    }
+    Value *Res = new LoadInst(G, "", &Before);
+    return Res;
   }
-  Value *Res = new LoadInst(G, "", &Before);
-  return Res;
 }
 
 // extern void __spirv_ControlBarrier(Scope Execution, Scope Memory,
 //  uint32_t Semantics) noexcept;
-Instruction *spirv::genWGBarrier(Instruction &Before) {
+Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  StringRef Name = "__spirv_ControlBarrier";
+  StringRef Name;
+  if (TT.isNVPTX())
+    Name = "_Z22__spirv_ControlBarrierN5__spv5ScopeES0_j";
+  else
+    Name = "__spirv_ControlBarrier";
   LLVMContext &Ctx = Before.getContext();
   Type *ScopeTy = Type::getInt32Ty(Ctx);
   Type *SemanticsTy = Type::getInt32Ty(Ctx);

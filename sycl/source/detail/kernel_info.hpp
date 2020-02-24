@@ -26,14 +26,14 @@ template <info::kernel Param> struct get_kernel_info<string_class, Param> {
     size_t ResultSize;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, cl_kernel_info(Param), 0,
+    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param), 0,
                                             nullptr, &ResultSize);
     if (ResultSize == 0) {
       return "";
     }
     vector_class<char> Result(ResultSize);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, cl_kernel_info(Param),
+    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
                                             ResultSize, Result.data(), nullptr);
     return string_class(Result.data());
   }
@@ -44,7 +44,7 @@ template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
     cl_uint Result;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, cl_kernel_info(Param),
+    Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
                                             sizeof(cl_uint), &Result, nullptr);
     return Result;
   }
@@ -58,7 +58,7 @@ struct get_kernel_work_group_info {
     T Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, cl_kernel_work_group_info(Param), sizeof(T), &Result,
+        Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T), &Result,
         nullptr);
     return Result;
   }
@@ -71,8 +71,8 @@ struct get_kernel_work_group_info<cl::sycl::range<3>, Param> {
     size_t Result[3];
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, cl_kernel_work_group_info(Param), sizeof(size_t) * 3,
-        Result, nullptr);
+        Kernel, Device, pi::cast<pi_kernel_group_info>(Param),
+        sizeof(size_t) * 3, Result, nullptr);
     return cl::sycl::range<3>(Result[0], Result[1], Result[2]);
   }
 };
