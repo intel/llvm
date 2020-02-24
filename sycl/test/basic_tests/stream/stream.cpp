@@ -5,7 +5,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
 // TODO: ptxas fatal   : Unresolved extern function '_Z18__spirv_SignBitSetf'
-// XFAIL: windows || cuda
+// XFAIL: cuda
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //

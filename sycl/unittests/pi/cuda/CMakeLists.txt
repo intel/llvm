@@ -19,7 +19,7 @@ target_link_libraries(PiCudaTests PRIVATE
 target_include_directories(
   PiCudaTests PUBLIC 
   ${CUDA_INCLUDE_DIRS} 
-  ${sycl_detail_inc_dir}
+  "${sycl_inc_dir}/CL/sycl/detail/"
   ${sycl_inc_dir}
   "${sycl_plugin_dir}/cuda/"
 )

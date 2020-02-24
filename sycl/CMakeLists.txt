@@ -144,8 +144,6 @@ option(SYCL_BUILD_PI_CUDA
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(sycl_detail_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include/CL/sycl/detail)
-set(sycl_detail_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source/detail)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
