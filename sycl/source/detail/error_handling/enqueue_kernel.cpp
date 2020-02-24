@@ -40,12 +40,12 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   size_t CompileWGSize[3] = {0};
   Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, Device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE, sizeof(size_t) * 3,
+      Kernel, Device, PI_KERNEL_COMPILE_GROUP_INFO_SIZE, sizeof(size_t) * 3,
       CompileWGSize, nullptr);
 
   if (CompileWGSize[0] != 0) {
     // OpenCL 1.x && 2.0:
-    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
     // reqd_work_group_size attribute is used to declare the work-group size
     // for kernel in the program source.
     if (!HasLocalSize && (Ver[0] == '1' || (Ver[0] == '2' && Ver[2] == '0')))
@@ -55,7 +55,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           PI_INVALID_WORK_GROUP_SIZE);
 
     // Any OpenCL version:
-    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
     // match the required work-group size for kernel in the program source.
     if (NDRDesc.LocalSize[0] != CompileWGSize[0] ||
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
@@ -68,10 +68,10 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   if (Ver[0] == '1') {
     // OpenCL 1.x:
-    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
-    // than the value specified by CL_DEVICE_MAX_WORK_GROUP_SIZE in
+    // than the value specified by PI_DEVICE_MAX_WORK_GROUP_SIZE in
     // table 4.3
     size_t MaxWGSize = 0;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -87,13 +87,13 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           PI_INVALID_WORK_GROUP_SIZE);
   } else {
     // OpenCL 2.x:
-    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
-    // than the value specified by CL_KERNEL_WORK_GROUP_SIZE in table 5.21.
+    // than the value specified by PI_KERNEL_GROUP_INFO_SIZE in table 5.21.
     size_t KernelWGSize = 0;
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t),
+        Kernel, Device, PI_KERNEL_GROUP_INFO_SIZE, sizeof(size_t),
         &KernelWGSize, nullptr);
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
@@ -116,7 +116,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
     if (Ver[0] == '1') {
       // OpenCL 1.x:
-      // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
+      // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
       // number of workitems specified by global_work_size is not evenly
       // divisible by size of work-group given by local_work_size
 
@@ -126,20 +126,20 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             PI_INVALID_WORK_GROUP_SIZE);
     } else {
       // OpenCL 2.x:
-      // CL_INVALID_WORK_GROUP_SIZE if the program was compiled with
+      // PI_INVALID_WORK_GROUP_SIZE if the program was compiled with
       // –cl-uniform-work-group-size and the number of work-items specified
       // by global_work_size is not evenly divisible by size of work-group
       // given by local_work_size
 
       pi_program Program = nullptr;
       Plugin.call<PiApiKind::piKernelGetInfo>(
-          Kernel, CL_KERNEL_PROGRAM, sizeof(pi_program), &Program, nullptr);
+          Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(pi_program), &Program, nullptr);
       size_t OptsSize = 0;
       Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-          Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &OptsSize);
+          Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &OptsSize);
       string_class Opts(OptsSize, '\0');
       Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-          Program, Device, CL_PROGRAM_BUILD_OPTIONS, OptsSize, &Opts.front(),
+          Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, OptsSize, &Opts.front(),
           nullptr);
       if (NonUniformWGs) {
         const bool HasStd20 = Opts.find("-cl-std=CL2.0") != string_class::npos;
@@ -160,7 +160,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   }
 
   // TODO: required number of sub-groups, OpenCL 2.1:
-  // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
+  // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
   // consistent with the required number of sub-groups for kernel in the
   // program source.
 

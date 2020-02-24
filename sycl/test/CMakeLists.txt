@@ -71,3 +71,19 @@ set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${SYCL_TEST_DEPS}
   )
+
+if(SYCL_BUILD_PI_CUDA)
+  add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ARGS ${RT_TEST_ARGS} 
+    PARAMS "SYCL_BE=PI_CUDA"
+    DEPENDS ${SYCL_TEST_DEPS}
+  )
+
+  set_target_properties(check-sycl-cuda PROPERTIES FOLDER "SYCL CUDA tests")
+
+  add_lit_testsuites(SYCL-CUDA ${CMAKE_CURRENT_SOURCE_DIR}
+    PARAMS "SYCL_BE=PI_CUDA"
+    DEPENDS ${SYCL_TEST_DEPS}
+  )
+endif()

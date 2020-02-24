@@ -4,6 +4,7 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 
+
 function(add_sycl_rt_library LIB_NAME)
 
   add_library(${LIB_NAME} SHARED ${ARGN})
@@ -83,6 +84,7 @@ set(SYCL_SOURCES
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
     "accessor.cpp"
+    "cg.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"

@@ -773,6 +773,15 @@ public:
 #endif
   }
 
+  // Similar to single_task, but passed lambda will be executed on host
+  // dependencies are satisfied on the device.
+  // Functor takes an interop_handler argument
+  template <typename FuncT> void interop_task(FuncT Func) {
+
+    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
+    MCGType = detail::CG::INTEROP_TASK_CODEPLAY;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
@@ -1269,6 +1278,8 @@ private:
   /// Storage for a lambda or function object.
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
+  // Storage for a lambda or function when using InteropTasks
+  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
 

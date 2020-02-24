@@ -73,6 +73,36 @@ template <PropKind PropKindT> class Prop;
 // This class is used in property_list to hold properties.
 template <class T> class PropertyHolder {
 public:
+  PropertyHolder() = default;
+
+  PropertyHolder(const PropertyHolder &P) {
+    if (P.isInitialized()) {
+      new (m_Mem) T(P.getProp());
+      m_Initialized = true;
+    }
+  }
+
+  ~PropertyHolder() {
+    if (m_Initialized) {
+      (*(T *)m_Mem).~T();
+    }
+  }
+
+  PropertyHolder &operator=(const PropertyHolder &Other) {
+    if (this != &Other) {
+      if (m_Initialized) {
+        (*(T *)m_Mem).~T();
+        m_Initialized = false;
+      }
+
+      if (Other.m_Initialized) {
+        new (m_Mem) T(Other.getProp());
+        m_Initialized = true;
+      }
+    }
+    return *this;
+  }
+
   void setProp(const T &Rhs) {
     new (m_Mem) T(Rhs);
     m_Initialized = true;
@@ -86,7 +116,7 @@ public:
 
 private:
   // Memory that is used for property allocation
-  unsigned char m_Mem[sizeof(T)];
+  alignas(T) unsigned char m_Mem[sizeof(T)];
   // Indicate whether property initialized or not.
   bool m_Initialized = false;
 };

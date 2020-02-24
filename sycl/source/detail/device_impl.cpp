@@ -35,7 +35,7 @@ device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice), &parent, nullptr);
+      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice) {
