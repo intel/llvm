@@ -42,6 +42,7 @@ add_llvm_external_project(mlir)
 # file as external projects.
 add_llvm_implicit_projects()
 
+add_llvm_external_project(libclc)
 add_llvm_external_project(polly)
 
 # Add subprojects specified using LLVM_EXTERNAL_PROJECTS

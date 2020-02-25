@@ -33,6 +33,7 @@ set(NVPTXCodeGen_sources
   NVVMIntrRange.cpp
   NVVMReflect.cpp
   NVPTXProxyRegErasure.cpp
+  SYCL/LocalAccessorToSharedMemory.cpp
   )
 
 add_llvm_target(NVPTXCodeGen ${NVPTXCodeGen_sources})

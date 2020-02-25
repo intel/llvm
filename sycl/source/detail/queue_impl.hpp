@@ -49,7 +49,7 @@ public:
              const property_list &PropList)
       : queue_impl(Device,
                    detail::getSyclObjImpl(
-                       context(createSyclObjFromImpl<device>(Device))),
+                       context(createSyclObjFromImpl<device>(Device), {}, true)),
                    AsyncHandler, Order, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided

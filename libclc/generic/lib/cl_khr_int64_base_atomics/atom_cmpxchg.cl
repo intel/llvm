@@ -1,16 +1,17 @@
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
 #ifdef cl_khr_int64_base_atomics
 
-#define IMPL(AS, TYPE) \
+#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED) \
 _CLC_OVERLOAD _CLC_DEF TYPE atom_cmpxchg(volatile AS TYPE *p, TYPE cmp, TYPE val) { \
-  return __sync_val_compare_and_swap_8(p, cmp, val); \
+  return _Z29__spirv_AtomicCompareExchangePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskES3_##TYPE_MANGLED##TYPE_MANGLED(p, Device, SequentiallyConsistent, SequentiallyConsistent, cmp, val); \
 }
 
-IMPL(global, long)
-IMPL(global, unsigned long)
-IMPL(local, long)
-IMPL(local, unsigned long)
+IMPL(long, l, global, AS1)
+IMPL(unsigned long, m, global, AS1)
+IMPL(long, l, local, AS3)
+IMPL(unsigned long, m, local, AS3)
 #undef IMPL
 
 #endif

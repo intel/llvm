@@ -32,6 +32,28 @@ device device_selector::select_device() const {
 }
 
 int default_selector::operator()(const device &dev) const {
+
+  // Take note of the SYCL_BE environment variable when doing default selection
+  const char *SYCL_BE = std::getenv("SYCL_BE");
+  if (SYCL_BE) {
+    std::string backend = (SYCL_BE ? SYCL_BE : "");
+    // Taking the version information from the platform gives us more useful
+    // information than the driver_version of the device.
+    const platform platform = dev.get_info<info::device::platform>();
+    const std::string platformVersion =
+        platform.get_info<info::platform::version>();;
+    // If using PI_CUDA, don't accept a non-CUDA device
+    if (platformVersion.find("CUDA") == std::string::npos &&
+        backend == "PI_CUDA") {
+      return -1;
+    }
+    // If using PI_OPENCL, don't accept a non-OpenCL device
+    if (platformVersion.find("OpenCL") == std::string::npos &&
+        backend == "PI_OPENCL") {
+      return -1;
+    }
+  }
+
   if (dev.is_gpu())
     return 500;
 

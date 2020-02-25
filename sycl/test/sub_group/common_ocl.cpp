@@ -1,10 +1,11 @@
 // RUN: %clang_cc1 -x cl -cl-std=CL2.0 %S/sg.cl -triple spir64-unknown-unknown -emit-llvm-bc -o %T/kernel_ocl.bc -include opencl-c.h
 // RUN: llvm-spirv %T/kernel_ocl.bc -o %T/kernel_ocl.spv
-// RUN: %clangxx -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
+// UNSUPPORTED: cuda
 //==--- common_ocl.cpp - basic SG methods in SYCL vs OpenCL  ---*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

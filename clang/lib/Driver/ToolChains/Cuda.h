@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CUDA_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CUDA_H
 
+#include "SYCL.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Multilib.h"
@@ -125,6 +126,19 @@ class LLVM_LIBRARY_VISIBILITY OpenMPLinker : public Tool {
                      const char *LinkingOutput) const override;
 };
 
+class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
+public:
+  SYCLLinker(const ToolChain &TC) : Linker(TC) {}
+
+  Tool* GetSYCLToolChainLinker() const {
+    if (!SYCLToolChainLinker)
+      SYCLToolChainLinker.reset(new SYCL::Linker(getToolChain()));
+    return SYCLToolChainLinker.get();
+  }
+private:
+  mutable std::unique_ptr<Tool> SYCLToolChainLinker;
+};
+
 } // end namespace NVPTX
 } // end namespace tools
 
@@ -188,6 +202,8 @@ public:
                      const llvm::opt::ArgList &Args) const override;
 
   unsigned GetDefaultDwarfVersion() const override { return 2; }
+
+  Tool *SelectTool(const JobAction &JA) const;
 
   const ToolChain &HostTC;
   CudaInstallationDetector CudaInstallation;

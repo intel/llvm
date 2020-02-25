@@ -1,7 +1,11 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+
+// TODO: No CUDA image support
+// TODO: ptxas fatal   : Unresolved extern function '_Z17__spirv_ImageReadIDv4_f14ocl_image2d_roDv2_iET_T0_T1_'
+// XFAIL: cuda
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //

@@ -21,19 +21,24 @@
  */
 
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 #include "../clcmacro.h"
-#include "tables.h"
+#include "../../libspirv/math/tables.h"
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif // cl_khr_fp64
 
-#define COMPILING_LOG2
-#include "log_base.h"
-#undef COMPILING_LOG2
+_CLC_OVERLOAD _CLC_DEF float log2(float x) {
+    return __spirv_ocl_log2(x);
+}
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, log2, float);
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DEF double log2(double x) {
+    return __spirv_ocl_log2(x);
+}
+
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, log2, double);
 #endif // cl_khr_fp64

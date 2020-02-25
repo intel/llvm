@@ -1,8 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
+
 //==--- kernel-and-program.cpp - SYCL kernel/program test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

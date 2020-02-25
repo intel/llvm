@@ -26,10 +26,9 @@ extern "C" {
 #define CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL 0x4193
 #define CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL 0x4194
 
-// TODO: should this be cl_device_unified_shared_memory_capabilities_intel?
-typedef cl_bitfield cl_unified_shared_memory_capabilities_intel;
+typedef cl_bitfield cl_device_unified_shared_memory_capabilities_intel;
 
-/* cl_unified_shared_memory_capabilities_intel - bitfield */
+/* cl_device_unified_shared_memory_capabilities_intel - bitfield */
 #define CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL (1 << 0)
 #define CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL (1 << 1)
 #define CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ACCESS_INTEL (1 << 2)
