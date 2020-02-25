@@ -36,6 +36,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MD5.h"
+#include "llvm/Support/TimeProfiler.h"
 #include <cstdlib>
 #include <thread>
 
@@ -2746,8 +2747,8 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
   size_t numShards = 32;
   size_t concurrency = 1;
   if (threadsEnabled)
-    concurrency =
-        std::min<size_t>(PowerOf2Floor(hardware_concurrency()), numShards);
+    concurrency = std::min<size_t>(
+        hardware_concurrency().compute_thread_count(), numShards);
 
   // A sharded map to uniquify symbols by name.
   std::vector<DenseMap<CachedHashStringRef, size_t>> map(numShards);
@@ -3190,8 +3191,8 @@ void MergeNoTailSection::finalizeContents() {
   // operations in the following tight loop.
   size_t concurrency = 1;
   if (threadsEnabled)
-    concurrency =
-        std::min<size_t>(PowerOf2Floor(hardware_concurrency()), numShards);
+    concurrency = std::min<size_t>(
+        hardware_concurrency().compute_thread_count(), numShards);
 
   // Add section pieces to the builders.
   parallelForEachN(0, concurrency, [&](size_t threadId) {
@@ -3237,6 +3238,7 @@ MergeSyntheticSection *createMergeSynthetic(StringRef name, uint32_t type,
 }
 
 template <class ELFT> void splitSections() {
+  llvm::TimeTraceScope timeScope("Split sections");
   // splitIntoPieces needs to be called on each MergeInputSection
   // before calling finalizeContents().
   parallelForEach(inputSections, [](InputSectionBase *sec) {

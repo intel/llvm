@@ -270,7 +270,7 @@ public:
 
   lldb::user_id_t GetUID(DIERef ref);
 
-  std::unique_ptr<SymbolFileDWARFDwo>
+  std::shared_ptr<SymbolFileDWARFDwo>
   GetDwoSymbolFileForCompileUnit(DWARFUnit &dwarf_cu,
                                  const DWARFDebugInfoEntry &cu_die);
 
@@ -308,8 +308,7 @@ public:
   static lldb_private::CompilerDeclContext
   GetContainingDeclContext(const DWARFDIE &die);
 
-  static void GetDWARFDeclContext(const DWARFDIE &die,
-                                  DWARFDeclContext &dwarf_decl_ctx);
+  static DWARFDeclContext GetDWARFDeclContext(const DWARFDIE &die);
 
   static lldb::LanguageType LanguageTypeFromDWARF(uint64_t val);
 

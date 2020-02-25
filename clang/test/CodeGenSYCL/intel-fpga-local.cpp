@@ -1,7 +1,9 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEVICE,CHECK-BOTH
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-HOST,CHECK-BOTH
 
+// CHECK-BOTH: @_ZZ15attrs_on_staticvE15static_numbanks = internal{{.*}}constant i32 20, align 4
 // CHECK-DEVICE:  [[ANN_numbanks_4:@.str]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:4}
+// CHECK-BOTH: @_ZZ15attrs_on_staticvE15static_annotate = internal{{.*}}constant i32 30, align 4
 // CHECK-BOTH:    [[ANN_annotate:@.str[.0-9]*]] = {{.*}}foobar
 // CHECK-DEVICE:  [[ANN_register:@.str.[0-9]*]] = {{.*}}{register:1}
 // CHECK-DEVICE:  [[ANN_memory_default:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}
@@ -25,24 +27,17 @@
 
 // CHECK-BOTH: @llvm.global.annotations
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_numbanks to i8 addrspace(1)*) to i8*)
-// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}}i32 38
+// CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}} i32 39
 // CHECK-DEVICE-SAME: { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ15attrs_on_staticvE15static_annotate to i8 addrspace(1)*) to i8*)
 // CHECK-HOST-SAME: { i8* bitcast (i32* @_ZZ15attrs_on_staticvE15static_annotate to i8*)
-// CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}}i32 42
+// CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}} i32 40
 
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
 
 void attrs_on_static() {
-  int a = 42;
-  static int static_numbanks [[intelfpga::numbanks(4)]];
-  // CHECK-BOTH: load{{.*}}static_numbanks
-  // CHECK-BOTH: store{{.*}}static_numbanks
-  static_numbanks = static_numbanks + a;
-  static int static_annotate [[clang::annotate("foobar")]];
-  // CHECK-BOTH: load{{.*}}static_annotate
-  // CHECK-BOTH: store{{.*}}static_annotate
-  static_annotate = static_annotate + a;
+  const static int static_numbanks [[intelfpga::numbanks(4)]] = 20;
+  const static int static_annotate [[clang::annotate("foobar")]] = 30;
 }
 
 void attrs_on_var() {

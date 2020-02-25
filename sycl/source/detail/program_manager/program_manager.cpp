@@ -8,15 +8,15 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -46,7 +46,7 @@ ProgramManager &ProgramManager::getInstance() {
 }
 
 static RT::PiDevice getFirstDevice(const ContextImplPtr &Context) {
-  cl_uint NumDevices = 0;
+  pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
                                            PI_CONTEXT_INFO_NUM_DEVICES,
@@ -79,12 +79,43 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
          "Only a single device is supported for AOT compilation");
 #endif
 
-  RT::PiDevice Device = getFirstDevice(Context);
-  pi_int32 BinaryStatus = CL_SUCCESS;
   RT::PiProgram Program;
-  Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
-      Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
-      &BinaryStatus, &Program);
+
+  bool IsCUDA = false;
+
+  // TODO: Implement `piProgramCreateWithBinary` to not require extra logic for
+  //       the CUDA backend.
+#if USE_PI_CUDA
+  // All devices in a context are from the same platform.
+  RT::PiDevice Device = getFirstDevice(Context);
+  RT::PiPlatform Platform = nullptr;
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_PLATFORM, sizeof(Platform),
+                           &Platform, nullptr);
+  size_t PlatformNameSize = 0u;
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME, 0u, nullptr,
+                             &PlatformNameSize);
+  std::vector<char> PlatformName(PlatformNameSize, '\0');
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME,
+                             PlatformName.size(), PlatformName.data(), nullptr);
+  if (PlatformNameSize > 0u &&
+      std::strncmp(PlatformName.data(), "NVIDIA CUDA", PlatformNameSize) == 0) {
+    IsCUDA = true;
+  }
+#endif // USE_PI_CUDA
+
+  if (IsCUDA) {
+    // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
+    const char *SignedData = reinterpret_cast<const char *>(Data);
+    Plugin.call<PiApiKind::piclProgramCreateWithSource>(Context->getHandleRef(), 1 /*one binary*/, &SignedData,
+                                         &DataLen, &Program);
+  } else {
+    RT::PiDevice Device = getFirstDevice(Context);
+    pi_int32 BinaryStatus = CL_SUCCESS;
+    Plugin.call<PiApiKind::piclProgramCreateWithBinary>(Context->getHandleRef(), 1 /*one binary*/, &Device,
+                                         &DataLen, &Data, &BinaryStatus,
+                                         &Program);
+  }
+
   return Program;
 }
 
@@ -110,22 +141,22 @@ DeviceImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 }
 
 template <typename ExceptionT, typename RetT>
-RetT *
-waitUntilBuilt(KernelProgramCache &Cache,
-               KernelProgramCache::EntityWithState<RetT> *WithBuildState) {
+RetT *waitUntilBuilt(KernelProgramCache &Cache,
+                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
-  Cache.waitUntilBuilt([WithBuildState]() {
-    int State = WithBuildState->State.load();
+  Cache.waitUntilBuilt([BuildResult]() {
+    int State = BuildResult->State.load();
 
     return State == BS_Done || State == BS_Failed;
   });
 
-  RetT *Result = WithBuildState->Ptr.load();
+  if (BuildResult->Error.FilledIn) {
+    const KernelProgramCache::BuildError &Error = BuildResult->Error;
+    throw ExceptionT(Error.Msg, Error.Code);
+  }
 
-  if (!Result)
-    throw ExceptionT("The other thread tried to build the program/kernel but "
-                     "did not succeed.");
+  RetT *Result = BuildResult->Ptr.load();
 
   return Result;
 }
@@ -152,7 +183,7 @@ template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
 RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
                  AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
   bool InsertionTookPlace;
-  KernelProgramCache::EntityWithState<RetT> *WithState;
+  KernelProgramCache::BuildResult<RetT> *BuildResult;
 
   {
     auto LockedCache = Acquire(KPCache);
@@ -162,36 +193,59 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
                       std::forward_as_tuple(nullptr, BS_InProgress));
 
     InsertionTookPlace = Inserted.second;
-    WithState = &Inserted.first->second;
+    BuildResult = &Inserted.first->second;
   }
 
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
-    return waitUntilBuilt<ExceptionT>(KPCache, WithState);
+    for (;;) {
+      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
+
+      if (Result)
+          return Result;
+
+      // Previous build is failed. There was no SYCL exception though.
+      // We might try to build once more.
+      int Expected = BS_Failed;
+      int Desired = BS_InProgress;
+
+      if (BuildResult->State.compare_exchange_strong(Expected, Desired))
+        break; // this thread is the building thread now
+    }
   }
 
-  // only the building thread will run this, and only once.
+  // only the building thread will run this
   try {
     RetT *Desired = Build();
 
 #ifndef NDEBUG
     RetT *Expected = nullptr;
 
-    if (!WithState->Ptr.compare_exchange_strong(Expected, Desired))
+    if (!BuildResult->Ptr.compare_exchange_strong(Expected, Desired))
       // We've got a funny story here
       assert(false && "We've build an entity that is already have been built.");
 #else
-    WithState->Ptr.store(Desired);
+    BuildResult->Ptr.store(Desired);
 #endif
 
-    WithState->State.store(BS_Done);
+    BuildResult->State.store(BS_Done);
 
     KPCache.notifyAllBuild();
 
     return Desired;
+  } catch (const exception &Ex) {
+    BuildResult->Error.Msg = Ex.what();
+    BuildResult->Error.Code = Ex.get_cl_code();
+    BuildResult->Error.FilledIn = true;
+
+    BuildResult->State.store(BS_Failed);
+
+    KPCache.notifyAllBuild();
+
+    std::rethrow_exception(std::current_exception());
   } catch (...) {
-    WithState->State.store(BS_Failed);
+    BuildResult->State.store(BS_Failed);
 
     KPCache.notifyAllBuild();
 
@@ -382,7 +436,7 @@ ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
   RT::PiProgram Program;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piKernelGetInfo>(
-      Kernel, CL_KERNEL_PROGRAM, sizeof(cl_program), &Program, nullptr);
+      Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(cl_program), &Program, nullptr);
   return Program;
 }
 
@@ -390,10 +444,10 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
                                                 const ContextImplPtr Context) {
   size_t Size = 0;
   const detail::plugin &Plugin = Context->getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, CL_PROGRAM_DEVICES, 0,
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
                                            nullptr, &Size);
   vector_class<RT::PiDevice> PIDevices(Size / sizeof(RT::PiDevice));
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, CL_PROGRAM_DEVICES, Size,
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, Size,
                                            PIDevices.data(), nullptr);
   string_class Log = "The program was built for " +
                      std::to_string(PIDevices.size()) + " devices";

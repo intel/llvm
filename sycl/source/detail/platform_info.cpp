@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/platform_info.hpp>
+#include <detail/platform_info.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -56,24 +56,24 @@
 ; RUN: FileCheck %s < %t.ll
 
 ; OpAtomicLoad is emulated via atom_add(*p, 0)
-; CHECK: call spir_func i64 @_Z8atom_add
+; CHECK: call spir_func i64 @_Z8atom_addPU3AS4Vll
 
 ; OpAtomicStore is emulated via atom_xchg(*p, val)
-; CHECK: call spir_func i64 @_Z9atom_xchg
+; CHECK: call spir_func i64 @_Z9atom_xchgPU3AS4Vll
 
-; CHECK: call spir_func i64 @_Z9atom_xchg
-; CHECK: call spir_func i64 @_Z12atom_cmpxchg
-; CHECK: call spir_func i64 @_Z8atom_inc
-; CHECK: call spir_func i64 @_Z8atom_dec
-; CHECK: call spir_func i64 @_Z8atom_add
-; CHECK: call spir_func i64 @_Z8atom_sub
-; CHECK: call spir_func i64 @_Z8atom_min
-; CHECK: call spir_func i64 @_Z8atom_min
-; CHECK: call spir_func i64 @_Z8atom_max
-; CHECK: call spir_func i64 @_Z8atom_max
-; CHECK: call spir_func i64 @_Z8atom_and
-; CHECK: call spir_func i64 @_Z7atom_or
-; CHECK: call spir_func i64 @_Z8atom_xor
+; CHECK: call spir_func i64 @_Z9atom_xchgPU3AS4Vll
+; CHECK: call spir_func i64 @_Z12atom_cmpxchgPU3AS4Vlll
+; CHECK: call spir_func i64 @_Z8atom_incPU3AS4Vl
+; CHECK: call spir_func i64 @_Z8atom_decPU3AS4Vl
+; CHECK: call spir_func i64 @_Z8atom_addPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_subPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_minPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_minPU3AS4Vmm
+; CHECK: call spir_func i64 @_Z8atom_maxPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_maxPU3AS4Vmm
+; CHECK: call spir_func i64 @_Z8atom_andPU3AS4Vll
+; CHECK: call spir_func i64 @_Z7atom_orPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_xorPU3AS4Vll
 
 ; OpAtomicFlagTestAndSet is emulated via atomic_xchg(*p, 1)
 ; CHECK: call spir_func i32 @_Z11atomic_xchg

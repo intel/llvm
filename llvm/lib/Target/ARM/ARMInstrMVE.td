@@ -3438,10 +3438,10 @@ defm MVE_VABDf32 : MVE_VABD_fp_m<MVE_v4f32>;
 defm MVE_VABDf16 : MVE_VABD_fp_m<MVE_v8f16>;
 
 class MVE_VCVT_fix<string suffix, bit fsi, bit U, bit op,
-                   Operand imm_operand_type, list<dag> pattern=[]>
+                   Operand imm_operand_type>
   : MVE_float<"vcvt", suffix,
               (outs MQPR:$Qd), (ins MQPR:$Qm, imm_operand_type:$imm6),
-              "$Qd, $Qm, $imm6", vpred_r, "", pattern> {
+              "$Qd, $Qm, $imm6", vpred_r, "", []> {
   bits<4> Qd;
   bits<6> imm6;
 
@@ -3483,14 +3483,43 @@ class MVE_VCVT_fix_f16<string suffix, bit U, bit op>
   let Inst{20} = 0b1;
 }
 
-def MVE_VCVTf16s16_fix : MVE_VCVT_fix_f16<"f16.s16", 0b0, 0b0>;
-def MVE_VCVTs16f16_fix : MVE_VCVT_fix_f16<"s16.f16", 0b0, 0b1>;
-def MVE_VCVTf16u16_fix : MVE_VCVT_fix_f16<"f16.u16", 0b1, 0b0>;
-def MVE_VCVTu16f16_fix : MVE_VCVT_fix_f16<"u16.f16", 0b1, 0b1>;
-def MVE_VCVTf32s32_fix : MVE_VCVT_fix_f32<"f32.s32", 0b0, 0b0>;
-def MVE_VCVTs32f32_fix : MVE_VCVT_fix_f32<"s32.f32", 0b0, 0b1>;
-def MVE_VCVTf32u32_fix : MVE_VCVT_fix_f32<"f32.u32", 0b1, 0b0>;
-def MVE_VCVTu32f32_fix : MVE_VCVT_fix_f32<"u32.f32", 0b1, 0b1>;
+multiclass MVE_VCVT_fix_patterns<Instruction Inst, bit U, MVEVectorVTInfo DestVTI,
+                                 MVEVectorVTInfo SrcVTI> {
+  let Predicates = [HasMVEFloat] in {
+    def : Pat<(DestVTI.Vec (int_arm_mve_vcvt_fix
+                              (i32 U), (SrcVTI.Vec MQPR:$Qm), imm:$scale)),
+              (DestVTI.Vec (Inst (SrcVTI.Vec MQPR:$Qm), imm:$scale))>;
+    def : Pat<(DestVTI.Vec (int_arm_mve_vcvt_fix_predicated (i32 U),
+                              (DestVTI.Vec MQPR:$inactive),
+                              (SrcVTI.Vec MQPR:$Qm),
+                              imm:$scale,
+                              (DestVTI.Pred VCCR:$mask))),
+              (DestVTI.Vec (Inst (SrcVTI.Vec MQPR:$Qm), imm:$scale,
+                             ARMVCCThen, (DestVTI.Pred VCCR:$mask),
+                             (DestVTI.Vec MQPR:$inactive)))>;
+  }
+}
+
+multiclass MVE_VCVT_fix_f32_m<bit U, bit op,
+                              MVEVectorVTInfo DestVTI, MVEVectorVTInfo SrcVTI> {
+  def "" : MVE_VCVT_fix_f32<DestVTI.Suffix#"."#SrcVTI.Suffix, U, op>;
+  defm : MVE_VCVT_fix_patterns<!cast<Instruction>(NAME), U, DestVTI, SrcVTI>;
+}
+
+multiclass MVE_VCVT_fix_f16_m<bit U, bit op,
+                              MVEVectorVTInfo DestVTI, MVEVectorVTInfo SrcVTI> {
+  def "" : MVE_VCVT_fix_f16<DestVTI.Suffix#"."#SrcVTI.Suffix, U, op>;
+  defm : MVE_VCVT_fix_patterns<!cast<Instruction>(NAME), U, DestVTI, SrcVTI>;
+}
+
+defm MVE_VCVTf16s16_fix : MVE_VCVT_fix_f16_m<0b0, 0b0, MVE_v8f16, MVE_v8s16>;
+defm MVE_VCVTs16f16_fix : MVE_VCVT_fix_f16_m<0b0, 0b1, MVE_v8s16, MVE_v8f16>;
+defm MVE_VCVTf16u16_fix : MVE_VCVT_fix_f16_m<0b1, 0b0, MVE_v8f16, MVE_v8u16>;
+defm MVE_VCVTu16f16_fix : MVE_VCVT_fix_f16_m<0b1, 0b1, MVE_v8u16, MVE_v8f16>;
+defm MVE_VCVTf32s32_fix : MVE_VCVT_fix_f32_m<0b0, 0b0, MVE_v4f32, MVE_v4s32>;
+defm MVE_VCVTs32f32_fix : MVE_VCVT_fix_f32_m<0b0, 0b1, MVE_v4s32, MVE_v4f32>;
+defm MVE_VCVTf32u32_fix : MVE_VCVT_fix_f32_m<0b1, 0b0, MVE_v4f32, MVE_v4u32>;
+defm MVE_VCVTu32f32_fix : MVE_VCVT_fix_f32_m<0b1, 0b1, MVE_v4u32, MVE_v4f32>;
 
 class MVE_VCVT_fp_int_anpm<string suffix, bits<2> size, bit op, string anpm,
                 bits<2> rm, list<dag> pattern=[]>
@@ -3961,21 +3990,6 @@ let Predicates = [HasMVEInt] in {
 // vector types (v4i1<>v8i1, etc.) also as part of lowering vector shuffles.
 def predicate_cast : SDNode<"ARMISD::PREDICATE_CAST", SDTUnaryOp>;
 
-// 'vector_reg_cast' is an operation that reinterprets the contents of an MVE
-// vector register as a different vector type, without changing the contents of
-// the register. It differs from 'bitconvert' in that bitconvert reinterprets
-// the _memory_ storage format of the vector, whereas vector_reg_cast
-// reinterprets the _register_ format - and in big-endian, the memory and
-// register formats are different, so they are different operations.
-//
-// For example, 'vector_reg_cast' between v8i16 and v16i8 will map the LSB of
-// the zeroth i16 lane to the zeroth i8 lane, regardless of system endianness,
-// whereas 'bitconvert' will map it to the high byte in big-endian mode,
-// because that's what VSTRH.16 followed by VLDRB.8 would do. So the bitconvert
-// would have to emit a VREV16.8 instruction, whereas the vector_reg_cast emits
-// no code at all if the vector is already in a register.
-def vector_reg_cast : SDNode<"ARMISD::VECTOR_REG_CAST", SDTUnaryOp>;
-
 let Predicates = [HasMVEInt] in {
   foreach VT = [ v4i1, v8i1, v16i1 ] in {
     def : Pat<(i32 (predicate_cast (VT VCCR:$src))),
@@ -3990,7 +4004,7 @@ let Predicates = [HasMVEInt] in {
 
   foreach VT = [ v16i8, v8i16, v8f16, v4i32, v4f32, v2i64, v2f64 ] in
     foreach VT2 = [ v16i8, v8i16, v8f16, v4i32, v4f32, v2i64, v2f64 ] in
-      def : Pat<(VT (vector_reg_cast (VT2 MQPR:$src))), (VT MQPR:$src)>;
+      def : Pat<(VT (ARMVectorRegCast (VT2 MQPR:$src))), (VT MQPR:$src)>;
 }
 
 // end of MVE compares

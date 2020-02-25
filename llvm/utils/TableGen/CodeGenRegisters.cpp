@@ -854,6 +854,16 @@ bool CodeGenRegisterClass::contains(const CodeGenRegister *Reg) const {
                             deref<std::less<>>());
 }
 
+unsigned CodeGenRegisterClass::getWeight(const CodeGenRegBank& RegBank) const {
+  if (TheDef && !TheDef->isValueUnset("Weight"))
+    return TheDef->getValueAsInt("Weight");
+
+  if (Members.empty() || Artificial)
+    return 0;
+
+  return (*Members.begin())->getWeight(RegBank);
+}
+
 namespace llvm {
 
   raw_ostream &operator<<(raw_ostream &OS, const CodeGenRegisterClass::Key &K) {
@@ -1218,6 +1228,12 @@ CodeGenSubRegIndex *CodeGenRegBank::getSubRegIdx(Record *Def) {
   SubRegIndices.emplace_back(Def, SubRegIndices.size() + 1);
   Idx = &SubRegIndices.back();
   return Idx;
+}
+
+const CodeGenSubRegIndex *
+CodeGenRegBank::findSubRegIdx(const Record* Def) const {
+  auto I = Def2SubRegIdx.find(Def);
+  return (I == Def2SubRegIdx.end()) ? nullptr : I->second;
 }
 
 CodeGenRegister *CodeGenRegBank::getReg(Record *Def) {

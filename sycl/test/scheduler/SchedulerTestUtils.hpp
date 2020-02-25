@@ -55,10 +55,10 @@ public:
     MGraphBuilder.cleanupCommandsForRecord(Rec);
   }
 
-  void AddNodeToLeaves(
+  void addNodeToLeaves(
       cl::sycl::detail::MemObjRecord *Rec, cl::sycl::detail::Command *Cmd,
       cl::sycl::access::mode Mode = cl::sycl::access::mode::read_write) {
-    return MGraphBuilder.AddNodeToLeaves(Rec, Cmd, Mode);
+    return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode);
   }
 };
 

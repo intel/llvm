@@ -141,6 +141,7 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeSubgroupSize:
   case ExecutionModeSubgroupsPerWorkgroup:
   case ExecutionModeMaxWorkgroupSizeINTEL:
+  case ExecutionModeNoGlobalOffsetINTEL:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
     return true;

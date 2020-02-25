@@ -240,6 +240,8 @@ void CodeGenModule::createSYCLRuntime() {
   switch (getTriple().getArch()) {
   case llvm::Triple::spir:
   case llvm::Triple::spir64:
+  case llvm::Triple::nvptx:
+  case llvm::Triple::nvptx64:
     SYCLRuntime.reset(new CGSYCLRuntime(*this));
     break;
   default:
@@ -1546,6 +1548,9 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
 
   if (CodeGenOpts.UnwindTables)
     B.addAttribute(llvm::Attribute::UWTable);
+
+  if (CodeGenOpts.StackClashProtector)
+    B.addAttribute("probe-stack", "inline-asm");
 
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);

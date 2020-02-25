@@ -2772,6 +2772,8 @@ static const char *getWholeProgDevirtResByArgKindName(
 
 static const char *getTTResKindName(TypeTestResolution::Kind K) {
   switch (K) {
+  case TypeTestResolution::Unknown:
+    return "unknown";
   case TypeTestResolution::Unsat:
     return "unsat";
   case TypeTestResolution::ByteArray:
@@ -3208,11 +3210,7 @@ static void PrintVisibility(GlobalValue::VisibilityTypes Vis,
 
 static void PrintDSOLocation(const GlobalValue &GV,
                              formatted_raw_ostream &Out) {
-  // GVs with local linkage or non default visibility are implicitly dso_local,
-  // so we don't print it.
-  bool Implicit = GV.hasLocalLinkage() ||
-                  (!GV.hasExternalWeakLinkage() && !GV.hasDefaultVisibility());
-  if (GV.isDSOLocal() && !Implicit)
+  if (GV.isDSOLocal() && !GV.isImplicitDSOLocal())
     Out << "dso_local ";
 }
 

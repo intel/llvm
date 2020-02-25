@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t1.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 

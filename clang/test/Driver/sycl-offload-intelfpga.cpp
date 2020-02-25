@@ -137,14 +137,12 @@
 // CHK-FPGA-LINK-SRC: 8: assembler, {7}, object, (host-sycl)
 // CHK-FPGA-LINK-SRC: 9: linker, {8}, archive, (host-sycl)
 // CHK-FPGA-LINK-SRC: 10: compiler, {3}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 11: backend, {10}, assembler, (device-sycl)
-// CHK-FPGA-LINK-SRC: 12: assembler, {11}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 13: linker, {12}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 14: llvm-spirv, {13}, spirv, (device-sycl)
-// CHK-FPGA-LINK-SRC: 15: backend-compiler, {14}, fpga_aocr, (device-sycl)
-// CHK-FPGA-LINK-SRC: 16: clang-offload-wrapper, {15}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC-DEFAULT: 17: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {16}, archive
-// CHK-FPGA-LINK-SRC-CL: 17: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice-coff)" {16}, archive
+// CHK-FPGA-LINK-SRC: 11: linker, {10}, ir, (device-sycl)
+// CHK-FPGA-LINK-SRC: 12: llvm-spirv, {11}, spirv, (device-sycl)
+// CHK-FPGA-LINK-SRC: 13: backend-compiler, {12}, fpga_aocr, (device-sycl)
+// CHK-FPGA-LINK-SRC: 14: clang-offload-wrapper, {13}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC-DEFAULT: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {14}, archive
+// CHK-FPGA-LINK-SRC-CL: 15: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice-coff)" {14}, archive
 
 /// -fintelfpga with -reuse-exe=
 // RUN:  touch %t.cpp
@@ -197,17 +195,15 @@
 // CHK-FPGA-AOCO-PHASES: 9: assembler, {8}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 10: linker, {0, 9}, image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 11: compiler, {4}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 12: backend, {11}, assembler, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 13: assembler, {12}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 14: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-LIN: 15: clang-offload-unbundler, {14}, object
-// CHK-FPGA-AOCO-PHASES-WIN: 15: clang-offload-unbundler, {14}, archive
-// CHK-FPGA-AOCO-PHASES: 16: linker, {13, 15}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 17: llvm-spirv, {16}, spirv, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 18: backend-compiler, {17}, fpga_aocx, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-LIN: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {19}, image
-// CHK-FPGA-AOCO-PHASES-WIN: 20: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice-coff)" {19}, image
+// CHK-FPGA-AOCO-PHASES: 12: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES-LIN: 13: clang-offload-unbundler, {12}, object
+// CHK-FPGA-AOCO-PHASES-WIN: 13: clang-offload-unbundler, {12}, archive
+// CHK-FPGA-AOCO-PHASES: 14: linker, {11, 13}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 15: llvm-spirv, {14}, spirv, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 16: backend-compiler, {15}, fpga_aocx, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-LIN: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {17}, image
+// CHK-FPGA-AOCO-PHASES-WIN: 18: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice-coff)" {17}, image
 
 /// aoco test, checking tools
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -foffload-static-lib=%t_aoco.a -### %s 2>&1 \

@@ -37,6 +37,8 @@
 // RUN: ./app.exe | FileCheck %s
 // CHECK: pass
 
+// UNSUPPORTED: cuda
+
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

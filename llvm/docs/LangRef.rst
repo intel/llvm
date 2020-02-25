@@ -1913,7 +1913,7 @@ attributes are supported:
     present in the IR Module. The signature of the vector variant is
     determined by the rules of the Vector Function ABI (VFABI)
     specifications of the target. For Arm and X86, the VFABI can be
-    found at https://github.com/ARM-software/software-standards and
+    found at https://github.com/ARM-software/abi-aa and
     https://software.intel.com/en-us/articles/vector-simd-function-abi,
     respectively.
 
@@ -6224,7 +6224,9 @@ The following behaviors are supported:
    * - 2
      - **Warning**
            Emits a warning if two values disagree. The result value will be the
-           operand for the flag from the first module being linked.
+           operand for the flag from the first module being linked, or the max
+           if the other module uses **Max** (in which case the resulting flag
+           will be **Max**).
 
    * - 3
      - **Require**

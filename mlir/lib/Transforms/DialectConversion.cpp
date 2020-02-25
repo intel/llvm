@@ -250,7 +250,7 @@ void ArgConverter::notifyOpRemoved(Operation *op) {
       // Check if this block was converted.
       auto it = conversionInfo.find(&block);
       if (it == conversionInfo.end())
-        return;
+        continue;
 
       // Drop all uses of the original arguments and delete the original block.
       Block *origBlock = it->second.origBlock;
@@ -401,8 +401,7 @@ Block *ArgConverter::applySignatureConversion(
     auto replArgs = newArgs.slice(inputMap->inputNo, inputMap->size);
     Operation *cast = typeConverter->materializeConversion(
         rewriter, origArg.getType(), replArgs, loc);
-    assert(cast->getNumResults() == 1 &&
-           cast->getNumOperands() == replArgs.size());
+    assert(cast->getNumResults() == 1);
     mapping.map(origArg, cast->getResult(0));
     info.argInfo[i] =
         ConvertedArgInfo(inputMap->inputNo, inputMap->size, cast->getResult(0));

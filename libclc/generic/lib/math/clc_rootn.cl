@@ -24,7 +24,7 @@
 
 #include "config.h"
 #include "math.h"
-#include "tables.h"
+#include "../../libspirv/math/tables.h"
 #include "../clcmacro.h"
 
 // compute pow using log and exp

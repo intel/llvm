@@ -2119,6 +2119,14 @@ bool LLVMToSPIRV::transExecutionMode() {
           BM->addCapability(CapabilityKernelAttributesINTEL);
         }
       } break;
+      case spv::ExecutionModeNoGlobalOffsetINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+          BM->addCapability(CapabilityKernelAttributesINTEL);
+        }
+      } break;
       case spv::ExecutionModeVecTypeHint:
       case spv::ExecutionModeSubgroupSize:
       case spv::ExecutionModeSubgroupsPerWorkgroup: {

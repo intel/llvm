@@ -534,7 +534,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Add crtfastmath.o if available and fast math is enabled.
-    ToolChain.AddFastMathRuntimeIfAvailable(Args, CmdArgs);
+    ToolChain.addFastMathRuntimeIfAvailable(Args, CmdArgs);
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
@@ -544,7 +544,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    AddGoldPlugin(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -2151,6 +2151,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   static const char *const RISCV64Triples[] = {"riscv64-unknown-linux-gnu",
                                                "riscv64-linux-gnu",
                                                "riscv64-unknown-elf",
+                                               "riscv64-redhat-linux",
                                                "riscv64-suse-linux"};
 
   static const char *const SPARCv8LibDirs[] = {"/lib32", "/lib"};

@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %t.out
 #include <CL/sycl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -43,7 +44,7 @@ int main() {
   }
   // Add edges as leaves and exceed the leaf limit
   for (auto LeafPtr : LeavesToAdd) {
-    TS.AddNodeToLeaves(Rec, LeafPtr);
+    TS.addNodeToLeaves(Rec, LeafPtr);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead

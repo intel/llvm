@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 
@@ -74,6 +74,12 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
             detail::getSyclObjImpl(syclContext)->get_async_handler(),
             propList) {}
 
+queue::queue(const context &SyclContext, const device &SyclDevice,
+             const property_list &PropList)
+    : queue(SyclContext, SyclDevice,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
+            PropList) {}
+
 cl_command_queue queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }
@@ -134,5 +140,8 @@ template bool queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
+bool queue::is_in_order() const {
+  return impl->has_property<property::queue::in_order>();
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

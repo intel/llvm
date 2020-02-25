@@ -141,7 +141,11 @@ def Vector_ContractionOp :
   }];
   let builders = [OpBuilder<
     "Builder *builder, OperationState &result, Value lhs, Value rhs, "
-    "Value acc, ArrayAttr indexingMaps, ArrayAttr iteratorTypes">];
+    "Value acc, ArrayAttr indexingMaps, ArrayAttr iteratorTypes">,
+    OpBuilder<
+      "Builder *builder, OperationState &result, Value lhs, Value rhs, "
+      "Value acc, ArrayRef<ArrayRef<AffineExpr>> indexingExprs, "
+      "ArrayRef<StringRef> iteratorTypes">];
   let extraClassDeclaration = [{
     VectorType getLhsType() {
       return lhs().getType().cast<VectorType>();
@@ -176,6 +180,62 @@ def Vector_ContractionOp :
 
     std::vector<std::pair<int64_t, int64_t>> getContractingDimMap();
     std::vector<std::pair<int64_t, int64_t>> getBatchDimMap();
+  }];
+}
+
+def Vector_ReductionOp :
+  Vector_Op<"reduction", [NoSideEffect,
+     PredOpTrait<"source operand and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 0>>]>,
+    Arguments<(ins StrAttr:$kind, AnyVector:$vector)>,
+    Results<(outs AnyType:$dest)> {
+  let summary = "reduction operation";
+  let description = [{
+    Reduces an 1-D vector "horizontally" into a scalar using the given
+    operation (add/mul/min/max for int/fp and and/or/xor for int only).
+    Note that these operations are restricted to 1-D vectors to remain
+    close to the corresponding LLVM intrinsics:
+
+    http://llvm.org/docs/LangRef.html#experimental-vector-reduction-intrinsics
+
+    Examples:
+    ```
+      %1 = vector.reduction "add", %0 : vector<16xf32> into f32
+
+      %3 = vector.reduction "xor", %2 : vector<4xi32> into i32
+    ```
+  }];
+  let verifier = [{ return ::verify(*this); }];
+  let assemblyFormat = [{
+    $kind `,` $vector attr-dict `:` type($vector) `into` type($dest)
+  }];
+  let extraClassDeclaration = [{
+    VectorType getVectorType() {
+      return vector().getType().cast<VectorType>();
+    }
+  }];
+}
+
+// TODO(ajcbik): quick version with "fused" accumulator; next step
+//               will merge Reduction/ReductionV2 into one with
+//               an optional accumulator instead
+def Vector_ReductionV2Op :
+  Vector_Op<"reductionv2", [NoSideEffect]>,
+    Arguments<(ins StrAttr:$kind, VectorOf<[F32, F64]>:$vector, AnyType:$acc)>,
+    Results<(outs AnyType:$dest)> {
+  let summary = "reduction operation";
+  let description = [{
+     As vector.reduction, but with a fused accumulator (add/mul for fp only).
+  }];
+  let verifier = ?;
+  let assemblyFormat = [{
+    $kind `,` $vector `,` $acc attr-dict `:`
+      type($vector) `,` type($acc) `into` type($dest)
+  }];
+  let extraClassDeclaration = [{
+    VectorType getVectorType() {
+      return vector().getType().cast<VectorType>();
+    }
   }];
 }
 
@@ -388,6 +448,38 @@ def Vector_ExtractSlicesOp :
   }];
 }
 
+def Vector_FMAOp :
+  Op<Vector_Dialect, "fma", [NoSideEffect,
+                             AllTypesMatch<["lhs", "rhs", "acc", "result"]>]>,
+    Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyVector:$acc)>,
+    Results<(outs AnyVector:$result)> {
+  let summary = "vector fused multiply-add";
+  let description = [{
+    Multiply-add expressions operate on n-D vectors and compute a fused
+    pointwise multiply-and-accumulate: `$result = `$lhs * $rhs + $acc`.
+    All operands and result have the same vector type. The semantics
+    of the operation correspond to those of the `llvm.fma`
+    [intrinsic](https://llvm.org/docs/LangRef.html#int-fma). In the
+    particular case of lowering to LLVM, this is guaranteed to lower
+    to the `llvm.fma.*` intrinsic.
+
+    Example:
+    
+    ```
+      %3 = vector.fma %0, %1, %2: vector<8x16xf32>
+    ```
+  }];
+  // Fully specified by traits.
+  let verifier = ?;
+  let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
+  let builders = [OpBuilder<
+    "Builder *b, OperationState &result, Value lhs, Value rhs, Value acc",
+    "build(b, result, lhs.getType(), lhs, rhs, acc);">];
+  let extraClassDeclaration = [{
+    VectorType getVectorType() { return lhs().getType().cast<VectorType>(); }
+  }];
+}
+
 def Vector_InsertElementOp :
   Vector_Op<"insertelement", [NoSideEffect,
      PredOpTrait<"source operand and result have same element type",
@@ -567,21 +659,25 @@ def Vector_OuterProductOp :
     Results<(outs AnyVector)> {
   let summary = "vector outerproduct with optional fused add";
   let description = [{
-    Takes 2 1-D vectors and returns the 2-D vector containing the outer product.
+    Takes 2 1-D vectors and returns the 2-D vector containing the outer-product.
 
     An optional extra 2-D vector argument may be specified in which case the
-    operation returns the sum of the outer product and the extra vector. When
-    lowered to the LLVMIR dialect, this form emits `llvm.intr.fmuladd`, which
-    can lower to actual `fma` instructions in LLVM.
+    operation returns the sum of the outer-product and the extra vector. In this
+    multiply-accumulate scenario, the rounding mode is that obtained by
+    guaranteeing that a fused-multiply add operation is emitted. When lowered to
+    the LLVMIR dialect, this form emits `llvm.intr.fma`, which is guaranteed to
+    lower to actual `fma` instructions on x86.
 
-    Examples
+    Examples:
 
+    ```
       %2 = vector.outerproduct %0, %1: vector<4xf32>, vector<8xf32>
       return %2: vector<4x8xf32>
 
       %3 = vector.outerproduct %0, %1, %2:
         vector<4xf32>, vector<8xf32>, vector<4x8xf32>
       return %3: vector<4x8xf32>
+    ```
   }];
   let extraClassDeclaration = [{
     VectorType getOperandVectorTypeLHS() {

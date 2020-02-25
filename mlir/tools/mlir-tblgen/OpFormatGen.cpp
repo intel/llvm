@@ -264,14 +264,51 @@ struct OperationFormat {
 //===----------------------------------------------------------------------===//
 // Parser Gen
 
+/// Returns if we can format the given attribute as an EnumAttr in the parser
+/// format.
+static bool canFormatEnumAttr(const NamedAttribute *attr) {
+  const EnumAttr *enumAttr = dyn_cast<EnumAttr>(&attr->attr);
+  if (!enumAttr)
+    return false;
+
+  // The attribute must have a valid underlying type and a constant builder.
+  return !enumAttr->getUnderlyingType().empty() &&
+         !enumAttr->getConstBuilderTemplate().empty();
+}
+
 /// The code snippet used to generate a parser call for an attribute.
 ///
 /// {0}: The storage type of the attribute.
 /// {1}: The name of the attribute.
+/// {2}: The type for the attribute.
 const char *const attrParserCode = R"(
   {0} {1}Attr;
-  if (parser.parseAttribute({1}Attr, "{1}", result.attributes))
+  if (parser.parseAttribute({1}Attr{2}, "{1}", result.attributes))
     return failure();
+)";
+
+/// The code snippet used to generate a parser call for an enum attribute.
+///
+/// {0}: The name of the attribute.
+/// {1}: The c++ namespace for the enum symbolize functions.
+/// {2}: The function to symbolize a string of the enum.
+/// {3}: The constant builder call to create an attribute of the enum type.
+const char *const enumAttrParserCode = R"(
+  {
+    StringAttr attrVal;
+    SmallVector<NamedAttribute, 1> attrStorage;
+    auto loc = parser.getCurrentLocation();
+    if (parser.parseAttribute(attrVal, parser.getBuilder().getNoneType(),
+                              "{0}", attrStorage))
+      return failure();
+
+    auto attrOptional = {1}::{2}(attrVal.getValue());
+    if (!attrOptional)
+      return parser.emitError(loc, "invalid ")
+             << "{0} attribute specification: " << attrVal;
+
+    result.addAttribute("{0}", {3});
+  }
 )";
 
 /// The code snippet used to generate a parser call for an operand.
@@ -368,6 +405,10 @@ void OperationFormat::genParser(Operator &op, OpClass &opClass) {
       OpMethod::MP_Static);
   auto &body = method.body();
 
+  // A format context used when parsing attributes with buildable types.
+  FmtContext attrTypeCtx;
+  attrTypeCtx.withBuilder("parser.getBuilder()");
+
   // Generate parsers for each of the elements.
   for (auto &element : elements) {
     /// Literals.
@@ -377,7 +418,37 @@ void OperationFormat::genParser(Operator &op, OpClass &opClass) {
       /// Arguments.
     } else if (auto *attr = dyn_cast<AttributeVariable>(element.get())) {
       const NamedAttribute *var = attr->getVar();
-      body << formatv(attrParserCode, var->attr.getStorageType(), var->name);
+
+      // Check to see if we can parse this as an enum attribute.
+      if (canFormatEnumAttr(var)) {
+        const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
+
+        // Generate the code for building an attribute for this enum.
+        std::string attrBuilderStr;
+        {
+          llvm::raw_string_ostream os(attrBuilderStr);
+          os << tgfmt(enumAttr.getConstBuilderTemplate(), &attrTypeCtx,
+                      "attrOptional.getValue()");
+        }
+
+        body << formatv(enumAttrParserCode, var->name,
+                        enumAttr.getCppNamespace(),
+                        enumAttr.getStringToSymbolFnName(), attrBuilderStr);
+        continue;
+      }
+
+      // If this attribute has a buildable type, use that when parsing the
+      // attribute.
+      std::string attrTypeStr;
+      if (Optional<Type> attrType = var->attr.getValueType()) {
+        if (Optional<StringRef> typeBuilder = attrType->getBuilderCall()) {
+          llvm::raw_string_ostream os(attrTypeStr);
+          os << ", " << tgfmt(*typeBuilder, &attrTypeCtx);
+        }
+      }
+
+      body << formatv(attrParserCode, var->attr.getStorageType(), var->name,
+                      attrTypeStr);
     } else if (auto *operand = dyn_cast<OperandVariable>(element.get())) {
       bool isVariadic = operand->getVar()->isVariadic();
       body << formatv(isVariadic ? variadicOperandParserCode
@@ -481,22 +552,25 @@ void OperationFormat::genParserTypeResolution(Operator &op,
   if (hasAllOperands) {
     body << "  if (parser.resolveOperands(allOperands, ";
 
+    auto emitOperandType = [&](int idx) {
+      if (Optional<int> val = operandTypes[idx].getBuilderIdx())
+        body << "ArrayRef<Type>(odsBuildableType" << *val << ")";
+      else if (Optional<StringRef> var = operandTypes[idx].getVariable())
+        body << *var << "Types";
+      else
+        body << op.getOperand(idx).name << "Types";
+    };
+
     // Group all of the operand types together to perform the resolution all at
     // once. Use llvm::concat to perform the merge. llvm::concat does not allow
     // the case of a single range, so guard it here.
     if (op.getNumOperands() > 1) {
       body << "llvm::concat<const Type>(";
-      interleaveComma(llvm::seq<int>(0, op.getNumOperands()), body, [&](int i) {
-        if (Optional<int> val = operandTypes[i].getBuilderIdx())
-          body << "ArrayRef<Type>(odsBuildableType" << *val << ")";
-        else if (Optional<StringRef> var = operandTypes[i].getVariable())
-          body << *var << "Types";
-        else
-          body << op.getOperand(i).name << "Types";
-      });
+      interleaveComma(llvm::seq<int>(0, op.getNumOperands()), body,
+                      emitOperandType);
       body << ")";
     } else {
-      body << op.operand_begin()->name << "Types";
+      emitOperandType(/*idx=*/0);
     }
 
     body << ", allOperandLoc, result.operands))\n"
@@ -615,7 +689,22 @@ void OperationFormat::genPrinter(Operator &op, OpClass &opClass) {
     shouldEmitSpace = true;
 
     if (auto *attr = dyn_cast<AttributeVariable>(element.get())) {
-      body << "  p << " << attr->getVar()->name << "Attr();\n";
+      const NamedAttribute *var = attr->getVar();
+
+      // If we are formatting as a enum, symbolize the attribute as a string.
+      if (canFormatEnumAttr(var)) {
+        const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
+        body << "  p << \"\\\"\" << " << enumAttr.getSymbolToStringFnName()
+             << "(" << var->name << "()) << \"\\\"\";\n";
+        continue;
+      }
+
+      // Elide the attribute type if it is buildable.
+      Optional<Type> attrType = var->attr.getValueType();
+      if (attrType && attrType->getBuilderCall())
+        body << "  p.printAttributeWithoutType(" << var->name << "Attr());\n";
+      else
+        body << "  p.printAttribute(" << var->name << "Attr());\n";
     } else if (auto *operand = dyn_cast<OperandVariable>(element.get())) {
       body << "  p << " << operand->getVar()->name << "();\n";
     } else if (isa<OperandsDirective>(element.get())) {

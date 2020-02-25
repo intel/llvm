@@ -332,10 +332,9 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, ParallelOp op) {
-  p << op.getOperationName() << " (";
-  p.printOperands(op.getBody()->getArguments());
-  p << ") = (" << op.lowerBound() << ") to (" << op.upperBound() << ") step ("
-    << op.step() << ")";
+  p << op.getOperationName() << " (" << op.getBody()->getArguments() << ") = ("
+    << op.lowerBound() << ") to (" << op.upperBound() << ") step (" << op.step()
+    << ")";
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
   p.printOptionalAttrDict(op.getAttrs());
   if (!op.results().empty())
@@ -416,22 +415,6 @@ static LogicalResult verify(ReduceReturnOp op) {
     return op.emitOpError() << "needs to have type " << reduceType
                             << " (the type of the enclosing ReduceOp)";
   return success();
-}
-
-static ParseResult parseReduceReturnOp(OpAsmParser &parser,
-                                       OperationState &result) {
-  OpAsmParser::OperandType operand;
-  Type resultType;
-  if (parser.parseOperand(operand) || parser.parseColonType(resultType) ||
-      parser.resolveOperand(operand, resultType, result.operands))
-    return failure();
-
-  return success();
-}
-
-static void print(OpAsmPrinter &p, ReduceReturnOp op) {
-  p << op.getOperationName() << " " << op.result() << " : "
-    << op.result().getType();
 }
 
 //===----------------------------------------------------------------------===//

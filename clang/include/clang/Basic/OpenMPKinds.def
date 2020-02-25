@@ -107,9 +107,6 @@
 #ifndef OPENMP_DISTRIBUTE_CLAUSE
 #define OPENMP_DISTRIBUTE_CLAUSE(Name)
 #endif
-#ifndef OPENMP_DEFAULT_KIND
-#  define OPENMP_DEFAULT_KIND(Name)
-#endif
 #ifndef OPENMP_SCHEDULE_KIND
 #define OPENMP_SCHEDULE_KIND(Name)
 #endif
@@ -203,26 +200,15 @@
 #ifndef OPENMP_DECLARE_VARIANT_CLAUSE
 #define OPENMP_DECLARE_VARIANT_CLAUSE(Name)
 #endif
-#ifndef OPENMP_CONTEXT_SELECTOR_SET
-#define OPENMP_CONTEXT_SELECTOR_SET(Name)
-#endif
-#ifndef OPENMP_CONTEXT_SELECTOR
-#define OPENMP_CONTEXT_SELECTOR(Name)
-#endif
 #ifndef OPENMP_LASTPRIVATE_KIND
 #define OPENMP_LASTPRIVATE_KIND(Name)
 #endif
 #ifndef OPENMP_ORDER_KIND
 #define OPENMP_ORDER_KIND(Name)
 #endif
-
-// OpenMP context selector sets.
-OPENMP_CONTEXT_SELECTOR_SET(implementation)
-OPENMP_CONTEXT_SELECTOR_SET(device)
-
-// OpenMP context selectors.
-OPENMP_CONTEXT_SELECTOR(vendor)
-OPENMP_CONTEXT_SELECTOR(kind)
+#ifndef OPENMP_FLUSH_CLAUSE
+#define OPENMP_FLUSH_CLAUSE(Name)
+#endif
 
 // OpenMP clauses.
 OPENMP_CLAUSE(allocator, OMPAllocatorClause)
@@ -254,6 +240,10 @@ OPENMP_CLAUSE(write, OMPWriteClause)
 OPENMP_CLAUSE(update, OMPUpdateClause)
 OPENMP_CLAUSE(capture, OMPCaptureClause)
 OPENMP_CLAUSE(seq_cst, OMPSeqCstClause)
+OPENMP_CLAUSE(acq_rel, OMPAcqRelClause)
+OPENMP_CLAUSE(acquire, OMPAcquireClause)
+OPENMP_CLAUSE(release, OMPReleaseClause)
+OPENMP_CLAUSE(relaxed, OMPRelaxedClause)
 OPENMP_CLAUSE(depend, OMPDependClause)
 OPENMP_CLAUSE(device, OMPDeviceClause)
 OPENMP_CLAUSE(threads, OMPThreadsClause)
@@ -357,10 +347,6 @@ OPENMP_SINGLE_CLAUSE(allocate)
 
 // Clauses allowed for OpenMP directive 'cancel'.
 OPENMP_CANCEL_CLAUSE(if)
-
-// Static attributes for 'default' clause.
-OPENMP_DEFAULT_KIND(none)
-OPENMP_DEFAULT_KIND(shared)
 
 // Static attributes for 'schedule' clause.
 OPENMP_SCHEDULE_KIND(static)
@@ -486,6 +472,11 @@ OPENMP_ATOMIC_CLAUSE(write)
 OPENMP_ATOMIC_CLAUSE(update)
 OPENMP_ATOMIC_CLAUSE(capture)
 OPENMP_ATOMIC_CLAUSE(seq_cst)
+OPENMP_ATOMIC_CLAUSE(acq_rel)
+OPENMP_ATOMIC_CLAUSE(acquire)
+OPENMP_ATOMIC_CLAUSE(release)
+OPENMP_ATOMIC_CLAUSE(relaxed)
+OPENMP_ATOMIC_CLAUSE(hint)
 
 // Clauses allowed for OpenMP directive 'target'.
 OPENMP_TARGET_CLAUSE(if)
@@ -1082,10 +1073,14 @@ OPENMP_LASTPRIVATE_KIND(conditional)
 // Type of the 'order' clause.
 OPENMP_ORDER_KIND(concurrent)
 
+// Clauses allowed for OpenMP directive 'flush'.
+OPENMP_FLUSH_CLAUSE(acq_rel)
+OPENMP_FLUSH_CLAUSE(acquire)
+OPENMP_FLUSH_CLAUSE(release)
+
+#undef OPENMP_FLUSH_CLAUSE
 #undef OPENMP_ORDER_KIND
 #undef OPENMP_LASTPRIVATE_KIND
-#undef OPENMP_CONTEXT_SELECTOR
-#undef OPENMP_CONTEXT_SELECTOR_SET
 #undef OPENMP_DECLARE_VARIANT_CLAUSE
 #undef OPENMP_DEVICE_TYPE_KIND
 #undef OPENMP_ALLOCATE_CLAUSE
@@ -1101,7 +1096,6 @@ OPENMP_ORDER_KIND(concurrent)
 #undef OPENMP_DEPEND_KIND
 #undef OPENMP_SCHEDULE_MODIFIER
 #undef OPENMP_SCHEDULE_KIND
-#undef OPENMP_DEFAULT_KIND
 #undef OPENMP_CLAUSE
 #undef OPENMP_CRITICAL_CLAUSE
 #undef OPENMP_ORDERED_CLAUSE
