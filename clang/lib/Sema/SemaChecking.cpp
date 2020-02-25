@@ -1847,11 +1847,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinOSLogFormat(TheCall))
       return ExprError();
     break;
-  case Builtin::BI__builtin_frame_address:
-  case Builtin::BI__builtin_return_address:
-    if (!SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
-      return ExprError();
-    break;
   case Builtin::BI__builtin_intel_fpga_reg:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
