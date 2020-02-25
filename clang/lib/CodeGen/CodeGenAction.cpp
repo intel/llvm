@@ -10,6 +10,7 @@
 #include "CodeGenModule.h"
 #include "CoverageMappingGen.h"
 #include "MacroPPCallbacks.h"
+#include "SYCLLowerIR/LowerWGScope.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -33,6 +34,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
@@ -325,6 +327,17 @@ namespace clang {
       if (OptRecordFile &&
           CodeGenOpts.getProfileUse() != CodeGenOptions::ProfileNone)
         Ctx.setDiagnosticsHotnessRequested(true);
+
+      // The parallel_for_work_group legalization pass can emit calls to
+      // builtins function. Definitions of those builtins can be provided in
+      // LinkModule. We force the pass to legalize the code before the link
+      // happens.
+      if (LangOpts.SYCLIsDevice) {
+        PrettyStackTraceString CrashInfo("Pre-linking SYCL passes");
+        legacy::PassManager PreLinkingSyclPasses;
+        PreLinkingSyclPasses.add(createSYCLLowerWGScopePass());
+        PreLinkingSyclPasses.run(*getModule());
+      }
 
       // Link each LinkModule into our module.
       if (LinkInModules())

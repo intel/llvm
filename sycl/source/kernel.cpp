@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/kernel_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -3,6 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// XFAIL: cuda
+
 #include "Inputs/split-per-source.h"
 
 int main () {

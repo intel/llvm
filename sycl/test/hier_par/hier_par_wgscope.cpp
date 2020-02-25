@@ -6,11 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// RUN: %clangxx -O0 -fsycl %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// TODO: ptxas fatal   : Unresolved extern function '__spirv_ControlBarrier'
+// UNSUPPORTED: cuda
 
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope.

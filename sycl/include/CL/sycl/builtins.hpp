@@ -851,10 +851,6 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> sub_sat(T x,
   return __sycl_std::__invoke_u_sub_sat<T>(x, y);
 }
 
-// TODO delete when Intel CPU OpenCL runtime will be fixed
-// OpExtInst ... s_upsample -> _Z8upsampleij (now _Z8upsampleii)
-#define __invoke_s_upsample __invoke_u_upsample
-
 // ugeninteger16bit upsample (ugeninteger8bit hi, ugeninteger8bit lo)
 template <typename T>
 detail::enable_if_t<detail::is_ugeninteger8bit<T>::value,
@@ -908,8 +904,6 @@ upsample(T hi, T2 lo) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_s_upsample<detail::make_larger_t<T>>(hi, lo);
 }
-
-#undef __invoke_s_upsample
 
 // geninteger popcount (geninteger x)
 template <typename T>
