@@ -15,8 +15,7 @@
 //   argument
 //
 // This is compile-only test for now.
-//
-// XFAIL:* 
+
 #include "sycl.hpp"
 
 using namespace cl::sycl;
@@ -32,12 +31,11 @@ void foo() {
 
     cgh.parallel_for_work_group<class hpar_hw>(
         range<1>(1), range<1>(1), [=](group<1> g) {
-// CHECK: @[[SHADOW:[a-zA-Z0-9]+]] = internal unnamed_addr addrspace(3) global %[[GROUP_CLASS:"[^"]+"]] undef, align [[ALIGN:[0-9]+]]
-// CHECK: define {{.*}} spir_func void @{{"[^"]+"}}({{[^,]+}}, %[[GROUP_CLASS]]* byval(%[[GROUP_CLASS]]) align {{[0-9]+}} %[[GROUP_OBJ:[A-Za-z_0-9]+]]) {{.*}}!work_group_scope{{.*}} {
-// CHECK-NOT: {{^[ \t]*define}}
-// CHECK: %[[TMP:[A-Za-z_0-9]+]] = bitcast %[[GROUP_CLASS]] addrspace(3)* @[[SHADOW]] to i8 addrspace(3)*
-// CHECK:  %[[OBJ:[A-Za-z_0-9]+]] = bitcast %[[GROUP_CLASS]]* %[[GROUP_OBJ]] to i8*
-// CHECK:  call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align [[ALIGN]] %[[TMP]], {{[^,]+}} %[[OBJ]], {{[^)]+}})
+          // CHECK: @[[SHADOW:[a-zA-Z0-9]+]] = internal unnamed_addr addrspace(3) global %[[GROUP_CLASS:"[^"]+"]] undef, align [[ALIGN:[0-9]+]]
+          // CHECK: define {{.*}} spir_func void @{{"[^"]+"}}({{[^,]+}}, %[[GROUP_CLASS]]* byval(%[[GROUP_CLASS]]) align {{[0-9]+}} %[[GROUP_OBJ:[A-Za-z_0-9]+]]) {{.*}}!work_group_scope{{.*}} {
+          // CHECK-NOT: {{^[ \t]*define}}
+          // CHECK:  %[[OBJ:[A-Za-z_0-9]+]] = bitcast %[[GROUP_CLASS]]* %[[GROUP_OBJ]] to i8*
+          // CHECK:  call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align [[ALIGN]] getelementptr inbounds (%[[GROUP_CLASS]], %[[GROUP_CLASS]] addrspace(3)* @[[SHADOW]], i32 0, i32 0), {{[^,]+}} %[[OBJ]], {{[^)]+}})
         });
   });
 }
