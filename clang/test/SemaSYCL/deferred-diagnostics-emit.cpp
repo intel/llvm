@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -I %S/Inputs -triple spir64 -fsycl-is-device -verify -fsyntax-only %s
 
 //
-//    ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
+// Ensure that the SYCL diagnostics that are typically deferred, correctly emitted.
 //
 
 #include <sycl.hpp>
