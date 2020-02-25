@@ -10,6 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        ref: 'sycl'
         path: repo
     - name: Install deps
       run: sudo apt-get install -y doxygen graphviz ssh
