@@ -81,7 +81,8 @@ llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
   unsigned Offset =
       AST.getSourceManager().getDecomposedSpellingLoc(TokenStartLoc).second;
 
-  SelectionTree Selection(AST.getASTContext(), AST.getTokens(), Offset);
+  SelectionTree Selection = SelectionTree::createRight(
+      AST.getASTContext(), AST.getTokens(), Offset, Offset);
   const SelectionTree::Node *SelectedNode = Selection.commonAncestor();
   if (!SelectedNode)
     return {};
@@ -183,13 +184,6 @@ llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
   assert(CrossFile);
   if (!Index)
     return ReasonToReject::NoIndexProvided;
-
-  // Blacklist symbols that are not supported yet in cross-file mode due to the
-  // limitations of our index.
-  // FIXME: Renaming templates requires to rename all related specializations,
-  // our index doesn't have this information.
-  if (RenameDecl.getDescribedTemplate())
-    return ReasonToReject::UnsupportedSymbol;
 
   // FIXME: Renaming virtual methods requires to rename all overridens in
   // subclasses, our index doesn't have this information.

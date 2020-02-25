@@ -330,11 +330,22 @@ let params = T.Usual in {
   defm : VectorScalarArithmetic<"mul_predicated", "vmulq">;
 }
 
-multiclass DblVectorVectorArithmetic<string operation, dag extraArgs = (?)> {
+multiclass DblVectorVectorArithmetic<string operation, dag extraArgs = (?),
+                                     int wantXVariant = 1> {
   defm "" : IntrinsicMX<
-      DblVector, (args Vector:$a, Vector:$b, Predicate:$pred),
-      !con((IRInt<operation, [DblVector, Vector, Predicate]> $a, $b),
-           extraArgs, (? $pred, $inactive))>;
+      DblVector, (args Vector:$a, Vector:$b, DblPredicate:$pred),
+      !con((IRInt<operation, [DblVector, Vector, DblPredicate]> $a, $b),
+           extraArgs, (? $pred, $inactive)), wantXVariant>;
+}
+
+multiclass DblVectorScalarArithmetic<string operation, string basename,
+                                     dag extraArgs = (?),
+                                     int wantXVariant = 1> {
+  defm "" : IntrinsicMXNameOverride<
+      DblVector, (args Vector:$a, unpromoted<Scalar>:$b, DblPredicate:$pred),
+      !con((IRInt<operation, [DblVector, Vector, DblPredicate]> $a, (splat $b)),
+           extraArgs, (? $pred, $inactive)), basename, wantXVariant, "_n",
+           PNT_NType, PNT_NType>;
 }
 
 // Predicated intrinsics - Int types only
@@ -371,6 +382,28 @@ let params = T.Signed in {
 let params = T.Poly, overrideKindLetter = "p" in {
   defm vmullbq_poly : DblVectorVectorArithmetic<"mull_poly_predicated", (? (u32 0))>;
   defm vmulltq_poly : DblVectorVectorArithmetic<"mull_poly_predicated", (? (u32 1))>;
+}
+
+let params = [s16, s32] in {
+  def  vqdmullbq:  Intrinsic<DblVector, (args Vector:$a, Vector:$b),
+                             (IRInt<"vqdmull", [DblVector, Vector]> $a, $b, 0)>;
+  def  vqdmulltq:  Intrinsic<DblVector, (args Vector:$a, Vector:$b),
+                             (IRInt<"vqdmull", [DblVector, Vector]> $a, $b, 1)>;
+  defm vqdmullbq:  DblVectorVectorArithmetic<"vqdmull_predicated", (? (u32 0)), 0>;
+  defm vqdmulltq:  DblVectorVectorArithmetic<"vqdmull_predicated", (? (u32 1)), 0>;
+
+  let pnt = PNT_NType in {
+    def vqdmullbq_n: Intrinsic<DblVector, (args Vector:$a, unpromoted<Scalar>:$b),
+                               (IRInt<"vqdmull", [DblVector, Vector]>
+                                $a, (splat $b), 0)>;
+    def vqdmulltq_n: Intrinsic<DblVector, (args Vector:$a, unpromoted<Scalar>:$b),
+                               (IRInt<"vqdmull", [DblVector, Vector]>
+                                $a, (splat $b), 1)>;
+  }
+  defm vqdmullbq_n: DblVectorScalarArithmetic<"vqdmull_predicated",
+                                              "vqdmullbq", (? (u32 0)), 0>;
+  defm vqdmulltq_n: DblVectorScalarArithmetic<"vqdmull_predicated",
+                                              "vqdmulltq", (? (u32 1)), 0>;
 }
 
 // Predicated intrinsics - Float types only
@@ -881,8 +914,8 @@ multiclass vshll_imm<int top> {
         (IRInt<"vshll_imm", [DblVector, Vector]>
             $v, $sh, (unsignedflag Scalar), top)>;
     defm "": IntrinsicMX<DblVector, (args Vector:$v, imm_1toN:$sh,
-                                          Predicate:$pred),
-        (IRInt<"vshll_imm_predicated", [DblVector, Vector, Predicate]>
+                                          DblPredicate:$pred),
+        (IRInt<"vshll_imm_predicated", [DblVector, Vector, DblPredicate]>
             $v, $sh, (unsignedflag Scalar), top, $pred, $inactive), 1, "_n">;
   }
 }
@@ -1277,7 +1310,7 @@ foreach desttype = !listconcat(T.Int16, T.Int32, T.Float) in {
   }
 }
 
-let params = T.All in {
+let params = T.Usual in {
 let pnt = PNT_NType in
 def vbrsrq_n: Intrinsic<Vector, (args Vector:$a, s32:$b),
                         (IRInt<"vbrsr", [Vector]> $a, $b)>;

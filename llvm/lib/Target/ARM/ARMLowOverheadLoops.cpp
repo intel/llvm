@@ -178,6 +178,7 @@ namespace {
     MachineLoop &ML;
     MachineLoopInfo &MLI;
     ReachingDefAnalysis &RDA;
+    const TargetRegisterInfo &TRI;
     MachineFunction *MF = nullptr;
     MachineInstr *InsertPt = nullptr;
     MachineInstr *Start = nullptr;
@@ -192,7 +193,8 @@ namespace {
     bool CannotTailPredicate = false;
 
     LowOverheadLoop(MachineLoop &ML, MachineLoopInfo &MLI,
-                    ReachingDefAnalysis &RDA) : ML(ML), MLI(MLI), RDA(RDA) {
+                    ReachingDefAnalysis &RDA, const TargetRegisterInfo &TRI)
+      : ML(ML), MLI(MLI), RDA(RDA), TRI(TRI) {
       MF = ML.getHeader()->getParent();
     }
 
@@ -212,7 +214,14 @@ namespace {
              !CannotTailPredicate && ML.getNumBlocks() == 1;
     }
 
+    // Check that the predication in the loop will be equivalent once we
+    // perform the conversion. Also ensure that we can provide the number
+    // of elements to the loop start instruction.
     bool ValidateTailPredicate(MachineInstr *StartInsertPt);
+
+    // Check that any values available outside of the loop will be the same
+    // after tail predication conversion.
+    bool ValidateLiveOuts() const;
 
     // Is it safe to define LR with DLS/WLS?
     // LR can be defined if it is the operand to start, because it's the same
@@ -373,6 +382,9 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt) {
     }
   }
 
+  if (!ValidateLiveOuts())
+    return false;
+
   // For tail predication, we need to provide the number of elements, instead
   // of the iteration count, to the loop start instruction. The number of
   // elements is provided to the vctp instruction, so we need to check that
@@ -493,6 +505,41 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt) {
       ToRemove.insert(ElementChain.begin(), ElementChain.end());
     }
   }
+  return true;
+}
+
+bool LowOverheadLoop::ValidateLiveOuts() const {
+  // Collect Q-regs that are live in the exit blocks. We don't collect scalars
+  // because they won't be affected by lane predication.
+  const TargetRegisterClass *QPRs = TRI.getRegClass(ARM::MQPRRegClassID);
+  SmallSet<Register, 2> LiveOuts;
+  SmallVector<MachineBasicBlock*, 2> ExitBlocks;
+  ML.getExitBlocks(ExitBlocks);
+  for (auto *MBB : ExitBlocks)
+    for (const MachineBasicBlock::RegisterMaskPair &RegMask : MBB->liveins())
+      if (QPRs->contains(RegMask.PhysReg))
+        LiveOuts.insert(RegMask.PhysReg);
+
+  // Collect the instructions in the loop body that define the live-out values.
+  SmallPtrSet<MachineInstr*, 2> LiveMIs;
+  MachineBasicBlock *MBB = ML.getHeader();
+  for (auto Reg : LiveOuts)
+    if (auto *MI = RDA.getLocalLiveOutMIDef(MBB, Reg))
+      LiveMIs.insert(MI);
+
+  LLVM_DEBUG(dbgs() << "ARM Loops: Found loop live-outs:\n";
+             for (auto *MI : LiveMIs)
+               dbgs() << " - " << *MI);
+  // We've already validated that any VPT predication within the loop will be
+  // equivalent when we perform the predication transformation; so we know that
+  // any VPT predicated instruction is predicated upon VCTP. Any live-out
+  // instruction needs to be predicated, so check this here.
+  for (auto *MI : LiveMIs) {
+    int PIdx = llvm::findFirstVPTPredOperandIdx(*MI);
+    if (PIdx == -1 || MI->getOperand(PIdx+1).getReg() != ARM::VPR)
+      return false;
+  }
+
   return true;
 }
 
@@ -619,7 +666,8 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
     return false;
   }
 
-  // Ensure that all memory operations are predicated.
+  // If the instruction is already explicitly predicated, then the conversion
+  // will be fine, but ensure that all memory operations are predicated.
   return !IsUse && MI->mayLoadOrStore() ? false : true;
 }
 
@@ -682,7 +730,7 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
     return nullptr;
   };
 
-  LowOverheadLoop LoLoop(*ML, *MLI, *RDA);
+  LowOverheadLoop LoLoop(*ML, *MLI, *RDA, *TRI);
   // Search the preheader for the start intrinsic.
   // FIXME: I don't see why we shouldn't be supporting multiple predecessors
   // with potentially multiple set.loop.iterations, so we need to enable this.
@@ -849,65 +897,63 @@ void ARMLowOverheadLoops::IterationCountDCE(LowOverheadLoop &LoLoop) {
   if (!LoLoop.IsTailPredicationLegal())
     return;
 
-  if (auto *Def = RDA->getReachingMIDef(LoLoop.Start,
-                                        LoLoop.Start->getOperand(0).getReg())) {
-    SmallPtrSet<MachineInstr*, 4> Remove;
-    SmallPtrSet<MachineInstr*, 4> Ignore = { LoLoop.Start, LoLoop.Dec,
-                                             LoLoop.End, LoLoop.InsertPt };
-    SmallVector<MachineInstr*, 4> Chain = { Def };
-    while (!Chain.empty()) {
-      MachineInstr *MI = Chain.back();
-      Chain.pop_back();
+  auto *Def = RDA->getReachingMIDef(LoLoop.Start,
+                                    LoLoop.Start->getOperand(0).getReg());
+  if (!Def)
+    return;
 
-      // If an instruction is conditionally executed, we assume here that this
-      // an IT-block with just this single instruction in it, otherwise we
-      // continue and can't perform dead-code elimination on it. This will
-      // capture most cases, because the loop iteration count expression
-      // that performs a round-up to next multiple of the vector length will
-      // look like this:
-      //
-      //   %mull = ..
-      //   %0 = add i32 %mul, 3
-      //   %1 = icmp slt i32 %mul, 4
-      //   %smin = select i1 %1, i32 %mul, i32 4
-      //   %2 = sub i32 %0, %smin
-      //   %3 = lshr i32 %2, 2
-      //   %4 = add nuw nsw i32 %3, 1
-      //
-      // There can be a select instruction, checking if we need to execute only
-      // 1 vector iteration (in this examples that means 4 elements). Thus,
-      // we conditionally execute one instructions to materialise the iteration
-      // count.
-      MachineInstr *IT = nullptr;
-      if (TII->getPredicate(*MI) != ARMCC::AL) {
-        auto PrevMI = std::prev(MI->getIterator());
-        auto NextMI = std::next(MI->getIterator());
-
-        if (PrevMI->getOpcode() == ARM::t2IT &&
-            TII->getPredicate(*NextMI) == ARMCC::AL)
-          IT = &*PrevMI;
-        else
-          // We can't analyse IT-blocks with multiple statements. Be
-          // conservative here: clear the list, and don't remove any statements
-          // at all.
-          return;
-      }
-
-      if (RDA->isSafeToRemove(MI, Remove, Ignore)) {
-        for (auto &MO : MI->operands()) {
-          if (!MO.isReg() || !MO.isUse() || MO.getReg() == 0)
-            continue;
-          if (auto *Op = RDA->getReachingMIDef(MI, MO.getReg()))
-            Chain.push_back(Op);
-        }
-        Ignore.insert(MI);
-
-        if (IT)
-          Remove.insert(IT);
-      }
+  // Collect IT blocks.
+  std::map<MachineInstr *, SmallPtrSet<MachineInstr *, 2>> ITBlocks;
+  std::map<MachineInstr *, MachineInstr *> Predicates;
+  MachineInstr *IT = nullptr;
+  for (auto &MI : *Def->getParent()) {
+    if (MI.getOpcode() == ARM::t2IT)
+      IT = &MI;
+    else if (TII->getPredicate(MI) != ARMCC::AL) {
+      ITBlocks[IT].insert(&MI);
+      Predicates[&MI] = IT;
     }
-    LoLoop.ToRemove.insert(Remove.begin(), Remove.end());
   }
+
+  // If we're removing all of the instructions within an IT block, then
+  // also remove the IT instruction.
+  SmallPtrSet<MachineInstr*, 2> ModifiedITs;
+  SmallPtrSet<MachineInstr*, 2> DeadITs;
+  SmallPtrSet<MachineInstr*, 4> Killed;
+  RDA->collectLocalKilledOperands(Def, Killed);
+  for (auto *MI : Killed) {
+    if (!Predicates.count(MI))
+      continue;
+
+    MachineInstr *IT = Predicates[MI];
+    auto &CurrentBlock = ITBlocks[IT];
+    CurrentBlock.erase(MI);
+    ModifiedITs.insert(IT);
+    if (CurrentBlock.empty()) {
+      DeadITs.insert(IT);
+      ModifiedITs.erase(IT);
+    }
+  }
+
+  // Delete the killed instructions only if we don't have any IT blocks that
+  // need to be modified because we need to fixup the mask.
+  // TODO: Handle cases where IT blocks are modified.
+  if (ModifiedITs.empty()) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Will remove iteration count:\n";
+               for (auto *MI : Killed)
+                 dbgs() << " - " << *MI;
+               for (auto *MI : DeadITs)
+                 dbgs() << " - " << *MI);
+    LoLoop.ToRemove.insert(Killed.begin(), Killed.end());
+    LoLoop.ToRemove.insert(DeadITs.begin(), DeadITs.end());
+  }
+
+  // Collect and remove the users of iteration count.
+  SmallPtrSet<MachineInstr*, 4> Ignore = { LoLoop.Start, LoLoop.Dec,
+                                           LoLoop.End, LoLoop.InsertPt };
+  SmallPtrSet<MachineInstr*, 2> Remove;
+  if (RDA->isSafeToRemove(Def, Remove, Ignore))
+    LoLoop.ToRemove.insert(Remove.begin(), Remove.end());
 }
 
 MachineInstr* ARMLowOverheadLoops::ExpandLoopStart(LowOverheadLoop &LoLoop) {

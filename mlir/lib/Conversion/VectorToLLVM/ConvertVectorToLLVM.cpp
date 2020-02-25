@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
+
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/VectorOps/VectorOps.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -24,7 +25,6 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
-
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -126,12 +126,12 @@ static SmallVector<int64_t, 4> getI64SubArray(ArrayAttr arrayAttr,
 
 namespace {
 
-class VectorBroadcastOpConversion : public LLVMOpLowering {
+class VectorBroadcastOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorBroadcastOpConversion(MLIRContext *context,
                                        LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::BroadcastOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::BroadcastOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -275,12 +275,12 @@ private:
   }
 };
 
-class VectorReductionOpConversion : public LLVMOpLowering {
+class VectorReductionOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorReductionOpConversion(MLIRContext *context,
                                        LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::ReductionOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::ReductionOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -289,7 +289,7 @@ public:
     auto kind = reductionOp.kind();
     Type eltType = reductionOp.dest().getType();
     Type llvmType = typeConverter.convertType(eltType);
-    if (eltType.isInteger(32) || eltType.isInteger(64)) {
+    if (eltType.isSignlessInteger(32) || eltType.isSignlessInteger(64)) {
       // Integer reductions: add/mul/min/max/and/or/xor.
       if (kind == "add")
         rewriter.replaceOpWithNewOp<LLVM::experimental_vector_reduce_add>(
@@ -343,12 +343,12 @@ public:
 };
 
 // TODO(ajcbik): merge Reduction and ReductionV2
-class VectorReductionV2OpConversion : public LLVMOpLowering {
+class VectorReductionV2OpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorReductionV2OpConversion(MLIRContext *context,
                                          LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::ReductionV2Op::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::ReductionV2Op::getOperationName(), context,
+                             typeConverter) {}
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
@@ -369,12 +369,12 @@ public:
   }
 };
 
-class VectorShuffleOpConversion : public LLVMOpLowering {
+class VectorShuffleOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorShuffleOpConversion(MLIRContext *context,
                                      LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::ShuffleOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::ShuffleOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -427,12 +427,12 @@ public:
   }
 };
 
-class VectorExtractElementOpConversion : public LLVMOpLowering {
+class VectorExtractElementOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorExtractElementOpConversion(MLIRContext *context,
                                             LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::ExtractElementOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::ExtractElementOp::getOperationName(),
+                             context, typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -452,12 +452,12 @@ public:
   }
 };
 
-class VectorExtractOpConversion : public LLVMOpLowering {
+class VectorExtractOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorExtractOpConversion(MLIRContext *context,
                                      LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::ExtractOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::ExtractOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -521,12 +521,12 @@ public:
 ///    (!llvm<"<8 x float>">, !llvm<"<8 x float>">, !llvm<"<8 x float>">)
 ///    -> !llvm<"<8 x float>">
 /// ```
-class VectorFMAOp1DConversion : public LLVMOpLowering {
+class VectorFMAOp1DConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorFMAOp1DConversion(MLIRContext *context,
                                    LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::FMAOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::FMAOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -542,12 +542,12 @@ public:
   }
 };
 
-class VectorInsertElementOpConversion : public LLVMOpLowering {
+class VectorInsertElementOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorInsertElementOpConversion(MLIRContext *context,
                                            LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::InsertElementOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::InsertElementOp::getOperationName(),
+                             context, typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -567,12 +567,12 @@ public:
   }
 };
 
-class VectorInsertOpConversion : public LLVMOpLowering {
+class VectorInsertOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorInsertOpConversion(MLIRContext *context,
                                     LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::InsertOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::InsertOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -815,12 +815,12 @@ public:
   }
 };
 
-class VectorOuterProductOpConversion : public LLVMOpLowering {
+class VectorOuterProductOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorOuterProductOpConversion(MLIRContext *context,
                                           LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::OuterProductOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::OuterProductOp::getOperationName(),
+                             context, typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -867,12 +867,12 @@ public:
   }
 };
 
-class VectorTypeCastOpConversion : public LLVMOpLowering {
+class VectorTypeCastOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorTypeCastOpConversion(MLIRContext *context,
                                       LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::TypeCastOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::TypeCastOp::getOperationName(), context,
+                             typeConverter) {}
 
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -955,12 +955,12 @@ public:
   }
 };
 
-class VectorPrintOpConversion : public LLVMOpLowering {
+class VectorPrintOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorPrintOpConversion(MLIRContext *context,
                                    LLVMTypeConverter &typeConverter)
-      : LLVMOpLowering(vector::PrintOp::getOperationName(), context,
-                       typeConverter) {}
+      : ConvertToLLVMPattern(vector::PrintOp::getOperationName(), context,
+                             typeConverter) {}
 
   // Proof-of-concept lowering implementation that relies on a small
   // runtime support library, which only needs to provide a few
@@ -989,9 +989,9 @@ public:
     Type eltType = vectorType ? vectorType.getElementType() : printType;
     int64_t rank = vectorType ? vectorType.getRank() : 0;
     Operation *printer;
-    if (eltType.isInteger(32))
+    if (eltType.isSignlessInteger(32))
       printer = getPrintI32(op);
-    else if (eltType.isInteger(64))
+    else if (eltType.isSignlessInteger(64))
       printer = getPrintI64(op);
     else if (eltType.isF32())
       printer = getPrintFloat(op);
@@ -1111,7 +1111,7 @@ public:
 
     auto loc = op.getLoc();
     auto elemType = dstType.getElementType();
-    assert(elemType.isIntOrIndexOrFloat());
+    assert(elemType.isSignlessIntOrIndexOrFloat());
     Value zero = rewriter.create<ConstantOp>(loc, elemType,
                                              rewriter.getZeroAttr(elemType));
     Value res = rewriter.create<SplatOp>(loc, dstType, zero);

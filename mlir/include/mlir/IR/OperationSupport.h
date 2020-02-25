@@ -294,6 +294,11 @@ public:
   void addTypes(ArrayRef<Type> newTypes) {
     types.append(newTypes.begin(), newTypes.end());
   }
+  template <typename RangeT>
+  std::enable_if_t<!std::is_convertible<RangeT, ArrayRef<Type>>::value>
+  addTypes(RangeT &&newTypes) {
+    types.append(newTypes.begin(), newTypes.end());
+  }
 
   /// Add an attribute with the specified name.
   void addAttribute(StringRef name, Attribute attr) {
@@ -610,6 +615,12 @@ public:
   ValueTypeRange(Container &&c) : ValueTypeRange(c.begin(), c.end()) {}
 };
 
+template <typename RangeT>
+inline bool operator==(ArrayRef<Type> lhs, const ValueTypeRange<RangeT> &rhs) {
+  return lhs.size() == static_cast<size_t>(llvm::size(rhs)) &&
+         std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
 //===----------------------------------------------------------------------===//
 // OperandRange
 
@@ -625,6 +636,7 @@ public:
   using type_iterator = ValueTypeIterator<iterator>;
   using type_range = ValueTypeRange<OperandRange>;
   type_range getTypes() const { return {begin(), end()}; }
+  auto getType() const { return getTypes(); }
 
 private:
   /// See `detail::indexed_accessor_range_base` for details.
@@ -656,6 +668,7 @@ public:
   using type_iterator = ArrayRef<Type>::iterator;
   using type_range = ArrayRef<Type>;
   type_range getTypes() const;
+  auto getType() const { return getTypes(); }
 
 private:
   /// See `indexed_accessor_range` for details.
@@ -725,6 +738,7 @@ public:
   using type_iterator = ValueTypeIterator<iterator>;
   using type_range = ValueTypeRange<ValueRange>;
   type_range getTypes() const { return {begin(), end()}; }
+  auto getType() const { return getTypes(); }
 
 private:
   using OwnerT = detail::ValueRangeOwner;

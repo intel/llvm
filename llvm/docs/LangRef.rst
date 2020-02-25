@@ -910,8 +910,8 @@ The selection kind must be one of the following:
     The linker may choose any COMDAT key but the sections must contain the
     same amount of data.
 
-Note that the Mach-O platform doesn't support COMDATs, and ELF and WebAssembly
-only support ``any`` as a selection kind.
+Note that XCOFF and the Mach-O platform don't support COMDATs, and ELF and
+WebAssembly only support ``any`` as a selection kind.
 
 Here is an example of a COMDAT group where a function will only be selected if
 the COMDAT key's section is the largest:
@@ -2101,6 +2101,66 @@ between GC strategies requires additional code generation at the call
 site, these bundles may contain any values that are needed by the
 generated code.  For more details, see :ref:`GC Transitions
 <gc_transition_args>`.
+
+.. _assume_opbundles:
+
+Assume Operand Bundles
+^^^^^^^^^^^^^^^^^^^^^^
+
+Operand bundles on an :ref:`llvm.assume <int_assume>` allows representing
+assumptions that a :ref:`parameter attribute <paramattrs>` or a
+:ref:`function attribute <fnattrs>` holds for a certain value at a certain
+location. Operand bundles enable assumptions that are either hard or impossible
+to represent as a boolean argument of an :ref:`llvm.assume <int_assume>`.
+
+An assume operand bundle has the form:
+
+::
+
+      "<tag>"([ <holds for value> [, <attribute argument>] ])
+
+* The tag of the operand bundle is the name of attribute that can be assumed
+  to hold.
+* The first argument if present is the value for which the attribute hold.
+* The second argument if present is an argument of the attribute.
+
+If there are no arguments the attribute is a property of the call location.
+
+If the represented attribute expects a constant argument, the argument provided
+to the operand bundle should be a constant as well.
+
+For example:
+
+.. code-block:: llvm
+
+      call void @llvm.assume(i1 true) ["align"(i32* %val, i32 8)]
+
+allows the optimizer to assume that at location of call to
+:ref:`llvm.assume <int_assume>` ``%val`` has an alignment of at least 8.
+
+.. code-block:: llvm
+
+      call void @llvm.assume(i1 %cond) ["cold"(), "nonnull"(i64* %val)]
+
+allows the optimizer to assume that the :ref:`llvm.assume <int_assume>`
+call location is cold and that ``%val`` may not be null.
+
+Just like for the argument of :ref:`llvm.assume <int_assume>`, if any of the
+provided guarantees are are violated at runtime the behavior is undefined.
+
+Even if the assumed property can be encoded as a boolean value, like
+``nonnull``, using operand bundles to express the property can still have
+benefits:
+
+* Attributes that can be expressed via operand bundles are directly the
+  property that the optimizer uses and cares about. Encoding attributes as
+  operand bundles removes the need for an instruction sequence that represents
+  the property (e.g., `icmp ne i32* %p, null` for `nonnull`) and for the
+  optimizer to deduce the property from that instruction sequence.
+* Expressing the property using operand bundles makes it easy to identify the
+  use of the value as a use in an :ref:`llvm.assume <int_assume>`. This then
+  simplifies and improves heuristics, e.g., for use "use-sensitive"
+  optimizations.
 
 .. _moduleasm:
 
@@ -14271,6 +14331,136 @@ Examples
       %res = call i4 @llvm.udiv.fix.i4(i4 3, i4 4, i32 1)  ; %res = 2 (or 1) (1.5 / 2 = 0.75)
 
 
+'``llvm.sdiv.fix.sat.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.sdiv.fix.sat``
+on any integer bit width or vectors of integers.
+
+::
+
+      declare i16 @llvm.sdiv.fix.sat.i16(i16 %a, i16 %b, i32 %scale)
+      declare i32 @llvm.sdiv.fix.sat.i32(i32 %a, i32 %b, i32 %scale)
+      declare i64 @llvm.sdiv.fix.sat.i64(i64 %a, i64 %b, i32 %scale)
+      declare <4 x i32> @llvm.sdiv.fix.sat.v4i32(<4 x i32> %a, <4 x i32> %b, i32 %scale)
+
+Overview
+"""""""""
+
+The '``llvm.sdiv.fix.sat``' family of intrinsic functions perform signed
+fixed point saturation division on 2 arguments of the same scale.
+
+Arguments
+""""""""""
+
+The arguments (%a and %b) and the result may be of integer types of any bit
+width, but they must have the same bit width. ``%a`` and ``%b`` are the two
+values that will undergo signed fixed point division. The argument
+``%scale`` represents the scale of both operands, and must be a constant
+integer.
+
+Semantics:
+""""""""""
+
+This operation performs fixed point division on the 2 arguments of a
+specified scale. The result will also be returned in the same scale specified
+in the third argument.
+
+If the result value cannot be precisely represented in the given scale, the
+value is rounded up or down to the closest representable value. The rounding
+direction is unspecified.
+
+The maximum value this operation can clamp to is the largest signed value
+representable by the bit width of the first 2 arguments. The minimum value is the
+smallest signed value representable by this bit width.
+
+It is undefined behavior if the second argument is zero.
+
+
+Examples
+"""""""""
+
+.. code-block:: llvm
+
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 6, i4 2, i32 0)  ; %res = 3 (6 / 2 = 3)
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 6, i4 4, i32 1)  ; %res = 3 (3 / 2 = 1.5)
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 3, i4 -2, i32 1) ; %res = -3 (1.5 / -1 = -1.5)
+
+      ; The result in the following could be rounded up to 1 or down to 0.5
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 3, i4 4, i32 1)  ; %res = 2 (or 1) (1.5 / 2 = 0.75)
+
+      ; Saturation
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 -8, i4 -1, i32 0)  ; %res = 7 (-8 / -1 = 8 => 7)
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 4, i4 2, i32 2)  ; %res = 7 (1 / 0.5 = 2 => 1.75)
+      %res = call i4 @llvm.sdiv.fix.sat.i4(i4 -4, i4 1, i32 2)  ; %res = -8 (-1 / 0.25 = -4 => -2)
+
+
+'``llvm.udiv.fix.sat.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.udiv.fix.sat``
+on any integer bit width or vectors of integers.
+
+::
+
+      declare i16 @llvm.udiv.fix.sat.i16(i16 %a, i16 %b, i32 %scale)
+      declare i32 @llvm.udiv.fix.sat.i32(i32 %a, i32 %b, i32 %scale)
+      declare i64 @llvm.udiv.fix.sat.i64(i64 %a, i64 %b, i32 %scale)
+      declare <4 x i32> @llvm.udiv.fix.sat.v4i32(<4 x i32> %a, <4 x i32> %b, i32 %scale)
+
+Overview
+"""""""""
+
+The '``llvm.udiv.fix.sat``' family of intrinsic functions perform unsigned
+fixed point saturation division on 2 arguments of the same scale.
+
+Arguments
+""""""""""
+
+The arguments (%a and %b) and the result may be of integer types of any bit
+width, but they must have the same bit width. ``%a`` and ``%b`` are the two
+values that will undergo unsigned fixed point division. The argument
+``%scale`` represents the scale of both operands, and must be a constant
+integer.
+
+Semantics:
+""""""""""
+
+This operation performs fixed point division on the 2 arguments of a
+specified scale. The result will also be returned in the same scale specified
+in the third argument.
+
+If the result value cannot be precisely represented in the given scale, the
+value is rounded up or down to the closest representable value. The rounding
+direction is unspecified.
+
+The maximum value this operation can clamp to is the largest unsigned value
+representable by the bit width of the first 2 arguments. The minimum value is the
+smallest unsigned value representable by this bit width (zero).
+
+It is undefined behavior if the second argument is zero.
+
+Examples
+"""""""""
+
+.. code-block:: llvm
+
+      %res = call i4 @llvm.udiv.fix.sat.i4(i4 6, i4 2, i32 0)  ; %res = 3 (6 / 2 = 3)
+      %res = call i4 @llvm.udiv.fix.sat.i4(i4 6, i4 4, i32 1)  ; %res = 3 (3 / 2 = 1.5)
+
+      ; The result in the following could be rounded down to 0.5 or up to 1
+      %res = call i4 @llvm.udiv.fix.sat.i4(i4 3, i4 4, i32 1)  ; %res = 1 (or 2) (1.5 / 2 = 0.75)
+
+      ; Saturation
+      %res = call i4 @llvm.udiv.fix.sat.i4(i4 8, i4 2, i32 2)  ; %res = 15 (2 / 0.5 = 4 => 3.75)
+
+
 Specialised Arithmetic Intrinsics
 ---------------------------------
 
@@ -17534,10 +17724,14 @@ The ``llvm.assume`` allows the optimizer to assume that the provided
 condition is true. This information can then be used in simplifying other parts
 of the code.
 
+More complex assumptions can be encoded as
+:ref:`assume operand bundles <assume_opbundles>`.
+
 Arguments:
 """"""""""
 
-The condition which the optimizer may assume is always true.
+The argument of the call is the condition which the optimizer may assume is
+always true.
 
 Semantics:
 """"""""""

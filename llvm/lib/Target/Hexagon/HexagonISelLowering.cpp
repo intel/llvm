@@ -1080,42 +1080,24 @@ HexagonTargetLowering::LowerVSELECT(SDValue Op, SelectionDAG &DAG) const {
   return SDValue();
 }
 
-static Constant *convert_i1_to_i8(const Constant *ConstVal) {
-  SmallVector<Constant *, 128> NewConst;
-  const ConstantVector *CV = dyn_cast<ConstantVector>(ConstVal);
-  if (!CV)
-    return nullptr;
-
-  LLVMContext &Ctx = ConstVal->getContext();
-  IRBuilder<> IRB(Ctx);
-  unsigned NumVectorElements = CV->getNumOperands();
-  assert(isPowerOf2_32(NumVectorElements) &&
-         "conversion only supported for pow2 VectorSize!");
-
-  for (unsigned i = 0; i < NumVectorElements / 8; ++i) {
-    uint8_t x = 0;
-    for (unsigned j = 0; j < 8; ++j) {
-      uint8_t y = CV->getOperand(i * 8 + j)->getUniqueInteger().getZExtValue();
-      x |= y << (7 - j);
-    }
-    assert((x == 0 || x == 255) && "Either all 0's or all 1's expected!");
-    NewConst.push_back(IRB.getInt8(x));
-  }
-  return ConstantVector::get(NewConst);
-}
-
 SDValue
 HexagonTargetLowering::LowerConstantPool(SDValue Op, SelectionDAG &DAG) const {
   EVT ValTy = Op.getValueType();
   ConstantPoolSDNode *CPN = cast<ConstantPoolSDNode>(Op);
   Constant *CVal = nullptr;
   bool isVTi1Type = false;
-  if (const Constant *ConstVal = dyn_cast<Constant>(CPN->getConstVal())) {
-    Type *CValTy = ConstVal->getType();
-    if (CValTy->isVectorTy() &&
-        CValTy->getVectorElementType()->isIntegerTy(1)) {
-      CVal = convert_i1_to_i8(ConstVal);
-      isVTi1Type = (CVal != nullptr);
+  if (auto *CV = dyn_cast<ConstantVector>(CPN->getConstVal())) {
+    if (CV->getType()->getVectorElementType()->isIntegerTy(1)) {
+      IRBuilder<> IRB(CV->getContext());
+      SmallVector<Constant*, 128> NewConst;
+      unsigned VecLen = CV->getNumOperands();
+      assert(isPowerOf2_32(VecLen) &&
+             "conversion only supported for pow2 VectorSize");
+      for (unsigned i = 0; i < VecLen; ++i)
+        NewConst.push_back(IRB.getInt8(CV->getOperand(i)->isZeroValue()));
+
+      CVal = ConstantVector::get(NewConst);
+      isVTi1Type = true;
     }
   }
   unsigned Align = CPN->getAlignment();
@@ -1699,6 +1681,8 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::STORE, VT, Custom);
   }
 
+  setOperationAction(ISD::STORE, MVT::v128i1, Custom);
+
   for (MVT VT : {MVT::v2i16, MVT::v4i8, MVT::v8i8, MVT::v2i32, MVT::v4i16,
                  MVT::v2i32}) {
     setCondCodeAction(ISD::SETNE,  VT, Expand);
@@ -1712,6 +1696,8 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
 
   // Custom-lower bitcasts from i8 to v8i1.
   setOperationAction(ISD::BITCAST,        MVT::i8,    Custom);
+  setOperationAction(ISD::BITCAST,        MVT::i32,   Custom);
+  setOperationAction(ISD::BITCAST,        MVT::i64,   Custom);
   setOperationAction(ISD::SETCC,          MVT::v2i16, Custom);
   setOperationAction(ISD::VSELECT,        MVT::v4i8,  Custom);
   setOperationAction(ISD::VSELECT,        MVT::v2i16, Custom);
@@ -2284,13 +2270,16 @@ HexagonTargetLowering::LowerBITCAST(SDValue Op, SelectionDAG &DAG) const {
   const SDLoc &dl(Op);
 
   // Handle conversion from i8 to v8i1.
-  if (ResTy == MVT::v8i1) {
-    SDValue Sc = DAG.getBitcast(tyScalar(InpTy), InpV);
-    SDValue Ext = DAG.getZExtOrTrunc(Sc, dl, MVT::i32);
-    return getInstr(Hexagon::C2_tfrrp, dl, ResTy, Ext, DAG);
+  if (InpTy == MVT::i8) {
+    if (ResTy == MVT::v8i1) {
+      SDValue Sc = DAG.getBitcast(tyScalar(InpTy), InpV);
+      SDValue Ext = DAG.getZExtOrTrunc(Sc, dl, MVT::i32);
+      return getInstr(Hexagon::C2_tfrrp, dl, ResTy, Ext, DAG);
+    }
+    return SDValue();
   }
 
-  return SDValue();
+  return Op;
 }
 
 bool
@@ -3073,7 +3062,7 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     case ISD::GlobalAddress:        return LowerGLOBALADDRESS(Op, DAG);
     case ISD::BlockAddress:         return LowerBlockAddress(Op, DAG);
     case ISD::GLOBAL_OFFSET_TABLE:  return LowerGLOBAL_OFFSET_TABLE(Op, DAG);
-    case ISD::VACOPY:              return LowerVACOPY(Op, DAG);
+    case ISD::VACOPY:               return LowerVACOPY(Op, DAG);
     case ISD::VASTART:              return LowerVASTART(Op, DAG);
     case ISD::DYNAMIC_STACKALLOC:   return LowerDYNAMIC_STACKALLOC(Op, DAG);
     case ISD::SETCC:                return LowerSETCC(Op, DAG);
@@ -3225,8 +3214,8 @@ HexagonTargetLowering::getRegForInlineAsmConstraint(
       switch (VT.getSizeInBits()) {
       default:
         return {0u, nullptr};
-      case 512:
-      case 1024:
+      case 64:
+      case 128:
         return {0u, &Hexagon::HvxQRRegClass};
       }
       break;

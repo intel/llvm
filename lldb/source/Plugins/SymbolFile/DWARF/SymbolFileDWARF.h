@@ -222,7 +222,7 @@ public:
 
   DWARFDebugAbbrev *DebugAbbrev();
 
-  DWARFDebugInfo *DebugInfo();
+  DWARFDebugInfo &DebugInfo();
 
   DWARFDebugRanges *GetDebugRanges();
 
@@ -291,6 +291,8 @@ public:
   void DumpClangAST(lldb_private::Stream &s) override;
 
   lldb_private::DWARFContext &GetDWARFContext() { return m_context; }
+
+  const std::shared_ptr<SymbolFileDWARFDwo> &GetDwpSymbolFile();
 
   lldb_private::FileSpec GetFile(DWARFUnit &unit, size_t file_idx);
 

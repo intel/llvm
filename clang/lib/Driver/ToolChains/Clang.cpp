@@ -534,7 +534,7 @@ static bool mustUseNonLeafFramePointerForTarget(const llvm::Triple &Triple) {
 
 static bool useFramePointerForTargetByDefault(const ArgList &Args,
                                               const llvm::Triple &Triple) {
-  if (Args.hasArg(options::OPT_pg))
+  if (Args.hasArg(options::OPT_pg) && !Args.hasArg(options::OPT_mfentry))
     return true;
 
   switch (Triple.getArch()) {
@@ -2020,21 +2020,19 @@ void Clang::AddSystemZTargetArgs(const ArgList &Args,
                                    options::OPT_mno_backchain, false);
   bool HasPackedStack = Args.hasFlag(options::OPT_mpacked_stack,
                                      options::OPT_mno_packed_stack, false);
-  if (HasBackchain && HasPackedStack) {
+  systemz::FloatABI FloatABI =
+      systemz::getSystemZFloatABI(getToolChain().getDriver(), Args);
+  bool HasSoftFloat = (FloatABI == systemz::FloatABI::Soft);
+  if (HasBackchain && HasPackedStack && !HasSoftFloat) {
     const Driver &D = getToolChain().getDriver();
     D.Diag(diag::err_drv_unsupported_opt)
-      << Args.getLastArg(options::OPT_mpacked_stack)->getAsString(Args) +
-      " " + Args.getLastArg(options::OPT_mbackchain)->getAsString(Args);
+      << "-mpacked-stack -mbackchain -mhard-float";
   }
   if (HasBackchain)
     CmdArgs.push_back("-mbackchain");
   if (HasPackedStack)
     CmdArgs.push_back("-mpacked-stack");
-
-  systemz::FloatABI FloatABI =
-      systemz::getSystemZFloatABI(getToolChain().getDriver(), Args);
-
-  if (FloatABI == systemz::FloatABI::Soft) {
+  if (HasSoftFloat) {
     // Floating point operations and argument passing are soft.
     CmdArgs.push_back("-msoft-float");
     CmdArgs.push_back("-mfloat-abi");
@@ -2538,8 +2536,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
   llvm::DenormalMode DenormalFPMath = DefaultDenormalFPMath;
   llvm::DenormalMode DenormalFP32Math = DefaultDenormalFP32Math;
-  StringRef FPContract = "on";
+  StringRef FPContract = "";
   bool StrictFPModel = false;
+
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -2563,6 +2562,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       SignedZeros = true;
       // -fno_fast_math restores default denormal and fpcontract handling
       DenormalFPMath = DefaultDenormalFPMath;
+      FPContract = "";
       StringRef Val = A->getValue();
       if (OFastEnabled && !Val.equals("fast")) {
           // Only -ffp-model=fast is compatible with OFast, ignore.
@@ -2576,10 +2576,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       // ffp-model= is a Driver option, it is entirely rewritten into more
       // granular options before being passed into cc1.
       // Use the gcc option in the switch below.
-      if (!FPModel.empty() && !FPModel.equals(Val))
+      if (!FPModel.empty() && !FPModel.equals(Val)) {
         D.Diag(clang::diag::warn_drv_overriding_flag_option)
           << Args.MakeArgString("-ffp-model=" + FPModel)
           << Args.MakeArgString("-ffp-model=" + Val);
+        FPContract = "";
+      }
       if (Val.equals("fast")) {
         optID = options::OPT_ffast_math;
         FPModel = Val;
@@ -2587,7 +2589,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       } else if (Val.equals("precise")) {
         optID = options::OPT_ffp_contract;
         FPModel = Val;
-        FPContract = "on";
+        FPContract = "fast";
         PreciseFPModel = true;
       } else if (Val.equals("strict")) {
         StrictFPModel = true;
@@ -2673,11 +2675,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_ffp_contract: {
       StringRef Val = A->getValue();
       if (PreciseFPModel) {
-        // When -ffp-model=precise is seen on the command line,
-        // the boolean PreciseFPModel is set to true which indicates
-        // "the current option is actually PreciseFPModel". The optID
-        // is changed to OPT_ffp_contract and FPContract is set to "on".
-        // the argument Val string is "precise": it shouldn't be checked.
+        // -ffp-model=precise enables ffp-contract=fast as a side effect
+        // the FPContract value has already been set to a string literal
+        // and the Val string isn't a pertinent value.
         ;
       } else if (Val.equals("fast") || Val.equals("on") || Val.equals("off"))
         FPContract = Val;
@@ -2774,7 +2774,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       // -fno_fast_math restores default denormal and fpcontract handling
       DenormalFPMath = DefaultDenormalFPMath;
       DenormalFP32Math = DefaultDenormalFP32Math;
-      FPContract = "on";
+      FPContract = "";
       break;
     }
     if (StrictFPModel) {
@@ -2784,7 +2784,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       if (HonorINFs && HonorNaNs &&
         !AssociativeMath && !ReciprocalMath &&
         SignedZeros && TrappingMath && RoundingFPMath &&
-        FPContract.equals("off"))
+        (FPContract.equals("off") || FPContract.empty()))
         // OK: Current Arg doesn't conflict with -ffp-model=strict
         ;
       else {
@@ -4750,8 +4750,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   (void)Args.hasArg(options::OPT_mtune_EQ);
 
   if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ)) {
-    CmdArgs.push_back("-mcode-model");
-    CmdArgs.push_back(A->getValue());
+    StringRef CM = A->getValue();
+    if (CM == "small" || CM == "kernel" || CM == "medium" || CM == "large" ||
+        CM == "tiny")
+      A->render(Args, CmdArgs);
+    else
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << CM << A->getOption().getName();
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_mtls_size_EQ)) {
@@ -5963,7 +5968,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Arg->render(Args, OriginalArgs);
 
     SmallString<256> Flags;
-    Flags += Exec;
+    EscapeSpacesAndBackslashes(Exec, Flags);
     for (const char *OriginalArg : OriginalArgs) {
       SmallString<128> EscapedArg;
       EscapeSpacesAndBackslashes(OriginalArg, EscapedArg);
@@ -6295,7 +6300,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_pg))
-    if (FPKeepKind == CodeGenOptions::FramePointerKind::None)
+    if (FPKeepKind == CodeGenOptions::FramePointerKind::None &&
+        !Args.hasArg(options::OPT_mfentry))
       D.Diag(diag::err_drv_argument_not_allowed_with) << "-fomit-frame-pointer"
                                                       << A->getAsString(Args);
 
@@ -6932,7 +6938,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
 
     SmallString<256> Flags;
     const char *Exec = getToolChain().getDriver().getClangProgramPath();
-    Flags += Exec;
+    EscapeSpacesAndBackslashes(Exec, Flags);
     for (const char *OriginalArg : OriginalArgs) {
       SmallString<128> EscapedArg;
       EscapeSpacesAndBackslashes(OriginalArg, EscapedArg);
