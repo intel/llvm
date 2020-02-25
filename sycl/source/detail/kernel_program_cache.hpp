@@ -31,10 +31,9 @@ public:
     std::string Msg;
     pi_int32 Code;
 
-    /// Equals to true if the Msg and Code are initialized. This flag is added
-    /// due to the possibility of error code being equal to zero even in case 
-    /// if build is failed and cl::sycl::exception is thrown.
-    bool FilledIn;
+    bool isFilledIn() const {
+      return !Msg.empty();
+    }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
@@ -46,7 +45,7 @@ public:
     std::atomic<int> State;
     BuildError Error;
 
-    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0, false} {}
+    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;

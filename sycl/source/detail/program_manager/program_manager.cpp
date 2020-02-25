@@ -151,7 +151,7 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
     return State == BS_Done || State == BS_Failed;
   });
 
-  if (BuildResult->Error.FilledIn) {
+  if (BuildResult->Error.isFilledIn()) {
     const KernelProgramCache::BuildError &Error = BuildResult->Error;
     throw ExceptionT(Error.Msg, Error.Code);
   }
@@ -237,7 +237,6 @@ RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
   } catch (const exception &Ex) {
     BuildResult->Error.Msg = Ex.what();
     BuildResult->Error.Code = Ex.get_cl_code();
-    BuildResult->Error.FilledIn = true;
 
     BuildResult->State.store(BS_Failed);
 
