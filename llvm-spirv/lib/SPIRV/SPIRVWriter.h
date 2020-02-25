@@ -85,6 +85,9 @@ public:
 
   SPIRVValue *getTranslatedValue(const Value *) const;
 
+  spv::LoopControlMask getLoopControl(const BranchInst *Branch,
+                                      std::vector<SPIRVWord> &Parameters);
+
   // Translation functions
   bool transAddressingMode();
   bool transAlign(Value *V, SPIRVValue *BV);
