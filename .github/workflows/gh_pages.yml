@@ -1,4 +1,4 @@
-name: GitHub Pages
+name: Generate Doxygen documentation
 
 on:
   schedule:
@@ -8,11 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      run: |
-        mkdir -p $GITHUB_WORKSPACE/repo
-        cd $GITHUB_WORKSPACE/repo
-        git clone https://github.com/$GITHUB_REPOSITORY .
+    - uses: actions/checkout@v2
+      with:
+        path: repo
     - name: Install deps
       run: sudo apt-get install -y doxygen graphviz ssh
     - name: Build Docs
@@ -38,7 +36,7 @@ jobs:
         ssh-add -k ~/.ssh/id_rsa
         mkdir -p $GITHUB_WORKSPACE/docs
         cd $GITHUB_WORKSPACE/docs
-        git clone --single-branch --branch gh-pages git@github.com:$GITHUB_REPOSITORY.git .
+        git clone --single-branch --branch gh-pages git@github.com:intel/llvm-docs.git .
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* .
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
