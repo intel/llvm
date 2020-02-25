@@ -18,6 +18,14 @@
 #include <iostream>
 #include <limits>
 
+#ifdef __SYCL_DEVICE_ONLY__
+// `constexpr` could work because the implicit conversion from `float` to
+// `_Float16` can be `constexpr`.
+#define __SYCL_CONSTEXPR_ON_DEVICE constexpr
+#else
+#define __SYCL_CONSTEXPR_ON_DEVICE
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -130,7 +138,7 @@ public:
   half(const half &) = default;
   half(half &&) = default;
 
-  half(const float &rhs) : Data(rhs) {}
+  __SYCL_CONSTEXPR_ON_DEVICE half(const float &rhs) : Data(rhs) {}
 
   half &operator=(const half &rhs) = default;
 
@@ -216,15 +224,6 @@ using half = cl::sycl::detail::half_impl::half;
 // Partial specialization of some functions in namespace `std`
 namespace std {
 
-#ifdef __SYCL_DEVICE_ONLY__
-// `constexpr` could work because the implicit conversion from `float` to
-// `_Float16` can be `constexpr`.
-#define CONSTEXPR_QUALIFIER constexpr
-#else
-// The qualifier is `const` instead of `constexpr` that is original to be
-// because the constructor is not `constexpr` function.
-#define CONSTEXPR_QUALIFIER const
-#endif
 
 // Partial specialization of `std::hash<cl::sycl::half>`
 template <> struct hash<half> {
@@ -307,34 +306,42 @@ template <> struct numeric_limits<half> {
 
   static constexpr const float_round_style round_style = round_to_nearest;
 
-  static CONSTEXPR_QUALIFIER half min() noexcept { return SYCL_HLF_MIN; }
+  static __SYCL_CONSTEXPR_ON_DEVICE const half min() noexcept {
+    return SYCL_HLF_MIN;
+  }
 
-  static CONSTEXPR_QUALIFIER half max() noexcept { return SYCL_HLF_MAX; }
+  static __SYCL_CONSTEXPR_ON_DEVICE const half max() noexcept {
+    return SYCL_HLF_MAX;
+  }
 
-  static CONSTEXPR_QUALIFIER half lowest() noexcept { return -SYCL_HLF_MAX; }
+  static __SYCL_CONSTEXPR_ON_DEVICE const half lowest() noexcept {
+    return -SYCL_HLF_MAX;
+  }
 
-  static CONSTEXPR_QUALIFIER half epsilon() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half epsilon() noexcept {
     return SYCL_HLF_EPSILON;
   }
 
-  static CONSTEXPR_QUALIFIER half round_error() noexcept { return 0.5F; }
+  static __SYCL_CONSTEXPR_ON_DEVICE const half round_error() noexcept {
+    return 0.5F;
+  }
 
-  static CONSTEXPR_QUALIFIER half infinity() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half infinity() noexcept {
     return __builtin_huge_valf();
   }
 
-  static CONSTEXPR_QUALIFIER half quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static CONSTEXPR_QUALIFIER half signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static CONSTEXPR_QUALIFIER half denorm_min() noexcept { return 5.96046e-08F; }
+  static __SYCL_CONSTEXPR_ON_DEVICE const half denorm_min() noexcept {
+    return 5.96046e-08F;
+  }
 };
-
-#undef CONSTEXPR_QUALIFIER
 
 } // namespace std
 
@@ -349,3 +356,5 @@ inline std::istream &operator>>(std::istream &I, half &rhs) {
   rhs = ValFloat;
   return I;
 }
+
+#undef __SYCL_CONSTEXPR_ON_DEVICE

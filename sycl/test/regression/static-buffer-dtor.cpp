@@ -9,10 +9,14 @@
 // destructors that run as part of program shutdown, after the runtime itself
 // would start shutting down.
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// TODO: terminate called after throwing an instance of 'cl::sycl::runtime_error'
+// TODO: what():  OpenCL API failed. OpenCL API returns: -999 (Unknown OpenCL error code) -999 (Unknown OpenCL error code)
+// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 

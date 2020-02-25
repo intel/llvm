@@ -273,10 +273,30 @@ private:
   Module *M;
   LLVMContext *Ctx;
   unsigned CLVer; /// OpenCL version as major*10+minor
+  unsigned CLLang; /// OpenCL language, see `spv::SourceLanguage`.
   std::set<Value *> ValuesToDelete;
 
   ConstantInt *addInt32(int I) { return getInt32(M, I); }
   ConstantInt *addSizet(uint64_t I) { return getSizet(M, I); }
+
+  /// Return the index of the id dimension represented by the demangled built-in name.
+  /// ie. given `__spirv__GlobalInvocationId_x`, return `0`.
+  Optional<uint64_t> spirvDimensionFromBuiltin(StringRef Name) {
+    if (!Name.startswith("__spirv_")) {
+      return {};
+    }
+
+    Optional<uint64_t> Result = {};
+    if (Name.endswith("_x")) {
+      Result = 0;
+    } else if (Name.endswith("_y")) {
+      Result = 1;
+    } else if (Name.endswith("_z")) {
+      Result = 2;
+    }
+
+    return Result;
+  }
 
   /// Get vector width from OpenCL vload* function name.
   SPIRVWord getVecLoadWidth(const std::string &DemangledName) {
@@ -327,7 +347,8 @@ bool OCL20ToSPIRV::runOnModule(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
   auto Src = getSPIRVSource(&Module);
-  if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C)
+  CLLang = std::get<0>(Src);
+  if (CLLang != spv::SourceLanguageOpenCL_C && CLLang != spv::SourceLanguageOpenCL_CPP)
     return false;
 
   CLVer = std::get<1>(Src);
@@ -1224,9 +1245,18 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
   std::vector<Function *> WorkList;
   for (auto &I : *M) {
     StringRef DemangledName;
-    if (!oclIsBuiltin(I.getName(), DemangledName))
+    auto MangledName = I.getName();
+    LLVM_DEBUG(dbgs() << "Function mangled name: " << MangledName << '\n');
+    if (!oclIsBuiltin(MangledName, DemangledName))
       continue;
     LLVM_DEBUG(dbgs() << "Function demangled name: " << DemangledName << '\n');
+    auto SpirvDimension {spirvDimensionFromBuiltin(DemangledName)};
+    auto IsSpirvBuiltinWithDimensions {SpirvDimension.hasValue()};
+    if ((!IsSpirvBuiltinWithDimensions && CLLang == spv::SourceLanguageOpenCL_CPP) ||
+        (IsSpirvBuiltinWithDimensions && CLLang == spv::SourceLanguageOpenCL_C)) {
+      // Only transform `__spirv_` builtins in OpenCL C++.
+      continue;
+    }
     std::string BuiltinVarName;
     SPIRVBuiltinVariableKind BVKind;
     if (!SPIRSPIRVBuiltinVariableMap::find(DemangledName.str(), &BVKind))
@@ -1235,11 +1265,15 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
         std::string(kSPIRVName::Prefix) + SPIRVBuiltInNameMap::map(BVKind);
     LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
     bool IsVec = I.getFunctionType()->getNumParams() > 0;
-    Type *GVType =
-        IsVec ? VectorType::get(I.getReturnType(), 3) : I.getReturnType();
-    auto BV = new GlobalVariable(*M, GVType, true, GlobalValue::ExternalLinkage,
-                                 nullptr, BuiltinVarName, 0,
-                                 GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    Type *GVType = (IsVec || IsSpirvBuiltinWithDimensions) ?
+      VectorType::get(I.getReturnType(), 3) : I.getReturnType();
+    // Each of the `__spirv__GlobalInvocationId_*` functions all extract an element of
+    // the same global variable, so ensure that we only create the global once.
+    auto BV = M->getOrInsertGlobal(BuiltinVarName, GVType, [&] {
+        return new GlobalVariable(
+            *M, GVType, true, GlobalValue::ExternalLinkage, nullptr, BuiltinVarName,
+            0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    });
     std::vector<Instruction *> InstList;
     for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
       auto CI = dyn_cast<CallInst>(*UI);
@@ -1249,6 +1283,10 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
       if (IsVec) {
         NewValue =
             ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        LLVM_DEBUG(dbgs() << *NewValue << '\n');
+      } else if (IsSpirvBuiltinWithDimensions) {
+        auto Index = ConstantInt::get(I.getReturnType(), SpirvDimension.getValue(), false);
+        NewValue = ExtractElementInst::Create(NewValue, Index, "", CI);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);

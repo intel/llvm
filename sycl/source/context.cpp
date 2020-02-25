@@ -24,17 +24,21 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-context::context(const async_handler &AsyncHandler)
-    : context(default_selector().select_device(), AsyncHandler) {}
+context::context(const async_handler &AsyncHandler, bool UsePrimaryContext)
+    : context(default_selector().select_device(), AsyncHandler,
+              UsePrimaryContext) {}
 
-context::context(const device &Device, async_handler AsyncHandler)
-    : context(vector_class<device>(1, Device), AsyncHandler) {}
+context::context(const device &Device, async_handler AsyncHandler,
+                 bool UsePrimaryContext)
+    : context(vector_class<device>(1, Device), AsyncHandler,
+              UsePrimaryContext) {}
 
-context::context(const platform &Platform, async_handler AsyncHandler)
-    : context(Platform.get_devices(), AsyncHandler) {}
+context::context(const platform &Platform, async_handler AsyncHandler,
+                 bool UsePrimaryContext)
+    : context(Platform.get_devices(), AsyncHandler, UsePrimaryContext) {}
 
 context::context(const vector_class<device> &DeviceList,
-                 async_handler AsyncHandler) {
+                 async_handler AsyncHandler, bool UsePrimaryContext) {
   if (DeviceList.empty()) {
     throw invalid_parameter_error("DeviceList is empty.");
   }
@@ -43,7 +47,8 @@ context::context(const vector_class<device> &DeviceList,
       [&](const device &CurrentDevice) { return CurrentDevice.is_host(); });
   if (NonHostDeviceIter == DeviceList.end())
     impl =
-        std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler);
+        std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
+                                               UsePrimaryContext);
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
     const auto &NonHostPlatform = NonHostDevice.get_platform().get();
@@ -56,7 +61,8 @@ context::context(const vector_class<device> &DeviceList,
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.");
     else
-      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler);
+      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
+                                                    UsePrimaryContext);
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {

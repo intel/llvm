@@ -68,7 +68,7 @@ template <info::device param> struct get_device_info<platform, param> {
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
     return createSyclObjFromImpl<platform>(
-        std::make_shared<platform_impl>(result, RT::GlobalPlugin));
+        std::make_shared<platform_impl>(result, Plugin));
   }
 };
 

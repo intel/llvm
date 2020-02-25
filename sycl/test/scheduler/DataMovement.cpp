@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
 // RUN: %t.out
 //
+// XFAIL: cuda
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

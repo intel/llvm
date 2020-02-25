@@ -27,6 +27,37 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+// Interoperability handler
+//
+class interop_handler {
+  // Make accessor class friend to access the detail mem objects
+  template <typename DataT, int Dims, access::mode AccMode,
+            access::target AccTarget, access::placeholder isPlaceholder>
+  friend class accessor;
+public:
+  using ReqToMem = std::pair<detail::Requirement*, pi_mem>;
+
+  interop_handler(std::vector<ReqToMem> MemObjs, cl_command_queue PiQueue) :
+    MQueue(PiQueue), MMemObjs(MemObjs) {}
+
+  cl_command_queue get_queue() const noexcept { return MQueue; };
+
+  template <typename DataT, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t>
+  cl_mem get_mem(accessor<DataT, Dims, AccessMode, AccessTarget,
+                          access::placeholder::false_t>
+                     Acc) const {
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
+    return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
+  }
+private:
+  cl_command_queue MQueue;
+  std::vector<ReqToMem> MMemObjs;
+  cl_mem getMemImpl(detail::Requirement* Req) const;
+};
+
 namespace detail {
 
 using namespace cl;
@@ -140,6 +171,15 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
+};
+
+class InteropTask {
+  std::function<void(cl::sycl::interop_handler)> MFunc;
+
+public:
+  InteropTask(function_class<void(cl::sycl::interop_handler)> Func)
+      : MFunc(Func) {}
+  void call(cl::sycl::interop_handler &h) { MFunc(h); }
 };
 
 // Class which stores specific lambda object.
@@ -318,7 +358,8 @@ public:
     RUN_ON_HOST_INTEL,
     COPY_USM,
     FILL_USM,
-    PREFETCH_USM
+    PREFETCH_USM,
+    INTEROP_TASK_CODEPLAY
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -516,6 +557,22 @@ public:
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
+};
+
+class CGInteropTask : public CG {
+public:
+  std::unique_ptr<InteropTask> MInteropTask;
+
+  CGInteropTask(std::unique_ptr<InteropTask> InteropTask,
+                std::vector<std::vector<char>> ArgsStorage,
+                std::vector<detail::AccessorImplPtr> AccStorage,
+                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                std::vector<Requirement *> Requirements,
+                std::vector<detail::EventImplPtr> Events, CGTYPE Type)
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MInteropTask(std::move(InteropTask)) {}
 };
 
 } // namespace detail
