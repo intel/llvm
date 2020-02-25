@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -triple spir64 -fsycl-is-device -verify -fsyntax-only %s
-
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only %s
 //
 //    ensuring that the SYCL diagnostics that are typically deferred, correctly emit 
 //
@@ -40,10 +39,10 @@ void setup_sycl_operation(const T VA[]) {
 
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class AName>([=]() {
-      // FIX!!  expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      // FIX!!  xpected-error@+1 {{zero-length arrays are not permitted in C++}}
       int OverlookedBadArray[0]; 
                        
-      // FIX!!   expected-error@+1 {{__float128 is not supported on this target}}
+      // FIX!!   xpected-error@+1 {{__float128 is not supported on this target}}
       __float128 overlookedBadFloat = 40; 
  
     });
@@ -56,8 +55,11 @@ int main(int argc, char **argv) {
   cl::sycl::range<1> numOfItems;
   cl::sycl::queue deviceQueue;
 
+  
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
+  
     cgh.single_task<class AName>([=]() {
+
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0]; 
 
@@ -69,10 +71,11 @@ int main(int argc, char **argv) {
       // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
       s.foo();   
 
+       // expected-note@+1 {{called by 'operator()'}}
       calledFromKernel(10);
     });
   });
-
+  
 
   // --- lambda in specialized function testing ---
 
