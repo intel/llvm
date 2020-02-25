@@ -5,6 +5,7 @@
 // FIXME: This test should use runtime early exit once correct check for
 // corresponding extension is implemented
 // UNSUPPORTED: windows
+// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 

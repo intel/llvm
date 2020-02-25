@@ -77,7 +77,6 @@ if config.clang_staticanalyzer:
     if config.clang_staticanalyzer_z3 == '1':
         config.available_features.add('z3')
 
-
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 config.substitutions.append(

@@ -23,8 +23,8 @@
 #ifndef __CLC_MATH_H_
 #define __CLC_MATH_H_
 
-#include "clc/clcfunc.h"
-#include "clc/as_type.h"
+#include "func.h"
+#include "as_type.h"
 #include "config.h"
 
 #define SNAN 0x001
