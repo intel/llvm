@@ -10,21 +10,20 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        ref: 'sycl'
+        ref: sycl
         path: repo
+    - uses: actions/checkout@v2
+      with:
+        repository: intel/llvm-docs
+        path: docs
     - name: Install deps
       run: sudo apt-get install -y doxygen graphviz ssh
     - name: Build Docs
       run: |
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
-        cmake -DCMAKE_BUILD_TYPE=Release \
-        -DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
-        -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
-        -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$GITHUB_WORKSPACE/repo/sycl \
-        -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$GITHUB_WORKSPACE/repo/llvm-spirv \
-        -DLLVM_ENABLE_DOXYGEN=ON \
-        $GITHUB_WORKSPACE/repo/llvm
+        python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
+        -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release
         cmake --build . --target doxygen-sycl
     - name: Deploy
       env:
@@ -35,9 +34,7 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         eval "$(ssh-agent -s)"
         ssh-add -k ~/.ssh/id_rsa
-        mkdir -p $GITHUB_WORKSPACE/docs
         cd $GITHUB_WORKSPACE/docs
-        git clone --single-branch --branch gh-pages git@github.com:intel/llvm-docs.git .
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* .
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"

@@ -52,6 +52,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_WERROR=ON",
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
+        "-DLLVM_ENABLE_DOXYGEN=ON",
         llvm_dir
     ]
 
