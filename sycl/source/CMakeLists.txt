@@ -76,8 +76,11 @@ function(add_sycl_rt_library LIB_NAME)
         ${OpenCL_LIBRARIES}
         ${CMAKE_DL_LIBS}
         ${CMAKE_THREAD_LIBS_INIT}
-      PUBLIC
-        $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
+        piapi::piapi
+  )
+  target_link_libraries(${LIB_OBJ_NAME}
+      PRIVATE
+        piapi::piapi
   )
 
   target_compile_definitions(${LIB_OBJ_NAME}
@@ -103,7 +106,6 @@ set(SYCL_SOURCES
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
-    "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
     "detail/context_impl.cpp"
@@ -122,6 +124,7 @@ set(SYCL_SOURCES
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
+    "detail/pi_hooks.cpp"
     "detail/platform_impl.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
@@ -159,8 +162,6 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
-    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
-    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
 if (MSVC)

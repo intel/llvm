@@ -8,7 +8,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>

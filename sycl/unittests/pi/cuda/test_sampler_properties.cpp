@@ -8,9 +8,10 @@
 
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
+
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <gtest/gtest.h>
+#include <pi/plugin.hpp>
 #include <vector>
 
 namespace {

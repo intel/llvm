@@ -14,8 +14,10 @@
 ///
 /// \ingroup sycl_pi_ocl
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/pi.h>
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
+#include <CL/cl_ext_intel.h>
+#include <pi/pi.h>
 
 #include <cassert>
 #include <cstring>

@@ -22,6 +22,20 @@
 #ifndef _PI_H_
 #define _PI_H_
 
+#ifdef PI_REQUIRES_EXPORT
+#include <piapi_export.h>
+#else
+#define PIAPI_EXPORT
+#endif // PI_REQUIRES_EXPORT
+
+#ifdef PI_DPCPP_INTEGRATION
+#include <CL/sycl/detail/export.hpp>
+#else
+#ifndef __SYCL_EXPORT
+#define __SYCL_EXPORT PIAPI_EXPORT
+#endif // __SYCL_EXPORT
+#endif // PI_DPCPP_INTEGRATION
+
 // Every single change in PI API should be accompanied with the minor
 // version increase (+1). In the cases where backward compatibility is not
 // maintained there should be a (+1) change to the major version in
@@ -34,9 +48,13 @@
 //   pi_device_binary_property_set PropertySetsBegin;
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
+// -- Version 2.0:
+//   * PI as a standalone library
+//   * Everything moved out of the cl::sycl namespace into the pi namespace
+//   * Global C++ objects moved into pi namespace and made external
 //
-#define _PI_H_VERSION_MAJOR 1
-#define _PI_H_VERSION_MINOR 2
+#define _PI_H_VERSION_MAJOR 2
+#define _PI_H_VERSION_MINOR 0
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -45,9 +63,9 @@
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
 #include <CL/cl_ext_intel.h>
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/export.hpp>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -1573,7 +1591,7 @@ struct _pi_plugin {
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
   } PiFunctionTable;
 };
 

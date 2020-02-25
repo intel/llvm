@@ -11,44 +11,16 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <pi/device_filter.hpp>
 
 #include <iostream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-
-struct device_filter {
-  backend Backend = backend::all;
-  info::device_type DeviceType = info::device_type::all;
-  int DeviceNum = 0;
-  bool HasBackend = false;
-  bool HasDeviceType = false;
-  bool HasDeviceNum = false;
-  int MatchesSeen = 0;
-
-  device_filter(){};
-  device_filter(const std::string &FilterString);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter &Filter);
-};
-
-class device_filter_list {
-  std::vector<device_filter> FilterList;
-
-public:
-  device_filter_list() {}
-  device_filter_list(const std::string &FilterString);
-  device_filter_list(device_filter &Filter);
-  void addFilter(device_filter &Filter);
-  std::vector<device_filter> &get() { return FilterList; }
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter_list &List);
-};
+namespace pi {
 
 inline std::ostream &operator<<(std::ostream &Out,
                                 const device_filter &Filter) {
+  namespace info = cl::sycl::info;
   Out << Filter.Backend << ":";
   if (Filter.DeviceType == info::device_type::host) {
     Out << "host";
@@ -77,6 +49,15 @@ inline std::ostream &operator<<(std::ostream &Out,
   }
   return Out;
 }
+
+} // namespace pi
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+
+using pi::device_filter;
+using pi::device_filter_list;
 
 } // namespace detail
 } // namespace sycl

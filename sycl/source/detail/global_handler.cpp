@@ -10,9 +10,9 @@
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <pi/plugin.hpp>
 
 #ifdef WIN32
 #include <windows.h>
@@ -90,16 +90,6 @@ std::mutex &GlobalHandler::getFilterMutex() {
     MFilterMutex = std::make_unique<std::mutex>();
 
   return *MFilterMutex;
-}
-std::vector<plugin> &GlobalHandler::getPlugins() {
-  if (MPlugins)
-    return *MPlugins;
-
-  const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MPlugins)
-    MPlugins = std::make_unique<std::vector<plugin>>();
-
-  return *MPlugins;
 }
 device_filter_list &
 GlobalHandler::getDeviceFilterList(const std::string &InitValue) {

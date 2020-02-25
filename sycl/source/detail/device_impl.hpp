@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/aspects.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>

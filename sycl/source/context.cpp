@@ -16,6 +16,7 @@
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/plugin_sycl.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -66,9 +67,9 @@ context::context(const vector_class<device> &DeviceList,
     const auto &NonHostPlatform = NonHostDevice.get_platform().get();
     if (std::any_of(DeviceList.begin(), DeviceList.end(),
                     [&](const device &CurrentDevice) {
-                        return (CurrentDevice.is_host() ||
-                                (CurrentDevice.get_platform().get() !=
-                                 NonHostPlatform));
+                      return (CurrentDevice.is_host() ||
+                              (CurrentDevice.get_platform().get() !=
+                               NonHostPlatform));
                     }))
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",

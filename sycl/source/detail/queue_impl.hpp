@@ -21,7 +21,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
 

@@ -1,4 +1,4 @@
-//==---------------- windows_pi.cpp ----------------------------------------==//
+//==---------------- posix_pi.cpp ------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,26 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
-
-#include <windows.h>
-#include <winreg.h>
+#include <dlfcn.h>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
 namespace pi {
 
 void *loadOsLibrary(const std::string &PluginPath) {
-  return (void *)LoadLibraryA(PluginPath.c_str());
+  // TODO: Check if the option RTLD_NOW is correct. Explore using
+  // RTLD_DEEPBIND option when there are multiple plugins.
+  return dlopen(PluginPath.c_str(), RTLD_NOW);
 }
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-  return GetProcAddress((HMODULE)Library, FunctionName.c_str());
+  return dlsym(Library, FunctionName.c_str());
 }
 
 } // namespace pi
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

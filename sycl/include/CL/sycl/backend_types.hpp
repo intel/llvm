@@ -9,19 +9,14 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 
 #include <fstream>
 #include <iostream>
 #include <istream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-
-enum class backend : char { host, opencl, level_zero, cuda, all };
-
-template <backend name, typename SYCLObjectT> struct interop;
-
+namespace pi {
 inline std::ostream &operator<<(std::ostream &Out, backend be) {
   switch (be) {
   case backend::host:
@@ -40,6 +35,18 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     Out << "all";
   }
   return Out;
+}
+} // namespace pi
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+
+using backend = pi::backend;
+
+template <backend name, typename SYCLObjectT> struct interop;
+
+inline std::ostream &operator<<(std::ostream &Out, backend be) {
+  return pi::operator<<(Out, be);
 }
 
 } // namespace sycl

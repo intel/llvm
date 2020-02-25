@@ -121,15 +121,43 @@ else()
   )
 endif()
 
+if(MSVC)
+  set(shared_library_dirname "bin")
+else()
+  set(shared_library_dirname "lib${LLVM_LIBDIR_SUFFIX}")
+endif()
+
+# Retrieves the name of the library
+# For example:
+#   get_library_path(libname "OpenCL" "external" SHARED)
+# would likely produce (depending on the system):
+#   set(libname "external/libOpenCL.so")
+function(get_library_path out name directory library_type)
+  set(library_prefix "${CMAKE_${library_type}_LIBRARY_PREFIX}")
+  set(library_suffix "${CMAKE_${library_type}_LIBRARY_SUFFIX}")
+  if(NOT ("${directory}" STREQUAL ""))
+    set(directory "${directory}/")
+  endif()
+  set(${out}
+      "${directory}${library_prefix}${name}${library_suffix}" PARENT_SCOPE)
+endfunction()
+
+# Retrieves the name of the library needed when linking
+# See get_library_path
+function(get_link_library_path out name directory)
+  if(MSVC)
+    get_library_path(tmp_out "${name}" "${directory}" STATIC)
+  else()
+    get_library_path(tmp_out "${name}" "${directory}" SHARED)
+  endif()
+  set(${out} "${tmp_out}" PARENT_SCOPE)
+endfunction()
+
 if( NOT OpenCL_LIBRARIES )
   message(STATUS "OpenCL_LIBRARIES is missing. Will try to download OpenCL ICD Loader from github.com")
+  get_link_library_path(OpenCL_LIBRARIES "OpenCL" "${LLVM_LIBRARY_OUTPUT_INTDIR}")
   if(MSVC)
-    set(OpenCL_LIBRARIES
-        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}OpenCL${CMAKE_STATIC_LIBRARY_SUFFIX}")
     list(APPEND AUX_CMAKE_FLAGS -DOPENCL_ICD_LOADER_REQUIRE_WDK=OFF)
-  else()
-    set(OpenCL_LIBRARIES
-        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}OpenCL${CMAKE_SHARED_LIBRARY_SUFFIX}")
   endif()
   if (CMAKE_C_COMPILER)
       list(APPEND AUX_CMAKE_FLAGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
@@ -260,6 +288,9 @@ if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
   endif()
 endif()
 
+include(piapi.cmake)
+add_piapi_library()
+
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # SYCL runtime library
@@ -311,9 +342,6 @@ option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
 
-# Plugin Library
-add_subdirectory( plugins )
-
 add_subdirectory(tools)
 
 if(SYCL_INCLUDE_TESTS)
@@ -362,6 +390,11 @@ if(SYCL_BUILD_PI_CUDA)
         "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
+  find_package(CUDA 10.1 REQUIRED)
+  
+  set_target_properties(pi_cuda PROPERTIES
+    INTERFACE_LINK_LIBRARIES cudadrv
+  )
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
 endif()

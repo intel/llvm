@@ -90,12 +90,19 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
   endif()
 
   if ("${link_variant}" MATCHES "OBJECT")
+    # TODO piapi integration should be fixed,
+    # replace it with target_link_libraries(${test_dirname} PRIVATE piapi::piapi)
+    # once add_sycl_executable supports that
+    set(pi_include_dir "${sycl_inc_dir}/../piapi/include")
     add_sycl_executable(${test_dirname}
-      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB}
+      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB} ${piapi_options} -I "${pi_include_dir}" -DPI_DPCPP_INTEGRATION
       SOURCES ${ARGN} $<TARGET_OBJECTS:${sycl_obj_target}>
       LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS}
+      STATIC_LIBS piapi
       DEPENDANTS SYCLUnitTests)
+    add_dependencies(${test_dirname}_exec piapi)
   else()
     # TODO support shared library case.
   endif()
+  #target_link_libraries(${test_dirname}_exec PRIVATE piapi::piapi)
 endmacro()

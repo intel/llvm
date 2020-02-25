@@ -8,11 +8,11 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/platform_info.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -38,10 +38,10 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
-      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
+      : MPlatform(APlatform), MPlugin(std::make_shared<pi::plugin>(APlugin)) {}
 
   explicit platform_impl(RT::PiPlatform APlatform,
-                         std::shared_ptr<plugin> APlugin)
+                         std::shared_ptr<pi::plugin> APlugin)
       : MPlatform(APlatform), MPlugin(APlugin) {}
 
   ~platform_impl() = default;
@@ -128,7 +128,7 @@ public:
   /// Sets the platform implementation to use another plugin.
   ///
   /// \param PluginPtr is a pointer to a plugin instance
-  void setPlugin(std::shared_ptr<plugin> PluginPtr) {
+  void setPlugin(std::shared_ptr<pi::plugin> PluginPtr) {
     assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = std::move(PluginPtr);
   }
@@ -194,7 +194,7 @@ public:
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
-  std::shared_ptr<plugin> MPlugin;
+  std::shared_ptr<pi::plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };

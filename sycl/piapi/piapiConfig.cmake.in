@@ -1,0 +1,6 @@
+include(CMakeFindDependencyMacro)
+
+find_dependency(CUDA 10.0)
+find_dependency(OpenCL)
+
+include(${CMAKE_CURRENT_LIST_DIR}/piapiTargets.cmake)

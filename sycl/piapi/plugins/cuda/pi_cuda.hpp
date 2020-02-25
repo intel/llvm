@@ -18,19 +18,28 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
-#include "CL/sycl/detail/pi.h"
+#include <pi/pi_cuda.h>
+
 #include <array>
 #include <atomic>
 #include <cassert>
 #include <cstring>
 #include <cuda.h>
+#include <functional>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <numeric>
+#include <pi/pi.h>
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <functional>
-#include <mutex>
+
+#if defined(__GNUC__) && !defined(__llvm__) && (__GNUC__ < 7)
+namespace std {
+using atomic_uint32_t = std::atomic<std::uint32_t>;
+}
+#endif // GCC pre 7
 
 extern "C" {
 

@@ -11,41 +11,30 @@
 ///
 /// \ingroup sycl_pi
 
-#include "context_impl.hpp"
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <detail/config.hpp>
-#include <detail/global_handler.hpp>
-#include <detail/plugin.hpp>
+#include <pi/device_filter.hpp>
+#include <pi/pi.hpp>
+#include <pi/plugin.hpp>
 
+#include <algorithm>
 #include <bitset>
 #include <cstdarg>
+#include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <sstream>
-#include <stddef.h>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
 #include "xpti_trace_framework.h"
-#endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global (to the SYCL runtime) graph handle that all command groups are a
-// child of
-/// Event to be used by graph related activities
-xpti_td *GSYCLGraphEvent = nullptr;
-/// Event to be used by PI layer related activities
-xpti_td *GPICallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
 constexpr uint32_t GMajVer = 1;
@@ -55,9 +44,29 @@ constexpr const char *GVerStr = "sycl 1.0";
 
 namespace pi {
 
-static void initializePlugins(vector_class<plugin> *Plugins);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+
+// We define a sycl stream name and this will be used by the instrumentation
+// framework
+extern const char *SYCL_STREAM_NAME;
+
+// Global (to the SYCL runtime) graph handle that all command groups are a
+// child of
+/// Event to be used by graph related activities
+extern xpti_td *GSYCLGraphEvent;
+
+/// Event to be used by PI layer related activities
+xpti_td *GPICallEvent = nullptr;
+
+// Stream name being used for traces generated from the SYCL plugin layer
+constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
+
+#endif // XPTI_ENABLE_INSTRUMENTATION
+
+static void initializePlugins(std::vector<plugin> *Plugins);
 
 bool XPTIInitDone = false;
+std::shared_ptr<plugin> GlobalPlugin;
 
 // Implementation of the SYCL PI API call tracing methods that use XPTI
 // framework to emit these traces that will be used by tools.
@@ -120,16 +129,6 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-void contextSetExtendedDeleter(const cl::sycl::context &context,
-                               pi_context_extended_deleter func,
-                               void *user_data) {
-  auto impl = getSyclObjImpl(context);
-  auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
-  auto plugin = impl->getPlugin();
-  plugin.call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
-      contextHandle, func, user_data);
-}
-
 std::string platformInfoToString(pi_platform_info info) {
   switch (info) {
   case PI_PLATFORM_INFO_PROFILE:
@@ -144,7 +143,7 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_EXTENSIONS";
   default:
     die("Unknown pi_platform_info value passed to "
-        "cl::sycl::detail::pi::platformInfoToString");
+        "pi::platformInfoToString");
   }
 }
 
@@ -206,23 +205,18 @@ std::string memFlagsToString(pi_mem_flags Flags) {
   return Sstream.str();
 }
 
-// GlobalPlugin is a global Plugin used with Interoperability constructors that
-// use OpenCL objects to construct SYCL class objects.
-std::shared_ptr<plugin> GlobalPlugin;
-
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
+bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+  device_filter_list *FilterList = config::device_filter_list();
   if (!FilterList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+    PluginNames.emplace_back(PI_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(PI_LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
+    PluginNames.emplace_back(PI_CUDA_PLUGIN_NAME, backend::cuda);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -232,16 +226,16 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+        PluginNames.emplace_back(PI_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
       } else if (!LevelZeroFound &&
                  (Backend == backend::level_zero || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+        PluginNames.emplace_back(PI_LEVEL_ZERO_PLUGIN_NAME,
                                  backend::level_zero);
         LevelZeroFound = true;
       } else if (!CudaFound &&
                  (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+        PluginNames.emplace_back(PI_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
     }
@@ -280,23 +274,22 @@ bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 }
 
 bool trace(TraceLevel Level) {
-  auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
+  auto TraceLevelMask = config::trace_level_mask();
   return (TraceLevelMask & Level) == Level;
 }
 
 // Initializes all available Plugins.
-const vector_class<plugin> &initialize() {
-  static std::once_flag PluginsInitDone;
-
-  std::call_once(PluginsInitDone, []() {
-    initializePlugins(&GlobalHandler::instance().getPlugins());
-  });
-
-  return GlobalHandler::instance().getPlugins();
+const std::vector<plugin> &initialize() {
+  static std::vector<plugin> *Plugins = []() {
+    auto PluginsPtr = new std::vector<plugin>;
+    initializePlugins(PluginsPtr);
+    return PluginsPtr;
+  }();
+  return *Plugins;
 }
 
-static void initializePlugins(vector_class<plugin> *Plugins) {
-  vector_class<std::pair<std::string, backend>> PluginNames;
+static void initializePlugins(std::vector<plugin> *Plugins) {
+  std::vector<std::pair<std::string, backend>> PluginNames;
   findPlugins(PluginNames);
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -327,7 +320,7 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
       }
       continue;
     }
-    backend *BE = SYCLConfig<SYCL_BE>::get();
+    backend *BE = config::backend();
     // Use OpenCL as the default interoperability plugin.
     // This will go away when we make backend interoperability selection
     // explicit in SYCL-2020.
@@ -406,15 +399,15 @@ template <backend BE> const plugin &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  const vector_class<plugin> &Plugins = pi::initialize();
+  const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
     if (P.getBackend() == BE) {
       Plugin = &P;
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_INVALID_OPERATION);
+  throw std::runtime_error("pi::getPlugin couldn't find plugin (" +
+                           std::to_string(PI_INVALID_OPERATION) + ")");
 }
 
 template const plugin &getPlugin<backend::opencl>();
@@ -524,7 +517,7 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
-  return sycl::detail::pi::asUint32(&Prop->ValSize);
+  return pi::asUint32(&Prop->ValSize);
 }
 
 ByteArray DeviceBinaryProperty::asByteArray() const {
@@ -558,16 +551,16 @@ void DeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
   End = Begin ? PS->PropertiesEnd : nullptr;
 }
 
-RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
+pi::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                             size_t ImgSize) {
   struct {
-    RT::PiDeviceBinaryType Fmt;
+    pi::PiDeviceBinaryType Fmt;
     const uint32_t Magic;
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
+    typename std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     for (const auto &Fmt : Fmts) {
@@ -597,6 +590,3 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
 }
 
 } // namespace pi
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -8,7 +8,7 @@
 
 #include <CL/sycl.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
 

@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
 

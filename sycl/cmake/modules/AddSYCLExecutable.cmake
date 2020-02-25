@@ -2,7 +2,7 @@ macro(add_sycl_executable ARG_TARGET_NAME)
   cmake_parse_arguments(ARG
     ""
     ""
-    "OPTIONS;SOURCES;LIBRARIES;DEPENDANTS"
+    "OPTIONS;SOURCES;LIBRARIES;STATIC_LIBS;DEPENDANTS"
     ${ARGN})
 
   set(CXX_COMPILER clang++)
@@ -11,12 +11,23 @@ macro(add_sycl_executable ARG_TARGET_NAME)
       set(LIB_POSTFIX ".lib")
   else()
       set(LIB_PREFIX "-l")
+      set(SPLIT_LINK_PATH ON)
   endif()
   set(DEVICE_COMPILER_EXECUTABLE ${LLVM_RUNTIME_OUTPUT_INTDIR}/${CXX_COMPILER})
 
   # TODO add support for target_link_libraries(... PUBLIC ...)
   foreach(_lib ${ARG_LIBRARIES})
     list(APPEND LINKED_LIBS "${LIB_PREFIX}${_lib}${LIB_POSTFIX}")
+  endforeach()
+  foreach(_lib ${ARG_STATIC_LIBS})
+    if(SPLIT_LINK_PATH)
+      # Note this has to be added separately so that CMake doesn't get confused
+      # by the space in between the two arguments
+      list(APPEND LINKED_LIBS "-L$<TARGET_FILE_DIR:${_lib}>")
+      list(APPEND LINKED_LIBS "-l:$<TARGET_FILE_NAME:${_lib}>")
+    else()
+      list(APPEND LINKED_LIBS $<TARGET_FILE:${_lib}>)
+    endif()
   endforeach()
 
   if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)

@@ -2828,7 +2828,7 @@ zeModuleDynamicLinkMock(uint32_t numModules, ze_module_handle_t *phModules,
   // is only a single module that is "linked" to itself.  There is nothing to
   // do in this degenerate case.
   if (numModules > 1) {
-    die("piProgramLink: Program Linking is not supported yet in Level0");
+    die("piProgramLink: Program Linking is not supported yet in Level Zero");
   }
 
   // The mock does not support the link log.
@@ -5107,7 +5107,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
 
   return PI_SUCCESS;
 }

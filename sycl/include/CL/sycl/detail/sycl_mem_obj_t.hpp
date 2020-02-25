@@ -22,6 +22,10 @@
 #include <cstring>
 #include <type_traits>
 
+namespace pi {
+class plugin;
+}
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -29,7 +33,6 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class plugin;
 
 using ContextImplPtr = shared_ptr_class<context_impl>;
 using EventImplPtr = shared_ptr_class<event_impl>;
@@ -86,7 +89,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const plugin &getPlugin() const;
+  const pi::plugin &getPlugin() const;
 
   __SYCL_DLL_LOCAL size_t getSize() const override { return MSizeInBytes; }
   __SYCL_DLL_LOCAL size_t get_count() const {

@@ -12,9 +12,9 @@
 
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
-#include <pi_cuda.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
+#include <detail/plugin_sycl.hpp>
+#include <pi/pi_cuda.hpp>
 
 // PI CUDA kernels carry an additional argument for the implicit global offset.
 #define NUM_IMPLICIT_ARGS 1

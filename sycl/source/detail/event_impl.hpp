@@ -10,18 +10,21 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
 
+namespace pi {
+class plugin;
+}
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 namespace detail {
-class plugin;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
@@ -120,7 +123,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin() const;
+  const pi::plugin &getPlugin() const;
 
   /// Associate event with the context.
   ///

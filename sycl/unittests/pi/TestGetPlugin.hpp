@@ -6,11 +6,11 @@
 
 #include "BackendString.hpp"
 #include <algorithm>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <functional>
 
 namespace pi {
-inline cl::sycl::detail::plugin initializeAndGet(cl::sycl::backend backend) {
+inline cl::sycl::detail::plugin initializeAndGet(pi::backend backend) {
   auto plugins = cl::sycl::detail::pi::initialize();
   auto it = std::find_if(plugins.begin(), plugins.end(),
                          [=](cl::sycl::detail::plugin p) -> bool {

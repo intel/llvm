@@ -20,6 +20,14 @@
 #define __SYCL_STRINGIFY_LINE_HELP(s) #s
 #define __SYCL_STRINGIFY_LINE(s) __SYCL_STRINGIFY_LINE_HELP(s)
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+namespace pi {
+// We define a sycl stream name and this will be used by the instrumentation
+// framework
+extern const char *SYCL_STREAM_NAME;
+} // namespace pi
+#endif // XPTI_ENABLE_INSTRUMENTATION
+
 // Default signature enables the passing of user code location information to
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
@@ -27,11 +35,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// We define a sycl stream name and this will be used by the instrumentation
-// framework
-constexpr const char *SYCL_STREAM_NAME = "sycl";
-// Stream name being used for traces generated from the SYCL plugin layer
-constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+using pi::SYCL_STREAM_NAME;
+#endif // XPTI_ENABLE_INSTRUMENTATION
+
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/pi.h"
+#include "CL/sycl/detail/pi_sycl.hpp"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"

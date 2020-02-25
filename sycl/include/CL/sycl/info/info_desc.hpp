@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/id.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -133,16 +133,7 @@ enum class device : cl_device_info {
   usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT
 };
 
-enum class device_type : pi_uint64 {
-  cpu         = PI_DEVICE_TYPE_CPU,
-  gpu         = PI_DEVICE_TYPE_GPU,
-  accelerator = PI_DEVICE_TYPE_ACC,
-  // TODO: figure out if we need all the below in PI
-  custom      = CL_DEVICE_TYPE_CUSTOM,
-  automatic,
-  host,
-  all         = CL_DEVICE_TYPE_ALL
-};
+using device_type = pi::device_type;
 
 enum class partition_property : cl_device_partition_property {
   no_partition = 0,

@@ -13,7 +13,7 @@
 #include "TestGetPlatforms.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
-#include <pi_cuda.hpp>
+#include <pi/pi_cuda.hpp>
 
 #include <iostream>
 

@@ -13,9 +13,9 @@
 
 #include <cstring>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
+namespace pi {
+
+using namespace cl::sycl;
 
 device_filter::device_filter(const std::string &FilterString) {
   const std::array<std::pair<std::string, info::device_type>, 5>
@@ -124,6 +124,4 @@ void device_filter_list::addFilter(device_filter &Filter) {
   FilterList.push_back(Filter);
 }
 
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace pi

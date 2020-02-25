@@ -18,7 +18,6 @@
 #ifndef PI_LEVEL_ZERO_HPP
 #define PI_LEVEL_ZERO_HPP
 
-#include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <cstring>
@@ -27,12 +26,13 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <pi/pi.h>
 #include <unordered_map>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-
 #include "usm_allocator.hpp"
+
+#include <level_zero/ze_api.h>
 
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.

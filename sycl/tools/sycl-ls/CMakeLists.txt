@@ -5,6 +5,7 @@ target_link_libraries(sycl-ls
   PRIVATE
     sycl
     OpenCL::Headers
+    piapi::piapi
 )
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

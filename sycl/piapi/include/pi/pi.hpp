@@ -13,14 +13,12 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.h>
+#include <pi/pi.h>
 
 #include <cassert>
 #include <cstdint>
+#include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -32,19 +30,29 @@ struct trace_event_data_t;
 }
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-
-class context;
-
-namespace detail {
-
 enum class PiApiKind {
 #define _PI_API(api) api,
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
 };
-class plugin;
+
 namespace pi {
+
+enum class backend : char { host, opencl, level_zero, cuda, all };
+
+enum class device_type : pi_uint64 {
+  cpu = PI_DEVICE_TYPE_CPU,
+  gpu = PI_DEVICE_TYPE_GPU,
+  accelerator = PI_DEVICE_TYPE_ACC,
+  // TODO: figure out if we need all the below in PI
+  custom = CL_DEVICE_TYPE_CUSTOM,
+  automatic,
+  host,
+  all = CL_DEVICE_TYPE_ALL
+};
+
+// Forward declarations
+class plugin;
+class device_filter_list;
 
 // The SYCL_PI_TRACE sets what we will trace.
 // This is a bit-mask of various things we'd want to trace.
@@ -54,23 +62,29 @@ enum TraceLevel {
   PI_TRACE_ALL = -1
 };
 
+namespace config {
+extern TraceLevel trace_level_mask();
+extern pi::backend *backend();
+extern pi::device_filter_list *device_filter_list();
+} // namespace config
+
 // Return true if we want to trace PI related activities.
 bool trace(TraceLevel level);
 
-#ifdef __SYCL_RT_OS_WINDOWS
-#define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
-#define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
+#ifdef _WIN32
+#define PI_OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define PI_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
+#define PI_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
-#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
-#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
-#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
+#define PI_OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define PI_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
+#define PI_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
+[[noreturn]] PIAPI_EXPORT void die(const char *Message);
 
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
+PIAPI_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {
@@ -85,8 +99,8 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 // This macro is used to report invalid enumerators being passed to PI API
 // GetInfo functions. It will print the name of the function that invoked it
 // and the value of the unknown enumerator.
-#define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
-  { cl::sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
+#define PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                                \
+  { pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
@@ -115,10 +129,6 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 
-__SYCL_EXPORT void contextSetExtendedDeleter(const cl::sycl::context &constext,
-                                             pi_context_extended_deleter func,
-                                             void *user_data);
-
 // Function to load the shared library
 // Implementation is OS dependent.
 void *loadOsLibrary(const std::string &Library);
@@ -133,13 +143,8 @@ std::string platformInfoToString(pi_platform_info info);
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);
 
-// Holds the PluginInformation for the plugin that is bound.
-// Currently a global variable is used to store OpenCL plugin information to be
-// used with SYCL Interoperability Constructors.
-extern std::shared_ptr<plugin> GlobalPlugin;
-
 // Performs PI one-time initialization.
-const vector_class<plugin> &initialize();
+const std::vector<pi::plugin> &initialize();
 
 // Get the plugin serving given backend.
 template <backend BE> const plugin &getPlugin();
@@ -155,7 +160,7 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
   };
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call
@@ -388,8 +393,6 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = cl::sycl::detail::pi;
-
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
 // Having namespace as part of template name is not supported by GCC
@@ -400,26 +403,19 @@ namespace pi {
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
+  pi::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
   return (To)(value);
 }
 
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program) {
-  RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
+  pi::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
   return {};
 }
 
 template <> inline pi::PiDevice cast(cl_device_id) {
-  RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
+  pi::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
   return {};
 }
 
 } // namespace pi
-} // namespace detail
-
-// For shortness of using PI from the top-level sycl files.
-namespace RT = cl::sycl::detail::pi;
-
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

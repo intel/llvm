@@ -13,6 +13,10 @@
 
 #include <memory>
 
+namespace pi {
+class plugin;
+}
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -20,7 +24,6 @@ class platform_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class plugin;
 class device_filter_list;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
@@ -54,7 +57,6 @@ public:
   std::vector<PlatformImplPtr> &getPlatformCache();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
 
 private:
@@ -72,7 +74,7 @@ private:
   std::unique_ptr<std::vector<PlatformImplPtr>> MPlatformCache;
   std::unique_ptr<std::mutex> MPlatformMapMutex;
   std::unique_ptr<std::mutex> MFilterMutex;
-  std::unique_ptr<std::vector<plugin>> MPlugins;
+  std::unique_ptr<std::vector<pi::plugin>> MPlugins;
   std::unique_ptr<device_filter_list> MDeviceFilterList;
 };
 } // namespace detail

@@ -12,10 +12,10 @@
 
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
-#include <pi_cuda.hpp>
+#include <CL/sycl/backend/cuda.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
+#include <detail/plugin_sycl.hpp>
+#include <pi/pi_cuda.hpp>
 #include <thread>
 
 const unsigned int LATEST_KNOWN_CUDA_DRIVER_API_VERSION = 3020u;

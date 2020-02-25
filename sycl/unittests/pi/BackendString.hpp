@@ -4,13 +4,13 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 
 namespace pi {
-inline const char *GetBackendString(cl::sycl::backend backend) {
+inline const char *GetBackendString(pi::backend backend) {
   switch (backend) {
 #define PI_BACKEND_STR(backend_name)                                           \
-  case cl::sycl::backend::backend_name:                                        \
+  case pi::backend::backend_name:                                              \
     return #backend_name
     PI_BACKEND_STR(cuda);
     PI_BACKEND_STR(host);

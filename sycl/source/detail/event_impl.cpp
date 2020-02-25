@@ -9,7 +9,7 @@
 #include <CL/sycl/context.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
@@ -21,13 +21,18 @@
 #include "xpti_trace_framework.hpp"
 #include <atomic>
 #include <sstream>
+
+namespace pi {
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+}
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
+using pi::GSYCLGraphEvent;
 #endif
 
 // Threat all devices that don't support interoperability as host devices to
