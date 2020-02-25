@@ -59,6 +59,9 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
+
 ; CHECK-SPIRV: 6 Name [[FOR:[0-9]+]] "while.body20"
 
 ; ModuleID = 'FPGALoopMergeInst.cpp'
