@@ -248,8 +248,8 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     R Result = std::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
-      throw std::runtime_error("Unable to restore rounding mode.",
-                               PI_ERROR_UNKNOWN);
+      throw runtime_error("Unable to restore rounding mode.",
+                          PI_ERROR_UNKNOWN);
     return Result;
   }
     // Round toward zero.
