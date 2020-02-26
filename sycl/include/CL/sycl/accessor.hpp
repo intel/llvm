@@ -763,8 +763,7 @@ public:
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -780,14 +779,12 @@ public:
 		    			>
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
 		  handler &CommandGroupHandler)
-   
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -1276,4 +1273,4 @@ struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
   }
 };
 
-} // namespace std
+} // __SYCL_INLINE_NAMESPACE(cl)
