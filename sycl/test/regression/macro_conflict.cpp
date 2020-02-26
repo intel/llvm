@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsyntax-only -Xjclang -verify %s -o %t.out
+// RUN: %clangxx -fsyntax-only -Xclang -verify %s -o %t.out
 // expected-no-diagnostics
 //
 //===----------------------------------------------------------------------===//
