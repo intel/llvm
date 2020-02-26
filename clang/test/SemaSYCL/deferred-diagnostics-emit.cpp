@@ -1,13 +1,39 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
 //
 // Ensure that the SYCL diagnostics that are typically deferred, correctly emitted.
 //
 
-#include <sycl.hpp>
-
-struct S {
-  virtual void foo() {}
+// testing that the deferred diagnostics work in conjunction with the SYCL namespaces.  
+inline namespace cl {
+namespace sycl {
+class queue {
+public:
+  template <typename T> void submit(T CGF) {}
 };
+
+template <int I> class id {};
+
+template <int I> class range {};
+
+class handler {
+public:
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType kernelFunc) {
+    // expected-note@+1 2{{called by 'kernel_parallel_for<AName, (lambda}}
+    kernelFunc(id<1>{});
+  }
+  template <typename KernelName, typename KernelType, int Dims>
+  void parallel_for(range<Dims> NWI, KernelType kernelFunc) {
+    kernel_parallel_for<KernelName, KernelType, Dims>(kernelFunc);
+  }
+};
+}
+}
+
+//variadic functions from SYCL kernels emit a deferred diagnostic
+void variadic(int, ...);
+
+
 
 int calledFromKernel(int a){
   // expected-error@+1 {{zero-length arrays are not permitted in C++}}
@@ -16,10 +42,8 @@ int calledFromKernel(int a){
   // expected-error@+1 {{__float128 is not supported on this target}}
   __float128 malFloat = 40;  
 
-  // not sure if 'no virtual function' is a _deferred_ diagnostic, testing anyway 
-  S mal;
-  // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
-  mal.foo();  
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  variadic(5);        
 
   return a + 20;
 }
@@ -38,7 +62,7 @@ void setup_sycl_operation(const T VA[]) {
   cl::sycl::queue deviceQueue;
 
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    cgh.single_task<class AName>([=]() {
+    cgh.parallel_for<class AName>(numOfItems, [=](cl::sycl::id<1> wiID) {
       // FIX!!  xpected-error@+1 {{zero-length arrays are not permitted in C++}}
       int OverlookedBadArray[0]; 
                        
@@ -57,8 +81,8 @@ int main(int argc, char **argv) {
 
   
   deviceQueue.submit([&](cl::sycl::handler &cgh) {
-  
-    cgh.single_task<class AName>([=]() {
+    
+    cgh.parallel_for<class AName>(numOfItems, [=](cl::sycl::id<1> wiID) {
 
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0]; 
@@ -66,11 +90,10 @@ int main(int argc, char **argv) {
       // expected-error@+1 {{__float128 is not supported on this target}}
       __float128 badFloat = 40; // this SHOULD  trigger a diagnostic
 
-      // not sure if 'no virtual function' is a _deferred_ diagnostic, but testing anyway.
-      S s;
-      // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
-      s.foo();   
+      //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+      variadic(5);  
 
+       
        // expected-note@+1 {{called by 'operator()'}}
       calledFromKernel(10);
     });
