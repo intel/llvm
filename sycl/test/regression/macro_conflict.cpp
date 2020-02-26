@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #define SUCCESS 0
-#define FAIL 1
-#define BLOCKED 2
 
 #include <CL/sycl.hpp>
 
