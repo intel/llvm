@@ -29,7 +29,8 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
   if (MInteropContext->is_host())
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
-        "not allowed", PI_INVALID_OPERATION);
+        "not allowed",
+        PI_INVALID_OPERATION);
 
   RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;

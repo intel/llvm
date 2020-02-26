@@ -236,7 +236,8 @@ public:
     if (useHostPtr())
       throw invalid_parameter_error(
           "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.", PI_INVALID_OPERATION);
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();

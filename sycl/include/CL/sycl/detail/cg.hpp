@@ -280,7 +280,7 @@ public:
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
         throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_INVALID_VALUE);
+                                   PI_INVALID_WORK_GROUP_SIZE);
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -322,7 +322,7 @@ public:
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
         throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_INVALID_VALUE);
+                                   PI_INVALID_WORK_GROUP_SIZE);
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 

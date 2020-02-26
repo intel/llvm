@@ -79,7 +79,8 @@ event handler::finalize() {
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.", PI_INVALID_OPERATION);
+                        "explicit memory operation.",
+                        PI_INVALID_OPERATION);
   default:
     throw runtime_error("Unhandled type of command group",
                         PI_INVALID_OPERATION);

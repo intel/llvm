@@ -32,7 +32,7 @@ cl_event event_impl::get() const {
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.",
-      PI_INVALID_OPERATION);
+      PI_INVALID_EVENT);
 }
 
 event_impl::~event_impl() {
@@ -70,7 +70,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
-        "clEvent.", PI_INVALID_CONTEXT);
+        "clEvent.",
+        PI_INVALID_CONTEXT);
   }
 
   RT::PiContext TempContext;
@@ -79,7 +80,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   if (MContext->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
-        "clEvent.", PI_INVALID_CONTEXT);
+        "clEvent.",
+        PI_INVALID_CONTEXT);
   }
 
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);

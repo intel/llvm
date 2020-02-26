@@ -302,7 +302,8 @@ void program_impl::compile(const string_class &Options) {
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
         "Program compilation error:\n" +
-        ProgramManager::getProgramBuildLog(MProgram, MContext), Err);
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
+        Err);
   }
   MCompileOptions = Options;
 }
@@ -318,7 +319,8 @@ void program_impl::build(const string_class &Options) {
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
         "Program build error:\n" +
-        ProgramManager::getProgramBuildLog(MProgram, MContext), Err);
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
+        Err);
   }
   MBuildOptions = Options;
   MCompileOptions = Options;
@@ -364,7 +366,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
         MProgram, KernelName.c_str(), &Kernel);
     if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
-          "This instance of program does not contain the kernel requested", Err);
+          "This instance of program does not contain the kernel requested",
+          Err);
     }
     Plugin.checkPiResult(Err);
   }
@@ -406,7 +409,7 @@ template <>
 cl_uint program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_OPERATION);
+                               PI_INVALID_PROGRAM);
   }
   cl_uint Result;
   const detail::plugin &Plugin = getPlugin();

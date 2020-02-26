@@ -59,8 +59,7 @@ public:
   runtime_error(const char *Msg, cl_int Err)
       : runtime_error(string_class(Msg), Err) {}
 
-  runtime_error(const string_class &Msg, cl_int Err)
-      : exception(Msg, Err) {}
+  runtime_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
 };
 class kernel_error : public runtime_error {
   using runtime_error::runtime_error;
@@ -84,8 +83,7 @@ public:
   device_error(const char *Msg, cl_int Err)
       : device_error(string_class(Msg), Err) {}
 
-  device_error(const string_class &Msg, cl_int Err)
-      : exception(Msg, Err) {}
+  device_error(const string_class &Msg, cl_int Err) : exception(Msg, Err) {}
 };
 class compile_program_error : public device_error {
   using device_error::device_error;

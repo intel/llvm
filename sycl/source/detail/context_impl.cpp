@@ -99,7 +99,7 @@ cl_context context_impl::get() const {
   }
   throw invalid_object_error(
       "This instance of context doesn't support OpenCL interoperability.",
-      PI_INVALID_DEVICE);
+      PI_INVALID_CONTEXT);
 }
 
 bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }

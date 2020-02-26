@@ -200,7 +200,8 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment", PI_INVALID_VALUE);
+        "multiple of the memory base address alignment",
+        PI_INVALID_VALUE);
   return NewMem;
 }
 

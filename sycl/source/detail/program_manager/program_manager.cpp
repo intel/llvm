@@ -586,7 +586,7 @@ ProgramManager::ProgramManager() {
 
     if (!File.is_open())
       throw runtime_error(std::string("Can't open file specified via ") +
-                          UseSpvEnv + ": " + SpvFile,
+                              UseSpvEnv + ": " + SpvFile,
                           PI_INVALID_VALUE);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
@@ -596,7 +596,8 @@ ProgramManager::ProgramManager() {
     File.close();
     if (!File.good())
       throw runtime_error(std::string("read from ") + SpvFile +
-                          std::string(" failed"), PI_INVALID_VALUE);
+                              std::string(" failed"),
+                          PI_INVALID_VALUE);
 
     std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(new DeviceImage(),
                                                       ImageDeleter());
