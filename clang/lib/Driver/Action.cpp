@@ -49,6 +49,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "llvm-no-spir-kernel";
   case SYCLPostLinkJobClass:
     return "sycl-post-link";
+  case PartialLinkJobClass:
+    return "partial-link";
   case BackendCompileJobClass:
     return "backend-compiler";
   }
@@ -453,6 +455,14 @@ void SYCLPostLinkJobAction::anchor() {}
 
 SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input, types::ID Type)
     : JobAction(SYCLPostLinkJobClass, Input, Type) {}
+
+void PartialLinkJobAction::anchor() {}
+
+PartialLinkJobAction::PartialLinkJobAction(Action *Input, types::ID Type)
+    : JobAction(PartialLinkJobClass, Input, Type) {}
+
+PartialLinkJobAction::PartialLinkJobAction(ActionList &Inputs, types::ID Type)
+    : JobAction(PartialLinkJobClass, Inputs, Type) {}
 
 void BackendCompileJobAction::anchor() {}
 

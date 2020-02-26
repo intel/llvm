@@ -6,8 +6,10 @@
 // REQUIRES: x86-registered-target
 
 /// Test behaviors of -foffload-static-lib=<lib> with single object.
-// RUN: touch %t.lib
-// RUN: touch %t.obj
+// Build the offload library that is used for the tests.
+// RUN: echo "void foo() {}" > %t.c
+// RUN: %clang_cl -fsycl -c -Fo%t.obj %t.c
+// RUN: llvm-ar cr %t.lib %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB=%t.lib %s -check-prefixes=FOFFLOAD_STATIC_LIB,FOFFLOAD_STATIC_LIB_DEFAULT
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
@@ -40,8 +42,8 @@
 /// ###########################################################################
 
 /// Test behaviors with multiple -foffload-static-lib=<lib> options.
-// RUN: touch %t1.lib
-// RUN: touch %t2.lib
+// RUN: cp %t.lib %t1.lib
+// RUN: cp %t.lib %t2.lib
 // RUN: touch %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t1.lib -foffload-static-lib=%t2.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB1=%t1.lib -DLIB2=%t2.lib %s -check-prefixes=FOFFLOAD_STATIC_MULTI_LIB,FOFFLOAD_STATIC_MULTI_LIB_DEFAULT

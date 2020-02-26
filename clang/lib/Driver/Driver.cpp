@@ -1301,6 +1301,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   InputList Inputs;
   BuildInputs(C->getDefaultToolChain(), *TranslatedArgs, Inputs);
 
+  // Determine if there are any offload static libraries.
+  if (checkForOffloadStaticLib(*C, *TranslatedArgs))
+    setOffloadStaticLibSeen();
+
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
 
@@ -2479,6 +2483,10 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
       Inputs.push_back(std::make_pair(types::TY_Object, InputArg));
       A->claim();
+      // Use of -foffload-static-lib and -foffload-whole-static-lib are
+      // deprecated with the updated functionality to scan the static libs.
+      Diag(clang::diag::warn_drv_deprecated_option) << A->getAsString(Args) <<
+           A->getValue();
     }
   }
   if (CCCIsCPP() && Inputs.empty()) {
@@ -2487,6 +2495,187 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
     Arg *A = MakeInputArg(Args, Opts, "-");
     Inputs.push_back(std::make_pair(types::TY_C, A));
   }
+}
+
+static bool runBundler(const std::vector<StringRef> &BundlerArgs,
+    Compilation &C) {
+  // Find bundler.
+  StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
+  llvm::ErrorOr<std::string> BundlerBinary = llvm::sys::findProgramByName(
+      "clang-offload-bundler", ExecPath);
+  // Since this is run in real time and not in the toolchain, output the
+  // command line if requested.
+  bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
+  if (C.getArgs().hasArg(options::OPT_v) || OutputOnly) {
+    for (StringRef A : BundlerArgs)
+      if (OutputOnly)
+        llvm::errs() << "\"" << A << "\" ";
+      else
+        llvm::errs() << A << " ";
+    llvm::errs() << '\n';
+  }
+  if (BundlerBinary.getError())
+    return false;
+
+  return !llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
+}
+
+bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
+  assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
+  // Temporary names for the output.
+  llvm::Triple TT;
+  TT.setArchName(types::getTypeName(Type));
+  TT.setVendorName("intel");
+  TT.setOS(llvm::Triple::UnknownOS);
+  TT.setEnvironment(llvm::Triple::SYCLDevice);
+
+  // Checking uses -check-section option with the input file, no output
+  // file and the target triple being looked for.
+  const char *Targets =
+      C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
+  const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") +
+                       Object);
+  // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
+  // actually archives.
+  std::vector<StringRef> BundlerArgs = { "clang-offload-bundler",
+                                         "-type=ao",
+                                         Targets,
+                                         Inputs,
+                                         "-check-section" };
+  return runBundler(BundlerArgs, C);
+}
+
+static bool hasOffloadSections(Compilation &C, const std::string Archive,
+                               DerivedArgList &Args) {
+  // Do not do the check if the file doesn't exist
+  if (!llvm::sys::fs::exists(Archive))
+    return false;
+
+  llvm::Triple TT(C.getDefaultToolChain().getTriple());
+  // Checking uses -check-section option with the input file, no output
+  // file and the target triple being looked for.
+  // TODO - Improve checking to check for explicit offload target instead
+  // of the generic host availability.
+  const char *Targets =
+      Args.MakeArgString(Twine("-targets=host-") + TT.str());
+  const char *Inputs = Args.MakeArgString(Twine("-inputs=") + Archive);
+  // Always use -type=ao for bundle checking.  The 'bundles' are
+  // actually archives.
+  std::vector<StringRef> BundlerArgs = { "clang-offload-bundler",
+                                         "-type=ao",
+                                         Targets,
+                                         Inputs,
+                                         "-check-section" };
+  return runBundler(BundlerArgs, C);
+}
+
+// Simple helper function for Linker options, where the option is valid if
+// it has '-' or '--' as the designator.
+static bool optionMatches(const std::string &Option,
+    const std::string &OptCheck) {
+  return (Option == OptCheck || ("-" + Option) == OptCheck);
+}
+
+// Process linker inputs for use with offload static libraries.  We are only
+// handling options and explicitly named static archives as these need to be
+// partially linked.
+static void getLinkerArgs(Compilation &C, DerivedArgList &Args,
+    SmallVector<const char *, 16> &LibArgs) {
+  for (const auto *A : Args) {
+    std::string FileName = A->getAsString(Args);
+    if (A->getOption().getKind() == Option::InputClass) {
+      std::string Value(A->getValue());
+      if (isStaticArchiveFile(Value)) {
+        LibArgs.push_back(Args.MakeArgString(FileName));
+        continue;
+      }
+    }
+    if (A->getOption().hasFlag(options::LinkerInput)) {
+      // Do not add any libraries that are not fully named static libs
+      if (A->getOption().matches(options::OPT_l) ||
+          A->getOption().matches(options::OPT_reserved_lib_Group) ||
+          A->getOption().hasFlag(options::NoArgumentUnused))
+        continue;
+      for (const std::string &Value : A->getValues()) {
+        static std::string PrevArg;
+        auto addKnownValues = [&](const std::string &V) {
+          // Only add named static libs objects and --whole-archive options.
+          if (optionMatches("-whole-archive", V) ||
+              optionMatches("-no-whole-archive", V) || isStaticArchiveFile(V)) {
+            LibArgs.push_back(Args.MakeArgString(V));
+            return;
+          }
+          // Probably not the best way to handle this, but there are options
+          // that take arguments which we should not add to the known values.
+          // Handle -z for now - can be expanded if/when usage shows the need
+          if (PrevArg != "-z" && V[0] != '-' && isObjectFile(V)) {
+            LibArgs.push_back(Args.MakeArgString(V));
+            return;
+          }
+        };
+        if (Value[0] == '@') {
+          // Found a response file, we want to expand contents to try and
+          // discover more libraries and options.
+          SmallVector<const char *, 20> ExpandArgs;
+          ExpandArgs.push_back(Value.c_str());
+
+          llvm::BumpPtrAllocator A;
+          llvm::StringSaver S(A);
+          llvm::cl::ExpandResponseFiles(S,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ?
+              llvm::cl::TokenizeWindowsCommandLine :
+              llvm::cl::TokenizeGNUCommandLine, ExpandArgs);
+          for (std::string MA : ExpandArgs)
+            addKnownValues(MA);
+        } else
+          addKnownValues(Value);
+        PrevArg = Value;
+      }
+      continue;
+    }
+    // Use of -foffload-static-lib and -foffload-whole-static-lib is
+    // considered deprecated.  Usage should move to passing in the static
+    // library name on the command line, encapsulating with
+    // -Wl,--whole-archive <lib> -Wl,--no-whole-archive as needed.
+    if (A->getOption().matches(options::OPT_foffload_static_lib_EQ)) {
+      LibArgs.push_back(Args.MakeArgString(A->getValue()));
+      continue;
+    }
+    if (A->getOption().matches(options::OPT_foffload_whole_static_lib_EQ)) {
+      // For -foffload-whole-static-lib, we add the --whole-archive wrap
+      // around the library which will be used during the partial link step.
+      LibArgs.push_back("--whole-archive");
+      LibArgs.push_back(Args.MakeArgString(A->getValue()));
+      LibArgs.push_back("--no-whole-archive");
+      continue;
+    }
+  }
+}
+
+// Goes through all of the arguments, including inputs expected for the
+// linker directly, to determine if we need to perform additional work for
+// static offload libraries.
+bool Driver::checkForOffloadStaticLib(Compilation &C,
+    DerivedArgList &Args) const {
+  // Check only if enabled with -fsycl
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return false;
+  // Right off the bat, assume the presense of -foffload-static-lib means
+  // to perform the needed linking steps for offload fat archives.
+  if (Args.hasArg(options::OPT_offload_lib_Group))
+    return true;
+  SmallVector<const char *, 16> OffloadLibArgs;
+  getLinkerArgs(C, Args, OffloadLibArgs);
+  for (std::string MA : OffloadLibArgs)
+    if (isStaticArchiveFile(MA) && hasOffloadSections(C, MA, Args)) {
+      // For FPGA binaries with AOCX or AOCR sections are not
+      // considered fat static archives
+      if (Args.hasArg(options::OPT_fintelfpga))
+        return !(hasFPGABinary(C, MA, types::TY_FPGA_AOCR) ||
+                 hasFPGABinary(C, MA, types::TY_FPGA_AOCX));
+      return true;
+    }
+  return false;
 }
 
 namespace {
@@ -3392,8 +3581,9 @@ class OffloadingActionBuilder final {
           return ABRT_Inactive;
 
         std::string InputName = IA->getInputArg().getAsString(Args);
-        // Objects should already be consumed with -foffload-static-lib
-        if (Args.hasArg(options::OPT_offload_lib_Group) &&
+        // Objects will be consumed as part of the partial link step when
+        // dealing with offload static libraries
+        if (C.getDriver().getOffloadStaticLibSeen() &&
             IA->getType() == types::TY_Object && isObjectFile(InputName))
           return ABRT_Inactive;
 
@@ -3898,57 +4088,6 @@ public:
     return C.MakeAction<OffloadAction>(HDep, DDeps);
   }
 
-  bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
-    assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
-    // Temporary names for the output.
-    const ToolChain *OTC = C.getSingleOffloadToolChain<Action::OFK_SYCL>();
-    llvm::Triple TT;
-    TT.setArchName(types::getTypeName(Type));
-    TT.setVendorName("intel");
-    TT.setOS(llvm::Triple(OTC->getTriple()).getOS());
-    TT.setEnvironment(llvm::Triple::SYCLDevice);
-
-    // Checking uses -check-section option with the input file, no output
-    // file and the target triple being looked for.
-    const char *Targets =
-        C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
-    const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") +
-                         Object);
-    // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
-    // actually archives.
-    std::vector<StringRef> BundlerArgs = { "clang-offload-bundler",
-                                           "-type=ao",
-                                           Targets,
-                                           Inputs,
-                                           "-check-section" };
-    // Find bundler.
-    StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
-    auto BundlerBinary = llvm::sys::findProgramByName("clang-offload-bundler",
-                                                      ExecPath);
-    if (C.getArgs().hasArg(options::OPT_ccc_print_phases,
-                           options::OPT_ccc_print_bindings))
-      return false;
-    // Since this is run in real time and not in the toolchain, output the
-    // command line if requested.
-    bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
-    if (C.getArgs().hasArg(options::OPT_v) || OutputOnly) {
-      for (StringRef A : BundlerArgs)
-        if (OutputOnly)
-          llvm::errs() << "\"" << A << "\" ";
-        else
-          llvm::errs() << A << " ";
-      llvm::errs() << '\n';
-    }
-    if (BundlerBinary.getError())
-      return false;
-
-    // Run the bundler.
-    bool Failed = llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
-    if (!Failed)
-      return true;
-    return false;
-  }
-
   /// Generate an action that adds a host dependence to a device action. The
   /// results will be kept in this action builder. Return true if an error was
   /// found.
@@ -3985,7 +4124,7 @@ public:
       if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ||
           !(HostAction->getType() == types::TY_Object &&
             isObjectFile(InputName) &&
-            Args.hasArg(options::OPT_offload_lib_Group))) {
+            C.getDriver().getOffloadStaticLibSeen())) {
         ActionList HostActionList;
         Action *A(HostAction);
         // Only check for FPGA device information when using fpga SubArch.
@@ -4468,7 +4607,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // When a static fat archive is provided, create a new unbundling step
   // for all of the objects.
   if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      Args.hasArg(options::OPT_offload_lib_Group)) {
+      C.getDriver().getOffloadStaticLibSeen()) {
     ActionList UnbundlerInputs;
     for (const auto &LI : LinkerInputs) {
       // Unbundler only handles objects.
@@ -4482,55 +4621,82 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       UnbundlerInputs.push_back(LI);
     }
     const Arg *LastArg;
-    auto addUnbundlerInput = [&](types::ID T, const Arg *A) {
+    auto addUnbundlerInput = [&](types::ID T, const char *A) {
       const llvm::opt::OptTable &Opts = getOpts();
-      Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
+      Arg *InputArg = MakeInputArg(Args, Opts, C.getArgs().MakeArgString(A));
       LastArg = InputArg;
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       UnbundlerInputs.push_back(Current);
     };
-    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
-      addUnbundlerInput(types::TY_Archive, A);
-    for (const auto *A :
-        Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
-      addUnbundlerInput(types::TY_WholeArchive, A);
+    // Go through all of the args, and create a Linker specific argument list.
+    // This is fed into the partial link step.
+    SmallVector<const char *, 16> LinkArgs;
+    getLinkerArgs(C, Args, LinkArgs);
+    bool IsWholeArchive = false;
+    for (std::string MA : LinkArgs) {
+      if (isStaticArchiveFile(MA)) {
+        addUnbundlerInput(IsWholeArchive ? types::TY_WholeArchive :
+                          types::TY_Archive, MA.c_str());
+        continue;
+      }
+      if (optionMatches("-no-whole-archive", MA)) {
+        IsWholeArchive = false;
+        continue;
+      }
+      if (optionMatches("-whole-archive", MA)) {
+        IsWholeArchive = true;
+        continue;
+      }
+      if (isObjectFile(MA)) {
+        // Add any objects to the unbundler step.  These objects are passed
+        // directly to the linker, so the driver does not know about them.
+        // FIXME - Better process objects passed to the linker process them
+        // like regular objects that need to be potentially unbundled.
+        addUnbundlerInput(types::TY_Object, MA.c_str());
+        continue;
+      }
+    }
+
     if (!UnbundlerInputs.empty()) {
-      Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Archive);
-      OffloadBuilder.addHostDependenceToUnbundlingAction(Current,
-          UnbundlerInputs, LastArg);
+      Action *PartialLink = C.MakeAction<PartialLinkJobAction>(
+          UnbundlerInputs, types::TY_Object);
+      Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
+      ActionList AL;
+      AL.push_back(PartialLink);
+      OffloadBuilder.addHostDependenceToUnbundlingAction(Current, AL, LastArg);
       Current = OffloadBuilder.addDeviceDependencesToHostAction(Current,
           LastArg, phases::Link, PL.back(), PL);
     }
   }
   const llvm::opt::OptTable &Opts = getOpts();
-  auto unbundleStaticLib = [&](types::ID T, const Arg *A) {
-    Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
+  auto unbundleStaticLib = [&](types::ID T, const std::string &A) {
+    Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
     Action *Current = C.MakeAction<InputAction>(*InputArg, T);
     OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
     OffloadBuilder.addDeviceDependencesToHostAction(
         Current, InputArg, phases::Link, PL.back(), PL);
   };
-  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
+  SmallVector<const char *, 16> LinkArgs;
+  getLinkerArgs(C, Args, LinkArgs);
+  for (std::string MA : LinkArgs) {
+    // At this point, we will process the archives for FPGA AOCO and individual
+    // archive unbundling for Windows.
+    if (!isStaticArchiveFile(MA))
+      continue;
     // In MSVC environment offload-static-libs are handled slightly different
     // because of missing support for partial linking in the linker. We add an
     // unbundling action for each static archive which produces list files with
     // extracted objects. Device lists are then added to the appropriate device
     // link actions and host list is ignored since we are adding
     // offload-static-libs as normal libraries to the host link command.
-    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
-      unbundleStaticLib(types::TY_Archive, A);
-    // Pass along the -foffload-static-lib values to check if we need to
-    // add them for unbundling for FPGA AOT static lib usage.  Uses FPGA
-    // aoco type to differentiate if aoco unbundling is needed.
+    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+        hasOffloadSections(C, MA, Args))
+      unbundleStaticLib(types::TY_Archive, MA);
+    // Pass along the static libraries to check if we need to add them for
+    // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
+    // differentiate if aoco unbundling is needed.
     if (Args.hasArg(options::OPT_fintelfpga))
-      unbundleStaticLib(types::TY_FPGA_AOCO, A);
-  }
-  for (const auto *A :
-      Args.filtered(options::OPT_foffload_whole_static_lib_EQ)) {
-    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
-      unbundleStaticLib(types::TY_WholeArchive, A);
-    if (Args.hasArg(options::OPT_fintelfpga))
-      unbundleStaticLib(types::TY_FPGA_AOCO, A);
+      unbundleStaticLib(types::TY_FPGA_AOCO, MA);
   }
 
   // For an FPGA archive, we add the unbundling step above to take care of
@@ -5408,8 +5574,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
       bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
           C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
           C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
-      if (C.getInputArgs().hasArg(options::OPT_offload_lib_Group) &&
-          ((JA->getType() == types::TY_Archive && IsMSVCEnv) ||
+      if (C.getDriver().getOffloadStaticLibSeen() &&
+          (JA->getType() == types::TY_Archive ||
            (JA->getType() == types::TY_Object && !IsMSVCEnv))) {
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host)
@@ -6309,6 +6475,16 @@ bool clang::driver::isObjectFile(std::string FileName) {
   // marked as an object.
   return (Ext != "lib" &&
           types::lookupTypeForExtension(Ext) == types::TY_Object);
+}
+
+bool clang::driver::isStaticArchiveFile(const std::string &FileName) {
+  if (!llvm::sys::path::has_extension(FileName))
+    // Any file with no extension should be considered an Object. Take into
+    // account -lsomelib library filenames.
+    return false;
+  StringRef Ext(llvm::sys::path::extension(FileName).drop_front());
+  // Only .lib and .a files are to be considered.
+  return (Ext == "lib" || Ext == "a");
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {
