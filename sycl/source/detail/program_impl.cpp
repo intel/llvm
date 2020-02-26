@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <fstream>
 #include <memory>
+#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -42,7 +43,9 @@ program_impl::program_impl(
     DevicesSorted = sort_devices_by_cl_device_id(MDevices);
   }
   check_device_feature_support<info::device::is_linker_available>(MDevices);
+  vector_class<std::unique_lock<std::mutex>> Locks;
   for (const auto &Prg : ProgramList) {
+    Locks.emplace_back(Prg->MMutex);
     Prg->throw_if_state_is_not(program_state::compiled);
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
@@ -162,6 +165,7 @@ cl_program program_impl::get() const {
 void program_impl::compile_with_kernel_name(string_class KernelName,
                                             string_class CompileOptions,
                                             OSModuleHandle M) {
+  std::unique_lock<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = M;
   if (!is_host()) {
@@ -173,6 +177,7 @@ void program_impl::compile_with_kernel_name(string_class KernelName,
 
 void program_impl::compile_with_source(string_class KernelSource,
                                        string_class CompileOptions) {
+  std::unique_lock<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -185,6 +190,7 @@ void program_impl::compile_with_source(string_class KernelSource,
 void program_impl::build_with_kernel_name(string_class KernelName,
                                           string_class BuildOptions,
                                           OSModuleHandle Module) {
+  std::unique_lock<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
   if (!is_host()) {
@@ -205,6 +211,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
 
 void program_impl::build_with_source(string_class KernelSource,
                                      string_class BuildOptions) {
+  std::unique_lock<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -215,6 +222,7 @@ void program_impl::build_with_source(string_class KernelSource,
 }
 
 void program_impl::link(string_class LinkOptions) {
+  std::unique_lock<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
