@@ -72,8 +72,7 @@ class LLVM_ZeroResultOp<string mnemonic, list<OpTrait> traits = []> :
 // Base class for LLVM terminator operations.  All terminator operations have
 // zero results and an optional list of successors.
 class LLVM_TerminatorOp<string mnemonic, list<OpTrait> traits = []> :
-    LLVM_Op<mnemonic, !listconcat(traits, [Terminator])>,
-    Arguments<(ins Variadic<LLVM_Type>:$args)>, Results<(outs)> {
+    LLVM_Op<mnemonic, !listconcat(traits, [Terminator])> {
   let builders = [
     OpBuilder<
       "Builder *, OperationState &result, "
@@ -320,15 +319,10 @@ def LLVM_InvokeOp : LLVM_Op<"invoke", [Terminator]>,
                     Arguments<(ins OptionalAttr<FlatSymbolRefAttr>:$callee,
                                Variadic<LLVM_Type>)>,
                     Results<(outs Variadic<LLVM_Type>)> {
+  let successors = (successor AnySuccessor:$normalDest,
+                              AnySuccessor:$unwindDest);
+
   let builders = [OpBuilder<
-    "Builder *b, OperationState &result, ArrayRef<Type> tys, "
-    "FlatSymbolRefAttr callee, ValueRange ops, Block* normal, "
-    "ValueRange normalOps, Block* unwind, ValueRange unwindOps",
-    [{
-      result.addAttribute("callee", callee);
-      build(b, result, tys, ops, normal, normalOps, unwind, unwindOps);
-    }]>,
-    OpBuilder<
     "Builder *b, OperationState &result, ArrayRef<Type> tys, "
     "ValueRange ops, Block* normal, "
     "ValueRange normalOps, Block* unwind, ValueRange unwindOps",
@@ -460,19 +454,16 @@ def LLVM_SelectOp
 
 // Terminators.
 def LLVM_BrOp : LLVM_TerminatorOp<"br", []> {
-  let parser = [{ return parseBrOp(parser, result); }];
-  let printer = [{ printBrOp(p, *this); }];
+  let successors = (successor AnySuccessor:$dest);
+  let assemblyFormat = "$dest attr-dict";
 }
 def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br", []> {
-  let verifier = [{
-    if (getNumSuccessors() != 2)
-      return emitOpError("expected exactly two successors");
-    return success();
-  }];
-  let parser = [{ return parseCondBrOp(parser, result); }];
-  let printer = [{ printCondBrOp(p, *this); }];
+  let arguments = (ins LLVMI1:$condition);
+  let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
+  let assemblyFormat = "$condition `,` successors attr-dict";
 }
-def LLVM_ReturnOp : LLVM_TerminatorOp<"return", []> {
+def LLVM_ReturnOp : LLVM_TerminatorOp<"return", []>,
+                    Arguments<(ins Variadic<LLVM_Type>:$args)> {
   string llvmBuilder = [{
     if ($_numOperands != 0)
       builder.CreateRet($args[0]);
@@ -701,84 +692,34 @@ def LLVM_ConstantOp
 // "intr." to avoid potential name clashes.
 
 class LLVM_UnaryIntrinsicOp<string func, list<OpTrait> traits = []> :
-    LLVM_OneResultOp<"intr." # func,
+    LLVM_OneResultIntrOp<func, [], [0],
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
-    Arguments<(ins LLVM_Type:$in)>,
-    LLVM_Builder<"$res = builder.CreateCall(llvm::Intrinsic::getDeclaration("
-      "builder.GetInsertBlock()->getModule(), llvm::Intrinsic::" # func # ","
-      "{$in->getType()}), {$in});"> {
-}
+    Arguments<(ins LLVM_Type:$in)>;
 
 class LLVM_BinarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
-    LLVM_OneResultOp<"intr." # func,
+    LLVM_OneResultIntrOp<func, [], [0],
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
-    Arguments<(ins LLVM_Type:$a, LLVM_Type:$b)>,
-    LLVM_Builder<"$res = builder.CreateCall(llvm::Intrinsic::getDeclaration("
-      "builder.GetInsertBlock()->getModule(), llvm::Intrinsic::" # func # ","
-      "{$a->getType()}), {$a, $b});"> {
-}
+    Arguments<(ins LLVM_Type:$a, LLVM_Type:$b)>;
 
 class LLVM_TernarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
-    LLVM_OneResultOp<"intr." # func,
+    LLVM_OneResultIntrOp<func, [], [0],
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
-    Arguments<(ins LLVM_Type:$a, LLVM_Type:$b, LLVM_Type:$c)>,
-    LLVM_Builder<"$res = builder.CreateCall(llvm::Intrinsic::getDeclaration("
-      "builder.GetInsertBlock()->getModule(), llvm::Intrinsic::" # func # ","
-      "{$a->getType()}), {$a, $b, $c});"> {
-}
+    Arguments<(ins LLVM_Type:$a, LLVM_Type:$b, LLVM_Type:$c)>;
 
+def LLVM_CopySignOp : LLVM_BinarySameArgsIntrinsicOp<"copysign">;
+def LLVM_CosOp : LLVM_UnaryIntrinsicOp<"cos">;
 def LLVM_ExpOp : LLVM_UnaryIntrinsicOp<"exp">;
 def LLVM_FAbsOp : LLVM_UnaryIntrinsicOp<"fabs">;
 def LLVM_FCeilOp : LLVM_UnaryIntrinsicOp<"ceil">;
-def LLVM_CosOp : LLVM_UnaryIntrinsicOp<"cos">;
-def LLVM_CopySignOp : LLVM_BinarySameArgsIntrinsicOp<"copysign">;
 def LLVM_FMAOp : LLVM_TernarySameArgsIntrinsicOp<"fma">;
 def LLVM_FMulAddOp : LLVM_TernarySameArgsIntrinsicOp<"fmuladd">;
-def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
-
-def LLVM_LogOp : LLVM_Op<"intr.log", [NoSideEffect]>,
-                   Arguments<(ins LLVM_Type:$in)>,
-                   Results<(outs LLVM_Type:$res)> {
-  let llvmBuilder = [{
-    llvm::Module *module = builder.GetInsertBlock()->getModule();
-    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
-        module, llvm::Intrinsic::log, {$in->getType()});
-    $res = builder.CreateCall(fn, {$in});
-  }];
-}
-
-def LLVM_Log10Op : LLVM_Op<"intr.log10", [NoSideEffect]>,
-                   Arguments<(ins LLVM_Type:$in)>,
-                   Results<(outs LLVM_Type:$res)> {
-  let llvmBuilder = [{
-    llvm::Module *module = builder.GetInsertBlock()->getModule();
-    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
-        module, llvm::Intrinsic::log10, {$in->getType()});
-    $res = builder.CreateCall(fn, {$in});
-  }];
-}
-
-def LLVM_Log2Op : LLVM_Op<"intr.log2", [NoSideEffect]>,
-                   Arguments<(ins LLVM_Type:$in)>,
-                   Results<(outs LLVM_Type:$res)> {
-  let llvmBuilder = [{
-    llvm::Module *module = builder.GetInsertBlock()->getModule();
-    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
-        module, llvm::Intrinsic::log2, {$in->getType()});
-    $res = builder.CreateCall(fn, {$in});
-  }];
-}
-
-def LLVM_Prefetch : LLVM_ZeroResultOp<"intr.prefetch">,
+def LLVM_Log10Op : LLVM_UnaryIntrinsicOp<"log10">;
+def LLVM_Log2Op : LLVM_UnaryIntrinsicOp<"log2">;
+def LLVM_LogOp : LLVM_UnaryIntrinsicOp<"log">;
+def LLVM_Prefetch : LLVM_ZeroResultIntrOp<"prefetch", [0]>,
                     Arguments<(ins LLVM_Type:$addr, LLVM_Type:$rw,
-                    LLVM_Type:$hint, LLVM_Type:$cache)> {
-  let llvmBuilder = [{
-    llvm::Module *module = builder.GetInsertBlock()->getModule();
-    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
-        module, llvm::Intrinsic::prefetch, $addr->getType());
-    builder.CreateCall(fn, {$addr, $rw, $hint, $cache});
-  }];
-}
+                               LLVM_Type:$hint, LLVM_Type:$cache)>;
+def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
 
 //
 // Vector Reductions.
@@ -868,6 +809,16 @@ def LLVM_AtomicCmpXchgOp : LLVM_Op<"cmpxchg">,
   let parser = [{ return parseAtomicCmpXchgOp(parser, result); }];
   let printer = [{ printAtomicCmpXchgOp(p, *this); }];
   let verifier = "return ::verify(*this);";
+}
+
+def LLVM_AssumeOp : LLVM_Op<"intr.assume", []>,
+                    Arguments<(ins LLVM_Type:$cond)> {
+  let llvmBuilder = [{
+    llvm::Module *module = builder.GetInsertBlock()->getModule();
+    llvm::Function *fn =
+        llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::assume, {});
+    builder.CreateCall(fn, {$cond});
+  }];
 }
 
 #endif // LLVMIR_OPS

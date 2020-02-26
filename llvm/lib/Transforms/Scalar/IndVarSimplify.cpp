@@ -102,8 +102,10 @@ STATISTIC(NumElimIV      , "Number of congruent IVs eliminated");
 // implement a strong expression equivalence checker in SCEV. Until then, we
 // use the verify-indvars flag, which may assert in some cases.
 static cl::opt<bool> VerifyIndvars(
-  "verify-indvars", cl::Hidden,
-  cl::desc("Verify the ScalarEvolution result after running indvars"));
+    "verify-indvars", cl::Hidden,
+    cl::desc("Verify the ScalarEvolution result after running indvars. Has no "
+             "effect in release builds. (Note: this adds additional SCEV "
+             "queries potentially changing the analysis result)"));
 
 static cl::opt<ReplaceExitVal> ReplaceExitValue(
     "replexitval", cl::Hidden, cl::init(OnlyCheapRepl),
@@ -1657,8 +1659,8 @@ bool IndVarSimplify::simplifyAndExtend(Loop *L,
       // Information about sign/zero extensions of CurrIV.
       IndVarSimplifyVisitor Visitor(CurrIV, SE, TTI, DT);
 
-      Changed |=
-          simplifyUsersOfIV(CurrIV, SE, DT, LI, DeadInsts, Rewriter, &Visitor);
+      Changed |= simplifyUsersOfIV(CurrIV, SE, DT, LI, TTI, DeadInsts, Rewriter,
+                                   &Visitor);
 
       if (Visitor.WI.WidestNativeType) {
         WideIVs.push_back(Visitor.WI);
@@ -2663,7 +2665,12 @@ bool IndVarSimplify::run(Loop *L) {
 
 #ifndef NDEBUG
   // Used below for a consistency check only
-  const SCEV *BackedgeTakenCount = SE->getBackedgeTakenCount(L);
+  // Note: Since the result returned by ScalarEvolution may depend on the order
+  // in which previous results are added to its cache, the call to
+  // getBackedgeTakenCount() may change following SCEV queries.
+  const SCEV *BackedgeTakenCount;
+  if (VerifyIndvars)
+    BackedgeTakenCount = SE->getBackedgeTakenCount(L);
 #endif
 
   bool Changed = false;
@@ -2691,7 +2698,7 @@ bool IndVarSimplify::run(Loop *L) {
   // loop into any instructions outside of the loop that use the final values
   // of the current expressions.
   if (ReplaceExitValue != NeverRepl) {
-    if (int Rewrites = rewriteLoopExitValues(L, LI, TLI, SE, Rewriter, DT,
+    if (int Rewrites = rewriteLoopExitValues(L, LI, TLI, SE, TTI, Rewriter, DT,
                                              ReplaceExitValue, DeadInsts)) {
       NumReplaced += Rewrites;
       Changed = true;
@@ -2719,6 +2726,9 @@ bool IndVarSimplify::run(Loop *L) {
   // If we have a trip count expression, rewrite the loop's exit condition
   // using it.
   if (!DisableLFTR) {
+    BasicBlock *PreHeader = L->getLoopPreheader();
+    BranchInst *PreHeaderBR = cast<BranchInst>(PreHeader->getTerminator());
+
     SmallVector<BasicBlock*, 16> ExitingBlocks;
     L->getExitingBlocks(ExitingBlocks);
     for (BasicBlock *ExitingBB : ExitingBlocks) {
@@ -2752,7 +2762,8 @@ bool IndVarSimplify::run(Loop *L) {
 
       // Avoid high cost expansions.  Note: This heuristic is questionable in
       // that our definition of "high cost" is not exactly principled.
-      if (Rewriter.isHighCostExpansion(ExitCount, L))
+      if (Rewriter.isHighCostExpansion(ExitCount, L, SCEVCheapExpansionBudget,
+                                       TTI, PreHeaderBR))
         continue;
 
       // Check preconditions for proper SCEVExpander operation. SCEV does not

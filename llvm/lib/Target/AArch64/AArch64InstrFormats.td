@@ -22,13 +22,27 @@ def NormalFrm   : Format<1>; // Do we need any others?
 
 // Enum describing whether an instruction is
 // destructive in its first source operand.
-class DestructiveInstTypeEnum<bits<1> val> {
-  bits<1> Value = val;
+class DestructiveInstTypeEnum<bits<4> val> {
+  bits<4> Value = val;
 }
-def NotDestructive       : DestructiveInstTypeEnum<0>;
+def NotDestructive                : DestructiveInstTypeEnum<0>;
 // Destructive in its first operand and can be MOVPRFX'd, but has no other
 // special properties.
-def DestructiveOther     : DestructiveInstTypeEnum<1>;
+def DestructiveOther              : DestructiveInstTypeEnum<1>;
+def DestructiveUnary              : DestructiveInstTypeEnum<2>;
+def DestructiveBinaryImm          : DestructiveInstTypeEnum<3>;
+def DestructiveBinaryShImmUnpred  : DestructiveInstTypeEnum<4>;
+def DestructiveBinary             : DestructiveInstTypeEnum<5>;
+def DestructiveBinaryComm         : DestructiveInstTypeEnum<6>;
+def DestructiveBinaryCommWithRev  : DestructiveInstTypeEnum<7>;
+def DestructiveTernaryCommWithRev : DestructiveInstTypeEnum<8>;
+
+class FalseLanesEnum<bits<2> val> {
+  bits<2> Value = val;
+}
+def FalseLanesNone  : FalseLanesEnum<0>;
+def FalseLanesZero  : FalseLanesEnum<1>;
+def FalseLanesUndef : FalseLanesEnum<2>;
 
 // AArch64 Instruction Format
 class AArch64Inst<Format f, string cstr> : Instruction {
@@ -46,10 +60,12 @@ class AArch64Inst<Format f, string cstr> : Instruction {
   bits<2> Form    = F.Value;
 
   // Defaults
+  FalseLanesEnum FalseLanes = FalseLanesNone;
   DestructiveInstTypeEnum DestructiveInstType = NotDestructive;
   ElementSizeEnum ElementSize = ElementSizeNone;
 
-  let TSFlags{3} = DestructiveInstType.Value;
+  let TSFlags{8-7} = FalseLanes.Value;
+  let TSFlags{6-3} = DestructiveInstType.Value;
   let TSFlags{2-0} = ElementSize.Value;
 
   let Pattern     = [];
@@ -66,6 +82,7 @@ class Pseudo<dag oops, dag iops, list<dag> pattern, string cstr = "">
   dag InOperandList  = iops;
   let Pattern        = pattern;
   let isCodeGenOnly  = 1;
+  let isPseudo       = 1;
 }
 
 // Real instructions (have encoding information)
@@ -328,6 +345,18 @@ def simm5_64b : Operand<i64>, ImmLeaf<i64, [{ return Imm >= -16 && Imm < 16; }]>
 def simm5_32b : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -16 && Imm < 16; }]> {
   let ParserMatchClass = SImm5Operand;
   let DecoderMethod = "DecodeSImm<5>";
+}
+
+def simm5_8b : Operand<i32>, ImmLeaf<i32, [{ return (int8_t)Imm >= -16 && (int8_t)Imm < 16; }]> {
+  let ParserMatchClass = SImm5Operand;
+  let DecoderMethod = "DecodeSImm<5>";
+  let PrintMethod = "printSImm<8>";
+}
+
+def simm5_16b : Operand<i32>, ImmLeaf<i32, [{ return (int16_t)Imm >= -16 && (int16_t)Imm < 16; }]> {
+  let ParserMatchClass = SImm5Operand;
+  let DecoderMethod = "DecodeSImm<5>";
+  let PrintMethod = "printSImm<16>";
 }
 
 // simm7sN predicate - True if the immediate is a multiple of N in the range

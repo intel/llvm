@@ -162,49 +162,54 @@ function(add_llvm_symbol_exports target_name export_file)
   set(LLVM_COMMON_DEPENDS ${LLVM_COMMON_DEPENDS} PARENT_SCOPE)
 endfunction(add_llvm_symbol_exports)
 
-if(APPLE)
-  execute_process(
-    COMMAND "${CMAKE_LINKER}" -v
-    ERROR_VARIABLE stderr
-    )
-  set(LLVM_LINKER_DETECTED YES)
-  if("${stderr}" MATCHES "PROJECT:ld64")
-    set(LLVM_LINKER_IS_LD64 YES)
-    message(STATUS "Linker detection: ld64")
-  else()
-    set(LLVM_LINKER_DETECTED NO)
-    message(STATUS "Linker detection: unknown")
-  endif()
-elseif(NOT WIN32)
-  # Detect what linker we have here
-  if( LLVM_USE_LINKER )
-    set(command ${CMAKE_C_COMPILER} -fuse-ld=${LLVM_USE_LINKER} -Wl,--version)
-  else()
-    separate_arguments(flags UNIX_COMMAND "${CMAKE_EXE_LINKER_FLAGS}")
-    set(command ${CMAKE_C_COMPILER} ${flags} -Wl,--version)
-  endif()
-  execute_process(
-    COMMAND ${command}
-    OUTPUT_VARIABLE stdout
-    ERROR_VARIABLE stderr
-    )
-  set(LLVM_LINKER_DETECTED YES)
-  if("${stdout}" MATCHES "GNU gold")
-    set(LLVM_LINKER_IS_GOLD YES)
-    message(STATUS "Linker detection: GNU Gold")
-  elseif("${stdout}" MATCHES "^LLD")
-    set(LLVM_LINKER_IS_LLD YES)
-    message(STATUS "Linker detection: LLD")
-  elseif("${stdout}" MATCHES "GNU ld")
-    set(LLVM_LINKER_IS_GNULD YES)
-    message(STATUS "Linker detection: GNU ld")
-  elseif("${stderr}" MATCHES "Solaris Link Editors" OR
-         "${stdout}" MATCHES "Solaris Link Editors")
-    set(LLVM_LINKER_IS_SOLARISLD YES)
-    message(STATUS "Linker detection: Solaris ld")
-  else()
-    set(LLVM_LINKER_DETECTED NO)
-    message(STATUS "Linker detection: unknown")
+if (NOT DEFINED LLVM_LINKER_DETECTED)
+  if(APPLE)
+    execute_process(
+      COMMAND "${CMAKE_LINKER}" -v
+      ERROR_VARIABLE stderr
+      )
+    if("${stderr}" MATCHES "PROJECT:ld64")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_LD64 YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: ld64")
+    else()
+      set(LLVM_LINKER_DETECTED NO CACHE INTERNAL "")
+      message(STATUS "Linker detection: unknown")
+    endif()
+  elseif(NOT WIN32)
+    # Detect what linker we have here
+    if( LLVM_USE_LINKER )
+      set(command ${CMAKE_C_COMPILER} -fuse-ld=${LLVM_USE_LINKER} -Wl,--version)
+    else()
+      separate_arguments(flags UNIX_COMMAND "${CMAKE_EXE_LINKER_FLAGS}")
+      set(command ${CMAKE_C_COMPILER} ${flags} -Wl,--version)
+    endif()
+    execute_process(
+      COMMAND ${command}
+      OUTPUT_VARIABLE stdout
+      ERROR_VARIABLE stderr
+      )
+    if("${stdout}" MATCHES "GNU gold")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_GOLD YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: GNU Gold")
+    elseif("${stdout}" MATCHES "^LLD")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_LLD YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: LLD")
+    elseif("${stdout}" MATCHES "GNU ld")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_GNULD YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: GNU ld")
+    elseif("${stderr}" MATCHES "Solaris Link Editors" OR
+           "${stdout}" MATCHES "Solaris Link Editors")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_SOLARISLD YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: Solaris ld")
+    else()
+      set(LLVM_LINKER_DETECTED NO CACHE INTERNAL "")
+      message(STATUS "Linker detection: unknown")
+    endif()
   endif()
 endif()
 
@@ -854,14 +859,25 @@ endmacro(add_llvm_executable name)
 #
 #   If NO_MODULE is specified, when option LLVM_${name_upper}_LINK_INTO_TOOLS is set to OFF,
 #   only an object library is built, and no module is built. This is specific to the Polly use case.
+#
+#   The SUBPROJECT argument contains the LLVM project the plugin belongs
+#   to. If set, the plugin will link statically by default it if the 
+#   project was enabled.
 function(add_llvm_pass_plugin name)
   cmake_parse_arguments(ARG
-    "NO_MODULE" "" ""
+    "NO_MODULE" "SUBPROJECT" ""
     ${ARGN})
 
   string(TOUPPER ${name} name_upper)
 
-  option(LLVM_${name_upper}_LINK_INTO_TOOLS "Statically link ${name} into tools (if available)" OFF)
+  # Enable the plugin by default if it was explicitly enabled by the user.
+  # Note: If was set to "all", LLVM's CMakeLists.txt replaces it with a
+  # list of all projects, counting as explicitly enabled.
+  set(link_into_tools_default OFF)
+  if (ARG_SUBPROJECT AND LLVM_TOOL_${name_upper}_BUILD)
+    set(link_into_tools_default ON)
+  endif()
+  option(LLVM_${name_upper}_LINK_INTO_TOOLS "Statically link ${name} into tools (if available)" ${link_into_tools_default})
 
   if(LLVM_${name_upper}_LINK_INTO_TOOLS)
     list(REMOVE_ITEM ARG_UNPARSED_ARGUMENTS BUILDTREE_ONLY)
@@ -873,63 +889,62 @@ function(add_llvm_pass_plugin name)
     if (TARGET intrinsics_gen)
       add_dependencies(obj.${name} intrinsics_gen)
     endif()
-    message(STATUS "Registering ${name} as a pass plugin (static build: ${LLVM_${name_upper}_LINK_INTO_TOOLS})")
-    set_property(GLOBAL APPEND PROPERTY LLVM_COMPILE_EXTENSIONS ${name})
+    set_property(GLOBAL APPEND PROPERTY LLVM_STATIC_EXTENSIONS ${name})
   elseif(NOT ARG_NO_MODULE)
     add_llvm_library(${name} MODULE ${ARG_UNPARSED_ARGUMENTS})
   else()
     add_llvm_library(${name} OBJECT ${ARG_UNPARSED_ARGUMENTS})
   endif()
+  message(STATUS "Registering ${name} as a pass plugin (static build: ${LLVM_${name_upper}_LINK_INTO_TOOLS})")
 
 endfunction(add_llvm_pass_plugin)
 
-# process_llvm_pass_plugins([NO_GEN])
+# process_llvm_pass_plugins([GEN_CONFIG])
 #
 # Correctly set lib dependencies between plugins and tools, based on tools
 # registered with the ENABLE_PLUGINS option.
 #
-# Unless NO_GEN option is set, also generate X Macro file for extension
+# if GEN_CONFIG option is set, also generate X Macro file for extension
 # handling. It provides a HANDLE_EXTENSION(extension_namespace, ExtensionProject)
 # call for each extension allowing client code to define
 # HANDLE_EXTENSION to have a specific code be run for each extension.
 #
 function(process_llvm_pass_plugins)
   cmake_parse_arguments(ARG
-      "NO_GEN" "" ""
+      "GEN_CONFIG" "" ""
     ${ARGN})
 
-  # Add static plugins to each plugin target.
-  get_property(LLVM_EXTENSIONS GLOBAL PROPERTY LLVM_COMPILE_EXTENSIONS)
-  foreach(llvm_extension ${LLVM_EXTENSIONS})
-    string(TOUPPER ${llvm_extension} llvm_extension_upper)
-    string(TOLOWER ${llvm_extension} llvm_extension_lower)
+  if(ARG_GEN_CONFIG)
+      get_property(LLVM_STATIC_EXTENSIONS GLOBAL PROPERTY LLVM_STATIC_EXTENSIONS)
+  else()
+      include(LLVMConfigExtensions)
+  endif()
 
-    if(LLVM_${llvm_extension_upper}_LINK_INTO_TOOLS)
-      get_property(llvm_plugin_targets GLOBAL PROPERTY LLVM_PLUGIN_TARGETS)
-      foreach(llvm_plugin_target ${llvm_plugin_targets})
-        set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY LINK_LIBRARIES ${llvm_extension})
-        set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY INTERFACE_LINK_LIBRARIES ${llvm_extension})
-      endforeach()
-    else()
-      add_llvm_library(${llvm_extension_lower} MODULE obj.${llvm_extension_lower})
-    endif()
+  # Add static plugins to each plugin target.
+  foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
+    get_property(llvm_plugin_targets GLOBAL PROPERTY LLVM_PLUGIN_TARGETS)
+    foreach(llvm_plugin_target ${llvm_plugin_targets})
+      set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY LINK_LIBRARIES ${llvm_extension})
+      set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY INTERFACE_LINK_LIBRARIES ${llvm_extension})
+    endforeach()
   endforeach()
 
-  # Eventually generate the extension header.
-  if(NOT ARG_NO_GEN)
+  # Eventually generate the extension header, and store config to a cmake file
+  # for usage in third-party configuration.
+  if(ARG_GEN_CONFIG)
+      set(LLVM_INSTALL_PACKAGE_DIR lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm)
+      set(llvm_cmake_builddir "${LLVM_BINARY_DIR}/${LLVM_INSTALL_PACKAGE_DIR}")
+      file(WRITE
+          "${llvm_cmake_builddir}/LLVMConfigExtensions.cmake"
+          "set(LLVM_STATIC_EXTENSIONS ${LLVM_STATIC_EXTENSIONS})")
+      install(FILES
+          ${llvm_cmake_builddir}/LLVMConfigExtensions.cmake
+          DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
+          COMPONENT cmake-exports)
+
       file(WRITE "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "//extension handlers\n")
-      foreach(llvm_extension ${LLVM_EXTENSIONS})
-        string(TOLOWER ${llvm_extension} llvm_extension_lower)
-
-        string(TOUPPER ${llvm_extension} llvm_extension_upper)
-        string(SUBSTRING ${llvm_extension_upper} 0 1 llvm_extension_upper_first)
-        string(SUBSTRING ${llvm_extension_lower} 1 -1 llvm_extension_lower_tail)
-        string(CONCAT llvm_extension_project ${llvm_extension_upper_first} ${llvm_extension_lower_tail})
-
-        if(LLVM_${llvm_extension_upper}_LINK_INTO_TOOLS)
-          file(APPEND "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "HANDLE_EXTENSION(${llvm_extension_project})\n")
-        endif()
-
+      foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
+        file(APPEND "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "HANDLE_EXTENSION(${llvm_extension})\n")
       endforeach()
       file(APPEND "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "#undef HANDLE_EXTENSION\n")
 
@@ -1017,6 +1032,7 @@ endfunction()
 if(NOT LLVM_TOOLCHAIN_TOOLS)
   set (LLVM_TOOLCHAIN_TOOLS
     llvm-ar
+    llvm-cov
     llvm-cxxfilt
     llvm-ranlib
     llvm-lib

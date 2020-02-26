@@ -20,8 +20,7 @@ class LibcxxStringDataFormatterTestCase(TestBase):
         TestBase.setUp(self)
         # Find the line number to break at.
         self.line = line_number('main.cpp', '// Set break point at this line.')
-        ns = 'ndk' if lldbplatformutil.target_is_android() else ''
-        self.namespace = 'std::__' + ns + '1'
+        self.namespace = 'std'
 
     @add_test_categories(["libc++"])
     @expectedFailureAll(bugnumber="llvm.org/pr36109", debug_info="gmodules", triple=".*-android")
@@ -117,7 +116,9 @@ class LibcxxStringDataFormatterTestCase(TestBase):
                 '%s::allocator<unsigned char> >) uchar = "aaaaa"'%(ns,ns,ns),
         ])
 
-        if is_64_bit:
+        # The test assumes that std::string is in its cap-size-data layout.
+        is_alternate_layout = ('arm' in self.getArchitecture()) and self.platformIsDarwin()
+        if is_64_bit and not is_alternate_layout:
             self.expect("frame variable garbage1", substrs=['garbage1 = Summary Unavailable'])
             self.expect("frame variable garbage2", substrs=['garbage2 = Summary Unavailable'])
             self.expect("frame variable garbage3", substrs=['garbage3 = Summary Unavailable'])

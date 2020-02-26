@@ -13,7 +13,7 @@
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
@@ -285,7 +285,7 @@ private:
     Value subgroupSize = create<ConstantIntOp>(kSubgroupSize, int32Type);
     Value isPartialSubgroup =
         create<CmpIOp>(CmpIPredicate::slt, activeWidth, subgroupSize);
-    SmallVector<Type, 2> shuffleType = {valueType, rewriter.getI1Type()};
+    std::array<Type, 2> shuffleType = {valueType, rewriter.getI1Type()};
     auto xorAttr = rewriter.getStringAttr("xor");
 
     createIf(

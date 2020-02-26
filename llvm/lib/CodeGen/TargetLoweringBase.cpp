@@ -660,7 +660,9 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::UMULFIX, VT, Expand);
     setOperationAction(ISD::UMULFIXSAT, VT, Expand);
     setOperationAction(ISD::SDIVFIX, VT, Expand);
+    setOperationAction(ISD::SDIVFIXSAT, VT, Expand);
     setOperationAction(ISD::UDIVFIX, VT, Expand);
+    setOperationAction(ISD::UDIVFIXSAT, VT, Expand);
 
     // Overflow operations default to expand
     setOperationAction(ISD::SADDO, VT, Expand);
@@ -1066,7 +1068,7 @@ TargetLoweringBase::emitPatchPoint(MachineInstr &InitialMI,
           MF.getDataLayout().getPointerSize(), MFI.getObjectAlignment(FI));
       MIB->addMemOperand(MF, MMO);
     }
-    
+
     // Replace the instruction and update the operand index.
     MBB->insert(MachineBasicBlock::iterator(MI), MIB);
     OperIdx += (MIB->getNumOperands() - MI->getNumOperands()) - 1;

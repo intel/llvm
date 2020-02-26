@@ -1456,6 +1456,24 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
   return DeviceDiagBuilder(DiagKind, Loc, DiagID, FD, *this);
 }
 
+void Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
+  assert(Callee && "Callee may not be null.");
+
+  // Errors in unevaluated context don't need to be generated,
+  // so we can safely skip them.
+  if (isUnevaluatedContext())
+    return;
+
+  FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
+
+  // If the caller is known-emitted, mark the callee as known-emitted.
+  // Otherwise, mark the call in our call graph so we can traverse it later.
+  if (Caller && isKnownEmitted(*this, Caller))
+    markKnownEmitted(*this, Caller, Callee, Loc, isKnownEmitted);
+  else if (Caller)
+    DeviceCallGraph[Caller].insert({Callee, Loc});
+}
+
 // -----------------------------------------------------------------------------
 // Integration header functionality implementation
 // -----------------------------------------------------------------------------

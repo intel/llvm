@@ -207,7 +207,7 @@ public:
   bool
   getMemOperandsWithOffset(const MachineInstr &LdSt,
                            SmallVectorImpl<const MachineOperand *> &BaseOps,
-                           int64_t &Offset,
+                           int64_t &Offset, bool &OffsetIsScalable,
                            const TargetRegisterInfo *TRI) const override;
 
   /// Reverses the branch condition of the specified condition list,
@@ -465,7 +465,7 @@ public:
   short getRegForm(const MachineInstr &MI) const;
   unsigned getSize(const MachineInstr &MI) const;
   uint64_t getType(const MachineInstr &MI) const;
-  unsigned getUnits(const MachineInstr &MI) const;
+  InstrStage::FuncUnits getUnits(const MachineInstr &MI) const;
 
   MachineBasicBlock::instr_iterator expandVGatherPseudo(MachineInstr &MI) const;
 

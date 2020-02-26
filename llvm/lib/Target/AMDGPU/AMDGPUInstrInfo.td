@@ -151,7 +151,7 @@ def AMDGPUfmax_legacy : SDNode<"AMDGPUISD::FMAX_LEGACY", SDTFPBinOp,
   []
 >;
 
-def AMDGPUfmul_legacy : SDNode<"AMDGPUISD::FMUL_LEGACY", SDTFPBinOp,
+def AMDGPUfmul_legacy_impl : SDNode<"AMDGPUISD::FMUL_LEGACY", SDTFPBinOp,
   [SDNPCommutative, SDNPAssociative]
 >;
 
@@ -278,8 +278,8 @@ def AMDGPUatomic_cmp_swap : SDNode<"AMDGPUISD::ATOMIC_CMP_SWAP",
 def AMDGPUround : SDNode<"ISD::FROUND",
                          SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisSameAs<0,1>]>>;
 
-def AMDGPUbfe_u32 : SDNode<"AMDGPUISD::BFE_U32", AMDGPUDTIntTernaryOp>;
-def AMDGPUbfe_i32 : SDNode<"AMDGPUISD::BFE_I32", AMDGPUDTIntTernaryOp>;
+def AMDGPUbfe_u32_impl : SDNode<"AMDGPUISD::BFE_U32", AMDGPUDTIntTernaryOp>;
+def AMDGPUbfe_i32_impl : SDNode<"AMDGPUISD::BFE_I32", AMDGPUDTIntTernaryOp>;
 def AMDGPUbfi : SDNode<"AMDGPUISD::BFI", AMDGPUDTIntTernaryOp>;
 def AMDGPUbfm : SDNode<"AMDGPUISD::BFM", SDTIntBinOp>;
 
@@ -321,7 +321,7 @@ def AMDGPUumed3 : SDNode<"AMDGPUISD::UMED3", AMDGPUDTIntTernaryOp,
 
 def AMDGPUfmed3_impl : SDNode<"AMDGPUISD::FMED3", SDTFPTernaryOp, []>;
 
-def AMDGPUfdot2 : SDNode<"AMDGPUISD::FDOT2",
+def AMDGPUfdot2_impl : SDNode<"AMDGPUISD::FDOT2",
                   SDTypeProfile<1, 4, [SDTCisSameAs<0, 3>, SDTCisSameAs<1, 2>,
                                        SDTCisFP<0>, SDTCisVec<1>,
                                        SDTCisInt<4>]>,
@@ -460,3 +460,19 @@ def AMDGPUmul_u24 : PatFrags<(ops node:$src0, node:$src1),
 def AMDGPUmul_i24 : PatFrags<(ops node:$src0, node:$src1),
   [(int_amdgcn_mul_i24 node:$src0, node:$src1),
    (AMDGPUmul_i24_impl node:$src0, node:$src1)]>;
+
+def AMDGPUbfe_i32 : PatFrags<(ops node:$src0, node:$src1, node:$src2),
+  [(int_amdgcn_sbfe node:$src0, node:$src1, node:$src2),
+   (AMDGPUbfe_i32_impl node:$src0, node:$src1, node:$src2)]>;
+
+def AMDGPUbfe_u32 : PatFrags<(ops node:$src0, node:$src1, node:$src2),
+  [(int_amdgcn_ubfe node:$src0, node:$src1, node:$src2),
+   (AMDGPUbfe_u32_impl node:$src0, node:$src1, node:$src2)]>;
+
+def AMDGPUfmul_legacy : PatFrags<(ops node:$src0, node:$src1),
+  [(int_amdgcn_fmul_legacy node:$src0, node:$src1),
+   (AMDGPUfmul_legacy_impl node:$src0, node:$src1)]>;
+
+def AMDGPUfdot2 : PatFrags<(ops node:$src0, node:$src1, node:$src2, node:$clamp),
+  [(int_amdgcn_fdot2 node:$src0, node:$src1, node:$src2, node:$clamp),
+   (AMDGPUfdot2_impl node:$src0, node:$src1, node:$src2, node:$clamp)]>;
