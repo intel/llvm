@@ -52,6 +52,7 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
   }
+
 private:
   cl_command_queue MQueue;
   std::vector<ReqToMem> MMemObjs;
