@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
     - sycl
-    types: [open, edit, reopen, synchronize]
 
 jobs:
   build:
@@ -22,7 +21,7 @@ jobs:
 
     - name: Run clang-format for the patch
       run: |
-        git diff -U0 --no-color origin/${{github.base_ref}}..HEAD | ./clang/tools/clang-format/clang-format-diff.py -p1 -binary clang-format-9 > ./clang-format.patch
+        git diff -U0 --no-color origin/${{github.base_ref}}...HEAD | ./clang/tools/clang-format/clang-format-diff.py -p1 -binary clang-format-9 > ./clang-format.patch
 
     # Add patch with formatting fixes to CI job artifacts
     - uses: actions/upload-artifact@v1
