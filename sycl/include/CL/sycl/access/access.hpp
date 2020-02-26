@@ -76,29 +76,6 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_PRIVATE_AS__
 #endif
 
-template <typename dataT, access::target accessTarget>
-struct DeviceValueType;
-
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::global_buffer> {
-  using type = __OPENCL_GLOBAL_AS__ dataT;
-};
-
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::constant_buffer> {
-  using type = __OPENCL_CONSTANT_AS__ dataT;
-};
-
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::local> {
-  using type = __OPENCL_LOCAL_AS__ dataT;
-};
-
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::host_buffer> {
-  using type = dataT;
-};
-
 template <access::target accessTarget> struct TargetToAS {
   constexpr static access::address_space AS =
       access::address_space::global_space;
