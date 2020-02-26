@@ -3,7 +3,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This test checks if the user-defined macros SUCCESS, FAIL, BLOCKED are
-// defined in global namespace by sycl.hpp
+// conflicting with the symbols defined in SYCL header files.
 //===----------------------------------------------------------------------===//
 
 #define SUCCESS 0
