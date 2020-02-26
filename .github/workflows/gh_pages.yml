@@ -1,0 +1,43 @@
+name: Generate Doxygen documentation
+
+on:
+  schedule:
+  - cron: 0 1 * * *
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: sycl
+        path: repo
+    - uses: actions/checkout@v2
+      with:
+        repository: intel/llvm-docs
+        path: docs
+    - name: Install deps
+      run: sudo apt-get install -y doxygen graphviz ssh
+    - name: Build Docs
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
+        -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
+        cmake --build . --target doxygen-sycl
+    - name: Deploy
+      env:
+        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add -k ~/.ssh/id_rsa
+        cd $GITHUB_WORKSPACE/docs
+        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* .
+        git config --global user.name "iclsrc"
+        git config --global user.email "ia.compiler.tools.git@intel.com"
+        git add .
+        git diff-index --quiet HEAD || git commit -m "Update docs" -s
+        git push
