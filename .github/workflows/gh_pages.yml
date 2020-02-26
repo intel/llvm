@@ -23,7 +23,7 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
-        -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release
+        -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
         cmake --build . --target doxygen-sycl
     - name: Deploy
       env:
