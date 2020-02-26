@@ -619,7 +619,7 @@ def int_aarch64_neon_tbx4 : AdvSIMD_Tbx4_Intrinsic;
 
 let TargetPrefix = "aarch64" in {
   class FPCR_Get_Intrinsic
-    : Intrinsic<[llvm_i64_ty], [], [IntrNoMem]>;
+    : Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrHasSideEffects]>;
 }
 
 // FPCR
@@ -1056,6 +1056,13 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
   class AdvSIMD_SVE_TBL_Intrinsic
     : Intrinsic<[llvm_anyvector_ty],
                 [LLVMMatchType<0>,
+                 LLVMVectorOfBitcastsToInt<0>],
+                [IntrNoMem]>;
+
+  class AdvSIMD_SVE2_TBX_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMMatchType<0>,
+                 LLVMMatchType<0>,
                  LLVMVectorOfBitcastsToInt<0>],
                 [IntrNoMem]>;
 
@@ -2073,5 +2080,19 @@ def int_aarch64_sve_sm4ekey : GCCBuiltin<"__builtin_sve_svsm4ekey_u32">,
                               Intrinsic<[llvm_nxv4i32_ty],
                                         [llvm_nxv4i32_ty, llvm_nxv4i32_ty],
                                         [IntrNoMem]>;
+//
+// SVE2 - Extended table lookup/permute
+//
+
+def int_aarch64_sve_tbl2 : AdvSIMD_SVE2_TBX_Intrinsic;
+def int_aarch64_sve_tbx  : AdvSIMD_SVE2_TBX_Intrinsic;
+
+//
+// SVE2 - Optional bit permutation
+//
+
+def int_aarch64_sve_bdep_x : AdvSIMD_2VectorArg_Intrinsic;
+def int_aarch64_sve_bext_x : AdvSIMD_2VectorArg_Intrinsic;
+def int_aarch64_sve_bgrp_x : AdvSIMD_2VectorArg_Intrinsic;
 
 }

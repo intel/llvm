@@ -40,6 +40,7 @@
 #define SPIRV_OCLUTIL_H
 
 #include "SPIRVInternal.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
