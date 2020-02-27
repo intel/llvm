@@ -11,6 +11,39 @@ RPipeTy RPipeCreator();
 template <typename PipeTy>
 void foo(PipeTy Pipe) {}
 
+struct PipeStorageTy {
+  int Size;
+};
+
+// CHECK:  @{{.*}}Storage = {{.*}} !io_pipe_id ![[ID0:[0-9]+]]
+constexpr PipeStorageTy
+    Storage __attribute__((io_pipe_id(1))) = {1};
+
+// CHECK:  @{{.*}}TempStorage{{.*}} = {{.*}} !io_pipe_id ![[ID1:[0-9]+]]
+template <int N>
+constexpr PipeStorageTy
+    TempStorage __attribute__((io_pipe_id(N))) = {2};
+
+void boo(PipeStorageTy PipeStorage);
+
+template <int ID>
+struct ethernet_pipe {
+  static constexpr int id = ID;
+};
+
+// CHECK:  @{{.*}}PipeStorage{{.*}} = {{.*}} !io_pipe_id ![[ID2:[0-9]+]]
+template <typename name>
+class pipe {
+public:
+  static void read() {
+    boo(PipeStorage);
+  }
+
+private:
+  static constexpr PipeStorageTy
+      PipeStorage __attribute__((io_pipe_id(name::id))) = {3};
+};
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -24,7 +57,12 @@ int main() {
     RPipeTy rpipe = RPipeCreator();
     foo<WPipeTy>(wpipe);
     foo<RPipeTy>(rpipe);
+    boo(Storage);
+    boo(TempStorage<2>);
+    pipe<ethernet_pipe<42>>::read();
   });
   return 0;
 }
-
+// CHECK: ![[ID0]] = !{i32 1}
+// CHECK: ![[ID1]] = !{i32 2}
+// CHECK: ![[ID2]] = !{i32 42}
