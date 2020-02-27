@@ -24,7 +24,7 @@ template <int N>
 constexpr PipeStorageTy
     TempStorage __attribute__((io_pipe_id(N))) = {2};
 
-void boo(PipeStorageTy PipeStorage);
+SYCL_EXTERNAL void boo(PipeStorageTy PipeStorage);
 
 template <int ID>
 struct ethernet_pipe {
