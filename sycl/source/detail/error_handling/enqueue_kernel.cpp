@@ -159,17 +159,17 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       }
     }
   }
- 
-// TODO: required number of sub-groups, OpenCL 2.1:
-// CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
-// consistent with the required number of sub-groups for kernel in the
-// program source.
 
-//Fallback
+  // TODO: required number of sub-groups, OpenCL 2.1:
+  // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
+  // consistent with the required number of sub-groups for kernel in the
+  // program source.
+
+  // Fallback
 
   constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
- 	"OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+      "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
 }
 
 bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
