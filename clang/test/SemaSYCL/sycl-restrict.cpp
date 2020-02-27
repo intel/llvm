@@ -91,7 +91,6 @@ typedef struct A {
 
   int fm(void)
   {
-    // expected-error@+2 {{SYCL kernel cannot use a non-const static data variable}}
     // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
     return stat_member;
   }
@@ -164,12 +163,11 @@ int use2 ( a_type ab, a_type *abp ) {
 
   if (ab.constexpr_stat_member) return 2;
   if (ab.const_stat_member) return 1;
-  // expected-error@+2 {{SYCL kernel cannot use a non-const static data variable}}
   // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
   if (ab.stat_member) return 0;
-  // expected-error@+2 {{SYCL kernel cannot use a non-const static data variable}}
   // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
   if (abp->stat_member) return 0;
+  // expected-note@+1 {{called by 'use2'}}
   if (ab.fm()) return 0;
   // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
   return another_global ;
@@ -194,7 +192,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 5{{called by 'kernel_single_task}}
+  // expected-note@+1 7{{called by 'kernel_single_task}}
   use2(ab, p);
 }
 
