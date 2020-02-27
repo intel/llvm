@@ -528,43 +528,57 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                               pi_uint32 *num_platforms) {
 
   try {
-    static constexpr pi_uint32 numPlatforms = 1;
+    static std::once_flag initFlag;
+    static pi_uint32 numPlatforms = 1;
+    static _pi_platform platformId;
+
+    if (num_entries == 0 and platforms != nullptr) {
+      return PI_INVALID_VALUE;
+    }
+    if (platforms == nullptr and num_platforms == nullptr) {
+      return PI_INVALID_VALUE;
+    }
+
+    pi_result err = PI_SUCCESS;
+
+    std::call_once(
+        initFlag,
+        [](pi_result &err) {
+          if (cuInit(0) != CUDA_SUCCESS) {
+            numPlatforms = 0;
+            return;
+          }
+          int numDevices = 0;
+          err = PI_CHECK_ERROR(cuDeviceGetCount(&numDevices));
+          if (numDevices == 0) {
+            numPlatforms = 0;
+            return;
+          }
+          try {
+            platformId.devices_.reserve(numDevices);
+            for (int i = 0; i < numDevices; ++i) {
+              CUdevice device;
+              err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
+              platformId.devices_.emplace_back(
+                  new _pi_device{device, &platformId});
+            }
+          } catch (const std::bad_alloc &) {
+            // Signal out-of-memory situation
+            platformId.devices_.clear();
+            err = PI_OUT_OF_HOST_MEMORY;
+          } catch (...) {
+            // Clear and rethrow to allow retry
+            platformId.devices_.clear();
+            throw;
+          }
+        },
+        err);
 
     if (num_platforms != nullptr) {
       *num_platforms = numPlatforms;
     }
 
-    pi_result err = PI_SUCCESS;
-
     if (platforms != nullptr) {
-
-      assert(num_entries != 0);
-
-      static std::once_flag initFlag;
-      static _pi_platform platformId;
-      std::call_once(
-          initFlag,
-          [](pi_result &err) {
-            err = PI_CHECK_ERROR(cuInit(0));
-
-            int numDevices = 0;
-            err = PI_CHECK_ERROR(cuDeviceGetCount(&numDevices));
-            platformId.devices_.reserve(numDevices);
-            try {
-              for (int i = 0; i < numDevices; ++i) {
-                CUdevice device;
-                err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
-                platformId.devices_.emplace_back(
-                    new _pi_device{device, &platformId});
-              }
-            } catch (...) {
-              // Clear and rethrow to allow retry
-              platformId.devices_.clear();
-              throw;
-            }
-          },
-          err);
-
       *platforms = &platformId;
     }
 
