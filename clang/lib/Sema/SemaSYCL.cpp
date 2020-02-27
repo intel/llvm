@@ -1517,8 +1517,7 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
     }
   }
 
-  // Disallow functions with neither definition nor SYCL_EXTERNAL mark nor
-  // marked with __SYCL__HAS_DEFINITION__
+  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
   bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
