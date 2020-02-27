@@ -1273,4 +1273,4 @@ struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
   }
 };
 
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace std
