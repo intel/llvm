@@ -176,6 +176,23 @@ pi_result OCL(piPlatformsGet)(pi_uint32 num_entries, pi_platform *platforms,
   return static_cast<pi_result>(result);
 }
 
+pi_result OCL(piextDeviceInterop)(pi_device *device, void **handle) {
+  // The PI device is the same as OpenCL device handle.
+  assert(device);
+  assert(handle);
+
+  if (*device == nullptr) {
+    assert(*handle);
+    *device = cast<pi_device>(*handle);
+  } else {
+    assert(*device);
+    *handle = *device;
+  }
+
+  clRetainDevice(cast<cl_device_id>(*handle));
+  return PI_SUCCESS;
+}
+
 // Example of a PI interface that does not map exactly to an OpenCL one.
 pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
                             pi_uint32 num_entries, pi_device *devices,
@@ -303,6 +320,26 @@ pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));
   return cast<pi_result>(ret_err);
+}
+
+pi_result OCL(piextProgramInterop)(
+    pi_context context,  ///< [in] the PI context of the program
+    pi_program *program, ///< [in,out] the pointer to PI program
+    void **handle)       ///< [in,out] the pointer to the raw program handle
+{
+  // The PI program is the same as OpenCL program handle.
+  assert(program);
+  assert(handle);
+
+  if (*program == nullptr) {
+    assert(*handle);
+    *program = cast<pi_program>(*handle);
+  } else {
+    assert(*program);
+    *handle = *program;
+  }
+  clRetainProgram(cast<cl_program>(*handle));
+  return PI_SUCCESS;
 }
 
 pi_result OCL(piProgramCreate)(pi_context context, const void *il,
@@ -992,6 +1029,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPlatformsGet, OCL(piPlatformsGet))
   _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
   // Device
+  _PI_CL(piextDeviceInterop, OCL(piextDeviceInterop))
   _PI_CL(piDevicesGet, OCL(piDevicesGet))
   _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
   _PI_CL(piDevicePartition, clCreateSubDevices)
@@ -1019,6 +1057,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRelease, clReleaseMemObject)
   _PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
   // Program
+  _PI_CL(piextProgramInterop, OCL(piextProgramInterop))
   _PI_CL(piProgramCreate, OCL(piProgramCreate))
   _PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
   _PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))

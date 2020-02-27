@@ -171,10 +171,21 @@ namespace RT = cl::sycl::detail::pi;
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.
-template <class To, class From> To pi::cast(From value) {
+template <class To, class From> To inline pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
   RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
   return (To)(value);
+}
+
+// These conversions should use PI interop API.
+template <> pi::PiProgram inline pi::cast(cl_program interop) {
+  assertion(false, "pi::cast -> use piextProgramInterop");
+  return 0;
+}
+
+template <> pi::PiDevice inline pi::cast(cl_device_id interop) {
+  assertion(false, "pi::cast -> use piextDeviceInterop");
+  return 0;
 }
 
 } // namespace detail

@@ -19,15 +19,28 @@ device_impl::device_impl()
     : MIsHostDevice(true),
       MPlatform(std::make_shared<platform_impl>(platform_impl())) {}
 
+device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
+                         const plugin &Plugin)
+    : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
+
 device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
-    : device_impl(Device, Platform, Platform->getPlugin()) {}
+    : device_impl(nullptr, Device, Platform, Platform->getPlugin()) {}
 
 device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
-    : device_impl(Device, nullptr, Plugin) {}
+    : device_impl(nullptr, Device, nullptr, Plugin) {}
 
-device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
+device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
+                         RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
+
+  if (Device == nullptr) {
+    assert(InteropDeviceHandle != nullptr);
+    // Get PI device from the raw device handle.
+    Plugin.call<PiApiKind::piextDeviceInterop>(&MDevice,
+                                               (void **)&InteropDeviceHandle);
+  }
+
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
@@ -38,10 +51,6 @@ device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
       MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
-  if (!MIsRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
-  }
 
   // set MPlatform
   if (!Platform) {
@@ -75,13 +84,15 @@ cl_device_id device_impl::get() const {
     throw invalid_object_error("This instance of device is a host instance",
                                PI_INVALID_DEVICE);
 
+  const detail::plugin &Plugin = getPlugin();
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
-  // TODO: check that device is an OpenCL interop one
-  return pi::cast<cl_device_id>(MDevice);
+  void *handle = nullptr;
+  Plugin.call<PiApiKind::piextDeviceInterop>(
+      const_cast<RT::PiDevice *>(&MDevice), &handle);
+  return pi::cast<cl_device_id>(handle);
 }
 
 platform device_impl::get_platform() const {
