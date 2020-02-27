@@ -2538,22 +2538,22 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       LangStd = OpenCLLangStd;
   }
 
-  // -sycl-std applies to any SYCL source, not only those containing kernels,
-  // but also those using the SYCL API
-  if(const Arg  *A = Args.getLastArg(OPT_sycl_std_EQ)) {
-    Opts.setSYCLVersion(llvm::StringSwitch<LangOptions::SYCLVersionList>(A->getValue())
-      .Cases("1.2.1",  "121", "sycl-1.2.1", LangOptions::SYCLVersionList::sycl_1_2_1)
-      .Default(LangOptions::SYCLVersionList::undefined));
+  Opts.SYCL = Args.hasArg(options::OPT_fsycl);
+  Opts.SYCLIsDevice = Opts.SYCL && Args.hasArg(options::OPT_fsycl_is_device);
+  if (Opts.SYCL) {
+    // -sycl-std applies to any SYCL source, not only those containing kernels,
+    // but also those using the SYCL API
+    if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
+      Opts.SYCLVersion = llvm::StringSwitch<unsigned>(A->getValue())
+                             .Cases("2017", "1.2.1", "121", "sycl-1.2.1", 2017)
+                             .Default(0U);
 
-    if (Opts.getSYCLVersion() == LangOptions::SYCLVersionList::undefined) {
-      // User has passed an invalid value to the flag, this is an error
-      Diags.Report(diag::err_drv_invalid_value) 
-          << A->getAsString(Args) << A->getValue();
+      if (Opts.SYCLVersion == 0U) {
+        // User has passed an invalid value to the flag, this is an error
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+      }
     }
-  } else if (Args.hasArg(options::OPT_fsycl_is_device) 
-                         || Args.hasArg(options::OPT_fsycl_is_host)
-                         || Args.hasArg(options::OPT_fsycl)) {
-    Opts.setSYCLVersion(LangOptions::SYCLVersionList::sycl_1_2_1);
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

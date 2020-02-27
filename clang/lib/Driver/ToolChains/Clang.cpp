@@ -4080,6 +4080,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
+    CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -4119,7 +4120,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl-std-layout-kernel-params");
   } else if (IsSYCL) {
     // Ensure the default version in SYCL mode is 1.2.1
-    CmdArgs.push_back("-sycl-std=1.2.1");
+      CmdArgs.push_back("-sycl-std=2017");
   }
 
   if (IsOpenMPDevice) {

@@ -1,12 +1,21 @@
 // RUN: %clang -### -fsycl -c %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -fsycl -sycl-std=1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -fsycl -sycl-std=121 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clangxx -### -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### -fsycl -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=DISABLED
+// RUN: %clang_cl -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
+// RUN: %clang_cl -### %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
+// ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
 // DISABLED-NOT: "-fsycl-is-device"
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
@@ -54,4 +63,3 @@
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation
->>>>>>> 863d9752105f390b31b3d08d1980d2888c15b034
