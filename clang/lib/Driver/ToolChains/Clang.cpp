@@ -7072,7 +7072,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
   bool IsFPGADepBundle = (TCArgs.hasArg(options::OPT_fintelfpga) &&
-      Output.getType() == types::TY_Object);
+                          Output.getType() == types::TY_Object);
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   // TODO - We are currently using the target triple inputs to slot a location
@@ -7081,7 +7081,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   // file as it does not match the type being bundled.
   if (IsFPGADepBundle) {
     Triples += ',';
-    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);;
+    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
     Triples += '-';
     Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
   }
@@ -7108,7 +7108,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       });
     }
     UB += CurTC->getInputFilename(Inputs[I]);
-
   }
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
