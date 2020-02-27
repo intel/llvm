@@ -451,12 +451,12 @@ pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
                                   function_pointer_ret));
 }
 
-pi_result OCL(piContextCreate)(
-    const cl_context_properties *properties, // TODO: untie from OpenCL
-    pi_uint32 num_devices, const pi_device *devices,
-    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
-                       void *user_data1),
-    void *user_data, pi_context *retcontext) {
+pi_result OCL(piContextCreate)(const pi_context_properties *properties,
+                               pi_uint32 num_devices, const pi_device *devices,
+                               void (*pfn_notify)(const char *errinfo,
+                                                  const void *private_info,
+                                                  size_t cb, void *user_data1),
+                               void *user_data, pi_context *retcontext) {
   pi_result ret = PI_INVALID_OPERATION;
   *retcontext = cast<pi_context>(
       clCreateContext(properties, cast<cl_uint>(num_devices),
