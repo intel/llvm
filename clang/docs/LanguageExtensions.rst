@@ -122,7 +122,7 @@ of ``cxx_rvalue_references``.
 ``__has_cpp_attribute``
 -----------------------
 
-This function-like macro is available in C++2a by default, and is provided as an
+This function-like macro is available in C++20 by default, and is provided as an
 extension in earlier language standards. It takes a single argument that is the
 name of a double-square-bracket-style attribute. The argument can either be a
 single identifier or a scoped identifier. If the attribute is supported, a
@@ -1254,6 +1254,34 @@ The syntax and high level language feature description is in
 the clang implementation are in :doc:`Block-ABI-Apple<Block-ABI-Apple>`.
 
 Query for this feature with ``__has_extension(blocks)``.
+
+ASM Goto with Output Constraints
+================================
+
+In addition to the functionality provided by `GCC's extended
+assembly`<https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html>`_, clang
+supports output constraints with the `goto` form.
+
+The goto form of GCC's extended assembly allows the programmer to branch to a C
+label from within an inline assembly block. Clang extends this behavior by
+allowing the programmer to use output constraints:
+
+.. code-block:: c++
+
+  int foo(int x) {
+      int y;
+      asm goto("# %0 %1 %l2" : "=r"(y) : "r"(x) : : err);
+      return y;
+    err:
+      return -1;
+  }
+
+It's important to note that outputs are valid only on the "fallthrough" branch.
+Using outputs on an indirect branch may result in undefined behavior. For
+example, in the function above, use of the value assigned to `y` in the `err`
+block is undefined behavior.
+
+Query for this feature with ``__has_extension(gnu_asm_goto_with_outputs)``.
 
 Objective-C Features
 ====================

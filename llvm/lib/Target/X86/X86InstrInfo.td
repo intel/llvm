@@ -2169,24 +2169,24 @@ def CMPXCHG16B : RI<0xC7, MRM1m, (outs), (ins i128mem:$dst),
 
 // Lock instruction prefix
 let SchedRW = [WriteMicrocoded] in
-def LOCK_PREFIX : I<0xF0, RawFrm, (outs),  (ins), "lock", []>;
+def LOCK_PREFIX : I<0xF0, PrefixByte, (outs),  (ins), "lock", []>;
 
 let SchedRW = [WriteNop] in {
 
 // Rex64 instruction prefix
-def REX64_PREFIX : I<0x48, RawFrm, (outs),  (ins), "rex64", []>,
+def REX64_PREFIX : I<0x48, PrefixByte, (outs),  (ins), "rex64", []>,
                      Requires<[In64BitMode]>;
 
 // Data16 instruction prefix
-def DATA16_PREFIX : I<0x66, RawFrm, (outs),  (ins), "data16", []>;
+def DATA16_PREFIX : I<0x66, PrefixByte, (outs),  (ins), "data16", []>;
 } // SchedRW
 
 // Repeat string operation instruction prefixes
 let Defs = [ECX], Uses = [ECX,DF], SchedRW = [WriteMicrocoded] in {
 // Repeat (used with INS, OUTS, MOVS, LODS and STOS)
-def REP_PREFIX : I<0xF3, RawFrm, (outs),  (ins), "rep", []>;
+def REP_PREFIX : I<0xF3, PrefixByte, (outs),  (ins), "rep", []>;
 // Repeat while not equal (used with CMPS and SCAS)
-def REPNE_PREFIX : I<0xF2, RawFrm, (outs),  (ins), "repne", []>;
+def REPNE_PREFIX : I<0xF2, PrefixByte, (outs),  (ins), "repne", []>;
 }
 
 // String manipulation instructions
@@ -2919,6 +2919,11 @@ let Predicates = [HasTBM] in {
             (TZMSK64rr GR64:$src)>;
 
   // Patterns to match flag producing ops.
+  def : Pat<(and_flag_nocf GR32:$src, (add GR32:$src, 1)),
+            (BLCFILL32rr GR32:$src)>;
+  def : Pat<(and_flag_nocf GR64:$src, (add GR64:$src, 1)),
+            (BLCFILL64rr GR64:$src)>;
+
   def : Pat<(or_flag_nocf GR32:$src, (not (add GR32:$src, 1))),
             (BLCI32rr GR32:$src)>;
   def : Pat<(or_flag_nocf GR64:$src, (not (add GR64:$src, 1))),

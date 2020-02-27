@@ -17,6 +17,7 @@ def do_configure(args):
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
     llvm_enable_assertions = 'ON'
+    llvm_enable_doxygen = 'OFF'
 
     if platform.system() == 'Linux':
         icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so")
@@ -31,6 +32,9 @@ def do_configure(args):
 
     if args.assertions:
         llvm_enable_assertions = 'ON'
+
+    if args.docs:
+        llvm_enable_doxygen = 'ON'
 
     install_dir = os.path.join(args.obj_dir, "install")
 
@@ -52,6 +56,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_WERROR=ON",
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
+        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         llvm_dir
     ]
 
@@ -84,6 +89,7 @@ def main():
                         metavar="BUILD_TYPE", required=True, help="build type, debug or release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--assertions", action='store_true', help="build with assertions")
+    parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
 
     args = parser.parse_args()
 

@@ -94,6 +94,7 @@ private:
   bool selectG_EXTRACT(MachineInstr &I) const;
   bool selectG_MERGE_VALUES(MachineInstr &I) const;
   bool selectG_UNMERGE_VALUES(MachineInstr &I) const;
+  bool selectG_BUILD_VECTOR_TRUNC(MachineInstr &I) const;
   bool selectG_PTR_ADD(MachineInstr &I) const;
   bool selectG_IMPLICIT_DEF(MachineInstr &I) const;
   bool selectG_INSERT(MachineInstr &I) const;
@@ -116,6 +117,7 @@ private:
 
   void initM0(MachineInstr &I) const;
   bool selectG_LOAD_ATOMICRMW(MachineInstr &I) const;
+  bool selectG_AMDGPU_ATOMIC_CMPXCHG(MachineInstr &I) const;
   bool selectG_STORE(MachineInstr &I) const;
   bool selectG_SELECT(MachineInstr &I) const;
   bool selectG_BRCOND(MachineInstr &I) const;
@@ -123,9 +125,10 @@ private:
   bool selectG_PTR_MASK(MachineInstr &I) const;
   bool selectG_EXTRACT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_INSERT_VECTOR_ELT(MachineInstr &I) const;
+  bool selectG_SHUFFLE_VECTOR(MachineInstr &I) const;
 
   std::pair<Register, unsigned>
-  selectVOP3ModsImpl(Register Src) const;
+  selectVOP3ModsImpl(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -144,6 +147,12 @@ private:
 
   InstructionSelector::ComplexRendererFns
   selectVOP3Mods_nnan(MachineOperand &Root) const;
+
+  std::pair<Register, unsigned>
+  selectVOP3PModsImpl(Register Src, const MachineRegisterInfo &MRI) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectVOP3PMods(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectVOP3OpSelMods0(MachineOperand &Root) const;
@@ -221,6 +230,9 @@ private:
 
   InstructionSelector::ComplexRendererFns
   selectMUBUFAddr64Atomic(MachineOperand &Root) const;
+
+  ComplexRendererFns selectSMRDBufferImm(MachineOperand &Root) const;
+  ComplexRendererFns selectSMRDBufferImm32(MachineOperand &Root) const;
 
   void renderTruncImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx = -1) const;

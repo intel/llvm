@@ -42,6 +42,7 @@
 #include "SPIRVInternal.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
 
 #include <functional>
@@ -982,6 +983,20 @@ template <> inline void SPIRVMap<std::string, Op, OCLOpaqueType>::init() {
   add("opencl.reserve_id_t", OpTypeReserveId);
   add("opencl.queue_t", OpTypeQueue);
   add("opencl.sampler_t", OpTypeSampler);
+}
+
+typedef SPIRVMap<AtomicRMWInst::BinOp, Op> LLVMSPIRVAtomicRmwOpCodeMap;
+template <> inline void LLVMSPIRVAtomicRmwOpCodeMap::init() {
+  add(llvm::AtomicRMWInst::Xchg, OpAtomicExchange);
+  add(llvm::AtomicRMWInst::Add, OpAtomicIAdd);
+  add(llvm::AtomicRMWInst::Sub, OpAtomicISub);
+  add(llvm::AtomicRMWInst::And, OpAtomicAnd);
+  add(llvm::AtomicRMWInst::Or, OpAtomicOr);
+  add(llvm::AtomicRMWInst::Xor, OpAtomicXor);
+  add(llvm::AtomicRMWInst::Max, OpAtomicSMax);
+  add(llvm::AtomicRMWInst::Min, OpAtomicSMin);
+  add(llvm::AtomicRMWInst::UMax, OpAtomicUMax);
+  add(llvm::AtomicRMWInst::UMin, OpAtomicUMin);
 }
 
 } // namespace SPIRV

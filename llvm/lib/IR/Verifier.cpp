@@ -2533,8 +2533,6 @@ void Verifier::visitIndirectBrInst(IndirectBrInst &BI) {
 void Verifier::visitCallBrInst(CallBrInst &CBI) {
   Assert(CBI.isInlineAsm(), "Callbr is currently only used for asm-goto!",
          &CBI);
-  Assert(CBI.getType()->isVoidTy(), "Callbr return value is not supported!",
-         &CBI);
   for (unsigned i = 0, e = CBI.getNumSuccessors(); i != e; ++i)
     Assert(CBI.getSuccessor(i)->getType()->isLabelTy(),
            "Callbr successors must all have pointer type!", &CBI);
@@ -3174,7 +3172,7 @@ void Verifier::visitInvokeInst(InvokeInst &II) {
 /// visitUnaryOperator - Check the argument to the unary operator.
 ///
 void Verifier::visitUnaryOperator(UnaryOperator &U) {
-  Assert(U.getType() == U.getOperand(0)->getType(), 
+  Assert(U.getType() == U.getOperand(0)->getType(),
          "Unary operators must have same type for"
          "operands and result!",
          &U);
@@ -4727,7 +4725,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::umul_fix:
   case Intrinsic::umul_fix_sat:
   case Intrinsic::sdiv_fix:
-  case Intrinsic::udiv_fix: {
+  case Intrinsic::sdiv_fix_sat:
+  case Intrinsic::udiv_fix:
+  case Intrinsic::udiv_fix_sat: {
     Value *Op1 = Call.getArgOperand(0);
     Value *Op2 = Call.getArgOperand(1);
     Assert(Op1->getType()->isIntOrIntVectorTy(),
@@ -4742,7 +4742,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            "third argument of [us][mul|div]_fix[_sat] must fit within 32 bits");
 
     if (ID == Intrinsic::smul_fix || ID == Intrinsic::smul_fix_sat ||
-        ID == Intrinsic::sdiv_fix) {
+        ID == Intrinsic::sdiv_fix || ID == Intrinsic::sdiv_fix_sat) {
       Assert(
           Op3->getZExtValue() < Op1->getType()->getScalarSizeInBits(),
           "the scale of s[mul|div]_fix[_sat] must be less than the width of "
@@ -4813,7 +4813,7 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
     Type *ResultTy = FPI.getType();
     Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),
            "Intrinsic does not support vectors", &FPI);
-  } 
+  }
     break;
 
   case Intrinsic::experimental_constrained_lround:
@@ -4823,7 +4823,7 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
     Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),
            "Intrinsic does not support vectors", &FPI);
     break;
-  } 
+  }
 
   case Intrinsic::experimental_constrained_fcmp:
   case Intrinsic::experimental_constrained_fcmps: {
@@ -4834,7 +4834,7 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
   }
 
   case Intrinsic::experimental_constrained_fptosi:
-  case Intrinsic::experimental_constrained_fptoui: { 
+  case Intrinsic::experimental_constrained_fptoui: {
     Value *Operand = FPI.getArgOperand(0);
     uint64_t NumSrcElem = 0;
     Assert(Operand->getType()->isFPOrFPVectorTy(),
@@ -4906,7 +4906,7 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
              "Intrinsic first argument's type must be smaller than result type",
              &FPI);
     }
-  } 
+  }
     break;
 
   default:
@@ -5172,7 +5172,7 @@ struct VerifierLegacyPass : public FunctionPass {
 
   bool runOnFunction(Function &F) override {
     if (!V->verify(F) && FatalErrors) {
-      errs() << "in function " << F.getName() << '\n'; 
+      errs() << "in function " << F.getName() << '\n';
       report_fatal_error("Broken function found, compilation aborted!");
     }
     return false;

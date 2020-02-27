@@ -28,16 +28,26 @@ static DWARFDataExtractor LoadSection(SectionList *section_list,
 }
 
 const DWARFDataExtractor &
-DWARFContext::LoadOrGetSection(SectionType main_section_type,
+DWARFContext::LoadOrGetSection(llvm::Optional<SectionType> main_section_type,
                                llvm::Optional<SectionType> dwo_section_type,
                                SectionData &data) {
   llvm::call_once(data.flag, [&] {
     if (dwo_section_type && isDwo())
       data.data = LoadSection(m_dwo_section_list, *dwo_section_type);
-    else
-      data.data = LoadSection(m_main_section_list, main_section_type);
+    else if (main_section_type)
+      data.data = LoadSection(m_main_section_list, *main_section_type);
   });
   return data.data;
+}
+
+const DWARFDataExtractor &DWARFContext::getOrLoadCuIndexData() {
+  return LoadOrGetSection(llvm::None, eSectionTypeDWARFDebugCuIndex,
+                          m_data_debug_cu_index);
+}
+
+const DWARFDataExtractor &DWARFContext::getOrLoadTuIndexData() {
+  return LoadOrGetSection(llvm::None, eSectionTypeDWARFDebugTuIndex,
+                          m_data_debug_tu_index);
 }
 
 const DWARFDataExtractor &DWARFContext::getOrLoadAbbrevData() {
@@ -128,6 +138,8 @@ llvm::DWARFContext &DWARFContext::GetAsLLVM() {
     };
 
     AddSection("debug_line_str", getOrLoadLineStrData());
+    AddSection("debug_cu_index", getOrLoadCuIndexData());
+    AddSection("debug_tu_index", getOrLoadTuIndexData());
 
     m_llvm_context = llvm::DWARFContext::create(section_map, addr_size);
   }

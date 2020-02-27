@@ -119,9 +119,23 @@ unsigned AArch64InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   case AArch64::SPACE:
     NumBytes = MI.getOperand(1).getImm();
     break;
+  case TargetOpcode::BUNDLE:
+    NumBytes = getInstBundleLength(MI);
+    break;
   }
 
   return NumBytes;
+}
+
+unsigned AArch64InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
+  unsigned Size = 0;
+  MachineBasicBlock::const_instr_iterator I = MI.getIterator();
+  MachineBasicBlock::const_instr_iterator E = MI.getParent()->instr_end();
+  while (++I != E && I->isInsideBundle()) {
+    assert(!I->isBundle() && "No nested bundle!");
+    Size += getInstSizeInBytes(*I);
+  }
+  return Size;
 }
 
 static void parseCondBranch(MachineInstr *LastInst, MachineBasicBlock *&Target,
@@ -942,6 +956,7 @@ bool AArch64InstrInfo::areMemAccessesTriviallyDisjoint(
   const MachineOperand *BaseOpA = nullptr, *BaseOpB = nullptr;
   int64_t OffsetA = 0, OffsetB = 0;
   unsigned WidthA = 0, WidthB = 0;
+  bool OffsetAIsScalable = false, OffsetBIsScalable = false;
 
   assert(MIa.mayLoadOrStore() && "MIa must be a load or store.");
   assert(MIb.mayLoadOrStore() && "MIb must be a load or store.");
@@ -955,9 +970,14 @@ bool AArch64InstrInfo::areMemAccessesTriviallyDisjoint(
   // base are identical, and the offset of a lower memory access +
   // the width doesn't overlap the offset of a higher memory access,
   // then the memory accesses are different.
-  if (getMemOperandWithOffsetWidth(MIa, BaseOpA, OffsetA, WidthA, TRI) &&
-      getMemOperandWithOffsetWidth(MIb, BaseOpB, OffsetB, WidthB, TRI)) {
-    if (BaseOpA->isIdenticalTo(*BaseOpB)) {
+  // If OffsetAIsScalable and OffsetBIsScalable are both true, they
+  // are assumed to have the same scale (vscale).
+  if (getMemOperandWithOffsetWidth(MIa, BaseOpA, OffsetA, OffsetAIsScalable,
+                                   WidthA, TRI) &&
+      getMemOperandWithOffsetWidth(MIb, BaseOpB, OffsetB, OffsetBIsScalable,
+                                   WidthB, TRI)) {
+    if (BaseOpA->isIdenticalTo(*BaseOpB) &&
+        OffsetAIsScalable == OffsetBIsScalable) {
       int LowOffset = OffsetA < OffsetB ? OffsetA : OffsetB;
       int HighOffset = OffsetA < OffsetB ? OffsetB : OffsetA;
       int LowWidth = (LowOffset == OffsetA) ? WidthA : WidthB;
@@ -1999,13 +2019,15 @@ bool AArch64InstrInfo::isCandidateToMergeOrPair(const MachineInstr &MI) const {
 
 bool AArch64InstrInfo::getMemOperandsWithOffset(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
-    int64_t &Offset, const TargetRegisterInfo *TRI) const {
+    int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI)
+    const {
   if (!LdSt.mayLoadOrStore())
     return false;
 
   const MachineOperand *BaseOp;
   unsigned Width;
-  if (!getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, Width, TRI))
+  if (!getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, OffsetIsScalable,
+                                    Width, TRI))
     return false;
   BaseOps.push_back(BaseOp);
   return true;
@@ -2013,7 +2035,8 @@ bool AArch64InstrInfo::getMemOperandsWithOffset(
 
 bool AArch64InstrInfo::getMemOperandWithOffsetWidth(
     const MachineInstr &LdSt, const MachineOperand *&BaseOp, int64_t &Offset,
-    unsigned &Width, const TargetRegisterInfo *TRI) const {
+    bool &OffsetIsScalable, unsigned &Width,
+    const TargetRegisterInfo *TRI) const {
   assert(LdSt.mayLoadOrStore() && "Expected a memory operation.");
   // Handle only loads/stores with base register followed by immediate offset.
   if (LdSt.getNumExplicitOperands() == 3) {
@@ -2032,7 +2055,7 @@ bool AArch64InstrInfo::getMemOperandWithOffsetWidth(
 
   // Get the scaling factor for the instruction and set the width for the
   // instruction.
-  unsigned Scale = 0;
+  TypeSize Scale(0U, false);
   int64_t Dummy1, Dummy2;
 
   // If this returns false, then it's an instruction we don't want to handle.
@@ -2044,12 +2067,13 @@ bool AArch64InstrInfo::getMemOperandWithOffsetWidth(
   // set to 1.
   if (LdSt.getNumExplicitOperands() == 3) {
     BaseOp = &LdSt.getOperand(1);
-    Offset = LdSt.getOperand(2).getImm() * Scale;
+    Offset = LdSt.getOperand(2).getImm() * Scale.getKnownMinSize();
   } else {
     assert(LdSt.getNumExplicitOperands() == 4 && "invalid number of operands");
     BaseOp = &LdSt.getOperand(2);
-    Offset = LdSt.getOperand(3).getImm() * Scale;
+    Offset = LdSt.getOperand(3).getImm() * Scale.getKnownMinSize();
   }
+  OffsetIsScalable = Scale.isScalable();
 
   if (!BaseOp->isReg() && !BaseOp->isFI())
     return false;
@@ -2065,27 +2089,28 @@ AArch64InstrInfo::getMemOpBaseRegImmOfsOffsetOperand(MachineInstr &LdSt) const {
   return OfsOp;
 }
 
-bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
+bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
                                     unsigned &Width, int64_t &MinOffset,
                                     int64_t &MaxOffset) {
   const unsigned SVEMaxBytesPerVector = AArch64::SVEMaxBitsPerVector / 8;
   switch (Opcode) {
   // Not a memory operation or something we want to handle.
   default:
-    Scale = Width = 0;
+    Scale = TypeSize::Fixed(0);
+    Width = 0;
     MinOffset = MaxOffset = 0;
     return false;
   case AArch64::STRWpost:
   case AArch64::LDRWpost:
     Width = 32;
-    Scale = 4;
+    Scale = TypeSize::Fixed(4);
     MinOffset = -256;
     MaxOffset = 255;
     break;
   case AArch64::LDURQi:
   case AArch64::STURQi:
     Width = 16;
-    Scale = 1;
+    Scale = TypeSize::Fixed(1);
     MinOffset = -256;
     MaxOffset = 255;
     break;
@@ -2095,7 +2120,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STURXi:
   case AArch64::STURDi:
     Width = 8;
-    Scale = 1;
+    Scale = TypeSize::Fixed(1);
     MinOffset = -256;
     MaxOffset = 255;
     break;
@@ -2105,7 +2130,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STURWi:
   case AArch64::STURSi:
     Width = 4;
-    Scale = 1;
+    Scale = TypeSize::Fixed(1);
     MinOffset = -256;
     MaxOffset = 255;
     break;
@@ -2116,7 +2141,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STURHi:
   case AArch64::STURHHi:
     Width = 2;
-    Scale = 1;
+    Scale = TypeSize::Fixed(1);
     MinOffset = -256;
     MaxOffset = 255;
     break;
@@ -2127,7 +2152,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STURBi:
   case AArch64::STURBBi:
     Width = 1;
-    Scale = 1;
+    Scale = TypeSize::Fixed(1);
     MinOffset = -256;
     MaxOffset = 255;
     break;
@@ -2135,14 +2160,15 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDNPQi:
   case AArch64::STPQi:
   case AArch64::STNPQi:
-    Scale = 16;
+    Scale = TypeSize::Fixed(16);
     Width = 32;
     MinOffset = -64;
     MaxOffset = 63;
     break;
   case AArch64::LDRQui:
   case AArch64::STRQui:
-    Scale = Width = 16;
+    Scale = TypeSize::Fixed(16);
+    Width = 16;
     MinOffset = 0;
     MaxOffset = 4095;
     break;
@@ -2154,7 +2180,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STPDi:
   case AArch64::STNPXi:
   case AArch64::STNPDi:
-    Scale = 8;
+    Scale = TypeSize::Fixed(8);
     Width = 16;
     MinOffset = -64;
     MaxOffset = 63;
@@ -2164,7 +2190,8 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDRDui:
   case AArch64::STRXui:
   case AArch64::STRDui:
-    Scale = Width = 8;
+    Scale = TypeSize::Fixed(8);
+    Width = 8;
     MinOffset = 0;
     MaxOffset = 4095;
     break;
@@ -2176,7 +2203,7 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::STPSi:
   case AArch64::STNPWi:
   case AArch64::STNPSi:
-    Scale = 4;
+    Scale = TypeSize::Fixed(4);
     Width = 8;
     MinOffset = -64;
     MaxOffset = 63;
@@ -2186,7 +2213,8 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDRSWui:
   case AArch64::STRWui:
   case AArch64::STRSui:
-    Scale = Width = 4;
+    Scale = TypeSize::Fixed(4);
+    Width = 4;
     MinOffset = 0;
     MaxOffset = 4095;
     break;
@@ -2196,7 +2224,8 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDRSHXui:
   case AArch64::STRHui:
   case AArch64::STRHHui:
-    Scale = Width = 2;
+    Scale = TypeSize::Fixed(2);
+    Width = 2;
     MinOffset = 0;
     MaxOffset = 4095;
     break;
@@ -2206,18 +2235,19 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDRSBXui:
   case AArch64::STRBui:
   case AArch64::STRBBui:
-    Scale = Width = 1;
+    Scale = TypeSize::Fixed(1);
+    Width = 1;
     MinOffset = 0;
     MaxOffset = 4095;
     break;
   case AArch64::ADDG:
-    Scale = 16;
+    Scale = TypeSize::Fixed(16);
     Width = 0;
     MinOffset = 0;
     MaxOffset = 63;
     break;
   case AArch64::TAGPstack:
-    Scale = 16;
+    Scale = TypeSize::Fixed(16);
     Width = 0;
     // TAGP with a negative offset turns into SUBP, which has a maximum offset
     // of 63 (not 64!).
@@ -2227,20 +2257,21 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::LDG:
   case AArch64::STGOffset:
   case AArch64::STZGOffset:
-    Scale = Width = 16;
+    Scale = TypeSize::Fixed(16);
+    Width = 16;
     MinOffset = -256;
     MaxOffset = 255;
     break;
   case AArch64::LDR_PXI:
   case AArch64::STR_PXI:
-    Scale = 2;
+    Scale = TypeSize::Scalable(2);
     Width = SVEMaxBytesPerVector / 8;
     MinOffset = -256;
     MaxOffset = 255;
     break;
   case AArch64::LDR_ZXI:
   case AArch64::STR_ZXI:
-    Scale = 16;
+    Scale = TypeSize::Scalable(16);
     Width = SVEMaxBytesPerVector;
     MinOffset = -256;
     MaxOffset = 255;
@@ -2255,20 +2286,21 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
   case AArch64::ST1D_IMM:
     // A full vectors worth of data
     // Width = mbytes * elements
-    Scale = 16;
+    Scale = TypeSize::Scalable(16);
     Width = SVEMaxBytesPerVector;
     MinOffset = -8;
     MaxOffset = 7;
     break;
   case AArch64::ST2GOffset:
   case AArch64::STZ2GOffset:
-    Scale = 16;
+    Scale = TypeSize::Fixed(16);
     Width = 32;
     MinOffset = -256;
     MaxOffset = 255;
     break;
   case AArch64::STGPi:
-    Scale = Width = 16;
+    Scale = TypeSize::Fixed(16);
+    Width = 16;
     MinOffset = -64;
     MaxOffset = 63;
     break;
@@ -3457,26 +3489,6 @@ MachineInstr *AArch64InstrInfo::foldMemoryOperandImpl(
   return nullptr;
 }
 
-static bool isSVEScaledImmInstruction(unsigned Opcode) {
-  switch (Opcode) {
-  case AArch64::LDR_ZXI:
-  case AArch64::STR_ZXI:
-  case AArch64::LDR_PXI:
-  case AArch64::STR_PXI:
-  case AArch64::LD1B_IMM:
-  case AArch64::LD1H_IMM:
-  case AArch64::LD1W_IMM:
-  case AArch64::LD1D_IMM:
-  case AArch64::ST1B_IMM:
-  case AArch64::ST1H_IMM:
-  case AArch64::ST1W_IMM:
-  case AArch64::ST1D_IMM:
-    return true;
-  default:
-    return false;
-  }
-}
-
 int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
                                     StackOffset &SOffset,
                                     bool *OutUseUnscaledOp,
@@ -3515,16 +3527,17 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
   }
 
   // Get the min/max offset and the scale.
-  unsigned Scale, Width;
+  TypeSize ScaleValue(0U, false);
+  unsigned Width;
   int64_t MinOff, MaxOff;
-  if (!AArch64InstrInfo::getMemOpInfo(MI.getOpcode(), Scale, Width, MinOff,
+  if (!AArch64InstrInfo::getMemOpInfo(MI.getOpcode(), ScaleValue, Width, MinOff,
                                       MaxOff))
     llvm_unreachable("unhandled opcode in isAArch64FrameOffsetLegal");
 
   // Construct the complete offset.
-  bool IsMulVL = isSVEScaledImmInstruction(MI.getOpcode());
-  int64_t Offset =
-      IsMulVL ? (SOffset.getScalableBytes()) : (SOffset.getBytes());
+  bool IsMulVL = ScaleValue.isScalable();
+  unsigned Scale = ScaleValue.getKnownMinSize();
+  int64_t Offset = IsMulVL ? SOffset.getScalableBytes() : SOffset.getBytes();
 
   const MachineOperand &ImmOpnd =
       MI.getOperand(AArch64InstrInfo::getLoadStoreImmIdx(MI.getOpcode()));
@@ -3537,8 +3550,13 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
       AArch64InstrInfo::getUnscaledLdSt(MI.getOpcode());
   bool useUnscaledOp = UnscaledOp && (Offset % Scale || Offset < 0);
   if (useUnscaledOp &&
-      !AArch64InstrInfo::getMemOpInfo(*UnscaledOp, Scale, Width, MinOff, MaxOff))
+      !AArch64InstrInfo::getMemOpInfo(*UnscaledOp, ScaleValue, Width, MinOff,
+                                      MaxOff))
     llvm_unreachable("unhandled opcode in isAArch64FrameOffsetLegal");
+
+  Scale = ScaleValue.getKnownMinSize();
+  assert(IsMulVL == ScaleValue.isScalable() &&
+         "Unscaled opcode has different value for scalable");
 
   int64_t Remainder = Offset % Scale;
   assert(!(Remainder && useUnscaledOp) &&
@@ -5864,23 +5882,29 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
     if (MI.mayLoadOrStore()) {
       const MachineOperand *Base; // Filled with the base operand of MI.
       int64_t Offset;             // Filled with the offset of MI.
+      bool OffsetIsScalable;
 
       // Does it allow us to offset the base operand and is the base the
       // register SP?
-      if (!getMemOperandWithOffset(MI, Base, Offset, &TRI) || !Base->isReg() ||
-          Base->getReg() != AArch64::SP)
+      if (!getMemOperandWithOffset(MI, Base, Offset, OffsetIsScalable, &TRI) ||
+          !Base->isReg() || Base->getReg() != AArch64::SP)
+        return false;
+
+      // Fixe-up code below assumes bytes.
+      if (OffsetIsScalable)
         return false;
 
       // Find the minimum/maximum offset for this instruction and check
       // if fixing it up would be in range.
       int64_t MinOffset,
           MaxOffset;  // Unscaled offsets for the instruction.
-      unsigned Scale; // The scale to multiply the offsets by.
+      TypeSize Scale(0U, false); // The scale to multiply the offsets by.
       unsigned DummyWidth;
       getMemOpInfo(MI.getOpcode(), Scale, DummyWidth, MinOffset, MaxOffset);
 
       Offset += 16; // Update the offset to what it would be if we outlined.
-      if (Offset < MinOffset * Scale || Offset > MaxOffset * Scale)
+      if (Offset < MinOffset * (int64_t)Scale.getFixedSize() ||
+          Offset > MaxOffset * (int64_t)Scale.getFixedSize())
         return false;
 
       // It's in range, so we can outline it.
@@ -6258,26 +6282,29 @@ void AArch64InstrInfo::fixupPostOutline(MachineBasicBlock &MBB) const {
     const MachineOperand *Base;
     unsigned Width;
     int64_t Offset;
+    bool OffsetIsScalable;
 
     // Is this a load or store with an immediate offset with SP as the base?
     if (!MI.mayLoadOrStore() ||
-        !getMemOperandWithOffsetWidth(MI, Base, Offset, Width, &RI) ||
+        !getMemOperandWithOffsetWidth(MI, Base, Offset, OffsetIsScalable, Width,
+                                      &RI) ||
         (Base->isReg() && Base->getReg() != AArch64::SP))
       continue;
 
     // It is, so we have to fix it up.
-    unsigned Scale;
+    TypeSize Scale(0U, false);
     int64_t Dummy1, Dummy2;
 
     MachineOperand &StackOffsetOperand = getMemOpBaseRegImmOfsOffsetOperand(MI);
     assert(StackOffsetOperand.isImm() && "Stack offset wasn't immediate!");
     getMemOpInfo(MI.getOpcode(), Scale, Width, Dummy1, Dummy2);
     assert(Scale != 0 && "Unexpected opcode!");
+    assert(!OffsetIsScalable && "Expected offset to be a byte offset");
 
     // We've pushed the return address to the stack, so add 16 to the offset.
     // This is safe, since we already checked if it would overflow when we
     // checked if this instruction was legal to outline.
-    int64_t NewImm = (Offset + 16) / Scale;
+    int64_t NewImm = (Offset + 16) / (int64_t)Scale.getFixedSize();
     StackOffsetOperand.setImm(NewImm);
   }
 }
@@ -6667,5 +6694,10 @@ AArch64InstrInfo::describeLoadedValue(const MachineInstr &MI,
   return TargetInstrInfo::describeLoadedValue(MI, Reg);
 }
 
+uint64_t AArch64InstrInfo::getElementSizeForOpcode(unsigned Opc) const {
+  return get(Opc).TSFlags & AArch64::ElementSizeMask;
+}
+
 #define GET_INSTRINFO_HELPERS
+#define GET_INSTRMAP_INFO
 #include "AArch64GenInstrInfo.inc"

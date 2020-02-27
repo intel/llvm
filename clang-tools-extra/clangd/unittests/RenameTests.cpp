@@ -202,6 +202,13 @@ TEST(RenameTest, WithinFileRename) {
         }
       )cpp",
 
+      // Incomplete class specializations
+      R"cpp(
+        template <typename T>
+        class [[Fo^o]] {};
+        void func([[Foo]]<int>);
+      )cpp",
+
       // Template class instantiations.
       R"cpp(
         template <typename T>
@@ -884,6 +891,23 @@ TEST(CrossFileRenameTests, WithUpToDateIndex) {
 
         void func() {
           [[Foo]] foo;
+        }
+      )cpp",
+      },
+      {
+          // class templates.
+          R"cpp(
+        template <typename T>
+        class [[Foo]] {};
+        // FIXME: explicit template specilizations are not supported due the
+        // clangd index limitations.
+        template <>
+        class Foo<double> {};
+      )cpp",
+          R"cpp(
+        #include "foo.h"
+        void func() {
+          [[F^oo]]<int> foo;
         }
       )cpp",
       },

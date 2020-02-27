@@ -406,6 +406,7 @@ namespace HexagonISD {
 
     bool isHvxSingleTy(MVT Ty) const;
     bool isHvxPairTy(MVT Ty) const;
+    bool isHvxBoolTy(MVT Ty) const;
     SDValue convertToByteIndex(SDValue ElemIdx, MVT ElemTy,
                                SelectionDAG &DAG) const;
     SDValue getIndexInWord32(SDValue Idx, MVT ElemTy, SelectionDAG &DAG) const;
@@ -444,7 +445,7 @@ namespace HexagonISD {
     SDValue LowerHvxInsertElement(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxExtractSubvector(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxInsertSubvector(SDValue Op, SelectionDAG &DAG) const;
-
+    SDValue LowerHvxBitcast(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxAnyExt(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxSignExt(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxZeroExt(SDValue Op, SelectionDAG &DAG) const;
@@ -454,6 +455,9 @@ namespace HexagonISD {
     SDValue LowerHvxSetCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxExtend(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxShift(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerHvxIntrinsic(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerHvxStore(SDValue Op, SelectionDAG &DAG) const;
+    SDValue HvxVecPredBitcastComputation(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue SplitHvxPairOp(SDValue Op, SelectionDAG &DAG) const;
     SDValue SplitHvxMemOp(SDValue Op, SelectionDAG &DAG) const;
