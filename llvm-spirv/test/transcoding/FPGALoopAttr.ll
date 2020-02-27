@@ -73,7 +73,7 @@ for.end9:                                         ; preds = %for.cond2
   br label %for.cond11
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond11:                                       ; preds = %for.inc16, %for.end9
@@ -99,7 +99,7 @@ for.end18:                                        ; preds = %for.cond11
   br label %for.cond20
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; MaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond20:                                       ; preds = %for.inc25, %for.end18
@@ -125,7 +125,7 @@ for.end27:                                        ; preds = %for.cond20
   br label %for.cond29
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL & MaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
+; LoopControlInitiationIntervalINTEL & MaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
 ; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 ; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond29:                                       ; preds = %for.inc34, %for.end27
