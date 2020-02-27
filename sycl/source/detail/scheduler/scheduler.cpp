@@ -7,18 +7,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl/detail/sycl_mem_obj_i.hpp"
-#include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
 #include <mutex>
 #include <set>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req, 
+                                               const bool destructor) {
+  return cl::sycl::detail::Scheduler::getInstance().
+                                              addHostAccessor(Req, destructor);
+}
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
@@ -117,6 +123,11 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
+void Scheduler::cleanupFinishedCommands(Command *FinishedCmd) {
+  std::lock_guard<std::mutex> lock(MGraphLock);
+  MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+}
+
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
@@ -125,14 +136,16 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     // No operations were performed on the mem object
     return;
   waitForRecordToFinish(Record);
+  MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req, 
+                                        const bool destructor) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
   if (!NewCmd)
     return nullptr;
@@ -167,4 +180,4 @@ Scheduler::Scheduler() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

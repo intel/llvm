@@ -41,8 +41,12 @@
 #include <thread>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Option/Arg.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Option/Option.h"
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "JSONUtils.h"
@@ -64,12 +68,37 @@ constexpr const char *dev_null_path = "/dev/null";
 using namespace lldb_vscode;
 
 namespace {
+enum ID {
+  OPT_INVALID = 0, // This is not an option ID.
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELPTEXT, METAVAR, VALUES)                                      \
+  OPT_##ID,
+#include "Options.inc"
+#undef OPTION
+};
+
+#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#include "Options.inc"
+#undef PREFIX
+
+static const llvm::opt::OptTable::Info InfoTable[] = {
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELPTEXT, METAVAR, VALUES)                                      \
+  {PREFIX,      NAME,      HELPTEXT,                                           \
+   METAVAR,     OPT_##ID,  llvm::opt::Option::KIND##Class,                     \
+   PARAM,       FLAGS,     OPT_##GROUP,                                        \
+   OPT_##ALIAS, ALIASARGS, VALUES},
+#include "Options.inc"
+#undef OPTION
+};
+class LLDBVSCodeOptTable : public llvm::opt::OptTable {
+public:
+  LLDBVSCodeOptTable() : OptTable(InfoTable, true) {}
+};
 
 typedef void (*RequestCallback)(const llvm::json::Object &command);
 
 enum LaunchMethod { Launch, Attach, AttachForSuspendedLaunch };
-
-enum VSCodeBroadcasterBits { eBroadcastBitStopEventThread = 1u << 0 };
 
 SOCKET AcceptConnection(int portno) {
   // Accept a socket connection from any host on "portno".
@@ -379,27 +408,20 @@ void EventThreadFunction() {
         if (event_mask & lldb::SBTarget::eBroadcastBitBreakpointChanged) {
           auto event_type =
               lldb::SBBreakpoint::GetBreakpointEventTypeFromEvent(event);
-          const auto num_locs =
-              lldb::SBBreakpoint::GetNumBreakpointLocationsFromEvent(event);
           auto bp = lldb::SBBreakpoint::GetBreakpointFromEvent(event);
-          bool added = event_type & lldb::eBreakpointEventTypeLocationsAdded;
-          bool removed =
-              event_type & lldb::eBreakpointEventTypeLocationsRemoved;
-          if (added || removed) {
-            for (size_t i = 0; i < num_locs; ++i) {
-              auto bp_loc =
-                  lldb::SBBreakpoint::GetBreakpointLocationAtIndexFromEvent(
-                      event, i);
-              auto bp_event = CreateEventObject("breakpoint");
-              llvm::json::Object body;
-              body.try_emplace("breakpoint", CreateBreakpoint(bp_loc));
-              if (added)
-                body.try_emplace("reason", "new");
-              else
-                body.try_emplace("reason", "removed");
-              bp_event.try_emplace("body", std::move(body));
-              g_vsc.SendJSON(llvm::json::Value(std::move(bp_event)));
-            }
+          // If the breakpoint was originated from the IDE, it will have the
+          // BreakpointBase::GetBreakpointLabel() label attached. Regardless
+          // of wether the locations were added or removed, the breakpoint
+          // ins't going away, so we the reason is always "changed".
+          if ((event_type & lldb::eBreakpointEventTypeLocationsAdded ||
+               event_type & lldb::eBreakpointEventTypeLocationsRemoved) &&
+              bp.MatchesName(BreakpointBase::GetBreakpointLabel())) {
+            auto bp_event = CreateEventObject("breakpoint");
+            llvm::json::Object body;
+            body.try_emplace("breakpoint", CreateBreakpoint(bp));
+            body.try_emplace("reason", "changed");
+            bp_event.try_emplace("body", std::move(body));
+            g_vsc.SendJSON(llvm::json::Value(std::move(bp_event)));
           }
         }
       } else if (event.BroadcasterMatchesRef(g_vsc.broadcaster)) {
@@ -512,25 +534,13 @@ void request_attach(const llvm::json::Object &request) {
   // Run any initialize LLDB commands the user specified in the launch.json
   g_vsc.RunInitCommands();
 
-  // Grab the name of the program we need to debug and set it as the first
-  // argument that will be passed to the program we will debug.
-  const auto program = GetString(arguments, "program");
-  if (!program.empty()) {
-    lldb::SBFileSpec program_fspec(program.data(), true /*resolve_path*/);
-
-    g_vsc.launch_info.SetExecutableFile(program_fspec,
-                                        false /*add_as_first_arg*/);
-    const char *target_triple = nullptr;
-    const char *uuid_cstr = nullptr;
-    // Stand alone debug info file if different from executable
-    const char *symfile = nullptr;
-    g_vsc.target.AddModule(program.data(), target_triple, uuid_cstr, symfile);
-    if (error.Fail()) {
-      response["success"] = llvm::json::Value(false);
-      EmplaceSafeString(response, "message", std::string(error.GetCString()));
-      g_vsc.SendJSON(llvm::json::Value(std::move(response)));
-      return;
-    }
+  lldb::SBError status;
+  g_vsc.SetTarget(g_vsc.CreateTargetFromArguments(*arguments, status));
+  if (status.Fail()) {
+    response["success"] = llvm::json::Value(false);
+    EmplaceSafeString(response, "message", status.GetCString());
+    g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+    return;
   }
 
   const bool detatchOnError = GetBoolean(arguments, "detachOnError", false);
@@ -543,7 +553,8 @@ void request_attach(const llvm::json::Object &request) {
     char attach_info[256];
     auto attach_info_len =
         snprintf(attach_info, sizeof(attach_info),
-                 "Waiting to attach to \"%s\"...", program.data());
+                 "Waiting to attach to \"%s\"...",
+                 g_vsc.target.GetExecutable().GetFilename());
     g_vsc.SendOutput(OutputType::Console, llvm::StringRef(attach_info,
                                                           attach_info_len));
   }
@@ -1217,13 +1228,6 @@ void request_initialize(const llvm::json::Object &request) {
     g_vsc.debugger.SetErrorFileHandle(out, false);
   }
 
-  g_vsc.target = g_vsc.debugger.CreateTarget(nullptr);
-  lldb::SBListener listener = g_vsc.debugger.GetListener();
-  listener.StartListeningForEvents(
-      g_vsc.target.GetBroadcaster(),
-      lldb::SBTarget::eBroadcastBitBreakpointChanged);
-  listener.StartListeningForEvents(g_vsc.broadcaster,
-                                   eBroadcastBitStopEventThread);
   // Start our event thread so we can receive events from the debugger, target,
   // process and more.
   g_vsc.event_thread = std::thread(EventThreadFunction);
@@ -1260,8 +1264,22 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsGotoTargetsRequest", false);
   // The debug adapter supports the stepInTargetsRequest.
   body.try_emplace("supportsStepInTargetsRequest", false);
-  // The debug adapter supports the completionsRequest.
-  body.try_emplace("supportsCompletionsRequest", true);
+  // We need to improve the current implementation of completions in order to
+  // enable it again. For some context, this is how VSCode works: 
+  // - VSCode sends a completion request whenever chars are added, the user
+  //   triggers completion manually via CTRL-space or similar mechanisms, but
+  //   not when there's a deletion. Besides, VSCode doesn't let us know which
+  //   of these events we are handling. What is more, the use can paste or cut
+  //   sections of the text arbitrarily.
+  //   https://github.com/microsoft/vscode/issues/89531 tracks part of the
+  //   issue just mentioned.
+  // This behavior causes many problems with the current way completion is
+  // implemented in lldb-vscode, as these requests could be really expensive,
+  // blocking the debugger, and there could be many concurrent requests unless
+  // the user types very slowly... We need to address this specific issue, or
+  // at least trigger completion only when the user explicitly wants it, which
+  // is the behavior of LLDB CLI, that expects a TAB.
+  body.try_emplace("supportsCompletionsRequest", false);
   // The debug adapter supports the modules request.
   body.try_emplace("supportsModulesRequest", false);
   // The set of additional module information exposed by the debug adapter.
@@ -1351,38 +1369,28 @@ void request_launch(const llvm::json::Object &request) {
 
   SetSourceMapFromArguments(*arguments);
 
-  // Run any initialize LLDB commands the user specified in the launch.json
+  // Run any initialize LLDB commands the user specified in the launch.json.
+  // This is run before target is created, so commands can't do anything with
+  // the targets - preRunCommands are run with the target.
   g_vsc.RunInitCommands();
+
+  lldb::SBError status;
+  g_vsc.SetTarget(g_vsc.CreateTargetFromArguments(*arguments, status));
+  if (status.Fail()) {
+    response["success"] = llvm::json::Value(false);
+    EmplaceSafeString(response, "message", status.GetCString());
+    g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+    return;
+  }
+
+  // Instantiate a launch info instance for the target.
+  g_vsc.launch_info = g_vsc.target.GetLaunchInfo();
 
   // Grab the current working directory if there is one and set it in the
   // launch info.
   const auto cwd = GetString(arguments, "cwd");
   if (!cwd.empty())
     g_vsc.launch_info.SetWorkingDirectory(cwd.data());
-
-  // Grab the name of the program we need to debug and set it as the first
-  // argument that will be passed to the program we will debug.
-  llvm::StringRef program = GetString(arguments, "program");
-  if (!program.empty()) {
-    lldb::SBFileSpec program_fspec(program.data(), true /*resolve_path*/);
-    g_vsc.launch_info.SetExecutableFile(program_fspec,
-                                        true /*add_as_first_arg*/);
-    const char *target_triple = nullptr;
-    const char *uuid_cstr = nullptr;
-    // Stand alone debug info file if different from executable
-    const char *symfile = nullptr;
-    lldb::SBModule module = g_vsc.target.AddModule(
-        program.data(), target_triple, uuid_cstr, symfile);
-    if (!module.IsValid()) {
-      response["success"] = llvm::json::Value(false);
-
-      EmplaceSafeString(
-          response, "message",
-          llvm::formatv("Could not load program '{0}'.", program).str());
-      g_vsc.SendJSON(llvm::json::Value(std::move(response)));
-      return;
-    }
-  }
 
   // Extract any extra arguments and append them to our program arguments for
   // when we launch
@@ -2742,31 +2750,69 @@ const std::map<std::string, RequestCallback> &GetRequestHandlers() {
 
 } // anonymous namespace
 
+static void printHelp(LLDBVSCodeOptTable &table, llvm::StringRef tool_name) {
+  std::string usage_str = tool_name.str() + "options";
+  table.PrintHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
+
+  std::string examples = R"___(
+EXAMPLES:
+  The debug adapter can be started in two modes.
+
+  Running lldb-vscode without any arguments will start communicating with the
+  parent over stdio. Passing a port number causes lldb-vscode to start listening
+  for connections on that port.
+
+    lldb-vscode -p <port>
+
+  Passing --wait-for-debugger will pause the process at startup and wait for a
+  debugger to attach to the process.
+
+    lldb-vscode -g
+  )___";
+  llvm::outs() << examples;
+}
+
 int main(int argc, char *argv[]) {
 
   // Initialize LLDB first before we do anything.
   lldb::SBDebugger::Initialize();
 
-  if (argc == 2) {
-    const char *arg = argv[1];
+  int portno = -1;
+
+  LLDBVSCodeOptTable T;
+  unsigned MAI, MAC;
+  llvm::ArrayRef<const char *> ArgsArr = llvm::makeArrayRef(argv + 1, argc);
+  llvm::opt::InputArgList input_args = T.ParseArgs(ArgsArr, MAI, MAC);
+
+  if (input_args.hasArg(OPT_help)) {
+    printHelp(T, llvm::sys::path::filename(argv[0]));
+    return 0;
+  }
+
+  if (auto *arg = input_args.getLastArg(OPT_port)) {
+    auto optarg = arg->getValue();
+    char *remainder;
+    portno = strtol(optarg, &remainder, 0);
+    if (remainder == optarg || *remainder != '\0') {
+      fprintf(stderr, "'%s' is not a valid port number.\n", optarg);
+      exit(1);
+    }
+  }
+
 #if !defined(_WIN32)
-    if (strcmp(arg, "-g") == 0) {
-      printf("Paused waiting for debugger to attach (pid = %i)...\n", getpid());
-      pause();
-    } else {
-#else
-    {
+  if (input_args.hasArg(OPT_wait_for_debugger)) {
+    printf("Paused waiting for debugger to attach (pid = %i)...\n", getpid());
+    pause();
+  }
 #endif
-      int portno = atoi(arg);
-      printf("Listening on port %i...\n", portno);
-      SOCKET socket_fd = AcceptConnection(portno);
-      if (socket_fd >= 0) {
-        g_vsc.input.descriptor = StreamDescriptor::from_socket(socket_fd, true);
-        g_vsc.output.descriptor =
-            StreamDescriptor::from_socket(socket_fd, false);
-      } else {
-        exit(1);
-      }
+  if (portno != -1) {
+    printf("Listening on port %i...\n", portno);
+    SOCKET socket_fd = AcceptConnection(portno);
+    if (socket_fd >= 0) {
+      g_vsc.input.descriptor = StreamDescriptor::from_socket(socket_fd, true);
+      g_vsc.output.descriptor = StreamDescriptor::from_socket(socket_fd, false);
+    } else {
+      exit(1);
     }
   } else {
     g_vsc.input.descriptor = StreamDescriptor::from_file(fileno(stdin), false);

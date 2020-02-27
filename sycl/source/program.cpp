@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/program_impl.hpp>
 
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 program::program(const context &context)
@@ -116,4 +116,4 @@ string_class program::get_build_options() const {
 
 program_state program::get_state() const { return impl->get_state(); }
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

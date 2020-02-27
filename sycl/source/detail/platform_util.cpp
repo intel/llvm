@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/platform_util.hpp>
 
 #if defined(SYCL_RT_OS_LINUX)
 #include <cpuid.h>
@@ -16,7 +16,7 @@
 #include <intrin.h>
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -143,4 +143,4 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

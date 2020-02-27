@@ -7,15 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
   if (MBlockedCmd)
     detail::Scheduler::getInstance().releaseHostAccessor(this);
+}
+
+void addHostAccessorAndWait(Requirement *Req) {
+  detail::EventImplPtr Event =
+      detail::Scheduler::getInstance().addHostAccessor(Req);
+  Event->wait(Event);
 }
 }
 }

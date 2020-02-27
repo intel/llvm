@@ -1,9 +1,11 @@
+//-fsycl-targets=%sycl_triple
 // RUN: %clangxx -fsycl -std=c++14 %s -o %t.out
 // RUN: %clangxx -fsycl -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 //==--------------- scan.cpp - SYCL sub_group scan test --------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

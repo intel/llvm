@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -146,5 +146,8 @@ void TestMatchers::runOnFunction() {
     test2(f);
 }
 
-static PassRegistration<TestMatchers> pass("test-matchers",
-                                           "Test C++ pattern matchers.");
+namespace mlir {
+void registerTestMatchers() {
+  PassRegistration<TestMatchers>("test-matchers", "Test C++ pattern matchers.");
+}
+} // namespace mlir

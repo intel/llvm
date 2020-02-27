@@ -25,8 +25,11 @@ enum InfoType : uint32_t {
 };
 
 raw_ostream &llvm::gsym::operator<<(raw_ostream &OS, const FunctionInfo &FI) {
-  OS << '[' << HEX64(FI.Range.Start) << '-' << HEX64(FI.Range.End) << "): "
-     << "Name=" << HEX32(FI.Name) << '\n' << FI.OptLineTable << FI.Inline;
+  OS << FI.Range << ": " << "Name=" << HEX32(FI.Name) << '\n';
+  if (FI.OptLineTable)
+    OS << FI.OptLineTable << '\n';
+  if (FI.Inline)
+    OS << FI.Inline << '\n';
   return OS;
 }
 
@@ -220,6 +223,7 @@ llvm::Expected<LookupResult> FunctionInfo::lookup(DataExtractor &Data,
     // location as best we can and return.
     SourceLocation SrcLoc;
     SrcLoc.Name = LR.FuncName;
+    SrcLoc.Offset = Addr - FuncAddr;
     LR.Locations.push_back(SrcLoc);
     return LR;
   }
@@ -232,6 +236,7 @@ llvm::Expected<LookupResult> FunctionInfo::lookup(DataExtractor &Data,
 
   SourceLocation SrcLoc;
   SrcLoc.Name = LR.FuncName;
+  SrcLoc.Offset = Addr - FuncAddr;
   SrcLoc.Dir = GR.getString(LineEntryFile->Dir);
   SrcLoc.Base = GR.getString(LineEntryFile->Base);
   SrcLoc.Line = LineEntry->Line;

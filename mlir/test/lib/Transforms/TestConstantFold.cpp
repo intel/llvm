@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/Pass/Pass.h"
@@ -64,5 +64,9 @@ void TestConstantFold::runOnFunction() {
   }
 }
 
-static PassRegistration<TestConstantFold>
-    pass("test-constant-fold", "Test operation constant folding");
+namespace mlir {
+void registerTestConstantFold() {
+  PassRegistration<TestConstantFold>("test-constant-fold",
+                                     "Test operation constant folding");
+}
+} // namespace mlir

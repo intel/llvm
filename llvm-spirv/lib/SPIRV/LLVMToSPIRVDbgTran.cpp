@@ -201,10 +201,12 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
         SPIRVString *DirAndFile = BM->getString(getFullPath(DL.get()));
         if (File != DirAndFile || LineNo != DL.getLine() ||
             Col != DL.getCol()) {
+          V = SPIRVWriter->getTranslatedValue(&I);
+          if (!V)
+            continue;
           File = DirAndFile;
           LineNo = DL.getLine();
           Col = DL.getCol();
-          V = SPIRVWriter->getTranslatedValue(&I);
           // According to the spec, OpLine for an OpBranch/OpBranchConditional
           // must precede the merge instruction and not the branch instruction
           auto *VPrev = static_cast<SPIRVInstruction *>(V)->getPrevious();

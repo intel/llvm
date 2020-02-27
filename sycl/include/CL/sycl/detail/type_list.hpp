@@ -13,7 +13,7 @@
 
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -137,4 +137,4 @@ using find_twice_as_large_type_t = find_type_t<TL, is_type_size_double_of, T>;
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

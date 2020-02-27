@@ -17,7 +17,7 @@
 #include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -271,7 +271,7 @@ void mlir::fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
   }
 
   // Promote any single iteration slice loops.
-  for (auto forOp : sliceLoops)
+  for (AffineForOp forOp : sliceLoops)
     promoteIfSingleIteration(forOp);
 }
 

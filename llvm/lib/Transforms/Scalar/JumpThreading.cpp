@@ -405,6 +405,12 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
         continue;
       while (ProcessBlock(&BB)) // Thread all of the branches we can over BB.
         Changed = true;
+
+      // Jump threading may have introduced redundant debug values into BB
+      // which should be removed.
+      if (Changed)
+        RemoveRedundantDbgInstrs(&BB);
+
       // Stop processing BB if it's the entry or is now deleted. The following
       // routines attempt to eliminate BB and locating a suitable replacement
       // for the entry is non-trivial.
@@ -427,17 +433,21 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
       // ProcessBlock doesn't thread BBs with unconditional TIs. However, if BB
       // is "almost empty", we attempt to merge BB with its sole successor.
       auto *BI = dyn_cast<BranchInst>(BB.getTerminator());
-      if (BI && BI->isUnconditional() &&
-          // The terminator must be the only non-phi instruction in BB.
-          BB.getFirstNonPHIOrDbg()->isTerminator() &&
-          // Don't alter Loop headers and latches to ensure another pass can
-          // detect and transform nested loops later.
-          !LoopHeaders.count(&BB) && !LoopHeaders.count(BI->getSuccessor(0)) &&
-          TryToSimplifyUncondBranchFromEmptyBlock(&BB, DTU)) {
-        // BB is valid for cleanup here because we passed in DTU. F remains
-        // BB's parent until a DTU->getDomTree() event.
-        LVI->eraseBlock(&BB);
-        Changed = true;
+      if (BI && BI->isUnconditional()) {
+        BasicBlock *Succ = BI->getSuccessor(0);
+        if (
+            // The terminator must be the only non-phi instruction in BB.
+            BB.getFirstNonPHIOrDbg()->isTerminator() &&
+            // Don't alter Loop headers and latches to ensure another pass can
+            // detect and transform nested loops later.
+            !LoopHeaders.count(&BB) && !LoopHeaders.count(Succ) &&
+            TryToSimplifyUncondBranchFromEmptyBlock(&BB, DTU)) {
+          RemoveRedundantDbgInstrs(Succ);
+          // BB is valid for cleanup here because we passed in DTU. F remains
+          // BB's parent until a DTU->getDomTree() event.
+          LVI->eraseBlock(&BB);
+          Changed = true;
+        }
       }
     }
     EverChanged |= Changed;
@@ -2103,11 +2113,11 @@ bool JumpThreadingPass::MaybeThreadThroughTwoBasicBlocks(BasicBlock *BB,
   if (!PredBB)
     return false;
 
-  // Require that PredBB end with a Branch.  If PredBB ends with an
-  // unconditional branch, we should be merging PredBB and BB instead.  For
+  // Require that PredBB end with a conditional Branch. If PredBB ends with an
+  // unconditional branch, we should be merging PredBB and BB instead. For
   // simplicity, we don't deal with a switch.
   BranchInst *PredBBBranch = dyn_cast<BranchInst>(PredBB->getTerminator());
-  if (!PredBBBranch)
+  if (!PredBBBranch || PredBBBranch->isUnconditional())
     return false;
 
   // If PredBB has exactly one incoming edge, we don't gain anything by copying

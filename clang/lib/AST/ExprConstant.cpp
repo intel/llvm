@@ -1417,6 +1417,31 @@ static bool isFormalAccess(AccessKinds AK) {
   return isAnyAccess(AK) && AK != AK_Construct && AK != AK_Destroy;
 }
 
+/// Is this kind of axcess valid on an indeterminate object value?
+static bool isValidIndeterminateAccess(AccessKinds AK) {
+  switch (AK) {
+  case AK_Read:
+  case AK_Increment:
+  case AK_Decrement:
+    // These need the object's value.
+    return false;
+
+  case AK_ReadObjectRepresentation:
+  case AK_Assign:
+  case AK_Construct:
+  case AK_Destroy:
+    // Construction and destruction don't need the value.
+    return true;
+
+  case AK_MemberCall:
+  case AK_DynamicCast:
+  case AK_TypeId:
+    // These aren't really meaningful on scalars.
+    return true;
+  }
+  llvm_unreachable("unknown access kind");
+}
+
 namespace {
   struct ComplexValue {
   private:
@@ -3140,6 +3165,13 @@ struct CompleteObject {
       : Base(Base), Value(Value), Type(Type) {}
 
   bool mayAccessMutableMembers(EvalInfo &Info, AccessKinds AK) const {
+    // If this isn't a "real" access (eg, if it's just accessing the type
+    // info), allow it. We assume the type doesn't change dynamically for
+    // subobjects of constexpr objects (even though we'd hit UB here if it
+    // did). FIXME: Is this right?
+    if (!isAnyAccess(AK))
+      return true;
+
     // In C++14 onwards, it is permitted to read a mutable member whose
     // lifetime began within the evaluation.
     // FIXME: Should we also allow this in C++11?
@@ -3194,9 +3226,8 @@ findSubobject(EvalInfo &Info, const Expr *E, const CompleteObject &Obj,
   for (unsigned I = 0, N = Sub.Entries.size(); /**/; ++I) {
     // Reading an indeterminate value is undefined, but assigning over one is OK.
     if ((O->isAbsent() && !(handler.AccessKind == AK_Construct && I == N)) ||
-        (O->isIndeterminate() && handler.AccessKind != AK_Construct &&
-         handler.AccessKind != AK_Assign &&
-         handler.AccessKind != AK_ReadObjectRepresentation)) {
+        (O->isIndeterminate() &&
+         !isValidIndeterminateAccess(handler.AccessKind))) {
       if (!Info.checkingPotentialConstantExpression())
         Info.FFDiag(E, diag::note_constexpr_access_uninit)
             << handler.AccessKind << O->isIndeterminate();
@@ -5469,6 +5500,8 @@ static bool EvaluateArgs(ArrayRef<const Expr *> Args, ArgVector &ArgValues,
         }
     }
   }
+  // FIXME: This is the wrong evaluation order for an assignment operator
+  // called via operator syntax.
   for (unsigned Idx = 0; Idx < Args.size(); Idx++) {
     if (!Evaluate(ArgValues[Idx], Info, Args[Idx])) {
       // If we're checking for a potential constant expression, evaluate all
@@ -5609,9 +5642,14 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
   }
 
   // Reserve space for the struct members.
-  if (!RD->isUnion() && !Result.hasValue())
-    Result = APValue(APValue::UninitStruct(), RD->getNumBases(),
-                     std::distance(RD->field_begin(), RD->field_end()));
+  if (!Result.hasValue()) {
+    if (!RD->isUnion())
+      Result = APValue(APValue::UninitStruct(), RD->getNumBases(),
+                       std::distance(RD->field_begin(), RD->field_end()));
+    else
+      // A union starts with no active member.
+      Result = APValue((const FieldDecl*)nullptr);
+  }
 
   if (RD->isInvalidDecl()) return false;
   const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(RD);
@@ -6924,10 +6962,8 @@ public:
       } else if (const auto *PDE = dyn_cast<CXXPseudoDestructorExpr>(Callee)) {
         if (!Info.getLangOpts().CPlusPlus2a)
           Info.CCEDiag(PDE, diag::note_constexpr_pseudo_destructor);
-        // FIXME: If pseudo-destructor calls ever start ending the lifetime of
-        // their callee, we should start calling HandleDestruction here.
-        // For now, we just evaluate the object argument and discard it.
-        return EvaluateObjectArgument(Info, PDE->getBase(), ThisVal);
+        return EvaluateObjectArgument(Info, PDE->getBase(), ThisVal) &&
+               HandleDestruction(Info, PDE, ThisVal, PDE->getDestroyedType());
       } else
         return Error(Callee);
       FD = Member;
@@ -10684,7 +10720,7 @@ static bool getBuiltinAlignArguments(const CallExpr *E, EvalInfo &Info,
 
 bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                             unsigned BuiltinOp) {
-  switch (unsigned BuiltinOp = E->getBuiltinCallee()) {
+  switch (BuiltinOp) {
   default:
     return ExprEvaluatorBaseTy::VisitCallExpr(E);
 
@@ -13909,18 +13945,6 @@ bool Expr::EvaluateAsInitializer(APValue &Value, const ASTContext &Ctx,
     LValue LVal;
     LVal.set(VD);
 
-    // C++11 [basic.start.init]p2:
-    //  Variables with static storage duration or thread storage duration shall
-    //  be zero-initialized before any other initialization takes place.
-    // This behavior is not present in C.
-    if (Ctx.getLangOpts().CPlusPlus && !VD->hasLocalStorage() &&
-        !DeclTy->isReferenceType()) {
-      ImplicitValueInitExpr VIE(DeclTy);
-      if (!EvaluateInPlace(Value, Info, LVal, &VIE,
-                           /*AllowNonLiteralTypes=*/true))
-        return false;
-    }
-
     if (!EvaluateInPlace(Value, Info, LVal, this,
                          /*AllowNonLiteralTypes=*/true) ||
         EStatus.HasSideEffects)
@@ -13939,14 +13963,16 @@ bool Expr::EvaluateAsInitializer(APValue &Value, const ASTContext &Ctx,
 
 bool VarDecl::evaluateDestruction(
     SmallVectorImpl<PartialDiagnosticAt> &Notes) const {
-  assert(getEvaluatedValue() && !getEvaluatedValue()->isAbsent() &&
-         "cannot evaluate destruction of non-constant-initialized variable");
-
   Expr::EvalStatus EStatus;
   EStatus.Diag = &Notes;
 
-  // Make a copy of the value for the destructor to mutate.
-  APValue DestroyedValue = *getEvaluatedValue();
+  // Make a copy of the value for the destructor to mutate, if we know it.
+  // Otherwise, treat the value as default-initialized; if the destructor works
+  // anyway, then the destruction is constant (and must be essentially empty).
+  APValue DestroyedValue =
+      (getEvaluatedValue() && !getEvaluatedValue()->isAbsent())
+          ? *getEvaluatedValue()
+          : getDefaultInitValue(getType());
 
   EvalInfo Info(getASTContext(), EStatus, EvalInfo::EM_ConstantExpression);
   Info.setEvaluatingDecl(this, DestroyedValue,
@@ -13959,8 +13985,6 @@ bool VarDecl::evaluateDestruction(
   LValue LVal;
   LVal.set(this);
 
-  // FIXME: Consider storing whether this variable has constant destruction in
-  // the EvaluatedStmt so that CodeGen can query it.
   if (!HandleDestruction(Info, DeclLoc, LVal.Base, DestroyedValue, DeclTy) ||
       EStatus.HasSideEffects)
     return false;

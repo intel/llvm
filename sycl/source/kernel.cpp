@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/kernel_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
@@ -87,4 +87,4 @@ kernel::get_sub_group_info(
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

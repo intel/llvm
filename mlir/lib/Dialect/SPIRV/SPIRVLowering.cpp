@@ -69,6 +69,9 @@ static Optional<int64_t> getTypeNumBytes(Type t) {
     if (!elementSize) {
       return llvm::None;
     }
+    if (memRefType.getRank() == 0) {
+      return elementSize;
+    }
     auto dims = memRefType.getShape();
     if (llvm::is_contained(dims, ShapedType::kDynamicSize) ||
         offset == MemRefType::getDynamicStrideOrOffset() ||
@@ -98,41 +101,37 @@ static Optional<int64_t> getTypeNumBytes(Type t) {
   return llvm::None;
 }
 
-static Type convertStdType(Type type) {
-  // If the type is already valid in SPIR-V, directly return.
-  if (spirv::SPIRVDialect::isValidType(type)) {
-    return type;
-  }
-
-  if (auto indexType = type.dyn_cast<IndexType>()) {
-    return SPIRVTypeConverter::getIndexType(type.getContext());
-  }
-
-  if (auto memRefType = type.dyn_cast<MemRefType>()) {
+SPIRVTypeConverter::SPIRVTypeConverter() {
+  addConversion([](Type type) -> Optional<Type> {
+    // If the type is already valid in SPIR-V, directly return.
+    return spirv::SPIRVDialect::isValidType(type) ? type : Optional<Type>();
+  });
+  addConversion([](IndexType indexType) {
+    return SPIRVTypeConverter::getIndexType(indexType.getContext());
+  });
+  addConversion([this](MemRefType memRefType) -> Type {
     // TODO(ravishankarm): For now only support default memory space. The memory
     // space description is not set is stone within MLIR, i.e. it depends on the
     // context it is being used. To map this to SPIR-V storage classes, we
     // should rely on the ABI attributes, and not on the memory space. This is
     // still evolving, and needs to be revisited when there is more clarity.
-    if (memRefType.getMemorySpace()) {
+    if (memRefType.getMemorySpace())
       return Type();
-    }
 
-    auto elementType = convertStdType(memRefType.getElementType());
-    if (!elementType) {
+    auto elementType = convertType(memRefType.getElementType());
+    if (!elementType)
       return Type();
-    }
 
     auto elementSize = getTypeNumBytes(elementType);
-    if (!elementSize) {
+    if (!elementSize)
       return Type();
-    }
+
     // TODO(ravishankarm) : Handle dynamic shapes.
     if (memRefType.hasStaticShape()) {
       auto arraySize = getTypeNumBytes(memRefType);
-      if (!arraySize) {
+      if (!arraySize)
         return Type();
-      }
+
       auto arrayType = spirv::ArrayType::get(
           elementType, arraySize.getValue() / elementSize.getValue(),
           elementSize.getValue());
@@ -142,33 +141,30 @@ static Type convertStdType(Type type) {
       return spirv::PointerType::get(structType,
                                      spirv::StorageClass::StorageBuffer);
     }
-  }
-
-  if (auto tensorType = type.dyn_cast<TensorType>()) {
+    return Type();
+  });
+  addConversion([this](TensorType tensorType) -> Type {
     // TODO(ravishankarm) : Handle dynamic shapes.
-    if (!tensorType.hasStaticShape()) {
+    if (!tensorType.hasStaticShape())
       return Type();
-    }
-    auto elementType = convertStdType(tensorType.getElementType());
-    if (!elementType) {
+
+    auto elementType = convertType(tensorType.getElementType());
+    if (!elementType)
       return Type();
-    }
+
     auto elementSize = getTypeNumBytes(elementType);
-    if (!elementSize) {
+    if (!elementSize)
       return Type();
-    }
+
     auto tensorSize = getTypeNumBytes(tensorType);
-    if (!tensorSize) {
+    if (!tensorSize)
       return Type();
-    }
+
     return spirv::ArrayType::get(elementType,
                                  tensorSize.getValue() / elementSize.getValue(),
                                  elementSize.getValue());
-  }
-  return Type();
+  });
 }
-
-Type SPIRVTypeConverter::convertType(Type type) { return convertStdType(type); }
 
 //===----------------------------------------------------------------------===//
 // FuncOp Conversion Patterns
@@ -191,6 +187,7 @@ PatternMatchResult
 FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
                                   ConversionPatternRewriter &rewriter) const {
   auto fnType = funcOp.getType();
+  // TODO(antiagainst): support converting functions with one result.
   if (fnType.getNumResults())
     return matchFailure();
 
@@ -202,12 +199,23 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
     signatureConverter.addInputs(argType.index(), convertedType);
   }
 
-  rewriter.updateRootInPlace(funcOp, [&] {
-    funcOp.setType(rewriter.getFunctionType(
-        signatureConverter.getConvertedTypes(), llvm::None));
-    rewriter.applySignatureConversion(&funcOp.getBody(), signatureConverter);
-  });
+  // Create the converted spv.func op.
+  auto newFuncOp = rewriter.create<spirv::FuncOp>(
+      funcOp.getLoc(), funcOp.getName(),
+      rewriter.getFunctionType(signatureConverter.getConvertedTypes(),
+                               llvm::None));
 
+  // Copy over all attributes other than the function name and type.
+  for (const auto &namedAttr : funcOp.getAttrs()) {
+    if (!namedAttr.first.is(impl::getTypeAttrName()) &&
+        !namedAttr.first.is(SymbolTable::getSymbolAttrName()))
+      newFuncOp.setAttr(namedAttr.first, namedAttr.second);
+  }
+
+  rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
+                              newFuncOp.end());
+  rewriter.applySignatureConversion(&newFuncOp.getBody(), signatureConverter);
+  rewriter.eraseOp(funcOp);
   return matchSuccess();
 }
 
@@ -308,7 +316,8 @@ spirv::AccessChainOp mlir::spirv::getElementPtr(
   auto indexType = typeConverter.getIndexType(builder.getContext());
 
   Value ptrLoc = nullptr;
-  assert(indices.size() == strides.size());
+  assert(indices.size() == strides.size() &&
+         "must provide indices for all dimensions");
   for (auto index : enumerate(indices)) {
     Value strideVal = builder.create<spirv::ConstantOp>(
         loc, indexType, IntegerAttr::get(indexType, strides[index.index()]));
@@ -319,8 +328,12 @@ spirv::AccessChainOp mlir::spirv::getElementPtr(
   }
   SmallVector<Value, 2> linearizedIndices;
   // Add a '0' at the start to index into the struct.
-  linearizedIndices.push_back(builder.create<spirv::ConstantOp>(
-      loc, indexType, IntegerAttr::get(indexType, 0)));
+  auto zero = spirv::ConstantOp::getZero(indexType, loc, &builder);
+  linearizedIndices.push_back(zero);
+  // If it is a zero-rank memref type, extract the element directly.
+  if (!ptrLoc) {
+    ptrLoc = zero;
+  }
   linearizedIndices.push_back(ptrLoc);
   return builder.create<spirv::AccessChainOp>(loc, basePtr, linearizedIndices);
 }
@@ -330,7 +343,8 @@ spirv::AccessChainOp mlir::spirv::getElementPtr(
 //===----------------------------------------------------------------------===//
 
 LogicalResult
-mlir::spirv::setABIAttrs(FuncOp funcOp, spirv::EntryPointABIAttr entryPointInfo,
+mlir::spirv::setABIAttrs(spirv::FuncOp funcOp,
+                         spirv::EntryPointABIAttr entryPointInfo,
                          ArrayRef<spirv::InterfaceVarABIAttr> argABIInfo) {
   // Set the attributes for argument and the function.
   StringRef argABIAttrName = spirv::getInterfaceVarABIAttrName();

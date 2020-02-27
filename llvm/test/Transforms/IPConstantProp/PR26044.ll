@@ -33,7 +33,8 @@ define internal i32 @fn1(i32 %p1) {
 ; CHECK-LABEL: define {{[^@]+}}@fn1
 ; CHECK-SAME: (i32 [[P1:%.*]])
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[COND:%.*]] = select i1 undef, i32 undef, i32 undef
+; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp ne i32 undef, 0
+; CHECK-NEXT:    [[COND:%.*]] = select i1 [[TOBOOL]], i32 undef, i32 undef
 ; CHECK-NEXT:    ret i32 [[COND]]
 ;
 entry:

@@ -204,6 +204,13 @@ def UpdateFloatElementsAttr : Pat<
     ConstantAttr<RankedF32ElementsAttr<[2]>, "{5.0f, 6.0f}">:$f32attr,
     $f64attr)>;
 
+def IntElementsAttrOp : TEST_Op<"int_elements_attr"> {
+  let arguments = (ins
+      RankedI32ElementsAttr<[2]>:$vector_i32_attr,
+      RankedI64ElementsAttr<[4, 8]>:$matrix_i64_attr
+  );
+}
+
 //===----------------------------------------------------------------------===//
 // Test Attribute Constraints
 //===----------------------------------------------------------------------===//
@@ -424,7 +431,7 @@ def UpdateAttr : Pat<(I32ElementsAttrOp $attr),
                      [(IsNotScalar $attr)]>;
 
 def TestBranchOp : TEST_Op<"br", [Terminator]> {
-  let arguments = (ins Variadic<AnyType>:$operands);
+  let successors = (successor AnySuccessor:$target);
 }
 
 def AttrSizedOperandOp : TEST_Op<"attr_sized_operands",
@@ -602,12 +609,11 @@ def OpAllAttrConstraint2 : TEST_Op<"all_attr_constraint_of2"> {
   let results = (outs I32);
 }
 def Constraint0 : AttrConstraint<
-    CPred<"$_self.cast<ArrayAttr>().getValue()[0]."
+    CPred<"$_self.cast<ArrayAttr>()[0]."
           "cast<IntegerAttr>().getInt() == 0">,
     "[0] == 0">;
 def Constraint1 : AttrConstraint<
-    CPred<"$_self.cast<ArrayAttr>().getValue()[1]."
-          "cast<IntegerAttr>().getInt() == 1">,
+    CPred<"$_self.cast<ArrayAttr>()[1].cast<IntegerAttr>().getInt() == 1">,
     "[1] == 1">;
 def : Pat<(OpAllAttrConstraint1
             AllAttrConstraintsOf<[Constraint0, Constraint1]>:$attr),
@@ -637,6 +643,11 @@ def TestOpWithVariadicResultsAndFolder: TEST_Op<"op_with_variadic_results_and_fo
   let arguments = (ins Variadic<I32>:$operands);
   let results = (outs Variadic<I32>);
   let hasFolder = 1;
+}
+
+def TestCommutativeOp : TEST_Op<"op_commutative", [Commutative]> {
+  let arguments = (ins I32:$op1, I32:$op2, I32:$op3, I32:$op4);
+  let results = (outs I32);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1078,6 +1089,12 @@ def FormatAttrOp : TEST_Op<"format_attr_op"> {
   let assemblyFormat = "$attr attr-dict";
 }
 
+// Test that we elide attributes that are within the syntax.
+def FormatAttrDictWithKeywordOp : TEST_Op<"format_attr_dict_w_keyword"> {
+  let arguments = (ins I64Attr:$attr);
+  let assemblyFormat = "attr-dict-with-keyword";
+}
+
 // Test that we don't need to provide types in the format if they are buildable.
 def FormatBuildableTypeOp : TEST_Op<"format_buildable_type_op"> {
   let arguments = (ins I64:$buildable);
@@ -1121,5 +1138,10 @@ def FormatOperandDOp : FormatOperandBase<"format_operand_d_op", [{
 def FormatOperandEOp : FormatOperandBase<"format_operand_e_op", [{
   $buildable `,` $operand `:` type($buildable) `,` type($operand) attr-dict
 }]>;
+
+def FormatSuccessorAOp : TEST_Op<"format_successor_a_op", [Terminator]> {
+  let successors = (successor VariadicSuccessor<AnySuccessor>:$targets);
+  let assemblyFormat = "$targets attr-dict";
+}
 
 #endif // TEST_OPS

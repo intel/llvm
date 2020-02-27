@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/device_impl.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -35,7 +35,7 @@ device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice), &parent, nullptr);
+      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice) {
@@ -198,4 +198,4 @@ vector_class<device> device_impl::create_sub_devices(
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

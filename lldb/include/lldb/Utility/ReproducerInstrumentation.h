@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_UTILITY_REPRODUCER_INSTRUMENTATION_H
-#define LLDB_UTILITY_REPRODUCER_INSTRUMENTATION_H
+#ifndef LLDB_UTILITY_REPRODUCERINSTRUMENTATION_H
+#define LLDB_UTILITY_REPRODUCERINSTRUMENTATION_H
 
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
@@ -96,7 +96,8 @@ template <typename... Ts> inline std::string stringify_args(const Ts &... ts) {
       return char_ptr_redirect_static<Result>(Class::Method, s, l);            \
     };                                                                         \
     R.Register<Result(char *, size_t)>(                                        \
-        static_cast<Result (*)(char *, size_t)>(&Class::Method), _redirect);   \
+        static_cast<Result (*)(char *, size_t)>(&Class::Method), _redirect,    \
+        #Result, #Class, #Method, "(char*, size_t");                           \
   }
 #define LLDB_REGISTER_CHAR_PTR_REDIRECT(Result, Class, Method)                 \
   {                                                                            \
@@ -833,4 +834,4 @@ Result char_ptr_redirect_static(Result (*f)(char *, size_t), char *s,
 } // namespace repro
 } // namespace lldb_private
 
-#endif // LLDB_UTILITY_REPRODUCER_INSTRUMENTATION_H
+#endif // LLDB_UTILITY_REPRODUCERINSTRUMENTATION_H

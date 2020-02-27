@@ -38,17 +38,50 @@ template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __SYCL_EXTERNAL_WITH_PTR__ TempRetT
 __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, float);
 
+#ifdef __SYCL_NVPTX__
+
+//
+// This a workaround to avoid a SPIR-V ABI issue.
+//
+
+template <typename dataT>
+__ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
+                                     __attribute__((opencl_local)) dataT *Dest,
+                                     __attribute__((opencl_global)) dataT *Src,
+                                     size_t NumElements, size_t Stride,
+                                     __ocl_event_t E) noexcept {
+  for (int i = 0; i < NumElements; i++) {
+    Dest[i] = Src[i * Stride];
+  }
+
+  return E;
+}
+
+template <typename dataT>
+__ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
+                                     __attribute__((opencl_global)) dataT *Dest,
+                                     __attribute__((opencl_local)) dataT *Src,
+                                     size_t NumElements, size_t Stride,
+                                     __ocl_event_t E) noexcept {
+  for (int i = 0; i < NumElements; i++) {
+    Dest[i * Stride] = Src[i];
+  }
+
+  return E;
+}
+#else
 template <typename dataT>
 extern __SYCL_EXTERNAL_WITH_PTR__ __ocl_event_t __spirv_GroupAsyncCopy(
     __spv::Scope Execution, __attribute__((opencl_local)) dataT *Dest,
-    __attribute__((opencl_global)) dataT *Src, size_t NumElements,
-    size_t Stride, __ocl_event_t E) noexcept;
+    __attribute__((opencl_global)) dataT *Src, size_t NumElements, size_t Stride,
+    __ocl_event_t E) noexcept;
 
 template <typename dataT>
 extern __SYCL_EXTERNAL_WITH_PTR__ __ocl_event_t __spirv_GroupAsyncCopy(
     __spv::Scope Execution, __attribute__((opencl_global)) dataT *Dest,
     __attribute__((opencl_local)) dataT *Src, size_t NumElements, size_t Stride,
     __ocl_event_t E) noexcept;
+#endif
 
 #define OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
@@ -158,6 +191,15 @@ __spirv_GroupAny(__spv::Scope Execution, bool Predicate) noexcept;
 template <typename dataT>
 extern __SYCL_EXTERNAL_WITH_PTR__ dataT __spirv_GroupBroadcast(
     __spv::Scope Execution, dataT Value, uint32_t LocalId) noexcept;
+
+template <typename dataT>
+extern __SYCL_EXTERNAL_WITH_PTR__
+dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                             __ocl_vec_t<size_t, 2> LocalId) noexcept;
+template <typename dataT>
+extern __SYCL_EXTERNAL_WITH_PTR__
+dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                             __ocl_vec_t<size_t, 3> LocalId) noexcept;
 
 template <typename dataT>
 extern __SYCL_EXTERNAL_WITH_PTR__ dataT __spirv_GroupIAdd(

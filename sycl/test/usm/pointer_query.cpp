@@ -92,5 +92,32 @@ int main() {
   }
   free(array, ctxt);
 
+  // Test invalid ptrs
+  Kind = get_pointer_type(nullptr, ctxt);
+  if (Kind != usm::alloc::unknown) {
+    return 11;
+  }
+
+  // next checks only valid for non-host contexts
+  array = (int*)malloc(N*sizeof(int));
+  Kind = get_pointer_type(array, ctxt);
+  if (!ctxt.is_host()) {
+    if (Kind != usm::alloc::unknown) {
+      return 12;
+    }
+    try {
+      D = get_pointer_device(array, ctxt);
+    } catch (runtime_error) {
+      return 0;
+    }
+    return 13;
+  } else {
+    // host ctxts always report host
+    if (Kind != usm::alloc::host) {
+      return 14;
+    }
+  }
+  free(array);
+
   return 0;
 }

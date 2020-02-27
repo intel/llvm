@@ -44,7 +44,7 @@
 
 #endif // SYCL_RT_OS
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -205,13 +205,14 @@ std::string OSUtil::getCurrentDSODir() {
     sizeof(Path));
   assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
   assert(Ret > 0 && "GetModuleFileNameA failed");
+  (void)Ret;
 
   BOOL RetCode = PathRemoveFileSpecA(reinterpret_cast<LPSTR>(&Path));
   assert(RetCode && "PathRemoveFileSpecA failed");
   (void)RetCode;
 
   return Path;
-};
+}
 
 #elif defined(SYCL_RT_OS_DARWIN)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
@@ -261,4 +262,4 @@ void OSUtil::alignedFree(void *Ptr) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

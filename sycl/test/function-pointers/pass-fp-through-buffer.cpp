@@ -1,10 +1,11 @@
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // FIXME: This test should use runtime early exit once correct check for
 // corresponding extension is implemented
 // UNSUPPORTED: windows
+// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 
@@ -62,7 +63,7 @@ int main() {
           bufA.template get_access<cl::sycl::access::mode::read_write>(CGH);
       auto AccB = bufB.template get_access<cl::sycl::access::mode::read>(CGH);
       auto AccDT =
-          DispatchTable.template get_access<cl::sycl::access ::mode::read>(CGH);
+          DispatchTable.template get_access<cl::sycl::access::mode::read>(CGH);
       CGH.parallel_for<class K>(
           KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
         auto FP =

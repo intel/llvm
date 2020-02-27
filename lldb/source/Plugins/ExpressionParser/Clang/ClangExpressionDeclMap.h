@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangExpressionDeclMap_h_
-#define liblldb_ClangExpressionDeclMap_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONDECLMAP_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONDECLMAP_H
 
 #include <signal.h>
 #include <stdint.h>
@@ -275,14 +275,9 @@ public:
   ///
   /// \param[in] namespace_decl
   ///     If valid and module is non-NULL, the parent namespace.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
   void FindExternalVisibleDecls(NameSearchContext &context,
                                 lldb::ModuleSP module,
-                                CompilerDeclContext &namespace_decl,
-                                unsigned int current_id);
+                                const CompilerDeclContext &namespace_decl);
 
 protected:
   /// Retrieves the declaration with the given name from the storage of
@@ -395,32 +390,19 @@ private:
   ///
   /// \param[in] name
   ///     The name of the entities that need to be found.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
-  void SearchPersistenDecls(NameSearchContext &context, const ConstString name,
-                            unsigned int current_id);
+  void SearchPersistenDecls(NameSearchContext &context, const ConstString name);
 
   /// Handles looking up $__lldb_class which requires special treatment.
   ///
   /// \param[in] context
   ///     The NameSearchContext that can construct Decls for this name.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
-  void LookUpLldbClass(NameSearchContext &context, unsigned int current_id);
+  void LookUpLldbClass(NameSearchContext &context);
 
   /// Handles looking up $__lldb_objc_class which requires special treatment.
   ///
   /// \param[in] context
   ///     The NameSearchContext that can construct Decls for this name.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
-  void LookUpLldbObjCClass(NameSearchContext &context, unsigned int current_id);
+  void LookUpLldbObjCClass(NameSearchContext &context);
 
   /// Handles looking up the synthetic namespace that contains our local
   /// variables for the current frame.
@@ -439,12 +421,7 @@ private:
   ///
   /// \param[in] name
   ///     The name of the entities that need to be found.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
-  void LookupInModulesDeclVendor(NameSearchContext &context, ConstString name,
-                                 unsigned current_id);
+  void LookupInModulesDeclVendor(NameSearchContext &context, ConstString name);
 
   /// Looks up a local variable.
   ///
@@ -453,10 +430,6 @@ private:
   ///
   /// \param[in] name
   ///     The name of the entities that need to be found.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
   ///
   /// \param[in] sym_ctx
   ///     The current SymbolContext of this frame.
@@ -467,8 +440,8 @@ private:
   /// \return
   ///    True iff a local variable was found.
   bool LookupLocalVariable(NameSearchContext &context, ConstString name,
-                           unsigned current_id, SymbolContext &sym_ctx,
-                           CompilerDeclContext &namespace_decl);
+                           SymbolContext &sym_ctx,
+                           const CompilerDeclContext &namespace_decl);
 
   /// Searches for functions in the given SymbolContextList.
   ///
@@ -500,13 +473,9 @@ private:
   ///
   /// \param[in] namespace_decl
   ///     If valid and module is non-NULL, the parent namespace.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
   void LookupFunction(NameSearchContext &context, lldb::ModuleSP module_sp,
-                      ConstString name, CompilerDeclContext &namespace_decl,
-                      unsigned current_id);
+                      ConstString name,
+                      const CompilerDeclContext &namespace_decl);
 
   /// Given a target, find a variable that matches the given name and type.
   ///
@@ -524,9 +493,9 @@ private:
   ///
   /// \return
   ///     The LLDB Variable found, or NULL if none was found.
-  lldb::VariableSP FindGlobalVariable(Target &target, lldb::ModuleSP &module,
-                                      ConstString name,
-                                      CompilerDeclContext *namespace_decl);
+  lldb::VariableSP
+  FindGlobalVariable(Target &target, lldb::ModuleSP &module, ConstString name,
+                     const CompilerDeclContext &namespace_decl);
 
   /// Get the value of a variable in a given execution context and return the
   /// associated Types if needed.
@@ -566,7 +535,7 @@ private:
   /// \param[in] valobj
   ///     The LLDB ValueObject for that variable.
   void AddOneVariable(NameSearchContext &context, lldb::VariableSP var,
-                      lldb::ValueObjectSP valobj, unsigned int current_id);
+                      lldb::ValueObjectSP valobj);
 
   /// Use the NameSearchContext to generate a Decl for the given persistent
   /// variable, and put it in the list of found entities.
@@ -576,18 +545,12 @@ private:
   ///
   /// \param[in] pvar_sp
   ///     The persistent variable that needs a Decl.
-  ///
-  /// \param[in] current_id
-  ///     The ID of the current invocation of FindExternalVisibleDecls
-  ///     for logging purposes.
   void AddOneVariable(NameSearchContext &context,
-                      lldb::ExpressionVariableSP &pvar_sp,
-                      unsigned int current_id);
+                      lldb::ExpressionVariableSP &pvar_sp);
 
   /// Use the NameSearchContext to generate a Decl for the given LLDB symbol
   /// (treated as a variable), and put it in the list of found entities.
-  void AddOneGenericVariable(NameSearchContext &context, const Symbol &symbol,
-                             unsigned int current_id);
+  void AddOneGenericVariable(NameSearchContext &context, const Symbol &symbol);
 
   /// Use the NameSearchContext to generate a Decl for the given function.
   /// (Functions are not placed in the Tuple list.)  Can handle both fully
@@ -603,8 +566,7 @@ private:
   /// \param[in] sym
   ///     The Symbol that corresponds to a function that needs to be
   ///     created with generic type (unitptr_t foo(...)).
-  void AddOneFunction(NameSearchContext &context, Function *fun, Symbol *sym,
-                      unsigned int current_id);
+  void AddOneFunction(NameSearchContext &context, Function *fun, Symbol *sym);
 
   /// Use the NameSearchContext to generate a Decl for the given register.
   ///
@@ -613,8 +575,7 @@ private:
   ///
   /// \param[in] reg_info
   ///     The information corresponding to that register.
-  void AddOneRegister(NameSearchContext &context, const RegisterInfo *reg_info,
-                      unsigned int current_id);
+  void AddOneRegister(NameSearchContext &context, const RegisterInfo *reg_info);
 
   /// Use the NameSearchContext to generate a Decl for the given type.  (Types
   /// are not placed in the Tuple list.)
@@ -624,8 +585,7 @@ private:
   ///
   /// \param[in] type
   ///     The type that needs to be created.
-  void AddOneType(NameSearchContext &context, const TypeFromUser &type,
-                  unsigned int current_id);
+  void AddOneType(NameSearchContext &context, const TypeFromUser &type);
 
   /// Generate a Decl for "*this" and add a member function declaration to it
   /// for the expression, then report it.
@@ -635,8 +595,7 @@ private:
   ///
   /// \param[in] type
   ///     The type for *this.
-  void AddThisType(NameSearchContext &context, const TypeFromUser &type,
-                   unsigned int current_id);
+  void AddThisType(NameSearchContext &context, const TypeFromUser &type);
 
   /// Move a type out of the current ASTContext into another, but make sure to
   /// export all components of the type also.
@@ -658,4 +617,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangExpressionDeclMap_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONDECLMAP_H

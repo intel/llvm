@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
-#include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/kernel_info.hpp>
 
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -34,7 +34,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   RT::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin().call<PiApiKind::piKernelGetInfo>(
-      MKernel, CL_KERNEL_CONTEXT, sizeof(Context), &Context, nullptr);
+      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel");
@@ -158,4 +158,4 @@ bool kernel_impl::isCreatedFromSource() const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

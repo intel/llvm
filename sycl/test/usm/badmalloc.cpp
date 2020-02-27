@@ -4,6 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
 // UNSUPPORTED: windows
+// XFAIL: cuda
 
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //

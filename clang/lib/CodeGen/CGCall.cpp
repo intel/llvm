@@ -755,6 +755,12 @@ CodeGenTypes::arrangeLLVMFunctionInfo(CanQualType resultType,
     return *FI;
 
   unsigned CC = ClangCallConvToLLVMCallConv(info.getCC());
+  // This is required so SYCL kernels are successfully processed by tools from CUDA. Kernels
+  // with a `spir_kernel` calling convention are ignored otherwise.
+  if (CC == llvm::CallingConv::SPIR_KERNEL && CGM.getTriple().isNVPTX() &&
+      getContext().getLangOpts().SYCLIsDevice) {
+    CC = llvm::CallingConv::C;
+  }
 
   // Construct the function info.  We co-allocate the ArgInfos.
   FI = CGFunctionInfo::create(CC, instanceMethod, chainCall, info,
@@ -2370,6 +2376,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       auto FieldIndex = ArgI.getInAllocaFieldIndex();
       Address V =
           Builder.CreateStructGEP(ArgStruct, FieldIndex, Arg->getName());
+      if (ArgI.getInAllocaIndirect())
+        V = Address(Builder.CreateLoad(V),
+                    getContext().getTypeAlignInChars(Ty));
       ArgVals.push_back(ParamValue::forIndirect(V));
       break;
     }
@@ -3038,6 +3047,11 @@ void CodeGenFunction::EmitReturnValueCheck(llvm::Value *RV) {
   if (!CurCodeDecl)
     return;
 
+  // If the return block isn't reachable, neither is this check, so don't emit
+  // it.
+  if (ReturnBlock.isValid() && ReturnBlock.getBlock()->use_empty())
+    return;
+
   ReturnsNonNullAttr *RetNNAttr = nullptr;
   if (SanOpts.has(SanitizerKind::ReturnsNonnullAttribute))
     RetNNAttr = CurCodeDecl->getAttr<ReturnsNonNullAttr>();
@@ -3058,7 +3072,7 @@ void CodeGenFunction::EmitReturnValueCheck(llvm::Value *RV) {
   } else {
     if (auto *DD = dyn_cast<DeclaratorDecl>(CurCodeDecl))
       if (auto *TSI = DD->getTypeSourceInfo())
-        if (auto FTL = TSI->getTypeLoc().castAs<FunctionTypeLoc>())
+        if (auto FTL = TSI->getTypeLoc().getAsAdjusted<FunctionTypeLoc>())
           AttrLoc = FTL.getReturnLoc().findNullabilityLoc();
     CheckKind = SanitizerKind::NullabilityReturn;
     Handler = SanitizerHandler::NullabilityReturn;
@@ -3887,6 +3901,10 @@ public:
     const auto *AlignmentCI = dyn_cast<llvm::ConstantInt>(Alignment);
     if (!AlignmentCI)
       return Attrs;
+    // We may legitimately have non-power-of-2 alignment here.
+    // If so, this is UB land, emit it via `@llvm.assume` instead.
+    if (!AlignmentCI->getValue().isPowerOf2())
+      return Attrs;
     llvm::AttributeList NewAttrs = maybeRaiseRetAlignmentAttribute(
         CGF.getLLVMContext(), Attrs,
         llvm::Align(
@@ -3901,7 +3919,7 @@ public:
   void EmitAsAnAssumption(SourceLocation Loc, QualType RetTy, RValue &Ret) {
     if (!AA)
       return;
-    CGF.EmitAlignmentAssumption(Ret.getScalarVal(), RetTy, Loc,
+    CGF.emitAlignmentAssumption(Ret.getScalarVal(), RetTy, Loc,
                                 AA->getLocation(), Alignment, OffsetCI);
     AA = nullptr; // We're done. Disallow doing anything else.
   }
@@ -4072,18 +4090,39 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       assert(NumIRArgs == 0);
       assert(getTarget().getTriple().getArch() == llvm::Triple::x86);
       if (I->isAggregate()) {
-        // Replace the placeholder with the appropriate argument slot GEP.
         Address Addr = I->hasLValue()
                            ? I->getKnownLValue().getAddress(*this)
                            : I->getKnownRValue().getAggregateAddress();
         llvm::Instruction *Placeholder =
             cast<llvm::Instruction>(Addr.getPointer());
-        CGBuilderTy::InsertPoint IP = Builder.saveIP();
-        Builder.SetInsertPoint(Placeholder);
-        Addr =
-            Builder.CreateStructGEP(ArgMemory, ArgInfo.getInAllocaFieldIndex());
-        Builder.restoreIP(IP);
+
+        if (!ArgInfo.getInAllocaIndirect()) {
+          // Replace the placeholder with the appropriate argument slot GEP.
+          CGBuilderTy::InsertPoint IP = Builder.saveIP();
+          Builder.SetInsertPoint(Placeholder);
+          Addr = Builder.CreateStructGEP(ArgMemory,
+                                         ArgInfo.getInAllocaFieldIndex());
+          Builder.restoreIP(IP);
+        } else {
+          // For indirect things such as overaligned structs, replace the
+          // placeholder with a regular aggregate temporary alloca. Store the
+          // address of this alloca into the struct.
+          Addr = CreateMemTemp(info_it->type, "inalloca.indirect.tmp");
+          Address ArgSlot = Builder.CreateStructGEP(
+              ArgMemory, ArgInfo.getInAllocaFieldIndex());
+          Builder.CreateStore(Addr.getPointer(), ArgSlot);
+        }
         deferPlaceholderReplacement(Placeholder, Addr.getPointer());
+      } else if (ArgInfo.getInAllocaIndirect()) {
+        // Make a temporary alloca and store the address of it into the argument
+        // struct.
+        Address Addr = CreateMemTempWithoutCast(
+            I->Ty, getContext().getTypeAlignInChars(I->Ty),
+            "indirect-arg-temp");
+        I->copyInto(*this, Addr);
+        Address ArgSlot =
+            Builder.CreateStructGEP(ArgMemory, ArgInfo.getInAllocaFieldIndex());
+        Builder.CreateStore(Addr.getPointer(), ArgSlot);
       } else {
         // Store the RValue into the argument struct.
         Address Addr =

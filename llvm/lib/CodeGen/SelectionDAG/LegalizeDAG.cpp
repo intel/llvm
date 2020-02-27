@@ -1009,6 +1009,7 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(Node->getOpcode(),
                                     Node->getOperand(0).getValueType());
     break;
+  case ISD::STRICT_FP_TO_FP16:
   case ISD::STRICT_SINT_TO_FP:
   case ISD::STRICT_UINT_TO_FP:
   case ISD::STRICT_LRINT:
@@ -1131,7 +1132,9 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::UMULFIX:
   case ISD::UMULFIXSAT:
   case ISD::SDIVFIX:
-  case ISD::UDIVFIX: {
+  case ISD::SDIVFIXSAT:
+  case ISD::UDIVFIX:
+  case ISD::UDIVFIXSAT: {
     unsigned Scale = Node->getConstantOperandVal(2);
     Action = TLI.getFixedPointOperationAction(Node->getOpcode(),
                                               Node->getValueType(0), Scale);
@@ -3272,6 +3275,21 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
           DAG.getNode(ISD::FP_EXTEND, dl, Node->getValueType(0), Res));
     }
     break;
+  case ISD::STRICT_FP16_TO_FP:
+    if (Node->getValueType(0) != MVT::f32) {
+      // We can extend to types bigger than f32 in two steps without changing
+      // the result. Since "f16 -> f32" is much more commonly available, give
+      // CodeGen the option of emitting that before resorting to a libcall.
+      SDValue Res =
+          DAG.getNode(ISD::STRICT_FP16_TO_FP, dl, {MVT::f32, MVT::Other},
+                      {Node->getOperand(0), Node->getOperand(1)});
+      Res = DAG.getNode(ISD::STRICT_FP_EXTEND, dl,
+                        {Node->getValueType(0), MVT::Other},
+                        {Res.getValue(1), Res});
+      Results.push_back(Res);
+      Results.push_back(Res.getValue(1));
+    }
+    break;
   case ISD::FP_TO_FP16:
     LLVM_DEBUG(dbgs() << "Legalizing FP_TO_FP16\n");
     if (!TLI.useSoftFloat() && TM.Options.UnsafeFPMath) {
@@ -3473,7 +3491,9 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     Results.push_back(TLI.expandFixedPointMul(Node, DAG));
     break;
   case ISD::SDIVFIX:
+  case ISD::SDIVFIXSAT:
   case ISD::UDIVFIX:
+  case ISD::UDIVFIXSAT:
     if (SDValue V = TLI.expandFixedPointDiv(Node->getOpcode(), SDLoc(Node),
                                             Node->getOperand(0),
                                             Node->getOperand(1),
@@ -4234,11 +4254,35 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
       Results.push_back(ExpandLibCall(RTLIB::FPEXT_F16_F32, Node, false));
     }
     break;
+  case ISD::STRICT_FP16_TO_FP: {
+    if (Node->getValueType(0) == MVT::f32) {
+      TargetLowering::MakeLibCallOptions CallOptions;
+      std::pair<SDValue, SDValue> Tmp = TLI.makeLibCall(
+          DAG, RTLIB::FPEXT_F16_F32, MVT::f32, Node->getOperand(1), CallOptions,
+          SDLoc(Node), Node->getOperand(0));
+      Results.push_back(Tmp.first);
+      Results.push_back(Tmp.second);
+    }
+    break;
+  }
   case ISD::FP_TO_FP16: {
     RTLIB::Libcall LC =
         RTLIB::getFPROUND(Node->getOperand(0).getValueType(), MVT::f16);
     assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unable to expand fp_to_fp16");
     Results.push_back(ExpandLibCall(LC, Node, false));
+    break;
+  }
+  case ISD::STRICT_FP_TO_FP16: {
+    RTLIB::Libcall LC =
+        RTLIB::getFPROUND(Node->getOperand(1).getValueType(), MVT::f16);
+    assert(LC != RTLIB::UNKNOWN_LIBCALL &&
+           "Unable to expand strict_fp_to_fp16");
+    TargetLowering::MakeLibCallOptions CallOptions;
+    std::pair<SDValue, SDValue> Tmp =
+        TLI.makeLibCall(DAG, LC, Node->getValueType(0), Node->getOperand(1),
+                        CallOptions, SDLoc(Node), Node->getOperand(0));
+    Results.push_back(Tmp.first);
+    Results.push_back(Tmp.second);
     break;
   }
   case ISD::FSUB:
@@ -4342,8 +4386,13 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
   case ISD::CTLZ:
   case ISD::CTLZ_ZERO_UNDEF:
   case ISD::CTPOP:
-    // Zero extend the argument.
-    Tmp1 = DAG.getNode(ISD::ZERO_EXTEND, dl, NVT, Node->getOperand(0));
+    // Zero extend the argument unless its cttz, then use any_extend.
+    if (Node->getOpcode() == ISD::CTTZ ||
+        Node->getOpcode() == ISD::CTTZ_ZERO_UNDEF)
+      Tmp1 = DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Node->getOperand(0));
+    else
+      Tmp1 = DAG.getNode(ISD::ZERO_EXTEND, dl, NVT, Node->getOperand(0));
+
     if (Node->getOpcode() == ISD::CTTZ) {
       // The count is the same in the promoted type except if the original
       // value was zero.  This can be handled by setting the bit just off

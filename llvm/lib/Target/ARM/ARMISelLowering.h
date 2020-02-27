@@ -206,6 +206,20 @@ class VectorType;
       VMULLs,       // ...signed
       VMULLu,       // ...unsigned
 
+      // MVE reductions
+      VADDVs,
+      VADDVu,
+      VADDLVs,
+      VADDLVu,
+      VADDLVAs,
+      VADDLVAu,
+      VMLAVs,
+      VMLAVu,
+      VMLALVs,
+      VMLALVu,
+      VMLALVAs,
+      VMLALVAu,
+
       SMULWB,       // Signed multiply word by half word, bottom
       SMULWT,       // Signed multiply word by half word, top
       UMLAL,        // 64bit Unsigned Accumulate Multiply
@@ -281,11 +295,7 @@ class VectorType;
       VST4_UPD,
       VST2LN_UPD,
       VST3LN_UPD,
-      VST4LN_UPD,
-
-      // Load/Store of dual registers
-      LDRD,
-      STRD
+      VST4LN_UPD
     };
 
   } // end namespace ARMISD
@@ -524,6 +534,12 @@ class VectorType;
     bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
                                  unsigned Index) const override;
 
+    bool shouldFormOverflowOp(unsigned Opcode, EVT VT,
+                              bool MathUsed) const override {
+      // Using overflow ops for overflow checks only should beneficial on ARM.
+      return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
+    }
+
     /// Returns true if an argument of type Ty needs to be passed in a
     /// contiguous block of registers in calling convention CallConv.
     bool functionArgumentNeedsConsecutiveRegisters(
@@ -736,8 +752,6 @@ class VectorType;
     SDValue LowerFSETCC(SDValue Op, SelectionDAG &DAG) const;
     void lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
                   SelectionDAG &DAG) const;
-    void LowerLOAD(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                   SelectionDAG &DAG) const;
 
     Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;

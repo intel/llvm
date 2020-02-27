@@ -11,7 +11,7 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -70,6 +70,12 @@ Optional<FusionInfo> fuseProducerOf(OpBuilder &b, LinalgOp consumer,
                                     unsigned consumerIdx,
                                     const LinalgDependenceGraph &graph,
                                     OperationFolder *folder = nullptr);
+
+/// Fuse linalg operation on tensors, where the result of the producer is used
+/// as the operand of the consumer at position `consumerIdx`.
+Optional<LinalgOp> fuseTensorOps(OpBuilder &b, LinalgOp producer,
+                                 LinalgOp consumer, unsigned consumerIdx,
+                                 OperationFolder *folder = nullptr);
 
 /// Returns the linearized list of all view dimensions in a linalgOp. Applying
 /// the inverse, concatenated loopToOperandRangeMaps to this list allows the

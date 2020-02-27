@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename T, int N> class vec;
 namespace detail {
@@ -22,13 +22,13 @@ class half;
 } // namespace half_impl
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_DEVICE_ONLY__
-using half = _Float16;
-#else
+// FIXME: line below exports 'half' into global namespace, which seems incorrect
+// However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
+// which doesn't exist within the 'cl::sycl' namespace.
+// Related spec issue: KhronosGroup/SYCL-Docs#40
 using half = cl::sycl::detail::half_impl::half;
-#endif
 
 #define MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                                      \
   using ALIAS##N = cl::sycl::vec<TYPE, N>;
@@ -69,7 +69,7 @@ using half = cl::sycl::detail::half_impl::half;
   MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                                      \
   MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 using byte = std::uint8_t;
 using schar = signed char;
@@ -80,7 +80,8 @@ using ulong = unsigned long;
 using longlong = long long;
 using ulonglong = unsigned long long;
 // TODO cl::sycl::half is not in SYCL specification, but is used by Khronos CTS.
-using half = half;
+// Related tests issue: KhronosGroup/SYCL-CTS#37
+using half = cl::sycl::detail::half_impl::half;
 using cl_bool = bool;
 using cl_char = std::int8_t;
 using cl_uchar = std::uint8_t;
@@ -100,7 +101,7 @@ MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef MAKE_VECTOR_ALIAS
 #undef MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES

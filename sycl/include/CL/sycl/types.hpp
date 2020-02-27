@@ -47,6 +47,7 @@
 #include <CL/sycl/aliases.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 #include <CL/sycl/multi_ptr.hpp>
@@ -61,7 +62,7 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
@@ -268,15 +269,6 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #endif
 }
 
-// 4.10.2.6 Memory layout and alignment
-template <int N> struct VectorLength { constexpr static int value = N; };
-
-template <> struct VectorLength<3> { constexpr static int value = 4; };
-
-template <typename T, int N> struct VectorAlignment {
-  constexpr static int value = sizeof(T) * VectorLength<N>::value;
-};
-
 } // namespace detail
 
 #if defined(_WIN32) && (_MSC_VER)
@@ -441,10 +433,16 @@ public:
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if<
-      !std::is_same<DataT, cl::sycl::detail::half_impl::half>::value, T>::type;
+      !std::is_same<DataT, cl::sycl::detail::half_impl::half>::value ||
+          !std::is_same<cl::sycl::detail::half_impl::StorageT,
+                            cl::sycl::detail::host_half_impl::half>::value,
+      T>::type;
   template <typename T = void>
   using EnableIfHostHalf = typename std::enable_if<
-      std::is_same<DataT, cl::sycl::detail::half_impl::half>::value, T>::type;
+      std::is_same<DataT, cl::sycl::detail::half_impl::half>::value &&
+          std::is_same<cl::sycl::detail::half_impl::StorageT,
+                       cl::sycl::detail::host_half_impl::half>::value,
+      T>::type;
 
   template <typename Ty = DataT>
   explicit vec(const EnableIfNotHostHalf<Ty> &arg) {
@@ -593,7 +591,7 @@ public:
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     asT Result;
-    std::memcpy(&Result.m_Data, &m_Data, sizeof(decltype(Result.m_Data)));
+    detail::memcpy(&Result.m_Data, &m_Data, sizeof(decltype(Result.m_Data)));
     return Result;
   }
 
@@ -1066,7 +1064,7 @@ private:
   // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
   // alignment of 128 and MSVC compiler cann't align a parameter with requested
   // alignment of 128.
-  SYCL_ALIGNAS((detail::VectorAlignment<DataT, NumElements>::value))
+  SYCL_ALIGNAS((detail::vector_alignment<DataT, NumElements>::value))
       DataType m_Data;
 
   // friends
@@ -1757,7 +1755,7 @@ __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
@@ -1798,14 +1796,9 @@ DECLARE_TYPE_VIA_CL_T(long);
 DECLARE_TYPE_VIA_CL_T(ulong);
 DECLARE_TYPE_T(longlong);
 DECLARE_TYPE_T(ulonglong);
+// Note: halfs are not declared here, because they have different representation
+// between host and device, see separate handling below
 DECLARE_TYPE_VIA_CL_T(float);
-// Half type is defined as custom class for host and _Float16 for device.
-// The ext_vector_type attribute is only applicable to integral and float
-// scalars so it's not possible to use attribute ext_vector_type for half on
-// host.
-#ifdef __SYCL_DEVICE_ONLY__
-DECLARE_TYPE_VIA_CL_T(half);
-#endif
 DECLARE_TYPE_VIA_CL_T(double);
 
 #define GET_CL_TYPE(target, num) __##target##num##_vec_t
@@ -1818,27 +1811,15 @@ DECLARE_TYPE_VIA_CL_T(double);
 #define GET_SCALAR_CL_TYPE(target) ::cl_##target
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-// On the host side we cannot use OpenCL cl_half# types as an underlying type
-// for vec because they are actually defined as an integer type under the hood.
-// As a result half values will be converted to the integer and passed as a
-// kernel argument which is expected to be floating point number.
-#ifndef __SYCL_DEVICE_ONLY__
-template <int NumElements> struct half_vec {
-  alignas(cl::sycl::detail::VectorAlignment<half, NumElements>::value)
-      std::array<half, NumElements> s;
-};
-
-using __half_t = half;
-using __half2_vec_t = half_vec<2>;
-using __half3_vec_t = half_vec<3>;
-using __half4_vec_t = half_vec<4>;
-using __half8_vec_t = half_vec<8>;
-using __half16_vec_t = half_vec<16>;
-#endif
-
+using __half_t = cl::sycl::detail::half_impl::StorageT;
+using __half2_vec_t = cl::sycl::detail::half_impl::Vec2StorageT;
+using __half3_vec_t = cl::sycl::detail::half_impl::Vec3StorageT;
+using __half4_vec_t = cl::sycl::detail::half_impl::Vec4StorageT;
+using __half8_vec_t = cl::sycl::detail::half_impl::Vec8StorageT;
+using __half16_vec_t = cl::sycl::detail::half_impl::Vec16StorageT;
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
@@ -1961,7 +1942,7 @@ using select_apply_cl_t =
   DECLARE_HALF_CONVERTER(base, 16)                                             \
   template <> class BaseCLTypeConverter<base, 1> {                             \
   public:                                                                      \
-    using DataType = half;                                                     \
+    using DataType = __half_t;                                                 \
   };                                                                           \
   } // namespace detail
 
@@ -2014,6 +1995,6 @@ DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef DECLARE_SCALAR_SCHAR_CONVERTER
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef SYCL_ALIGNAS

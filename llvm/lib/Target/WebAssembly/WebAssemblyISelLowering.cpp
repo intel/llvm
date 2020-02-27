@@ -411,6 +411,58 @@ static MachineBasicBlock *LowerFPToInt(MachineInstr &MI, DebugLoc DL,
   return DoneMBB;
 }
 
+static MachineBasicBlock *LowerCallResults(MachineInstr &CallResults,
+                                           DebugLoc DL, MachineBasicBlock *BB,
+                                           const TargetInstrInfo &TII) {
+  MachineInstr &CallParams = *CallResults.getPrevNode();
+  assert(CallParams.getOpcode() == WebAssembly::CALL_PARAMS);
+  assert(CallResults.getOpcode() == WebAssembly::CALL_RESULTS ||
+         CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS);
+
+  bool IsIndirect = CallParams.getOperand(0).isReg();
+  bool IsRetCall = CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS;
+
+  unsigned CallOp;
+  if (IsIndirect && IsRetCall) {
+    CallOp = WebAssembly::RET_CALL_INDIRECT;
+  } else if (IsIndirect) {
+    CallOp = WebAssembly::CALL_INDIRECT;
+  } else if (IsRetCall) {
+    CallOp = WebAssembly::RET_CALL;
+  } else {
+    CallOp = WebAssembly::CALL;
+  }
+
+  MachineFunction &MF = *BB->getParent();
+  const MCInstrDesc &MCID = TII.get(CallOp);
+  MachineInstrBuilder MIB(MF, MF.CreateMachineInstr(MCID, DL));
+
+  // Move the function pointer to the end of the arguments for indirect calls
+  if (IsIndirect) {
+    auto FnPtr = CallParams.getOperand(0);
+    CallParams.RemoveOperand(0);
+    CallParams.addOperand(FnPtr);
+  }
+
+  for (auto Def : CallResults.defs())
+    MIB.add(Def);
+
+  // Add placeholders for the type index and immediate flags
+  if (IsIndirect) {
+    MIB.addImm(0);
+    MIB.addImm(0);
+  }
+
+  for (auto Use : CallParams.uses())
+    MIB.add(Use);
+
+  BB->insert(CallResults.getIterator(), MIB);
+  CallParams.eraseFromParent();
+  CallResults.eraseFromParent();
+
+  return BB;
+}
+
 MachineBasicBlock *WebAssemblyTargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   const TargetInstrInfo &TII = *Subtarget->getInstrInfo();
@@ -443,7 +495,9 @@ MachineBasicBlock *WebAssemblyTargetLowering::EmitInstrWithCustomInserter(
   case WebAssembly::FP_TO_UINT_I64_F64:
     return LowerFPToInt(MI, DL, BB, TII, true, true, true,
                         WebAssembly::I64_TRUNC_U_F64);
-    llvm_unreachable("Unexpected instruction to emit with custom inserter");
+  case WebAssembly::CALL_RESULTS:
+  case WebAssembly::RET_CALL_RESULTS:
+    return LowerCallResults(MI, DL, BB, TII);
   }
 }
 
@@ -648,41 +702,57 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
     fail(DL, DAG, "WebAssembly doesn't support patch point yet");
 
   if (CLI.IsTailCall) {
-    bool MustTail = CLI.CS && CLI.CS.isMustTailCall();
-    if (Subtarget->hasTailCall() && !CLI.IsVarArg) {
-      // Do not tail call unless caller and callee return types match
-      const Function &F = MF.getFunction();
-      const TargetMachine &TM = getTargetMachine();
-      Type *RetTy = F.getReturnType();
-      SmallVector<MVT, 4> CallerRetTys;
-      SmallVector<MVT, 4> CalleeRetTys;
-      computeLegalValueVTs(F, TM, RetTy, CallerRetTys);
-      computeLegalValueVTs(F, TM, CLI.RetTy, CalleeRetTys);
-      bool TypesMatch = CallerRetTys.size() == CalleeRetTys.size() &&
-                        std::equal(CallerRetTys.begin(), CallerRetTys.end(),
-                                   CalleeRetTys.begin());
-      if (!TypesMatch) {
-        // musttail in this case would be an LLVM IR validation failure
-        assert(!MustTail);
-        CLI.IsTailCall = false;
-      }
-    } else {
+    auto NoTail = [&](const char *Msg) {
+      if (CLI.CS && CLI.CS.isMustTailCall())
+        fail(DL, DAG, Msg);
       CLI.IsTailCall = false;
-      if (MustTail) {
-        if (CLI.IsVarArg) {
-          // The return would pop the argument buffer
-          fail(DL, DAG, "WebAssembly does not support varargs tail calls");
-        } else {
-          fail(DL, DAG, "WebAssembly 'tail-call' feature not enabled");
+    };
+
+    if (!Subtarget->hasTailCall())
+      NoTail("WebAssembly 'tail-call' feature not enabled");
+
+    // Varargs calls cannot be tail calls because the buffer is on the stack
+    if (CLI.IsVarArg)
+      NoTail("WebAssembly does not support varargs tail calls");
+
+    // Do not tail call unless caller and callee return types match
+    const Function &F = MF.getFunction();
+    const TargetMachine &TM = getTargetMachine();
+    Type *RetTy = F.getReturnType();
+    SmallVector<MVT, 4> CallerRetTys;
+    SmallVector<MVT, 4> CalleeRetTys;
+    computeLegalValueVTs(F, TM, RetTy, CallerRetTys);
+    computeLegalValueVTs(F, TM, CLI.RetTy, CalleeRetTys);
+    bool TypesMatch = CallerRetTys.size() == CalleeRetTys.size() &&
+                      std::equal(CallerRetTys.begin(), CallerRetTys.end(),
+                                 CalleeRetTys.begin());
+    if (!TypesMatch)
+      NoTail("WebAssembly tail call requires caller and callee return types to "
+             "match");
+
+    // If pointers to local stack values are passed, we cannot tail call
+    if (CLI.CS) {
+      for (auto &Arg : CLI.CS.args()) {
+        Value *Val = Arg.get();
+        // Trace the value back through pointer operations
+        while (true) {
+          Value *Src = Val->stripPointerCastsAndAliases();
+          if (auto *GEP = dyn_cast<GetElementPtrInst>(Src))
+            Src = GEP->getPointerOperand();
+          if (Val == Src)
+            break;
+          Val = Src;
+        }
+        if (isa<AllocaInst>(Val)) {
+          NoTail(
+              "WebAssembly does not support tail calling with stack arguments");
+          break;
         }
       }
     }
   }
 
   SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
-  if (Ins.size() > 1)
-    fail(DL, DAG, "WebAssembly doesn't support more than 1 returned value yet");
-
   SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
   SmallVectorImpl<SDValue> &OutVals = CLI.OutVals;
 
@@ -829,17 +899,13 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   InTys.push_back(MVT::Other);
   SDVTList InTyList = DAG.getVTList(InTys);
-  SDValue Res =
-      DAG.getNode(Ins.empty() ? WebAssemblyISD::CALL0 : WebAssemblyISD::CALL1,
-                  DL, InTyList, Ops);
-  if (Ins.empty()) {
-    Chain = Res;
-  } else {
-    InVals.push_back(Res);
-    Chain = Res.getValue(1);
-  }
+  SDValue Res = DAG.getNode(WebAssemblyISD::CALL, DL, InTyList, Ops);
 
-  return Chain;
+  for (size_t I = 0; I < Ins.size(); ++I)
+    InVals.push_back(Res.getValue(I));
+
+  // Return the chain
+  return Res.getValue(Ins.size());
 }
 
 bool WebAssemblyTargetLowering::CanLowerReturn(

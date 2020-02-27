@@ -10,13 +10,13 @@
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/usm/usm_dispatch.hpp>
 
 #include <cstring>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
@@ -45,7 +45,9 @@ event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
   if (Context.is_host())
     return event();
 
-  return event(pi::cast<cl_event>(Event), Context);
+  event ResEvent{pi::cast<cl_event>(Event), Context};
+  addEvent(ResEvent);
+  return ResEvent;
 }
 
 event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
@@ -57,7 +59,9 @@ event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
   if (Context.is_host())
     return event();
 
-  return event(pi::cast<cl_event>(Event), Context);
+  event ResEvent{pi::cast<cl_event>(Event), Context};
+  addEvent(ResEvent);
+  return ResEvent;
 }
 
 event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
@@ -72,8 +76,16 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
                                                    Advice, &Event);
 
-  return event(pi::cast<cl_event>(Event), Context);
+  event ResEvent{pi::cast<cl_event>(Event), Context};
+  addEvent(ResEvent);
+  return ResEvent;
 }
+
+void queue_impl::addEvent(event Event) {
+  std::lock_guard<mutex_class> Guard(MMutex);
+  MEvents.push_back(std::move(Event));
+}
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

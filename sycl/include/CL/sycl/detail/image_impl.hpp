@@ -18,7 +18,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // forward declarations
@@ -219,15 +219,6 @@ public:
   ~image_impl() { BaseT::updateHostMemory(); }
 
 private:
-  template <typename T>
-  void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
-                    T &Dest) {
-    const detail::plugin &Plugin = Context->getPlugin();
-    RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-    Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                              nullptr);
-  }
-
   vector_class<device> getDevices(const ContextImplPtr Context);
 
   template <info::device Param>
@@ -303,4 +294,4 @@ private:
 };
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

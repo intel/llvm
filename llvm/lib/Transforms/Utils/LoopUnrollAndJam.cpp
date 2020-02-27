@@ -11,31 +11,53 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
-#include "llvm/Analysis/InstructionSimplify.h"
-#include "llvm/Analysis/LoopAnalysisManager.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopIterator.h"
-#include "llvm/Analysis/LoopPass.h"
+#include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/Utils/Local.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Use.h"
+#include "llvm/IR/User.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/ValueHandle.h"
+#include "llvm/IR/ValueMap.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
-#include "llvm/Transforms/Utils/SimplifyIndVar.h"
 #include "llvm/Transforms/Utils/UnrollLoop.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
+#include <assert.h>
+#include <memory>
+#include <type_traits>
+#include <vector>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "loop-unroll-and-jam"
@@ -169,10 +191,12 @@ static void moveHeaderPhiOperandsToForeBlocks(BasicBlock *Header,
   If EpilogueLoop is non-null, it receives the epilogue loop (if it was
   necessary to create one and not fully unrolled).
 */
-LoopUnrollResult llvm::UnrollAndJamLoop(
-    Loop *L, unsigned Count, unsigned TripCount, unsigned TripMultiple,
-    bool UnrollRemainder, LoopInfo *LI, ScalarEvolution *SE, DominatorTree *DT,
-    AssumptionCache *AC, OptimizationRemarkEmitter *ORE, Loop **EpilogueLoop) {
+LoopUnrollResult
+llvm::UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
+                       unsigned TripMultiple, bool UnrollRemainder,
+                       LoopInfo *LI, ScalarEvolution *SE, DominatorTree *DT,
+                       AssumptionCache *AC, const TargetTransformInfo *TTI,
+                       OptimizationRemarkEmitter *ORE, Loop **EpilogueLoop) {
 
   // When we enter here we should have already checked that it is safe
   BasicBlock *Header = L->getHeader();
@@ -198,7 +222,7 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
     if (!UnrollRuntimeLoopRemainder(L, Count, /*AllowExpensiveTripCount*/ false,
                                     /*UseEpilogRemainder*/ true,
                                     UnrollRemainder, /*ForgetAllSCEV*/ false,
-                                    LI, SE, DT, AC, true, EpilogueLoop)) {
+                                    LI, SE, DT, AC, TTI, true, EpilogueLoop)) {
       LLVM_DEBUG(dbgs() << "Won't unroll-and-jam; remainder loop could not be "
                            "generated when assuming runtime trip count\n");
       return LoopUnrollResult::Unmodified;
@@ -563,8 +587,9 @@ LoopUnrollResult llvm::UnrollAndJamLoop(
   // At this point, the code is well formed.  We now do a quick sweep over the
   // inserted code, doing constant propagation and dead code elimination as we
   // go.
-  simplifyLoopAfterUnroll(SubLoop, true, LI, SE, DT, AC);
-  simplifyLoopAfterUnroll(L, !CompletelyUnroll && Count > 1, LI, SE, DT, AC);
+  simplifyLoopAfterUnroll(SubLoop, true, LI, SE, DT, AC, TTI);
+  simplifyLoopAfterUnroll(L, !CompletelyUnroll && Count > 1, LI, SE, DT, AC,
+                          TTI);
 
   NumCompletelyUnrolledAndJammed += CompletelyUnroll;
   ++NumUnrolledAndJammed;

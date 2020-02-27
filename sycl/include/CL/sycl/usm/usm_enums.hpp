@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace usm {
 
@@ -15,4 +15,4 @@ enum class alloc { host, device, shared, unknown };
 
 } // namespace usm
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

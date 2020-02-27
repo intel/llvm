@@ -90,10 +90,11 @@ public:
 
   static bool kindof(unsigned kind) { return kind == AttrKind::TargetEnv; }
 
-  static LogicalResult
-  verifyConstructionInvariants(Optional<Location> loc, MLIRContext *context,
-                               IntegerAttr version, ArrayAttr extensions,
-                               ArrayAttr capabilities, DictionaryAttr limits);
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    IntegerAttr version,
+                                                    ArrayAttr extensions,
+                                                    ArrayAttr capabilities,
+                                                    DictionaryAttr limits);
 };
 
 /// Returns the attribute name for specifying argument ABI information.
@@ -112,6 +113,15 @@ StringRef getEntryPointABIAttrName();
 EntryPointABIAttr getEntryPointABIAttr(ArrayRef<int32_t> localSize,
                                        MLIRContext *context);
 
+/// Queries the entry point ABI on the nearest function-like op containing the
+/// given `op`. Returns null attribute if not found.
+EntryPointABIAttr lookupEntryPointABI(Operation *op);
+
+/// Queries the local workgroup size from entry point ABI on the nearest
+/// function-like op containing the given `op`. Returns null attribute if not
+/// found.
+DenseIntElementsAttr lookupLocalWorkGroupSize(Operation *op);
+
 /// Returns a default resource limits attribute that uses numbers from
 /// "Table 46. Required Limits" of the Vulkan spec.
 ResourceLimitsAttr getDefaultResourceLimits(MLIRContext *context);
@@ -127,11 +137,6 @@ TargetEnvAttr getDefaultTargetEnv(MLIRContext *context);
 /// target environment (SPIR-V 1.0 with Shader capability and no extra
 /// extensions) if not provided.
 TargetEnvAttr lookupTargetEnvOrDefault(Operation *op);
-
-/// Queries the local workgroup size from entry point ABI on the nearest
-/// function-like op containing the given `op`. Returns null attribute if not
-/// found.
-DenseIntElementsAttr lookupLocalWorkGroupSize(Operation *op);
 
 } // namespace spirv
 } // namespace mlir

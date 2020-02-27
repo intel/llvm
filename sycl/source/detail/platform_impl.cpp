@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/platform_info.hpp>
 
 #include <algorithm>
 #include <cstring>
 #include <regex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -268,4 +268,4 @@ platform_impl::get_info() const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

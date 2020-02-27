@@ -240,23 +240,32 @@ TEST_F(FormatTestCSharp, Attributes) {
 
   verifyFormat("[TestMethod]\n"
                "public string Host\n"
-               "{\n"
-               "    set;\n"
-               "    get;\n"
-               "}");
+               "{ set; get; }");
 
   verifyFormat("[TestMethod(\"start\", HelpText = \"Starts the server "
                "listening on provided host\")]\n"
                "public string Host\n"
-               "{\n"
-               "    set;\n"
-               "    get;\n"
-               "}");
+               "{ set; get; }");
 
   verifyFormat(
       "[DllImport(\"Hello\", EntryPoint = \"hello_world\")]\n"
       "// The const char* returned by hello_world must not be deleted.\n"
       "private static extern IntPtr HelloFromCpp();)");
+
+  // Class attributes go on their own line and do not affect layout of
+  // interfaces. Line wrapping decisions previously caused each interface to be
+  // on its own line.
+  verifyFormat("[SomeAttribute]\n"
+               "[SomeOtherAttribute]\n"
+               "public class A : IShape, IAnimal, IVehicle\n"
+               "{\n"
+               "    int X;\n"
+               "}");
+
+  // Attributes in a method declaration do not cause line wrapping.
+  verifyFormat("void MethodA([In][Out] ref double x)\n"
+               "{\n"
+               "}");
 
   //  Unwrappable lines go on a line of their own.
   // 'target:' is not treated as a label.
@@ -498,7 +507,7 @@ var x = foo(className, $@"some code:
 TEST_F(FormatTestCSharp, CSharpObjectInitializers) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
 
-  // Start code fragemnts with a comment line so that C++ raw string literals
+  // Start code fragments with a comment line so that C++ raw string literals
   // as seen are identical to expected formatted code.
 
   verifyFormat(R"(//
@@ -521,6 +530,48 @@ Shape[] shapes = new[] {new Circle {Radius = 2.7281, Colour = Colours.Red},
                             Side = 101.1,
                             Colour = Colours.Yellow,
                         }};)",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpNamedArguments) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(//
+PrintOrderDetails(orderNum: 31, productName: "Red Mug",
+                  sellerName: "Gift Shop");)",
+               Style);
+
+  // Ensure that trailing comments do not cause problems.
+  verifyFormat(R"(//
+PrintOrderDetails(orderNum: 31, productName: "Red Mug",  // comment
+                  sellerName: "Gift Shop");)",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("int Value { get }", Style);
+  verifyFormat("int Value { get; }", Style);
+  verifyFormat("int Value { internal get; }", Style);
+  verifyFormat("int Value { get; } = 0", Style);
+  verifyFormat("int Value { set }", Style);
+  verifyFormat("int Value { set; }", Style);
+  verifyFormat("int Value { internal set; }", Style);
+  verifyFormat("int Value { set; } = 0", Style);
+  verifyFormat("int Value { get; set }", Style);
+  verifyFormat("int Value { set; get }", Style);
+  verifyFormat("int Value { get; private set; }", Style);
+  verifyFormat("int Value { get; set; }", Style);
+  verifyFormat("int Value { get; set; } = 0", Style);
+  verifyFormat("int Value { internal get; internal set; }", Style);
+
+  // Do not wrap expression body definitions.
+  verifyFormat(R"(//
+public string Name {
+  get => _name;
+  set => _name = value;
+})",
                Style);
 }
 

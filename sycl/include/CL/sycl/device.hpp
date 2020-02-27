@@ -15,7 +15,7 @@
 #include <memory>
 #include <utility>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 class device_selector;
@@ -167,7 +167,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::device> {

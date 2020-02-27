@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 
@@ -80,5 +80,9 @@ struct TestOpaqueLoc : public ModulePass<TestOpaqueLoc> {
 
 } // end anonymous namespace
 
-static PassRegistration<TestOpaqueLoc>
-    pass("test-opaque-loc", "Changes all leaf locations to opaque locations");
+namespace mlir {
+void registerTestOpaqueLoc() {
+  PassRegistration<TestOpaqueLoc> pass(
+      "test-opaque-loc", "Changes all leaf locations to opaque locations");
+}
+} // namespace mlir

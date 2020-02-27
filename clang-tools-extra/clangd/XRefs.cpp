@@ -36,6 +36,7 @@
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexingOptions.h"
 #include "clang/Index/USRGeneration.h"
+#include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
@@ -134,15 +135,16 @@ SymbolLocation getPreferredLocation(const Location &ASTLoc,
 std::vector<const NamedDecl *> getDeclAtPosition(ParsedAST &AST,
                                                  SourceLocation Pos,
                                                  DeclRelationSet Relations) {
-  FileID FID;
-  unsigned Offset;
-  std::tie(FID, Offset) = AST.getSourceManager().getDecomposedSpellingLoc(Pos);
-  SelectionTree Selection(AST.getASTContext(), AST.getTokens(), Offset);
+  unsigned Offset = AST.getSourceManager().getDecomposedSpellingLoc(Pos).second;
   std::vector<const NamedDecl *> Result;
-  if (const SelectionTree::Node *N = Selection.commonAncestor()) {
-    auto Decls = targetDecl(N->ASTNode, Relations);
-    Result.assign(Decls.begin(), Decls.end());
-  }
+  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
+                            Offset, [&](SelectionTree ST) {
+                              if (const SelectionTree::Node *N =
+                                      ST.commonAncestor())
+                                llvm::copy(targetDecl(N->ASTNode, Relations),
+                                           std::back_inserter(Result));
+                              return !Result.empty();
+                            });
   return Result;
 }
 
@@ -592,22 +594,23 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const LocatedSymbol &S) {
 
 // FIXME(nridge): Reduce duplication between this function and declToSym().
 static llvm::Optional<TypeHierarchyItem>
-declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
+declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND,
+                        const syntax::TokenBuffer &TB) {
   auto &SM = Ctx.getSourceManager();
-
   SourceLocation NameLoc = nameLocation(ND, Ctx.getSourceManager());
-  // getFileLoc is a good choice for us, but we also need to make sure
-  // sourceLocToPosition won't switch files, so we call getSpellingLoc on top of
-  // that to make sure it does not switch files.
-  // FIXME: sourceLocToPosition should not switch files!
-  SourceLocation BeginLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getBeginLoc()));
-  SourceLocation EndLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getEndLoc()));
-  if (NameLoc.isInvalid() || BeginLoc.isInvalid() || EndLoc.isInvalid())
+  auto FilePath =
+      getCanonicalPath(SM.getFileEntryForID(SM.getFileID(NameLoc)), SM);
+  auto TUPath = getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
+  if (!FilePath || !TUPath)
+    return llvm::None; // Not useful without a uri.
+
+  auto DeclToks = TB.spelledForExpanded(TB.expandedTokens(ND.getSourceRange()));
+  if (!DeclToks || DeclToks->empty())
     return llvm::None;
 
-  Position NameBegin = sourceLocToPosition(SM, NameLoc);
-  Position NameEnd = sourceLocToPosition(
-      SM, Lexer::getLocForEndOfToken(NameLoc, 0, SM, Ctx.getLangOpts()));
+  auto NameToks = TB.spelledForExpanded(TB.expandedTokens(NameLoc));
+  if (!NameToks || NameToks->empty())
+    return llvm::None;
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
   // FIXME: this is not classifying constructors, destructors and operators
@@ -618,20 +621,18 @@ declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
   THI.name = printName(Ctx, ND);
   THI.kind = SK;
   THI.deprecated = ND.isDeprecated();
-  THI.range =
-      Range{sourceLocToPosition(SM, BeginLoc), sourceLocToPosition(SM, EndLoc)};
-  THI.selectionRange = Range{NameBegin, NameEnd};
+  THI.range = halfOpenToRange(
+      SM, syntax::Token::range(SM, DeclToks->front(), DeclToks->back())
+              .toCharRange(SM));
+  THI.selectionRange = halfOpenToRange(
+      SM, syntax::Token::range(SM, NameToks->front(), NameToks->back())
+              .toCharRange(SM));
   if (!THI.range.contains(THI.selectionRange)) {
     // 'selectionRange' must be contained in 'range', so in cases where clang
     // reports unrelated ranges we need to reconcile somehow.
     THI.range = THI.selectionRange;
   }
 
-  auto FilePath =
-      getCanonicalPath(SM.getFileEntryForID(SM.getFileID(BeginLoc)), SM);
-  auto TUPath = getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
-  if (!FilePath || !TUPath)
-    return llvm::None; // Not useful without a uri.
   THI.uri = URIForFile::canonicalize(*FilePath, *TUPath);
 
   return THI;
@@ -684,7 +685,8 @@ using RecursionProtectionSet = llvm::SmallSet<const CXXRecordDecl *, 4>;
 
 static void fillSuperTypes(const CXXRecordDecl &CXXRD, ASTContext &ASTCtx,
                            std::vector<TypeHierarchyItem> &SuperTypes,
-                           RecursionProtectionSet &RPSet) {
+                           RecursionProtectionSet &RPSet,
+                           const syntax::TokenBuffer &TB) {
   // typeParents() will replace dependent template specializations
   // with their class template, so to avoid infinite recursion for
   // certain types of hierarchies, keep the templates encountered
@@ -699,9 +701,9 @@ static void fillSuperTypes(const CXXRecordDecl &CXXRD, ASTContext &ASTCtx,
 
   for (const CXXRecordDecl *ParentDecl : typeParents(&CXXRD)) {
     if (Optional<TypeHierarchyItem> ParentSym =
-            declToTypeHierarchyItem(ASTCtx, *ParentDecl)) {
+            declToTypeHierarchyItem(ASTCtx, *ParentDecl, TB)) {
       ParentSym->parents.emplace();
-      fillSuperTypes(*ParentDecl, ASTCtx, *ParentSym->parents, RPSet);
+      fillSuperTypes(*ParentDecl, ASTCtx, *ParentSym->parents, RPSet, TB);
       SuperTypes.emplace_back(std::move(*ParentSym));
     }
   }
@@ -712,41 +714,50 @@ static void fillSuperTypes(const CXXRecordDecl &CXXRD, ASTContext &ASTCtx,
 }
 
 const CXXRecordDecl *findRecordTypeAt(ParsedAST &AST, Position Pos) {
+  auto RecordFromNode =
+      [](const SelectionTree::Node *N) -> const CXXRecordDecl * {
+    if (!N)
+      return nullptr;
+
+    // Note: explicitReferenceTargets() will search for both template
+    // instantiations and template patterns, and prefer the former if available
+    // (generally, one will be available for non-dependent specializations of a
+    // class template).
+    auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Underlying);
+    if (Decls.empty())
+      return nullptr;
+
+    const NamedDecl *D = Decls[0];
+
+    if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+      // If this is a variable, use the type of the variable.
+      return VD->getType().getTypePtr()->getAsCXXRecordDecl();
+    }
+
+    if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(D)) {
+      // If this is a method, use the type of the class.
+      return Method->getParent();
+    }
+
+    // We don't handle FieldDecl because it's not clear what behaviour
+    // the user would expect: the enclosing class type (as with a
+    // method), or the field's type (as with a variable).
+
+    return dyn_cast<CXXRecordDecl>(D);
+  };
+
   const SourceManager &SM = AST.getSourceManager();
   SourceLocation SourceLocationBeg = SM.getMacroArgExpandedLocation(
       getBeginningOfIdentifier(Pos, SM, AST.getLangOpts()));
-  unsigned Offset =
-      AST.getSourceManager().getDecomposedSpellingLoc(SourceLocationBeg).second;
-  SelectionTree Selection(AST.getASTContext(), AST.getTokens(), Offset);
-  const SelectionTree::Node *N = Selection.commonAncestor();
-  if (!N)
-    return nullptr;
+  unsigned Offset = SM.getDecomposedSpellingLoc(SourceLocationBeg).second;
+  const CXXRecordDecl *Result = nullptr;
+  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
+                            Offset, [&](SelectionTree ST) {
+                              Result = RecordFromNode(ST.commonAncestor());
+                              return Result != nullptr;
+                            });
+  return Result;
 
-  // Note: explicitReferenceTargets() will search for both template
-  // instantiations and template patterns, and prefer the former if available
-  // (generally, one will be available for non-dependent specializations of a
-  // class template).
-  auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Underlying);
-  if (Decls.empty())
-    return nullptr;
-
-  const NamedDecl *D = Decls[0];
-
-  if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-    // If this is a variable, use the type of the variable.
-    return VD->getType().getTypePtr()->getAsCXXRecordDecl();
-  }
-
-  if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(D)) {
-    // If this is a method, use the type of the class.
-    return Method->getParent();
-  }
-
-  // We don't handle FieldDecl because it's not clear what behaviour
-  // the user would expect: the enclosing class type (as with a
-  // method), or the field's type (as with a variable).
-
-  return dyn_cast<CXXRecordDecl>(D);
 }
 
 std::vector<const CXXRecordDecl *> typeParents(const CXXRecordDecl *CXXRD) {
@@ -795,7 +806,7 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
     return llvm::None;
 
   Optional<TypeHierarchyItem> Result =
-      declToTypeHierarchyItem(AST.getASTContext(), *CXXRD);
+      declToTypeHierarchyItem(AST.getASTContext(), *CXXRD, AST.getTokens());
   if (!Result)
     return Result;
 
@@ -804,7 +815,8 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
     Result->parents.emplace();
 
     RecursionProtectionSet RPSet;
-    fillSuperTypes(*CXXRD, AST.getASTContext(), *Result->parents, RPSet);
+    fillSuperTypes(*CXXRD, AST.getASTContext(), *Result->parents, RPSet,
+                   AST.getTokens());
   }
 
   if ((Direction == TypeHierarchyDirection::Children ||

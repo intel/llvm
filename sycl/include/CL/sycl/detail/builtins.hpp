@@ -114,7 +114,7 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
@@ -289,7 +289,7 @@ __SYCL_MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #ifndef __SYCL_DEVICE_ONLY__
 } // namespace __host_std
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif
 
 #undef __NOEXC

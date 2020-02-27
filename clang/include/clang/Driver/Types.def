@@ -106,6 +106,7 @@ TYPE("tempfilelist",             Tempfilelist, INVALID,         "txt",    phases
 TYPE("tempentriesfilelist",      TempEntriesfilelist, INVALID,  "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempAOCOfilelist",         TempAOCOfilelist, INVALID,     "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("archive",                  Archive,      INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("wholearchive",             WholeArchive, INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_aocx",                FPGA_AOCX,    INVALID,         "aocx",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_aocr",                FPGA_AOCR,    INVALID,         "aocr",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_aoco",                FPGA_AOCO,    INVALID,         "aoco",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)

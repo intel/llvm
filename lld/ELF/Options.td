@@ -354,6 +354,12 @@ defm threads: B<"threads",
     "Run the linker multi-threaded (default)",
     "Do not run the linker multi-threaded">;
 
+def time_trace: F<"time-trace">, HelpText<"Record time trace">;
+def time_trace_file_eq: J<"time-trace-file=">, HelpText<"Specify time trace output file">;
+
+defm time_trace_granularity: Eq<"time-trace-granularity",
+  "Minimum time granularity (in microseconds) traced by time profiler">;
+
 defm toc_optimize : B<"toc-optimize",
     "(PowerPC64) Enable TOC related optimizations (default)",
     "(PowerPC64) Disable TOC related optimizations">;
@@ -493,6 +499,8 @@ def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
 defm plugin_opt: Eq<"plugin-opt", "specifies LTO options for compatibility with GNU linkers">;
 def save_temps: F<"save-temps">;
+def shuffle_sections: J<"shuffle-sections=">, MetaVarName<"<seed>">,
+  HelpText<"Shuffle input sections using the given seed. If 0, use a random seed">;
 def thinlto_cache_dir: J<"thinlto-cache-dir=">,
   HelpText<"Path to ThinLTO cached object file directory">;
 defm thinlto_cache_policy: Eq<"thinlto-cache-policy", "Pruning policy for the ThinLTO cache">;

@@ -44,6 +44,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
+LLDB_PLUGIN_DEFINE(AppleObjCRuntime)
+
 char AppleObjCRuntime::ID = 0;
 
 AppleObjCRuntime::~AppleObjCRuntime() {}
@@ -536,8 +538,8 @@ ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
     if (error.Fail()) return ThreadSP();
 
     lldb::offset_t data_offset = 0;
-    auto dict_entry_key = data.GetPointer(&data_offset);
-    auto dict_entry_value = data.GetPointer(&data_offset);
+    auto dict_entry_key = data.GetAddress(&data_offset);
+    auto dict_entry_value = data.GetAddress(&data_offset);
 
     auto key_nsstring = objc_object_from_address(dict_entry_key, "key");
     StreamString key_summary;

@@ -15,7 +15,7 @@
 #include "mlir/Analysis/Passes.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/Debug.h"
@@ -116,6 +116,10 @@ void TestMemRefDependenceCheck::runOnFunction() {
   checkDependences(loadsAndStores);
 }
 
-static PassRegistration<TestMemRefDependenceCheck>
-    pass("test-memref-dependence-check",
-         "Checks dependences between all pairs of memref accesses.");
+namespace mlir {
+void registerTestMemRefDependenceCheck() {
+  PassRegistration<TestMemRefDependenceCheck> pass(
+      "test-memref-dependence-check",
+      "Checks dependences between all pairs of memref accesses.");
+}
+} // namespace mlir

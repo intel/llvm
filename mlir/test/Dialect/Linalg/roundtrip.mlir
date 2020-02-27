@@ -310,6 +310,74 @@ func @generic_with_tensor_input_and_output(
 
 // -----
 
+func @foo(%i: index, %j: index, %k: index, %0: vector<3x4xi4>, %1: f32) -> f32 {
+  %f0 = constant 0.0 : f32
+  return %f0 : f32
+}
+
+#accesses = [
+  affine_map<(i, j, k) -> (j, i)>,
+  affine_map<(i, j, k) -> (i, k, i + j)>
+]
+
+#trait2 = {
+  args_in = 2,
+  args_out = 1,
+  indexing_maps = #accesses,
+  iterator_types = ["parallel", "parallel", "parallel"],
+  fun = @foo,
+  library_call = "some_external_function_name_1"
+}
+
+func @indexed_generic_with_tensor_input_and_output(
+    %arg0: tensor<?x?xvector<3x4xi4>>, %arg1: tensor<?x?x?xf32>)
+    -> (tensor<?x?x?xf32>) {
+  %0 = linalg.indexed_generic #trait2 %arg0, %arg1 {foo = 1} :
+    tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32> -> tensor<?x?x?xf32>
+  return %0 : tensor<?x?x?xf32>
+}
+// CHECK-LABEL: func @indexed_generic_with_tensor_input_and_output
+//       CHECK:   linalg.indexed_generic {args_in = 2 : i64, args_out = 1 : i64, fun = @foo,
+//  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
+//  CHECK-SAME:     library_call = "some_external_function_name_1"} %{{.*}}, %{{.*}} {foo = 1 : i64}:
+//  CHECK-SAME:     tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32> -> tensor<?x?x?xf32>
+//       CHECK:   return {{.*}} : tensor<?x?x?xf32>
+
+// -----
+
+#broadcast_access = [
+  affine_map<(i, j) -> (0)>,
+  affine_map<(i, j) -> (i, j)>
+]
+
+#trait_broadcast = {
+  args_in = 1,
+  args_out = 1,
+  indexing_maps = #broadcast_access,
+  iterator_types = ["parallel", "parallel"],
+  library_call = "some_broadcast_external_fn"
+}
+
+func @generic_op_zero_rank(%arg0: tensor<f32>) -> (tensor<3x4xf32>)
+{
+  %0 = linalg.generic #trait_broadcast %arg0 {
+    ^bb(%a: f32) :
+      linalg.yield %a : f32
+  } : tensor<f32> -> tensor<3x4xf32>
+  return %0 : tensor<3x4xf32>
+}
+
+func @indexed_generic_op_zero_rank(%arg0: tensor<f32>) -> (tensor<3x4xf32>)
+{
+  %0 = linalg.indexed_generic #trait_broadcast %arg0 {
+    ^bb(%i: index, %j: index, %a: f32) :
+      linalg.yield %a : f32
+  } : tensor<f32> -> tensor<3x4xf32>
+  return %0 : tensor<3x4xf32>
+}
+
+// -----
+
 // CHECK-DAG: #[[strided2D:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
 // CHECK-DAG: #[[strided3D:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>
 

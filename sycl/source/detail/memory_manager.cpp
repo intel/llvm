@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/usm_dispatch.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/usm/usm_dispatch.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -545,4 +545,4 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/queue_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -90,4 +90,4 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

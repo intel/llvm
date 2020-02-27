@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/VectorOps/VectorOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/VectorOps/VectorUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -61,8 +61,48 @@ ArrayAttr vector::getVectorSubscriptAttr(Builder &builder,
 }
 
 //===----------------------------------------------------------------------===//
+// ReductionOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(ReductionOp op) {
+  // Verify for 1-D vector.
+  int64_t rank = op.getVectorType().getRank();
+  if (rank != 1)
+    return op.emitOpError("unsupported reduction rank: ") << rank;
+
+  // Verify supported reduction kind.
+  auto kind = op.kind();
+  Type eltType = op.dest().getType();
+  if (kind == "add" || kind == "mul" || kind == "min" || kind == "max") {
+    if (eltType.isF32() || eltType.isF64() || eltType.isSignlessInteger(32) ||
+        eltType.isSignlessInteger(64))
+      return success();
+    return op.emitOpError("unsupported reduction type");
+  }
+  if (kind == "and" || kind == "or" || kind == "xor") {
+    if (eltType.isSignlessInteger(32) || eltType.isSignlessInteger(64))
+      return success();
+    return op.emitOpError("unsupported reduction type");
+  }
+  return op.emitOpError("unknown reduction kind: ") << kind;
+}
+
+//===----------------------------------------------------------------------===//
 // ContractionOp
 //===----------------------------------------------------------------------===//
+
+void vector::ContractionOp::build(Builder *builder, OperationState &result,
+                                  Value lhs, Value rhs, Value acc,
+                                  ArrayRef<ArrayRef<AffineExpr>> indexingExprs,
+                                  ArrayRef<StringRef> iteratorTypes) {
+  result.addOperands({lhs, rhs, acc});
+  result.addTypes(acc.getType());
+  result.addAttribute(getIndexingMapsAttrName(),
+                      builder->getAffineMapArrayAttr(
+                          AffineMap::inferFromExprList(indexingExprs)));
+  result.addAttribute(getIteratorTypesAttrName(),
+                      builder->getStrArrayAttr(iteratorTypes));
+}
 
 void vector::ContractionOp::build(Builder *builder, OperationState &result,
                                   Value lhs, Value rhs, Value acc,
@@ -278,10 +318,9 @@ static LogicalResult verify(ContractionOp op) {
 }
 
 ArrayRef<StringRef> ContractionOp::getTraitAttrNames() {
-  static constexpr StringLiteral names[2] = {getIndexingMapsAttrName(),
-                                             getIteratorTypesAttrName()};
-  ArrayRef<StringLiteral> res{names};
-  return ArrayRef<StringRef>{res.begin(), res.end()};
+  static constexpr StringRef names[2] = {getIndexingMapsAttrName(),
+                                         getIteratorTypesAttrName()};
+  return llvm::makeArrayRef(names);
 }
 
 static int64_t getResultIndex(AffineMap map, AffineExpr targetExpr) {
@@ -372,31 +411,6 @@ SmallVector<AffineMap, 4> ContractionOp::getIndexingMaps() {
 //===----------------------------------------------------------------------===//
 // ExtractElementOp
 //===----------------------------------------------------------------------===//
-
-static void print(OpAsmPrinter &p, vector::ExtractElementOp op) {
-  p << op.getOperationName() << " " << op.vector() << "[" << op.position()
-    << " : " << op.position().getType() << "]";
-  p.printOptionalAttrDict(op.getAttrs());
-  p << " : " << op.vector().getType();
-}
-
-static ParseResult parseExtractElementOp(OpAsmParser &parser,
-                                         OperationState &result) {
-  OpAsmParser::OperandType vector, position;
-  Type positionType;
-  VectorType vectorType;
-  if (parser.parseOperand(vector) || parser.parseLSquare() ||
-      parser.parseOperand(position) || parser.parseColonType(positionType) ||
-      parser.parseRSquare() ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(vectorType))
-    return failure();
-  Type resultType = vectorType.getElementType();
-  return failure(
-      parser.resolveOperand(vector, vectorType, result.operands) ||
-      parser.resolveOperand(position, positionType, result.operands) ||
-      parser.addTypeToList(resultType, result.types));
-}
 
 static LogicalResult verify(vector::ExtractElementOp op) {
   VectorType vectorType = op.getVectorType();
@@ -676,33 +690,6 @@ static ParseResult parseShuffleOp(OpAsmParser &parser, OperationState &result) {
 // InsertElementOp
 //===----------------------------------------------------------------------===//
 
-static void print(OpAsmPrinter &p, InsertElementOp op) {
-  p << op.getOperationName() << " " << op.source() << ", " << op.dest() << "["
-    << op.position() << " : " << op.position().getType() << "]";
-  p.printOptionalAttrDict(op.getAttrs());
-  p << " : " << op.dest().getType();
-}
-
-static ParseResult parseInsertElementOp(OpAsmParser &parser,
-                                        OperationState &result) {
-  OpAsmParser::OperandType source, dest, position;
-  Type positionType;
-  VectorType destType;
-  if (parser.parseOperand(source) || parser.parseComma() ||
-      parser.parseOperand(dest) || parser.parseLSquare() ||
-      parser.parseOperand(position) || parser.parseColonType(positionType) ||
-      parser.parseRSquare() ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(destType))
-    return failure();
-  Type sourceType = destType.getElementType();
-  return failure(
-      parser.resolveOperand(source, sourceType, result.operands) ||
-      parser.resolveOperand(dest, destType, result.operands) ||
-      parser.resolveOperand(position, positionType, result.operands) ||
-      parser.addTypeToList(destType, result.types));
-}
-
 static LogicalResult verify(InsertElementOp op) {
   auto dstVectorType = op.getDestVectorType();
   if (dstVectorType.getRank() != 1)
@@ -979,7 +966,7 @@ static LogicalResult verify(OuterProductOp op) {
 static void print(OpAsmPrinter &p, ReshapeOp op) {
   p << op.getOperationName() << " " << op.vector() << ", [" << op.input_shape()
     << "], [" << op.output_shape() << "], " << op.fixed_vector_sizes();
-  SmallVector<StringRef, 2> elidedAttrs = {
+  std::array<StringRef, 2> elidedAttrs = {
       ReshapeOp::getOperandSegmentSizeAttr(),
       ReshapeOp::getFixedVectorSizesAttrName()};
   p.printOptionalAttrDict(op.getAttrs(), elidedAttrs);
@@ -1104,7 +1091,7 @@ static Type inferStridedSliceOpResultType(VectorType vectorType,
   shape.reserve(vectorType.getRank());
   unsigned idx = 0;
   for (unsigned e = offsets.size(); idx < e; ++idx)
-    shape.push_back(sizes.getValue()[idx].cast<IntegerAttr>().getInt());
+    shape.push_back(sizes[idx].cast<IntegerAttr>().getInt());
   for (unsigned e = vectorType.getShape().size(); idx < e; ++idx)
     shape.push_back(vectorType.getShape()[idx]);
 

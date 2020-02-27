@@ -115,7 +115,7 @@ public:
 
   /// Type of mapping from binding identifiers to bound nodes. This type
   /// is an associative container with a key type of \c std::string and a value
-  /// type of \c clang::ast_type_traits::DynTypedNode
+  /// type of \c clang::DynTypedNode
   using IDToNodeMap = internal::BoundNodesMap::IDToNodeMap;
 
   /// Retrieve mapping from binding identifiers to bound nodes.
@@ -307,7 +307,7 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFileMatching,
 ///
 /// FIXME: Change to be a polymorphic matcher that works on any syntactic
 /// node. There's nothing `Stmt`-specific about it.
-AST_MATCHER_P(clang::Stmt, isExpandedFromMacro, llvm::StringRef, MacroName) {
+AST_MATCHER_P(Stmt, isExpandedFromMacro, llvm::StringRef, MacroName) {
   // Verifies that the statement' beginning and ending are both expanded from
   // the same instance of the given macro.
   auto& Context = Finder->getASTContext();
@@ -722,13 +722,13 @@ AST_POLYMORPHIC_MATCHER_P(
 /// \endcode
 /// The matcher
 /// \code
-///   traverse(ast_type_traits::TK_IgnoreImplicitCastsAndParentheses,
+///   traverse(TK_IgnoreImplicitCastsAndParentheses,
 ///     varDecl(hasInitializer(floatLiteral().bind("init")))
 ///   )
 /// \endcode
 /// matches the variable declaration with "init" bound to the "3.0".
 template <typename T>
-internal::Matcher<T> traverse(ast_type_traits::TraversalKind TK,
+internal::Matcher<T> traverse(TraversalKind TK,
                               const internal::Matcher<T> &InnerMatcher) {
   return internal::DynTypedMatcher::constructRestrictedWrapper(
              new internal::TraversalMatcher<T>(TK, InnerMatcher),
@@ -738,8 +738,7 @@ internal::Matcher<T> traverse(ast_type_traits::TraversalKind TK,
 
 template <typename T>
 internal::BindableMatcher<T>
-traverse(ast_type_traits::TraversalKind TK,
-         const internal::BindableMatcher<T> &InnerMatcher) {
+traverse(TraversalKind TK, const internal::BindableMatcher<T> &InnerMatcher) {
   return internal::BindableMatcher<T>(
       internal::DynTypedMatcher::constructRestrictedWrapper(
           new internal::TraversalMatcher<T>(TK, InnerMatcher),
@@ -749,7 +748,7 @@ traverse(ast_type_traits::TraversalKind TK,
 
 template <typename... T>
 internal::TraversalWrapper<internal::VariadicOperatorMatcher<T...>>
-traverse(ast_type_traits::TraversalKind TK,
+traverse(TraversalKind TK,
          const internal::VariadicOperatorMatcher<T...> &InnerMatcher) {
   return internal::TraversalWrapper<internal::VariadicOperatorMatcher<T...>>(
       TK, InnerMatcher);
@@ -759,9 +758,8 @@ template <template <typename ToArg, typename FromArg> class ArgumentAdapterT,
           typename T, typename ToTypes>
 internal::TraversalWrapper<
     internal::ArgumentAdaptingMatcherFuncAdaptor<ArgumentAdapterT, T, ToTypes>>
-traverse(ast_type_traits::TraversalKind TK,
-         const internal::ArgumentAdaptingMatcherFuncAdaptor<
-             ArgumentAdapterT, T, ToTypes> &InnerMatcher) {
+traverse(TraversalKind TK, const internal::ArgumentAdaptingMatcherFuncAdaptor<
+                               ArgumentAdapterT, T, ToTypes> &InnerMatcher) {
   return internal::TraversalWrapper<
       internal::ArgumentAdaptingMatcherFuncAdaptor<ArgumentAdapterT, T,
                                                    ToTypes>>(TK, InnerMatcher);
@@ -771,10 +769,8 @@ template <template <typename T, typename P1> class MatcherT, typename P1,
           typename ReturnTypesF>
 internal::TraversalWrapper<
     internal::PolymorphicMatcherWithParam1<MatcherT, P1, ReturnTypesF>>
-traverse(
-    ast_type_traits::TraversalKind TK,
-    const internal::PolymorphicMatcherWithParam1<MatcherT, P1, ReturnTypesF>
-        &InnerMatcher) {
+traverse(TraversalKind TK, const internal::PolymorphicMatcherWithParam1<
+                               MatcherT, P1, ReturnTypesF> &InnerMatcher) {
   return internal::TraversalWrapper<
       internal::PolymorphicMatcherWithParam1<MatcherT, P1, ReturnTypesF>>(
       TK, InnerMatcher);
@@ -784,10 +780,8 @@ template <template <typename T, typename P1, typename P2> class MatcherT,
           typename P1, typename P2, typename ReturnTypesF>
 internal::TraversalWrapper<
     internal::PolymorphicMatcherWithParam2<MatcherT, P1, P2, ReturnTypesF>>
-traverse(
-    ast_type_traits::TraversalKind TK,
-    const internal::PolymorphicMatcherWithParam2<MatcherT, P1, P2, ReturnTypesF>
-        &InnerMatcher) {
+traverse(TraversalKind TK, const internal::PolymorphicMatcherWithParam2<
+                               MatcherT, P1, P2, ReturnTypesF> &InnerMatcher) {
   return internal::TraversalWrapper<
       internal::PolymorphicMatcherWithParam2<MatcherT, P1, P2, ReturnTypesF>>(
       TK, InnerMatcher);
@@ -4584,7 +4578,7 @@ AST_POLYMORPHIC_MATCHER_P(equalsBoundNode,
   // they're ever reused.
   internal::NotEqualsBoundNodePredicate Predicate;
   Predicate.ID = ID;
-  Predicate.Node = ast_type_traits::DynTypedNode::create(Node);
+  Predicate.Node = DynTypedNode::create(Node);
   return Builder->removeBindings(Predicate);
 }
 
@@ -4767,6 +4761,19 @@ AST_POLYMORPHIC_MATCHER_P(hasOperatorName,
                           std::string, Name) {
   return Name == Node.getOpcodeStr(Node.getOpcode());
 }
+
+/// Matches operator expressions (binary or unary) that have any of the
+/// specified names.
+///
+///    hasAnyOperatorName("+", "-")
+///  Is equivalent to
+///    anyOf(hasOperatorName("+"), hasOperatorName("-"))
+extern const internal::VariadicFunction<
+    internal::PolymorphicMatcherWithParam1<
+        internal::HasAnyOperatorNameMatcher, std::vector<std::string>,
+        AST_POLYMORPHIC_SUPPORTED_TYPES(BinaryOperator, UnaryOperator)>,
+    StringRef, internal::hasAnyOperatorNameFunc>
+    hasAnyOperatorName;
 
 /// Matches all kinds of assignment operators.
 ///
@@ -6735,8 +6742,7 @@ AST_MATCHER_P(Stmt, forFunction, internal::Matcher<FunctionDecl>,
               InnerMatcher) {
   const auto &Parents = Finder->getASTContext().getParents(Node);
 
-  llvm::SmallVector<ast_type_traits::DynTypedNode, 8> Stack(Parents.begin(),
-                                                            Parents.end());
+  llvm::SmallVector<DynTypedNode, 8> Stack(Parents.begin(), Parents.end());
   while(!Stack.empty()) {
     const auto &CurNode = Stack.back();
     Stack.pop_back();
@@ -7056,7 +7062,7 @@ extern const internal::VariadicDynCastAllOfMatcher<OMPClause, OMPDefaultClause>
 ///
 /// ``ompDefaultClause(isNoneKind())`` matches only ``default(none)``.
 AST_MATCHER(OMPDefaultClause, isNoneKind) {
-  return Node.getDefaultKind() == OMPC_DEFAULT_none;
+  return Node.getDefaultKind() == llvm::omp::OMP_DEFAULT_none;
 }
 
 /// Matches if the OpenMP ``default`` clause has ``shared`` kind specified.
@@ -7071,7 +7077,7 @@ AST_MATCHER(OMPDefaultClause, isNoneKind) {
 ///
 /// ``ompDefaultClause(isSharedKind())`` matches only ``default(shared)``.
 AST_MATCHER(OMPDefaultClause, isSharedKind) {
-  return Node.getDefaultKind() == OMPC_DEFAULT_shared;
+  return Node.getDefaultKind() == llvm::omp::OMP_DEFAULT_shared;
 }
 
 /// Matches if the OpenMP directive is allowed to contain the specified OpenMP

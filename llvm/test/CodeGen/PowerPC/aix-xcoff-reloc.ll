@@ -5,7 +5,7 @@
 ; RUN: llvm-readobj -t %t.o | FileCheck --check-prefix=SYM %s
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=DIS %s
 
-; RUN: not llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc64-ibm-aix-xcoff -mattr=-altivec -filetype=obj < %s 2>&1 | \
+; RUN: not --crash llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc64-ibm-aix-xcoff -mattr=-altivec -filetype=obj < %s 2>&1 | \
 ; RUN: FileCheck --check-prefix=XCOFF64 %s
 ; XCOFF64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
 
@@ -318,7 +318,7 @@ declare i32 @bar(i32)
 ; SYM-NEXT:       SectionLen: 12
 ; SYM-NEXT:       ParameterHashIndex: 0x0
 ; SYM-NEXT:       TypeChkSectNum: 0x0
-; SYM-NEXT:       SymbolAlignmentLog2: 0
+; SYM-NEXT:       SymbolAlignmentLog2: 2
 ; SYM-NEXT:       SymbolType: XTY_SD (0x1)
 ; SYM-NEXT:       StorageMappingClass: XMC_DS (0xA)
 ; SYM-NEXT:       StabInfoIndex: 0x0

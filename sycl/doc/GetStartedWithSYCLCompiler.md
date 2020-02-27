@@ -10,12 +10,14 @@ OpenCL&trade; API to offload computations to accelerators.
   * [Create SYCL workspace](#create-sycl-workspace)
 * [Build SYCL toolchain](#build-sycl-toolchain)
   * [Build SYCL toolchain with libc++ library](#build-sycl-toolchain-with-libc-library)
+  * [Build SYCL toolchain with support for NVIDIA CUDA](#build-sycl-toolchain-with-support-for-nvidia-cuda)
 * [Use SYCL toolchain](#use-sycl-toolchain)
   * [Install low level runtime](#install-low-level-runtime)
   * [Test SYCL toolchain](#test-sycl-toolchain)
   * [Run simple SYCL application](#run-simple-sycl-application)
 * [C++ standard](#c-standard)
 * [Known Issues and Limitations](#known-issues-and-limitations)
+* [CUDA backend limitations](#cuda-backend-limitations)
 * [Find More](#find-more)
 
 # Prerequisites
@@ -114,6 +116,30 @@ should be used.
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
+
+## Build SYCL toolchain with support for NVIDIA CUDA
+
+There is experimental support for SYCL for CUDA devices.
+
+To enable support for CUDA devices, the following arguments need to be added to 
+the CMake command when building the SYCL compiler.
+
+```
+-DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc"\
+-DSYCL_BUILD_PI_CUDA=ON\ 
+-DLLVM_TARGETS_TO_BUILD="X86;NVPTX"\
+-DLIBCLC_TARGETS_TO_BUILD="nvptx64--;nvptx64--nvidiacl"
+```
+
+Enabling this flag requires an installation of 
+[CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on the system,
+refer to 
+[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+
+Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
+a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
+above.
 
 # Use SYCL toolchain
 
@@ -354,14 +380,31 @@ and run following command:
 clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
 
+When building for CUDA, use the CUDA target triple as follows:
+
+```bash
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
+  simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+```
+
 This `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
+
+Note: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
+if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
 
 **Linux & Windows**
 ```bash
 ./simple-sycl-app.exe
 The results are correct!
+```
+**Note**:
+Currently, when the application has been built with the CUDA target, the CUDA backend
+must be selected at runtime using the `SYCL_BE` environment variable. 
+
+```bash
+SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
 NOTE: SYCL developer can specify SYCL device for execution using device
@@ -414,7 +457,28 @@ int main() {
 
 ```
 
+The device selector below selects an NVIDIA device only, and won't
+execute if there is none.
+
+```c++
+class CUDASelector : public cl::sycl::device_selector {
+  public:
+    int operator()(const cl::sycl::device &Device) const override {
+      using namespace cl::sycl::info;
+
+      const std::string DeviceName = Device.get_info<device::name>();
+      const std::string DeviceVendor = Device.get_info<device::vendor>();
+
+      if (Device.is_gpu() && (DeviceName.find("NVIDIA") != std::string::npos)) {
+        return 1;
+      };
+      return -1;
+    }
+};
+```
+
 # C++ standard
+
 - Minimally support C++ standard is c++11 on Linux and c++14 on Windows.
 
 # Known Issues and Limitations
@@ -425,6 +489,15 @@ int main() {
 - 32-bit host/target is not supported.
 - SYCL works only with OpenCL implementations supporting out-of-order queues.
 - On Windows linking SYCL applications with `/MTd` flag is known to cause crashes.
+
+## CUDA back-end limitations
+
+- Backend is only supported on Linux 
+- The only combination tested is Ubuntu 18.04 with CUDA 10.2 using
+a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
+above
+- The NVIDIA OpenCL headers conflict with the OpenCL headers required for this project 
+and may cause compilation issues on some platforms
 
 # Find More
 

@@ -63,6 +63,13 @@ OpAsmPrinter::~OpAsmPrinter() {}
 // OpPrintingFlags
 //===----------------------------------------------------------------------===//
 
+static llvm::cl::opt<int> printElementsAttrWithHexIfLarger(
+    "mlir-print-elementsattrs-with-hex-if-larger",
+    llvm::cl::desc(
+        "Print DenseElementsAttrs with a hex string that have "
+        "more elements than the given upper limit (use -1 to disable)"),
+    llvm::cl::init(100));
+
 static llvm::cl::opt<unsigned> elideElementsAttrIfLarger(
     "mlir-elide-elementsattrs-if-larger",
     llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
@@ -158,6 +165,24 @@ bool OpPrintingFlags::shouldPrintGenericOpForm() const {
 bool OpPrintingFlags::shouldUseLocalScope() const { return printLocalScope; }
 
 //===----------------------------------------------------------------------===//
+// NewLineCounter
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// This class is a simple formatter that emits a new line when inputted into a
+/// stream, that enables counting the number of newlines emitted. This class
+/// should be used whenever emitting newlines in the printer.
+struct NewLineCounter {
+  unsigned curLine = 1;
+};
+} // end anonymous namespace
+
+static raw_ostream &operator<<(raw_ostream &os, NewLineCounter &newLine) {
+  ++newLine.curLine;
+  return os << '\n';
+}
+
+//===----------------------------------------------------------------------===//
 // AliasState
 //===----------------------------------------------------------------------===//
 
@@ -174,14 +199,14 @@ public:
   Twine getAttributeAlias(Attribute attr) const;
 
   /// Print all of the referenced attribute aliases.
-  void printAttributeAliases(raw_ostream &os) const;
+  void printAttributeAliases(raw_ostream &os, NewLineCounter &newLine) const;
 
   /// Return a string to use as an alias for the given type, or empty if there
   /// is no alias recorded.
   StringRef getTypeAlias(Type ty) const;
 
   /// Print all of the referenced type aliases.
-  void printTypeAliases(raw_ostream &os) const;
+  void printTypeAliases(raw_ostream &os, NewLineCounter &newLine) const;
 
 private:
   /// A special index constant used for non-kind attribute aliases.
@@ -307,12 +332,13 @@ Twine AliasState::getAttributeAlias(Attribute attr) const {
 }
 
 /// Print all of the referenced attribute aliases.
-void AliasState::printAttributeAliases(raw_ostream &os) const {
+void AliasState::printAttributeAliases(raw_ostream &os,
+                                       NewLineCounter &newLine) const {
   auto printAlias = [&](StringRef alias, Attribute attr, int index) {
     os << '#' << alias;
     if (index != NonAttrKindAlias)
       os << index;
-    os << " = " << attr << '\n';
+    os << " = " << attr << newLine;
   };
 
   // Print all of the attribute kind aliases.
@@ -320,7 +346,7 @@ void AliasState::printAttributeAliases(raw_ostream &os) const {
     auto &aliasAttrsPair = kindAlias.second;
     for (unsigned i = 0, e = aliasAttrsPair.second.size(); i != e; ++i)
       printAlias(aliasAttrsPair.first, aliasAttrsPair.second[i], i);
-    os << "\n";
+    os << newLine;
   }
 
   // In a second pass print all of the remaining attribute aliases that aren't
@@ -339,11 +365,12 @@ StringRef AliasState::getTypeAlias(Type ty) const {
 }
 
 /// Print all of the referenced type aliases.
-void AliasState::printTypeAliases(raw_ostream &os) const {
+void AliasState::printTypeAliases(raw_ostream &os,
+                                  NewLineCounter &newLine) const {
   for (Type type : usedTypes) {
     auto alias = typeToAlias.find(type);
     if (alias != typeToAlias.end())
-      os << '!' << alias->second << " = type " << type << '\n';
+      os << '!' << alias->second << " = type " << type << newLine;
   }
 }
 
@@ -765,8 +792,9 @@ namespace mlir {
 namespace detail {
 class AsmStateImpl {
 public:
-  explicit AsmStateImpl(Operation *op)
-      : interfaces(op->getContext()), nameState(op, interfaces) {}
+  explicit AsmStateImpl(Operation *op, AsmState::LocationMap *locationMap)
+      : interfaces(op->getContext()), nameState(op, interfaces),
+        locationMap(locationMap) {}
 
   /// Initialize the alias state to enable the printing of aliases.
   void initializeAliases(Operation *op) {
@@ -785,6 +813,13 @@ public:
   /// Get the state used for SSA names.
   SSANameState &getSSANameState() { return nameState; }
 
+  /// Register the location, line and column, within the buffer that the given
+  /// operation was printed at.
+  void registerOperationLocation(Operation *op, unsigned line, unsigned col) {
+    if (locationMap)
+      (*locationMap)[op] = std::make_pair(line, col);
+  }
+
 private:
   /// Collection of OpAsm interfaces implemented in the context.
   DialectInterfaceCollection<OpAsmDialectInterface> interfaces;
@@ -794,11 +829,15 @@ private:
 
   /// The state used for SSA value names.
   SSANameState nameState;
+
+  /// An optional location map to be populated.
+  AsmState::LocationMap *locationMap;
 };
 } // end namespace detail
 } // end namespace mlir
 
-AsmState::AsmState(Operation *op) : impl(std::make_unique<AsmStateImpl>(op)) {}
+AsmState::AsmState(Operation *op, LocationMap *locationMap)
+    : impl(std::make_unique<AsmStateImpl>(op, locationMap)) {}
 AsmState::~AsmState() {}
 
 //===----------------------------------------------------------------------===//
@@ -823,10 +862,21 @@ public:
     mlir::interleaveComma(c, os, each_fn);
   }
 
-  /// Print the given attribute. If 'mayElideType' is true, some attributes are
-  /// printed without the type when the type matches the default used in the
-  /// parser (for example i64 is the default for integer attributes).
-  void printAttribute(Attribute attr, bool mayElideType = false);
+  /// This enum descripes the different kinds of elision for the type of an
+  /// attribute when printing it.
+  enum class AttrTypeElision {
+    /// The type must not be elided,
+    Never,
+    /// The type may be elided when it matches the default used in the parser
+    /// (for example i64 is the default for integer attributes).
+    May,
+    /// The type must be elided.
+    Must
+  };
+
+  /// Print the given attribute.
+  void printAttribute(Attribute attr,
+                      AttrTypeElision typeElision = AttrTypeElision::Never);
 
   void printType(Type type);
   void printLocation(LocationAttr loc);
@@ -844,7 +894,10 @@ protected:
                              bool withKeyword = false);
   void printTrailingLocation(Location loc);
   void printLocationInternal(LocationAttr loc, bool pretty = false);
-  void printDenseElementsAttr(DenseElementsAttr attr);
+
+  /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
+  /// used instead of individual elements when the elements attr is large.
+  void printDenseElementsAttr(DenseElementsAttr attr, bool allowHex);
 
   void printDialectAttribute(Attribute attr);
   void printDialectType(Type type);
@@ -868,6 +921,9 @@ protected:
 
   /// An optional printer state for the module.
   AsmStateImpl *state;
+
+  /// A tracker for the number of new lines emitted during printing.
+  NewLineCounter newLine;
 };
 } // end anonymous namespace
 
@@ -923,10 +979,10 @@ void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
         if (caller.isa<FileLineColLoc>()) {
           os << " at ";
         } else {
-          os << "\n at ";
+          os << newLine << " at ";
         }
       } else {
-        os << "\n at ";
+        os << newLine << " at ";
       }
     } else {
       os << " at ";
@@ -964,7 +1020,8 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
   bool isNaN = apValue.isNaN();
   if (!isInf && !isNaN) {
     SmallString<128> strValue;
-    apValue.toString(strValue, 6, 0, false);
+    apValue.toString(strValue, /*FormatPrecision=*/6, /*FormatMaxPadding=*/0,
+                     /*TruncateZero=*/false);
 
     // Check to make sure that the stringized number is not some string like
     // "Inf" or NaN, that atof will accept, but the lexer will not.  Check
@@ -975,18 +1032,26 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
            "[-+]?[0-9] regex does not match!");
 
     // Parse back the stringized version and check that the value is equal
-    // (i.e., there is no precision loss). If it is not, use the default format
-    // of APFloat instead of the exponential notation.
-    if (!APFloat(apValue.getSemantics(), strValue).bitwiseIsEqual(apValue)) {
-      strValue.clear();
-      apValue.toString(strValue);
+    // (i.e., there is no precision loss).
+    if (APFloat(apValue.getSemantics(), strValue).bitwiseIsEqual(apValue)) {
+      os << strValue;
+      return;
     }
-    os << strValue;
-    return;
+
+    // If it is not, use the default format of APFloat instead of the
+    // exponential notation.
+    strValue.clear();
+    apValue.toString(strValue);
+
+    // Make sure that we can parse the default form as a float.
+    if (StringRef(strValue).contains('.')) {
+      os << strValue;
+      return;
+    }
   }
 
-  // Print special values in hexadecimal format.  The sign bit should be
-  // included in the literal.
+  // Print special values in hexadecimal format. The sign bit should be included
+  // in the literal.
   SmallVector<char, 16> str;
   APInt apInt = apValue.bitcastToAPInt();
   apInt.toString(str, /*Radix=*/16, /*Signed=*/false,
@@ -1141,7 +1206,8 @@ static void printElidedElementsAttr(raw_ostream &os) {
   os << R"(opaque<"", "0xDEADBEEF">)";
 }
 
-void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
+void ModulePrinter::printAttribute(Attribute attr,
+                                   AttrTypeElision typeElision) {
   if (!attr) {
     os << "<<NULL ATTRIBUTE>>";
     return;
@@ -1156,6 +1222,7 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
     }
   }
 
+  auto attrType = attr.getType();
   switch (attr.getKind()) {
   default:
     return printDialectAttribute(attr);
@@ -1191,13 +1258,14 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
     break;
   case StandardAttributes::Integer: {
     auto intAttr = attr.cast<IntegerAttr>();
-    // Print all integer attributes as signed unless i1.
-    bool isSigned = intAttr.getType().isIndex() ||
-                    intAttr.getType().getIntOrFloatBitWidth() != 1;
+    // Print all signed/signless integer attributes as signed unless i1.
+    bool isSigned =
+        attrType.isIndex() || (!attrType.isUnsignedInteger() &&
+                               attrType.getIntOrFloatBitWidth() != 1);
     intAttr.getValue().print(os, isSigned);
 
     // IntegerAttr elides the type if I64.
-    if (mayElideType && intAttr.getType().isInteger(64))
+    if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
       return;
     break;
   }
@@ -1206,7 +1274,7 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
     printFloatValue(floatAttr.getValue(), os);
 
     // FloatAttr elides the type if F64.
-    if (mayElideType && floatAttr.getType().isF64())
+    if (typeElision == AttrTypeElision::May && attrType.isF64())
       return;
     break;
   }
@@ -1218,7 +1286,7 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
   case StandardAttributes::Array:
     os << '[';
     interleaveComma(attr.cast<ArrayAttr>().getValue(), [&](Attribute attr) {
-      printAttribute(attr, /*mayElideType=*/true);
+      printAttribute(attr, AttrTypeElision::May);
     });
     os << ']';
     break;
@@ -1265,7 +1333,7 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
       break;
     }
     os << "dense<";
-    printDenseElementsAttr(eltsAttr);
+    printDenseElementsAttr(eltsAttr, /*allowHex=*/true);
     os << '>';
     break;
   }
@@ -1277,9 +1345,9 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
       break;
     }
     os << "sparse<";
-    printDenseElementsAttr(elementsAttr.getIndices());
+    printDenseElementsAttr(elementsAttr.getIndices(), /*allowHex=*/false);
     os << ", ";
-    printDenseElementsAttr(elementsAttr.getValues());
+    printDenseElementsAttr(elementsAttr.getValues(), /*allowHex=*/true);
     os << '>';
     break;
   }
@@ -1295,9 +1363,8 @@ void ModulePrinter::printAttribute(Attribute attr, bool mayElideType) {
     break;
   }
 
-  // Print the type if it isn't a 'none' type.
-  auto attrType = attr.getType();
-  if (!attrType.isa<NoneType>()) {
+  // Don't print the type if we must elide it, or if it is a None type.
+  if (typeElision != AttrTypeElision::Must && !attrType.isa<NoneType>()) {
     os << " : ";
     printType(attrType);
   }
@@ -1320,7 +1387,8 @@ static void printDenseFloatElement(DenseElementsAttr attr, raw_ostream &os,
   printFloatValue(value, os);
 }
 
-void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr) {
+void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
+                                           bool allowHex) {
   auto type = attr.getType();
   auto shape = type.getShape();
   auto rank = type.getRank();
@@ -1343,6 +1411,15 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr) {
       os << '[';
     for (int i = 0; i < rank; ++i)
       os << ']';
+    return;
+  }
+
+  // Check to see if we should format this attribute as a hex string.
+  if (allowHex && printElementsAttrWithHexIfLarger != -1 &&
+      numElements > printElementsAttrWithHexIfLarger) {
+    ArrayRef<char> rawData = attr.getRawData();
+    os << '"' << "0x" << llvm::toHex(StringRef(rawData.data(), rawData.size()))
+       << "\"";
     return;
   }
 
@@ -1420,6 +1497,10 @@ void ModulePrinter::printType(Type type) {
 
   case StandardTypes::Integer: {
     auto integer = type.cast<IntegerType>();
+    if (integer.isSigned())
+      os << 's';
+    else if (integer.isUnsigned())
+      os << 'u';
     os << 'i' << integer.getWidth();
     return;
   }
@@ -1860,6 +1941,12 @@ public:
     ModulePrinter::printAttribute(attr);
   }
 
+  /// Print the given attribute without its type. The corresponding parser must
+  /// provide a valid type for the attribute.
+  void printAttributeWithoutType(Attribute attr) override {
+    ModulePrinter::printAttribute(attr, AttrTypeElision::Must);
+  }
+
   /// Print the ID for the given value.
   void printOperand(Value value) override { printValueID(value); }
 
@@ -1912,14 +1999,17 @@ private:
 
 void OperationPrinter::print(ModuleOp op) {
   // Output the aliases at the top level.
-  state->getAliasState().printAttributeAliases(os);
-  state->getAliasState().printTypeAliases(os);
+  state->getAliasState().printAttributeAliases(os, newLine);
+  state->getAliasState().printTypeAliases(os, newLine);
 
   // Print the module.
   print(op.getOperation());
 }
 
 void OperationPrinter::print(Operation *op) {
+  // Track the location of this operation.
+  state->registerOperationLocation(op, newLine.curLine, currentIndent);
+
   os.indent(currentIndent);
   printOperation(op);
   printTrailingLocation(op->getLoc());
@@ -2057,7 +2147,7 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
         printBlockName(pred.second);
       });
     }
-    os << '\n';
+    os << newLine;
   }
 
   currentIndent += indentWidth;
@@ -2066,7 +2156,7 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
       std::prev(block->getOperations().end(), printBlockTerminator ? 0 : 1));
   for (auto &op : range) {
     print(&op);
-    os << '\n';
+    os << newLine;
   }
   currentIndent -= indentWidth;
 }
@@ -2094,7 +2184,7 @@ void OperationPrinter::printSuccessorAndUseList(Operation *term,
 
 void OperationPrinter::printRegion(Region &region, bool printEntryBlockArgs,
                                    bool printBlockTerminators) {
-  os << " {\n";
+  os << " {" << newLine;
   if (!region.empty()) {
     auto *entryBlock = &region.front();
     print(entryBlock, printEntryBlockArgs && entryBlock->getNumArguments() != 0,

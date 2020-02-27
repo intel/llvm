@@ -6,39 +6,57 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/context_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/context_info.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-context_impl::context_impl(const device &Device, async_handler AsyncHandler)
+context_impl::context_impl(const device &Device, async_handler AsyncHandler,
+                           bool UseCUDAPrimaryContext)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPluginInterop(false), MHostContext(true) {
+      MPlatform(), MPluginInterop(false), MHostContext(true),
+      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
-                           async_handler AsyncHandler)
+                           async_handler AsyncHandler, bool UseCUDAPrimaryContext)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPluginInterop(true), MHostContext(false) {
+      MPlatform(), MPluginInterop(true), MHostContext(false),
+      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  getPlugin().call<PiApiKind::piContextCreate>(
-      nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
+  if (MPlatform->is_cuda()) {
+#if USE_PI_CUDA
+    const cl_context_properties props[] = {
+        PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
+        0};
+
+    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
+	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+#else
+    cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
+#endif
+  } else {
+    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(), 
+	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+  }
 
   MKernelProgramCache.setContextPtr(this);
 }
@@ -125,6 +143,14 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
+bool
+context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
+  for (auto D : MDevices)
+    if (getSyclObjImpl(D) == Device)
+      return true;
+  return false;
+}
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

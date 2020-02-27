@@ -504,6 +504,7 @@ def setupSysPath():
         sys.exit(-1)
 
     os.environ["LLDB_TEST"] = scriptPath
+    os.environ["LLDB_TEST_SRC"] = lldbsuite.lldb_test_root
 
     # Set up the root build directory.
     builddir = configuration.test_build_dir
@@ -1050,15 +1051,7 @@ def run_suite():
             "netbsd" in target_platform or
             "windows" in target_platform)
 
-    # Collect tests from the specified testing directories. If a test
-    # subdirectory filter is explicitly specified, limit the search to that
-    # subdirectory.
-    exclusive_test_subdir = configuration.get_absolute_path_to_exclusive_test_subdir()
-    if exclusive_test_subdir:
-        dirs_to_search = [exclusive_test_subdir]
-    else:
-        dirs_to_search = configuration.testdirs
-    for testdir in dirs_to_search:
+    for testdir in configuration.testdirs:
         for (dirpath, dirnames, filenames) in os.walk(testdir):
             visit('Test', dirpath, filenames)
 

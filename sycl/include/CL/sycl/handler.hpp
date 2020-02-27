@@ -54,11 +54,12 @@ template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
           cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
 
+class handler;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 namespace detail {
 
@@ -104,6 +105,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
+device getDeviceFromHandler(handler &);
 } // namespace detail
 
 /// 4.8.3 Command group handler class
@@ -771,6 +773,15 @@ public:
 #endif
   }
 
+  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
+  ///
+  /// @param Func is a lambda that is executed on the host
+  template <typename FuncT> void interop_task(FuncT Func) {
+
+    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
+    MCGType = detail::CG::INTEROP_TASK_CODEPLAY;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// @param SyclKernel is a SYCL kernel that is executed on a SYCL device
@@ -1267,6 +1278,8 @@ private:
   /// Storage for a lambda or function object.
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
+  // Storage for a lambda or function when using InteropTasks
+  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
 
@@ -1278,6 +1291,7 @@ private:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+  friend device detail::getDeviceFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -1287,4 +1301,4 @@ private:
   friend class detail::stream_impl;
 };
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

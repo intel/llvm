@@ -17,6 +17,7 @@
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
+#include "SYCL/LocalAccessorToSharedMemory.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -70,6 +71,8 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
+void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
+
 } // end namespace llvm
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
@@ -89,6 +92,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXLowerAllocaPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
+
+  // SYCL-specific passes, needed here to be available to `opt`.
+  initializeLocalAccessorToSharedMemoryPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -266,6 +272,11 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
+  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
+      getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
+    addPass(createLocalAccessorToSharedMemoryPass());
+  }
+
   if (getOptLevel() != CodeGenOpt::None)
     addPass(createNVPTXImageOptimizerPass());
   addPass(createNVPTXAssignValidGlobalNamesPass());
@@ -276,8 +287,6 @@ void NVPTXPassConfig::addIRPasses() {
   addPass(createNVPTXLowerArgsPass(&getNVPTXTargetMachine()));
   if (getOptLevel() != CodeGenOpt::None) {
     addAddressSpaceInferencePasses();
-    if (!DisableLoadStoreVectorizer)
-      addPass(createLoadStoreVectorizerPass());
     addStraightLineScalarOptimizationPasses();
   }
 
@@ -295,8 +304,11 @@ void NVPTXPassConfig::addIRPasses() {
   //   %1 = shl %a, 2
   //
   // but EarlyCSE can do neither of them.
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOpt::None) {
     addEarlyCSEOrGVNPass();
+    if (!DisableLoadStoreVectorizer)
+      addPass(createLoadStoreVectorizerPass());
+  }
 }
 
 bool NVPTXPassConfig::addInstSelector() {

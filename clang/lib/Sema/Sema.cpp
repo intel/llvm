@@ -968,11 +968,10 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     PerformPendingInstantiations();
   }
 
-  // Emit SYCL integration header for current translation unit if needed
-  if (getLangOpts().SYCLIsDevice && SyclIntHeader != nullptr) {
-    SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
-  }
   if (getLangOpts().SYCLIsDevice) {
+    // Emit SYCL integration header for current translation unit if needed
+    if (SyclIntHeader != nullptr)
+      SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
     MarkDevice();
     finalizeSYCLDelayedAnalysis();
   }

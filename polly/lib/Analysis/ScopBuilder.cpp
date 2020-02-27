@@ -1579,7 +1579,7 @@ void ScopBuilder::addUserAssumptions(
 
     // Project out newly introduced parameters as they are not otherwise useful.
     if (!NewParams.empty()) {
-      for (unsigned u = 0; u < isl_set_n_param(AssumptionCtx); u++) {
+      for (isl_size u = 0; u < isl_set_n_param(AssumptionCtx); u++) {
         auto *Id = isl_set_get_dim_id(AssumptionCtx, isl_dim_param, u);
         auto *Param = static_cast<const SCEV *>(isl_id_get_user(Id));
         isl_id_free(Id);
@@ -1629,9 +1629,9 @@ bool ScopBuilder::buildAccessMultiDimFixed(MemAccInst Inst, ScopStmt *Stmt) {
   if (!GEP)
     return false;
 
-  std::vector<const SCEV *> Subscripts;
-  std::vector<int> Sizes;
-  std::tie(Subscripts, Sizes) = getIndexExpressionsFromGEP(GEP, SE);
+  SmallVector<const SCEV *, 4> Subscripts;
+  SmallVector<int, 4> Sizes;
+  SE.getIndexExpressionsFromGEP(GEP, Subscripts, Sizes);
   auto *BasePtr = GEP->getOperand(0);
 
   if (auto *BasePtrCast = dyn_cast<BitCastInst>(BasePtr))
@@ -3285,7 +3285,8 @@ static bool buildMinMaxAccess(isl::set Set,
   //           11          |     6.78
   //           12          |    30.38
   //
-  if (isl_set_n_param(Set.get()) > RunTimeChecksMaxParameters) {
+  if (isl_set_n_param(Set.get()) >
+      static_cast<isl_size>(RunTimeChecksMaxParameters)) {
     unsigned InvolvedParams = 0;
     for (unsigned u = 0, e = isl_set_n_param(Set.get()); u < e; u++)
       if (Set.involves_dims(isl::dim::param, u, 1))
@@ -3630,7 +3631,8 @@ static void verifyUses(Scop *S, LoopInfo &LI, DominatorTree &DT) {
 #endif
 
 void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
-  scop.reset(new Scop(R, SE, LI, DT, *SD.getDetectionContext(&R), ORE));
+  scop.reset(new Scop(R, SE, LI, DT, *SD.getDetectionContext(&R), ORE,
+                      SD.getNextID()));
 
   buildStmts(R);
 

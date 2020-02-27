@@ -1432,7 +1432,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; KNL:       ## %bb.0: ## %entry
 ; KNL-NEXT:    movzwl (%rdi), %eax ## encoding: [0x0f,0xb7,0x07]
 ; KNL-NEXT:    movzwl 2(%rdi), %ecx ## encoding: [0x0f,0xb7,0x4f,0x02]
-; KNL-NEXT:    movswl %cx, %ecx ## encoding: [0x0f,0xbf,0xc9]
 ; KNL-NEXT:    vmovd %ecx, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc1]
 ; KNL-NEXT:    vcvtph2ps %xmm0, %xmm0 ## encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; KNL-NEXT:    vxorps %xmm1, %xmm1, %xmm1 ## encoding: [0xc5,0xf0,0x57,0xc9]
@@ -1442,7 +1441,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; KNL-NEXT:    orb %cl, %dl ## encoding: [0x08,0xca]
 ; KNL-NEXT:    kmovw %edx, %k0 ## encoding: [0xc5,0xf8,0x92,0xc2]
 ; KNL-NEXT:    kshiftlw $1, %k0, %k0 ## encoding: [0xc4,0xe3,0xf9,0x32,0xc0,0x01]
-; KNL-NEXT:    cwtl ## encoding: [0x98]
 ; KNL-NEXT:    vmovd %eax, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc0]
 ; KNL-NEXT:    vcvtph2ps %xmm0, %xmm0 ## encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; KNL-NEXT:    vucomiss %xmm1, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf8,0x2e,0xc1]
@@ -1465,7 +1463,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; AVX512BW:       ## %bb.0: ## %entry
 ; AVX512BW-NEXT:    movzwl (%rdi), %eax ## encoding: [0x0f,0xb7,0x07]
 ; AVX512BW-NEXT:    movzwl 2(%rdi), %ecx ## encoding: [0x0f,0xb7,0x4f,0x02]
-; AVX512BW-NEXT:    movswl %cx, %ecx ## encoding: [0x0f,0xbf,0xc9]
 ; AVX512BW-NEXT:    vmovd %ecx, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc1]
 ; AVX512BW-NEXT:    vcvtph2ps %xmm0, %xmm0 ## encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; AVX512BW-NEXT:    vxorps %xmm1, %xmm1, %xmm1 ## encoding: [0xc5,0xf0,0x57,0xc9]
@@ -1475,7 +1472,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; AVX512BW-NEXT:    orb %cl, %dl ## encoding: [0x08,0xca]
 ; AVX512BW-NEXT:    kmovd %edx, %k0 ## encoding: [0xc5,0xfb,0x92,0xc2]
 ; AVX512BW-NEXT:    kshiftlw $1, %k0, %k0 ## encoding: [0xc4,0xe3,0xf9,0x32,0xc0,0x01]
-; AVX512BW-NEXT:    cwtl ## encoding: [0x98]
 ; AVX512BW-NEXT:    vmovd %eax, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc0]
 ; AVX512BW-NEXT:    vcvtph2ps %xmm0, %xmm0 ## encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; AVX512BW-NEXT:    vucomiss %xmm1, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf8,0x2e,0xc1]
@@ -1497,7 +1493,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; SKX:       ## %bb.0: ## %entry
 ; SKX-NEXT:    movzwl (%rdi), %eax ## encoding: [0x0f,0xb7,0x07]
 ; SKX-NEXT:    movzwl 2(%rdi), %ecx ## encoding: [0x0f,0xb7,0x4f,0x02]
-; SKX-NEXT:    movswl %cx, %ecx ## encoding: [0x0f,0xbf,0xc9]
 ; SKX-NEXT:    vmovd %ecx, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc1]
 ; SKX-NEXT:    vcvtph2ps %xmm0, %xmm0 ## EVEX TO VEX Compression encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; SKX-NEXT:    vxorps %xmm1, %xmm1, %xmm1 ## EVEX TO VEX Compression encoding: [0xc5,0xf0,0x57,0xc9]
@@ -1507,7 +1502,6 @@ define void @half_vec_compare(<2 x half>* %x, <2 x i8>* %y) {
 ; SKX-NEXT:    orb %cl, %dl ## encoding: [0x08,0xca]
 ; SKX-NEXT:    kmovd %edx, %k0 ## encoding: [0xc5,0xfb,0x92,0xc2]
 ; SKX-NEXT:    kshiftlb $1, %k0, %k0 ## encoding: [0xc4,0xe3,0x79,0x32,0xc0,0x01]
-; SKX-NEXT:    cwtl ## encoding: [0x98]
 ; SKX-NEXT:    vmovd %eax, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf9,0x6e,0xc0]
 ; SKX-NEXT:    vcvtph2ps %xmm0, %xmm0 ## EVEX TO VEX Compression encoding: [0xc4,0xe2,0x79,0x13,0xc0]
 ; SKX-NEXT:    vucomiss %xmm1, %xmm0 ## EVEX TO VEX Compression encoding: [0xc5,0xf8,0x2e,0xc1]
@@ -1572,4 +1566,26 @@ entry:
   %2 = icmp slt <8 x i8> %1, zeroinitializer
   %3 = select <8 x i1> %2, <8 x i64> %y, <8 x i64> %z
   ret <8 x i64> %3
+}
+
+define <2 x i32> @narrow_cmp_select_reverse(<2 x i64> %x, <2 x i32> %y) nounwind {
+; AVX512-LABEL: narrow_cmp_select_reverse:
+; AVX512:       ## %bb.0:
+; AVX512-NEXT:    vpxor %xmm2, %xmm2, %xmm2 ## encoding: [0xc5,0xe9,0xef,0xd2]
+; AVX512-NEXT:    vpcmpeqq %xmm2, %xmm0, %xmm0 ## encoding: [0xc4,0xe2,0x79,0x29,0xc2]
+; AVX512-NEXT:    vpternlogq $15, %zmm0, %zmm0, %zmm0 ## encoding: [0x62,0xf3,0xfd,0x48,0x25,0xc0,0x0f]
+; AVX512-NEXT:    vpshufd $232, %xmm0, %xmm0 ## encoding: [0xc5,0xf9,0x70,0xc0,0xe8]
+; AVX512-NEXT:    ## xmm0 = xmm0[0,2,2,3]
+; AVX512-NEXT:    vpand %xmm1, %xmm0, %xmm0 ## encoding: [0xc5,0xf9,0xdb,0xc1]
+; AVX512-NEXT:    vzeroupper ## encoding: [0xc5,0xf8,0x77]
+; AVX512-NEXT:    retq ## encoding: [0xc3]
+;
+; SKX-LABEL: narrow_cmp_select_reverse:
+; SKX:       ## %bb.0:
+; SKX-NEXT:    vptestmq %xmm0, %xmm0, %k1 ## encoding: [0x62,0xf2,0xfd,0x08,0x27,0xc8]
+; SKX-NEXT:    vmovdqa32 %xmm1, %xmm0 {%k1} {z} ## encoding: [0x62,0xf1,0x7d,0x89,0x6f,0xc1]
+; SKX-NEXT:    retq ## encoding: [0xc3]
+  %mask = icmp eq <2 x i64> %x, zeroinitializer
+  %res = select <2 x i1> %mask, <2 x i32> zeroinitializer, <2 x i32> %y
+  ret <2 x i32> %res
 }

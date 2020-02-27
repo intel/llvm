@@ -66,6 +66,8 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace llvm::MachO;
 
+LLDB_PLUGIN_DEFINE(ObjectFileMachO)
+
 // Some structure definitions needed for parsing the dyld shared cache files
 // found on iOS devices.
 
@@ -1148,6 +1150,7 @@ AddressClass ObjectFileMachO::GetAddressClass(lldb::addr_t file_addr) {
         case eSectionTypeDWARFDebugStrDwo:
         case eSectionTypeDWARFDebugStrOffsets:
         case eSectionTypeDWARFDebugStrOffsetsDwo:
+        case eSectionTypeDWARFDebugTuIndex:
         case eSectionTypeDWARFDebugTypes:
         case eSectionTypeDWARFDebugTypesDwo:
         case eSectionTypeDWARFAppleNames:

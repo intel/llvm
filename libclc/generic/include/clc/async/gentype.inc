@@ -1,205 +1,305 @@
 
 #define __CLC_GENTYPE char
+#define __CLC_GENTYPE_MANGLED c
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE char2
+#define __CLC_GENTYPE_MANGLED Dv2_c
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE char4
+#define __CLC_GENTYPE_MANGLED Dv4_c
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE char8
+#define __CLC_GENTYPE_MANGLED Dv8_c
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE char16
+#define __CLC_GENTYPE_MANGLED Dv16_c
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uchar
+#define __CLC_GENTYPE_MANGLED h
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uchar2
+#define __CLC_GENTYPE_MANGLED Dv2_h
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uchar4
+#define __CLC_GENTYPE_MANGLED Dv4_h
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uchar8
+#define __CLC_GENTYPE_MANGLED Dv8_h
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uchar16
+#define __CLC_GENTYPE_MANGLED Dv16_h
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE short
+#define __CLC_GENTYPE_MANGLED s
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE short2
+#define __CLC_GENTYPE_MANGLED Dv2_s
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE short4
+#define __CLC_GENTYPE_MANGLED Dv4_s
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE short8
+#define __CLC_GENTYPE_MANGLED Dv8_s
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE short16
+#define __CLC_GENTYPE_MANGLED Dv16_s
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ushort
+#define __CLC_GENTYPE_MANGLED t
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ushort2
+#define __CLC_GENTYPE_MANGLED Dv2_t
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ushort4
+#define __CLC_GENTYPE_MANGLED Dv4_t
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ushort8
+#define __CLC_GENTYPE_MANGLED Dv8_t
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ushort16
+#define __CLC_GENTYPE_MANGLED Dv16_t
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int
+#define __CLC_GENTYPE_MANGLED i
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int2
+#define __CLC_GENTYPE_MANGLED Dv2_i
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int4
+#define __CLC_GENTYPE_MANGLED Dv4_i
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int8
+#define __CLC_GENTYPE_MANGLED Dv8_i
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int16
+#define __CLC_GENTYPE_MANGLED Dv16_i
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uint
+#define __CLC_GENTYPE_MANGLED j
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uint2
+#define __CLC_GENTYPE_MANGLED Dv2_j
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uint4
+#define __CLC_GENTYPE_MANGLED Dv4_j
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uint8
+#define __CLC_GENTYPE_MANGLED Dv8_j
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE uint16
+#define __CLC_GENTYPE_MANGLED Dv16_j
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE float
+#define __CLC_GENTYPE_MANGLED f
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE float2
+#define __CLC_GENTYPE_MANGLED Dv2_f
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE float4
+#define __CLC_GENTYPE_MANGLED Dv4_f
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE float8
+#define __CLC_GENTYPE_MANGLED Dv8_f
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE float16
+#define __CLC_GENTYPE_MANGLED Dv16_f
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE long
+#define __CLC_GENTYPE_MANGLED l
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE long2
+#define __CLC_GENTYPE_MANGLED Dv2_l
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE long4
+#define __CLC_GENTYPE_MANGLED Dv4_l
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE long8
+#define __CLC_GENTYPE_MANGLED Dv8_l
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE long16
+#define __CLC_GENTYPE_MANGLED Dv16_l
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ulong
+#define __CLC_GENTYPE_MANGLED m
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ulong2
+#define __CLC_GENTYPE_MANGLED Dv2_m
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ulong4
+#define __CLC_GENTYPE_MANGLED Dv4_m
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ulong8
+#define __CLC_GENTYPE_MANGLED Dv8_m
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE ulong16
+#define __CLC_GENTYPE_MANGLED Dv16_m
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 #define __CLC_GENTYPE double
+#define __CLC_GENTYPE_MANGLED d
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE double2
+#define __CLC_GENTYPE_MANGLED Dv2_d
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE double4
+#define __CLC_GENTYPE_MANGLED Dv4_d
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE double8
+#define __CLC_GENTYPE_MANGLED Dv8_d
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE double16
+#define __CLC_GENTYPE_MANGLED Dv16_d
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #endif
@@ -208,23 +308,33 @@
 #pragma OPENCL EXTENSION cl_khr_fp16: enable
 
 #define __CLC_GENTYPE half
+#define __CLC_GENTYPE_MANGLED Dh
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE half2
+#define __CLC_GENTYPE_MANGLED Dv2_Dh
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE half4
+#define __CLC_GENTYPE_MANGLED Dv4_Dh
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE half8
+#define __CLC_GENTYPE_MANGLED Dv8_Dh
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE half16
+#define __CLC_GENTYPE_MANGLED Dv16_Dh
 #include __CLC_BODY
+#undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
 #endif

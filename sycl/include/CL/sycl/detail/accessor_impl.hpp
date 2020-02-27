@@ -14,7 +14,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -185,6 +185,8 @@ protected:
 
 using Requirement = AccessorImplHost;
 
+void addHostAccessorAndWait(Requirement *Req);
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

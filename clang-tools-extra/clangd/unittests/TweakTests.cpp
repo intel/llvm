@@ -230,6 +230,14 @@ TEST_F(ExtractVariableTest, Test) {
   )cpp";
   EXPECT_AVAILABLE(AvailableCases);
 
+  ExtraArgs = {"-xc"};
+  const char *AvailableButC = R"cpp(
+    void foo() {
+      int x = [[1]];
+    })cpp";
+  EXPECT_UNAVAILABLE(AvailableButC);
+  ExtraArgs = {};
+
   const char *NoCrashCases = R"cpp(
     // error-ok: broken code, but shouldn't crash
     template<typename T, typename ...Args>
@@ -1966,7 +1974,7 @@ TEST_F(DefineOutlineTest, TriggersOnFunctionDecl) {
   // Basic check for function body and signature.
   EXPECT_AVAILABLE(R"cpp(
     class Bar {
-      [[void [[f^o^o]]() [[{ return; }]]]]
+      [[void [[f^o^o^]]() [[{ return; }]]]]
     };
 
     void foo();

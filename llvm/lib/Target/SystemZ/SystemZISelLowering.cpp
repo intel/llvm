@@ -1193,6 +1193,19 @@ SystemZTargetLowering::getRegForInlineAsmConstraint(
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
+// FIXME? Maybe this could be a TableGen attribute on some registers and
+// this table could be generated automatically from RegInfo.
+Register SystemZTargetLowering::getRegisterByName(const char *RegName, LLT VT,
+                                                  const MachineFunction &MF) const {
+
+  Register Reg = StringSwitch<Register>(RegName)
+                   .Case("r15", SystemZ::R15D)
+                   .Default(0);
+  if (Reg)
+    return Reg;
+  report_fatal_error("Invalid register name global variable");
+}
+
 void SystemZTargetLowering::
 LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
                              std::vector<SDValue> &Ops,
@@ -1451,7 +1464,8 @@ SDValue SystemZTargetLowering::LowerFormalArguments(
 
     // ...and a similar frame index for the caller-allocated save area
     // that will be used to store the incoming registers.
-    int64_t RegSaveOffset = -SystemZMC::CallFrameSize;
+    int64_t RegSaveOffset =
+      -SystemZMC::CallFrameSize + TFL->getRegSpillOffset(MF, SystemZ::R2D) - 16;
     unsigned RegSaveIndex = MFI.CreateFixedObject(1, RegSaveOffset, true);
     FuncInfo->setRegSaveFrameIndex(RegSaveIndex);
 
@@ -1460,8 +1474,9 @@ SDValue SystemZTargetLowering::LowerFormalArguments(
     if (NumFixedFPRs < SystemZ::NumArgFPRs && !useSoftFloat()) {
       SDValue MemOps[SystemZ::NumArgFPRs];
       for (unsigned I = NumFixedFPRs; I < SystemZ::NumArgFPRs; ++I) {
-        unsigned Offset = TFL->getRegSpillOffset(SystemZ::ArgFPRs[I]);
-        int FI = MFI.CreateFixedObject(8, RegSaveOffset + Offset, true);
+        unsigned Offset = TFL->getRegSpillOffset(MF, SystemZ::ArgFPRs[I]);
+        int FI =
+          MFI.CreateFixedObject(8, -SystemZMC::CallFrameSize + Offset, true);
         SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
         unsigned VReg = MF.addLiveIn(SystemZ::ArgFPRs[I],
                                      &SystemZ::FP64BitRegClass);
@@ -3228,6 +3243,8 @@ SDValue SystemZTargetLowering::lowerConstantPool(ConstantPoolSDNode *CP,
 
 SDValue SystemZTargetLowering::lowerFRAMEADDR(SDValue Op,
                                               SelectionDAG &DAG) const {
+  auto *TFL =
+      static_cast<const SystemZFrameLowering *>(Subtarget.getFrameLowering());
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MFI.setFrameAddressIsTaken(true);
@@ -3236,9 +3253,12 @@ SDValue SystemZTargetLowering::lowerFRAMEADDR(SDValue Op,
   unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
 
+  // Return null if the back chain is not present.
+  bool HasBackChain = MF.getFunction().hasFnAttribute("backchain");
+  if (TFL->usePackedStack(MF) && !HasBackChain)
+    return DAG.getConstant(0, DL, PtrVT);
+
   // By definition, the frame address is the address of the back chain.
-  auto *TFL =
-      static_cast<const SystemZFrameLowering *>(Subtarget.getFrameLowering());
   int BackChainIdx = TFL->getOrCreateFramePointerSaveIndex(MF);
   SDValue BackChain = DAG.getFrameIndex(BackChainIdx, PtrVT);
 
@@ -6594,7 +6614,7 @@ SystemZTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
       APInt SrcDemE = getDemandedSrcElements(Op, DemandedElts, 0);
       Known = DAG.computeKnownBits(SrcOp, SrcDemE, Depth + 1);
       if (IsLogical) {
-        Known = Known.zext(BitWidth, true);
+        Known = Known.zext(BitWidth);
       } else
         Known = Known.sext(BitWidth);
       break;
@@ -6623,7 +6643,7 @@ SystemZTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
   // Known has the width of the source operand(s). Adjust if needed to match
   // the passed bitwidth.
   if (Known.getBitWidth() != BitWidth)
-    Known = Known.zextOrTrunc(BitWidth, false);
+    Known = Known.anyextOrTrunc(BitWidth);
 }
 
 static unsigned computeNumSignBitsBinOp(SDValue Op, const APInt &DemandedElts,
@@ -6873,8 +6893,6 @@ SystemZTargetLowering::emitSelect(MachineInstr &MI,
   for (MachineBasicBlock::iterator NextMIIt =
          std::next(MachineBasicBlock::iterator(MI));
        NextMIIt != MBB->end(); ++NextMIIt) {
-    if (NextMIIt->definesRegister(SystemZ::CC))
-      break;
     if (isSelectPseudo(*NextMIIt)) {
       assert(NextMIIt->getOperand(3).getImm() == CCValid &&
              "Bad CCValid operands since CC was not redefined.");
@@ -6885,6 +6903,9 @@ SystemZTargetLowering::emitSelect(MachineInstr &MI,
       }
       break;
     }
+    if (NextMIIt->definesRegister(SystemZ::CC) ||
+        NextMIIt->usesCustomInsertionHook())
+      break;
     bool User = false;
     for (auto SelMI : Selects)
       if (NextMIIt->readsVirtualRegister(SelMI->getOperand(0).getReg())) {

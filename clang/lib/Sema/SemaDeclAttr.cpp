@@ -225,8 +225,7 @@ static bool checkAttributeAtMostNumArgs(Sema &S, const ParsedAttr &AL,
 /// A helper function to provide Attribute Location for the Attr types
 /// AND the ParsedAttr.
 template <typename AttrInfo>
-static typename std::enable_if<std::is_base_of<Attr, AttrInfo>::value,
-                               SourceLocation>::type
+static std::enable_if_t<std::is_base_of<Attr, AttrInfo>::value, SourceLocation>
 getAttrLoc(const AttrInfo &AL) {
   return AL.getLocation();
 }
@@ -5542,6 +5541,47 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
                  PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
 }
 
+void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
+                                  Expr *E) {
+  VarDecl *VD = cast<VarDecl>(D);
+  QualType Ty = VD->getType();
+  // TODO: Applicable only on pipe storages. Currently they are defined
+  // as structures inside of SYCL headers. Add a check for pipe_storage_t
+  // when it is ready.
+  if (!Ty->isStructureType()) {
+    Diag(Attr.getLoc(), diag::err_attribute_wrong_decl_type_str)
+        << Attr.getAttrName() << "SYCL pipe storage declaration";
+    return;
+  }
+
+  if (!E->isInstantiationDependent()) {
+    llvm::APSInt ArgVal(32);
+    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return;
+    }
+    int32_t ArgInt = ArgVal.getSExtValue();
+    if (ArgInt < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << Attr.getAttrName() << /*non-negative*/ 1;
+      return;
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, Attr, E));
+}
+
+static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
+                                      const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  Expr *E = Attr.getArgAsExpr(0);
+  S.addSYCLIntelPipeIOAttr(D, Attr, E);
+}
+
 static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
   if (AliasName.startswith("__arm_"))
     AliasName = AliasName.substr(6);
@@ -8065,6 +8105,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelFPGABankBits:
     handleIntelFPGABankBitsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelPipeIO:
+    handleSYCLIntelPipeIOAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:

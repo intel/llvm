@@ -12,7 +12,7 @@
 
 #include <cstddef>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 ///
 // Explicit USM
@@ -160,4 +160,4 @@ usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 device get_pointer_device(const void *ptr, const context &ctxt);
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

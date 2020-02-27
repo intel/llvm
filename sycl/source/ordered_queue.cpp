@@ -6,13 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/device.hpp>
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/ordered_queue.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 ordered_queue::ordered_queue(const context &syclContext,
                              const device_selector &deviceSelector,
@@ -119,4 +122,4 @@ ordered_queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 ordered_queue::get_property<property::queue::enable_profiling>() const;
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

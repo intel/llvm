@@ -12,6 +12,8 @@
 
 #include "RNBRemote.h"
 
+#include <bsm/audit.h>
+#include <bsm/audit_session.h>
 #include <errno.h>
 #include <libproc.h>
 #include <mach-o/loader.h>
@@ -3688,6 +3690,12 @@ static bool attach_failed_due_to_sip (nub_process_t pid) {
 // my_uid and process_uid are only initialized if this function
 // returns true -- that there was a uid mismatch -- and those
 // id's may want to be used in the error message.
+// 
+// NOTE: this should only be called after process_does_not_exist().
+// This sysctl will return uninitialized data if we ask for a pid
+// that doesn't exist.  The alternative would be to fetch all
+// processes and step through to find the one we're looking for
+// (as process_does_not_exist() does).
 static bool attach_failed_due_to_uid_mismatch (nub_process_t pid,
                                                uid_t &my_uid,
                                                uid_t &process_uid) {
@@ -3710,6 +3718,11 @@ static bool attach_failed_due_to_uid_mismatch (nub_process_t pid,
     return false;
 }
 
+// NOTE: this should only be called after process_does_not_exist().
+// This sysctl will return uninitialized data if we ask for a pid
+// that doesn't exist.  The alternative would be to fetch all
+// processes and step through to find the one we're looking for
+// (as process_does_not_exist() does).
 static bool process_is_already_being_debugged (nub_process_t pid) {
   struct kinfo_proc kinfo;
   int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
@@ -3721,6 +3734,24 @@ static bool process_is_already_being_debugged (nub_process_t pid) {
     return true; // is being debugged already
   else
     return false;
+}
+
+// Test if this current login session has a connection to the
+// window server (if it does not have that access, it cannot ask
+// for debug permission by popping up a dialog box and attach
+// may fail outright).
+static bool login_session_has_gui_access () {
+  // I believe this API only works on macOS.
+#if TARGET_OS_OSX == 0
+  return true;
+#else
+  auditinfo_addr_t info;
+  getaudit_addr(&info, sizeof(info));
+  if (info.ai_flags & AU_SESSION_FLAG_HAS_GRAPHIC_ACCESS)
+    return true;
+  else
+    return false;
+#endif
 }
 
 // Checking for 
@@ -3740,7 +3771,8 @@ static bool process_is_already_being_debugged (nub_process_t pid) {
 // $ security authorizationdb read system.privilege.taskport.debug
 
 static bool developer_mode_enabled () {
-#if !defined (TARGET_OS_OSX)
+  // This API only exists on macOS.
+#if TARGET_OS_OSX == 0
   return true;
 #else
  CFDictionaryRef currentRightDict = NULL;
@@ -3979,6 +4011,7 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
       // string to lldb.
 
       if (pid_attaching_to != INVALID_NUB_PROCESS) {
+        // The order of these checks is important.  
         if (process_does_not_exist (pid_attaching_to)) {
           DNBLogError("Tried to attach to pid that doesn't exist");
           std::string return_message = "E96;";
@@ -4013,12 +4046,23 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
           return_message += cstring_to_asciihex_string(msg.c_str());
           return SendPacket(return_message.c_str());
         }
-        if (!developer_mode_enabled()) {
-          DNBLogError("Developer mode is not enabled");
+        if (!login_session_has_gui_access() && !developer_mode_enabled()) {
+          DNBLogError("Developer mode is not enabled and this is a "
+                      "non-interactive session");
           std::string return_message = "E96;";
-          return_message += cstring_to_asciihex_string("developer mode is not "
-                                           "enabled on this machine.  "
-                                           "sudo DevToolsSecurity --enable");
+          return_message += cstring_to_asciihex_string("developer mode is "
+                                           "not enabled on this machine "
+                                           "and this is a non-interactive "
+                                           "debug session.");
+          return SendPacket(return_message.c_str());
+        }
+        if (!login_session_has_gui_access()) {
+          DNBLogError("This is a non-interactive session");
+          std::string return_message = "E96;";
+          return_message += cstring_to_asciihex_string("this is a "
+                                           "non-interactive debug session, "
+                                           "cannot get permission to debug "
+                                           "processes.");
           return SendPacket(return_message.c_str());
         }
         if (attach_failed_due_to_sip (pid_attaching_to)) {
@@ -4030,7 +4074,26 @@ rnb_err_t RNBRemote::HandlePacket_v(const char *p) {
         }
       }
 
-      SendPacket("E01"); // E01 is our magic error value for attach failed.
+      std::string error_explainer = "attach failed";
+      if (err_str[0] != '\0') {
+        // This is not a super helpful message for end users
+        if (strcmp (err_str, "unable to start the exception thread") == 0) {
+          snprintf (err_str, sizeof (err_str) - 1,
+                    "Not allowed to attach to process.  Look in the console "
+                    "messages (Console.app), near the debugserver entries "
+                    "when the attached failed.  The subsystem that denied "
+                    "the attach permission will likely have logged an "
+                    "informative message about why it was denied.");
+          err_str[sizeof (err_str) - 1] = '\0';
+        }
+        error_explainer += " (";
+        error_explainer += err_str;
+        error_explainer += ")";
+      }
+      std::string default_return_msg = "E96;";
+      default_return_msg += cstring_to_asciihex_string 
+                              (error_explainer.c_str());
+      SendPacket (default_return_msg.c_str());
       DNBLogError("Attach failed: \"%s\".", err_str);
       return rnb_err;
     }

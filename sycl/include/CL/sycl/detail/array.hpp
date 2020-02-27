@@ -12,7 +12,7 @@
 #include <functional>
 #include <stdexcept>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int dimensions> class id;
 template <int dimensions> class range;
@@ -119,4 +119,4 @@ protected:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

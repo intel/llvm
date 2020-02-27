@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
+#include <detail/platform_util.hpp>
+
 #include <chrono>
 #include <thread>
 
@@ -19,7 +20,7 @@
   (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -525,4 +526,4 @@ template <> bool get_device_info_host<info::device::usm_system_allocator>() {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

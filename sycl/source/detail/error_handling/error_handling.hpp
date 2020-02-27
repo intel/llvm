@@ -9,10 +9,10 @@
 #pragma once
 
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <detail/device_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -30,4 +30,4 @@ bool handleError(pi_result, const device_impl &, pi_kernel, const NDRDescT &);
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

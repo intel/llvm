@@ -27,9 +27,6 @@ include "BUFInstructions.td"
 defm EXP : EXP_m<0>;
 defm EXP_DONE : EXP_m<1>;
 
-// FIXME: GlobalISel successfully imports this pattern, but fails to
-// select because the i1 done_val does a type check on done_val, which
-// only works on register operands.
 class ExpPattern<ValueType vt, Instruction Inst, int done_val> : GCNPat<
   (int_amdgcn_exp timm:$tgt, timm:$en,
                   (vt ExpSrc0:$src0), (vt ExpSrc1:$src1),
@@ -169,7 +166,8 @@ def WWM : PseudoInstSI <(outs unknown:$vdst), (ins unknown:$src0)>;
 } // End let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Uses = [EXEC]
 
 def ENTER_WWM : SPseudoInstSI <(outs SReg_1:$sdst), (ins i64imm:$src0)> {
-  let Defs = [EXEC];
+  let Uses = [EXEC];
+  let Defs = [EXEC, SCC];
   let hasSideEffects = 0;
   let mayLoad = 0;
   let mayStore = 0;
@@ -732,12 +730,6 @@ def : GCNPat<
 >;
 
 def : Pat <
-  // -1.0 as i32 (LowerINTRINSIC_VOID converts all other constants to -1.0)
-  (AMDGPUkill (i32 -1082130432)),
-  (SI_KILL_I1_PSEUDO (i1 0), 0)
->;
-
-def : Pat <
   (int_amdgcn_kill i1:$src),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, 0)
 >;
@@ -745,11 +737,6 @@ def : Pat <
 def : Pat <
   (int_amdgcn_kill (i1 (not i1:$src))),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, -1)
->;
-
-def : Pat <
-  (AMDGPUkill i32:$src),
-  (SI_KILL_F32_COND_IMM_PSEUDO VSrc_b32:$src, 0, 3) // 3 means SETOGE
 >;
 
 def : Pat <
@@ -1136,6 +1123,8 @@ def : BitConvert <v4f32, v2f64, VReg_128>;
 def : BitConvert <v4i32, v2f64, VReg_128>;
 def : BitConvert <v2i64, v2f64, VReg_128>;
 def : BitConvert <v2f64, v2i64, VReg_128>;
+def : BitConvert <v4f32, v2i64, VReg_128>;
+def : BitConvert <v2i64, v4f32, VReg_128>;
 
 // 160-bit bitcast
 def : BitConvert <v5i32, v5f32, SGPR_160>;
@@ -1792,9 +1781,77 @@ def : GCNPat <
 def : GCNPat <
   (i32 (bswap i32:$a)),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
-             (V_ALIGNBIT_B32 $a, $a, (i32 24)),
-             (V_ALIGNBIT_B32 $a, $a, (i32 8)))
+             (V_ALIGNBIT_B32 VSrc_b32:$a, VSrc_b32:$a, (i32 24)),
+             (V_ALIGNBIT_B32 VSrc_b32:$a, VSrc_b32:$a, (i32 8)))
 >;
+
+// FIXME: This should have been narrowed to i32 during legalization.
+// This pattern should also be skipped for GlobalISel
+def : GCNPat <
+  (i64 (bswap i64:$a)),
+  (REG_SEQUENCE VReg_64,
+  (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 24)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 8))),
+  sub0,
+  (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 24)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 8))),
+  sub1)
+>;
+
+// FIXME: The AddedComplexity should not be needed, but in GlobalISel
+// the BFI pattern ends up taking precedence without it.
+let SubtargetPredicate = isGFX8Plus, AddedComplexity = 1 in {
+// Magic number: 3 | (2 << 8) | (1 << 16) | (0 << 24)
+//
+// My reading of the manual suggests we should be using src0 for the
+// register value, but this is what seems to work.
+def : GCNPat <
+  (i32 (bswap i32:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x00010203)))
+>;
+
+// FIXME: This should have been narrowed to i32 during legalization.
+// This pattern should also be skipped for GlobalISel
+def : GCNPat <
+  (i64 (bswap i64:$a)),
+  (REG_SEQUENCE VReg_64,
+  (V_PERM_B32 (i32 0), (EXTRACT_SUBREG VReg_64:$a, sub1),
+              (S_MOV_B32 (i32 0x00010203))),
+  sub0,
+  (V_PERM_B32 (i32 0), (EXTRACT_SUBREG VReg_64:$a, sub0),
+              (S_MOV_B32 (i32 0x00010203))),
+  sub1)
+>;
+
+// Magic number: 1 | (0 << 8) | (12 << 16) | (12 << 24)
+// The 12s emit 0s.
+def : GCNPat <
+  (i16 (bswap i16:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x0c0c0001)))
+>;
+
+def : GCNPat <
+  (i32 (zext (bswap i16:$a))),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x0c0c0001)))
+>;
+
+// Magic number: 1 | (0 << 8) | (3 << 16) | (2 << 24)
+def : GCNPat <
+  (v2i16 (bswap v2i16:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x02030001)))
+>;
+
+}
 
 let OtherPredicates = [NoFP16Denormals] in {
 def : GCNPat<
@@ -2150,6 +2207,12 @@ class AMDGPUGenericInstruction : GenericInstruction {
 }
 
 def G_AMDGPU_FFBH_U32 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$src);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_RCP_IFLAG : AMDGPUGenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type1:$src);
   let hasSideEffects = 0;

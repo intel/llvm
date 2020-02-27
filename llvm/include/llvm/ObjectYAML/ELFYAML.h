@@ -102,7 +102,6 @@ struct ProgramHeader {
 
 struct Symbol {
   StringRef Name;
-  Optional<uint32_t> NameIndex;
   ELF_STT Type;
   StringRef Section;
   Optional<ELF_SHN> Index;
@@ -110,6 +109,8 @@ struct Symbol {
   llvm::yaml::Hex64 Value;
   llvm::yaml::Hex64 Size;
   Optional<uint8_t> Other;
+
+  Optional<uint32_t> StName;
 };
 
 struct SectionOrType {
@@ -166,7 +167,7 @@ struct Chunk {
 struct Section : public Chunk {
   ELF_SHT Type;
   Optional<ELF_SHF> Flags;
-  llvm::yaml::Hex64 Address;
+  Optional<llvm::yaml::Hex64> Address;
   StringRef Link;
   llvm::yaml::Hex64 AddressAlign;
   Optional<llvm::yaml::Hex64> EntSize;

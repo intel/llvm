@@ -22,7 +22,10 @@ function(add_sycl_unittest test_dirname)
       LLVMTestingSupport
       OpenCL-Headers
     )
-  target_include_directories(${test_dirname} PRIVATE SYSTEM ${sycl_inc_dir})
+  target_include_directories(${test_dirname} PRIVATE SYSTEM
+      ${sycl_inc_dir}
+      ${SYCL_SOURCE_DIR}/source/
+    )
   # LLVM gtest uses LLVM utilities that require C++-14
   # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
   set_target_properties(${test_dirname}

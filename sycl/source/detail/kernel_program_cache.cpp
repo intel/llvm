@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/kernel_program_cache.hpp>
-#include <CL/sycl/detail/plugin.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/kernel_program_cache.hpp>
+#include <detail/plugin.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {

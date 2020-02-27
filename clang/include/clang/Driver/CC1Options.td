@@ -284,8 +284,6 @@ def new_struct_path_tbaa : Flag<["-"], "new-struct-path-tbaa">,
   HelpText<"Enable enhanced struct-path aware Type Based Alias Analysis">;
 def masm_verbose : Flag<["-"], "masm-verbose">,
   HelpText<"Generate verbose assembly output">;
-def mcode_model : Separate<["-"], "mcode-model">,
-  HelpText<"The code model to use">, Values<"tiny,small,kernel,medium,large">;
 def mdebug_pass : Separate<["-"], "mdebug-pass">,
   HelpText<"Enable additional debug output">;
 def mframe_pointer_EQ : Joined<["-"], "mframe-pointer=">,
@@ -870,6 +868,8 @@ def detailed_preprocessing_record : Flag<["-"], "detailed-preprocessing-record">
   HelpText<"include a detailed record of preprocessing actions">;
 def setup_static_analyzer : Flag<["-"], "setup-static-analyzer">,
   HelpText<"Set up preprocessor for static analyzer (done automatically when static analyzer is run).">;
+def disable_pragma_debug_crash : Flag<["-"], "disable-pragma-debug-crash">,
+  HelpText<"Disable any #pragma clang __debug that can lead to crashing behavior. This is meant for testing.">;
 
 //===----------------------------------------------------------------------===//
 // OpenCL Options

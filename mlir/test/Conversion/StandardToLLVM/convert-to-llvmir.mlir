@@ -728,9 +728,15 @@ func @view(%arg0 : index, %arg1 : index, %arg2 : index) {
 }
 
 // CHECK-LABEL: func @subview(
-// CHECK: %[[MEMREFPTR:.*]]: !llvm<{{.*}}>, %[[ARG0:.*]]: !llvm.i64, %[[ARG1:.*]]: !llvm.i64, %[[ARG2:.*]]: !llvm.i64
+// CHECK-COUNT-2: !llvm<"float*">,
+// CHECK-COUNT-5: {{%[a-zA-Z0-9]*}}: !llvm.i64,
+// CHECK:         %[[ARG0:[a-zA-Z0-9]*]]: !llvm.i64,
+// CHECK:         %[[ARG1:[a-zA-Z0-9]*]]: !llvm.i64,
+// CHECK:         %[[ARG2:.*]]: !llvm.i64)
 func @subview(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>, %arg0 : index, %arg1 : index, %arg2 : index) {
-  // CHECK: %[[MEMREF:.*]] = llvm.load %[[MEMREFPTR]] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }*">
+  // The last "insertvalue" that populates the memref descriptor from the function arguments.
+  // CHECK: %[[MEMREF:.*]] = llvm.insertvalue %{{.*}}, %{{.*}}[4, 1]
+
   // CHECK: %[[DESC:.*]] = llvm.mlir.undef : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC0:.*]] = llvm.insertvalue %{{.*}}, %[[DESC]][0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC1:.*]] = llvm.insertvalue %{{.*}}, %[[DESC0]][1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
@@ -754,9 +760,10 @@ func @subview(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>, %arg
 }
 
 // CHECK-LABEL: func @subview_const_size(
-// CHECK: %[[MEMREFPTR:.*]]: !llvm<{{.*}}>, %[[ARG0:.*]]: !llvm.i64, %[[ARG1:.*]]: !llvm.i64, %[[ARG2:.*]]: !llvm.i64
 func @subview_const_size(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>, %arg0 : index, %arg1 : index, %arg2 : index) {
-  // CHECK: %[[MEMREF:.*]] = llvm.load %[[MEMREFPTR]] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }*">
+  // The last "insertvalue" that populates the memref descriptor from the function arguments.
+  // CHECK: %[[MEMREF:.*]] = llvm.insertvalue %{{.*}}, %{{.*}}[4, 1]
+
   // CHECK: %[[DESC:.*]] = llvm.mlir.undef : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC0:.*]] = llvm.insertvalue %{{.*}}, %[[DESC]][0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC1:.*]] = llvm.insertvalue %{{.*}}, %[[DESC0]][1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
@@ -782,9 +789,10 @@ func @subview_const_size(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + 
 }
 
 // CHECK-LABEL: func @subview_const_stride(
-// CHECK: %[[MEMREFPTR:.*]]: !llvm<{{.*}}>, %[[ARG0:.*]]: !llvm.i64, %[[ARG1:.*]]: !llvm.i64, %[[ARG2:.*]]: !llvm.i64
 func @subview_const_stride(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>, %arg0 : index, %arg1 : index, %arg2 : index) {
-  // CHECK: %[[MEMREF:.*]] = llvm.load %[[MEMREFPTR]] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }*">
+  // The last "insertvalue" that populates the memref descriptor from the function arguments.
+  // CHECK: %[[MEMREF:.*]] = llvm.insertvalue %{{.*}}, %{{.*}}[4, 1]
+
   // CHECK: %[[DESC:.*]] = llvm.mlir.undef : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC0:.*]] = llvm.insertvalue %{{.*}}, %[[DESC]][0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
   // CHECK: %[[DESC1:.*]] = llvm.insertvalue %{{.*}}, %[[DESC0]][1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
@@ -807,6 +815,31 @@ func @subview_const_stride(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 
   return
 }
 
+// CHECK-LABEL: func @subview_const_stride_and_offset(
+func @subview_const_stride_and_offset(%0 : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>) {
+  // The last "insertvalue" that populates the memref descriptor from the function arguments.
+  // CHECK: %[[MEMREF:.*]] = llvm.insertvalue %{{.*}}, %{{.*}}[4, 1]
+
+  // CHECK: %[[DESC:.*]] = llvm.mlir.undef : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[DESC0:.*]] = llvm.insertvalue %{{.*}}, %[[DESC]][0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[DESC1:.*]] = llvm.insertvalue %{{.*}}, %[[DESC0]][1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[STRIDE0:.*]] = llvm.extractvalue %[[MEMREF]][4, 0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[STRIDE1:.*]] = llvm.extractvalue %[[MEMREF]][4, 1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[CST62:.*]] = llvm.mlir.constant(62 : i64)
+  // CHECK: %[[CST3:.*]] = llvm.mlir.constant(3 : i64)
+  // CHECK: %[[CST8:.*]] = llvm.mlir.constant(8 : index)
+  // CHECK: %[[DESC2:.*]] = llvm.insertvalue %[[CST8]], %[[DESC1]][2] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[CST3]], %[[DESC2]][3, 1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[CST1:.*]] = llvm.mlir.constant(1 : i64)
+  // CHECK: %[[DESC4:.*]] = llvm.insertvalue %[[CST1]], %[[DESC3]][4, 1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[CST62]], %[[DESC4]][3, 0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  // CHECK: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
+  // CHECK: llvm.insertvalue %[[CST4]], %[[DESC5]][4, 0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+  %1 = subview %0[][][] :
+    memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>> to memref<62x3xf32, affine_map<(d0, d1) -> (d0 * 4 + d1 + 8)>>
+  return
+}
+
 // -----
 
 module {
@@ -821,4 +854,59 @@ module {
 // CHECK: llvm.func @tanh(!llvm.double) -> !llvm.double
 // CHECK: llvm.func @tanhf(!llvm.float) -> !llvm.float
 // CHECK-LABEL: func @check_tanh_func_added_only_once_to_symbol_table
+}
+
+// -----
+
+// CHECK-LABEL: func @atomic_rmw
+func @atomic_rmw(%I : memref<10xi32>, %ival : i32, %F : memref<10xf32>, %fval : f32, %i : index) {
+  atomic_rmw "assign" %fval, %F[%i] : (f32, memref<10xf32>) -> f32
+  // CHECK: llvm.atomicrmw xchg %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "addi" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  // CHECK: llvm.atomicrmw add %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "maxs" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  // CHECK: llvm.atomicrmw max %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "mins" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  // CHECK: llvm.atomicrmw min %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "maxu" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  // CHECK: llvm.atomicrmw umax %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "minu" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  // CHECK: llvm.atomicrmw umin %{{.*}}, %{{.*}} acq_rel
+  atomic_rmw "addf" %fval, %F[%i] : (f32, memref<10xf32>) -> f32
+  // CHECK: llvm.atomicrmw fadd %{{.*}}, %{{.*}} acq_rel
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @cmpxchg
+func @cmpxchg(%F : memref<10xf32>, %fval : f32, %i : index) -> f32 {
+  %x = atomic_rmw "maxf" %fval, %F[%i] : (f32, memref<10xf32>) -> f32
+  // CHECK: %[[init:.*]] = llvm.load %{{.*}} : !llvm<"float*">
+  // CHECK-NEXT: llvm.br ^bb1(%[[init]] : !llvm.float)
+  // CHECK-NEXT: ^bb1(%[[loaded:.*]]: !llvm.float):
+  // CHECK-NEXT: %[[cmp:.*]] = llvm.fcmp "ogt" %[[loaded]], %{{.*}} : !llvm.float
+  // CHECK-NEXT: %[[max:.*]] = llvm.select %[[cmp]], %[[loaded]], %{{.*}} : !llvm.i1, !llvm.float
+  // CHECK-NEXT: %[[pair:.*]] = llvm.cmpxchg %{{.*}}, %[[loaded]], %[[max]] acq_rel monotonic : !llvm.float
+  // CHECK-NEXT: %[[new:.*]] = llvm.extractvalue %[[pair]][0] : !llvm<"{ float, i1 }">
+  // CHECK-NEXT: %[[ok:.*]] = llvm.extractvalue %[[pair]][1] : !llvm<"{ float, i1 }">
+  // CHECK-NEXT: llvm.cond_br %[[ok]], ^bb2, ^bb1(%[[new]] : !llvm.float)
+  // CHECK-NEXT: ^bb2:
+  return %x : f32
+  // CHECK-NEXT: llvm.return %[[new]]
+}
+
+// -----
+
+// CHECK-LABEL: func @assume_alignment
+func @assume_alignment(%0 : memref<4x4xf16>) {
+  // CHECK: %[[PTR:.*]] = llvm.extractvalue %[[MEMREF:.*]][1] : !llvm<"{ half*, half*, i64, [2 x i64], [2 x i64] }">
+  // CHECK-NEXT: %[[ZERO:.*]] = llvm.mlir.constant(0 : index) : !llvm.i64
+  // CHECK-NEXT: %[[MASK:.*]] = llvm.mlir.constant(15 : index) : !llvm.i64
+  // CHECK-NEXT: %[[INT:.*]] = llvm.ptrtoint %[[PTR]] : !llvm<"half*"> to !llvm.i64
+  // CHECK-NEXT: %[[MASKED_PTR:.*]] = llvm.and %[[INT]], %[[MASK:.*]] : !llvm.i64
+  // CHECK-NEXT: %[[CONDITION:.*]] = llvm.icmp "eq" %[[MASKED_PTR]], %[[ZERO]] : !llvm.i64
+  // CHECK-NEXT: "llvm.intr.assume"(%[[CONDITION]]) : (!llvm.i1) -> ()
+  assume_alignment %0, 16 : memref<4x4xf16>
+  return
 }

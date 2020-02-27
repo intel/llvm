@@ -151,19 +151,31 @@ void testCDouble(CDouble v) {
 }
 
 void testVoidPtr(VoidPtr v) {
-  (void) (Bool) v;
-  (void) (Int) v;
+  (void)(Bool) v;
+  (void) (Int) v; // expected-warning{{cast to smaller integer type 'Int' (aka 'int') from 'VoidPtr' (aka 'void *')}}
   (void) (Long) v;
   (void) (VoidPtr) v;
   (void) (CharPtr) v;
+  // Test that casts to void* can be controlled separately
+  // from other -Wpointer-to-int-cast warnings.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
+  (void)(Int) v; // no-warning
+#pragma clang diagnostic pop
 }
 
 void testCharPtr(CharPtr v) {
-  (void) (Bool) v;
-  (void) (Int) v;
+  (void)(Bool) v;
+  (void) (Int) v; // expected-warning{{cast to smaller integer type 'Int' (aka 'int') from 'CharPtr' (aka 'char *')}}
   (void) (Long) v;
   (void) (VoidPtr) v;
   (void) (CharPtr) v;
+  // Test that casts to void* can be controlled separately
+  // from other -Wpointer-to-int-cast warnings.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvoid-pointer-to-int-cast"
+  (void)(Int) v; // expected-warning{{cast to smaller integer type 'Int' (aka 'int') from 'CharPtr' (aka 'char *')}}
+#pragma clang diagnostic pop
 }
 
 typedef enum { x_a, x_b } X;

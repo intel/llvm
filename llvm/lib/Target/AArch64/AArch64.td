@@ -101,7 +101,7 @@ def FeatureCCPP : SubtargetFeature<"ccpp", "HasCCPP",
     "true", "Enable v8.2 data Cache Clean to Point of Persistence" >;
 
 def FeatureSVE : SubtargetFeature<"sve", "HasSVE", "true",
-  "Enable Scalable Vector Extension (SVE) instructions">;
+  "Enable Scalable Vector Extension (SVE) instructions", [FeatureFullFP16]>;
 
 def FeatureSVE2 : SubtargetFeature<"sve2", "HasSVE2", "true",
   "Enable Scalable Vector Extension 2 (SVE2) instructions", [FeatureSVE]>;
@@ -240,11 +240,11 @@ def FeatureDotProd : SubtargetFeature<
 
 def FeaturePA : SubtargetFeature<
     "pa", "HasPA", "true",
-    "Enable v8.3-A Pointer Authentication enchancement">;
+    "Enable v8.3-A Pointer Authentication extension">;
 
 def FeatureJS : SubtargetFeature<
     "jsconv", "HasJS", "true",
-    "Enable v8.3-A JavaScript FP conversion enchancement",
+    "Enable v8.3-A JavaScript FP conversion instructions",
     [FeatureFPARMv8]>;
 
 def FeatureCCIDX : SubtargetFeature<
@@ -853,6 +853,7 @@ def : ProcessorModel<"generic", NoSchedModel, [
                      ]>;
 
 def : ProcessorModel<"cortex-a35", CortexA53Model, [ProcA35]>;
+def : ProcessorModel<"cortex-a34", CortexA53Model, [ProcA35]>;
 def : ProcessorModel<"cortex-a53", CortexA53Model, [ProcA53]>;
 def : ProcessorModel<"cortex-a55", CortexA53Model, [ProcA55]>;
 def : ProcessorModel<"cortex-a57", CortexA57Model, [ProcA57]>;

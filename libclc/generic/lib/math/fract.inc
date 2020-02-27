@@ -32,20 +32,13 @@
 #endif
 
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE fract(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
-  *iptr = floor(x);
-  __CLC_GENTYPE r = fmin(x - *iptr, MIN_CONSTANT);
-  r = isinf(x) ? ZERO : r;
-  r = isnan(x) ? x : r;
-  return r;
+  return __spirv_ocl_fract(x, iptr);
 }
 
 
 #define FRACT_DEF(addrspace) \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE fract(__CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) { \
-    __CLC_GENTYPE private_iptr; \
-    __CLC_GENTYPE ret = fract(x, &private_iptr); \
-    *iptr = private_iptr; \
-    return ret; \
+    return __spirv_ocl_fract(x, iptr); \
  }
 
 FRACT_DEF(local);

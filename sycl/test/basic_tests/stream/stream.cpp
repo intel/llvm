@@ -1,8 +1,12 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+
+// TODO: ptxas fatal   : Unresolved extern function '_Z18__spirv_SignBitSetf'
+// XFAIL: cuda
+
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -191,11 +195,15 @@ int main() {
 // CHECK-NEXT: 542325, 645, 771, 1024
 
         // SYCL types
+        Out << id<1>(23) << endl;
+        Out << range<1>(32) << endl;
         Out << id<3>(11, 12, 13) << endl;
         Out << range<3>(11, 12, 13) << endl;
         Out << cl::sycl::nd_range<3>(cl::sycl::range<3>(2, 4, 1),
                                      cl::sycl::range<3>(1, 2, 1))
             << endl;
+// CHECK-NEXT: {23}
+// CHECK-NEXT: {32}
 // CHECK-NEXT: {11, 12, 13}
 // CHECK-NEXT: {11, 12, 13}
 // CHECK-NEXT: nd_range(global_range: {2, 4, 1}, local_range: {1, 2, 1}, offset: {0, 0, 0})

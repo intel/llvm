@@ -2407,10 +2407,12 @@ SDValue SelectionDAG::getSplatValue(SDValue V) {
   return SDValue();
 }
 
-/// If a SHL/SRA/SRL node has a constant or splat constant shift amount that
-/// is less than the element bit-width of the shift node, return it.
-static const APInt *getValidShiftAmountConstant(SDValue V,
-                                                const APInt &DemandedElts) {
+const APInt *
+SelectionDAG::getValidShiftAmountConstant(SDValue V,
+                                          const APInt &DemandedElts) const {
+  assert((V.getOpcode() == ISD::SHL || V.getOpcode() == ISD::SRL ||
+          V.getOpcode() == ISD::SRA) &&
+         "Unknown shift node");
   unsigned BitWidth = V.getScalarValueSizeInBits();
   if (ConstantSDNode *SA = isConstOrConstSplat(V.getOperand(1), DemandedElts)) {
     // Shifting more than the bitwidth is not valid.
@@ -2421,10 +2423,13 @@ static const APInt *getValidShiftAmountConstant(SDValue V,
   return nullptr;
 }
 
-/// If a SHL/SRA/SRL node has constant vector shift amounts that are all less
-/// than the element bit-width of the shift node, return the minimum value.
-static const APInt *
-getValidMinimumShiftAmountConstant(SDValue V, const APInt &DemandedElts) {
+const APInt *SelectionDAG::getValidMinimumShiftAmountConstant(
+    SDValue V, const APInt &DemandedElts) const {
+  assert((V.getOpcode() == ISD::SHL || V.getOpcode() == ISD::SRL ||
+          V.getOpcode() == ISD::SRA) &&
+         "Unknown shift node");
+  if (const APInt *ValidAmt = getValidShiftAmountConstant(V, DemandedElts))
+    return ValidAmt;
   unsigned BitWidth = V.getScalarValueSizeInBits();
   auto *BV = dyn_cast<BuildVectorSDNode>(V.getOperand(1));
   if (!BV)
@@ -2447,10 +2452,13 @@ getValidMinimumShiftAmountConstant(SDValue V, const APInt &DemandedElts) {
   return MinShAmt;
 }
 
-/// If a SHL/SRA/SRL node has constant vector shift amounts that are all less
-/// than the element bit-width of the shift node, return the maximum value.
-static const APInt *
-getValidMaximumShiftAmountConstant(SDValue V, const APInt &DemandedElts) {
+const APInt *SelectionDAG::getValidMaximumShiftAmountConstant(
+    SDValue V, const APInt &DemandedElts) const {
+  assert((V.getOpcode() == ISD::SHL || V.getOpcode() == ISD::SRL ||
+          V.getOpcode() == ISD::SRA) &&
+         "Unknown shift node");
+  if (const APInt *ValidAmt = getValidShiftAmountConstant(V, DemandedElts))
+    return ValidAmt;
   unsigned BitWidth = V.getScalarValueSizeInBits();
   auto *BV = dyn_cast<BuildVectorSDNode>(V.getOperand(1));
   if (!BV)
@@ -3061,12 +3069,12 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     EVT InVT = Op.getOperand(0).getValueType();
     APInt InDemandedElts = DemandedElts.zextOrSelf(InVT.getVectorNumElements());
     Known = computeKnownBits(Op.getOperand(0), InDemandedElts, Depth + 1);
-    Known = Known.zext(BitWidth, true /* ExtendedBitsAreKnownZero */);
+    Known = Known.zext(BitWidth);
     break;
   }
   case ISD::ZERO_EXTEND: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known = Known.zext(BitWidth, true /* ExtendedBitsAreKnownZero */);
+    Known = Known.zext(BitWidth);
     break;
   }
   case ISD::SIGN_EXTEND_VECTOR_INREG: {
@@ -3089,12 +3097,12 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     EVT InVT = Op.getOperand(0).getValueType();
     APInt InDemandedElts = DemandedElts.zextOrSelf(InVT.getVectorNumElements());
     Known = computeKnownBits(Op.getOperand(0), InDemandedElts, Depth + 1);
-    Known = Known.zext(BitWidth, false /* ExtendedBitsAreKnownZero */);
+    Known = Known.anyext(BitWidth);
     break;
   }
   case ISD::ANY_EXTEND: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known = Known.zext(BitWidth, false /* ExtendedBitsAreKnownZero */);
+    Known = Known.anyext(BitWidth);
     break;
   }
   case ISD::TRUNCATE: {
@@ -3257,7 +3265,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
 
     Known = computeKnownBits(InVec, DemandedSrcElts, Depth + 1);
     if (BitWidth > EltBitWidth)
-      Known = Known.zext(BitWidth, false /* => any extend */);
+      Known = Known.anyext(BitWidth);
     break;
   }
   case ISD::INSERT_VECTOR_ELT: {
@@ -4812,17 +4820,6 @@ static llvm::Optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
   return llvm::None;
 }
 
-SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
-                                             EVT VT, const ConstantSDNode *C1,
-                                             const ConstantSDNode *C2) {
-  if (C1->isOpaque() || C2->isOpaque())
-    return SDValue();
-  if (Optional<APInt> Folded =
-          FoldValue(Opcode, C1->getAPIntValue(), C2->getAPIntValue()))
-    return getConstant(Folded.getValue(), DL, VT);
-  return SDValue();
-}
-
 SDValue SelectionDAG::FoldSymbolOffset(unsigned Opcode, EVT VT,
                                        const GlobalAddressSDNode *GA,
                                        const SDNode *N2) {
@@ -4891,7 +4888,15 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
   // Handle the case of two scalars.
   if (auto *C1 = dyn_cast<ConstantSDNode>(N1)) {
     if (auto *C2 = dyn_cast<ConstantSDNode>(N2)) {
-      SDValue Folded = FoldConstantArithmetic(Opcode, DL, VT, C1, C2);
+      if (C1->isOpaque() || C2->isOpaque())
+        return SDValue();
+
+      Optional<APInt> FoldAttempt =
+          FoldValue(Opcode, C1->getAPIntValue(), C2->getAPIntValue());
+      if (!FoldAttempt)
+        return SDValue();
+
+      SDValue Folded = getConstant(FoldAttempt.getValue(), DL, VT);
       assert((!Folded || !VT.isVector()) &&
              "Can't fold vectors ops with scalar operands");
       return Folded;
@@ -5104,8 +5109,13 @@ SDValue SelectionDAG::foldConstantFPMath(unsigned Opcode, const SDLoc &DL,
   }
 
   switch (Opcode) {
-  case ISD::FADD:
   case ISD::FSUB:
+    // -0.0 - undef --> undef (consistent with "fneg undef")
+    if (N1CFP && N1CFP->getValueAPF().isNegZero() && N2.isUndef())
+      return getUNDEF(VT);
+    LLVM_FALLTHROUGH;
+
+  case ISD::FADD:
   case ISD::FMUL:
   case ISD::FDIV:
   case ISD::FREM:
@@ -6688,8 +6698,6 @@ SDValue SelectionDAG::getMemIntrinsicNode(unsigned Opcode, const SDLoc &dl,
   assert((Opcode == ISD::INTRINSIC_VOID ||
           Opcode == ISD::INTRINSIC_W_CHAIN ||
           Opcode == ISD::PREFETCH ||
-          Opcode == ISD::LIFETIME_START ||
-          Opcode == ISD::LIFETIME_END ||
           ((int)Opcode <= std::numeric_limits<int>::max() &&
            (int)Opcode >= ISD::FIRST_TARGET_MEMORY_OPCODE)) &&
          "Opcode is not a memory-accessing opcode!");

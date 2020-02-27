@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/stream.hpp>
+#include <detail/queue_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
@@ -53,5 +54,5 @@ bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 

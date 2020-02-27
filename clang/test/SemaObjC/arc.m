@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-objc-root-class %s
-// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
+// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-pointer-to-int-cast -Wno-objc-root-class %s
+// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-pointer-to-int-cast -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
 
 typedef unsigned long NSUInteger;
 typedef const void * CFTypeRef;
@@ -114,7 +114,8 @@ void test5() {
 
   __autoreleasing id *a = &x; // expected-error {{initializing '__autoreleasing id *' with an expression of type '__strong id *' changes retain/release properties of pointer}}
 
-  a = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
+  __autoreleasing id *aa;
+  aa = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
 
   extern void test5_helper2(id const *);
   test5_helper2(&x);

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObject_h_
-#define liblldb_ValueObject_h_
+#ifndef LLDB_CORE_VALUEOBJECT_H
+#define LLDB_CORE_VALUEOBJECT_H
 
 #include "lldb/Core/Value.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -902,7 +902,7 @@ protected:
   // Use this constructor to create a "root variable object".  The ValueObject
   // will be locked to this context through-out its lifespan.
 
-  ValueObject(ExecutionContextScope *exe_scope,
+  ValueObject(ExecutionContextScope *exe_scope, ValueObjectManager &manager,
               AddressType child_ptr_or_ref_addr_type = eAddressTypeLoad);
 
   // Use this constructor to create a ValueObject owned by another ValueObject.
@@ -1020,4 +1020,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObject_h_
+#endif // LLDB_CORE_VALUEOBJECT_H

@@ -498,7 +498,7 @@ class Base(unittest2.TestCase):
             mydir = TestBase.compute_mydir(__file__)
         '''
         # /abs/path/to/packages/group/subdir/mytest.py -> group/subdir
-        rel_prefix = test_file[len(os.environ["LLDB_TEST"]) + 1:]
+        rel_prefix = test_file[len(os.environ["LLDB_TEST_SRC"]) + 1:]
         return os.path.dirname(rel_prefix)
 
     def TraceOn(self):
@@ -518,10 +518,10 @@ class Base(unittest2.TestCase):
         # Save old working directory.
         cls.oldcwd = os.getcwd()
 
-        # Change current working directory if ${LLDB_TEST} is defined.
-        # See also dotest.py which sets up ${LLDB_TEST}.
-        if ("LLDB_TEST" in os.environ):
-            full_dir = os.path.join(os.environ["LLDB_TEST"],
+        # Change current working directory if ${LLDB_TEST_SRC} is defined.
+        # See also dotest.py which sets up ${LLDB_TEST_SRC}.
+        if ("LLDB_TEST_SRC" in os.environ):
+            full_dir = os.path.join(os.environ["LLDB_TEST_SRC"],
                                     cls.mydir)
             if traceAlways:
                 print("Change dir to:", full_dir, file=sys.stderr)
@@ -656,7 +656,7 @@ class Base(unittest2.TestCase):
 
     def getSourceDir(self):
         """Return the full path to the current test."""
-        return os.path.join(os.environ["LLDB_TEST"], self.mydir)
+        return os.path.join(os.environ["LLDB_TEST_SRC"], self.mydir)
 
     def getBuildDirBasename(self):
         return self.__class__.__module__ + "." + self.testMethodName
@@ -691,6 +691,10 @@ class Base(unittest2.TestCase):
             # different binaries with the same UUID, because they only
             # differ in the debug info, which is not being hashed.
             "settings set symbols.enable-external-lookup false",
+
+            # Disable fix-its by default so that incorrect expressions in tests don't
+            # pass just because Clang thinks it has a fix-it.
+            "settings set target.auto-apply-fixits false",
 
             # Testsuite runs in parallel and the host can have also other load.
             "settings set plugin.process.gdb-remote.packet-timeout 60",
@@ -1089,7 +1093,7 @@ class Base(unittest2.TestCase):
 
         <session-dir>/<arch>-<compiler>-<test-file>.<test-class>.<test-method>
         """
-        dname = os.path.join(os.environ["LLDB_TEST"],
+        dname = os.path.join(os.environ["LLDB_TEST_SRC"],
                              os.environ["LLDB_SESSION_DIRNAME"])
         if not os.path.isdir(dname):
             os.mkdir(dname)
@@ -2394,10 +2398,19 @@ FileCheck output:
         self.assertTrue(expr.strip() == expr, "Expression contains trailing/leading whitespace: '" + expr + "'")
 
         frame = self.frame()
-        eval_result = frame.EvaluateExpression(expr)
+        options = lldb.SBExpressionOptions()
+
+        # Disable fix-its that tests don't pass by accident.
+        options.SetAutoApplyFixIts(False)
+
+        # Set the usual default options for normal expressions.
+        options.SetIgnoreBreakpoints(True)
+        options.SetLanguage(frame.GuessLanguage())
+
+        eval_result = frame.EvaluateExpression(expr, options)
 
         if error_msg:
-            self.assertFalse(eval_result.IsValid())
+            self.assertFalse(eval_result.IsValid(), "Unexpected success with result: '" + str(eval_result) + "'")
             self.assertEqual(error_msg, eval_result.GetError().GetCString())
             return
 
@@ -2406,7 +2419,7 @@ FileCheck output:
                 "Unexpected failure with msg: " + eval_result.GetError().GetCString())
 
         if result_type:
-            self.assertEqual(result_type, eval_result.GetTypeName())
+            self.assertEqual(result_type, eval_result.GetDisplayTypeName())
 
         if result_value:
             self.assertEqual(result_value, eval_result.GetValue())

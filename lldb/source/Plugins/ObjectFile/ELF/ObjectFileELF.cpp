@@ -51,6 +51,8 @@ using namespace lldb_private;
 using namespace elf;
 using namespace llvm::ELF;
 
+LLDB_PLUGIN_DEFINE(ObjectFileELF)
+
 namespace {
 
 // ELF note owner definitions
@@ -1590,6 +1592,7 @@ static SectionType GetSectionTypeFromName(llvm::StringRef Name) {
         .Case("str.dwo", eSectionTypeDWARFDebugStrDwo)
         .Case("str_offsets", eSectionTypeDWARFDebugStrOffsets)
         .Case("str_offsets.dwo", eSectionTypeDWARFDebugStrOffsetsDwo)
+        .Case("tu_index", eSectionTypeDWARFDebugTuIndex)
         .Case("types", eSectionTypeDWARFDebugTypes)
         .Case("types.dwo", eSectionTypeDWARFDebugTypesDwo)
         .Default(eSectionTypeOther);

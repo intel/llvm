@@ -9,16 +9,18 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <utility>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -83,7 +85,7 @@ public:
   /// Constructs a SYCL queue instance that is associated with the context
   /// provided, using the device returned by the device selector.
   ///
-  /// @param SyclDevice is an instance of SYCL device.
+  /// @param SyclContext is an instance of SYCL context.
   /// @param DeviceSelector is an instance of SYCL device selector.
   /// @param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device_selector &DeviceSelector,
@@ -93,11 +95,30 @@ public:
   /// with the context provided, using the device returned by the device
   /// selector.
   ///
-  /// @param SyclDevice is an instance of SYCL device.
+  /// @param SyclContext is an instance of SYCL context.
   /// @param DeviceSelector is an instance of SYCL device selector.
   /// @param AsyncHandler is a SYCL asynchronous exception handler.
   /// @param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {});
+
+  /// Constructs a SYCL queue associated with the given context, device
+  /// and optional properties list.
+  ///
+  /// @param SyclContext is an instance of SYCL context.
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
+        const property_list &PropList = {});
+
+  /// Constructs a SYCL queue associated with the given context, device,
+  /// asynchronous exception handler and optional properties list.
+  ///
+  /// @param SyclContext is an instance of SYCL context.
+  /// @param SyclDevice is an instance of SYCL device.
+  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// @param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
@@ -425,9 +446,7 @@ public:
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()
-  bool is_in_order() const {
-    return impl->has_property<property::queue::in_order>();
-  }
+  bool is_in_order() const;
 
 private:
   shared_ptr_class<detail::queue_impl> impl;
@@ -441,7 +460,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::queue> {

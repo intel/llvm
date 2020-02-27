@@ -7337,13 +7337,12 @@ multiclass f16c_ph2ps<RegisterClass RC, X86MemOperand x86memop,
                       X86FoldableSchedWrite sched> {
   def rr : I<0x13, MRMSrcReg, (outs RC:$dst), (ins VR128:$src),
              "vcvtph2ps\t{$src, $dst|$dst, $src}",
-             [(set RC:$dst, (X86cvtph2ps VR128:$src))]>,
+             [(set RC:$dst, (X86any_cvtph2ps VR128:$src))]>,
              T8PD, VEX, Sched<[sched]>;
   let hasSideEffects = 0, mayLoad = 1 in
   def rm : I<0x13, MRMSrcMem, (outs RC:$dst), (ins x86memop:$src),
              "vcvtph2ps\t{$src, $dst|$dst, $src}",
-             [(set RC:$dst, (X86cvtph2ps (loadv8i16 addr:$src)))]>,
-             T8PD, VEX, Sched<[sched.Folded]>;
+             []>, T8PD, VEX, Sched<[sched.Folded]>;
 }
 
 multiclass f16c_ps2ph<RegisterClass RC, X86MemOperand x86memop,
@@ -7351,7 +7350,7 @@ multiclass f16c_ps2ph<RegisterClass RC, X86MemOperand x86memop,
   def rr : Ii8<0x1D, MRMDestReg, (outs VR128:$dst),
                (ins RC:$src1, i32u8imm:$src2),
                "vcvtps2ph\t{$src2, $src1, $dst|$dst, $src1, $src2}",
-               [(set VR128:$dst, (X86cvtps2ph RC:$src1, timm:$src2))]>,
+               [(set VR128:$dst, (X86any_cvtps2ph RC:$src1, timm:$src2))]>,
                TAPD, VEX, Sched<[RR]>;
   let hasSideEffects = 0, mayStore = 1 in
   def mr : Ii8<0x1D, MRMDestMem, (outs),
@@ -7369,42 +7368,24 @@ let Predicates = [HasF16C, NoVLX] in {
                                WriteCvtPS2PHYSt>, VEX_L, SIMD_EXC;
 
   // Pattern match vcvtph2ps of a scalar i64 load.
-  def : Pat<(v4f32 (X86cvtph2ps (bc_v8i16 (v2i64 (X86vzload64 addr:$src))))),
+  def : Pat<(v4f32 (X86any_cvtph2ps (bc_v8i16 (v2i64 (X86vzload64 addr:$src))))),
             (VCVTPH2PSrm addr:$src)>;
-  def : Pat<(v4f32 (X86cvtph2ps (bc_v8i16
+  def : Pat<(v4f32 (X86any_cvtph2ps (bc_v8i16
               (v2i64 (scalar_to_vector (loadi64 addr:$src)))))),
             (VCVTPH2PSrm addr:$src)>;
+  def : Pat<(v8f32 (X86any_cvtph2ps (loadv8i16 addr:$src))),
+            (VCVTPH2PSYrm addr:$src)>;
 
   def : Pat<(store (f64 (extractelt
-                         (bc_v2f64 (v8i16 (X86cvtps2ph VR128:$src1, timm:$src2))),
+                         (bc_v2f64 (v8i16 (X86any_cvtps2ph VR128:$src1, timm:$src2))),
                          (iPTR 0))), addr:$dst),
             (VCVTPS2PHmr addr:$dst, VR128:$src1, timm:$src2)>;
   def : Pat<(store (i64 (extractelt
-                         (bc_v2i64 (v8i16 (X86cvtps2ph VR128:$src1, timm:$src2))),
+                         (bc_v2i64 (v8i16 (X86any_cvtps2ph VR128:$src1, timm:$src2))),
                          (iPTR 0))), addr:$dst),
             (VCVTPS2PHmr addr:$dst, VR128:$src1, timm:$src2)>;
-  def : Pat<(store (v8i16 (X86cvtps2ph VR256:$src1, timm:$src2)), addr:$dst),
+  def : Pat<(store (v8i16 (X86any_cvtps2ph VR256:$src1, timm:$src2)), addr:$dst),
             (VCVTPS2PHYmr addr:$dst, VR256:$src1, timm:$src2)>;
-}
-
-// Patterns for  matching conversions from float to half-float and vice versa.
-let Predicates = [HasF16C, NoVLX] in {
-  // Use MXCSR.RC for rounding instead of explicitly specifying the default
-  // rounding mode (Nearest-Even, encoded as 0). Both are equivalent in the
-  // configurations we support (the default). However, falling back to MXCSR is
-  // more consistent with other instructions, which are always controlled by it.
-  // It's encoded as 0b100.
-  def : Pat<(fp_to_f16 FR32:$src),
-            (i16 (EXTRACT_SUBREG (VMOVPDI2DIrr (v8i16 (VCVTPS2PHrr
-              (v4f32 (COPY_TO_REGCLASS FR32:$src, VR128)), 4))), sub_16bit))>;
-
-  def : Pat<(f16_to_fp GR16:$src),
-            (f32 (COPY_TO_REGCLASS (v4f32 (VCVTPH2PSrr
-              (v4i32 (COPY_TO_REGCLASS (MOVSX32rr16 GR16:$src), VR128)))), FR32)) >;
-
-  def : Pat<(f16_to_fp (i16 (fp_to_f16 FR32:$src))),
-            (f32 (COPY_TO_REGCLASS (v4f32 (VCVTPH2PSrr
-             (v8i16 (VCVTPS2PHrr (v4f32 (COPY_TO_REGCLASS FR32:$src, VR128)), 4)))), FR32)) >;
 }
 
 //===----------------------------------------------------------------------===//
@@ -7952,57 +7933,48 @@ let Predicates = [HasAVX2, NoVLX] in {
 
 // FIXME: Improve scheduling of gather instructions.
 multiclass avx2_gather<bits<8> opc, string OpcodeStr, ValueType VTx,
-                       ValueType VTy, PatFrag GatherNode128,
-                       PatFrag GatherNode256, RegisterClass RC256,
+                       ValueType VTy, RegisterClass RC256,
                        X86MemOperand memop128, X86MemOperand memop256,
                        ValueType MTx = VTx, ValueType MTy = VTy> {
+let mayLoad = 1, hasSideEffects = 0 in {
   def rm  : AVX28I<opc, MRMSrcMem4VOp3, (outs VR128:$dst, VR128:$mask_wb),
             (ins VR128:$src1, memop128:$src2, VR128:$mask),
             !strconcat(OpcodeStr,
               "\t{$mask, $src2, $dst|$dst, $src2, $mask}"),
-            [(set (VTx VR128:$dst), (MTx VR128:$mask_wb),
-                  (GatherNode128 VR128:$src1, VR128:$mask,
-                                vectoraddr:$src2))]>,
-            VEX, Sched<[WriteLoad]>;
+            []>, VEX, Sched<[WriteLoad]>;
   def Yrm : AVX28I<opc, MRMSrcMem4VOp3, (outs RC256:$dst, RC256:$mask_wb),
             (ins RC256:$src1, memop256:$src2, RC256:$mask),
             !strconcat(OpcodeStr,
               "\t{$mask, $src2, $dst|$dst, $src2, $mask}"),
-            [(set (VTy RC256:$dst), (MTy RC256:$mask_wb),
-                  (GatherNode256 RC256:$src1, RC256:$mask,
-                                vectoraddr:$src2))]>,
-            VEX, VEX_L, Sched<[WriteLoad]>;
+            []>, VEX, VEX_L, Sched<[WriteLoad]>;
+}
 }
 
 let Predicates = [HasAVX2] in {
   let mayLoad = 1, hasSideEffects = 0, Constraints
     = "@earlyclobber $dst,@earlyclobber $mask_wb, $src1 = $dst, $mask = $mask_wb"
     in {
-    defm VPGATHERDQ : avx2_gather<0x90, "vpgatherdq", v2i64, v4i64, mgatherv4i32,
-                        mgatherv4i32, VR256, vx128mem, vx256mem>, VEX_W;
-    defm VPGATHERQQ : avx2_gather<0x91, "vpgatherqq", v2i64, v4i64, mgatherv2i64,
-                        mgatherv4i64, VR256, vx128mem, vy256mem>, VEX_W;
-    defm VPGATHERDD : avx2_gather<0x90, "vpgatherdd", v4i32, v8i32, mgatherv4i32,
-                        mgatherv8i32, VR256, vx128mem, vy256mem>;
-    defm VPGATHERQD : avx2_gather<0x91, "vpgatherqd", v4i32, v4i32, mgatherv2i64,
-                        mgatherv4i64, VR128, vx64mem, vy128mem>;
+    defm VPGATHERDQ : avx2_gather<0x90, "vpgatherdq", v2i64, v4i64,
+                        VR256, vx128mem, vx256mem>, VEX_W;
+    defm VPGATHERQQ : avx2_gather<0x91, "vpgatherqq", v2i64, v4i64,
+                        VR256, vx128mem, vy256mem>, VEX_W;
+    defm VPGATHERDD : avx2_gather<0x90, "vpgatherdd", v4i32, v8i32,
+                        VR256, vx128mem, vy256mem>;
+    defm VPGATHERQD : avx2_gather<0x91, "vpgatherqd", v4i32, v4i32,
+                        VR128, vx64mem, vy128mem>;
 
     let ExeDomain = SSEPackedDouble in {
-      defm VGATHERDPD : avx2_gather<0x92, "vgatherdpd", v2f64, v4f64, mgatherv4i32,
-                          mgatherv4i32, VR256, vx128mem, vx256mem,
-                          v2i64, v4i64>, VEX_W;
-      defm VGATHERQPD : avx2_gather<0x93, "vgatherqpd", v2f64, v4f64, mgatherv2i64,
-                          mgatherv4i64, VR256, vx128mem, vy256mem,
-                          v2i64, v4i64>, VEX_W;
+      defm VGATHERDPD : avx2_gather<0x92, "vgatherdpd", v2f64, v4f64,
+                          VR256, vx128mem, vx256mem, v2i64, v4i64>, VEX_W;
+      defm VGATHERQPD : avx2_gather<0x93, "vgatherqpd", v2f64, v4f64,
+                          VR256, vx128mem, vy256mem, v2i64, v4i64>, VEX_W;
     }
 
     let ExeDomain = SSEPackedSingle in {
-      defm VGATHERDPS : avx2_gather<0x92, "vgatherdps", v4f32, v8f32, mgatherv4i32,
-                          mgatherv8i32, VR256, vx128mem, vy256mem,
-                          v4i32, v8i32>;
-      defm VGATHERQPS : avx2_gather<0x93, "vgatherqps", v4f32, v4f32, mgatherv2i64,
-                          mgatherv4i64, VR128, vx64mem, vy128mem,
-                          v4i32, v4i32>;
+      defm VGATHERDPS : avx2_gather<0x92, "vgatherdps", v4f32, v8f32,
+                          VR256, vx128mem, vy256mem, v4i32, v8i32>;
+      defm VGATHERQPS : avx2_gather<0x93, "vgatherqps", v4f32, v4f32,
+                          VR128, vx64mem, vy128mem, v4i32, v4i32>;
     }
   }
 }

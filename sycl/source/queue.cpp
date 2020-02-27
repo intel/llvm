@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
@@ -45,6 +45,15 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
       asyncHandler, detail::getQueueOrder(propList), propList);
 }
 
+queue::queue(const context &syclContext,
+             const device &syclDevice,
+             const async_handler &asyncHandler,
+             const property_list &propList) {
+  impl = std::make_shared<detail::queue_impl>(
+      detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
+      asyncHandler, cl::sycl::detail::QueueOrder::OOO, propList);
+}
+
 queue::queue(const device &syclDevice, const async_handler &asyncHandler,
              const property_list &propList) {
   impl = std::make_shared<detail::queue_impl>(
@@ -64,6 +73,12 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
     : queue(syclContext, deviceSelector,
             detail::getSyclObjImpl(syclContext)->get_async_handler(),
             propList) {}
+
+queue::queue(const context &SyclContext, const device &SyclDevice,
+             const property_list &PropList)
+    : queue(SyclContext, SyclDevice,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
+            PropList) {}
 
 cl_command_queue queue::get() const { return impl->get(); }
 
@@ -125,5 +140,8 @@ template bool queue::has_property<property::queue::enable_profiling>() const;
 template property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
+bool queue::is_in_order() const {
+  return impl->has_property<property::queue::in_order>();
+}
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -113,7 +113,7 @@ public:
 
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
-                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
   /// This function will assign callee saved gprs to volatile vector registers
   /// for prologue spills when applicable. It returns false if there are any
@@ -152,10 +152,6 @@ public:
   /// getBasePointerSaveOffset - Return the previous frame offset to save the
   /// base pointer.
   unsigned getBasePointerSaveOffset() const;
-
-  /// getCRSaveOffset - Return the previous frame offset to save the
-  /// CR register.
-  unsigned getCRSaveOffset() const { return CRSaveOffset; }
 
   /// getLinkageSize - Return the size of the PowerPC ABI linkage area.
   ///

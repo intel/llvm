@@ -1,9 +1,11 @@
 add_llvm_library(MLIRTestTransforms
+  TestAffineDataCopy.cpp
   TestAllReduceLowering.cpp
   TestCallGraph.cpp
   TestConstantFold.cpp
   TestLoopFusion.cpp
   TestGpuMemoryPromotion.cpp
+  TestGpuParallelLoopMapping.cpp
   TestInlining.cpp
   TestLinalgTransforms.cpp
   TestLiveness.cpp

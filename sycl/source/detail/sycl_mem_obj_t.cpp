@@ -7,12 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/plugin.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
@@ -81,6 +82,21 @@ void SYCLMemObjT::updateHostMemory() {
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
+const plugin &SYCLMemObjT::getPlugin() const {
+  assert((MInteropContext != nullptr) &&
+         "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
+  return (MInteropContext->getPlugin());
+}
+
+size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
+                                         cl_mem MemObject) {
+  size_t BufSize = 0;
+  const detail::plugin &Plugin = Context->getPlugin();
+  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+      detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+      sizeof(size_t), &BufSize, nullptr);
+  return BufSize;
+}
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

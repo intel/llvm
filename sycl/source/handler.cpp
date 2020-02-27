@@ -11,13 +11,13 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 event handler::finalize() {
   sycl::event EventRet;
@@ -33,6 +33,12 @@ event handler::finalize() {
         std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
     break;
   }
+  case detail::CG::INTEROP_TASK_CODEPLAY:
+    CommandGroup.reset(new detail::CGInteropTask(
+        std::move(MInteropTask), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType));
+    break;
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
   case detail::CG::COPY_ACC_TO_ACC:
@@ -243,4 +249,4 @@ string_class handler::getKernelName() {
   return MSyclKernel->get_info<info::kernel::function_name>();
 }
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

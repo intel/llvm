@@ -1223,6 +1223,36 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
                            transValue(SF->getOperand(1), BB), Comp, BB));
   }
 
+  if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
+    AtomicRMWInst::BinOp Op = ARMW->getOperation();
+    if (!BM->getErrorLog().checkError(
+            !AtomicRMWInst::isFPOperation(Op) && Op != AtomicRMWInst::Nand,
+            SPIRVEC_InvalidInstruction,
+            OCLUtil::toString(V) + "\nAtomic " +
+                AtomicRMWInst::getOperationName(Op).str() +
+                " is not supported in SPIR-V!\n"))
+      return nullptr;
+
+    spv::Op OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
+    AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
+    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
+    std::vector<Value *> Operands(4);
+    Operands[0] = ARMW->getPointerOperand();
+    // To get the memory scope argument we might use ARMW->getSyncScopeID(), but
+    // atomicrmw LLVM instruction is not aware of OpenCL(or SPIR-V) memory scope
+    // enumeration. And assuming the produced SPIR-V module will be consumed in
+    // an OpenCL environment, we can use the same memory scope as OpenCL atomic
+    // functions that don't have memory_scope argument i.e. memory_scope_device.
+    // See the OpenCL C specification p6.13.11. "Atomic Functions"
+    Operands[1] = getUInt32(M, spv::ScopeDevice);
+    Operands[2] = getUInt32(M, MemSem);
+    Operands[3] = ARMW->getValOperand();
+    std::vector<SPIRVId> Ops = BM->getIds(transValue(Operands, BB));
+    SPIRVType *Ty = transType(ARMW->getType());
+
+    return mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
+  }
+
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(V)) {
     SPIRVValue *BV = transIntrinsicInst(II, BB);
     return BV ? mapValue(V, BV) : nullptr;
@@ -1539,6 +1569,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
   }
+  case Intrinsic::sqrt: {
+    return BM->addExtInst(transType(II->getType()),
+                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Sqrt,
+                          {transValue(II->getOperand(0), BB)}, BB);
+  }
   case Intrinsic::ctlz:
   case Intrinsic::cttz: {
     SPIRVWord ExtOp = II->getIntrinsicID() == Intrinsic::ctlz ? OpenCLLIB::Clz
@@ -1561,18 +1596,14 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                              transValue(II->getArgOperand(2), BB), BB);
   }
   case Intrinsic::memset: {
-    // Generally memset can't be translated with current version of SPIRV spec.
-    // But in most cases it turns out that memset is emited by Clang to do
-    // zero-initializtion in default constructors.
-    // The code below handles only cases with val = 0 and constant len.
+    // Generally there is no direct mapping of memset to SPIR-V.  But it turns
+    // out that memset is emitted by Clang for initialization in default
+    // constructors so we need some basic support.  The code below only handles
+    // cases with constant value and constant length.
     MemSetInst *MSI = cast<MemSetInst>(II);
     Value *Val = MSI->getValue();
     if (!isa<Constant>(Val)) {
       assert(!"Can't translate llvm.memset with non-const `value` argument");
-      return nullptr;
-    }
-    if (!cast<Constant>(Val)->isZeroValue()) {
-      assert(!"Can't translate llvm.memset with non-zero `value` argument");
       return nullptr;
     }
     Value *Len = MSI->getLength();
@@ -1583,7 +1614,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
-    SPIRVValue *Init = BM->addNullConstant(CompositeTy);
+    SPIRVValue *Init;
+    if (cast<Constant>(Val)->isZeroValue()) {
+      Init = BM->addNullConstant(CompositeTy);
+    } else {
+      std::vector<SPIRVValue *> Elts{NumElements, transValue(Val, BB)};
+      Init = BM->addCompositeConstant(CompositeTy, Elts);
+    }
     SPIRVType *VarTy = transType(PointerType::get(AT, SPIRV::SPIRAS_Constant));
     SPIRVValue *Var =
         BM->addVariable(VarTy, /*isConstant*/ true, spv::LinkageTypeInternal,
@@ -2116,6 +2153,14 @@ bool LLVMToSPIRV::transExecutionMode() {
           N.get(X).get(Y).get(Z);
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
               BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+          BM->addCapability(CapabilityKernelAttributesINTEL);
+        }
+      } break;
+      case spv::ExecutionModeNoGlobalOffsetINTEL: {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_kernel_attributes)) {
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
           BM->addCapability(CapabilityKernelAttributesINTEL);
         }
       } break;

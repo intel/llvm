@@ -19,7 +19,7 @@ include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 // Type constraint accepting standard integers, indices and wrapped LLVM integer
 // types.
 def IntLikeOrLLVMInt : TypeConstraint<
-  Or<[AnyInteger.predicate, Index.predicate, LLVMInt.predicate]>,
+  Or<[AnySignlessInteger.predicate, Index.predicate, LLVMInt.predicate]>,
   "integer, index or LLVM dialect equivalent">;
 
 //===----------------------------------------------------------------------===//
@@ -126,11 +126,6 @@ def GPU_GPUFuncOp : GPU_Op<"func", [FunctionLike, IsolatedFromAbove, Symbol]> {
     bool isKernel() {
       return getAttrOfType<UnitAttr>(GPUDialect::getKernelFuncAttrName()) !=
              nullptr;
-    }
-
-    /// Returns the type of the function this Op defines.
-    FunctionType getType() {
-      return getTypeAttr().getValue().cast<FunctionType>();
     }
 
     /// Change the type of this function in place. This is an extremely

@@ -61,6 +61,12 @@ func @missingReturn()
 // CHECK: func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
 func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
 
+// CHECK: func @sint_types(si2, si4) -> (si7, si1023)
+func @sint_types(si2, si4) -> (si7, si1023)
+
+// CHECK: func @uint_types(ui2, ui4) -> (ui7, ui1023)
+func @uint_types(ui2, ui4) -> (ui7, ui1023)
+
 
 // CHECK: func @vectors(vector<1xf32>, vector<2x4xf32>)
 func @vectors(vector<1 x f32>, vector<2x4xf32>)
@@ -132,6 +138,16 @@ func @memrefs_compose_with_id(memref<2x2xi8, affine_map<(d0, d1) -> (d0, d1)>,
 
 // CHECK: func @complex_types(complex<i1>) -> complex<f32>
 func @complex_types(complex<i1>) -> complex<f32>
+
+
+// CHECK: func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+
+// CHECK: func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+
+// CHECK: func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
+func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
 
 // CHECK: func @functions((memref<1x?x4x?x?xi32, #map0>, memref<8xi8>) -> (), () -> ())
 func @functions((memref<1x?x4x?x?xi32, #map0, 0>, memref<8xi8, #map1, 0>) -> (), ()->())
@@ -1026,6 +1042,11 @@ func @f64_special_values() {
   // F64 negative infinity.
   // CHECK: constant 0xFFF0000000000000 : f64
   %5 = constant 0xFFF0000000000000 : f64
+
+  // Check that values that can't be represented with the default format, use
+  // hex instead.
+  // CHECK: constant 0xC1CDC00000000000 : f64
+  %6 = constant 0xC1CDC00000000000 : f64
 
   return
 }

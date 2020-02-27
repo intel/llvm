@@ -111,6 +111,23 @@ def SEG_ALLOCA_64 : I<0, Pseudo, (outs GR64:$dst), (ins GR64:$size),
                       [(set GR64:$dst,
                          (X86SegAlloca GR64:$size))]>,
                     Requires<[In64BitMode]>;
+
+// To protect against stack clash, dynamic allocation should perform a memory
+// probe at each page.
+
+let Defs = [EAX, ESP, EFLAGS], Uses = [ESP] in
+def PROBED_ALLOCA_32 : I<0, Pseudo, (outs GR32:$dst), (ins GR32:$size),
+                      "# variable sized alloca with probing",
+                      [(set GR32:$dst,
+                         (X86ProbedAlloca GR32:$size))]>,
+                    Requires<[NotLP64]>;
+
+let Defs = [RAX, RSP, EFLAGS], Uses = [RSP] in
+def PROBED_ALLOCA_64 : I<0, Pseudo, (outs GR64:$dst), (ins GR64:$size),
+                      "# variable sized alloca with probing",
+                      [(set GR64:$dst,
+                         (X86ProbedAlloca GR64:$size))]>,
+                    Requires<[In64BitMode]>;
 }
 
 // Dynamic stack allocation yields a _chkstk or _alloca call for all Windows
@@ -308,35 +325,14 @@ def mov64imm32 : ComplexPattern<i64, 1, "selectMOV64Imm32", [imm, X86Wrapper]>;
 def : Pat<(i64 mov64imm32:$src), (MOV32ri64 mov64imm32:$src)>;
 
 // Use sbb to materialize carry bit.
-let Uses = [EFLAGS], Defs = [EFLAGS], isPseudo = 1, SchedRW = [WriteALU] in {
+let Uses = [EFLAGS], Defs = [EFLAGS], isPseudo = 1, SchedRW = [WriteADC],
+    hasSideEffects = 0 in {
 // FIXME: These are pseudo ops that should be replaced with Pat<> patterns.
 // However, Pat<> can't replicate the destination reg into the inputs of the
 // result.
-def SETB_C8r : I<0, Pseudo, (outs GR8:$dst), (ins), "",
-                 [(set GR8:$dst, (X86setcc_c X86_COND_B, EFLAGS))]>;
-def SETB_C16r : I<0, Pseudo, (outs GR16:$dst), (ins), "",
-                 [(set GR16:$dst, (X86setcc_c X86_COND_B, EFLAGS))]>;
-def SETB_C32r : I<0, Pseudo, (outs GR32:$dst), (ins), "",
-                 [(set GR32:$dst, (X86setcc_c X86_COND_B, EFLAGS))]>;
-def SETB_C64r : I<0, Pseudo, (outs GR64:$dst), (ins), "",
-                 [(set GR64:$dst, (X86setcc_c X86_COND_B, EFLAGS))]>;
+def SETB_C32r : I<0, Pseudo, (outs GR32:$dst), (ins), "", []>;
+def SETB_C64r : I<0, Pseudo, (outs GR64:$dst), (ins), "", []>;
 } // isCodeGenOnly
-
-
-// Patterns to give priority when both inputs are zero so that we don't use
-// an immediate for the RHS.
-// TODO: Should we use a 32-bit sbb for 8/16 to push the extract_subreg out?
-def : Pat<(X86sbb_flag (i8 0), (i8 0), EFLAGS),
-          (SBB8rr (EXTRACT_SUBREG (MOV32r0), sub_8bit),
-                  (EXTRACT_SUBREG (MOV32r0), sub_8bit))>;
-def : Pat<(X86sbb_flag (i16 0), (i16 0), EFLAGS),
-          (SBB16rr (EXTRACT_SUBREG (MOV32r0), sub_16bit),
-                   (EXTRACT_SUBREG (MOV32r0), sub_16bit))>;
-def : Pat<(X86sbb_flag (i32 0), (i32 0), EFLAGS),
-          (SBB32rr (MOV32r0), (MOV32r0))>;
-def : Pat<(X86sbb_flag (i64 0), (i64 0), EFLAGS),
-          (SBB64rr (SUBREG_TO_REG (i64 0), (MOV32r0), sub_32bit),
-                   (SUBREG_TO_REG (i64 0), (MOV32r0), sub_32bit))>;
 
 //===----------------------------------------------------------------------===//
 // String Pseudo Instructions
@@ -535,10 +531,13 @@ let usesCustomInserter = 1, hasNoSchedulingInfo = 1, Uses = [EFLAGS] in {
 
   defm _RFP80 : CMOVrr_PSEUDO<RFP80, f80>;
 
-  let Predicates = [NoAVX512] in {
+  let Predicates = [HasMMX] in
+    defm _VR64   : CMOVrr_PSEUDO<VR64, x86mmx>;
+
+  let Predicates = [HasSSE1,NoAVX512] in
     defm _FR32   : CMOVrr_PSEUDO<FR32, f32>;
+  let Predicates = [HasSSE2,NoAVX512] in
     defm _FR64   : CMOVrr_PSEUDO<FR64, f64>;
-  }
   let Predicates = [HasAVX512] in {
     defm _FR32X  : CMOVrr_PSEUDO<FR32X, f32>;
     defm _FR64X  : CMOVrr_PSEUDO<FR64X, f64>;
@@ -552,6 +551,7 @@ let usesCustomInserter = 1, hasNoSchedulingInfo = 1, Uses = [EFLAGS] in {
     defm _VR256X : CMOVrr_PSEUDO<VR256X, v4i64>;
   }
   defm _VR512  : CMOVrr_PSEUDO<VR512, v8i64>;
+  defm _VK1    : CMOVrr_PSEUDO<VK1,  v1i1>;
   defm _VK2    : CMOVrr_PSEUDO<VK2,  v2i1>;
   defm _VK4    : CMOVrr_PSEUDO<VK4,  v4i1>;
   defm _VK8    : CMOVrr_PSEUDO<VK8,  v8i1>;

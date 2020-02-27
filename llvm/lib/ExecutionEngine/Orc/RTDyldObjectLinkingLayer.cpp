@@ -229,6 +229,9 @@ Error RTDyldObjectLinkingLayer::onObjLoad(
         Symbols.erase(KV.first);
   }
 
+  if (const auto &InitSym = R.getInitializerSymbol())
+    Symbols[InitSym] = JITEvaluatedSymbol();
+
   if (auto Err = R.notifyResolved(Symbols)) {
     R.failMaterialization();
     return Err;

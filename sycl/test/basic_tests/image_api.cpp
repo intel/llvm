@@ -1,15 +1,17 @@
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %clangxx %s -o %t3.out -lsycl
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t1.out
+// RUN: %clangxx -I %sycl_source_dir %s -o %t3.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t3.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
+
 #include <CL/sycl.hpp>
 // FIXME do not use internal methods in tests.
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <algorithm>
 #include <array>

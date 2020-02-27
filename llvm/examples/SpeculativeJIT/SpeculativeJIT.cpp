@@ -102,7 +102,7 @@ private:
       IndirectStubsManagerBuilderFunction ISMBuilder,
       std::unique_ptr<DynamicLibrarySearchGenerator> ProcessSymbolsGenerator)
       : ES(std::move(ES)), DL(std::move(DL)),
-        MainJD(this->ES->createJITDylib("<main>")), LCTMgr(std::move(LCTMgr)),
+        MainJD(this->ES->createBareJITDylib("<main>")), LCTMgr(std::move(LCTMgr)),
         CompileLayer(*this->ES, ObjLayer,
                      std::make_unique<ConcurrentIRCompiler>(std::move(JTMB))),
         S(Imps, *this->ES),
@@ -131,7 +131,7 @@ private:
   std::unique_ptr<ExecutionSession> ES;
   DataLayout DL;
   MangleAndInterner Mangle{*ES, DL};
-  ThreadPool CompileThreads{NumThreads};
+  ThreadPool CompileThreads{llvm::hardware_concurrency(NumThreads)};
 
   JITDylib &MainJD;
 

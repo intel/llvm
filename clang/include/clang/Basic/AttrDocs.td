@@ -2033,6 +2033,20 @@ write only. Expected to be used only in SYCL headers.
   }];
 }
 
+def SYCLIntelPipeIOAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "IO pipe ID";
+  let Content = [{
+Add I/O attribute to SYCL pipe declaration to declare a special I/O pipe to
+interface with input or output features of an FPGA. These features might include
+network interfaces, PCIe, cameras, or other data capture or processing devices
+or protocols.
+
+The io_pipe_id(id) attribute specifies the I/O feature of an accelerator board
+with which a pipe interfaces. The id argument is the name of the I/O interface.
+  }];
+}
+
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";
@@ -4449,7 +4463,7 @@ documentation for more information.
 def ObjCDirectMembersDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
-The ``objc_direct_members`` attribute can be placed on an  Objective-C
+The ``objc_direct_members`` attribute can be placed on an Objective-C
 ``@interface`` or ``@implementation`` to mark that methods declared
 therein should be considered direct by default.  See the documentation
 for ``objc_direct`` for more information about direct methods.
@@ -4458,9 +4472,7 @@ When ``objc_direct_members`` is placed on an ``@interface`` block, every
 method in the block is considered to be declared as direct.  This includes any
 implicit method declarations introduced by property declarations.  If the method
 redeclares a non-direct method, the declaration is ill-formed, exactly as if the
-method was annotated with the ``objc_direct`` attribute.  ``objc_direct_members``
-cannot be placed on the primary interface of a class, only on category or class
-extension interfaces.
+method was annotated with the ``objc_direct`` attribute.
 
 When ``objc_direct_members`` is placed on an ``@implementation`` block,
 methods defined in the block are considered to be declared as direct unless

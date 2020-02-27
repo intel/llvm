@@ -745,11 +745,16 @@ Syntax:
 
 ```
 // Sized integers like i1, i4, i8, i16, i32.
-integer-type ::= `i` [1-9][0-9]*
+signed-integer-type ::= `si` [1-9][0-9]*
+unsigned-integer-type ::= `ui` [1-9][0-9]*
+signless-integer-type ::= `i` [1-9][0-9]*
+integer-type ::= signed-integer-type |
+                 unsigned-integer-type |
+                 signless-integer-type
 ```
 
-MLIR supports arbitrary precision integer types. Integer types are signless, but
-have a designated width.
+MLIR supports arbitrary precision integer types. Integer types have a designated
+width and may have signedness semantics.
 
 **Rationale:** low precision integers (like `i2`, `i4` etc) are useful for
 low-precision inference chips, and arbitrary precision integers are useful for
@@ -1457,14 +1462,15 @@ This attribute can only be held internally by
 [array attributes](#array-attribute) and
 [dictionary attributes](#dictionary-attribute)(including the top-level operation
 attribute dictionary), i.e. no other attribute kinds such as Locations or
-extended attribute kinds. If a reference to a symbol is necessary from outside
-of the symbol table that the symbol is defined in, a
-[string attribute](#string-attribute) can be used to refer to the symbol name.
+extended attribute kinds.
 
 **Rationale:** Given that MLIR models global accesses with symbol references, to
 enable efficient multi-threading, it becomes difficult to effectively reason
 about their uses. By restricting the places that can legally hold a symbol
 reference, we can always opaquely reason about a symbols usage characteristics.
+
+See [`Symbols And SymbolTables`](SymbolsAndSymbolTables.md) for more
+information.
 
 #### Type Attribute
 

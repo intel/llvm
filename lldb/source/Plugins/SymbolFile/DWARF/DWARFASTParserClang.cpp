@@ -726,8 +726,7 @@ TypeSP DWARFASTParserClang::ParseEnum(const SymbolContext &sc,
     if (type_sp)
       return type_sp;
 
-    DWARFDeclContext die_decl_ctx;
-    SymbolFileDWARF::GetDWARFDeclContext(die, die_decl_ctx);
+    DWARFDeclContext die_decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
 
     type_sp = dwarf->FindDefinitionTypeForDWARFDeclContext(die_decl_ctx);
 
@@ -791,8 +790,7 @@ TypeSP DWARFASTParserClang::ParseEnum(const SymbolContext &sc,
         attrs.name.GetCString(), GetClangDeclContextContainingDIE(die, nullptr),
         attrs.decl, enumerator_clang_type, attrs.is_scoped_enum);
   } else {
-    enumerator_clang_type =
-        m_ast.GetEnumerationIntegerType(clang_type.GetOpaqueQualType());
+    enumerator_clang_type = m_ast.GetEnumerationIntegerType(clang_type);
   }
 
   LinkDeclContextToDIE(TypeSystemClang::GetDeclContextForType(clang_type), die);
@@ -1515,8 +1513,7 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     if (type_sp)
       return type_sp;
 
-    DWARFDeclContext die_decl_ctx;
-    SymbolFileDWARF::GetDWARFDeclContext(die, die_decl_ctx);
+    DWARFDeclContext die_decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
 
     // type_sp = FindDefinitionTypeForDIE (dwarf_cu, die,
     // type_name_const_str);
@@ -1723,9 +1720,9 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
       // binaries.
       dwarf->GetForwardDeclDieToClangType()[die.GetDIE()] =
           clang_type.GetOpaqueQualType();
-      dwarf->GetForwardDeclClangTypeToDie()
-          [ClangUtil::RemoveFastQualifiers(clang_type).GetOpaqueQualType()] =
-          die.GetID();
+      dwarf->GetForwardDeclClangTypeToDie().try_emplace(
+          ClangUtil::RemoveFastQualifiers(clang_type).GetOpaqueQualType(),
+          *die.GetDIERef());
       m_ast.SetHasExternalStorage(clang_type.GetOpaqueQualType(), true);
     }
   }
@@ -2004,12 +2001,12 @@ bool DWARFASTParserClang::CompleteRecordType(const DWARFDIE &die,
         dwarf->GetObjCMethodDIEOffsets(class_name, method_die_offsets);
 
         if (!method_die_offsets.empty()) {
-          DWARFDebugInfo *debug_info = dwarf->DebugInfo();
+          DWARFDebugInfo &debug_info = dwarf->DebugInfo();
 
           const size_t num_matches = method_die_offsets.size();
           for (size_t i = 0; i < num_matches; ++i) {
             const DIERef &die_ref = method_die_offsets[i];
-            DWARFDIE method_die = debug_info->GetDIE(die_ref);
+            DWARFDIE method_die = debug_info.GetDIE(die_ref);
 
             if (method_die)
               method_die.ResolveType();
@@ -2323,10 +2320,9 @@ Function *DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
         unsigned type_quals = 0;
         std::vector<CompilerType> param_types;
         std::vector<clang::ParmVarDecl *> param_decls;
-        DWARFDeclContext decl_ctx;
         StreamString sstr;
 
-        SymbolFileDWARF::GetDWARFDeclContext(die, decl_ctx);
+        DWARFDeclContext decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
         sstr << decl_ctx.GetQualifiedName();
 
         clang::DeclContext *containing_decl_ctx =

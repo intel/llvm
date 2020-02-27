@@ -11,7 +11,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 class device_event {
@@ -32,4 +32,4 @@ public:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

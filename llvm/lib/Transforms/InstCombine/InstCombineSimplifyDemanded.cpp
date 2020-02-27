@@ -87,6 +87,8 @@ bool InstCombiner::SimplifyDemandedBits(Instruction *I, unsigned OpNo,
   Value *NewVal = SimplifyDemandedUseBits(U.get(), DemandedMask, Known,
                                           Depth, I);
   if (!NewVal) return false;
+  // Add the old operand back to the worklist.
+  Worklist.addValue(U.get());
   U = NewVal;
   return true;
 }
@@ -396,8 +398,7 @@ Value *InstCombiner::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (SimplifyDemandedBits(I, 0, InputDemandedMask, InputKnown, Depth + 1))
       return I;
     assert(InputKnown.getBitWidth() == SrcBitWidth && "Src width changed?");
-    Known = InputKnown.zextOrTrunc(BitWidth,
-                                   true /* ExtendedBitsAreKnownZero */);
+    Known = InputKnown.zextOrTrunc(BitWidth);
     assert(!Known.hasConflict() && "Bits known to be one AND zero?");
     break;
   }

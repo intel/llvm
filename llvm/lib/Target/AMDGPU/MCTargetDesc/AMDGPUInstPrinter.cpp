@@ -26,6 +26,10 @@
 using namespace llvm;
 using namespace llvm::AMDGPU;
 
+void AMDGPUInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+  OS << getRegisterName(RegNo);
+}
+
 void AMDGPUInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                   StringRef Annot, const MCSubtargetInfo &STI,
                                   raw_ostream &OS) {
@@ -242,6 +246,11 @@ void AMDGPUInstPrinter::printR128A16(const MCInst *MI, unsigned OpNo,
     printNamedBit(MI, OpNo, O, "a16");
   else
     printNamedBit(MI, OpNo, O, "r128");
+}
+
+void AMDGPUInstPrinter::printGFX10A16(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI, raw_ostream &O) {
+  printNamedBit(MI, OpNo, O, "a16");
 }
 
 void AMDGPUInstPrinter::printLWE(const MCInst *MI, unsigned OpNo,

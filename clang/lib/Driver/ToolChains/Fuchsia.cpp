@@ -111,7 +111,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    AddGoldPlugin(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -289,7 +289,7 @@ void Fuchsia::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(dirs, ":");
     for (StringRef dir : dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+          llvm::sys::path::is_absolute(dir) ? "" : StringRef(D.SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
     }
     return;

@@ -35,6 +35,15 @@ struct Class {
   }
 };
 
+struct EnumClass {
+  using DeclTy = EnumDecl;
+  static constexpr auto *Prototype = "enum class X;";
+  static constexpr auto *Definition = "enum class X {};";
+  BindableMatcher<Decl> getPattern() {
+    return enumDecl(hasName("X"), unless(isImplicit()));
+  }
+};
+
 struct Variable {
   using DeclTy = VarDecl;
   static constexpr auto *Prototype = "extern int X;";
@@ -62,6 +71,21 @@ struct ClassTemplate {
   static constexpr auto *Definition = "template <class T> class X {};";
   BindableMatcher<Decl> getPattern() {
     return classTemplateDecl(hasName("X"), unless(isImplicit()));
+  }
+};
+
+struct VariableTemplate {
+  using DeclTy = VarTemplateDecl;
+  static constexpr auto *Prototype = "template <class T> extern T X;";
+  static constexpr auto *Definition =
+      R"(
+      template <class T> T X;
+      template <> int X<int>;
+      )";
+  // There is no matcher for varTemplateDecl so use a work-around.
+  BindableMatcher<Decl> getPattern() {
+    return namedDecl(hasName("X"), unless(isImplicit()),
+                     has(templateTypeParmDecl()));
   }
 };
 
@@ -407,6 +431,9 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
     RedeclChain, Class, ,
     PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
+    RedeclChain, EnumClass, ,
+    PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
     RedeclChain, Variable, ,
     PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
@@ -414,6 +441,9 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
     PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
     RedeclChain, ClassTemplate, ,
+    PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
+    RedeclChain, VariableTemplate, ,
     PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(
     RedeclChain, FunctionTemplateSpec, ,
@@ -426,11 +456,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         DefinitionShouldBeImportedAsADefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         DefinitionShouldBeImportedAsADefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        DefinitionShouldBeImportedAsADefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         DefinitionShouldBeImportedAsADefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         DefinitionShouldBeImportedAsADefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        DefinitionShouldBeImportedAsADefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         DefinitionShouldBeImportedAsADefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         DefinitionShouldBeImportedAsADefinition)
@@ -441,11 +475,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportPrototypeAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         ImportPrototypeAfterImportedPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportPrototypeAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportPrototypeAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportPrototypeAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportPrototypeAfterImportedPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportPrototypeAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportPrototypeAfterImportedPrototype)
@@ -456,11 +494,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportDefinitionAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         ImportDefinitionAfterImportedPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportDefinitionAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportDefinitionAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportDefinitionAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportDefinitionAfterImportedPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportDefinitionAfterImportedPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportDefinitionAfterImportedPrototype)
@@ -471,11 +513,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportPrototypeAfterImportedDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         ImportPrototypeAfterImportedDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportPrototypeAfterImportedDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportPrototypeAfterImportedDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportPrototypeAfterImportedDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportPrototypeAfterImportedDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportPrototypeAfterImportedDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportPrototypeAfterImportedDefinition)
@@ -485,11 +531,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplateSpec, ,
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportPrototypes)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, , ImportPrototypes)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportPrototypes)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportPrototypes)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportPrototypes)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportPrototypes)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportPrototypes)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplateSpec, ,
                                         ImportPrototypes)
@@ -499,11 +549,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportDefinitions)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, , ImportDefinitions)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportDefinitions)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportDefinitions)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportDefinitions)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportDefinitions)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportDefinitions)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplateSpec, ,
                                         ImportDefinitions)
@@ -514,11 +568,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportDefinitionThenPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         ImportDefinitionThenPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportDefinitionThenPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportDefinitionThenPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportDefinitionThenPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportDefinitionThenPrototype)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportDefinitionThenPrototype)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportDefinitionThenPrototype)
@@ -529,11 +587,15 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
                                         ImportPrototypeThenDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, ,
                                         ImportPrototypeThenDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, EnumClass, ,
+                                        ImportPrototypeThenDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportPrototypeThenDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         ImportPrototypeThenDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, ClassTemplate, ,
+                                        ImportPrototypeThenDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportPrototypeThenDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportPrototypeThenDefinition)
@@ -546,6 +608,8 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         WholeRedeclChainIsImportedAtOnce)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
                                         WholeRedeclChainIsImportedAtOnce)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
+                                        WholeRedeclChainIsImportedAtOnce)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         WholeRedeclChainIsImportedAtOnce)
 
@@ -554,6 +618,8 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Function, ,
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Variable, ,
                                         ImportPrototypeThenProtoAndDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplate, ,
+                                        ImportPrototypeThenProtoAndDefinition)
+ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
                                         ImportPrototypeThenProtoAndDefinition)
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportPrototypeThenProtoAndDefinition)
@@ -562,11 +628,15 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunction,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClass,
                         DefaultTestValuesForRunOptions, );
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainEnumClass,
+                        DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariable,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplate,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassTemplate,
+                        DefaultTestValuesForRunOptions, );
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariableTemplate,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplateSpec,
                         DefaultTestValuesForRunOptions, );

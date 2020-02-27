@@ -32,6 +32,8 @@ extern "C" inline void EmptyCallback() {}
 
 namespace scudo {
 
+enum class Option { ReleaseInterval };
+
 template <class Params, void (*PostInitCallback)(void) = EmptyCallback>
 class Allocator {
 public:
@@ -267,6 +269,17 @@ public:
       bool UnlockRequired;
       auto *TSD = TSDRegistry.getTSDAndLock(&UnlockRequired);
       Block = TSD->Cache.allocate(ClassId);
+      // If the allocation failed, the most likely reason with a 64-bit primary
+      // is the region being full. In that event, retry once using the
+      // immediately larger class (except if the failing class was already the
+      // largest). This will waste some memory but will allow the application to
+      // not fail.
+      if (SCUDO_ANDROID) {
+        if (UNLIKELY(!Block)) {
+          if (ClassId < SizeClassMap::LargestClassId)
+            Block = TSD->Cache.allocate(++ClassId);
+        }
+      }
       if (UnlockRequired)
         TSD->unlock();
     } else {
@@ -613,8 +626,14 @@ public:
     return Options.MayReturnNull;
   }
 
-  // TODO(kostyak): implement this as a "backend" to mallopt.
-  bool setOption(UNUSED uptr Option, UNUSED uptr Value) { return false; }
+  bool setOption(Option O, sptr Value) {
+    if (O == Option::ReleaseInterval) {
+      Primary.setReleaseToOsIntervalMs(static_cast<s32>(Value));
+      Secondary.setReleaseToOsIntervalMs(static_cast<s32>(Value));
+      return true;
+    }
+    return false;
+  }
 
   // Return the usable size for a given chunk. Technically we lie, as we just
   // report the actual size of a chunk. This is done to counteract code actively

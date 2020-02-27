@@ -122,7 +122,7 @@ of ``cxx_rvalue_references``.
 ``__has_cpp_attribute``
 -----------------------
 
-This function-like macro is available in C++2a by default, and is provided as an
+This function-like macro is available in C++20 by default, and is provided as an
 extension in earlier language standards. It takes a single argument that is the
 name of a double-square-bracket-style attribute. The argument can either be a
 single identifier or a scoped identifier. If the attribute is supported, a
@@ -1255,6 +1255,34 @@ the clang implementation are in :doc:`Block-ABI-Apple<Block-ABI-Apple>`.
 
 Query for this feature with ``__has_extension(blocks)``.
 
+ASM Goto with Output Constraints
+================================
+
+In addition to the functionality provided by `GCC's extended
+assembly`<https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html>`_, clang
+supports output constraints with the `goto` form.
+
+The goto form of GCC's extended assembly allows the programmer to branch to a C
+label from within an inline assembly block. Clang extends this behavior by
+allowing the programmer to use output constraints:
+
+.. code-block:: c++
+
+  int foo(int x) {
+      int y;
+      asm goto("# %0 %1 %l2" : "=r"(y) : "r"(x) : : err);
+      return y;
+    err:
+      return -1;
+  }
+
+It's important to note that outputs are valid only on the "fallthrough" branch.
+Using outputs on an indirect branch may result in undefined behavior. For
+example, in the function above, use of the value assigned to `y` in the `err`
+block is undefined behavior.
+
+Query for this feature with ``__has_extension(gnu_asm_goto_with_outputs)``.
+
 Objective-C Features
 ====================
 
@@ -2169,7 +2197,7 @@ Checked Arithmetic Builtins
 ---------------------------
 
 Clang provides a set of builtins that implement checked arithmetic for security
-critical applications in a manner that is fast and easily expressable in C. As
+critical applications in a manner that is fast and easily expressible in C. As
 an example of their usage:
 
 .. code-block:: c
@@ -2283,6 +2311,23 @@ is disallowed in general).
 
 Support for constant expression evaluation for the above builtins be detected
 with ``__has_feature(cxx_constexpr_string_builtins)``.
+
+Memory builtins
+---------------
+
+ * ``__builtin_memcpy_inline``
+
+.. code-block:: c
+
+  void __builtin_memcpy_inline(void *dst, const void *src, size_t size);
+
+``__builtin_memcpy_inline(dst, src, size)`` is identical to
+``__builtin_memcpy(dst, src, size)`` except that the generated code is
+guaranteed not to call any external functions. See [LLVM IR ‘llvm.memcpy.inline’
+Intrinsic](https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic) for
+more information.
+
+Note that the `size` argument must be a compile time constant.
 
 Atomic Min/Max builtins with memory ordering
 --------------------------------------------
@@ -2545,7 +2590,7 @@ pointers and integers.
 These builtins can be used to avoid relying on implementation-defined behavior
 of arithmetic on integers derived from pointers.
 Additionally, these builtins retain type information and, unlike bitwise
-arithmentic, they can perform semantic checking on the alignment value.
+arithmetic, they can perform semantic checking on the alignment value.
 
 **Syntax**:
 

@@ -1,23 +1,24 @@
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
 #define __CLC_UPSAMPLE_IMPL(BGENTYPE, GENTYPE, UGENTYPE, GENSIZE) \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE upsample(GENTYPE hi, UGENTYPE lo){ \
-        return ((BGENTYPE)hi << GENSIZE) | lo; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE##2 upsample(GENTYPE##2 hi, UGENTYPE##2 lo){ \
-        return (BGENTYPE##2){upsample(hi.s0, lo.s0), upsample(hi.s1, lo.s1)}; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE##3 upsample(GENTYPE##3 hi, UGENTYPE##3 lo){ \
-        return (BGENTYPE##3){upsample(hi.s0, lo.s0), upsample(hi.s1, lo.s1), upsample(hi.s2, lo.s2)}; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE##4 upsample(GENTYPE##4 hi, UGENTYPE##4 lo){ \
-        return (BGENTYPE##4){upsample(hi.lo, lo.lo), upsample(hi.hi, lo.hi)}; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE##8 upsample(GENTYPE##8 hi, UGENTYPE##8 lo){ \
-        return (BGENTYPE##8){upsample(hi.lo, lo.lo), upsample(hi.hi, lo.hi)}; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
     _CLC_OVERLOAD _CLC_DEF BGENTYPE##16 upsample(GENTYPE##16 hi, UGENTYPE##16 lo){ \
-        return (BGENTYPE##16){upsample(hi.lo, lo.lo), upsample(hi.hi, lo.hi)}; \
+        return __spirv_ocl_u_upsample(hi, lo); \
     } \
 
 #define __CLC_UPSAMPLE_TYPES() \

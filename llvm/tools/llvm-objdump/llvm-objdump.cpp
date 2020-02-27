@@ -341,8 +341,6 @@ static StringSet<> DisasmFuncsSet;
 StringSet<> FoundSectionSet;
 static StringRef ToolName;
 
-typedef std::vector<std::tuple<uint64_t, StringRef, uint8_t>> SectionSymbolsTy;
-
 namespace {
 struct FilterResult {
   // True if the section should not be skipped.
@@ -555,13 +553,20 @@ protected:
 private:
   bool cacheSource(const DILineInfo& LineInfoFile);
 
+  void printLines(raw_ostream &OS, const DILineInfo &LineInfo,
+                  StringRef Delimiter);
+
+  void printSources(raw_ostream &OS, const DILineInfo &LineInfo,
+                    StringRef ObjectFilename, StringRef Delimiter);
+
 public:
   SourcePrinter() = default;
   SourcePrinter(const ObjectFile *Obj, StringRef DefaultArch)
       : Obj(Obj), WarnedNoDebugInfo(false) {
     symbolize::LLVMSymbolizer::Options SymbolizerOpts;
-    SymbolizerOpts.PrintFunctions = DILineInfoSpecifier::FunctionNameKind::None;
-    SymbolizerOpts.Demangle = false;
+    SymbolizerOpts.PrintFunctions =
+        DILineInfoSpecifier::FunctionNameKind::LinkageName;
+    SymbolizerOpts.Demangle = Demangle;
     SymbolizerOpts.DefaultArch = std::string(DefaultArch);
     Symbolizer.reset(new symbolize::LLVMSymbolizer(SymbolizerOpts));
   }
@@ -626,34 +631,57 @@ void SourcePrinter::printSourceLine(raw_ostream &OS,
       reportWarning(Warning, ObjectFilename);
       WarnedNoDebugInfo = true;
     }
-    return;
   }
-
-  if (LineInfo.Line == 0 || ((OldLineInfo.Line == LineInfo.Line) &&
-                             (OldLineInfo.FileName == LineInfo.FileName)))
-    return;
 
   if (PrintLines)
-    OS << Delimiter << LineInfo.FileName << ":" << LineInfo.Line << "\n";
-  if (PrintSource) {
-    if (SourceCache.find(LineInfo.FileName) == SourceCache.end())
-      if (!cacheSource(LineInfo))
-        return;
-    auto LineBuffer = LineCache.find(LineInfo.FileName);
-    if (LineBuffer != LineCache.end()) {
-      if (LineInfo.Line > LineBuffer->second.size()) {
-        reportWarning(
-            formatv(
-                "debug info line number {0} exceeds the number of lines in {1}",
-                LineInfo.Line, LineInfo.FileName),
-            ObjectFilename);
-        return;
-      }
-      // Vector begins at 0, line numbers are non-zero
-      OS << Delimiter << LineBuffer->second[LineInfo.Line - 1] << '\n';
-    }
-  }
+    printLines(OS, LineInfo, Delimiter);
+  if (PrintSource)
+    printSources(OS, LineInfo, ObjectFilename, Delimiter);
   OldLineInfo = LineInfo;
+}
+
+void SourcePrinter::printLines(raw_ostream &OS, const DILineInfo &LineInfo,
+                               StringRef Delimiter) {
+  bool PrintFunctionName = LineInfo.FunctionName != DILineInfo::BadString &&
+                           LineInfo.FunctionName != OldLineInfo.FunctionName;
+  if (PrintFunctionName) {
+    OS << Delimiter << LineInfo.FunctionName;
+    // If demangling is successful, FunctionName will end with "()". Print it
+    // only if demangling did not run or was unsuccessful.
+    if (!StringRef(LineInfo.FunctionName).endswith("()"))
+      OS << "()";
+    OS << ":\n";
+  }
+  if (LineInfo.FileName != DILineInfo::BadString && LineInfo.Line != 0 &&
+      (OldLineInfo.Line != LineInfo.Line ||
+       OldLineInfo.FileName != LineInfo.FileName || PrintFunctionName))
+    OS << Delimiter << LineInfo.FileName << ":" << LineInfo.Line << "\n";
+}
+
+void SourcePrinter::printSources(raw_ostream &OS, const DILineInfo &LineInfo,
+                                 StringRef ObjectFilename,
+                                 StringRef Delimiter) {
+  if (LineInfo.FileName == DILineInfo::BadString || LineInfo.Line == 0 ||
+      (OldLineInfo.Line == LineInfo.Line &&
+       OldLineInfo.FileName == LineInfo.FileName))
+    return;
+
+  if (SourceCache.find(LineInfo.FileName) == SourceCache.end())
+    if (!cacheSource(LineInfo))
+      return;
+  auto LineBuffer = LineCache.find(LineInfo.FileName);
+  if (LineBuffer != LineCache.end()) {
+    if (LineInfo.Line > LineBuffer->second.size()) {
+      reportWarning(
+          formatv(
+              "debug info line number {0} exceeds the number of lines in {1}",
+              LineInfo.Line, LineInfo.FileName),
+          ObjectFilename);
+      return;
+    }
+    // Vector begins at 0, line numbers are non-zero
+    OS << Delimiter << LineBuffer->second[LineInfo.Line - 1] << '\n';
+  }
 }
 
 static bool isAArch64Elf(const ObjectFile *Obj) {
@@ -1229,8 +1257,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
     std::vector<MappingSymbolPair> MappingSymbols;
     if (hasMappingSymbols(Obj)) {
       for (const auto &Symb : Symbols) {
-        uint64_t Address = std::get<0>(Symb);
-        StringRef Name = std::get<1>(Symb);
+        uint64_t Address = Symb.Addr;
+        StringRef Name = Symb.Name;
         if (Name.startswith("$d"))
           MappingSymbols.emplace_back(Address - SectionAddr, 'd');
         if (Name.startswith("$x"))
@@ -1264,10 +1292,10 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
 
     StringRef SectionName = unwrapOrError(Section.getName(), Obj->getFileName());
     // If the section has no symbol at the start, just insert a dummy one.
-    if (Symbols.empty() || std::get<0>(Symbols[0]) != 0) {
+    if (Symbols.empty() || Symbols[0].Addr != 0) {
       Symbols.insert(
           Symbols.begin(),
-          std::make_tuple(SectionAddr, SectionName,
+           SymbolInfoTy(SectionAddr, SectionName,
                           Section.isText() ? ELF::STT_FUNC : ELF::STT_OBJECT));
     }
 
@@ -1289,7 +1317,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
     std::vector<RelocationRef>::const_iterator RelEnd = Rels.end();
     // Disassemble symbol by symbol.
     for (unsigned SI = 0, SE = Symbols.size(); SI != SE; ++SI) {
-      std::string SymbolName = std::get<1>(Symbols[SI]).str();
+      std::string SymbolName = Symbols[SI].Name.str();
       if (Demangle)
         SymbolName = demangle(SymbolName);
 
@@ -1298,7 +1326,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       if (!DisasmFuncsSet.empty() && !DisasmFuncsSet.count(SymbolName))
         continue;
 
-      uint64_t Start = std::get<0>(Symbols[SI]);
+      uint64_t Start = Symbols[SI].Addr;
       if (Start < SectionAddr || StopAddress <= Start)
         continue;
       else
@@ -1308,7 +1336,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       // --stop-address.
       uint64_t End = std::min<uint64_t>(SectionAddr + SectSize, StopAddress);
       if (SI + 1 < SE)
-        End = std::min(End, std::get<0>(Symbols[SI + 1]));
+        End = std::min(End, Symbols[SI + 1].Addr);
       if (Start >= End || End <= StartAddress)
         continue;
       Start -= SectionAddr;
@@ -1323,12 +1351,12 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       }
 
       if (Obj->isELF() && Obj->getArch() == Triple::amdgcn) {
-        if (std::get<2>(Symbols[SI]) == ELF::STT_AMDGPU_HSA_KERNEL) {
+        if (Symbols[SI].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
           // skip amd_kernel_code_t at the begining of kernel symbol (256 bytes)
           Start += 256;
         }
         if (SI == SE - 1 ||
-            std::get<2>(Symbols[SI + 1]) == ELF::STT_AMDGPU_HSA_KERNEL) {
+            Symbols[SI + 1].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
           // cut trailing zeroes at the end of kernel
           // cut up to 256 bytes
           const uint64_t EndAlign = 256;
@@ -1367,7 +1395,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       // only disassembling text (applicable all architectures), we are in a
       // situation where we must print the data and not disassemble it.
       if (Obj->isELF() && !DisassembleAll && Section.isText()) {
-        uint8_t SymTy = std::get<2>(Symbols[SI]);
+        uint8_t SymTy = Symbols[SI].Type;
         if (SymTy == ELF::STT_OBJECT || SymTy == ELF::STT_COMMON) {
           dumpELFData(SectionAddr, Index, End, Bytes);
           Index = End;
@@ -1375,7 +1403,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       }
 
       bool CheckARMELFData = hasMappingSymbols(Obj) &&
-                             std::get<2>(Symbols[SI]) != ELF::STT_OBJECT &&
+                             Symbols[SI].Type != ELF::STT_OBJECT &&
                              !DisassembleAll;
       while (Index < End) {
         // ARM and AArch64 ELF binaries can interleave data and text in the
@@ -1472,21 +1500,21 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
             // the target, find the nearest preceding absolute symbol.
             auto TargetSym = partition_point(
                 *TargetSectionSymbols,
-                [=](const std::tuple<uint64_t, StringRef, uint8_t> &O) {
-                  return std::get<0>(O) <= Target;
+                [=](const SymbolInfoTy &O) {
+                  return O.Addr <= Target;
                 });
             if (TargetSym == TargetSectionSymbols->begin()) {
               TargetSectionSymbols = &AbsoluteSymbols;
               TargetSym = partition_point(
                   AbsoluteSymbols,
-                  [=](const std::tuple<uint64_t, StringRef, uint8_t> &O) {
-                    return std::get<0>(O) <= Target;
+                  [=](const SymbolInfoTy &O) {
+                    return O.Addr <= Target;
                   });
             }
             if (TargetSym != TargetSectionSymbols->begin()) {
               --TargetSym;
-              uint64_t TargetAddress = std::get<0>(*TargetSym);
-              StringRef TargetName = std::get<1>(*TargetSym);
+              uint64_t TargetAddress = TargetSym->Addr;
+              StringRef TargetName = TargetSym->Name;
               outs() << " <" << TargetName;
               uint64_t Disp = Target - TargetAddress;
               if (Disp)
@@ -1647,6 +1675,11 @@ void printRelocations(const ObjectFile *Obj) {
   for (std::pair<SectionRef, std::vector<SectionRef>> &P : SecToRelSec) {
     StringRef SecName = unwrapOrError(P.first.getName(), Obj->getFileName());
     outs() << "RELOCATION RECORDS FOR [" << SecName << "]:\n";
+    uint32_t OffsetPadding = (Obj->getBytesInAddress() > 4 ? 16 : 8);
+    uint32_t TypePadding = 24;
+    outs() << left_justify("OFFSET", OffsetPadding) << " "
+           << left_justify("TYPE", TypePadding) << " "
+           << "VALUE\n";
 
     for (SectionRef Section : P.second) {
       for (const RelocationRef &Reloc : Section.relocations()) {
@@ -1659,8 +1692,9 @@ void printRelocations(const ObjectFile *Obj) {
         if (Error E = getRelocationValueString(Reloc, ValueStr))
           reportError(std::move(E), Obj->getFileName());
 
-        outs() << format(Fmt.data(), Address) << " " << RelocName << " "
-               << ValueStr << "\n";
+        outs() << format(Fmt.data(), Address) << " "
+               << left_justify(RelocName, TypePadding) << " " << ValueStr
+               << "\n";
       }
     }
     outs() << "\n";
@@ -2164,7 +2198,7 @@ static void dumpObject(ObjectFile *O, const Archive *A = nullptr,
       outs() << A->getFileName() << "(" << O->getFileName() << ")";
     else
       outs() << O->getFileName();
-    outs() << ":\tfile format " << O->getFileFormatName() << "\n\n";
+    outs() << ":\tfile format " << O->getFileFormatName().lower() << "\n\n";
   }
 
   if (StartAddress.getNumOccurrences() || StopAddress.getNumOccurrences())

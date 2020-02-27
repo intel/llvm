@@ -193,10 +193,10 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
 
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
-  // image is preferred over SPIRV for known devices (i.e. Intel devices)
+  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
   // The implementation makes no effort to differentiate between multiple images
   // for the given device, and simply picks the first one compatible
-  // Real implementaion will use the same mechanism OpenCL ICD dispatcher
+  // Real implementation will use the same mechanism OpenCL ICD dispatcher
   // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
   //     return context->dispatch->piextDeviceSelectIR(
@@ -404,6 +404,13 @@ pi_result OCL(piSamplerCreate)(pi_context context,
       clCreateSampler(cast<cl_context>(context), normalizedCoords,
                       addressingMode, filterMode, cast<cl_int *>(&error_code)));
   return error_code;
+}
+
+pi_result OCL(piextKernelSetArgMemObj)(pi_kernel kernel, pi_uint32 arg_index,
+                                       const pi_mem *arg_value) {
+  return cast<pi_result>(
+      clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
+                     sizeof(arg_value), cast<const cl_mem *>(arg_value)));
 }
 
 pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
@@ -1064,6 +1071,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, OCL(piextUSMEnqueuePrefetch))
   _PI_CL(piextUSMEnqueueMemAdvise, OCL(piextUSMEnqueueMemAdvise))
   _PI_CL(piextUSMGetMemAllocInfo, OCL(piextUSMGetMemAllocInfo))
+
+  _PI_CL(piextKernelSetArgMemObj,      OCL(piextKernelSetArgMemObj))
 
 #undef _PI_CL
 

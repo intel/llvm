@@ -323,6 +323,20 @@ void UnwrappedLineParser::parseFile() {
   addUnwrappedLine();
 }
 
+void UnwrappedLineParser::parseCSharpAttribute() {
+  do {
+    switch (FormatTok->Tok.getKind()) {
+    case tok::r_square:
+      nextToken();
+      addUnwrappedLine();
+      return;
+    default:
+      nextToken();
+      break;
+    }
+  } while (!eof());
+}
+
 void UnwrappedLineParser::parseLevel(bool HasOpeningBrace) {
   bool SwitchLabelEncountered = false;
   do {
@@ -381,6 +395,13 @@ void UnwrappedLineParser::parseLevel(bool HasOpeningBrace) {
       SwitchLabelEncountered = true;
       parseStructuralElement();
       break;
+    case tok::l_square:
+      if (Style.isCSharp()) {
+        nextToken();
+        parseCSharpAttribute();
+        break;
+      }
+      LLVM_FALLTHROUGH;
     default:
       parseStructuralElement();
       break;
@@ -1828,11 +1849,20 @@ void UnwrappedLineParser::parseTryCatch() {
   if (FormatTok->is(tok::colon)) {
     // We are in a function try block, what comes is an initializer list.
     nextToken();
+
+    // In case identifiers were removed by clang-tidy, what might follow is
+    // multiple commas in sequence - before the first identifier.
+    while (FormatTok->is(tok::comma))
+      nextToken();
+
     while (FormatTok->is(tok::identifier)) {
       nextToken();
       if (FormatTok->is(tok::l_paren))
         parseParens();
-      if (FormatTok->is(tok::comma))
+
+      // In case identifiers were removed by clang-tidy, what might follow is
+      // multiple commas in sequence - after the first identifier.
+      while (FormatTok->is(tok::comma))
         nextToken();
     }
   }

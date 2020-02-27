@@ -10,10 +10,11 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <cassert>
 #include <cstddef>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
@@ -22,7 +23,10 @@ class accessor;
 
 template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
-  using element_type = ElementType;
+  using element_type =
+      detail::conditional_t<std::is_same<ElementType, half>::value,
+                    cl::sycl::detail::half_impl::BIsRepresentationT,
+                    ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
@@ -633,4 +637,4 @@ bool operator<=(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

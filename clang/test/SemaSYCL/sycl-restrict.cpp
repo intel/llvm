@@ -195,7 +195,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 5{{called by 'kernel_single_task'}}
+  // expected-note@+1 5{{called by 'kernel_single_task}}
   use2(ab, p);
 }
 
