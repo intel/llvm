@@ -2,15 +2,11 @@
 // expected-no-diagnostics
 //
 //===----------------------------------------------------------------------===//
-// This test checks if the user-defined macros SUCCESS, FAIL, BLOCKED are
+// This test checks if the user-defined macros SUCCESS is
 // conflicting with the symbols defined in SYCL header files.
+// This test only checks compilation errorr, so the main function is omitted.
 //===----------------------------------------------------------------------===//
 
 #define SUCCESS 0
 
 #include <CL/sycl.hpp>
-
-int main() {
-  printf("hello world!\n");
-  return 0;
-}
