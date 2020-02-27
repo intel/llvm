@@ -1,6 +1,8 @@
 name: Generate Doxygen documentation
 
-on: [pull_request]
+on:
+  schedule:
+  - cron: 0 1 * * *
 
 jobs:
   build:
