@@ -545,7 +545,13 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
       std::call_once(
           initFlag,
           [](pi_result &err) {
-            err = PI_CHECK_ERROR(cuInit(0));
+            CUresult cuErr = cuInit(0);
+            if (cuErr == CUDA_ERROR_NO_DEVICE) {
+              // The cuda backend is active, but there are no devices
+              // available
+              return;
+            }
+            err = check_error(cuErr, "cuInit", __LINE__, __FILE__);
 
             int numDevices = 0;
             err = PI_CHECK_ERROR(cuDeviceGetCount(&numDevices));
