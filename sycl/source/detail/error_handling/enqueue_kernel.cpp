@@ -159,16 +159,17 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       }
     }
   }
+ 
+// TODO: required number of sub-groups, OpenCL 2.1:
+// CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
+// consistent with the required number of sub-groups for kernel in the
+// program source.
 
-  // TODO: required number of sub-groups, OpenCL 2.1:
-  // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
-  // consistent with the required number of sub-groups for kernel in the
-  // program source.
+//Fallback
 
-  // Fallback
   constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
-      "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+ 	"OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
 }
 
 bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
@@ -218,9 +219,9 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
   size_t MaxWISize[] = {0, 0, 0};
 
-  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_MAX_WORK_ITEM_SIZE,
-                                          sizeof(MaxWISize), &MaxWISize,
-                                          nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
+      nullptr);
   for (int i = 0; i < NDRDesc.Dims; i++) {
     if (NDRDesc.LocalSize[i] > MaxWISize[i])
       throw sycl::nd_range_error("Number of local work group number " +
@@ -238,7 +239,43 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
   switch (Error) {
   case PI_INVALID_WORK_GROUP_SIZE:
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
-  // TODO: Handle other error codes
+
+  case PI_INVALID_KERNEL_ARGS:
+    throw sycl::nd_range_error(
+        "The kernel argument values have not been specified "
+        " OR "
+        "a kernel argument declared to be a pointer to a type"
+        " does not point to a named address space",
+        PI_INVALID_KERNEL_ARGS);
+
+  case PI_INVALID_WORK_ITEM_SIZE:
+    return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
+
+  case PI_IMAGE_FORMAT_NOT_SUPPORTED:
+    throw sycl::nd_range_error(
+        "image object is specified as an argument value"
+        " and the image format is not supported by device associated"
+        " with queue",
+        PI_IMAGE_FORMAT_NOT_SUPPORTED);
+
+  case PI_MISALIGNED_SUB_BUFFER_OFFSET:
+    throw sycl::nd_range_error(
+        "a sub-buffer object is specified as the value for an argument "
+        " that is a buffer object and the offset specified "
+        "when the sub-buffer object is created is not aligned "
+        "to CL_DEVICE_MEM_BASE_ADDR_ALIGN value for device associated"
+        " with queue",
+        PI_MISALIGNED_SUB_BUFFER_OFFSET);
+
+  case PI_MEM_OBJECT_ALLOCATION_FAILURE:
+    throw sycl::nd_range_error(
+        "failure to allocate memory for data store associated with image"
+        " or "
+        "buffer objects specified as arguments to kernel",
+        PI_MEM_OBJECT_ALLOCATION_FAILURE);
+
+    // TODO: Handle other error codes
+
   default:
     throw runtime_error(
         "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
