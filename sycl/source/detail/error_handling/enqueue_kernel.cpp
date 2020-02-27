@@ -177,7 +177,6 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
-
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -209,6 +208,27 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
       "PI backend failed. PI backend returns: " + codeToString(Error), Error);
+}
+
+bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
+                               const NDRDescT &NDRDesc) {
+
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t MaxWISize[] = {0, 0, 0};
+
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_MAX_WORK_ITEM_SIZE,
+                                          sizeof(MaxWISize), &MaxWISize,
+                                          nullptr);
+  for (int i = 0; i < NDRDesc.Dims; i++) {
+    if (NDRDesc.LocalSize[i] > MaxWISize[i])
+      throw sycl::nd_range_error("Number of local work group number " +
+                                     std::to_string(i) +
+                                     " greater then corresponding values"
+                                     "PI_DEVISE_MAX_WORK_SIZE",
+                                 PI_INVALID_WORK_ITEM_SIZE);
+  }
 }
 
 bool handleError(pi_result Error, const device_impl &DeviceImpl,
