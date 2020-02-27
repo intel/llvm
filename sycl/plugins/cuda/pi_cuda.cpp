@@ -1788,6 +1788,19 @@ pi_result cuda_piEnqueueKernelLaunch(
       }
     }
 
+    size_t maxThreadsPerBlock[3] = {};
+    retError = cuda_piDeviceGetInfo(command_queue->device_,
+                                    PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                                    sizeof(maxThreadsPerBlock),
+                                    maxThreadsPerBlock, nullptr);
+    assert(retError == PI_SUCCESS);
+
+    for (size_t i = 0; i < work_dim; i++) {
+      if(size_t(threadsPerBlock[i]) > maxThreadsPerBlock[i]) {
+        return PI_INVALID_WORK_GROUP_SIZE;
+      }
+    }
+
     int blocksPerGrid[3] = { 1, 1, 1 };
 
     for (size_t i = 0; i < work_dim; i++) {
