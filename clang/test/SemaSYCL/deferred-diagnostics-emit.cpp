@@ -1,6 +1,6 @@
 // RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
 //
-// Ensure that the SYCL diagnostics that are typically deferred, correctly emitted.
+// Ensure that the SYCL diagnostics that are typically deferred are correctly emitted.
 
 // testing that the deferred diagnostics work in conjunction with the SYCL namespaces.
 inline namespace cl {
