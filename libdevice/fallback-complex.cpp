@@ -9,7 +9,9 @@
 #include "device_math.h"
 #include "device_complex.h"
 #include <cmath>
+#ifdef __cplusplus
 extern "C" {
+#endif  // __cplusplus
 SYCL_EXTERNAL
 float __devicelib_crealf(float __complex__ z) {
   return __real__(z);
@@ -436,6 +438,7 @@ float __complex__ __devicelib_catanf(float __complex__ z) {
                                                    __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
-
+#ifdef __cplusplus
 } // extern "C"
-#endif
+#endif  // __cplusplus
+#endif  // __SYCL_DEVICE_ONLY__

@@ -5,9 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include "device_math.h"
+
+#ifdef __cplusplus
 extern "C" {
+#endif  // __cplusplus
 SYCL_EXTERNAL
 float __attribute__((weak)) scalbnf(float x, int n) {
   return __devicelib_scalbnf(x, n);
@@ -207,5 +211,8 @@ SYCL_EXTERNAL
 float __attribute__((weak)) atanhf(float x) {
   return __devicelib_atanhf(x);
 }
-}
-#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif  // __cplusplus
+#endif  // __SYCL_DEVICE_ONLY__

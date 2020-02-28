@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __SYCL_WRAPPERS_H__
-#define __SYCL_WRAPPERS_H__
+#ifndef __LIBDEVICE_WRAPPER_H__
+#define __LIBDEVICE_WRAPPER_H__
 
 #include <cstddef>
 #include <cstdint>
+#include "device.h"
 
 SYCL_EXTERNAL
 extern "C" void __devicelib_assert_fail(
@@ -19,4 +20,4 @@ extern "C" void __devicelib_assert_fail(
     uint64_t gid0, uint64_t gid1, uint64_t gid2,
     uint64_t lid0, uint64_t lid1, uint64_t lid2);
 
-#endif // __SYCL_WRAPPERS_H__
+#endif // __LIBDEVICE_WRAPPER_H__

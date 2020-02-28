@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if __SYCL_DEVICE_ONLY
 #include "wrapper.h"
-
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
 
@@ -42,4 +41,4 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
                           __spirv_LocalInvocationId_y(),
                           __spirv_LocalInvocationId_z());
 }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_DEVICE_ONLY

@@ -5,9 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include "device_complex.h"
+
+#ifdef __cplusplus
 extern "C" {
+#endif  // __cplusplus
 SYCL_EXTERNAL
 double __attribute__((weak)) cimag(double __complex__ z) {
   return __devicelib_cimag(z);
@@ -135,5 +139,7 @@ double __complex__ __attribute__((weak)) __divdc3(double __a, double __b,
   return __devicelib___divdc3(__a, __b, __c, __d);
 }
 
-}
-#endif
+#ifdef __cplusplus
+} // extern "C"
+#endif  // __cplusplus
+#endif  // __SYCL_DEVICE_ONLY__

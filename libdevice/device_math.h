@@ -6,8 +6,8 @@
 //
 //==------------------------------------------------------------------------==//
 
-#ifndef __SYCL_CMATH_WRAPPER_H__
-#define __SYCL_CMATH_WRAPPER_H__
+#ifndef __LIBDEVICE_DEVICE_CMATH_H__
+#define __LIBDEVICE_DEVICE_CMATH_H__
 
 SYCL_EXTERNAL double __spirv_ocl_log(double);
 SYCL_EXTERNAL double __spirv_ocl_sin(double);
@@ -353,4 +353,4 @@ extern "C" float __devicelib_logbf(float x);
 
 SYCL_EXTERNAL
 extern "C" float __devicelib_scalbnf(float x, int n);
-#endif
+#endif  // __LIBDEVICE_DEVICE_CMATH_H__

@@ -8,7 +8,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include "wrapper.h"
-
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
 

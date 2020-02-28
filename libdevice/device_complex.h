@@ -5,17 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //==------------------------------------------------------------------------==//
-#ifndef __SYCL_COMPLEX_WRAPPER_H_
-#define __SYCL_COMPLEX_WRAPPER_H_
+#ifndef __LIBDEVICE_DEVICE_COMPLEX_H_
+#define __LIBDEVICE_DEVICE_COMPLEX_H_
 
 // TODO: This needs to be more robust.
 // clang doesn't recognize the c11 CMPLX macro, but it does have
 //   its own syntax extension for initializing a complex as a struct.
 #ifndef CMPLX
-#define CMPLX(r, i) ((double __complex__){ (double)r, (double)i })
+#define CMPLX(r, i) ((double __complex__){ (double)(r), (double)(i) })
 #endif
 #ifndef CMPLXF
-#define CMPLXF(r, i) ((float __complex__){ (float)r, (float)i })
+#define CMPLXF(r, i) ((float __complex__){ (float)(r), (float)(i) })
 #endif
 
 SYCL_EXTERNAL
@@ -167,4 +167,4 @@ extern "C" double __complex__ __devicelib___divdc3(double a, double b,
 SYCL_EXTERNAL
 extern "C" float  __complex__ __devicelib___divsc3(float a, float b,
                                                  float c, float d);
-#endif
+#endif  // __LIBDEVICE_DEVICE_COMPLEX_H_

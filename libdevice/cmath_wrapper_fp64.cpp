@@ -5,9 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include "device_math.h"
+
+#ifdef __cplusplus
 extern "C" {
+#endif  // __cplusplus
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
 // the prototype), functions in device libraries will be ignored and
@@ -206,5 +210,8 @@ SYCL_EXTERNAL
 double __attribute__((weak)) atanh(double x) {
   return __devicelib_atanh(x);
 }
-}
-#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif  // __cplusplus
+#endif  // __SYCL_DEVICE_ONLY__
