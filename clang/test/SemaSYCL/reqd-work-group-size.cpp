@@ -110,9 +110,9 @@ void bar() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 1 1
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 1 1 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: ReqdWorkGroupSizeAttr {{.*}} 4 1 1
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 1 1 4
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 16 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
