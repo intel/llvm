@@ -31,7 +31,7 @@ void definedPartialTpl() {
   // empty
 }
 
-template<>
+template <>
 void definedPartialTpl<char, true>() {
   // empty
 }

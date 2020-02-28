@@ -260,7 +260,7 @@ __SYCL_MAKE_CALL_ARG3(smoothstep, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG1(sign, __FUNC_PREFIX_OCL)
 /* --------------- 4.13.6 Geometric Functions. ------------------------------*/
 __SYCL_MAKE_CALL_ARG2(cross, __FUNC_PREFIX_OCL)
-__SYCL_MAKE_CALL_ARG2_SAME(Dot, __FUNC_PREFIX_CORE)  // dot
+__SYCL_MAKE_CALL_ARG2_SAME(Dot, __FUNC_PREFIX_CORE)         // dot
 __SYCL_MAKE_CALL_ARG2_SAME_RESULT(FMul, __FUNC_PREFIX_CORE) // dot
 __SYCL_MAKE_CALL_ARG2(distance, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG1(length, __FUNC_PREFIX_OCL)
@@ -269,22 +269,23 @@ __SYCL_MAKE_CALL_ARG2(fast_distance, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG1(fast_length, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG1(fast_normalize, __FUNC_PREFIX_OCL)
 /* --------------- 4.13.7 Relational functions. -----------------------------*/
-__SYCL_MAKE_CALL_ARG2_SAME(FOrdEqual, __FUNC_PREFIX_CORE)            // isequal
-__SYCL_MAKE_CALL_ARG2_SAME(FUnordNotEqual, __FUNC_PREFIX_CORE)       // isnotequal
-__SYCL_MAKE_CALL_ARG2_SAME(FOrdGreaterThan, __FUNC_PREFIX_CORE)      // isgreater
-__SYCL_MAKE_CALL_ARG2_SAME(FOrdGreaterThanEqual, __FUNC_PREFIX_CORE) // isgreaterequal
-__SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThan, __FUNC_PREFIX_CORE)         // isless
-__SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThanEqual, __FUNC_PREFIX_CORE)    // islessequal
-__SYCL_MAKE_CALL_ARG2_SAME(LessOrGreater, __FUNC_PREFIX_CORE)        // islessgreater
-__SYCL_MAKE_CALL_ARG1(IsFinite, __FUNC_PREFIX_CORE)             // isfinite
-__SYCL_MAKE_CALL_ARG1(IsInf, __FUNC_PREFIX_CORE)                // isinf
-__SYCL_MAKE_CALL_ARG1(IsNan, __FUNC_PREFIX_CORE)                // isnan
-__SYCL_MAKE_CALL_ARG1(IsNormal, __FUNC_PREFIX_CORE)             // isnormal
-__SYCL_MAKE_CALL_ARG2_SAME(Ordered, __FUNC_PREFIX_CORE)         // isordered
-__SYCL_MAKE_CALL_ARG2_SAME(Unordered, __FUNC_PREFIX_CORE)       // isunordered
-__SYCL_MAKE_CALL_ARG1(SignBitSet, __FUNC_PREFIX_CORE)           // signbit
-__SYCL_MAKE_CALL_ARG1(Any, __FUNC_PREFIX_CORE)                  // any
-__SYCL_MAKE_CALL_ARG1(All, __FUNC_PREFIX_CORE)                  // all
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdEqual, __FUNC_PREFIX_CORE)       // isequal
+__SYCL_MAKE_CALL_ARG2_SAME(FUnordNotEqual, __FUNC_PREFIX_CORE)  // isnotequal
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdGreaterThan, __FUNC_PREFIX_CORE) // isgreater
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdGreaterThanEqual,
+                           __FUNC_PREFIX_CORE)               // isgreaterequal
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThan, __FUNC_PREFIX_CORE) // isless
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThanEqual, __FUNC_PREFIX_CORE) // islessequal
+__SYCL_MAKE_CALL_ARG2_SAME(LessOrGreater, __FUNC_PREFIX_CORE) // islessgreater
+__SYCL_MAKE_CALL_ARG1(IsFinite, __FUNC_PREFIX_CORE)           // isfinite
+__SYCL_MAKE_CALL_ARG1(IsInf, __FUNC_PREFIX_CORE)              // isinf
+__SYCL_MAKE_CALL_ARG1(IsNan, __FUNC_PREFIX_CORE)              // isnan
+__SYCL_MAKE_CALL_ARG1(IsNormal, __FUNC_PREFIX_CORE)           // isnormal
+__SYCL_MAKE_CALL_ARG2_SAME(Ordered, __FUNC_PREFIX_CORE)       // isordered
+__SYCL_MAKE_CALL_ARG2_SAME(Unordered, __FUNC_PREFIX_CORE)     // isunordered
+__SYCL_MAKE_CALL_ARG1(SignBitSet, __FUNC_PREFIX_CORE)         // signbit
+__SYCL_MAKE_CALL_ARG1(Any, __FUNC_PREFIX_CORE)                // any
+__SYCL_MAKE_CALL_ARG1(All, __FUNC_PREFIX_CORE)                // all
 __SYCL_MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #ifndef __SYCL_DEVICE_ONLY__

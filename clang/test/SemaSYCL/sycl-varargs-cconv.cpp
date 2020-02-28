@@ -9,7 +9,7 @@
 #if defined(PRINTF_INVALID_DECL)
 extern "C" SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 namespace A {
-  SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
+SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 }
 #elif defined(PRINTF_INVALID_DEF)
 int __spirv_ocl_printf(const char *__format, ...) {
@@ -23,10 +23,10 @@ SYCL_EXTERNAL
 int __spirv_ocl_printf(const char *__format, ...);
 #elif defined(PRINTF_VALID2)
 extern "C" {
-  extern "C++" {
-    SYCL_EXTERNAL
-    int __spirv_ocl_printf(const char *__format, ...);
-  }
+extern "C++" {
+SYCL_EXTERNAL
+int __spirv_ocl_printf(const char *__format, ...);
+}
 }
 #else
 SYCL_EXTERNAL
@@ -38,7 +38,7 @@ SYCL_EXTERNAL int __cdecl foo(int, ...); // expected-no-error
 float bar(float f, ...) { return ++f; } // expected-no-error
 
 void bar() {
-  foo(5); // expected-no-error
+  foo(5);    // expected-no-error
   bar(7.0f); // expected-no-error
 }
 
