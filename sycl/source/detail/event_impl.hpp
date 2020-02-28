@@ -25,6 +25,7 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+class Command;
 
 class event_impl {
 public:
@@ -132,12 +133,12 @@ public:
   /// Returns command that is associated with the event.
   ///
   /// @return a generic pointer to Command object instance.
-  void *getCommand() { return MCommand; }
+  Command *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
   ///
   /// @param Command is a generic pointer to Command object instance.
-  void setCommand(void *Command) { MCommand = Command; }
+  void setCommand(Command *Command) { MCommand = Command; }
 
   /// Returns host profiling information.
   ///
@@ -151,7 +152,7 @@ private:
   bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
-  void *MCommand = nullptr;
+  Command *MCommand = nullptr;
 };
 
 } // namespace detail
