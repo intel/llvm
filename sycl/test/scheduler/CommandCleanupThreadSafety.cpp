@@ -26,7 +26,8 @@ int main() {
 
   // Create multiple commands, each one dependent on the previous
   std::vector<event> Events;
-  for (std::size_t I = 0; I < 16; ++I)
+  const std::size_t NTasks = 16;
+  for (std::size_t I = 0; I < NTasks; ++I)
     Events.push_back(submitTask(Q, Buf));
 
   // Initiate cleanup from multiple threads
