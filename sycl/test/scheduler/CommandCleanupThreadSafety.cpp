@@ -1,3 +1,4 @@
+// UNSUPPORTED: windows
 // RUN: %clangxx -fsycl %s -o %t.out -lpthread
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 #include <CL/sycl.hpp>
