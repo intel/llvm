@@ -1,7 +1,7 @@
+// The following runs only uses -Wno-sycl-strict to bypass SYCL_EXTERNAL applied
+// to funtion with raw pointer parameter
 // RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only -DPRINTF_INVALID_DEF %s
-// The following run only uses -Wno-sycl-strict to bypass SYCL_EXTERNAL applied
-// to funtion with raw pointer parameter
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_INVALID_DECL %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID1 %s
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID2 %s
