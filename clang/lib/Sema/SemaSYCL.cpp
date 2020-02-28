@@ -1478,8 +1478,9 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
-  DeviceDiagBuilder(DiagKind, Callee->getLocation(),
-                    diag::note_previous_decl, Caller, *this) << Callee;
+  DeviceDiagBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
+                    Caller, *this)
+      << Callee;
 
   return DiagKind != DeviceDiagBuilder::K_Immediate &&
          DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
@@ -1527,7 +1528,7 @@ void Sema::finalizeSYCLDelayedAnalysis() {
 
   llvm::DenseSet<const FunctionDecl *> Checked;
 
-  for (const auto &EmittedWithLoc: DeviceKnownEmittedFns) {
+  for (const auto &EmittedWithLoc : DeviceKnownEmittedFns) {
     const FunctionDecl *Caller = EmittedWithLoc.getSecond().FD;
     const SourceLocation &Loc = EmittedWithLoc.getSecond().Loc;
     const FunctionDecl *Callee = EmittedWithLoc.getFirst();
