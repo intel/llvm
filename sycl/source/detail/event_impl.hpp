@@ -133,12 +133,12 @@ public:
   /// Returns command that is associated with the event.
   ///
   /// @return a generic pointer to Command object instance.
-  Command *getCommand() { return MCommand; }
+  void *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
   ///
   /// @param Command is a generic pointer to Command object instance.
-  void setCommand(Command *Command) { MCommand = Command; }
+  void setCommand(void *Command) { MCommand = Command; }
 
   /// Returns host profiling information.
   ///
@@ -152,7 +152,7 @@ private:
   bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
-  Command *MCommand = nullptr;
+  void *MCommand = nullptr;
 };
 
 } // namespace detail
