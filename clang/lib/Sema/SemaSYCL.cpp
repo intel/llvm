@@ -322,7 +322,7 @@ public:
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *E) {
-    Decl* D = E->getDecl();
+    Decl *D = E->getDecl();
     if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
 
@@ -330,7 +330,7 @@ public:
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
       if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-               !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
+          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
         if (VD->getTLSKind() != VarDecl::TLS_None)
           SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
