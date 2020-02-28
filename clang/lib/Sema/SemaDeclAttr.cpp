@@ -4485,24 +4485,6 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtMostNumArgs(S, AL, 1))
-    return;
-
-  unsigned int Mask = 0;
-  llvm::SmallVector<StringRef, 4> Opts;
-  for (size_t Idx = 0; Idx < AL.getNumArgs(); ++Idx) {
-    llvm::StringRef Opt;
-    if (!S.checkStringLiteralArgumentAttr(AL, Idx, Opt))
-      return;
-
-    if (Opt.equals(SYCLDeviceAttr::RawPtrFnOpt))
-      Mask |= SYCLDeviceAttr::RawPtrFnBit;
-
-    Opts.push_back(Opt);
-  }
-
-  const bool IsRawPtrFnType = !!(Mask & SYCLDeviceAttr::RawPtrFnBit);
-
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
     S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
@@ -4514,24 +4496,18 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         << AL << 1 /* class member function */;
     return;
   }
-  if (!IsRawPtrFnType && FD->getReturnType()->isPointerType()) {
+  if (FD->getReturnType()->isPointerType()) {
     S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
         << AL << 0 /* function with a raw pointer return type */;
   }
-  if (!IsRawPtrFnType)
-    for (const ParmVarDecl *Param : FD->parameters())
-      if (Param->getType()->isPointerType()) {
-        S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
-            << AL << 1 /* function with a raw pointer parameter type */;
-      }
+  for (const ParmVarDecl *Param : FD->parameters())
+    if (Param->getType()->isPointerType()) {
+      S.Diag(AL.getLoc(), diag::warn_sycl_attibute_function_raw_ptr)
+          << AL << 1 /* function with a raw pointer parameter type */;
+    }
 
   S.addSyclDeviceDecl(D);
-
-  SYCLDeviceAttr *A = ::new (S.Context)
-      SYCLDeviceAttr(S.Context, AL, Opts.data(), Opts.size());
-  A->Mask = Mask;
-
-  D->addAttr(A);
+  handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
 }
 
 static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
@@ -4549,8 +4525,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
   }
 
   S.addSyclDeviceDecl(D);
-  D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context,
-                                            nullptr, 0));
+  D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context));
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
 

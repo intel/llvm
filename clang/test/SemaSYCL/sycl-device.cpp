@@ -9,6 +9,9 @@
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
 int N;
 
+__attribute__((sycl_device(3))) // expected-error {{'sycl_device' attribute takes no arguments}}
+void bar() {}
+
 __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a static function or function in an anonymous namespace}}
 static void func1() {}
 
@@ -45,17 +48,8 @@ __attribute__((sycl_device)) // expected-error {{SYCL 1.2.1 specification does n
 void func3(int *) {}
 #endif
 
-__attribute__((sycl_device("raw_ptr_fn")))
-void func4(int *) {}
-
-__attribute__((sycl_device("raw_ptr_fn")))
-int *func5(int *) {}
-
 #else // NO_SYCL
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
 void baz() {}
-
-__attribute__((sycl_device(1))) // expected-warning {{'sycl_device' attribute ignored}}
-void baz2() {}
 
 #endif // NO_SYCL

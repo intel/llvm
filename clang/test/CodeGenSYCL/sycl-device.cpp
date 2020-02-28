@@ -17,10 +17,6 @@ int far(int b) { return b; }
 __attribute__((sycl_device))
 int boo(int a, int b) { return a + far(b); }
 
-// CHECK-DAG: define spir_func i32 @_Z10booWithPtrPiS
-__attribute__((sycl_device("raw_ptr_fn")))
-int booWithPtr(int* a, int* b) { return *a + far(*b); }
-
 // CHECK-DAG: define spir_func i32 @_Z3cari
 __attribute__((sycl_device))
 int car(int b);

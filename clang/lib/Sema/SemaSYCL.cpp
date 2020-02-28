@@ -236,8 +236,7 @@ public:
 
       if (FunctionDecl *Def = Callee->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
-          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context,
-                                                      nullptr, 0));
+          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
           SemaRef.addSyclDeviceDecl(Def);
         }
       }
@@ -276,8 +275,7 @@ public:
     CXXConstructorDecl *Ctor = E->getConstructor();
 
     if (FunctionDecl *Def = Ctor->getDefinition()) {
-      Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context,
-                                                  nullptr, 0));
+      Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
       SemaRef.addSyclDeviceDecl(Def);
     }
 
@@ -286,8 +284,7 @@ public:
       CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
 
       if (FunctionDecl *Def = Dtor->getDefinition()) {
-        Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context,
-                                                    nullptr, 0));
+        Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(Def);
       }
     }
@@ -353,8 +350,7 @@ public:
             << Sema::KernelGlobalVariable;
       }
       if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
-        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context,
-                                                   nullptr, 0));
+        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(VD);
       }
     }
@@ -372,8 +368,7 @@ public:
     if (FunctionDecl *FD = E->getOperatorNew()) {
       if (FunctionDecl *Def = FD->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
-          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context,
-                                                      nullptr, 0));
+          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
           SemaRef.addSyclDeviceDecl(Def);
         }
       }
@@ -1267,8 +1262,7 @@ CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
   }
   OpenCLKernel->setParams(Params);
 
-  OpenCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context,
-                                                       nullptr, 0));
+  OpenCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
   OpenCLKernel->addAttr(ArtificialAttr::CreateImplicit(Context));
@@ -1424,8 +1418,7 @@ void Sema::MarkDevice(void) {
   for (const auto &elt : Marker.KernelSet) {
     if (FunctionDecl *Def = elt->getDefinition()) {
       if (!Def->hasAttr<SYCLDeviceAttr>()) {
-        Def->addAttr(SYCLDeviceAttr::CreateImplicit(Context,
-                                                    nullptr, 0));
+        Def->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
         addSyclDeviceDecl(Def);
       }
       Marker.TraverseStmt(Def->getBody());
