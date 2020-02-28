@@ -6759,10 +6759,16 @@ const char *Clang::getDependencyFileName(const ArgList &Args,
                                          const InputInfoList &Inputs) {
   // FIXME: Think about this more.
 
-  if (Arg *OutputOpt = Args.getLastArg(options::OPT_o)) {
-    SmallString<128> OutputFilename(OutputOpt->getValue());
+  auto makeDepName = [&](Arg *OutOpt) {
+    SmallString<128> OutputFilename(OutOpt->getValue());
     llvm::sys::path::replace_extension(OutputFilename, llvm::Twine('d'));
     return Args.MakeArgString(OutputFilename);
+  };
+  if (Arg *OutputOpt = Args.getLastArg(options::OPT_o)) {
+    return makeDepName(OutputOpt);
+  }
+  if (Arg *OutputOpt = Args.getLastArg(options::OPT__SLASH_Fo)) {
+    return makeDepName(OutputOpt);
   }
 
   return Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
