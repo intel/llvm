@@ -2948,7 +2948,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 template <>
-void handleWorkGroupSize<ReqdWorkGroupSizeAttr>(Sema &S, Decl *D, const ParsedAttr &AL) {
+void handleWorkGroupSize<ReqdWorkGroupSizeAttr>(Sema &S, Decl *D,
+                                                const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
@@ -2969,17 +2970,16 @@ void handleWorkGroupSize<ReqdWorkGroupSizeAttr>(Sema &S, Decl *D, const ParsedAt
     return;
 
   ReqdWorkGroupSizeAttr *Existing = D->getAttr<ReqdWorkGroupSizeAttr>();
-  if (Existing && !(Existing->getXDim() == WGSize[0] &&
-                    Existing->getYDim() == WGSize[1] &&
-                    Existing->getZDim() == WGSize[2]))
+  if (Existing &&
+      !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
+        Existing->getZDim() == WGSize[2]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-  if (S.getLangOpts().SYCLIsDevice){
-  D->addAttr(::new (S.Context)
-                 ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[2], WGSize[1], WGSize[0]));
-  }
-  else{
-  D->addAttr(::new (S.Context)
-                 ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));
+  if (S.getLangOpts().SYCLIsDevice) {
+    D->addAttr(::new (S.Context) ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[2],
+                                                       WGSize[1], WGSize[0]));
+  } else {
+    D->addAttr(::new (S.Context) ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[0],
+                                                       WGSize[1], WGSize[2]));
   }
 }
 
