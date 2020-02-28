@@ -25,7 +25,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
-class Command;
 
 class event_impl {
 public:
