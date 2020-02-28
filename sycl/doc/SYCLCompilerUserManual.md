@@ -112,7 +112,15 @@ your application.
 
 **`-fintelfpga`**
 
-    Perform ahead of time compilation for FPGA.
+    Perform ahead of time compilation for Intel FPGA, which relies on the external tool `aoc`
+    being available in the `PATH`.
+
+    This option is roughly equivalent to `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -g -MMD -lOpenCL`.
+
+    It is incompatible with `-fsycl-targets=...`; if ahead of time compilation
+    is needed for multiple backends (e.g. Intel FPGA, Intel GPU, etc.), the
+    alternative form based on `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice`
+    should be used instead.
 
 **`-fsycl-link=<value>`**
 
