@@ -123,10 +123,15 @@ should be used.
 
 There is experimental support for DPC++ for CUDA devices.
 
-To enable support for CUDA devices, the following arguments need to be added to
-the CMake command when building the DPC++ compiler.
+To enable support for CUDA devices, follow the instructions for the Linux
+DPC++ toolchain, but replace the cmake command with the following one:
+
 
 ```
+cmake -DCMAKE_BUILD_TYPE=Release \
+-DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
+-DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/llvm/sycl \
+-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
 -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
 -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc" \
 -DSYCL_BUILD_PI_CUDA=ON \
@@ -144,6 +149,24 @@ a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above.
 
 # Use DPC++ toolchain
+
+## Using the SYCL toolchain on CUDA platforms
+
+The SYCL toolchain support on CUDA platforms is still in an experimental phase.
+Currently, the SYCL toolchain relies on having a recent OpenCL implementation
+on the system in order to link applications to the SYCL runtime.
+The OpenCL implementation is not used at runtime if only the CUDA backend is 
+used in the application, but must be installed.
+
+The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
+too old to link with the SYCL runtime and lacks some symbols.
+
+We recommend installing the low level CPU runtime, following the instructions 
+in the next section.
+
+Instead of installing the low level CPU runtime, it is possible to build and 
+install the [Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader), 
+which contains all the symbols required.
 
 ## Install low level runtime
 
@@ -261,6 +284,9 @@ ninja check-all
 
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
 skipped.
+
+If CUDA support has been built, it is tested only if there are CUDA devices 
+available.
 
 ### Run Khronos\* SYCL\* conformance test suite (optional)
 
@@ -394,6 +420,19 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
 This `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
+In this case, the behaviour of the `default_selector` can be altered 
+using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
+the usage of the CUDA backend (if available), `PI_OPENCL` will
+force the usage of the OpenCL backend.
+
+```bash
+SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+```
+
+The default is the OpenCL backend if available.
+If there are no OpenCL or CUDA devices available, the SYCL host device is used.
+The SYCL host device executes the SYCL application directly in the host,
+without using any low-level API.
 
 Note: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
@@ -403,6 +442,7 @@ if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
 ./simple-sycl-app.exe
 The results are correct!
 ```
+
 **Note**:
 Currently, when the application has been built with the CUDA target, the CUDA
 backend must be selected at runtime using the `SYCL_BE` environment variable.
@@ -411,7 +451,7 @@ backend must be selected at runtime using the `SYCL_BE` environment variable.
 SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
-NOTE: DPC++/SYCL developer can specify SYCL device for execution using device
+NOTE: DPC++/SYCL developers can specify SYCL device for execution using device
 selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
 [Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
 explained in following section [Code the program for a specific
