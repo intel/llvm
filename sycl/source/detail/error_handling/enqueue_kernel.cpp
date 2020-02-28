@@ -161,7 +161,7 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   }
 
   // TODO: required number of sub-groups, OpenCL 2.1:
-  // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
+  // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
   // consistent with the required number of sub-groups for kernel in the
   // program source.
 
@@ -224,12 +224,12 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
       nullptr);
   for (int i = 0; i < NDRDesc.Dims; i++) {
     if (NDRDesc.LocalSize[i] > MaxWISize[i])
-      throw sycl::nd_range_error("Number of local work group number " +
-                                     std::to_string(i) +
-                                     " greater then corresponding values"
-                                     "PI_DEVISE_MAX_WORK_SIZE",
-                                 PI_INVALID_WORK_ITEM_SIZE);
+      throw sycl::nd_range_error(
+          "Number of work-items in a work-group exceed limit for dimension "
+          "{i}: {NDRDesc.LocalSize[i]} > {MaxWISize[i]}",
+          PI_INVALID_WORK_ITEM_SIZE);
   }
+  return 0;
 }
 
 bool handleError(pi_result Error, const device_impl &DeviceImpl,
