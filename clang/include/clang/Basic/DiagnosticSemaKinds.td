@@ -10626,7 +10626,7 @@ def err_sycl_kernel_name_class_not_top_level : Error<
  "nest in a namespace: %0">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
-"%select{use a global variable"
+"%select{use a non-const global variable"
   "|use rtti"
   "|use a non-const static data variable"
   "|call a virtual function"
