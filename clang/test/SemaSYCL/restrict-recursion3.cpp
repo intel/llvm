@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -Wno-sycl-strict -verify -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.
@@ -17,7 +17,7 @@ using myFuncDef = int(int,int);
 
 typedef __typeof__(sizeof(int)) size_t;
 
-__SYCL_EXTERNAL_WITH_PTR__
+SYCL_EXTERNAL
 void* operator new(size_t);
 
 void usage3(myFuncDef functionPtr) {

@@ -1109,10 +1109,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
-    Builder.defineMacro("__SYCL_EXTERNAL_WITH_PTR__",
-                        "__attribute__((sycl_device))"
-                        //"__attribute__((sycl_device(\"raw_ptr_fn\")))"
-                        );
 
     if (TI.getTriple().isNVPTX()) {
         Builder.defineMacro("__SYCL_NVPTX__", "1");

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 -DSYCL_STRICT %s
 // RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 // RUN: %clang_cc1 -fcxx-exceptions -triple spir64 -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 
@@ -8,8 +8,11 @@ namespace std {
   typedef __typeof__(sizeof(int)) size_t;
 }
 
-__SYCL_EXTERNAL_WITH_PTR__
-void* operator new(std::size_t);
+// we're testing a restricted mode, thus just provide a stub implementation for
+// function with address-space-unspecified pointers.
+void* operator new(std::size_t) {
+  return reinterpret_cast<void *>(1);
+}
 
 namespace Check_User_Operators {
 class Fraction
