@@ -125,7 +125,7 @@ for.end27:                                        ; preds = %for.cond20
   br label %for.cond29
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; LoopControlInitiationIntervalINTEL & MaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
+; LoopControlInitiationIntervalINTEL & LoopControlMaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
 ; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 ; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond29:                                       ; preds = %for.inc34, %for.end27
