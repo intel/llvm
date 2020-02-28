@@ -4,7 +4,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks if the user-defined macros SUCCESS is
 // conflicting with the symbols defined in SYCL header files.
-// This test only checks compilation errorr, so the main function is omitted.
+// This test only checks compilation error, so the main function is omitted.
 //===----------------------------------------------------------------------===//
 
 #define SUCCESS 0
