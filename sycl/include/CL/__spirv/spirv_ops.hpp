@@ -31,12 +31,12 @@ template <class RetT, typename ImageT, typename TempArgT>
 extern SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
 
 template <typename ImageT, typename SampledType>
-extern SYCL_EXTERNAL
-    SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
+extern SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
 
 template <typename SampledType, typename TempRetT, typename TempArgT>
-extern SYCL_EXTERNAL TempRetT
-__spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, float);
+extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
+                                                             TempArgT, int,
+                                                             float);
 
 #ifdef __SYCL_NVPTX__
 
@@ -73,8 +73,8 @@ __ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
 template <typename dataT>
 extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
     __spv::Scope Execution, __attribute__((opencl_local)) dataT *Dest,
-    __attribute__((opencl_global)) dataT *Src, size_t NumElements, size_t Stride,
-    __ocl_event_t E) noexcept;
+    __attribute__((opencl_global)) dataT *Src, size_t NumElements,
+    size_t Stride, __ocl_event_t E) noexcept;
 
 template <typename dataT>
 extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
@@ -88,44 +88,44 @@ extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicLoad(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicLoad(                                \
       AS const Type *P, __spv::Scope S, __spv::MemorySemanticsMask O);
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
-  extern SYCL_EXTERNAL void __spirv_AtomicStore(                  \
+  extern SYCL_EXTERNAL void __spirv_AtomicStore(                               \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
-  extern SYCL_EXTERNAL Type __spirv_AtomicExchange(               \
+  extern SYCL_EXTERNAL Type __spirv_AtomicExchange(                            \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
-  extern SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(        \
+  extern SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(                     \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask E,                \
       __spv::MemorySemanticsMask U, Type V, Type C);
 #define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicIAdd(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicIAdd(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicISub(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicISub(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicSMin(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicSMin(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicUMin(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicUMin(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicSMax(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicSMax(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
-  extern SYCL_EXTERNAL Type __spirv_AtomicUMax(                   \
+  extern SYCL_EXTERNAL Type __spirv_AtomicUMax(                                \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
-  extern SYCL_EXTERNAL Type __spirv_AtomicAnd(                    \
+  extern SYCL_EXTERNAL Type __spirv_AtomicAnd(                                 \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_OR(AS, Type)                                            \
-  extern SYCL_EXTERNAL Type __spirv_AtomicOr(                     \
+  extern SYCL_EXTERNAL Type __spirv_AtomicOr(                                  \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 #define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
-  extern SYCL_EXTERNAL Type __spirv_AtomicXor(                    \
+  extern SYCL_EXTERNAL Type __spirv_AtomicXor(                                 \
       AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
@@ -182,49 +182,58 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
-extern SYCL_EXTERNAL bool
-__spirv_GroupAll(__spv::Scope Execution, bool Predicate) noexcept;
+extern SYCL_EXTERNAL bool __spirv_GroupAll(__spv::Scope Execution,
+                                           bool Predicate) noexcept;
 
-extern SYCL_EXTERNAL bool
-__spirv_GroupAny(__spv::Scope Execution, bool Predicate) noexcept;
-
-template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupBroadcast(
-    __spv::Scope Execution, dataT Value, uint32_t LocalId) noexcept;
+extern SYCL_EXTERNAL bool __spirv_GroupAny(__spv::Scope Execution,
+                                           bool Predicate) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL
-dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
-                             __ocl_vec_t<size_t, 2> LocalId) noexcept;
-template <typename dataT>
-extern SYCL_EXTERNAL
-dataT __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
-                             __ocl_vec_t<size_t, 3> LocalId) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupBroadcast(__spv::Scope Execution,
+                                                  dataT Value,
+                                                  uint32_t LocalId) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupIAdd(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT
+__spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                       __ocl_vec_t<size_t, 2> LocalId) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFAdd(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT
+__spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
+                       __ocl_vec_t<size_t, 3> LocalId) noexcept;
+
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupUMin(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupIAdd(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupSMin(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupFAdd(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFMin(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupUMin(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupUMax(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupSMin(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupSMax(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupFMin(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFMax(
-    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
+extern SYCL_EXTERNAL dataT __spirv_GroupUMax(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
+template <typename dataT>
+extern SYCL_EXTERNAL dataT __spirv_GroupSMax(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
+template <typename dataT>
+extern SYCL_EXTERNAL dataT __spirv_GroupFMax(__spv::Scope Execution,
+                                             __spv::GroupOperation Op,
+                                             dataT Value) noexcept;
 template <typename dataT>
 extern SYCL_EXTERNAL dataT
 __spirv_SubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
@@ -266,12 +275,13 @@ __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL int32_t __spirv_ReadPipe(
-    RPipeTy<dataT> Pipe, dataT *Data, int32_t Size, int32_t Alignment) noexcept;
+extern SYCL_EXTERNAL int32_t __spirv_ReadPipe(RPipeTy<dataT> Pipe, dataT *Data,
+                                              int32_t Size,
+                                              int32_t Alignment) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL int32_t
-__spirv_WritePipe(WPipeTy<dataT> Pipe, const dataT *Data, int32_t Size,
-                  int32_t Alignment) noexcept;
+extern SYCL_EXTERNAL int32_t __spirv_WritePipe(WPipeTy<dataT> Pipe,
+                                               const dataT *Data, int32_t Size,
+                                               int32_t Alignment) noexcept;
 template <typename dataT>
 extern SYCL_EXTERNAL void
 __spirv_ReadPipeBlockingINTEL(RPipeTy<dataT> Pipe, dataT *Data, int32_t Size,
@@ -281,12 +291,10 @@ extern SYCL_EXTERNAL void
 __spirv_WritePipeBlockingINTEL(WPipeTy<dataT> Pipe, const dataT *Data,
                                int32_t Size, int32_t Alignment) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL RPipeTy<dataT>
-__spirv_CreatePipeFromPipeStorage_read(
+extern SYCL_EXTERNAL RPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_read(
     const ConstantPipeStorage *Storage) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL WPipeTy<dataT>
-__spirv_CreatePipeFromPipeStorage_write(
+extern SYCL_EXTERNAL WPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_write(
     const ConstantPipeStorage *Storage) noexcept;
 
 extern SYCL_EXTERNAL void
@@ -335,20 +343,16 @@ __SPIRV_COMPARISON(LessOrGreater)
 
 #undef __SPIRV_COMPARISON
 
-template <typename RetT, typename T>
-extern SYCL_EXTERNAL RetT __spirv_Any(T);
+template <typename RetT, typename T> extern SYCL_EXTERNAL RetT __spirv_Any(T);
 
-template <typename RetT, typename T>
-extern SYCL_EXTERNAL RetT __spirv_All(T);
+template <typename RetT, typename T> extern SYCL_EXTERNAL RetT __spirv_All(T);
 
 template <typename RetT, typename T>
 extern SYCL_EXTERNAL RetT __spirv_IsFinite(T);
 
-template <typename RetT, typename T>
-extern SYCL_EXTERNAL RetT __spirv_IsInf(T);
+template <typename RetT, typename T> extern SYCL_EXTERNAL RetT __spirv_IsInf(T);
 
-template <typename RetT, typename T>
-extern SYCL_EXTERNAL RetT __spirv_IsNan(T);
+template <typename RetT, typename T> extern SYCL_EXTERNAL RetT __spirv_IsNan(T);
 
 template <typename RetT, typename T>
 extern SYCL_EXTERNAL RetT __spirv_IsNormal(T);
@@ -561,12 +565,12 @@ extern void __spirv_ocl_prefetch(const char *Ptr, size_t NumBytes) noexcept;
 
 #endif // !__SYCL_DEVICE_ONLY__
 
-extern SYCL_EXTERNAL void
-__spirv_ControlBarrier(__spv::Scope Execution, __spv::Scope Memory,
-                       uint32_t Semantics) noexcept;
+extern SYCL_EXTERNAL void __spirv_ControlBarrier(__spv::Scope Execution,
+                                                 __spv::Scope Memory,
+                                                 uint32_t Semantics) noexcept;
 
-extern SYCL_EXTERNAL void
-__spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept;
+extern SYCL_EXTERNAL void __spirv_MemoryBarrier(__spv::Scope Memory,
+                                                uint32_t Semantics) noexcept;
 
 extern SYCL_EXTERNAL void
 __spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
