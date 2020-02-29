@@ -46,6 +46,7 @@ pi_result cuda_piKernelRelease(pi_kernel);
 }
 
 struct _pi_platform {
+  std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
 struct _pi_device {

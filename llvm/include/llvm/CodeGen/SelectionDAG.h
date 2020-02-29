@@ -1209,13 +1209,6 @@ public:
                            ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
                            ISD::MemIndexType IndexType);
 
-  /// Return (create a new or find existing) a target-specific node.
-  /// TargetMemSDNode should be derived class from MemSDNode.
-  template <class TargetMemSDNode>
-  SDValue getTargetMemSDNode(SDVTList VTs, ArrayRef<SDValue> Ops,
-                             const SDLoc &dl, EVT MemVT,
-                             MachineMemOperand *MMO);
-
   /// Construct a node to track a Value* through the backend.
   SDValue getSrcValue(const Value *v);
 
@@ -1510,10 +1503,6 @@ public:
   SDValue FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
                                  ArrayRef<SDValue> Ops);
 
-  SDValue FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
-                                 const ConstantSDNode *C1,
-                                 const ConstantSDNode *C2);
-
   SDValue FoldConstantVectorArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
                                        ArrayRef<SDValue> Ops,
                                        const SDNodeFlags Flags = SDNodeFlags());
@@ -1670,6 +1659,23 @@ public:
   /// If V is a splat vector, return its scalar source operand by extracting
   /// that element from the source vector.
   SDValue getSplatValue(SDValue V);
+
+  /// If a SHL/SRA/SRL node \p V has a constant or splat constant shift amount
+  /// that is less than the element bit-width of the shift node, return it.
+  const APInt *getValidShiftAmountConstant(SDValue V,
+                                           const APInt &DemandedElts) const;
+
+  /// If a SHL/SRA/SRL node \p V has constant shift amounts that are all less
+  /// than the element bit-width of the shift node, return the minimum value.
+  const APInt *
+  getValidMinimumShiftAmountConstant(SDValue V,
+                                     const APInt &DemandedElts) const;
+
+  /// If a SHL/SRA/SRL node \p V has constant shift amounts that are all less
+  /// than the element bit-width of the shift node, return the maximum value.
+  const APInt *
+  getValidMaximumShiftAmountConstant(SDValue V,
+                                     const APInt &DemandedElts) const;
 
   /// Match a binop + shuffle pyramid that represents a horizontal reduction
   /// over the elements of a vector starting from the EXTRACT_VECTOR_ELT node /p
@@ -1838,41 +1844,6 @@ template <> struct GraphTraits<SelectionDAG*> : public GraphTraits<SDNode*> {
     return nodes_iterator(G->allnodes_end());
   }
 };
-
-template <class TargetMemSDNode>
-SDValue SelectionDAG::getTargetMemSDNode(SDVTList VTs,
-                                         ArrayRef<SDValue> Ops,
-                                         const SDLoc &dl, EVT MemVT,
-                                         MachineMemOperand *MMO) {
-  /// Compose node ID and try to find an existing node.
-  FoldingSetNodeID ID;
-  unsigned Opcode =
-    TargetMemSDNode(dl.getIROrder(), DebugLoc(), VTs, MemVT, MMO).getOpcode();
-  ID.AddInteger(Opcode);
-  ID.AddPointer(VTs.VTs);
-  for (auto& Op : Ops) {
-    ID.AddPointer(Op.getNode());
-    ID.AddInteger(Op.getResNo());
-  }
-  ID.AddInteger(MemVT.getRawBits());
-  ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
-  ID.AddInteger(getSyntheticNodeSubclassData<TargetMemSDNode>(
-    dl.getIROrder(), VTs, MemVT, MMO));
-
-  void *IP = nullptr;
-  if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
-    cast<TargetMemSDNode>(E)->refineAlignment(MMO);
-    return SDValue(E, 0);
-  }
-
-  /// Existing node was not found. Create a new one.
-  auto *N = newSDNode<TargetMemSDNode>(dl.getIROrder(), dl.getDebugLoc(), VTs,
-                                       MemVT, MMO);
-  createOperands(N, Ops);
-  CSEMap.InsertNode(N, IP);
-  InsertNode(N);
-  return SDValue(N, 0);
-}
 
 } // end namespace llvm
 

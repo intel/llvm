@@ -1867,6 +1867,11 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (CheckIntelFPGAMemBuiltinFunctionCall(TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_frame_address:
+  case Builtin::BI__builtin_return_address:
+    if (SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
+      return ExprError();
+    break;
   }
 
   // Since the target specific builtins for each arch overlap, only check those
@@ -4023,11 +4028,9 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     if (!Arg->isValueDependent()) {
       llvm::APSInt I(64);
       if (Arg->isIntegerConstantExpr(I, Context)) {
-        if (!I.isPowerOf2()) {
-          Diag(Arg->getExprLoc(), diag::err_alignment_not_power_of_two)
+        if (!I.isPowerOf2())
+          Diag(Arg->getExprLoc(), diag::warn_alignment_not_power_of_two)
               << Arg->getSourceRange();
-          return;
-        }
 
         if (I > Sema::MaximumAlignment)
           Diag(Arg->getExprLoc(), diag::warn_assume_aligned_too_great)

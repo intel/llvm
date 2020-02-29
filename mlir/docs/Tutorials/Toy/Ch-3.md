@@ -22,7 +22,7 @@ rule-based pattern-match and rewrite using table-driven
 use of DRR requires that the operations be defined using ODS, as described in
 [Chapter 2](Ch-2.md).
 
-# Optimize Transpose using C++ style pattern-match and rewrite
+## Optimize Transpose using C++ style pattern-match and rewrite
 
 Let's start with a simple pattern and try to eliminate a sequence of two
 transpose that cancel out: `transpose(transpose(X)) -> X`. Here is the
@@ -38,9 +38,9 @@ Which corresponds to the following IR:
 
 ```mlir
 func @transpose_transpose(%arg0: tensor<*xf64>) -> tensor<*xf64> {
-  %0 = "toy.transpose"(%arg0) : (tensor<*xf64>) -> tensor<*xf64>
-  %1 = "toy.transpose"(%0) : (tensor<*xf64>) -> tensor<*xf64>
-  "toy.return"(%1) : (tensor<*xf64>) -> ()
+  %0 = toy.transpose(%arg0 : tensor<*xf64>) to tensor<*xf64>
+  %1 = toy.transpose(%0 : tensor<*xf64>) to tensor<*xf64>
+  toy.return %1 : tensor<*xf64>
 }
 ```
 
@@ -133,8 +133,8 @@ observe our pattern in action:
 
 ```mlir
 func @transpose_transpose(%arg0: tensor<*xf64>) -> tensor<*xf64> {
-  %0 = "toy.transpose"(%arg0) : (tensor<*xf64>) -> tensor<*xf64>
-  "toy.return"(%arg0) : (tensor<*xf64>) -> ()
+  %0 = toy.transpose(%arg0 : tensor<*xf64>) to tensor<*xf64>
+  toy.return %arg0 : tensor<*xf64>
 }
 ```
 
@@ -154,7 +154,7 @@ Let's retry now `toyc-ch3 test/transpose_transpose.toy -emit=mlir -opt`:
 
 ```mlir
 func @transpose_transpose(%arg0: tensor<*xf64>) -> tensor<*xf64> {
-  "toy.return"(%arg0) : (tensor<*xf64>) -> ()
+  toy.return %arg0 : tensor<*xf64>
 }
 ```
 
@@ -163,7 +163,7 @@ Perfect! No `transpose` operation is left - the code is optimal.
 In the next section, we use DRR for pattern match optimizations associated with
 the Reshape op.
 
-# Optimize Reshapes using DRR
+## Optimize Reshapes using DRR
 
 Declarative, rule-based pattern-match and rewrite (DRR) is an operation
 DAG-based declarative rewriter that provides a table-based syntax for
@@ -229,13 +229,12 @@ def main() {
 ```mlir
 module {
   func @main() {
-    %0 = "toy.constant"() {value = dense<[1.000000e+00, 2.000000e+00]> : tensor<2xf64>}
-                           : () -> tensor<2xf64>
-    %1 = "toy.reshape"(%0) : (tensor<2xf64>) -> tensor<2x1xf64>
-    %2 = "toy.reshape"(%1) : (tensor<2x1xf64>) -> tensor<2x1xf64>
-    %3 = "toy.reshape"(%2) : (tensor<2x1xf64>) -> tensor<2x1xf64>
-    "toy.print"(%3) : (tensor<2x1xf64>) -> ()
-    "toy.return"() : () -> ()
+    %0 = toy.constant dense<[1.000000e+00, 2.000000e+00]> : tensor<2xf64>
+    %1 = toy.reshape(%0 : tensor<2xf64>) to tensor<2x1xf64>
+    %2 = toy.reshape(%1 : tensor<2x1xf64>) to tensor<2x1xf64>
+    %3 = toy.reshape(%2 : tensor<2x1xf64>) to tensor<2x1xf64>
+    toy.print %3 : tensor<2x1xf64>
+    toy.return
   }
 }
 ```
@@ -246,10 +245,9 @@ our pattern in action:
 ```mlir
 module {
   func @main() {
-    %0 = "toy.constant"() {value = dense<[[1.000000e+00], [2.000000e+00]]> \
-                           : tensor<2x1xf64>} : () -> tensor<2x1xf64>
-    "toy.print"(%0) : (tensor<2x1xf64>) -> ()
-    "toy.return"() : () -> ()
+    %0 = toy.constant dense<[[1.000000e+00], [2.000000e+00]]> : tensor<2x1xf64>
+    toy.print %0 : tensor<2x1xf64>
+    toy.return
   }
 }
 ```

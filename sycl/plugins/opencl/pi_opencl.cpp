@@ -193,10 +193,10 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
 
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
-  // image is preferred over SPIRV for known devices (i.e. Intel devices)
+  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
   // The implementation makes no effort to differentiate between multiple images
   // for the given device, and simply picks the first one compatible
-  // Real implementaion will use the same mechanism OpenCL ICD dispatcher
+  // Real implementation will use the same mechanism OpenCL ICD dispatcher
   // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
   //     return context->dispatch->piextDeviceSelectIR(

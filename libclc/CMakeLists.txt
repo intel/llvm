@@ -22,6 +22,16 @@ else()
 endif()
 
 include( GNUInstallDirs )
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  amdgcn-amdhsa/lib/SOURCES;
+  amdgcn/lib/SOURCES;
+  amdgcn-mesa3d/lib/SOURCES;
+  amdgpu/lib/SOURCES;
+  generic/lib/SOURCES;
+  ptx/lib/SOURCES;
+  ptx-nvidiacl/lib/SOURCES;
+  r600/lib/SOURCES
+)
 
 include( AddLibclc )
 
