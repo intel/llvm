@@ -1,30 +1,28 @@
-//==----- fallback-complex.cpp - complex math functions for SYCL device ----==//
+//==----- fallback-complex.cpp - complex math functions for SPIR-V device ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#ifdef __SYCL_DEVICE_ONLY__
+
 #include "device_math.h"
 #include "device_complex.h"
 #include <cmath>
-#ifdef __cplusplus
-extern "C" {
-#endif  // __cplusplus
-SYCL_EXTERNAL
+
+DEVICE_EXTERN_C
 float __devicelib_crealf(float __complex__ z) {
   return __real__(z);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __devicelib_cimagf(float __complex__ z) {
   return __imag__(z);
 }
 
 // __mulsc3
 // Returns: the product of a + ib and c + id
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib___mulsc3(float __a, float __b,
                                      float __c, float __d) {
   float __ac = __a * __c;
@@ -78,7 +76,7 @@ float __complex__ __devicelib___mulsc3(float __a, float __b,
 // Returns: the quotient of (a + ib) / (c + id)
 // FIXME: divsc3/divdc3 have overflow issue when dealing with large number.
 // And this overflow issue is from libc++/compiler-rt's implementation.
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib___divsc3(float __a, float __b,
                                      float __c, float __d) {
   int __ilogbw = 0;
@@ -120,19 +118,19 @@ float __complex__ __devicelib___divsc3(float __a, float __b,
   return z;
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __devicelib_cargf(float __complex__ z) {
   return __spirv_ocl_atan2(__devicelib_cimagf(z),
                            __devicelib_crealf(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __devicelib_cabsf(float __complex__ z) {
   return __spirv_ocl_hypot(__devicelib_crealf(z),
                            __devicelib_cimagf(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cprojf(float __complex__ z) {
   float __complex__ r = z;
   if (__spirv_IsInf(__devicelib_crealf(z)) ||
@@ -141,7 +139,7 @@ float __complex__ __devicelib_cprojf(float __complex__ z) {
   return r;
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cexpf(float __complex__ z) {
   float z_imag = __devicelib_cimagf(z);
   float z_real = __devicelib_crealf(z);
@@ -162,12 +160,12 @@ float __complex__ __devicelib_cexpf(float __complex__ z) {
                 (__e * __spirv_ocl_sin(z_imag)));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_clogf(float __complex__ z) {
   return CMPLXF(__spirv_ocl_log(__devicelib_cabsf(z)), __devicelib_cargf(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cpowf(float __complex__ x,
                                     float __complex__ y) {
   float __complex__ t = __devicelib_clogf(x);
@@ -178,7 +176,7 @@ float __complex__ __devicelib_cpowf(float __complex__ x,
   return __devicelib_cexpf(w);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cpolarf(float rho, float theta) {
   if (__spirv_IsNan(rho) || __spirv_SignBitSet(rho))
     return CMPLXF(NAN, NAN);
@@ -201,7 +199,7 @@ float __complex__ __devicelib_cpolarf(float rho, float theta) {
   return CMPLXF(x, y);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_csqrtf(float __complex__ z)
 {
   float z_real = __devicelib_crealf(z);
@@ -220,7 +218,7 @@ float __complex__ __devicelib_csqrtf(float __complex__ z)
                              __devicelib_cargf(z) / 2.0f);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_csinhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -234,7 +232,7 @@ float __complex__ __devicelib_csinhf(float __complex__ z) {
                 __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_ccoshf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -250,7 +248,7 @@ float __complex__ __devicelib_ccoshf(float __complex__ z) {
                 __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_ctanhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -272,27 +270,27 @@ float __complex__ __devicelib_ctanhf(float __complex__ z) {
   return CMPLXF(__2rsh/__d, __spirv_ocl_sin(__2i)/__d);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_csinf(float __complex__ z) {
   float __complex__ w = __devicelib_csinhf(CMPLXF(-__devicelib_cimagf(z),
                                                   __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_ccosf(float __complex__ z) {
   return __devicelib_ccoshf(CMPLXF(-__devicelib_cimagf(z),
                                    __devicelib_crealf(z)));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_ctanf(float __complex__ z) {
   float __complex__ w = __devicelib_ctanhf(CMPLXF(-__devicelib_cimagf(z),
                                                   __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __sqrf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -300,7 +298,7 @@ float __complex__ __sqrf(float __complex__ z) {
                 2.0 * z_real * z_imag);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cacosf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -335,7 +333,7 @@ float __complex__ __devicelib_cacosf(float __complex__ z) {
                 -__spirv_ocl_fabs(__devicelib_crealf(w)));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_casinhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -363,14 +361,14 @@ float __complex__ __devicelib_casinhf(float __complex__ z) {
                 __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_casinf(float __complex__ z) {
   float __complex__ w = __devicelib_casinhf(CMPLXF(-__devicelib_cimagf(z),
                                                   __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_cacoshf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -400,7 +398,7 @@ float __complex__ __devicelib_cacoshf(float __complex__ z) {
                 __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_catanhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
@@ -432,13 +430,9 @@ float __complex__ __devicelib_catanhf(float __complex__ z) {
                 __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 float __complex__ __devicelib_catanf(float __complex__ z) {
   float __complex__ w = __devicelib_catanhf(CMPLXF(-__devicelib_cimagf(z),
                                                    __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
-#ifdef __cplusplus
-} // extern "C"
-#endif  // __cplusplus
-#endif  // __SYCL_DEVICE_ONLY__

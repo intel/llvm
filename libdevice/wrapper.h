@@ -13,11 +13,13 @@
 #include <cstdint>
 #include "device.h"
 
-SYCL_EXTERNAL
-extern "C" void __devicelib_assert_fail(
+#if IMPL_ENABLED
+DEVICE_EXTERN_C
+void __devicelib_assert_fail(
     const char *expr, const char *file,
     int32_t line, const char *func,
     uint64_t gid0, uint64_t gid1, uint64_t gid2,
     uint64_t lid0, uint64_t lid1, uint64_t lid2);
+#endif  // IMPL_ENABLED
 
 #endif // __LIBDEVICE_WRAPPER_H__

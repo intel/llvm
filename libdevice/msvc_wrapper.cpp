@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if __SYCL_DEVICE_ONLY
+#include "device.h"
+
+#if IMPL_ENABLED
 #include "wrapper.h"
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
@@ -24,7 +26,7 @@ static void __truncate_wchar_char_str(const wchar_t *wstr, char *str,
   *str = '\0';
 }
 
-extern "C" SYCL_EXTERNAL
+DEVICE_EXTERN_C
 void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
   // Paths and expressions that are longer than 256 characters are going to be
   // truncated.
@@ -41,4 +43,4 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
                           __spirv_LocalInvocationId_y(),
                           __spirv_LocalInvocationId_z());
 }
-#endif // __SYCL_DEVICE_ONLY
+#endif // IMPL_ENABLED

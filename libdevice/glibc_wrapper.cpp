@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __SYCL_DEVICE_ONLY__
+#include "device.h"
+
+#if IMPL_ENABLED
 #include "wrapper.h"
 #include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
                                      //     __spirv_BuiltInLocalInvocationId
 
-extern "C" SYCL_EXTERNAL
+DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file,
                    unsigned int line, const char *func) {
   __devicelib_assert_fail(expr, file, line, func,
@@ -22,4 +24,4 @@ void __assert_fail(const char *expr, const char *file,
                           __spirv_LocalInvocationId_y(),
                           __spirv_LocalInvocationId_z());
 }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // IMPL_ENABLED
