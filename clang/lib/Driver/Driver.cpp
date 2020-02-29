@@ -4462,8 +4462,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
             IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           // Pass the Input along to linker only.
           continue;
-        UnbundlerInputs.push_back(LI);
       }
+      UnbundlerInputs.push_back(LI);
     }
     const Arg *LastArg;
     auto addUnbundlerInput = [&](types::ID T, const Arg *A) {
