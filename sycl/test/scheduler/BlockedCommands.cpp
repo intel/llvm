@@ -97,7 +97,7 @@ int main() {
         TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
 
     if (!Enqueued ||
-	detail::EnqueueResultT::SyclEnqueueSuccess != Res.MResult) {
+        detail::EnqueueResultT::SyclEnqueueSuccess != Res.MResult) {
       std::cerr << "The command is expected to be successfully enqueued."
                 << std::endl;
       return 1;
