@@ -173,7 +173,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
       EnqueueResult =
-          EnqueueResultT(EnqueueResultT::SYCL_ENQUEUE_BLOCKED, this);
+          EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
       return false;
     }
     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
@@ -198,7 +198,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
 
   if (CL_SUCCESS != Res)
     EnqueueResult =
-        EnqueueResultT(EnqueueResultT::SYCL_ENQUEUE_FAILED, this, Res);
+        EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
