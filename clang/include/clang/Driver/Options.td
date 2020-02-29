@@ -545,6 +545,8 @@ def cl_no_signed_zeros : Flag<["-"], "cl-no-signed-zeros">, Group<opencl_Group>,
   HelpText<"OpenCL only. Allow use of less precise no signed zeros computations in the generated binary.">;
 def cl_std_EQ : Joined<["-"], "cl-std=">, Group<opencl_Group>, Flags<[CC1Option]>,
   HelpText<"OpenCL language standard to compile for.">, Values<"cl,CL,cl1.1,CL1.1,cl1.2,CL1.2,cl2.0,CL2.0,clc++,CLC++">;
+def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Option]>,
+  HelpText<"SYCL language standard to compile for.">, Values<"1.2.1">;
 def cl_denorms_are_zero : Flag<["-"], "cl-denorms-are-zero">, Group<opencl_Group>,
   HelpText<"OpenCL only. Allow denormals to be flushed to zero.">;
 def cl_fp32_correctly_rounded_divide_sqrt : Flag<["-"], "cl-fp32-correctly-rounded-divide-sqrt">, Group<opencl_Group>, Flags<[CC1Option]>,
@@ -3477,13 +3479,10 @@ defm underscoring : BooleanFFlag<"underscoring">, Group<gfortran_Group>;
 defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 
 // C++ SYCL options
-def fsycl : Flag<["-"], "fsycl">, Group<sycl_Group>, Flags<[CC1Option, CoreOption]>,
+def fsycl : Flag<["-"], "fsycl">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
   HelpText<"Enable SYCL kernels compilation for device">;
-def fno_sycl : Flag<["-"], "fno-sycl">, Group<sycl_Group>, Flags<[CoreOption]>,
-  HelpText<"Disable SYCL kernels compilation for device">;
-def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
-  HelpText<"SYCL language standard to compile for.">, Values<"2017, 121, 1.2.1, sycl-1.2.1">;
-
+def fno_sycl : Flag<["-"], "fno-sycl">, Group<sycl_Group>,
+  HelpText<"Disable SYCL kernels compilation for device">, Flags<[NoArgumentUnused, CoreOption]>;
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
   MetaVarName<"<exe>">;
