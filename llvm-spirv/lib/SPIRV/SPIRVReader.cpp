@@ -2194,8 +2194,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                          BV->getName(), BB);
+    auto Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
+                                         BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }
