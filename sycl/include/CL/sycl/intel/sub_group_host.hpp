@@ -136,7 +136,7 @@ struct sub_group {
   }
 
   template <typename T, access::address_space Space>
-  void store(multi_ptr<T, Space> dst, T &x) const {
+  void store(multi_ptr<T, Space> dst, const T &x) const {
     throw runtime_error("Subgroups are not supported on host device. ");
   }
 
