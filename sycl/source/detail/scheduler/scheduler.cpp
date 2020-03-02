@@ -21,9 +21,8 @@ namespace sycl {
 namespace detail {
 
 EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req, 
-                                               const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
+                                                const bool destructor) {
+  return cl::sycl::detail::Scheduler::getInstance().addHostAccessor(Req);
 }
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
@@ -145,11 +144,10 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req, 
-                                        const bool destructor) {
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
 
   if (!NewCmd)
     return nullptr;
