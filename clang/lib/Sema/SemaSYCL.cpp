@@ -321,29 +321,16 @@ public:
     return true;
   }
 
-  bool VisitMemberExpr(MemberExpr *E) {
-    if (VarDecl *VD = dyn_cast<VarDecl>(E->getMemberDecl())) {
-      bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->isStaticDataMember())
-        SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelNonConstStaticDataVariable;
-    }
-    return true;
-  }
-
   bool VisitDeclRefExpr(DeclRefExpr *E) {
-    Decl* D = E->getDecl();
+    Decl *D = E->getDecl();
     if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
 
     CheckSYCLType(E->getType(), E->getSourceRange());
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->isStaticDataMember())
-        SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelNonConstStaticDataVariable;
-      else if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-               !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
+      if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
+          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
         if (VD->getTLSKind() != VarDecl::TLS_None)
           SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)

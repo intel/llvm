@@ -139,7 +139,7 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+2 {{SYCL kernel cannot use a global variable}}
+    // expected-error@+2 {{SYCL kernel cannot use a non-const global variable}}
     // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
     b.f();
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
@@ -176,13 +176,14 @@ int use2(a_type ab, a_type *abp) {
   // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
   if (abp->stat_member)
     return 0;
+  // expected-note@+1 {{called by 'use2'}}
   if (ab.fm())
     return 0;
-  // expected-error@+1 {{SYCL kernel cannot use a global variable}}
+  // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
   return another_global;
-  // expected-error@+1 {{SYCL kernel cannot use a global variable}}
+  // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
   return ns::glob +
-         // expected-error@+1 {{SYCL kernel cannot use a global variable}}
+         // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
          AnotherNS::moar_globals;
   // expected-note@+1 {{called by 'use2'}}
   eh_not_ok();
@@ -202,7 +203,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
-  // expected-note@+1 5{{called by 'kernel_single_task}}
+  // expected-note@+1 7{{called by 'kernel_single_task}}
   use2(ab, p);
 }
 

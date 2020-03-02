@@ -210,6 +210,15 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              bool ObjCPropertyAccess,
                              bool AvoidPartialAvailabilityChecks,
                              ObjCInterfaceDecl *ClassReceiver) {
+  if (getLangOpts().SYCLIsDevice) {
+    if (auto VD = dyn_cast<VarDecl>(D)) {
+      if (VD->getStorageClass() == SC_Static &&
+          !VD->getType().isConstant(Context))
+        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
+            << Sema::KernelNonConstStaticDataVariable;
+    }
+  }
+
   SourceLocation Loc = Locs.front();
   if (getLangOpts().CPlusPlus && isa<FunctionDecl>(D)) {
     // If there were any diagnostics suppressed by template argument deduction,
