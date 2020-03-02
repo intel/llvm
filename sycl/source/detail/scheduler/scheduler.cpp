@@ -144,10 +144,11 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
+                                        const bool WaitEvent) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, WaitEvent);
 
   if (!NewCmd)
     return nullptr;
