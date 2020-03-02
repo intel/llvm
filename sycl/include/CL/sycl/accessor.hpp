@@ -796,7 +796,7 @@ public:
             typename = typename detail::enable_if_t<
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-	accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
@@ -931,9 +931,9 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename detail::enable_if_t<Dims == 0 &&
-                                       AccessMode == access::mode::atomic,
-                                   atomic<DataT, AS>>() const {
+  operator typename detail::enable_if_t<
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
+      const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
@@ -941,7 +941,7 @@ public:
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                          atomic<DataT, AS>>
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
