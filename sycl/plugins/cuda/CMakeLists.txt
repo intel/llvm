@@ -6,7 +6,8 @@ message(STATUS "Including the PI API CUDA backend.")
 
 find_package(CUDA 10.1 REQUIRED)
 
-add_library(cudadrv SHARED IMPORTED)
+# Make imported library global to use it within the project.
+add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 set_target_properties(
   cudadrv PROPERTIES 
