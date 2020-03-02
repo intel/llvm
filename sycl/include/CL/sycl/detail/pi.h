@@ -393,14 +393,14 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR = CL_FILTER_LINEAR,
 } _pi_sampler_filter_mode;
 
-typedef pi_bitfield pi_device_exec_capabilities;
-const pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_KERNEL        = CL_EXEC_KERNEL;
-const pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL = CL_EXEC_NATIVE_KERNEL;
+using pi_device_exec_capabilities pi_bitfield;
+constexpr pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_KERNEL        = CL_EXEC_KERNEL;
+constexpr pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL = CL_EXEC_NATIVE_KERNEL;
 
-typedef pi_bitfield pi_sampler_properties;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE       = CL_SAMPLER_FILTER_MODE;
+using pi_sampler_properties pi_bitfield;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE       = CL_SAMPLER_FILTER_MODE;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
@@ -451,17 +451,17 @@ typedef _pi_program_build_status    pi_program_build_status;
 typedef _pi_kernel_info             pi_kernel_info;
 
 // For compatibility with OpenCL define this not as enum.
-typedef intptr_t pi_device_partition_property;
-static const pi_device_partition_property
+using pi_device_partition_property intptr_t;
+static constexpr pi_device_partition_property
   PI_DEVICE_PARTITION_EQUALLY = CL_DEVICE_PARTITION_EQUALLY;
-static const pi_device_partition_property
+static constexpr pi_device_partition_property
   PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
 
 // For compatibility with OpenCL define this not as enum.
-typedef pi_bitfield pi_device_affinity_domain;
-static const pi_device_affinity_domain
+using pi_device_affinity_domain pi_bitfield;
+static constexpr pi_device_affinity_domain
   PI_DEVICE_AFFINITY_DOMAIN_NUMA = CL_DEVICE_AFFINITY_DOMAIN_NUMA;
-static const pi_device_affinity_domain
+static constexpr pi_device_affinity_domain
   PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE = CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
 
 // Entry type, matches OpenMP for compatibility
