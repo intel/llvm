@@ -5,7 +5,7 @@
 // XFAIL: *
 //
 // RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %llvm_build_libs_dir/../bin/libsycl-msvc.o -o %t.out
+// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-msvc.o -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
 // program doesn't terminate when fallback is used.
