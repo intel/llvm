@@ -306,6 +306,7 @@ void program_impl::compile(const string_class &Options) {
         Err);
   }
   MCompileOptions = Options;
+  MBuildOptions = Options;
 }
 
 void program_impl::build(const string_class &Options) {
@@ -323,7 +324,6 @@ void program_impl::build(const string_class &Options) {
         Err);
   }
   MBuildOptions = Options;
-  MCompileOptions = Options;
 }
 
 vector_class<RT::PiDevice> program_impl::get_pi_devices() const {

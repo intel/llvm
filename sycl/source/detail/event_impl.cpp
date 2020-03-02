@@ -98,16 +98,14 @@ event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-
   if (MEvent)
     // presence of MEvent means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
     waitInternal();
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(std::move(Self));
+    detail::Scheduler::getInstance().waitForEvent(Self);
   if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(
-        static_cast<Command *>(MCommand));
+    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
 void event_impl::wait_and_throw(

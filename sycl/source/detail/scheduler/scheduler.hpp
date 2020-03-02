@@ -79,7 +79,7 @@ public:
 
   // Removes finished non-leaf non-alloca commands from the subgraph (assuming
   // that all its commands have been waited for).
-  void cleanupFinishedCommands(Command *FinishedCmd);
+  void cleanupFinishedCommands(EventImplPtr FinishedEvent);
 
   // Creates nodes in the graph, that update Req with the pointer to the host
   // memory which contains the latest data of the memory object. New

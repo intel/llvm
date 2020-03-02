@@ -5,10 +5,10 @@ extern __thread void (*__once_call)();  // expected-no-error
 
 void usage() {
   // expected-error@+2{{thread-local storage is not supported for the current target}}
-  // expected-error@+1{{SYCL kernel cannot use a global variable}}
+  // expected-error@+1{{SYCL kernel cannot use a non-const global variable}}
   __once_callable = 0;
   // expected-error@+3{{thread-local storage is not supported for the current target}}
-  // expected-error@+2{{SYCL kernel cannot use a global variable}}
+  // expected-error@+2{{SYCL kernel cannot use a non-const global variable}}
   // expected-error@+1{{SYCL kernel cannot call through a function pointer}}
   __once_call();
 }

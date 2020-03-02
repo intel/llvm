@@ -3869,71 +3869,6 @@ bool Sema::checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
   return false;
 }
 
-template <typename AttrType>
-void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
-                                   Expr *E) {
-  AttrType TmpAttr(Context, CI, E);
-
-  if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
-      return;
-    E = ICE.get();
-  }
-
-  if (IntelFPGAPrivateCopiesAttr::classof(&TmpAttr)) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
-
-template <typename AttrType>
-void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
-                                           const AttributeCommonInfo &CI,
-                                           Expr *E) {
-  AttrType TmpAttr(Context, CI, E);
-
-  if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
-      return;
-    Expr::EvalResult Result;
-    E->EvaluateAsInt(Result, Context);
-    llvm::APSInt Value = Result.Val.getInt();
-    if (!Value.isPowerOf2()) {
-      Diag(CI.getLoc(), diag::err_attribute_argument_not_power_of_two)
-          << &TmpAttr;
-      return;
-    }
-    if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
-      if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
-        unsigned NumBankBits = BBA->args_size();
-        if (NumBankBits != Value.ceilLogBase2()) {
-          Diag(TmpAttr.getLocation(), diag::err_bankbits_numbanks_conflicting);
-          return;
-        }
-      }
-    }
-    E = ICE.get();
-  }
-
-  if (!D->hasAttr<IntelFPGAMemoryAttr>())
-    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-        Context, IntelFPGAMemoryAttr::Default));
-
-  // We are adding a user NumBanks, drop any implicit default.
-  if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
-    if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
-      if (NBA->isImplicit())
-        D->dropAttr<IntelFPGANumBanksAttr>();
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
-
 void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                           bool IsPackExpansion) {
   AlignedAttr TmpAttr(Context, CI, true, E);
@@ -5514,6 +5449,47 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
   }
   D->addAttr(::new (S.Context)
                  PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
+}
+
+void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
+                                  Expr *E) {
+  VarDecl *VD = cast<VarDecl>(D);
+  QualType Ty = VD->getType();
+  // TODO: Applicable only on pipe storages. Currently they are defined
+  // as structures inside of SYCL headers. Add a check for pipe_storage_t
+  // when it is ready.
+  if (!Ty->isStructureType()) {
+    Diag(Attr.getLoc(), diag::err_attribute_wrong_decl_type_str)
+        << Attr.getAttrName() << "SYCL pipe storage declaration";
+    return;
+  }
+
+  if (!E->isInstantiationDependent()) {
+    llvm::APSInt ArgVal(32);
+    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return;
+    }
+    int32_t ArgInt = ArgVal.getSExtValue();
+    if (ArgInt < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << Attr.getAttrName() << /*non-negative*/ 1;
+      return;
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, Attr, E));
+}
+
+static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
+                                      const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  Expr *E = Attr.getArgAsExpr(0);
+  S.addSYCLIntelPipeIOAttr(D, Attr, E);
 }
 
 static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
@@ -8039,6 +8015,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelFPGABankBits:
     handleIntelFPGABankBitsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelPipeIO:
+    handleSYCLIntelPipeIOAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:
