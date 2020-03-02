@@ -73,7 +73,7 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreate) {
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
 }
 
-TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimary) {
+TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform;
   pi_device device;
@@ -91,15 +91,62 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimary) {
   ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
-  cl_context_properties properties = PI_CONTEXT_PROPERTIES_CUDA_PRIMARY;
+  pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
+                                        PI_TRUE, 0};
 
   pi_context ctxt;
   ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
-                &properties, 1, &device, nullptr, nullptr, &ctxt)),
+                properties, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
   EXPECT_EQ(ctxt->get_device(), device);
   EXPECT_TRUE(ctxt->is_primary());
+
+  // Retrieve the cuCtxt to check information is correct
+  CUcontext cudaContext = ctxt->get();
+  unsigned int version = 0;
+  CUresult cuErr = cuCtxGetApiVersion(cudaContext, &version);
+  ASSERT_EQ(cuErr, CUDA_SUCCESS);
+  EXPECT_EQ(version, LATEST_KNOWN_CUDA_DRIVER_API_VERSION);
+
+  // Current context in the stack?
+  CUcontext current;
+  cuErr = cuCtxGetCurrent(&current);
+  ASSERT_EQ(cuErr, CUDA_SUCCESS);
+  ASSERT_EQ(current, cudaContext);
+  ASSERT_EQ(
+      (Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+      PI_SUCCESS);
+}
+
+TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
+  pi_uint32 numPlatforms = 0;
+  pi_platform platform;
+  pi_device device;
+
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                0, nullptr, &numPlatforms)),
+            PI_SUCCESS)
+      << "piPlatformsGet failed.\n";
+
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+                numPlatforms, &platform, nullptr)),
+            PI_SUCCESS)
+      << "piPlatformsGet failed.\n";
+
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+                platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
+            PI_SUCCESS);
+  pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
+                                        PI_FALSE, 0};
+
+  pi_context ctxt;
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+                properties, 1, &device, nullptr, nullptr, &ctxt)),
+            PI_SUCCESS);
+  EXPECT_NE(ctxt, nullptr);
+  EXPECT_EQ(ctxt->get_device(), device);
+  EXPECT_FALSE(ctxt->is_primary());
 
   // Retrieve the cuCtxt to check information is correct
   CUcontext cudaContext = ctxt->get();
