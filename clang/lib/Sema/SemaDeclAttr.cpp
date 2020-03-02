@@ -2943,45 +2943,15 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
                     Existing->getYDim() == WGSize[1] &&
                     Existing->getZDim() == WGSize[2]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+  if (S.getLangOpts().SYCLIsDevice)
+  D->addAttr(::new (S.Context)
+                 WorkGroupAttr(S.Context, AL, WGSize[2], WGSize[1], WGSize[0]));
+  else 
   D->addAttr(::new (S.Context)
                  WorkGroupAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));
+
 }
 
-template <>
-void handleWorkGroupSize<ReqdWorkGroupSizeAttr>(Sema &S, Decl *D,
-                                                const ParsedAttr &AL) {
-  if (D->isInvalidDecl())
-    return;
-
-  uint32_t WGSize[3];
-  for (unsigned i = 0; i < 3; ++i) {
-    const Expr *E = AL.getArgAsExpr(i);
-    if (!checkUInt32Argument(S, AL, E, WGSize[i], i,
-                             /*StrictlyUnsigned=*/true))
-      return;
-    if (WGSize[i] == 0) {
-      S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-          << AL << E->getSourceRange();
-      return;
-    }
-  }
-
-  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
-    return;
-
-  ReqdWorkGroupSizeAttr *Existing = D->getAttr<ReqdWorkGroupSizeAttr>();
-  if (Existing &&
-      !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
-        Existing->getZDim() == WGSize[2]))
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-  if (S.getLangOpts().SYCLIsDevice) {
-    D->addAttr(::new (S.Context) ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[2],
-                                                       WGSize[1], WGSize[0]));
-  } else {
-    D->addAttr(::new (S.Context) ReqdWorkGroupSizeAttr(S.Context, AL, WGSize[0],
-                                                       WGSize[1], WGSize[2]));
-  }
-}
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
