@@ -7,7 +7,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
-// UNSUPPORTED: cuda
+
 //==--- common_ocl.cpp - basic SG methods in SYCL vs OpenCL  ---*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

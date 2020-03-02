@@ -6,7 +6,7 @@ add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type ocl-headers ocl-icd)
 
 if( SYCL_BUILD_PI_CUDA )
-  find_package(CUDA 10.0 REQUIRED)
+  find_package(CUDA 10.1 REQUIRED)
 
   add_library(cudadrv SHARED IMPORTED)
 
