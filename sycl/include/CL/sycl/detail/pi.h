@@ -391,14 +391,14 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR  = CL_FILTER_LINEAR,
 } _pi_sampler_filter_mode;
 
-typedef pi_bitfield pi_device_exec_capabilities;
-const pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_KERNEL        = CL_EXEC_KERNEL;
-const pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL = CL_EXEC_NATIVE_KERNEL;
+using pi_device_exec_capabilities pi_bitfield;
+constexpr pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_KERNEL        = CL_EXEC_KERNEL;
+constexpr pi_device_exec_capabilities PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL = CL_EXEC_NATIVE_KERNEL;
 
-typedef pi_bitfield pi_sampler_properties;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE;
-const pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE       = CL_SAMPLER_FILTER_MODE;
+using pi_sampler_properties pi_bitfield;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE       = CL_SAMPLER_FILTER_MODE;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
