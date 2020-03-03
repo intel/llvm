@@ -464,7 +464,8 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   ptrdiff_t offset = it.get_local_linear_id();
   ptrdiff_t stride = detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
-  auto roundup = [=](const ptrdiff_t &v, const ptrdiff_t &divisor) -> ptrdiff_t {
+  auto roundup = [=](const ptrdiff_t &v,
+                     const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename InPtr::element_type x;
@@ -579,7 +580,8 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   ptrdiff_t offset = it.get_local_linear_id();
   ptrdiff_t stride = detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
-  auto roundup = [=](const ptrdiff_t &v, const ptrdiff_t &divisor) -> ptrdiff_t {
+  auto roundup = [=](const ptrdiff_t &v,
+                     const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename InPtr::element_type x;

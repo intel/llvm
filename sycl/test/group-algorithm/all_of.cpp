@@ -18,7 +18,8 @@
 using namespace sycl;
 using namespace sycl::intel;
 
-template <class Predicate> class all_of_kernel;
+template <class Predicate>
+class all_of_kernel;
 
 struct GeZero {
   bool operator()(int i) const { return i >= 0; }

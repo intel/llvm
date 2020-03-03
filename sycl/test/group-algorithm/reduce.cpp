@@ -19,7 +19,8 @@
 using namespace sycl;
 using namespace sycl::intel;
 
-template <class BinaryOperation> class reduce_kernel;
+template <class BinaryOperation>
+class reduce_kernel;
 
 template <typename InputContainer, typename OutputContainer,
           class BinaryOperation>

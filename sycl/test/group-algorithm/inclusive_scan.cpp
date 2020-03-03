@@ -20,7 +20,8 @@
 using namespace sycl;
 using namespace sycl::intel;
 
-template <class BinaryOperation, int TestNumber> class inclusive_scan_kernel;
+template <class BinaryOperation, int TestNumber>
+class inclusive_scan_kernel;
 
 // std::inclusive_scan isn't implemented yet, so use serial implementation
 // instead
