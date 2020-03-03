@@ -594,18 +594,18 @@ public:
 
   template <typename FuncT>
   typename std::enable_if<
-      detail::check_fn_signature<FuncT, void(interop_handle &)>::value,
-      void>::type
-  codeplay_host_task(FuncT Func) {
+      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
+                                 void(interop_handle &)>::value>::type
+  codeplay_host_task(FuncT &&Func) {
     (void)Func; // eliminate possible compiler warning
     throw std::runtime_error("Not implemented");
   }
 
   template <typename FuncT>
   typename std::enable_if<
-      detail::check_fn_signature<FuncT, void()>::value,
-      void>::type
-  codeplay_host_task(FuncT Func) {
+      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
+                                 void()>::value>::type
+  codeplay_host_task(FuncT &&Func) {
     codeplay_host_task([Func](interop_handle &IH) {
       (void)IH; // eliminate possible compiler warning
       Func();
@@ -615,8 +615,7 @@ public:
   template <typename FuncT>
   typename std::enable_if<
       detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void(event &)>::value,
-      void>::type
+                                 void(event &)>::value>::type
   host_task(FuncT &&Func) {
     (void)Func; // eliminate possible compiler warning
     throw std::runtime_error("Not implemented");
