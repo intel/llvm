@@ -2898,16 +2898,16 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
                              /*ReverseAttrs=*/ true);
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
-          WGSize[2] <= A->getZDim())) {
+    if (!(WGSize[2] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+          WGSize[0] <= A->getZDim())) {
       S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << Attr << A->getSpelling();
       Result &= false;
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
-          WGSize[2] >= A->getZDim())) {
+    if (!(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+          WGSize[0] >= A->getZDim())) {
       S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << Attr << A->getSpelling();
       Result &= false;
