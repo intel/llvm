@@ -678,10 +678,10 @@ SPIRVToLLVMDbgTran::transTemplateParameter(const SPIRVExtInst *DebugInst) {
   if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[ValueIdx])) {
     SPIRVValue *Val = BM->get<SPIRVValue>(Ops[ValueIdx]);
     Value *V = SPIRVReader->transValue(Val, nullptr, nullptr);
-    return Builder.createTemplateValueParameter(Context, Name, Ty,
+    return Builder.createTemplateValueParameter(Context, Name, Ty, false,
                                                 cast<Constant>(V));
   }
-  return Builder.createTemplateTypeParameter(Context, Name, Ty);
+  return Builder.createTemplateTypeParameter(Context, Name, Ty, false);
 }
 
 DINode *SPIRVToLLVMDbgTran::transTemplateTemplateParameter(
