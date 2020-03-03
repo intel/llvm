@@ -49,8 +49,8 @@ public:
   /// @param AsyncHandler is an instance of async_handler.
   /// @param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
-  context(const device &Device, async_handler AsyncHandler = {},
-          bool UseCUDAPrimaryContext = false);
+  explicit context(const device &Device, async_handler AsyncHandler = {},
+                   bool UseCUDAPrimaryContext = false);
 
   /// Constructs a SYCL context instance using the provided platform.
   ///
@@ -63,8 +63,8 @@ public:
   /// @param AsyncHandler is an instance of async_handler.
   /// @param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
-  context(const platform &Platform, async_handler AsyncHandler = {},
-          bool UseCUDAPrimaryContext = false);
+  explicit context(const platform &Platform, async_handler AsyncHandler = {},
+                   bool UseCUDAPrimaryContext = false);
 
   /// Constructs a SYCL context instance using list of devices.
   ///
@@ -78,8 +78,9 @@ public:
   /// @param AsyncHandler is an instance of async_handler.
   /// @param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
-  context(const vector_class<device> &DeviceList,
-          async_handler AsyncHandler = {}, bool UseCUDAPrimaryContext = false);
+  explicit context(const vector_class<device> &DeviceList,
+                   async_handler AsyncHandler = {},
+                   bool UseCUDAPrimaryContext = false);
 
   /// Constructs a SYCL context instance from OpenCL cl_context.
   ///

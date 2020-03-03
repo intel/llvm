@@ -44,9 +44,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
   if (MPlatform->is_cuda()) {
 #if USE_PI_CUDA
-    const cl_context_properties props[] = {
-        PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
-        0};
+    const pi_context_properties props[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
+                                           UseCUDAPrimaryContext, 0};
 
     getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
 	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
