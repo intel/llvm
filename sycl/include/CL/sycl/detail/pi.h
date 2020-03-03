@@ -699,7 +699,7 @@ pi_result piDeviceRelease(pi_device device);
 
 pi_result piDevicePartition(
     pi_device device,
-    const cl_device_partition_property *properties, // TODO: untie from OpenCL
+    const pi_device_partition_property *properties,
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices);
 
 /// Selects the most appropriate device binary based on runtime information
