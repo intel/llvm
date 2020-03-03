@@ -123,9 +123,13 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
-void Scheduler::cleanupFinishedCommands(Command *FinishedCmd) {
+void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   std::lock_guard<std::mutex> lock(MGraphLock);
-  MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
+  // The command might have been cleaned up (and set to nullptr) by another
+  // thread
+  if (FinishedCmd)
+    MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
