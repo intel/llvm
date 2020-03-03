@@ -72,6 +72,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind) {
   void *RetVal = nullptr;
+  if (Size == 0) return nullptr;
   if (Ctxt.is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
