@@ -1,4 +1,4 @@
-// REQUIRES: opencl-interop
+// REQUIRES: opencl
 
 // RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

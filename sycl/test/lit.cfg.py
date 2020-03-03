@@ -67,13 +67,6 @@ elif platform.system() == "Darwin":
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
-config.available_features.add('opencl-interop')
-if 'SYCL_BE' in os.environ:
-    config.environment['SYCL_BE'] = os.environ['SYCL_BE']
-    # There is no direct OpenCL interop when not running OpenCL BE.
-    if config.environment['SYCL_BE'] == "PI_OTHER":
-        config.available_features.remove('opencl-interop')
-
 if 'SYCL_DEVICE_WHITE_LIST' in os.environ:
     config.environment['SYCL_DEVICE_WHITE_LIST'] = os.environ['SYCL_DEVICE_WHITE_LIST']
 

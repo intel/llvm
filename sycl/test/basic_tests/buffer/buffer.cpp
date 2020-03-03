@@ -1,4 +1,4 @@
-// REQUIRES: opencl-interop
+// REQUIRES: opencl
 
 // RUN: %clangxx %s -o %t1.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out

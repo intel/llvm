@@ -1,4 +1,4 @@
-// REQUIRES: opencl-interop
+// REQUIRES: opencl
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t1.out
 // RUN: %clangxx -I %sycl_source_dir %s -o %t3.out -lsycl

@@ -1,4 +1,4 @@
-// REQUIRES: opencl-interop
+// REQUIRES: opencl
 
 // RUN: %clang_cc1 -x cl -cl-std=CL2.0 %S/sg.cl -triple spir64-unknown-unknown -emit-llvm-bc -o %T/kernel_ocl.bc -include opencl-c.h
 // RUN: llvm-spirv %T/kernel_ocl.bc -o %T/kernel_ocl.spv
