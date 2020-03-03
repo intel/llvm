@@ -141,6 +141,9 @@ void usage(myFuncDef functionPtr) {
 
   // expected-error@+1 {{__float128 is not supported on this target}}
   __float128 A;
+
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  int BadArray[0];
 }
 
 namespace ns {
