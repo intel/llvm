@@ -41,7 +41,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
   assert(Cmd && "Event has no associated command?");
   EnqueueResultT Res;
   bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
-  if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
+  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.");
 
@@ -66,12 +66,12 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
         enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking);
     if (!Enqueued)
       switch (EnqueueResult.MResult) {
-      case EnqueueResultT::FAILED:
+      case EnqueueResultT::SyclEnqueueFailed:
       default:
         // Exit immediately if a command fails to avoid enqueueing commands
         // result of which will be discarded.
         return false;
-      case EnqueueResultT::BLOCKED:
+      case EnqueueResultT::SyclEnqueueBlocked:
         // If some dependency is blocked from enqueueing remember that, but
         // try to enqueue other dependencies(that can be ready for
         // enqueueing).

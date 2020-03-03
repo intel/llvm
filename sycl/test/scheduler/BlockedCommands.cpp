@@ -54,7 +54,7 @@ int main() {
       return 1;
     }
 
-    if (detail::EnqueueResultT::BLOCKED != Res.MResult) {
+    if (detail::EnqueueResultT::SyclEnqueueBlocked != Res.MResult) {
       std::cerr << "Result of enqueueing blocked command should be BLOCKED"
                 << std::endl;
       return 1;
@@ -73,7 +73,7 @@ int main() {
       return 1;
     }
 
-    if (detail::EnqueueResultT::FAILED != Res.MResult) {
+    if (detail::EnqueueResultT::SyclEnqueueFailed != Res.MResult) {
       std::cerr << "The command is expected to fail to enqueue." << std::endl;
       return 1;
     }
@@ -96,7 +96,8 @@ int main() {
     bool Enqueued =
         TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
 
-    if (!Enqueued || detail::EnqueueResultT::SUCCESS != Res.MResult) {
+    if (!Enqueued ||
+        detail::EnqueueResultT::SyclEnqueueSuccess != Res.MResult) {
       std::cerr << "The command is expected to be successfully enqueued."
                 << std::endl;
       return 1;
