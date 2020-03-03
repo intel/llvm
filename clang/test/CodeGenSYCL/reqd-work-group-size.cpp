@@ -27,7 +27,7 @@ void bar() {
   kernel<class kernel_name2>(f);
 
   kernel<class kernel_name3>(
-  []() [[cl::reqd_work_group_size(8, 8, 8)]] {});
+      []() [[cl::reqd_work_group_size(8, 8, 8)]]{});
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !reqd_work_group_size ![[WGSIZE32:[0-9]+]]
@@ -36,4 +36,3 @@ void bar() {
 // CHECK: ![[WGSIZE32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[WGSIZE8]] = !{i32 1, i32 1, i32 8}
 // CHECK: ![[WGSIZE88]] = !{i32 8, i32 8, i32 8}
-

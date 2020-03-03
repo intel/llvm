@@ -2939,19 +2939,17 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
-  if (Existing && !(Existing->getXDim() == WGSize[0] &&
-                    Existing->getYDim() == WGSize[1] &&
-                    Existing->getZDim() == WGSize[2]))
+  if (Existing &&
+      !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
+        Existing->getZDim() == WGSize[2]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
   if (S.getLangOpts().SYCLIsDevice)
-  D->addAttr(::new (S.Context)
-                 WorkGroupAttr(S.Context, AL, WGSize[2], WGSize[1], WGSize[0]));
-  else 
-  D->addAttr(::new (S.Context)
-                 WorkGroupAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));
-
+    D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[2],
+                                               WGSize[1], WGSize[0]));
+  else
+    D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[0],
+                                               WGSize[1], WGSize[2]));
 }
-
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
