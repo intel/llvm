@@ -7,7 +7,6 @@
 class Functor {
 public:
   [[cl::reqd_work_group_size(4, 1, 1)]] void operator()() {}
-
 };
 
 template <typename name, typename Func>
@@ -24,10 +23,10 @@ void bar() {
 // expected-note@-1 {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(32, 1, 1)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
 
-[[cl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {} // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {}   // expected-note {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(16, 16, 1)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
 
-[[cl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {} // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {}   // expected-note {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 class Functor16 {
@@ -78,9 +77,8 @@ void bar() {
   kernel<class kernel_name4>(fattr);
 
   kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32), cl::reqd_work_group_size(32, 32, 32)]] {
-   f32x32x32();
+    f32x32x32();
   });
-
 
 #ifdef TRIGGER_ERROR
   Functor8 f8;
@@ -102,7 +100,7 @@ void bar() {
   });
 
   // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-  kernel<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]] []() {
+  kernel<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]][]() {
     f32x32x32();
   });
 
