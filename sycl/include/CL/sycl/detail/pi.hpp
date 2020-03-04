@@ -179,13 +179,13 @@ template <class To, class From> To inline pi::cast(From value) {
 
 // These conversions should use PI interop API.
 template <> pi::PiProgram inline pi::cast(cl_program interop) {
-  assertion(false, "pi::cast -> use piextProgramInterop");
-  return 0;
+  RT::assertion(false, "pi::cast -> use piextProgramInterop");
+  return {};
 }
 
 template <> pi::PiDevice inline pi::cast(cl_device_id interop) {
-  assertion(false, "pi::cast -> use piextDeviceInterop");
-  return 0;
+  RT::assertion(false, "pi::cast -> use piextDeviceInterop");
+  return {};
 }
 
 } // namespace detail

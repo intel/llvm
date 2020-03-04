@@ -182,10 +182,11 @@ pi_result OCL(piextDeviceInterop)(pi_device *device, void **handle) {
   assert(handle);
 
   if (*device == nullptr) {
+    // unitialized *device.
     assert(*handle);
     *device = cast<pi_device>(*handle);
   } else {
-    assert(*device);
+    assert(*handle == nullptr);
     *handle = *device;
   }
 
@@ -332,10 +333,11 @@ pi_result OCL(piextProgramInterop)(
   assert(handle);
 
   if (*program == nullptr) {
+    // uninitialized *program.
     assert(*handle);
     *program = cast<pi_program>(*handle);
   } else {
-    assert(*program);
+    assert(*handle == nullptr);
     *handle = *program;
   }
   clRetainProgram(cast<cl_program>(*handle));
