@@ -48,7 +48,7 @@ program_impl::program_impl(
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
           "Not all programs are associated with the same context",
-          PI_INVALID_CONTEXT);
+          PI_INVALID_PROGRAM);
     }
     if (!is_host()) {
       vector_class<device> PrgDevicesSorted =
@@ -156,7 +156,7 @@ cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_DEVICE);
+                               PI_INVALID_PROGRAM);
   }
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -250,7 +250,7 @@ kernel program_impl::get_kernel(string_class KernelName,
   if (is_host()) {
     if (IsCreatedFromSource)
       throw invalid_object_error("This instance of program is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_INVALID_PROGRAM);
 
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));

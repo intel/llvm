@@ -28,7 +28,7 @@ device device_selector::select_device() const {
     return *res;
 
   throw cl::sycl::runtime_error("No device of requested type available.",
-                                PI_INVALID_OPERATION);
+                                PI_DEVICE_NOT_FOUND);
 }
 
 int default_selector::operator()(const device &dev) const {

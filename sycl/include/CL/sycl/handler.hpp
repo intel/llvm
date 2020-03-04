@@ -301,7 +301,7 @@ private:
     }
     if (SyclKernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_RESULT_INVALID_KERNEL_NAME);
+                                 PI_INVALID_KERNEL);
     }
   }
 
