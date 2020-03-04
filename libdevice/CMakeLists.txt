@@ -9,11 +9,14 @@ endif()
 
 set(clang $<TARGET_FILE:clang>)
 
-if (TARGET sycl)
+if (sycl IN_LIST LLVM_ENABLE_PROJECTS)
   set(compile_opts
     # suppress an error about SYCL_EXTERNAL being used for
     # a function with a raw pointer parameter.
     -Wno-sycl-strict
+    # Disable warnings for the host compilation, where
+    # we declare all functions as 'static'.
+    -Wno-undefined-internal
     )
 
   if (WIN32)
@@ -137,10 +140,7 @@ if (TARGET sycl)
     ${binary_dir}/libsycl-fallback-cmath.spv
     ${binary_dir}/libsycl-fallback-cmath-fp64.spv
   )
-  add_dependencies(sycl libsycldevice-obj libsycldevice-spv)
-  if (MSVC)
-    add_dependencies(sycld libsycldevice-obj libsycldevice-spv)
-  endif()
+  add_custom_target(libsycldevice DEPENDS libsycldevice-obj libsycldevice-spv)
 
   # Place device libraries near the libsycl.so library in an install
   # directory as well
@@ -161,5 +161,5 @@ if (TARGET sycl)
                 ${devicelib-obj-cmath-fp64}
                 ${binary_dir}/libsycl-fallback-cmath-fp64.spv
           DESTINATION ${install_dest}
-          COMPONENT sycl)
-endif(TARGET sycl)
+          COMPONENT libsycldevice)
+endif(sycl IN_LIST LLVM_ENABLE_PROJECTS)

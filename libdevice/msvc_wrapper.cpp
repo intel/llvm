@@ -7,11 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.h"
-
-#if IMPL_ENABLED
 #include "wrapper.h"
-#include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
-                                     //     __spirv_BuiltInLocalInvocationId
 
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.
@@ -43,4 +39,3 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
                           __spirv_LocalInvocationId_y(),
                           __spirv_LocalInvocationId_z());
 }
-#endif // IMPL_ENABLED

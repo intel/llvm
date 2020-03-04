@@ -7,11 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.h"
-
-#if IMPL_ENABLED
 #include "wrapper.h"
-#include <CL/__spirv/spirv_vars.hpp> // for __spirv_BuiltInGlobalInvocationId,
-                                     //     __spirv_BuiltInLocalInvocationId
 
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file,
@@ -24,4 +20,3 @@ void __assert_fail(const char *expr, const char *file,
                           __spirv_LocalInvocationId_y(),
                           __spirv_LocalInvocationId_z());
 }
-#endif // IMPL_ENABLED
