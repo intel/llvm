@@ -21,7 +21,7 @@ namespace sycl {
 namespace detail {
 
 EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
-                                               const bool destructor) {
+                                                const bool destructor) {
   return cl::sycl::detail::Scheduler::getInstance().
                                               addHostAccessor(Req, destructor);
 }
