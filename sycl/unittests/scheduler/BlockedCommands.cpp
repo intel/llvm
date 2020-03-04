@@ -16,9 +16,9 @@
 
 using namespace cl::sycl;
 
-class FakeCommand : public detail::Command {
+class MockCommand : public detail::Command {
 public:
-  FakeCommand(detail::QueueImplPtr Queue)
+  MockCommand(detail::QueueImplPtr Queue)
       : Command(detail::Command::ALLOCA, Queue) {}
   void printDot(std::ostream &Stream) const override {}
 
@@ -37,34 +37,34 @@ public:
 };
 
 TEST_F(SchedulerTest, BlockedCommands) {
-  FakeCommand FakeCmd(detail::getSyclObjImpl(MQueue));
+  MockCommand MockCmd(detail::getSyclObjImpl(MQueue));
 
-  FakeCmd.MIsBlockable = true;
-  FakeCmd.MCanEnqueue = false;
-  FakeCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
+  MockCmd.MIsBlockable = true;
+  MockCmd.MCanEnqueue = false;
+  MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
   detail::EnqueueResultT Res;
   bool Enqueued =
-      TestScheduler::enqueueCommand(&FakeCmd, Res, detail::NON_BLOCKING);
+      TestScheduler::enqueueCommand(&MockCmd, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED\n";
 
-  FakeCmd.MCanEnqueue = true;
+  MockCmd.MCanEnqueue = true;
   Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
-  FakeCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
+  MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
-  Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
+  Enqueued = TestScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
       << "The command is expected to fail to enqueue.\n";
-  ASSERT_EQ(CL_DEVICE_PARTITION_EQUALLY, FakeCmd.MRetVal)
+  ASSERT_EQ(CL_DEVICE_PARTITION_EQUALLY, MockCmd.MRetVal)
       << "Expected different error code.\n";
-  ASSERT_EQ(&FakeCmd, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(&MockCmd, Res.MCmd) << "Expected different failed command.\n";
 
   Res = detail::EnqueueResultT{};
-  FakeCmd.MRetVal = CL_SUCCESS;
-  Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
+  MockCmd.MRetVal = CL_SUCCESS;
+  Enqueued = TestScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&
               Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
       << "The command is expected to be successfully enqueued.\n";

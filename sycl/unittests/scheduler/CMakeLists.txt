@@ -13,7 +13,6 @@ add_sycl_unittest(SchedulerTests
     MemObjCommandCleanup.cpp
     utils.cpp
 )
-#target_compile_options(SchedulerTests PRIVATE -fsycl)
 
 set(CMAKE_C_COMPILER ${__c_comp_backup})
 set(CMAKE_CXX_COMPILER ${__cxx_comp_backup})
