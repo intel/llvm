@@ -24,7 +24,8 @@ std::string getCudaVersionString() {
   cuDriverGetVersion(&driver_version);
   // The version is returned as (1000 major + 10 minor).
   std::stringstream stream;
-  stream << "CUDA " << driver_version / 1000 << "." << driver_version % 100;
+  stream << "CUDA " << driver_version / 1000 << "."
+         << driver_version % 1000 / 10;
   return stream.str();
 }
 
