@@ -15,8 +15,11 @@
 //   argument
 //
 // This is compile-only test for now.
-//
-// XFAIL:* 
+
+// Disable this test until the behavior is stablized.
+// '*' doesn't work here.
+// UNSUPPORTED: windows, linux, darwin 
+
 #include "sycl.hpp"
 
 using namespace cl::sycl;
