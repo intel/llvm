@@ -97,6 +97,9 @@ program_impl::program_impl(ContextImplPtr Context,
     Plugin.call<PiApiKind::piextProgramInterop>(
         Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
   }
+  else
+    Plugin.call<PiApiKind::piProgramRetain>(Program);
+
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_NUM_DEVICES,

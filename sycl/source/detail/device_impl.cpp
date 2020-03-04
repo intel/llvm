@@ -34,11 +34,13 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
                          const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
 
+  bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
     assert(InteropDeviceHandle != nullptr);
     // Get PI device from the raw device handle.
     Plugin.call<PiApiKind::piextDeviceInterop>(&MDevice,
                                                (void **)&InteropDeviceHandle);
+    InteroperabilityConstructor = true;
   }
 
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -51,6 +53,11 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
       MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
+  if (!MIsRootDevice && !InteroperabilityConstructor) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    // Interoperability Constructor already calls DeviceRetain in piextDeviceInterop.
+    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
+  }
 
   // set MPlatform
   if (!Platform) {
