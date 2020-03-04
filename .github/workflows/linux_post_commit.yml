@@ -1,0 +1,49 @@
+name: Linux Post Commit Checks
+
+on:
+  push:
+    branches:
+      - sycl
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: src
+    - name: Install Ubuntu deps
+      run: sudo apt install -y ninja-build
+    - name: Build
+      shell: bash
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+        -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --no-ocl
+        cmake --build . --target sycl-toolchain -- -j3
+    - name: check-llvm
+      if: false
+      run: |
+        cd $GITHUB_WORKSPACE/build
+        cmake --build . --target check-llvm
+    - name: check-clang
+      run: |
+        cd $GITHUB_WORKSPACE/build
+        cmake --build . --target check-clang
+    - name: check-sycl
+      run: |
+        cd $GITHUB_WORKSPACE/build
+        cmake --build . --target check-sycl
+    - name: Install
+      run: |
+        cd $GITHUB_WORKSPACE/build
+        cmake --build . --target deploy-sycl-toolchain
+    - name: Pack
+      run: tar -czvf llvm_sycl.tar.gz $GITHUB_WORKSPACE/build/install
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_linux
+        path: llvm_sycl.tar.gz
+

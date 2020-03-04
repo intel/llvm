@@ -56,9 +56,15 @@ def do_configure(args):
         "-DSYCL_ENABLE_WERROR=ON",
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
-        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
-        llvm_dir
+        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen)
     ]
+
+    if not args.no_ocl:
+      cmake_cmd.extend([
+            "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
+            "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
+
+    cmake_cmd.append(llvm_dir)
 
     print(cmake_cmd)
 
@@ -90,6 +96,7 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--assertions", action='store_true', help="build with assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
+    parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
 
     args = parser.parse_args()
 
