@@ -82,8 +82,8 @@ public:
   /// @return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())
-      throw invalid_object_error(
-          "This instance of platform is a host instance");
+      throw invalid_object_error("This instance of platform is a host instance",
+                                 PI_INVALID_PLATFORM);
 
     return pi::cast<cl_platform_id>(MPlatform);
   }
@@ -97,8 +97,8 @@ public:
   /// @return a raw plug-in platform handle.
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
-      throw invalid_object_error(
-          "This instance of platform is a host instance");
+      throw invalid_object_error("This instance of platform is a host instance",
+                                 PI_INVALID_PLATFORM);
 
     return MPlatform;
   }

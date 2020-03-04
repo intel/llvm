@@ -79,9 +79,11 @@ event handler::finalize() {
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.");
+                        "explicit memory operation.",
+                        PI_INVALID_OPERATION);
   default:
-    throw runtime_error("Unhandled type of command group");
+    throw runtime_error("Unhandled type of command group",
+                        PI_INVALID_OPERATION);
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -174,7 +176,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::host_image:
     case access::target::host_buffer: {
       throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.");
+          "Unsupported accessor target case.", PI_INVALID_OPERATION);
       break;
     }
     }
