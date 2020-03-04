@@ -65,6 +65,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res = detail::EnqueueResultT{};
   FakeCmd.MRetVal = CL_SUCCESS;
   Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
-  ASSERT_TRUE(Enqueued && Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
+  ASSERT_TRUE(Enqueued &&
+              Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
       << "The command is expected to be successfully enqueued.\n";
 }
