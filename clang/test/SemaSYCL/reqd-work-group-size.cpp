@@ -34,6 +34,14 @@ public:
   [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
 };
 
+#ifdef TRIGGER_ERROR
+class Functor32 {
+public:
+  //expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
+  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() {}
+}; 
+#endif
 class Functor16x16x16 {
 public:
   [[cl::reqd_work_group_size(16, 16, 16)]] void operator()() {}
@@ -66,7 +74,7 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 void bar() {
   Functor16 f16;
   kernel<class kernel_name1>(f16);
-
+  
   Functor f;
   kernel<class kernel_name2>(f);
 
@@ -84,7 +92,11 @@ void bar() {
   Functor8 f8;
   kernel<class kernel_name6>(f8);
 
+  Functor32 f32;
+  kernel<class kernel_name1>(f32);
+
   kernel<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+
     f4x1x1();
     f32x1x1();
   });

@@ -2914,6 +2914,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+  
     if (S.getLangOpts().SYCLIsDevice &&
         !(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
           WGSize[0] >= A->getZDim())) {
@@ -2951,9 +2952,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
-    return;
-
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
   if (S.getLangOpts().SYCLIsDevice && Existing &&
       !(Existing->getXDim() == WGSize[2] && Existing->getYDim() == WGSize[1] &&
@@ -2963,6 +2961,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
         Existing->getZDim() == WGSize[2]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+
+  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
+    return;
 
   if (S.getLangOpts().SYCLIsDevice)
     D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[2],
