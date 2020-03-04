@@ -42,7 +42,7 @@ public:
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[cl::reqd_work_group_size(8, 1, 1)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(1, 1, 8)]] [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
@@ -77,7 +77,7 @@ void bar() {
   FunctorAttr fattr;
   kernel<class kernel_name4>(fattr);
 
-  kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32)]] {
+  kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32), cl::reqd_work_group_size(32, 32, 32)]] {
    f32x32x32();
   });
 

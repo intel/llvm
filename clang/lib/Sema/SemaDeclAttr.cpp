@@ -2898,20 +2898,32 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
                              /*ReverseAttrs=*/ true);
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!(WGSize[2] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+    if (S.getLangOpts().SYCLIsDevice && !(WGSize[2] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
           WGSize[0] <= A->getZDim())) {
+      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << Attr << A->getSpelling();
+      Result &= false;
+    }
+    if (!S.getLangOpts().SYCLIsDevice && !(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+          WGSize[2] <= A->getZDim())) {
       S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << Attr << A->getSpelling();
       Result &= false;
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
-          WGSize[0] >= A->getZDim())) {
-      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << Attr << A->getSpelling();
-      Result &= false;
-    }
+      if (S.getLangOpts().SYCLIsDevice && !(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+            WGSize[0] >= A->getZDim())) {
+        S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+            << Attr << A->getSpelling();
+                Result &= false;
+      }
+      if (!S.getLangOpts().SYCLIsDevice && !(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+            WGSize[2] >= A->getZDim())) {
+        S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+            << Attr << A->getSpelling();
+                Result &= false;
+      }
   }
   return Result;
 }
@@ -2939,10 +2951,15 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
-  if (Existing &&
-      !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
-        Existing->getZDim() == WGSize[2]))
+    if (S.getLangOpts().SYCLIsDevice && Existing && !(Existing->getXDim() == WGSize[2] &&
+                           Existing->getYDim() == WGSize[1] &&
+                           Existing->getZDim() == WGSize[0]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+    if (!S.getLangOpts().SYCLIsDevice && Existing && !(Existing->getXDim() == WGSize[0] &&
+                           Existing->getYDim() == WGSize[1] &&
+                           Existing->getZDim() == WGSize[2]))
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+
   if (S.getLangOpts().SYCLIsDevice)
     D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[2],
                                                WGSize[1], WGSize[0]));
