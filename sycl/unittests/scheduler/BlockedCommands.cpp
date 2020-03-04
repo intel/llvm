@@ -51,7 +51,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
       << "Result of enqueueing blocked command should be BLOCKED\n";
 
   FakeCmd.MCanEnqueue = true;
-  Res.MResult = detail::EnqueueResultT::SUCCESS;
+  Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
   FakeCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
   Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
