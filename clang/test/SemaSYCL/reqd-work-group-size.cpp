@@ -32,7 +32,7 @@ void bar() {
 
 class Functor16 {
 public:
-  [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
+  [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
 };
 
 class Functor16x16x16 {
@@ -42,7 +42,7 @@ public:
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[cl::reqd_work_group_size(1, 1, 8)]] [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
