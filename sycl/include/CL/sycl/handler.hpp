@@ -615,10 +615,16 @@ public:
   template <typename FuncT>
   typename std::enable_if<
       detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void(event &)>::value>::type
+                                 void(const vector_class<event> &)>::value>::type
   host_task(FuncT &&Func) {
-    (void)Func; // eliminate possible compiler warning
-    throw std::runtime_error("Not implemented");
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>{1});
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(Func));
+
+    MCGType = detail::CG::HOST_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1333,6 +1339,8 @@ private:
   detail::OSModuleHandle MOSModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
+  // Storage for a lambda/function when using HostTask
+  std::unique_ptr<detail::HostTask> MHostTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
 

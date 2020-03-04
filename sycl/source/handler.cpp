@@ -77,6 +77,12 @@ event handler::finalize() {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents)));
     break;
+  case detail::CG::HOST_TASK:
+    CommandGroup.reset(new detail::CGHostTask(
+         std::move(MHostTask), std::move(MArgsStorage),
+         std::move(MAccStorage), std::move(MSharedPtrStorage),
+         std::move(MRequirements), std::move(MEvents), MCGType));
+    break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.");

@@ -753,11 +753,46 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
+struct HostTaskContext {
+  CGHostTask *ExecHost;
+  const size_t RequiredAmount;
+  // It could be a mere counter. Though we employ the collection to retrieve
+  // a set of events for callback.
+  std::unordered_set<pi_event> Completed;
+
+  ContextImplPtr Context;
+};
+
+void DispatchHostTask(pi_event Event, pi_int32 EventStatus, void *UD) {
+  HostTaskContext *Ctx = reinterpret_cast<HostTaskContext *>(UD);
+
+  if (EventStatus == PI_EVENT_COMPLETE)
+    Ctx->Completed.insert(Event);
+
+  if (Ctx->Completed.size() < Ctx->RequiredAmount)
+    return;
+
+  std::vector<event> Events;
+  Events.reserve(Ctx->Completed.size());
+
+  auto Context = createSyclObjFromImpl<context>(Ctx->Context);
+
+  for (const pi_event &E : Ctx->Completed) {
+    detail::EventImplPtr Impl(new detail::event_impl(E, Context));
+
+    Events.emplace_back(createSyclObjFromImpl<event>(Impl));
+  }
+
+  Ctx->ExecHost->MHostTask->call(Events);
+
+  delete Ctx;
+}
+
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  auto RawEvents = getPiEvents(EventImpls);
+  std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1039,6 +1074,22 @@ cl_int ExecCGCommand::enqueueImp() {
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0, nullptr, &Event);
     Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::HOST_TASK: {
+    auto *Ctx = new HostTaskContext{
+      static_cast<CGHostTask *>(MCommandGroup.get()),
+      RawEvents.size(),
+      {},
+      MQueue->getContextImplPtr()
+    };
+
+    const detail::plugin &Plugin = MQueue->getPlugin();
+
+    for (const RT::PiEvent &Event : RawEvents)
+      Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
+                                                 DispatchHostTask, Ctx);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:
