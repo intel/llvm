@@ -1,5 +1,6 @@
 #pragma once
 #include <CL/sycl.hpp>
+#include <detail/accessor_impl_host.hpp>
 
 #include <functional>
 // This header contains a few common classes/methods used in

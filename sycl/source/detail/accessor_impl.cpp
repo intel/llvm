@@ -7,12 +7,27 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
+range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
+range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
+void *AccessorBaseHost::getPtr() { return impl->MData; }
+unsigned int AccessorBaseHost::getElemSize() const { return impl->MElemSize; }
+
+const id<3> &AccessorBaseHost::getOffset() const { return impl->MOffset; }
+const range<3> &AccessorBaseHost::getAccessRange() const {
+  return impl->MAccessRange;
+}
+const range<3> &AccessorBaseHost::getMemoryRange() const {
+  return impl->MMemoryRange;
+}
+
 AccessorImplHost::AccessorImplHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
                                    access::mode AccessMode,
@@ -34,6 +49,10 @@ AccessorImplHost::AccessorImplHost(const AccessorImplHost &Other)
 AccessorImplHost::~AccessorImplHost() {
   if (MBlockedCmd)
     detail::Scheduler::getInstance().releaseHostAccessor(this);
+}
+
+void *AccessorBaseHost::getPtr() const {
+  return const_cast<void *>(impl->MData);
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,

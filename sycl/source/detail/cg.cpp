@@ -8,10 +8,10 @@
 
 #include "CL/sycl/detail/cg.hpp"
 #include <CL/sycl/detail/memory_manager.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
-
 
 #include <memory>
 #include <string>

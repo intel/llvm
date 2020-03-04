@@ -8,6 +8,7 @@
 
 #include "CL/sycl/detail/sycl_mem_obj_i.hpp"
 #include <CL/sycl/device_selector.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

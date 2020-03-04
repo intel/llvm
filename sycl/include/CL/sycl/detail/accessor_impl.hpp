@@ -58,35 +58,8 @@ public:
   }
 };
 
-class AccessorImplHost {
-public:
-  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false);
-
-  ~AccessorImplHost();
-
-  AccessorImplHost(const AccessorImplHost &Other);
-
-  id<3> MOffset;
-  // The size of accessing region.
-  range<3> MAccessRange;
-  // The size of memory object this requirement is created for.
-  range<3> MMemoryRange;
-  access::mode MAccessMode;
-
-  detail::SYCLMemObjI *MSYCLMemObj;
-
-  unsigned int MDims;
-  unsigned int MElemSize;
-  unsigned int MOffsetInBytes;
-  bool MIsSubBuffer;
-
-  void *MData = nullptr;
-
-  Command *MBlockedCmd = nullptr;
-};
+// Forward declaration
+class AccessorImplHost;
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
 
@@ -98,16 +71,16 @@ public:
                    bool IsSubBuffer = false);
 
 protected:
-  id<3> &getOffset() { return impl->MOffset; }
-  range<3> &getAccessRange() { return impl->MAccessRange; }
-  range<3> &getMemoryRange() { return impl->MMemoryRange; }
-  void *getPtr() { return impl->MData; }
-  unsigned int getElemSize() const { return impl->MElemSize; }
+  id<3> &getOffset();
+  range<3> &getAccessRange();
+  range<3> &getMemoryRange();
+  void *getPtr();
+  unsigned int getElemSize() const;
 
-  const id<3> &getOffset() const { return impl->MOffset; }
-  const range<3> &getAccessRange() const { return impl->MAccessRange; }
-  const range<3> &getMemoryRange() const { return impl->MMemoryRange; }
-  void *getPtr() const { return const_cast<void *>(impl->MData); }
+  const id<3> &getOffset() const;
+  const range<3> &getAccessRange() const;
+  const range<3> &getMemoryRange() const;
+  void *getPtr() const;
 
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);

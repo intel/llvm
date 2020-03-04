@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %t.out
 #include <CL/sycl.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 #include <algorithm>

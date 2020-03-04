@@ -10,6 +10,7 @@
 #include <CL/sycl.hpp>
 // FIXME do not use internal methods in tests.
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

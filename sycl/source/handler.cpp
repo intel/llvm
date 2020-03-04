@@ -14,6 +14,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 

@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
+#include <detail/accessor_impl_host.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>

@@ -16,6 +16,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/accessor_impl_host.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
