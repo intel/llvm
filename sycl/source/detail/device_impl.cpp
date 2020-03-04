@@ -55,7 +55,8 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice && !InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in piextDeviceInterop.
+    // Interoperability Constructor already calls DeviceRetain in
+    // piextDeviceInterop.
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
 

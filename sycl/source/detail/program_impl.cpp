@@ -96,8 +96,7 @@ program_impl::program_impl(ContextImplPtr Context,
     // Translate the raw program handle into PI program.
     Plugin.call<PiApiKind::piextProgramInterop>(
         Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
-  }
-  else
+  } else
     Plugin.call<PiApiKind::piProgramRetain>(Program);
 
   // TODO handle the case when cl_program build is in progress
