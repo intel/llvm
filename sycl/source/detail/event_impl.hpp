@@ -25,6 +25,7 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
@@ -147,7 +148,7 @@ public:
 private:
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  QueueImplPtr MQueue;
+  QueueImplWPtr MQueue;
   bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

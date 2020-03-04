@@ -662,14 +662,14 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // now rewrite the captured addresss of a private_memory variables within the
   // PFWI lambda object:
   for (auto &C : PrivMemCaptures) {
-    GetElementPtrInst *NewGEP = dyn_cast<GetElementPtrInst>(C.second->clone());
+    GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
     NewGEP->insertBefore(PFWICall);
     IRBuilder<> Bld(PFWICall->getContext());
     Bld.SetInsertPoint(PFWICall);
     Value *Val = C.first;
-    auto ValAS = dyn_cast<PointerType>(Val->getType())->getAddressSpace();
-    auto PtrAS = dyn_cast<PointerType>(NewGEP->getResultElementType())
-                     ->getAddressSpace();
+    auto ValAS = cast<PointerType>(Val->getType())->getAddressSpace();
+    auto PtrAS =
+        cast<PointerType>(NewGEP->getResultElementType())->getAddressSpace();
 
     if (ValAS != PtrAS)
       Val = Bld.CreateAddrSpaceCast(Val, NewGEP->getResultElementType());

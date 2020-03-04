@@ -47,7 +47,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   bool Enqueued =
       TestScheduler::enqueueCommand(&FakeCmd, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
-  ASSERT_EQ(detail::EnqueueResultT::BLOCKED, Res.MResult)
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED\n";
 
   FakeCmd.MCanEnqueue = true;
@@ -56,7 +56,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
 
   Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
-  ASSERT_EQ(detail::EnqueueResultT::FAILED, Res.MResult)
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
       << "The command is expected to fail to enqueue.\n";
   ASSERT_EQ(CL_DEVICE_PARTITION_EQUALLY, FakeCmd.MRetVal)
       << "Expected different error code.\n";
@@ -65,6 +65,6 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res = detail::EnqueueResultT{};
   FakeCmd.MRetVal = CL_SUCCESS;
   Enqueued = TestScheduler::enqueueCommand(&FakeCmd, Res, detail::BLOCKING);
-  ASSERT_TRUE(Enqueued && Res.MResult == detail::EnqueueResultT::SUCCESS)
+  ASSERT_TRUE(Enqueued && Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
       << "The command is expected to be successfully enqueued.\n";
 }
