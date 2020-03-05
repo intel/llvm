@@ -8,6 +8,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#include <CL/sycl.hpp>
 
 #ifdef USE_PI_CUDA
 #include <cuda_driver.h>
@@ -16,6 +17,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
+using namespace cl::sycl;
 
 static const std::string help =
 "   Help\n"
@@ -61,54 +64,29 @@ int main(int argc, char* argv[]) {
     }
 #endif  // USE_PI_CUDA
 
-    cl_device_type device_type;
+    info::device_type device_type;
     if (type == "cpu") {
-        device_type = CL_DEVICE_TYPE_CPU;
+      device_type = info::device_type::cpu;
     } else if (type == "gpu") {
-        device_type = CL_DEVICE_TYPE_GPU;
+      device_type = info::device_type::gpu;
     } else if (type == "accelerator") {
-        device_type = CL_DEVICE_TYPE_ACCELERATOR;
+      device_type = info::device_type::accelerator;
     } else if (type == "default") {
-        device_type = CL_DEVICE_TYPE_DEFAULT;
+      device_type = info::device_type::automatic;
     } else if (type == "all") {
-        device_type = CL_DEVICE_TYPE_ALL;
+      device_type = info::device_type::all;
     } else  {
         std::cout << "0:Incorrect device type." << std::endl
             << help << std::endl;
         return 0;
     }
 
-    cl_int iRet = CL_SUCCESS;
-    cl_uint platformCount = 0;
-
-    iRet = clGetPlatformIDs(0, nullptr, &platformCount);
-    if (iRet != CL_SUCCESS) {
-        if (iRet == CL_PLATFORM_NOT_FOUND_KHR) {
-            std::cout << "0:OpenCL runtime not found " << std::endl;
-        } else {
-            std::cout << "0:A problem at calling function clGetPlatformIDs count "
-                << iRet << std::endl;
-        }
-        return 0;
-    }
-
-    std::vector<cl_platform_id> platforms(platformCount);
-
-    iRet = clGetPlatformIDs(platformCount, &platforms[0], nullptr);
-    if (iRet != CL_SUCCESS) {
-        std::cout << "0:A problem at when calling function clGetPlatformIDs ids " << iRet << std::endl;
-        return 0;
-    }
-
-    for (cl_uint i = 0; i < platformCount; i++) {
-        cl_uint deviceCountPart = 0;
-        iRet = clGetDeviceIDs(platforms[i], device_type, 0, nullptr, &deviceCountPart);
-        if (iRet == CL_SUCCESS) {
-            deviceCount += deviceCountPart;
-        }
+    std::vector<platform> platforms(platform::get_platforms());
+    for (cl_uint i = 0; i < platforms.size(); i++) {
+      std::vector<device> result = platforms[i].get_devices(device_type);
+      deviceCount += result.size();
     }
 
     std::cout << deviceCount << ":" << backend << std::endl;
-
     return 0;
 }

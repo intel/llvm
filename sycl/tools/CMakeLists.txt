@@ -4,7 +4,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type ocl-headers ocl-icd)
+target_include_directories(get_device_count_by_type PRIVATE "${sycl_inc_dir}")
 target_link_libraries(get_device_count_by_type
+    PRIVATE sycl
     PRIVATE OpenCL::Headers
     PRIVATE ${OpenCL_LIBRARIES}
 )
