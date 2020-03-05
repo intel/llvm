@@ -2107,6 +2107,9 @@ pi_result cuda_piKernelGetInfo(
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      kernel->get_program());
     }
+    case PI_KERNEL_INFO_ATTRIBUTES: {
+      return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    }
     default: {
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
@@ -2151,6 +2154,24 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       cl::sycl::detail::pi::assertion(cuFuncGetAttribute(&bytes,
                                        CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                                        kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }

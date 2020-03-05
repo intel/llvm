@@ -97,7 +97,8 @@ cl_context context_impl::get() const {
     return pi::cast<cl_context>(MContext);
   }
   throw invalid_object_error(
-      "This instance of context doesn't support OpenCL interoperability.");
+      "This instance of context doesn't support OpenCL interoperability.",
+      PI_INVALID_CONTEXT);
 }
 
 bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }

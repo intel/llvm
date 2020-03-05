@@ -336,7 +336,8 @@ private:
   template <info::device param>
   void checkDeviceFeatureSupported(const device &Device) {
     if (!Device.get_info<param>())
-      throw feature_not_supported("Images are not supported by this device.");
+      throw feature_not_supported("Images are not supported by this device.",
+                                  PI_INVALID_OPERATION);
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -357,8 +358,8 @@ private:
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
-    throw runtime_error(
-        "image::getRangeInternal() is not implemented for host");
+    throw runtime_error("image::getRangeInternal() is not implemented for host",
+                        PI_INVALID_OPERATION);
     return sycl::vec<int, Dimensions>{1};
   }
 

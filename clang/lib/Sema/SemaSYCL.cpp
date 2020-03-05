@@ -138,12 +138,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIceil:
-  case Builtin::BI__builtin_ceil:
   case Builtin::BIcopysign:
   case Builtin::BI__builtin_copysign:
-  case Builtin::BIfabs:
-  case Builtin::BI__builtin_fabs:
   case Builtin::BIfloor:
   case Builtin::BI__builtin_floor:
   case Builtin::BIfmax:
@@ -158,12 +154,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_round:
   case Builtin::BItrunc:
   case Builtin::BI__builtin_trunc:
-  case Builtin::BIceilf:
-  case Builtin::BI__builtin_ceilf:
   case Builtin::BIcopysignf:
   case Builtin::BI__builtin_copysignf:
-  case Builtin::BIfabsf:
-  case Builtin::BI__builtin_fabsf:
   case Builtin::BIfloorf:
   case Builtin::BI__builtin_floorf:
   case Builtin::BIfmaxf:

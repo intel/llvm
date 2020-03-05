@@ -75,7 +75,8 @@ public:
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
-          "as the context does not contain the given device.");
+          "as the context does not contain the given device.",
+          PI_INVALID_DEVICE);
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -117,7 +118,8 @@ public:
       return pi::cast<cl_command_queue>(MCommandQueue);
     }
     throw invalid_object_error(
-        "This instance of queue doesn't support OpenCL interoperability");
+        "This instance of queue doesn't support OpenCL interoperability",
+        PI_INVALID_QUEUE);
   }
 
   /// @return an associated SYCL context.
