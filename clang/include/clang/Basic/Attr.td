@@ -1147,7 +1147,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [IntArgument<"Number">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
@@ -2416,6 +2416,14 @@ def ReqdWorkGroupSize : InheritableAttr {
                    CXX11<"cl","reqd_work_group_size">];
   let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
               UnsignedArgument<"ZDim">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
+def SYCLIntelReqdWorkGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intel","reqd_work_group_size">];
+  let Args = [IntArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
+              DefaultIntArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
 }

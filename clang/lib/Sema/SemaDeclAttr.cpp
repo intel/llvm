@@ -2914,7 +2914,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-  
+
     if (S.getLangOpts().SYCLIsDevice &&
         !(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
           WGSize[0] >= A->getZDim())) {
@@ -2940,9 +2940,13 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   uint32_t WGSize[3];
+  if (const auto *A = D->getAttr<SYCLIntelReqdWorkGroupSizeAttr>()){
+    WGSize[1] = SYCLIntelReqdWorkGroupSizeAttr::DefaultYDim;
+    WGSize[2] = SYCLIntelReqdWorkGroupSizeAttr::DefaultZDim;
+  }
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
-    if (!checkUInt32Argument(S, AL, E, WGSize[i], i,
+    if (i < AL.getNumArgs() && !checkUInt32Argument(S, AL, E, WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
     if (WGSize[i] == 0) {
