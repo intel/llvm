@@ -31,7 +31,8 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 
 uint32_t PlatformUtil::getMaxClockFrequency() {
   throw runtime_error(
-      "max_clock_frequency parameter is not supported for host device");
+      "max_clock_frequency parameter is not supported for host device",
+      PI_INVALID_DEVICE);
   uint32_t CPUInfo[4];
   string_class Buff(sizeof(CPUInfo) * 3 + 1, 0);
   size_t Offset = 0;

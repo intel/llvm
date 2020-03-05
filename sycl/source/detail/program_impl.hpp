@@ -298,7 +298,8 @@ private:
     for (const auto &Device : Devices) {
       if (!Device.get_info<param>()) {
         throw feature_not_supported(
-            "Online compilation is not supported by this device");
+            "Online compilation is not supported by this device",
+            PI_COMPILER_NOT_AVAILABLE);
       }
     }
   }
