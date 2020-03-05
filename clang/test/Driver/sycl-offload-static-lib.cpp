@@ -59,8 +59,6 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-emit-llvm-bc"
-// FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-fsyntax-only"
 // FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[HOSTOBJ]]" "[[INPUT:.+\.a]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=oo"
