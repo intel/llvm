@@ -4742,6 +4742,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // `--gpu-use-aux-triple-only` is specified.
   if (!Args.getLastArg(options::OPT_gpu_use_aux_triple_only) &&
       ((IsCuda && JA.isDeviceOffloading(Action::OFK_Cuda)) ||
+       (IsSYCL && IsSYCLOffloadDevice) ||
        (IsHIP && JA.isDeviceOffloading(Action::OFK_HIP)))) {
     const ArgList &HostArgs =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_None);

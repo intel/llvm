@@ -56,7 +56,8 @@ public:
   /// @return non-constant reference to PI device
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance");
+      throw invalid_object_error("This instance of device is a host instance",
+                                 PI_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -68,7 +69,8 @@ public:
   /// @return constant reference to PI device
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance");
+      throw invalid_object_error("This instance of device is a host instance",
+                                 PI_INVALID_DEVICE);
 
     return MDevice;
   }

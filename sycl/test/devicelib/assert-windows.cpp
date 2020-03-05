@@ -5,7 +5,7 @@
 // XFAIL: *
 //
 // RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %llvm_build_libs_dir/../bin/libsycl-msvc.o -o %t.out
+// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-msvc.o -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
 // program doesn't terminate when fallback is used.
@@ -14,11 +14,13 @@
 // explicitly. Since the test is going to crash, we'll have to follow a similar
 // approach as on Linux - call the test in a subprocess.
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 SYCL_DEVICE_TYPE=CPU CL_CONFIG_USE_VECTORIZER=False %t.out >%t.stdout.fallback 2>%t.stderr.fallback
-// RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t.stdout.fallback
+// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU %t.out >%t.stdout.pi.fallback
+// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU %t.out >%t.stdout.msg.fallback
+//
+// RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t.stdout.msg.fallback
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id: [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"` failed.
 //
-// RUN: FileCheck %s --input-file %t.stdout.fallback --check-prefix=CHECK-FALLBACK
+// RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefix=CHECK-FALLBACK
 // CHECK-FALLBACK: ---> piProgramLink
 
 #include <CL/sycl.hpp>
@@ -45,6 +47,8 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     }
   });
 
+  int shouldCrash = getenv("SHOULD_CRASH") ? 1 : 0;
+
   cl::sycl::range<1> numOfItems{N};
   cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
@@ -57,7 +61,9 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
 
     cgh.parallel_for<class SimpleVaddT>(numOfItems, [=](cl::sycl::id<1> wiID) {
       accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-      assert(accessorC[wiID] == 0 && "Invalid value");
+      if (shouldCrash) {
+        assert(accessorC[wiID] == 0 && "Invalid value");
+      }
     });
   });
   deviceQueue.wait_and_throw();

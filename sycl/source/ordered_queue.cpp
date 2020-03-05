@@ -59,7 +59,8 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
       &reportedProps, nullptr);
   if (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
     throw runtime_error(
-        "Failed to build a sycl ordered queue from a cl OOO queue.");
+        "Failed to build a sycl ordered queue from a cl OOO queue.",
+        PI_INVALID_OPERATION);
 
   impl = std::make_shared<detail::queue_impl>(
       m_CommandQueue, detail::getSyclObjImpl(syclContext), asyncHandler);

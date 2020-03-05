@@ -2,13 +2,9 @@
 extern "C" float  sinf(float);
 extern "C" float  cosf(float);
 extern "C" float  logf(float);
-extern "C" float  ceilf(float);
-extern "C" float  fabsf(float);
 extern "C" double sin(double);
 extern "C" double cos(double);
 extern "C" double log(double);
-extern "C" double ceil(double);
-extern "C" double fabs(double);
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
@@ -30,14 +26,6 @@ int main() {
     acc[0] += (int)log(1.0);                    // expected-no-error
     acc[0] += (int)__builtin_logf(1.0f);        // expected-no-error
     acc[0] += (int)__builtin_log(1.0);          // expected-no-error
-    acc[0] += (int)ceilf(1.0f);                 // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)ceil(1.0);                   // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)__builtin_ceilf(1.0f);       // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)__builtin_ceil(1.0);         // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)fabsf(-1.0f);                // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)fabs(-1.0);                  // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)__builtin_fabsf(-1.0f);      // expected-error{{builtin is not supported on this target}}
-    acc[0] += (int)__builtin_fabs(-1.0);        // expected-error{{builtin is not supported on this target}}
     acc[0] += (int)__builtin_fabsl(-1.0);       // expected-error{{builtin is not supported on this target}}
     acc[0] += (int)__builtin_cosl(-1.0);        // expected-error{{builtin is not supported on this target}}
     acc[0] += (int)__builtin_powl(-1.0, 10.0);  // expected-error{{builtin is not supported on this target}}

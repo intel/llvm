@@ -138,12 +138,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIceil:
-  case Builtin::BI__builtin_ceil:
   case Builtin::BIcopysign:
   case Builtin::BI__builtin_copysign:
-  case Builtin::BIfabs:
-  case Builtin::BI__builtin_fabs:
   case Builtin::BIfloor:
   case Builtin::BI__builtin_floor:
   case Builtin::BIfmax:
@@ -158,12 +154,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_round:
   case Builtin::BItrunc:
   case Builtin::BI__builtin_trunc:
-  case Builtin::BIceilf:
-  case Builtin::BI__builtin_ceilf:
   case Builtin::BIcopysignf:
   case Builtin::BI__builtin_copysignf:
-  case Builtin::BIfabsf:
-  case Builtin::BI__builtin_fabsf:
   case Builtin::BIfloorf:
   case Builtin::BI__builtin_floorf:
   case Builtin::BIfmaxf:
@@ -215,6 +207,8 @@ public:
 
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
+      assert(Callee && "Device function canonical decl must be available");
+
       // Remember that all SYCL kernel functions have deferred
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
@@ -254,7 +248,7 @@ public:
       }
       // Specifically check if the math library function corresponding to this
       // builtin is supported for SYCL
-      unsigned BuiltinID = (Callee ? Callee->getBuiltinID() : 0);
+      unsigned BuiltinID = Callee->getBuiltinID();
       if (BuiltinID && !IsSyclMathFunc(BuiltinID)) {
         StringRef Name = SemaRef.Context.BuiltinInfo.getName(BuiltinID);
         SemaRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
@@ -321,29 +315,16 @@ public:
     return true;
   }
 
-  bool VisitMemberExpr(MemberExpr *E) {
-    if (VarDecl *VD = dyn_cast<VarDecl>(E->getMemberDecl())) {
-      bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->isStaticDataMember())
-        SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelNonConstStaticDataVariable;
-    }
-    return true;
-  }
-
   bool VisitDeclRefExpr(DeclRefExpr *E) {
-    Decl* D = E->getDecl();
+    Decl *D = E->getDecl();
     if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
 
     CheckSYCLType(E->getType(), E->getSourceRange());
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->isStaticDataMember())
-        SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelNonConstStaticDataVariable;
-      else if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-               !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
+      if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
+          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
         if (VD->getTLSKind() != VarDecl::TLS_None)
           SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)

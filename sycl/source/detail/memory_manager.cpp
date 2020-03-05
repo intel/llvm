@@ -200,7 +200,8 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment");
+        "multiple of the memory base address alignment",
+        PI_INVALID_VALUE);
   return NewMem;
 }
 
@@ -354,7 +355,8 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     assert(!"Not supported configuration of memcpy requested");
-    throw runtime_error("Not supported configuration of memcpy requested");
+    throw runtime_error("Not supported configuration of memcpy requested",
+                        PI_INVALID_OPERATION);
   }
 
   DstOffset[0] *= DstElemSize;
@@ -427,7 +429,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       return;
     }
     assert(!"Not supported configuration of fill requested");
-    throw runtime_error("Not supported configuration of fill requested");
+    throw runtime_error("Not supported configuration of fill requested",
+                        PI_INVALID_OPERATION);
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
@@ -443,7 +446,8 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
     assert(!"Not supported configuration of map requested");
-    throw runtime_error("Not supported configuration of map requested");
+    throw runtime_error("Not supported configuration of map requested",
+                        PI_INVALID_OPERATION);
   }
 
   cl_map_flags Flags = 0;

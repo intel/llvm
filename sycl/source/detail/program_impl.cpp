@@ -33,7 +33,8 @@ program_impl::program_impl(
       MBuildOptions(LinkOptions) {
   // Verify arguments
   if (ProgramList.empty()) {
-    throw runtime_error("Non-empty vector of programs expected");
+    throw runtime_error("Non-empty vector of programs expected",
+                        PI_INVALID_VALUE);
   }
   MContext = ProgramList[0]->MContext;
   MDevices = ProgramList[0]->MDevices;
@@ -46,14 +47,16 @@ program_impl::program_impl(
     Prg->throw_if_state_is_not(program_state::compiled);
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
-          "Not all programs are associated with the same context");
+          "Not all programs are associated with the same context",
+          PI_INVALID_PROGRAM);
     }
     if (!is_host()) {
       vector_class<device> PrgDevicesSorted =
           sort_devices_by_cl_device_id(Prg->MDevices);
       if (PrgDevicesSorted != DevicesSorted) {
         throw invalid_object_error(
-            "Not all programs are associated with the same devices");
+            "Not all programs are associated with the same devices",
+            PI_INVALID_PROGRAM);
       }
     }
   }
@@ -152,7 +155,8 @@ program_impl::~program_impl() {
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance");
+    throw invalid_object_error("This instance of program is a host instance",
+                               PI_INVALID_PROGRAM);
   }
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -245,7 +249,8 @@ kernel program_impl::get_kernel(string_class KernelName,
   throw_if_state_is(program_state::none);
   if (is_host()) {
     if (IsCreatedFromSource)
-      throw invalid_object_error("This instance of program is a host instance");
+      throw invalid_object_error("This instance of program is a host instance",
+                                 PI_INVALID_PROGRAM);
 
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
@@ -297,9 +302,11 @@ void program_impl::compile(const string_class &Options) {
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
         "Program compilation error:\n" +
-        ProgramManager::getProgramBuildLog(MProgram, MContext));
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
+        Err);
   }
   MCompileOptions = Options;
+  MBuildOptions = Options;
 }
 
 void program_impl::build(const string_class &Options) {
@@ -313,10 +320,10 @@ void program_impl::build(const string_class &Options) {
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
         "Program build error:\n" +
-        ProgramManager::getProgramBuildLog(MProgram, MContext));
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
+        Err);
   }
   MBuildOptions = Options;
-  MCompileOptions = Options;
 }
 
 vector_class<RT::PiDevice> program_impl::get_pi_devices() const {
@@ -359,7 +366,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
         MProgram, KernelName.c_str(), &Kernel);
     if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
-          "This instance of program does not contain the kernel requested");
+          "This instance of program does not contain the kernel requested",
+          Err);
     }
     Plugin.checkPiResult(Err);
   }
@@ -379,13 +387,13 @@ program_impl::sort_devices_by_cl_device_id(vector_class<device> Devices) {
 
 void program_impl::throw_if_state_is(program_state State) const {
   if (MState == State) {
-    throw invalid_object_error("Invalid program state");
+    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
   }
 }
 
 void program_impl::throw_if_state_is_not(program_state State) const {
   if (MState != State) {
-    throw invalid_object_error("Invalid program state");
+    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
   }
 }
 
@@ -400,7 +408,8 @@ void program_impl::create_pi_program_with_kernel_name(
 template <>
 cl_uint program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance");
+    throw invalid_object_error("This instance of program is a host instance",
+                               PI_INVALID_PROGRAM);
   }
   cl_uint Result;
   const detail::plugin &Plugin = getPlugin();
