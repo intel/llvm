@@ -278,9 +278,14 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
         if (Ty == types::TY_INVALID)
           continue;
         if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-          llvm::sys::path::replace_extension(AN, "prj");
-          ReportOptArg += Args.MakeArgString(AN);
-          break;
+          // Output is based on the filename only so strip off any directory
+          // information if provided with the source/object file.
+          AN = llvm::sys::path::filename(AN);
+          if (!AN.empty()) {
+            llvm::sys::path::replace_extension(AN, "prj");
+            ReportOptArg += Args.MakeArgString(AN);
+            break;
+          }
         }
       }
     }
