@@ -2914,7 +2914,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-  
+
     if (S.getLangOpts().SYCLIsDevice &&
         !(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
           WGSize[0] >= A->getZDim())) {
