@@ -210,6 +210,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
+	  file-table-tform
           llc
           llvm-ar
           llvm-foreach
@@ -256,6 +257,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang
      clang-offload-wrapper
      clang-offload-bundler
+     file-table-tform
      llc
      llvm-ar
      llvm-foreach
