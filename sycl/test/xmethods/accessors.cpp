@@ -4,22 +4,12 @@
 
 typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
 
-// AccessorImplHost must have MMemoryRange, MOffset and MData fields
-
-// CHECK: CXXRecordDecl {{.*}} class AccessorImplHost definition
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced MOffset
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced MMemoryRange
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced MData
-
-// accessor.impl must be present and of shared_ptr<AccessorImplHost> type
+// AccessorBaseHost must have getOffset, getMemoryRange, and getPtr methods
 
 // CHECK: CXXRecordDecl {{.*}} class AccessorBaseHost definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced impl {{.*}}:'std::shared_ptr<cl::sycl::detail::AccessorImplHost>'
-// CHECK: CXXRecordDecl {{.*}} class accessor definition
+// CHECK: CXXMethodDecl {{.*}} getOffset 'id<3> &()'
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: public {{.*}}:'cl::sycl::detail::AccessorBaseHost'
-
+// CHECK: CXXMethodDecl {{.*}} getMemoryRange 'range<3> &()'
+// CHECK-NOT: CXXRecordDecl {{.*}} definition
+// CHECK: CXXMethodDecl {{.*}} getPtr 'void *()'

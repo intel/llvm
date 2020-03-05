@@ -18,9 +18,10 @@ class Accessor:
     def data(self):
         pass
 
-    def __init__(self, obj, result_type, depth):
+    def __init__(self, obj, result_type, class_type, depth):
         self.obj = obj
         self.result_type = result_type
+        self.class_type = class_type
         self.depth = depth
 
     def index(self, arg):
@@ -42,17 +43,19 @@ class Accessor:
 For Host device memory layout
 """
 class HostAccessor(Accessor):
-    def payload(self):
-        return self.obj['impl']['_M_ptr'].dereference()
+    def call_method(self, name):
+        return gdb.parse_and_eval(
+            "((%s*) %s)->%s()" % (self.class_type, self.obj, name));
 
     def memory_range(self, dim):
-        return self.payload()['MMemoryRange']['common_array'][dim]
+        return self.call_method('getMemoryRange')['common_array'][dim]
 
     def offset(self, dim):
-        return self.payload()['MOffset']['common_array'][dim]
+        return self.call_method('getOffset')['common_array'][dim]
 
     def data(self):
-        return self.payload()['MData']
+        return self.call_method('getPtr')
+
 
 """
 For CPU/GPU memory layout
@@ -87,8 +90,8 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         # No way to wasily figure out which devices is currently being used,
         # try all accessor implementations until one of them works:
         accessors = [
-            DeviceAccessor(obj, self.result_type, self.depth),
-            HostAccessor(obj, self.result_type, self.depth)
+            DeviceAccessor(obj, self.result_type, self.class_type, self.depth),
+            HostAccessor(obj, self.result_type, self.class_type, self.depth)
         ]
         for accessor in accessors:
             try:
