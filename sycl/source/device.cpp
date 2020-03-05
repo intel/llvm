@@ -38,13 +38,15 @@ device::device(const device_selector &deviceSelector) {
 
 vector_class<device> device::get_devices(info::device_type deviceType) {
   vector_class<device> devices;
+  // Host device availability should not depend on the forced type
+  const bool includeHost =
+      detail::match_types(deviceType, info::device_type::host);
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
     for (const auto &plt : platform::get_platforms()) {
-      // Host device must always be available.
-      if (plt.is_host()) {
+      if (includeHost && plt.is_host()) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));
         if (!host_device.empty())
