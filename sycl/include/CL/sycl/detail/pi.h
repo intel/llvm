@@ -743,7 +743,7 @@ pi_result piDevicePartition(pi_device device,
 ///
 pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
                                   pi_uint32 num_binaries,
-                                  pi_device_binary *selected_binary);
+                                  pi_uint32 *selected_binary_ind);
 
 /// Retrieves a device function pointer to a user-defined function
 /// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query
@@ -878,6 +878,17 @@ pi_result piProgramGetBuildInfo(
 pi_result piProgramRetain(pi_program program);
 
 pi_result piProgramRelease(pi_program program);
+
+/// Sets a specialization constant to a specific value.
+///
+/// \param prog the program object which will use the value
+/// \param spec_id integer ID of the constant
+/// \param spec_size size of the value
+/// \param spec_value bytes of the value
+pi_result piextProgramSetSpecializationConstant(pi_program prog,
+                                                pi_uint32 spec_id,
+                                                size_t spec_size,
+                                                const void *spec_value);
 
 //
 // Kernel
