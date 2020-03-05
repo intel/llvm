@@ -34,7 +34,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // TODO: SYCL BE generalization will change this to something better.
 // For now this saves us from unwanted implicit casts.
 struct _program_interop_handle_t;
-using _program_interop_handle_t *program_interop_handle_t;
+using program_interop_handle_t = _program_interop_handle_t *;
 
 class program_impl {
 public:
