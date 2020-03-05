@@ -87,13 +87,13 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
 
   EXPECT_EQ(NInnerCommandsAlive, 0);
 
-  ASSERT_EQ(LeafA.MDeps.size(), 1);
+  ASSERT_EQ(LeafA.MDeps.size(), 1U);
   EXPECT_EQ(LeafA.MDeps[0].MDepCommand, &AllocaA);
-  ASSERT_EQ(AllocaA.MUsers.size(), 1);
+  ASSERT_EQ(AllocaA.MUsers.size(), 1U);
   EXPECT_EQ(*AllocaA.MUsers.begin(), &LeafA);
 
-  ASSERT_EQ(LeafB.MDeps.size(), 1);
+  ASSERT_EQ(LeafB.MDeps.size(), 1U);
   EXPECT_EQ(LeafB.MDeps[0].MDepCommand, &AllocaB);
-  ASSERT_EQ(AllocaB.MUsers.size(), 1);
+  ASSERT_EQ(AllocaB.MUsers.size(), 1U);
   EXPECT_EQ(*AllocaB.MUsers.begin(), &LeafB);
 }

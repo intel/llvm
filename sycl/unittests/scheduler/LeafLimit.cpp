@@ -61,9 +61,9 @@ TEST_F(SchedulerTest, LeafLimit) {
   }
   FakeCommand *OldestLeaf = LeavesToAdd.front();
   FakeCommand *NewestLeaf = LeavesToAdd.back();
-  ASSERT_EQ(OldestLeaf->MUsers.size(), 1);
-  EXPECT_GT(OldestLeaf->MUsers.count(NewestLeaf), 0);
-  ASSERT_EQ(NewestLeaf->MDeps.size(), 2);
+  ASSERT_EQ(OldestLeaf->MUsers.size(), 1U);
+  EXPECT_GT(OldestLeaf->MUsers.count(NewestLeaf), 0U);
+  ASSERT_EQ(NewestLeaf->MDeps.size(), 2U);
   EXPECT_TRUE(std::any_of(
       NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));

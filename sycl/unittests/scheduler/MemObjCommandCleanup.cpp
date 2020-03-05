@@ -50,8 +50,8 @@ TEST_F(SchedulerTest, MemObjCommandCleanup) {
 
   // Check that the direct user has been left with the second alloca
   // as the only dependency, while the indirect user has been cleaned up.
-  ASSERT_EQ(FakeDirectUser->MUsers.size(), 0);
-  ASSERT_EQ(FakeDirectUser->MDeps.size(), 1);
+  ASSERT_EQ(FakeDirectUser->MUsers.size(), 0U);
+  ASSERT_EQ(FakeDirectUser->MDeps.size(), 1U);
   EXPECT_EQ(FakeDirectUser->MDeps[0].MDepCommand, FakeAllocaB.get());
   EXPECT_TRUE(IndirectUserDeleted);
 }
