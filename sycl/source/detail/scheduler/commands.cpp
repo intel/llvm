@@ -161,7 +161,7 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
   RT::PiEvent &EventHandle = (*Event)->getHandleRef();
   const detail::plugin &Plugin = (*Event)->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, CL_COMPLETE);
+  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, PI_EVENT_COMPLETE);
   delete (Event);
 }
 
@@ -169,37 +169,42 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
 std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> Result;
   std::vector<EventImplPtr> GlueEvents;
-  for (EventImplPtr &Event : MDepsEvents) {
+  for (EventImplPtr &DepEvent : MDepsEvents) {
     // Async work is not supported for host device.
-    if (Event->is_host()) {
-      Event->waitInternal();
+    if (DepEvent->is_host()) {
+      DepEvent->waitInternal();
       continue;
     }
     // The event handle can be null in case of, for example, alloca command,
     // which is currently synchrounious, so don't generate OpenCL event.
-    if (Event->getHandleRef() == nullptr) {
+    if (DepEvent->getHandleRef() == nullptr) {
       continue;
     }
-    ContextImplPtr EventContext = Event->getContextImpl();
-    const detail::plugin &Plugin = Event->getPlugin();
-    // If contexts don't match - connect them using user event
-    if (EventContext != Context && !Context->is_host()) {
+    ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
+    // If contexts don't match - connect them using user event
+    if (DepEventContext != Context && !Context->is_host()) {
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                            &GlueEventHandle);
       EventImplPtr *GlueEventCopy =
           new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-      Plugin.call<PiApiKind::piEventSetCallback>(
-          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
+
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      auto Plugin = Context->getPlugin();
+      auto DepPlugin = DepEventContext->getPlugin();
+      // Add an event on the current context that
+      // is triggered when the DepEvent is complete
+      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                            &GlueEventHandle);
+
+      DepPlugin.call<PiApiKind::piEventSetCallback>(
+          DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
       continue;
     }
-    Result.push_back(Event);
+    Result.push_back(DepEvent);
   }
   MDepsEvents.insert(MDepsEvents.end(), GlueEvents.begin(), GlueEvents.end());
   return Result;
