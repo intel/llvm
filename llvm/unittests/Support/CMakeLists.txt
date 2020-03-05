@@ -55,6 +55,7 @@ add_llvm_unittest(SupportTests
   Path.cpp
   ProcessTest.cpp
   ProgramTest.cpp
+  PropertySetIOTest.cpp
   RegexTest.cpp
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
