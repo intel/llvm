@@ -300,10 +300,10 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   // 2) Generate a store of the produced value into the WG local var
   IRBuilder<> Bld(Ctx);
   Bld.SetInsertPoint(I.getNextNode());
-  Bld.CreateStore(&I, WGLocal);
+  Bld.CreateStore(&I, WGLocal, true);
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
-  auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
+  auto *WGVal = Bld.CreateLoad(WGLocal, true, "wg_val_" + Twine(I.getName()));
   // 4) Finally, replace usages of I ouside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
@@ -396,17 +396,17 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
     if (Loc2Shadow)
-      Builder.CreateMemCpy(Shadow, ShdAlign, L, LocAlign, Size);
+      Builder.CreateMemCpy(Shadow, ShdAlign, L, LocAlign, Size, true);
     else
-      Builder.CreateMemCpy(L, LocAlign, Shadow, ShdAlign, Size);
+      Builder.CreateMemCpy(L, LocAlign, Shadow, ShdAlign, Size, true);
   } else {
     Value *Src = L;
     Value *Dst = Shadow;
 
     if (!Loc2Shadow)
       std::swap(Src, Dst);
-    Value *LocalVal = Builder.CreateLoad(Src, "mat_ld");
-    Builder.CreateStore(LocalVal, Dst);
+    Value *LocalVal = Builder.CreateLoad(Src, true, "mat_ld");
+    Builder.CreateStore(LocalVal, Dst, true);
   }
 }
 
@@ -673,7 +673,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
 
     if (ValAS != PtrAS)
       Val = Bld.CreateAddrSpaceCast(Val, NewGEP->getResultElementType());
-    Bld.CreateStore(Val, NewGEP);
+    Bld.CreateStore(Val, NewGEP, true);
   }
 }
 
@@ -921,7 +921,7 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
       unsigned Align = M.getDataLayout().getPreferredAlignment(G);
       G->setAlignment(Align);
     }
-    Value *Res = new LoadInst(G, "", &Before);
+    Value *Res = new LoadInst(G, "", true, &Before);
     return Res;
   }
 }
