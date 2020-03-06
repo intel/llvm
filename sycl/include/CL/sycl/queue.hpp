@@ -448,8 +448,8 @@ public:
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
 
-  void set_host_task_thread_pool_size(unsigned int) {
-    throw std::runtime_error("Not implemented");
+  void set_event_cb_thread_pool_size(unsigned int) {
+    /* Not implemented yet */
   }
 
 private:

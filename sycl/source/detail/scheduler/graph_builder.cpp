@@ -340,7 +340,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 // The function implements SYCL host accessor logic: host accessor
 // should provide access to the buffer in user space.
 Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
-                                                  const bool WaitEvent) {
+                                                const bool destructor) {
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
@@ -358,22 +358,20 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
-  if (WaitEvent) {
-    // Need empty command to be blocked until host accessor is destructed
-    EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
-    EmptyCmd->addDep(
-        DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
-    UpdateHostAccCmd->addUser(EmptyCmd);
+  // Need empty command to be blocked until host accessor is destructed
+  EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
+  EmptyCmd->addDep(
+      DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
+  UpdateHostAccCmd->addUser(EmptyCmd);
 
-    EmptyCmd->MIsBlockable = true;
-    EmptyCmd->MCanEnqueue = false;
-    EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
+  EmptyCmd->MIsBlockable = true;
+  EmptyCmd->MCanEnqueue = false;
+  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
-    updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
-    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
+  addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
-    Req->MBlockedCmd = EmptyCmd;
-  }
+  Req->MBlockedCmd = EmptyCmd;
 
   if (MPrintOptionsArray[AfterAddHostAcc])
     printGraphAsDot("after_addHostAccessor");

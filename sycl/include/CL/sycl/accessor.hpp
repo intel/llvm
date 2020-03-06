@@ -814,11 +814,9 @@ public:
   }
 #endif
 
-  // IsHostBuf is here for host/interop task
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (IsHostBuf || (!IsPlaceH &&
-                                             (IsGlobalBuf || IsConstantBuf)))>>
+                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -856,11 +854,9 @@ public:
   }
 #endif
 
-  // IsHostBuf is here for host/interop task
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (IsHostBuf || (!IsPlaceH &&
-                                             (IsGlobalBuf || IsConstantBuf)))>>
+                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {})

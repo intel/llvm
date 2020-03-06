@@ -753,36 +753,11 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
-struct HostTaskContext {
-  CGHostTask *ExecHost;
-
-  std::vector<EventImplPtr> WaitList;
-  EventImplPtr SelfEvent;
-};
-
-void DispatchHostTask(HostTaskContext *Ctx) {
-  std::vector<event> Events;
-  Events.reserve(Ctx->WaitList.size());
-
-  for (const EventImplPtr &Event : Ctx->WaitList) {
-    Event->wait_and_throw(Event);
-
-    Events.emplace_back(createSyclObjFromImpl<event>(Event));
-  }
-
-  Ctx->ExecHost->MHostTask->call(Events);
-
-  if (Ctx->SelfEvent)
-    Ctx->SelfEvent->setComplete();
-
-  delete Ctx;
-}
-
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1065,17 +1040,6 @@ cl_int ExecCGCommand::enqueueImp() {
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0, nullptr, &Event);
     Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
-    return CL_SUCCESS;
-  }
-  case CG::CGTYPE::HOST_TASK: {
-    auto *Ctx = new HostTaskContext{
-      static_cast<CGHostTask *>(MCommandGroup.get()),
-      EventImpls,
-      MEvent
-    };
-
-    MQueue->getHostTaskThreadPool().submit(DispatchHostTask, Ctx);
-
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

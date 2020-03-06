@@ -16,7 +16,6 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
@@ -107,29 +106,6 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 };
 
 device getDeviceFromHandler(handler &);
-
-template <typename, typename T>
-struct check_fn_signature {
-  static_assert(std::integral_constant<T, false>::value,
-                "Second template parameter needs to be of function type");
-};
-
-template <typename F, typename RetT, typename... Args>
-struct check_fn_signature<F, RetT(Args...)> {
-private:
-  template <typename T>
-  static constexpr auto check(T*)
-    -> typename std::is_same<
-        decltype(std::declval<T>().operator()(std::declval<Args>()...)),
-        RetT>::type;
-
-  template <typename>
-  static constexpr std::false_type check(...);
-
-  typedef decltype(check<F>(0)) type;
-public:
-  static constexpr bool value = type::value;
-};
 } // namespace detail
 
 /// 4.8.3 Command group handler class
@@ -592,41 +568,6 @@ public:
     MArgs = std::move(MAssociatedAccesors);
     MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
-  }
-
-  template <typename FuncT>
-  typename std::enable_if<
-      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void(interop_handle &)>::value>::type
-  codeplay_host_task(FuncT &&Func) {
-    (void)Func; // eliminate possible compiler warning
-    throw std::runtime_error("Not implemented");
-  }
-
-  template <typename FuncT>
-  typename std::enable_if<
-      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void()>::value>::type
-  codeplay_host_task(FuncT &&Func) {
-    codeplay_host_task([Func](interop_handle &IH) {
-      (void)IH; // eliminate possible compiler warning
-      Func();
-    });
-  }
-
-  template <typename FuncT>
-  typename std::enable_if<
-      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void(const vector_class<event> &)>::value>::type
-  host_task(FuncT &&Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>{1});
-    MArgs = std::move(MAssociatedAccesors);
-
-    MHostTask.reset(new detail::HostTask(Func));
-
-    MCGType = detail::CG::HOST_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1341,8 +1282,6 @@ private:
   detail::OSModuleHandle MOSModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
-  // Storage for a lambda/function when using HostTask
-  std::unique_ptr<detail::HostTask> MHostTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
 

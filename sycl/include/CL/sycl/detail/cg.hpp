@@ -52,7 +52,6 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
   }
-
 private:
   cl_command_queue MQueue;
   std::vector<ReqToMem> MMemObjs;
@@ -181,16 +180,6 @@ public:
   InteropTask(function_class<void(cl::sycl::interop_handler)> Func)
       : MFunc(Func) {}
   void call(cl::sycl::interop_handler &h) { MFunc(h); }
-};
-
-class HostTask {
-  std::function<void(const vector_class<cl::sycl::event> &)> MHostTask;
-
-public:
-  HostTask(function_class<void(const vector_class<cl::sycl::event> &)> &&Func)
-    : MHostTask(Func) {}
-
-  void call(const vector_class<cl::sycl::event> &Event) { MHostTask(Event); }
 };
 
 // Class which stores specific lambda object.
@@ -372,8 +361,7 @@ public:
     COPY_USM,
     FILL_USM,
     PREFETCH_USM,
-    INTEROP_TASK_CODEPLAY,
-    HOST_TASK
+    INTEROP_TASK_CODEPLAY
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -587,23 +575,6 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
         MInteropTask(std::move(InteropTask)) {}
-};
-
-class CGHostTask : public CG {
-public:
-  std::unique_ptr<HostTask> MHostTask;
-
-  CGHostTask(std::unique_ptr<HostTask> HostTask,
-             std::vector<std::vector<char>> ArgsStorage,
-             std::vector<detail::AccessorImplPtr> AccStorage,
-             std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-             std::vector<Requirement *> Requirements,
-             std::vector<detail::EventImplPtr> Events, CGTYPE Type)
-    : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-         std::move(SharedPtrStorage), std::move(Requirements),
-         std::move(Events)),
-      MHostTask(std::move(HostTask))
-  {}
 };
 
 } // namespace detail
