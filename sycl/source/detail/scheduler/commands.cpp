@@ -755,35 +755,25 @@ void DispatchNativeKernel(void *Blob) {
 
 struct HostTaskContext {
   CGHostTask *ExecHost;
-  const size_t RequiredAmount;
-  // It could be a mere counter. Though we employ the collection to retrieve
-  // a set of events for callback.
-  std::unordered_set<pi_event> Completed;
 
-  ContextImplPtr Context;
+  std::vector<EventImplPtr> WaitList;
+  EventImplPtr SelfEvent;
 };
 
-void DispatchHostTask(pi_event Event, pi_int32 EventStatus, void *UD) {
-  HostTaskContext *Ctx = reinterpret_cast<HostTaskContext *>(UD);
-
-  if (EventStatus == PI_EVENT_COMPLETE)
-    Ctx->Completed.insert(Event);
-
-  if (Ctx->Completed.size() < Ctx->RequiredAmount)
-    return;
-
+void DispatchHostTask(HostTaskContext *Ctx) {
   std::vector<event> Events;
-  Events.reserve(Ctx->Completed.size());
+  Events.reserve(Ctx->WaitList.size());
 
-  auto Context = createSyclObjFromImpl<context>(Ctx->Context);
+  for (const EventImplPtr &Event : Ctx->WaitList) {
+    Event->wait_and_throw(Event);
 
-  for (const pi_event &E : Ctx->Completed) {
-    detail::EventImplPtr Impl(new detail::event_impl(E, Context));
-
-    Events.emplace_back(createSyclObjFromImpl<event>(Impl));
+    Events.emplace_back(createSyclObjFromImpl<event>(Event));
   }
 
   Ctx->ExecHost->MHostTask->call(Events);
+
+  if (Ctx->SelfEvent)
+    Ctx->SelfEvent->setComplete();
 
   delete Ctx;
 }
@@ -1080,16 +1070,11 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::HOST_TASK: {
     auto *Ctx = new HostTaskContext{
       static_cast<CGHostTask *>(MCommandGroup.get()),
-      RawEvents.size(),
-      {},
-      MQueue->getContextImplPtr()
+      EventImpls,
+      MEvent
     };
 
-    const detail::plugin &Plugin = MQueue->getPlugin();
-
-    for (const RT::PiEvent &Event : RawEvents)
-      Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
-                                                 DispatchHostTask, Ctx);
+    MQueue->getHostTaskThreadPool().submit(DispatchHostTask, Ctx);
 
     return CL_SUCCESS;
   }

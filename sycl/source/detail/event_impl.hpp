@@ -145,6 +145,9 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
+  void when_complete(std::shared_ptr<cl::sycl::detail::event_impl> Self,
+                     std::function<void()> Func);
+
 private:
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;

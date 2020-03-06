@@ -21,6 +21,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/thread_pool.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -344,6 +345,10 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
+  ThreadPool &getHostTaskThreadPool() {
+    return MHostTaskThreadPool;
+  }
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -385,6 +390,8 @@ private:
   const bool MOpenCLInterop = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
+
+  ThreadPool MHostTaskThreadPool;
 };
 
 } // namespace detail

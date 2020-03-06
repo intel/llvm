@@ -13,6 +13,7 @@
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
+#include <functional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -112,11 +113,7 @@ public:
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
-  template <typename FuncT>
-  void when_complete(FuncT &&Func) {
-    (void)Func; // eliminate possible compiler warning
-    throw std::runtime_error("Not implemented");
-  }
+  void when_complete(std::function<void()> Func);
 
 private:
   event(shared_ptr_class<detail::event_impl> EventImpl);
