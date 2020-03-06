@@ -210,7 +210,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
-	  file-table-tform
+          file-table-tform
           llc
           llvm-ar
           llvm-foreach

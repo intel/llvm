@@ -12,13 +12,10 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-// Returns a unique string identifying the template parameter type. Stable
-// across device compiler invocations.
-template <typename T> const char *__sycl_fe_getStableUniqueTypeName();
-
 // Get the value of the specialization constant with given name.
 // Post-link tool traces the ID to a string literal it points to and assigns
 // integer ID.
-template <typename T> T __sycl_getSpecConstantValue(const char *ID);
+template <typename T>
+SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
 
 #endif

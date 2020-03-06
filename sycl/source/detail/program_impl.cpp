@@ -8,6 +8,8 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <detail/program_impl.hpp>
 
@@ -311,6 +313,7 @@ void program_impl::compile(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
+  ProgramManager::getInstance().flushSpecConstants(MProgram, *MContext);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
       nullptr, nullptr, nullptr);
@@ -329,6 +332,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
+  ProgramManager::getInstance().flushSpecConstants(MProgram, *MContext);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -417,7 +421,8 @@ void program_impl::create_pi_program_with_kernel_name(
     OSModuleHandle Module, const string_class &KernelName) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
-  DeviceImage &Img = PM.getDeviceImage(Module, KernelName, get_context());
+  RTDeviceBinaryImage &Img =
+      PM.getDeviceImage(Module, KernelName, get_context());
   MProgram = PM.createPIProgram(Img, get_context());
 }
 
@@ -442,6 +447,13 @@ template <> context program_impl::get_info<info::program::context>() const {
 template <>
 vector_class<device> program_impl::get_info<info::program::devices>() const {
   return get_devices();
+}
+
+void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
+                                          size_t ValSize) {
+  spec_constant_impl &SC =
+      ProgramManager::getInstance().resolveSpecConstant(this, Name);
+  SC.set(ValSize, ValAddr);
 }
 
 } // namespace detail

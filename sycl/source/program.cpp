@@ -115,5 +115,11 @@ string_class program::get_build_options() const {
 }
 
 program_state program::get_state() const { return impl->get_state(); }
+
+void program::set_spec_constant_impl(const char *Name, void *Data,
+                                     size_t Size) {
+  impl->set_spec_constant_impl(Name, Data, Size);
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
