@@ -78,6 +78,10 @@ public:
   /// \param Tmpl  whether the class is template instantiation or simple record
   static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
 
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// specialization constant class.
+  static bool isSyclSpecConstantType(const QualType &Ty);
+
   /// Checks whether given clang type is declared in the given hierarchy of
   /// declaration contexts.
   /// \param Ty         the clang type being checked
@@ -773,6 +777,14 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                       getExprForSpecialSYCLObj(FldType, WrapperFld,
                                                WrapperFldCRD, Base,
                                                InitMethodName, BodyStmts);
+                    } else if (Util::isSyclSpecConstantType(FldType)) {
+                      // Specialization constants are "invisible" to the
+                      // kernel argument creation and device-side SYCL object
+                      // materialization infrastructure in this source.
+                      // It is OK not to really materialize them on the kernel
+                      // side, because their only use can be via
+                      // 'spec_const_obj.get()' method, which is translated to
+                      // an intrinsic and 'this' is really never used.
                     } else {
                       // Field is a structure or class so change the wrapper
                       // object and recursively search for accessor field.
@@ -816,6 +828,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         InitExprs.push_back(MemberInit.get());
         getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef,
                                  InitMethodName, BodyStmts);
+      } else if (Util::isSyclSpecConstantType(FieldType)) {
+        // Just skip specialization constants - not part of signature.
       } else if (CRD || FieldType->isScalarType()) {
         // If field has built-in or a structure/class type just initialize
         // this field with corresponding kernel argument using copy
@@ -959,11 +973,13 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
               QualType FldType = WrapperFld->getType();
               if (FldType->isStructureOrClassType()) {
                 if (Util::isSyclAccessorType(FldType)) {
-                  // accessor field is found - create descriptor
+                  // Accessor field is found - create descriptor.
                   createSpecialSYCLObjParamDesc(WrapperFld, FldType);
+                } else if (Util::isSyclSpecConstantType(FldType)) {
+                  // Don't try recursive search below.
                 } else {
-                  // field is some class or struct - recursively check for
-                  // accessor fields
+                  // Field is some class or struct - recursively check for
+                  // accessor fields.
                   createParamDescForWrappedAccessors(WrapperFld, FldType);
                 }
               }
@@ -985,6 +1001,8 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     QualType ArgTy = Fld->getType();
     if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy)) {
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
+    } else if (Util::isSyclSpecConstantType(ArgTy)) {
+      // Specialization constants are not added as arguments.
     } else if (ArgTy->isStructureOrClassType()) {
       if (Context.getLangOpts().SYCLStdLayoutKernelParams) {
         if (!ArgTy->isStandardLayoutType()) {
@@ -1127,6 +1145,21 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
       uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
       H.addParamDesc(SYCLIntegrationHeader::kind_pointer,
                      static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
+    } else if (Util::isSyclSpecConstantType(ArgTy)) {
+      // Add specialization constant ID to the header.
+      auto *TmplSpec =
+          cast<ClassTemplateSpecializationDecl>(ArgTy->getAsCXXRecordDecl());
+      const TemplateArgumentList *TemplateArgs =
+          &TmplSpec->getTemplateInstantiationArgs();
+      // Get specialization constant ID type, which is the second template
+      // argument.
+      QualType SpecConstIDTy = TypeName::getFullyQualifiedType(
+                                   TemplateArgs->get(1).getAsType(), Ctx, true)
+                                   .getCanonicalType();
+      const std::string SpecConstName = PredefinedExpr::ComputeName(
+          Ctx, PredefinedExpr::UniqueStableNameExpr, SpecConstIDTy);
+      H.addSpecConstant(SpecConstName, SpecConstIDTy);
+      // Spec constant lambda capture does not become a kernel argument.
     } else if (ArgTy->isStructureOrClassType() || ArgTy->isScalarType()) {
       // the parameter is an object of standard layout type or scalar;
       // the check for standard layout is done elsewhere
@@ -1658,6 +1691,13 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   }
 }
 
+static std::string getCPPTypeString(QualType Ty) {
+  LangOptions LO;
+  PrintingPolicy P(LO);
+  P.SuppressTypedefs = true;
+  return eraseAnonNamespace(Ty.getAsString(P));
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -1666,6 +1706,33 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
+
+  if (SpecConsts.size() > 0) {
+    // Remove duplicates.
+    std::sort(SpecConsts.begin(), SpecConsts.end(),
+              [](const SpecConstID &SC1, const SpecConstID &SC2) {
+                // Sort by string IDs for stable spec consts order in the
+                // header.
+                return SC1.second.compare(SC2.second) < 0;
+              });
+    SpecConstID *End =
+        std::unique(SpecConsts.begin(), SpecConsts.end(),
+                    [](const SpecConstID &SC1, const SpecConstID &SC2) {
+                      // Here can do faster comparison of types.
+                      return SC1.first == SC2.first;
+                    });
+    O << "// Specialization constants IDs:\n";
+    for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
+      std::string CPPName = getCPPTypeString(P.first);
+      O << "template <> struct sycl::detail::SpecConstantInfo<" << CPPName
+        << "> {\n";
+      O << "  static constexpr const char* getName() {\n";
+      O << "    return \"" << P.second << "\";\n";
+      O << "  }\n";
+      O << "};\n";
+    }
+  }
+
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
 
@@ -1747,11 +1814,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-      LangOptions LO;
-      PrintingPolicy P(LO);
-      P.SuppressTypedefs = true;
-      O << "template <> struct KernelInfo<"
-        << eraseAnonNamespace(K.NameType.getAsString(P)) << "> {\n";
+      O << "template <> struct KernelInfo<" << getCPPTypeString(K.NameType)
+        << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
@@ -1815,6 +1879,10 @@ void SYCLIntegrationHeader::endKernel() {
   // nop for now
 }
 
+void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
+  SpecConsts.emplace_back(std::make_pair(IDType, IDName.str()));
+}
+
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
                                              bool _UnnamedLambdaSupport)
     : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport) {}
@@ -1833,6 +1901,16 @@ bool Util::isSyclSamplerType(const QualType &Ty) {
 
 bool Util::isSyclStreamType(const QualType &Ty) {
   return isSyclType(Ty, "stream");
+}
+
+bool Util::isSyclSpecConstantType(const QualType &Ty) {
+  const StringRef &Name = "spec_constant";
+  std::array<DeclContextDesc, 4> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
