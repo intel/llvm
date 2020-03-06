@@ -86,8 +86,9 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      Program, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices, nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
+                                           sizeof(pi_uint32), &NumDevices,
+                                           nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
                                            sizeof(RT::PiDevice) * NumDevices,
@@ -267,8 +268,8 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
   if (!is_host()) {
     vector_class<size_t> BinarySizes(MDevices.size());
     Plugin.call<PiApiKind::piProgramGetInfo>(
-        MProgram, PI_PROGRAM_INFO_BINARY_SIZES, sizeof(size_t) * BinarySizes.size(),
-        BinarySizes.data(), nullptr);
+        MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
+        sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
     vector_class<char *> Pointers;
     for (size_t I = 0; I < BinarySizes.size(); ++I) {
@@ -337,12 +338,12 @@ vector_class<RT::PiDevice> program_impl::get_pi_devices() const {
 bool program_impl::has_cl_kernel(const string_class &KernelName) const {
   size_t Size;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                           nullptr, &Size);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
   string_class ClResult(Size, ' ');
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_KERNEL_NAMES,
-                                           ClResult.size(), &ClResult[0],
-                                           nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
+      nullptr);
   // Get rid of the null terminator
   ClResult.pop_back();
   vector_class<string_class> KernelNames(split_string(ClResult, ';'));
@@ -413,7 +414,8 @@ cl_uint program_impl::get_info<info::program::reference_count>() const {
   }
   pi_uint32 Result;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_REFERENCE_COUNT,
+  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram,
+                                           PI_PROGRAM_INFO_REFERENCE_COUNT,
                                            sizeof(pi_uint32), &Result, nullptr);
   return Result;
 }
