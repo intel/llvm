@@ -57,9 +57,6 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_gpu())
     return 500;
 
-  if (dev.is_accelerator())
-    return 400;
-
   if (dev.is_cpu())
     return 300;
 
