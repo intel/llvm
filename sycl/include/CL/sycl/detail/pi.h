@@ -541,15 +541,15 @@ using _pi_offload_entry = _pi_offload_entry_struct *;
 
 // A type of a binary image property.
 typedef enum {
-  PI_PROP_TYPE_UNKNOWN,
-  PI_PROP_TYPE_UINT32, // 32-bit integer
-  PI_PROP_TYPE_STRING  // null-terminated string
-} _pi_property_type;
+  PI_PROPERTY_TYPE_UNKNOWN,
+  PI_PROPERTY_TYPE_UINT32, // 32-bit integer
+  PI_PROPERTY_TYPE_STRING  // null-terminated string
+} pi_property_type;
 
 // Device binary image property.
 // If the type size of the property value is fixed and is no greater than
 // 64 bits, then ValAddr is 0 and the value is stored in the ValSize field.
-// Example - PI_PROP_TYPE_UINT32, which is 32-bit
+// Example - PI_PROPERTY_TYPE_UINT32, which is 32-bit
 struct _pi_device_binary_property_struct {
   char *Name;       // null-terminated property name
   void *ValAddr;    // address of property value
