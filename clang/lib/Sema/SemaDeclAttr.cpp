@@ -2898,15 +2898,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
                              /*ReverseAttrs=*/true);
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (S.getLangOpts().SYCLIsDevice &&
-        !(WGSize[2] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
-          WGSize[0] <= A->getZDim())) {
-      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << Attr << A->getSpelling();
-      Result &= false;
-    }
-    if (!S.getLangOpts().SYCLIsDevice &&
-        !(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+    if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
           WGSize[2] <= A->getZDim())) {
       S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << Attr << A->getSpelling();
@@ -2914,16 +2906,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     }
   }
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-
-    if (S.getLangOpts().SYCLIsDevice &&
-        !(WGSize[2] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
-          WGSize[0] >= A->getZDim())) {
-      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << Attr << A->getSpelling();
-      Result &= false;
-    }
-    if (!S.getLangOpts().SYCLIsDevice &&
-        !(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+    if (!(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
           WGSize[2] >= A->getZDim())) {
       S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << Attr << A->getSpelling();
@@ -2940,13 +2923,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   uint32_t WGSize[3];
-  if (const auto *A = D->getAttr<SYCLIntelReqdWorkGroupSizeAttr>()){
-    WGSize[1] = SYCLIntelReqdWorkGroupSizeAttr::DefaultYDim;
-    WGSize[2] = SYCLIntelReqdWorkGroupSizeAttr::DefaultZDim;
-  }
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
-    if (i < AL.getNumArgs() && !checkUInt32Argument(S, AL, E, WGSize[i], i,
+    if (!checkUInt32Argument(S, AL, E, WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
     if (WGSize[i] == 0) {
@@ -2956,25 +2935,20 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
+  // For a SYCLDevice WorkGroupAttr arguments are reversed
+  if (S.getLangOpts().SYCLIsDevice) {
+    std::swap(WGSize[0], WGSize[2]);
+  }
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
-  if (S.getLangOpts().SYCLIsDevice && Existing &&
-      !(Existing->getXDim() == WGSize[2] && Existing->getYDim() == WGSize[1] &&
-        Existing->getZDim() == WGSize[0]))
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-  if (!S.getLangOpts().SYCLIsDevice && Existing &&
+  if (Existing &&
       !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
         Existing->getZDim() == WGSize[2]))
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-
   if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
     return;
 
-  if (S.getLangOpts().SYCLIsDevice)
-    D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[2],
-                                               WGSize[1], WGSize[0]));
-  else
-    D->addAttr(::new (S.Context) WorkGroupAttr(S.Context, AL, WGSize[0],
-                                               WGSize[1], WGSize[2]));
+  D->addAttr(::new (S.Context)
+                 WorkGroupAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));
 }
 
 // Handles intel_reqd_sub_group_size.
