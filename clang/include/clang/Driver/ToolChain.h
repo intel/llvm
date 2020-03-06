@@ -147,6 +147,7 @@ private:
   mutable std::unique_ptr<Tool> SYCLPostLink;
   mutable std::unique_ptr<Tool> PartialLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
+  mutable std::unique_ptr<Tool> FileTableTform;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -161,6 +162,7 @@ private:
   Tool *getSYCLPostLink() const;
   Tool *getPartialLink() const;
   Tool *getBackendCompiler() const;
+  Tool *getTableTform() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
