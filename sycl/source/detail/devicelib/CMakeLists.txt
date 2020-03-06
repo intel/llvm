@@ -64,7 +64,7 @@ add_custom_command(OUTPUT ${devicelib-obj-cmath}
                            ${CMAKE_CURRENT_SOURCE_DIR}/cmath_wrapper.cpp
                            -o ${devicelib-obj-cmath}
                    MAIN_DEPENDENCY cmath_wrapper.cpp
-                   DEPENDS device_complex.h clang
+                   DEPENDS device_math.h clang
                    VERBATIM)
 
 set(devicelib-obj-cmath-fp64 ${binary_dir}/libsycl-cmath-fp64.o)
