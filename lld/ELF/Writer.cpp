@@ -525,7 +525,8 @@ template <class ELFT> void createSyntheticSections() {
     add(in.ibtPlt);
   }
 
-  in.plt = make<PltSection>();
+  in.plt = config->emachine == EM_PPC ? make<PPC32GlinkSection>()
+                                      : make<PltSection>();
   add(in.plt);
   in.iplt = make<IpltSection>();
   add(in.iplt);
@@ -1678,12 +1679,15 @@ static void removeUnusedSyntheticSections() {
     if (!os || ss->isNeeded())
       continue;
 
-    // If we reach here, then SS is an unused synthetic section and we want to
-    // remove it from corresponding input section description of output section.
+    // If we reach here, then ss is an unused synthetic section and we want to
+    // remove it from the corresponding input section description, and
+    // orphanSections.
     for (BaseCommand *b : os->sectionCommands)
       if (auto *isd = dyn_cast<InputSectionDescription>(b))
         llvm::erase_if(isd->sections,
                        [=](InputSection *isec) { return isec == ss; });
+    llvm::erase_if(script->orphanSections,
+                   [=](const InputSectionBase *isec) { return isec == ss; });
   }
 }
 
@@ -1830,6 +1834,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     in.mipsGot->build();
 
   removeUnusedSyntheticSections();
+  script->diagnoseOrphanHandling();
 
   sortSections();
 

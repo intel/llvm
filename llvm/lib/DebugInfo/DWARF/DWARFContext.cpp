@@ -65,8 +65,12 @@ using FileLineInfoKind = DILineInfoSpecifier::FileLineInfoKind;
 using FunctionNameKind = DILineInfoSpecifier::FunctionNameKind;
 
 DWARFContext::DWARFContext(std::unique_ptr<const DWARFObject> DObj,
-                           std::string DWPName)
-    : DIContext(CK_DWARF), DWPName(std::move(DWPName)), DObj(std::move(DObj)) {}
+                           std::string DWPName,
+                           std::function<void(Error)> RecoverableErrorHandler,
+                           std::function<void(Error)> WarningHandler)
+    : DIContext(CK_DWARF), DWPName(std::move(DWPName)),
+      RecoverableErrorHandler(RecoverableErrorHandler),
+      WarningHandler(WarningHandler), DObj(std::move(DObj)) {}
 
 DWARFContext::~DWARFContext() = default;
 
@@ -474,6 +478,7 @@ void DWARFContext::dump(
       }
       OS << "debug_line[" << format("0x%8.8" PRIx64, Parser.getOffset())
          << "]\n";
+      OS.flush();
       if (DumpOpts.Verbose) {
         Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler, &OS);
       } else {
@@ -481,6 +486,7 @@ void DWARFContext::dump(
             Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler);
         LineTable.dump(OS, DumpOpts);
       }
+      OS.flush();
     }
   };
 
@@ -1425,11 +1431,6 @@ static bool isRelocScattered(const object::ObjectFile &Obj,
   return MachObj->isRelocationScattered(RelocInfo);
 }
 
-ErrorPolicy DWARFContext::defaultErrorHandler(Error E) {
-  WithColor::defaultErrorHandler(std::move(E));
-  return ErrorPolicy::Continue;
-}
-
 namespace {
 struct DWARFSectionMap final : public DWARFSection {
   RelocAddrMap Relocs;
@@ -1581,7 +1582,7 @@ public:
     }
   }
   DWARFObjInMemory(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
-                   function_ref<ErrorPolicy(Error)> HandleError)
+                   function_ref<void(Error)> HandleError)
       : IsLittleEndian(Obj.isLittleEndian()),
         AddressSize(Obj.getBytesInAddress()), FileName(Obj.getFileName()),
         Obj(&Obj) {
@@ -1608,10 +1609,8 @@ public:
       StringRef Data;
       Expected<section_iterator> SecOrErr = Section.getRelocatedSection();
       if (!SecOrErr) {
-        ErrorPolicy EP = HandleError(createError(
-            "failed to get relocated section: ", SecOrErr.takeError()));
-        if (EP == ErrorPolicy::Halt)
-          return;
+        HandleError(createError("failed to get relocated section: ",
+                                SecOrErr.takeError()));
         continue;
       }
 
@@ -1629,10 +1628,8 @@ public:
       }
 
       if (auto Err = maybeDecompress(Section, Name, Data)) {
-        ErrorPolicy EP = HandleError(createError(
-            "failed to decompress '" + Name + "', ", std::move(Err)));
-        if (EP == ErrorPolicy::Halt)
-          return;
+        HandleError(createError("failed to decompress '" + Name + "', ",
+                                std::move(Err)));
         continue;
       }
 
@@ -1733,8 +1730,7 @@ public:
         Expected<SymInfo> SymInfoOrErr =
             getSymbolInfo(Obj, Reloc, L, AddrCache);
         if (!SymInfoOrErr) {
-          if (HandleError(SymInfoOrErr.takeError()) == ErrorPolicy::Halt)
-            return;
+          HandleError(SymInfoOrErr.takeError());
           continue;
         }
 
@@ -1754,10 +1750,8 @@ public:
           if (!I.second) {
             RelocAddrEntry &entry = I.first->getSecond();
             if (entry.Reloc2) {
-              ErrorPolicy EP = HandleError(createError(
+              HandleError(createError(
                   "At most two relocations per offset are supported"));
-              if (EP == ErrorPolicy::Halt)
-                return;
             }
             entry.Reloc2 = Reloc;
             entry.SymbolValue2 = SymInfoOrErr->Address;
@@ -1765,11 +1759,9 @@ public:
         } else {
           SmallString<32> Type;
           Reloc.getTypeName(Type);
-          ErrorPolicy EP = HandleError(
+          HandleError(
               createError("failed to compute relocation: " + Type + ", ",
                           errorCodeToError(object_error::parse_failed)));
-          if (EP == ErrorPolicy::Halt)
-            return;
         }
       }
     }
@@ -1897,18 +1889,25 @@ public:
 
 std::unique_ptr<DWARFContext>
 DWARFContext::create(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
-                     function_ref<ErrorPolicy(Error)> HandleError,
-                     std::string DWPName) {
-  auto DObj = std::make_unique<DWARFObjInMemory>(Obj, L, HandleError);
-  return std::make_unique<DWARFContext>(std::move(DObj), std::move(DWPName));
+                     std::string DWPName,
+                     std::function<void(Error)> RecoverableErrorHandler,
+                     std::function<void(Error)> WarningHandler) {
+  auto DObj =
+      std::make_unique<DWARFObjInMemory>(Obj, L, RecoverableErrorHandler);
+  return std::make_unique<DWARFContext>(std::move(DObj), std::move(DWPName),
+                                        RecoverableErrorHandler,
+                                        WarningHandler);
 }
 
 std::unique_ptr<DWARFContext>
 DWARFContext::create(const StringMap<std::unique_ptr<MemoryBuffer>> &Sections,
-                     uint8_t AddrSize, bool isLittleEndian) {
+                     uint8_t AddrSize, bool isLittleEndian,
+                     std::function<void(Error)> RecoverableErrorHandler,
+                     std::function<void(Error)> WarningHandler) {
   auto DObj =
       std::make_unique<DWARFObjInMemory>(Sections, AddrSize, isLittleEndian);
-  return std::make_unique<DWARFContext>(std::move(DObj), "");
+  return std::make_unique<DWARFContext>(
+      std::move(DObj), "", RecoverableErrorHandler, WarningHandler);
 }
 
 Error DWARFContext::loadRegisterInfo(const object::ObjectFile &Obj) {

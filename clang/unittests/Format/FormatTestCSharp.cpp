@@ -175,7 +175,7 @@ TEST_F(FormatTestCSharp, CSharpNullConditional) {
   Style.SpaceBeforeParens = FormatStyle::SBPO_Always;
 
   verifyFormat(
-      "public Person(string firstName, string lastName, int? age=null)");
+      "public Person(string firstName, string lastName, int? age = null)");
 
   verifyFormat("foo () {\n"
                "  switch (args?.Length) {}\n"
@@ -525,11 +525,11 @@ Shape[] shapes = new[] {
 
   // Omitted final `,`s will change the formatting.
   verifyFormat(R"(//
-Shape[] shapes = new[] {new Circle {Radius = 2.7281, Colour = Colours.Red},
-                        new Square {
-                            Side = 101.1,
-                            Colour = Colours.Yellow,
-                        }};)",
+Shape[] shapes = new[] { new Circle { Radius = 2.7281, Colour = Colours.Red },
+                         new Square {
+                             Side = 101.1,
+                             Colour = Colours.Yellow,
+                         } };)",
                Style);
 }
 
@@ -546,6 +546,8 @@ PrintOrderDetails(orderNum: 31, productName: "Red Mug",
 PrintOrderDetails(orderNum: 31, productName: "Red Mug",  // comment
                   sellerName: "Gift Shop");)",
                Style);
+
+  verifyFormat(R"(foreach (var tickCount in task.Begin(seed: 0)) {)", Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
@@ -573,6 +575,41 @@ public string Name {
   set => _name = value;
 })",
                Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpSpaces) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.SpaceBeforeSquareBrackets = false;
+  Style.SpacesInSquareBrackets = false;
+  Style.SpaceBeforeCpp11BracedList = true;
+  Style.Cpp11BracedListStyle = false;
+  Style.SpacesInContainerLiterals = false;
+
+  verifyFormat(R"(new Car { "Door", 0.1 })", Style);
+  verifyFormat(R"(new Car { 0.1, "Door" })", Style);
+  verifyFormat(R"(new string[] { "A" })", Style);
+  verifyFormat(R"(new string[] {})", Style);
+  verifyFormat(R"(new Car { someVariableName })", Style);
+  verifyFormat(R"(new Car { someVariableName })", Style);
+  verifyFormat(R"(new Dictionary<string, string> { ["Key"] = "Value" };)",
+               Style);
+  verifyFormat(R"(Apply(x => x.Name, x => () => x.ID);)", Style);
+  verifyFormat(R"(bool[] xs = { true, true };)", Style);
+  verifyFormat(R"(taskContext.Factory.Run(async () => doThing(args);)", Style);
+  verifyFormat(R"(catch (TestException) when (innerFinallyExecuted))", Style);
+  verifyFormat(R"(private float[,] Values;)", Style);
+
+  Style.SpacesInSquareBrackets = true;
+  verifyFormat(R"(private float[ , ] Values;)", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpNullableTypes) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.SpacesInSquareBrackets = false;
+
+  verifyFormat(R"(public float? Value;)", Style); // no space before `?`.
+  verifyFormat(R"(int?[] arr = new int?[10];)",
+               Style); // An array of a nullable type.
 }
 
 } // namespace format
