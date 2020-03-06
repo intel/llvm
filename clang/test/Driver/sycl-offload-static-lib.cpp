@@ -48,7 +48,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 10: linker, {0, 9}, image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 11: compiler, {4}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 12: input, "[[INPUTA]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, object
+// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-unbundler, {9, 12}, object
 // FOFFLOAD_STATIC_LIB_SRC: 14: linker, {11, 13}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 15: llvm-spirv, {14}, spirv, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-wrapper, {15}, object, (device-sycl)
@@ -59,7 +59,8 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
+// FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[HOSTOBJ]]" "[[INPUT:.+\.a]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=oo"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "@{{.*}}"
 

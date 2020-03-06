@@ -257,7 +257,7 @@
 // CHK-FPGA-AOCO-PHASES: 10: linker, {0, 9}, image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 11: compiler, {4}, ir, (device-sycl)
 // CHK-FPGA-AOCO-PHASES: 12: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-LIN: 13: clang-offload-unbundler, {12}, object
+// CHK-FPGA-AOCO-PHASES-LIN: 13: clang-offload-unbundler, {9, 12}, object
 // CHK-FPGA-AOCO-PHASES-WIN: 13: clang-offload-unbundler, {12}, archive
 // CHK-FPGA-AOCO-PHASES: 14: linker, {11, 13}, ir, (device-sycl)
 // CHK-FPGA-AOCO-PHASES: 15: llvm-spirv, {14}, spirv, (device-sycl)
@@ -272,9 +272,10 @@
 // RUN:  %clang_cl -fsycl -fintelfpga -foffload-static-lib=%t_aoco.a -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO,CHK-FPGA-AOCO-WIN %s
 // CHK-FPGA-AOCO-LIN: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aoco-intel-unknown-sycldevice" "-inputs=[[INPUTLIB:.+\.a]]" "-check-section"
-// CHK-FPGA-AOCO-LIN: ld{{.*}} "-r" "-o" "[[PARTLINKOBJ:.+\.o]]" "{{.*}}crt1.o" "{{.*}}crti.o" "[[INPUTLIB]]" "{{.*}}crtn.o"
+// CHK-FPGA-AOCO-LIN: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
+// CHK-FPGA-AOCO-LIN: ld{{.*}} "-r" "-o" "[[PARTLINKOBJ:.+\.o]]" "{{.*}}crt1.o" "{{.*}}crti.o" "[[HOSTOBJ]]" "[[INPUTLIB]]" "{{.*}}crtn.o"
 // CHK-FPGA-AOCO-LIN: clang-offload-bundler{{.*}} "-type=oo" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice" "-inputs=[[PARTLINKOBJ]]" "-outputs={{.*}}" "-unbundle"
-// CHK-FPGA-AOCO-WIN: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice-coff" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs={{.*}}" "-unbundle"                               
+// CHK-FPGA-AOCO-WIN: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice-coff" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs={{.*}}" "-unbundle"
 // CHK-FPGA-AOCO: llvm-link{{.*}} "@{{.*}}" "-o" "[[LINKEDBC:.+\.bc]]"
 // CHK-FPGA-AOCO: llvm-spirv{{.*}} "-o" "[[TARGSPV:.+\.spv]]" {{.*}} "[[LINKEDBC]]"
 // CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-fpga_aoco-intel-unknown-sycldevice" "-inputs=[[INPUTLIB]]" "-outputs=[[AOCOLIST:.+\.txt]]" "-unbundle"
