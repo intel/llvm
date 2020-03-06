@@ -348,7 +348,12 @@ void tools::gnutools::Linker::constructLLVMARCommand(
     const InputInfoList &Input, const ArgList &Args) const {
   ArgStringList CmdArgs;
   CmdArgs.push_back("cr");
-  CmdArgs.push_back(Output.getFilename());
+  const char *OutputFilename = Output.getFilename();
+  if (llvm::sys::fs::exists(OutputFilename)) {
+    C.getDriver().Diag(clang::diag::warn_drv_existing_archive_append)
+        << OutputFilename;
+  }
+  CmdArgs.push_back(OutputFilename);
   for (const auto &II : Input) {
     if (II.getType() == types::TY_Tempfilelist) {
       // Take the list file and pass it in with '@'.

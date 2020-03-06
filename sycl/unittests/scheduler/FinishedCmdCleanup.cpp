@@ -1,21 +1,24 @@
-// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
-// RUN: %t.out
+//==----------- FinishedCmdCleanup.cpp --- Scheduler unit tests ------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "SchedulerTest.hpp"
+#include "SchedulerTestUtils.hpp"
+
 #include <CL/sycl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-#include <algorithm>
-#include <vector>
-
-#include "SchedulerTestUtils.hpp"
+#include <gtest/gtest.h>
 
 using namespace cl::sycl;
 
-// This test checks regular execution graph cleanup at host-device
-// synchronization points
-int main() {
+TEST_F(SchedulerTest, FinishedCmdCleanup) {
   TestScheduler TS;
-  queue Queue;
   buffer<int, 1> BufA(range<1>(1));
   buffer<int, 1> BufB(range<1>(1));
   buffer<int, 1> BufC(range<1>(1));
@@ -23,7 +26,7 @@ int main() {
   detail::Requirement FakeReqB = getFakeRequirement(BufB);
   detail::Requirement FakeReqC = getFakeRequirement(BufC);
   detail::MemObjRecord *RecC =
-      TS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &FakeReqC);
+      TS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &FakeReqC);
 
   // Create a graph and check that all inner nodes have been deleted and
   // their users have had the corresponding dependency replaced with a
@@ -50,30 +53,30 @@ int main() {
   //                 +---------+
   //                 | AllocaB |
   //                 +---------+
-  detail::AllocaCommand AllocaA{detail::getSyclObjImpl(Queue), FakeReqA};
-  detail::AllocaCommand AllocaB{detail::getSyclObjImpl(Queue), FakeReqB};
+  detail::AllocaCommand AllocaA{detail::getSyclObjImpl(MQueue), FakeReqA};
+  detail::AllocaCommand AllocaB{detail::getSyclObjImpl(MQueue), FakeReqB};
 
   int NInnerCommandsAlive = 3;
   std::function<void()> Callback = [&]() { --NInnerCommandsAlive; };
 
   FakeCommand *InnerC = new FakeCommandWithCallback(
-      detail::getSyclObjImpl(Queue), FakeReqA, Callback);
+      detail::getSyclObjImpl(MQueue), FakeReqA, Callback);
   addEdge(InnerC, &AllocaA, &AllocaA);
 
-  FakeCommand LeafB{detail::getSyclObjImpl(Queue), FakeReqB};
+  FakeCommand LeafB{detail::getSyclObjImpl(MQueue), FakeReqB};
   addEdge(&LeafB, &AllocaB, &AllocaB);
   TS.addNodeToLeaves(RecC, &LeafB);
 
-  FakeCommand LeafA{detail::getSyclObjImpl(Queue), FakeReqA};
+  FakeCommand LeafA{detail::getSyclObjImpl(MQueue), FakeReqA};
   addEdge(&LeafA, InnerC, &AllocaA);
   TS.addNodeToLeaves(RecC, &LeafA);
 
   FakeCommand *InnerB = new FakeCommandWithCallback(
-      detail::getSyclObjImpl(Queue), FakeReqB, Callback);
+      detail::getSyclObjImpl(MQueue), FakeReqB, Callback);
   addEdge(InnerB, &LeafB, &AllocaB);
 
   FakeCommand *InnerA = new FakeCommandWithCallback(
-      detail::getSyclObjImpl(Queue), FakeReqA, Callback);
+      detail::getSyclObjImpl(MQueue), FakeReqA, Callback);
   addEdge(InnerA, &LeafA, &AllocaA);
   addEdge(InnerA, InnerB, &AllocaB);
 
@@ -82,15 +85,15 @@ int main() {
   TS.cleanupFinishedCommands(Event);
   TS.removeRecordForMemObj(detail::getSyclObjImpl(BufC).get());
 
-  assert(NInnerCommandsAlive == 0);
+  EXPECT_EQ(NInnerCommandsAlive, 0);
 
-  assert(LeafA.MDeps.size() == 1);
-  assert(LeafA.MDeps[0].MDepCommand == &AllocaA);
-  assert(AllocaA.MUsers.size() == 1);
-  assert(*AllocaA.MUsers.begin() == &LeafA);
+  ASSERT_EQ(LeafA.MDeps.size(), 1U);
+  EXPECT_EQ(LeafA.MDeps[0].MDepCommand, &AllocaA);
+  ASSERT_EQ(AllocaA.MUsers.size(), 1U);
+  EXPECT_EQ(*AllocaA.MUsers.begin(), &LeafA);
 
-  assert(LeafB.MDeps.size() == 1);
-  assert(LeafB.MDeps[0].MDepCommand == &AllocaB);
-  assert(AllocaB.MUsers.size() == 1);
-  assert(*AllocaB.MUsers.begin() == &LeafB);
+  ASSERT_EQ(LeafB.MDeps.size(), 1U);
+  EXPECT_EQ(LeafB.MDeps[0].MDepCommand, &AllocaB);
+  ASSERT_EQ(AllocaB.MUsers.size(), 1U);
+  EXPECT_EQ(*AllocaB.MUsers.begin(), &LeafB);
 }
