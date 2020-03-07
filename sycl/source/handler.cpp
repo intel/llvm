@@ -26,7 +26,7 @@ event handler::finalize() {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
+        std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
@@ -191,7 +191,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 }
 
 void handler::extractArgsAndReqs() {
-  assert(MSyclKernel && "MSyclKernel is not initialized");
+  assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(MArgs);
   MArgs.clear();
 
@@ -201,7 +201,7 @@ void handler::extractArgsAndReqs() {
         return (first.MIndex < second.MIndex);
       });
 
-  const bool IsKernelCreatedFromSource = MSyclKernel->isCreatedFromSource();
+  const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -248,7 +248,7 @@ void handler::extractArgsAndReqsFromLambda(
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
 string_class handler::getKernelName() {
-  return MSyclKernel->get_info<info::kernel::function_name>();
+  return MKernel->get_info<info::kernel::function_name>();
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
