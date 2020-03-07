@@ -169,7 +169,7 @@ else:
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-if getDeviceCount("accelerator")[0]:
+if getDeviceCount("accelerator")[0] and platform.system() == "Linux":
     print("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
     acc_check_substitute = "| FileCheck %s"

@@ -1,6 +1,16 @@
+//==---------- SchedulerTestUtils.hpp --- Scheduler unit tests -------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 #include <CL/sycl.hpp>
 #include <detail/accessor_impl_host.hpp>
+#include <detail/queue_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <functional>
 // This header contains a few common classes/methods used in
@@ -64,10 +74,7 @@ public:
 };
 
 void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
-             cl::sycl::detail::AllocaCommandBase *Alloca) {
-  User->addDep(cl::sycl::detail::DepDesc{Dep, User->getRequirement(), Alloca});
-  Dep->addUser(User);
-}
+             cl::sycl::detail::AllocaCommandBase *Alloca);
 
 template <typename MemObjT>
 cl::sycl::detail::Requirement getFakeRequirement(const MemObjT &MemObj) {

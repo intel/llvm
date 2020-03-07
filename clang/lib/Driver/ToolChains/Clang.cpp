@@ -1139,7 +1139,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
-               Args.hasArg(options::OPT_fintelfpga)) {
+               Args.hasArg(options::OPT_fintelfpga) &&
+               !Args.hasArg(options::OPT_c)) {
       // When generating dependency files for FPGA AOT, the output files will
       // always be named after the source file.
       DepFile = Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
@@ -3944,10 +3945,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Check number of inputs for sanity. We need at least one input.
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
-  // device-side compilations). OpenMP and SYCL device jobs also take the host
-  // IR as a second input. Module precompilation accepts a list of header files
-  // to include as part of the module. All other jobs are expected to have
-  // exactly one input.
+  // device-side compilations).
+  // OpenMP device jobs take the host IR as a second input.
+  // SYCL host jobs accept the integration header from the device-side
+  // compilation as a second input.
+  // Module precompilation accepts a list of header files to include as part
+  // of the module.
+  // All other jobs are expected to have exactly one input.
   bool IsCuda = JA.isOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
@@ -6783,7 +6787,8 @@ const char *Clang::getDependencyFileName(const ArgList &Args,
                                          const InputInfoList &Inputs) {
   // FIXME: Think about this more.
 
-  if (Arg *OutputOpt = Args.getLastArg(options::OPT_o)) {
+  if (Arg *OutputOpt =
+          Args.getLastArg(options::OPT_o, options::OPT__SLASH_Fo)) {
     SmallString<128> OutputFilename(OutputOpt->getValue());
     llvm::sys::path::replace_extension(OutputFilename, llvm::Twine('d'));
     return Args.MakeArgString(OutputFilename);
@@ -7095,6 +7100,20 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += CurDep->getOffloadingArch();
     }
   }
+  bool IsFPGADepBundle = (TCArgs.hasArg(options::OPT_fintelfpga) &&
+                          Output.getType() == types::TY_Object);
+  // For -fintelfpga, when bundling objects we also want to bundle up the
+  // named dependency file.
+  // TODO - We are currently using the target triple inputs to slot a location
+  // of the dependency information into the bundle.  It would be good to
+  // separate this out to an explicit option in the bundler for the dependency
+  // file as it does not match the type being bundled.
+  if (IsFPGADepBundle) {
+    Triples += ',';
+    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
+    Triples += '-';
+    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
+  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.
@@ -7118,6 +7137,14 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       });
     }
     UB += CurTC->getInputFilename(Inputs[I]);
+  }
+  // For -fintelfpga, when bundling objects we also want to bundle up the
+  // named dependency file.
+  if (IsFPGADepBundle) {
+    SmallString<128> CurOutput(Output.getFilename());
+    llvm::sys::path::replace_extension(CurOutput, "d");
+    UB += ',';
+    UB += CurOutput;
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
 
@@ -7149,6 +7176,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
+  bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
 
   // For Linux, we have initial support for fat archives (archives which
   // contain bundled objects). We will perform partial linking against the
@@ -7208,6 +7236,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   if (InputType == types::TY_FPGA_AOCO ||
       (IsMSVCEnv && types::isArchive(InputType)))
     TypeArg = "aoo";
+  if (IsFPGADepUnbundle)
+    TypeArg = "o";
 
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
@@ -7263,7 +7293,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += Dep.DependentBoundArch;
     }
   }
-
+  if (IsFPGADepUnbundle) {
+    // TODO - We are currently using the target triple inputs to slot a location
+    // of the dependency information into the bundle.  It would be good to
+    // separate this out to an explicit option in the bundler for the dependency
+    // file as it does not match the type being bundled.
+    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
+    Triples += '-';
+    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
+  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.
@@ -7273,10 +7311,17 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // Get unbundled files command.
   SmallString<128> UB;
   UB += "-outputs=";
-  for (unsigned I = 0; I < Outputs.size(); ++I) {
-    if (I)
-      UB += ',';
-    UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+  // When dealing with -fintelfpga, there is an additional unbundle step
+  // that occurs for the dependency file.  In that case, do not use the
+  // dependent information, but just the output file.
+  if (IsFPGADepUnbundle)
+    UB += Outputs[0].getFilename();
+  else {
+    for (unsigned I = 0; I < Outputs.size(); ++I) {
+      if (I)
+        UB += ',';
+      UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
   CmdArgs.push_back("-unbundle");
