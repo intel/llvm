@@ -180,13 +180,14 @@ public:
         IsSubBuffer(true) {
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.");
+          "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
-          "Requested sub-buffer size exceeds the size of the parent buffer");
+          "Requested sub-buffer size exceeds the size of the parent buffer",
+          PI_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
-          "Requested sub-buffer region is not contiguous");
+          "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
@@ -282,7 +283,8 @@ public:
       throw cl::sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
-          "represented by the type and range of this SYCL buffer");
+          "represented by the type and range of this SYCL buffer",
+          PI_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);

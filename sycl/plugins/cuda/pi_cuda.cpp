@@ -1143,16 +1143,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// With the PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of PI_TRUE
 /// creates a primary CUDA context and activates it on the CUDA context stack.
 ///
-/// @param[in] properties 0 terminated array of key/id-value combinations. Can
+/// \param[in] properties 0 terminated array of key/id-value combinations. Can
 /// be nullptr. Only accepts property key/id PI_CONTEXT_PROPERTIES_CUDA_PRIMARY
 /// with a pi_bool value.
-/// @param[in] num_devices Number of devices to create the context for.
-/// @param[in] devices Devices to create the context for.
-/// @param[in] pfn_notify Callback, currently unused.
-/// @param[in] user_data User data for callback.
-/// @param[out] retcontext Set to created context on success.
+/// \param[in] num_devices Number of devices to create the context for.
+/// \param[in] devices Devices to create the context for.
+/// \param[in] pfn_notify Callback, currently unused.
+/// \param[in] user_data User data for callback.
+/// \param[out] retcontext Set to created context on success.
 ///
-/// @return PI_SUCCESS on success, otherwise an error return code.
+/// \return PI_SUCCESS on success, otherwise an error return code.
 pi_result cuda_piContextCreate(const pi_context_properties *properties,
                                pi_uint32 num_devices, const pi_device *devices,
                                void (*pfn_notify)(const char *errinfo,
@@ -2107,6 +2107,9 @@ pi_result cuda_piKernelGetInfo(
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      kernel->get_program());
     }
+    case PI_KERNEL_INFO_ATTRIBUTES: {
+      return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    }
     default: {
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
@@ -2151,6 +2154,24 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       cl::sycl::detail::pi::assertion(cuFuncGetAttribute(&bytes,
                                        CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                                        kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }

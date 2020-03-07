@@ -21,6 +21,10 @@ add_library(pi_cuda SHARED
   "pi_cuda.cpp"
 )
 
+add_dependencies(pi_cuda
+  ocl-headers
+)
+
 add_dependencies(sycl-toolchain pi_cuda)
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)

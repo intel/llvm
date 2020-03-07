@@ -30,8 +30,8 @@ public:
   /// The requirements for this constructor are described in section 4.3.1
   /// of the SYCL specification.
   ///
-  /// @param ClKernel is a valid OpenCL cl_kernel instance
-  /// @param SyclContext is a valid SYCL context
+  /// \param ClKernel is a valid OpenCL cl_kernel instance
+  /// \param SyclContext is a valid SYCL context
   kernel(cl_kernel ClKernel, const context &SyclContext);
 
   kernel(const kernel &RHS) = default;
@@ -52,12 +52,12 @@ public:
   /// cl_kernel will be returned. If this kernel is a host kernel,
   /// an invalid_object_error exception will be thrown.
   ///
-  /// @return a valid cl_kernel instance
+  /// \return a valid cl_kernel instance
   cl_kernel get() const;
 
   /// Check if the associated SYCL context is a SYCL host context.
   ///
-  /// @return true if this SYCL kernel is a host kernel.
+  /// \return true if this SYCL kernel is a host kernel.
   bool is_host() const;
 
   /// Get the context that this kernel is defined for.
@@ -65,7 +65,7 @@ public:
   /// The value returned must be equal to that returned by
   /// get_info<info::kernel::context>().
   ///
-  /// @return a valid SYCL context
+  /// \return a valid SYCL context
   context get_context() const;
 
   /// Get the program that this kernel is defined for.
@@ -73,13 +73,13 @@ public:
   /// The value returned must be equal to that returned by
   /// get_info<info::kernel::program>().
   ///
-  /// @return a valid SYCL program
+  /// \return a valid SYCL program
   program get_program() const;
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
   ///
-  /// @return depends on information being queried.
+  /// \return depends on information being queried.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
@@ -87,8 +87,8 @@ public:
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
-  /// @param Device is a valid SYCL device.
-  /// @return depends on information being queried.
+  /// \param Device is a valid SYCL device.
+  /// \return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
   get_work_group_info(const device &Device) const;
@@ -96,8 +96,8 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
   ///
-  /// @param Device is a valid SYCL device.
-  /// @return depends on information being queried.
+  /// \param Device is a valid SYCL device.
+  /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
@@ -105,9 +105,9 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
   ///
-  /// @param Device is a valid SYCL device.
-  /// @param Value depends on information being queried.
-  /// @return depends on information being queried.
+  /// \param Device is a valid SYCL device.
+  /// \param Value depends on information being queried.
+  /// \return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(

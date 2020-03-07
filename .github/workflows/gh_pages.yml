@@ -12,10 +12,6 @@ jobs:
       with:
         ref: sycl
         path: repo
-    - uses: actions/checkout@v2
-      with:
-        repository: intel/llvm-docs
-        path: docs
     - name: Install deps
       run: sudo apt-get install -y doxygen graphviz ssh ninja-build
     - name: Build Docs
@@ -34,6 +30,7 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         eval "$(ssh-agent -s)"
         ssh-add -k ~/.ssh/id_rsa
+        git clone git@github.com:intel/llvm-docs.git docs
         cd $GITHUB_WORKSPACE/docs
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* .
         git config --global user.name "iclsrc"
