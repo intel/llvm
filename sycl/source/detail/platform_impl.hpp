@@ -34,7 +34,8 @@ public:
   /// Constructs platform_impl from a plug-in interoperability platform
   /// handle.
   ///
-  /// @param Platform is a raw plug-in platform handle.
+  /// \param APlatform is a raw plug-in platform handle.
+  /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
       : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
 
@@ -46,8 +47,8 @@ public:
 
   /// Checks if this platform supports extension.
   ///
-  /// @param ExtensionName is a string containing extension name.
-  /// @return true if platform supports specified extension.
+  /// \param ExtensionName is a string containing extension name.
+  /// \return true if platform supports specified extension.
   bool has_extension(const string_class &ExtensionName) const;
 
   /// Returns all SYCL devices associated with this platform.
@@ -57,8 +58,8 @@ public:
   /// contains only a single SYCL host device. If there are no devices that
   /// match given device type, resulting vector is empty.
   ///
-  /// @param DeviceType is a SYCL device type.
-  /// @return a vector of SYCL devices.
+  /// \param DeviceType is a SYCL device type.
+  /// \return a vector of SYCL devices.
   vector_class<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
@@ -69,7 +70,7 @@ public:
   typename info::param_traits<info::platform, param>::return_type
   get_info() const;
 
-  /// @return true if this SYCL platform is a host platform.
+  /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
   bool is_cuda() const {
@@ -79,7 +80,7 @@ public:
     return PlatformName == CUDA_PLATFORM_STRING;
   }
 
-  /// @return an instance of OpenCL cl_platform_id.
+  /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance",
@@ -94,7 +95,7 @@ public:
   /// responsibility to make sure that platform stays alive while raw handle
   /// is in use.
   ///
-  /// @return a raw plug-in platform handle.
+  /// \return a raw plug-in platform handle.
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance",
@@ -109,10 +110,10 @@ public:
   /// platform instance. There are means to override this behavior for testing
   /// purposes. See environment variables guide for up-to-date instructions.
   ///
-  /// @return a vector of all available SYCL platforms.
+  /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
-  // @return the Plugin associated with this platform.
+  // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
     return *MPlugin;

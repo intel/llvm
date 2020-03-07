@@ -37,7 +37,7 @@ public:
   /// associated with the provided context and the SYCL devices that are
   /// associated with the context.
   ///
-  /// @param Context is an instance of SYCL context.
+  /// \param Context is an instance of SYCL context.
   explicit program(const context &Context);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
@@ -46,9 +46,9 @@ public:
   /// associated with the provided context and the SYCL devices in the provided
   /// DeviceList.
   ///
-  /// @param Context is an instance of SYCL context.
-  /// @param DeviceList is a list of SYCL devices.
-  program(const context &context, vector_class<device> DeviceList);
+  /// \param Context is an instance of SYCL context.
+  /// \param DeviceList is a list of SYCL devices.
+  program(const context &Context, vector_class<device> DeviceList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -60,8 +60,8 @@ public:
   /// program is to be linked for returns false for the device information query
   /// info::device::is_linker_available.
   ///
-  /// @param ProgramList is a list of SYCL program instances.
-  /// @param LinkOptions is a string containing valid OpenCL link options.
+  /// \param ProgramList is a list of SYCL program instances.
+  /// \param LinkOptions is a string containing valid OpenCL link options.
   program(vector_class<program> ProgramList, string_class LinkOptions = "");
 
   /// Constructs a SYCL program instance from an OpenCL cl_program.
@@ -73,8 +73,8 @@ public:
   ///
   /// The instance of OpenCL cl_program will be retained on construction.
   ///
-  /// @param Context is an instance of SYCL Context.
-  /// @param ClProgram is an instance of OpenCL cl_program.
+  /// \param Context is an instance of SYCL Context.
+  /// \param ClProgram is an instance of OpenCL cl_program.
   program(const context &Context, cl_program ClProgram);
 
   program(const program &rhs) = default;
@@ -95,10 +95,10 @@ public:
   /// If the program is created for a SYCL host device, an invalid_object_error
   /// exception is thrown.
   ///
-  /// @return a valid OpenCL cl_program instance.
+  /// \return a valid OpenCL cl_program instance.
   cl_program get() const;
 
-  /// @return true if this SYCL program is a host program.
+  /// \return true if this SYCL program is a host program.
   bool is_host() const;
 
   /// Compiles the SYCL kernel function into the encapsulated raw program.
@@ -112,7 +112,7 @@ public:
   /// query info::device::is_compiler_available, a feature_not_supported
   /// exception is thrown.
   ///
-  /// @param CompileOptions is a string of valid OpenCL compile options.
+  /// \param CompileOptions is a string of valid OpenCL compile options.
   template <typename KernelT>
   void compile_with_kernel_type(string_class CompileOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
@@ -132,8 +132,8 @@ public:
   /// information query info::device::is_compiler_available, a
   /// feature_not_supported SYCL exception is thrown.
   ///
-  /// @param KernelSource is a string containing OpenCL C kernel source code.
-  /// @param CompileOptions is a string containing OpenCL compile options.
+  /// \param KernelSource is a string containing OpenCL C kernel source code.
+  /// \param CompileOptions is a string containing OpenCL compile options.
   void compile_with_source(string_class KernelSource,
                            string_class CompileOptions = "");
 
@@ -149,7 +149,7 @@ public:
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
   /// is thrown.
   ///
-  /// @param BuildOptions is a string containing OpenCL compile options.
+  /// \param BuildOptions is a string containing OpenCL compile options.
   template <typename KernelT>
   void build_with_kernel_type(string_class BuildOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
@@ -169,8 +169,8 @@ public:
   /// info::device::is_linker_available, a feature_not_supported SYCL exception
   /// is thrown.
   ///
-  /// @param KernelSource is a string containing OpenCL C kernel source code.
-  /// @param BuildOptions is a string containing OpenCL build options.
+  /// \param KernelSource is a string containing OpenCL C kernel source code.
+  /// \param BuildOptions is a string containing OpenCL build options.
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "");
 
@@ -184,7 +184,7 @@ public:
   /// information query info::device::is_linker_available, a
   /// feature_not_supported exception is thrown.
   ///
-  /// @param LinkOptions is a string containing OpenCL link options.
+  /// \param LinkOptions is a string containing OpenCL link options.
   void link(string_class LinkOptions = "");
 
   /// Checks if kernel is available for this program.
@@ -192,7 +192,7 @@ public:
   /// The SYCL kernel is defined by type KernelT. If the program state is
   /// program_state::none an invalid_object_error SYCL exception is thrown.
   ///
-  /// @return true if the SYCL kernel is available.
+  /// \return true if the SYCL kernel is available.
   template <typename KernelT> bool has_kernel() const {
     return has_kernel(detail::KernelInfo<KernelT>::getName(),
                       /*IsCreatedFromSource*/ false);
@@ -204,17 +204,17 @@ public:
   /// program_stateP::none state, an invalid_object_error SYCL exception
   /// is thrown.
   ///
-  /// @param KernelName is a string containing kernel name.
-  /// @return true if the SYCL kernel is available and the program is not a
+  /// \param KernelName is a string containing kernel name.
+  /// \return true if the SYCL kernel is available and the program is not a
   /// SYCL host program.
-  bool has_kernel(string_class kernelName) const;
+  bool has_kernel(string_class KernelName) const;
 
   /// Returns a SYCL kernel for the SYCL kernel function defined by KernelType.
   ///
   /// If program is in the program_state::none state or if the SYCL kernel
   /// function is not available, an invalid_object_error exception is thrown.
   ///
-  /// @return a valid instance of SYCL kernel.
+  /// \return a valid instance of SYCL kernel.
   template <typename KernelT> kernel get_kernel() const {
     return get_kernel(detail::KernelInfo<KernelT>::getName(),
                       /*IsCreatedFromSource*/ false);
@@ -226,7 +226,7 @@ public:
   /// program, if program is in the program_state::none state or if the SYCL
   /// kernel is not available.
   ///
-  /// @param KernelName is a string containing SYCL kernel name.
+  /// \param KernelName is a string containing SYCL kernel name.
   kernel get_kernel(string_class KernelName) const;
 
   /// Queries this SYCL program for information.
@@ -242,14 +242,14 @@ public:
   /// program_state::linked states, an invalid_object_error SYCL exception
   /// is thrown.
   ///
-  /// @return a vector of vectors representing the compiled binaries for each
+  /// \return a vector of vectors representing the compiled binaries for each
   /// associated SYCL device.
   vector_class<vector_class<char>> get_binaries() const;
 
-  /// @return the SYCL context that this program was constructed with.
+  /// \return the SYCL context that this program was constructed with.
   context get_context() const;
 
-  /// @return a vector of devices that are associated with this program.
+  /// \return a vector of devices that are associated with this program.
   vector_class<device> get_devices() const;
 
   /// Returns compile options that were provided when the encapsulated program
@@ -261,7 +261,7 @@ public:
   /// cl_program was explicitly compiled, in which case the compile options used
   /// in the explicit compile are returned.
   ///
-  /// @return a string of valid OpenCL compile options.
+  /// \return a string of valid OpenCL compile options.
   string_class get_compile_options() const;
 
   /// Returns compile options that were provided to the most recent invocation
@@ -277,7 +277,7 @@ public:
   /// a vector of programs, then the link options passed to this constructor
   /// are returned.
   ///
-  /// @return a string of valid OpenCL compile options.
+  /// \return a string of valid OpenCL compile options.
   string_class get_link_options() const;
 
   /// Returns the compile, link, or build options, from whichever of those
@@ -287,10 +287,10 @@ public:
   /// program, or if the program includes the host device in its device list,
   /// then an empty string is returned.
   ///
-  /// @return a string of valid OpenCL build options.
+  /// \return a string of valid OpenCL build options.
   string_class get_build_options() const;
 
-  /// @return the current state of this SYCL program.
+  /// \return the current state of this SYCL program.
   program_state get_state() const;
 
 private:
@@ -298,34 +298,34 @@ private:
 
   /// Template-free version of get_kernel.
   ///
-  /// @param KernelName is a stringified kernel name.
-  /// @param IsCreatedFromSource is a flag indicating whether this program was
+  /// \param KernelName is a stringified kernel name.
+  /// \param IsCreatedFromSource is a flag indicating whether this program was
   /// created from OpenCL C source code string.
-  /// @return a valid instance of SYCL kernel.
+  /// \return a valid instance of SYCL kernel.
   kernel get_kernel(string_class KernelName, bool IsCreatedFromSource) const;
 
   /// Template-free version of has_kernel.
   ///
-  /// @param KernelName is a stringified kernel name.
-  /// @param IsCreatedFromSource is a flag indicating whether this program was
+  /// \param KernelName is a stringified kernel name.
+  /// \param IsCreatedFromSource is a flag indicating whether this program was
   /// created from OpenCL C source code string.
-  /// @return true if kernel with KernelName is available.
+  /// \return true if kernel with KernelName is available.
   bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
 
   /// Template-free version of compile_with_kernel_type.
   ///
-  /// @param KernelName is a stringified kernel name.
-  /// @param CompileOptions is a string of valid OpenCL compile options.
-  /// @param M is a valid OS handle to the user executable or library.
+  /// \param KernelName is a stringified kernel name.
+  /// \param CompileOptions is a string of valid OpenCL compile options.
+  /// \param M is a valid OS handle to the user executable or library.
   void compile_with_kernel_name(string_class KernelName,
                                 string_class CompileOptions,
                                 detail::OSModuleHandle M);
 
   /// Template-free version of build_with_kernel_type.
   ///
-  /// @param KernelName is a stringified kernel name.
-  /// @param CompileOptions is a string of valid OpenCL compile options.
-  /// @param M is a valid OS handle to the user executable or library.
+  /// \param KernelName is a stringified kernel name.
+  /// \param CompileOptions is a string of valid OpenCL compile options.
+  /// \param M is a valid OS handle to the user executable or library.
   void build_with_kernel_name(string_class KernelName,
                               string_class buildOptions,
                               detail::OSModuleHandle M);

@@ -45,7 +45,7 @@ public:
 
   /// Get instance of OpenCL device
   ///
-  /// @return a valid cl_device_id instance in accordance with the
+  /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
   cl_device_id get() const;
 
@@ -53,7 +53,7 @@ public:
   ///
   /// For host device an exception is thrown
   ///
-  /// @return non-constant reference to PI device
+  /// \return non-constant reference to PI device
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
@@ -66,7 +66,7 @@ public:
   ///
   /// For host device an exception is thrown
   ///
-  /// @return constant reference to PI device
+  /// \return constant reference to PI device
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
@@ -77,22 +77,22 @@ public:
 
   /// Check if SYCL device is a host device
   ///
-  /// @return true if SYCL device is a host device
+  /// \return true if SYCL device is a host device
   bool is_host() const { return MIsHostDevice; }
 
   /// Check if device is a CPU device
   ///
-  /// @return true if SYCL device is a CPU device
+  /// \return true if SYCL device is a CPU device
   bool is_cpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_CPU)); }
 
   /// Check if device is a GPU device
   ///
-  /// @return true if SYCL device is a GPU device
+  /// \return true if SYCL device is a GPU device
   bool is_gpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_GPU)); }
 
   /// Check if device is an accelerator device
   ///
-  /// @return true if SYCL device is an accelerator device
+  /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
     return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
   }
@@ -106,16 +106,16 @@ public:
   /// The value returned must be equal to that returned
   /// by get_info<info::device::platform>().
   ///
-  /// @return The associated SYCL platform.
+  /// \return The associated SYCL platform.
   platform get_platform() const;
 
-  /// @return the associated plugin with this device.
+  /// \return the associated plugin with this device.
   const plugin &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// Check SYCL extension support by device
   ///
-  /// @param ExtensionName is a name of queried extension.
-  /// @return true if SYCL device supports the extension.
+  /// \param ExtensionName is a name of queried extension.
+  /// \return true if SYCL device supports the extension.
   bool has_extension(const string_class &ExtensionName) const;
 
   vector_class<device>
@@ -128,9 +128,9 @@ public:
   /// info::partition_property::partition_equally a feature_not_supported
   /// exception must be thrown.
   ///
-  /// @param ComputeUnits is a desired count of compute units in each sub
+  /// \param ComputeUnits is a desired count of compute units in each sub
   /// device.
-  /// @return A vector class of sub devices partitioned equally from this
+  /// \return A vector class of sub devices partitioned equally from this
   /// SYCL device based on the ComputeUnits parameter.
   vector_class<device> create_sub_devices(size_t ComputeUnits) const;
 
@@ -140,8 +140,8 @@ public:
   /// info::partition_property::partition_by_counts a feature_not_supported
   /// exception must be thrown.
   ///
-  /// @param Counts is a vector_class of desired compute units in sub devices.
-  /// @return a vector_class of sub devices partitioned from this SYCL device
+  /// \param Counts is a vector_class of desired compute units in sub devices.
+  /// \return a vector_class of sub devices partitioned from this SYCL device
   /// by count sizes based on the Counts parameter.
   vector_class<device>
   create_sub_devices(const vector_class<size_t> &Counts) const;
@@ -153,18 +153,18 @@ public:
   /// device does not support info::affinity_domain provided a
   /// feature_not_supported exception must be thrown.
   ///
-  /// @param AffinityDomain is one of the values described in Table 4.20 of
+  /// \param AffinityDomain is one of the values described in Table 4.20 of
   /// SYCL Spec
-  /// @return a vector class of sub devices partitioned from this SYCL device
+  /// \return a vector class of sub devices partitioned from this SYCL device
   /// by affinity domain based on the AffinityDomain parameter
   vector_class<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
   /// Check if desired partition property supported by device
   ///
-  /// @param Prop is one of info::partition_property::(partition_equally,
+  /// \param Prop is one of info::partition_property::(partition_equally,
   /// partition_by_counts, partition_by_affinity_domain)
-  /// @return true if Prop is supported by device.
+  /// \return true if Prop is supported by device.
   bool is_partition_supported(info::partition_property Prop) const;
 
   /// Queries this SYCL device for information requested by the template
@@ -174,7 +174,7 @@ public:
   /// with the info parameters in Table 4.20 of SYCL Spec to facilitate
   /// returning the type associated with the param parameter.
   ///
-  /// @return device info of type described in Table 4.20.
+  /// \return device info of type described in Table 4.20.
   template <info::device param>
   typename info::param_traits<info::device, param>::return_type
   get_info() const {
@@ -189,9 +189,9 @@ public:
   /// Check if affinity partitioning by specified domain is supported by
   /// device
   ///
-  /// @param AffinityDomain is one of the values described in Table 4.20 of
+  /// \param AffinityDomain is one of the values described in Table 4.20 of
   /// SYCL Spec
-  /// @return true if AffinityDomain is supported by device.
+  /// \return true if AffinityDomain is supported by device.
   bool
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
