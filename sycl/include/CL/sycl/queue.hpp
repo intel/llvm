@@ -346,7 +346,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    KernelType KernelFunc) {
+                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.template parallel_for<KernelName, KernelType, Dims>(
           NumWorkItems, WorkItemOffset, KernelFunc);
@@ -415,8 +415,8 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(nd_range<Dims> ExecutionRange,
-                     event DepEvent, KernelType KernelFunc) {
+  event parallel_for(nd_range<Dims> ExecutionRange, event DepEvent,
+                     KernelType KernelFunc) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvent);
       CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
