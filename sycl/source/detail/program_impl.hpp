@@ -126,7 +126,9 @@ public:
   /// query info::device::is_compiler_available, a feature_not_supported
   /// exception is thrown.
   ///
+  /// \param KernelName is a string containing SYCL kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
+  /// \param Module is an OS handle to user code module.
   void compile_with_kernel_name(string_class KernelName,
                                 string_class CompileOptions,
                                 OSModuleHandle Module);
@@ -161,6 +163,7 @@ public:
   ///
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
+  /// \param M is an OS handle to user code module.
   void build_with_kernel_name(string_class KernelName,
                               string_class BuildOptions, OSModuleHandle M);
 

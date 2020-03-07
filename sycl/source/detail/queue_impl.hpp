@@ -151,6 +151,7 @@ public:
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a shared_ptr to this queue.
+  /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const function_class<void(handler &)> &CGF,

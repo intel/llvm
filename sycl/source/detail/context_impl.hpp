@@ -37,7 +37,7 @@ public:
   ///
   /// \param Device is an instance of SYCL device.
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param useCUDAPrimaryContext is a bool determining whether to use the
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   context_impl(const device &Device, async_handler AsyncHandler,
                bool UseCUDAPrimaryContext);
@@ -52,7 +52,9 @@ public:
   ///
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
-  context_impl(const vector_class<cl::sycl::device> Devices,
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
+  ///        primary context in the CUDA backend.
+  context_impl(const vector_class<cl::sycl::device> DeviceList,
                async_handler AsyncHandler, bool UseCUDAPrimaryContext);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -62,7 +64,7 @@ public:
   ///
   /// \param PiContext is an instance of a valid plug-in context handle.
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param &Plugin is the reference to the underlying Plugin that this
+  /// \param Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                const plugin &Plugin);

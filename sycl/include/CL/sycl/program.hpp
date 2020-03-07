@@ -48,7 +48,7 @@ public:
   ///
   /// \param Context is an instance of SYCL context.
   /// \param DeviceList is a list of SYCL devices.
-  program(const context &context, vector_class<device> DeviceList);
+  program(const context &Context, vector_class<device> DeviceList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -207,7 +207,7 @@ public:
   /// \param KernelName is a string containing kernel name.
   /// \return true if the SYCL kernel is available and the program is not a
   /// SYCL host program.
-  bool has_kernel(string_class kernelName) const;
+  bool has_kernel(string_class KernelName) const;
 
   /// Returns a SYCL kernel for the SYCL kernel function defined by KernelType.
   ///

@@ -34,7 +34,8 @@ public:
   /// Constructs platform_impl from a plug-in interoperability platform
   /// handle.
   ///
-  /// \param Platform is a raw plug-in platform handle.
+  /// \param APlatform is a raw plug-in platform handle.
+  /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
       : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
 

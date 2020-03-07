@@ -38,7 +38,7 @@ public:
   /// instance.
   ///
   /// \param Kernel is a valid PiKernel instance
-  /// \param SyclContext is a valid SYCL context
+  /// \param Context is a valid SYCL context
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context);
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
@@ -49,7 +49,7 @@ public:
   /// thrown.
   ///
   /// \param Kernel is a valid PiKernel instance
-  /// \param SyclContext is a valid SYCL context
+  /// \param ContextImpl is a valid SYCL context
   /// \param ProgramImpl is a valid instance of program_impl
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
@@ -58,7 +58,7 @@ public:
 
   /// Constructs a SYCL kernel for host device
   ///
-  /// \param SyclContext is a valid SYCL context
+  /// \param Context is a valid SYCL context
   /// \param ProgramImpl is a valid instance of program_impl
   kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl);
 

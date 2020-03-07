@@ -122,10 +122,10 @@ device getDeviceFromHandler(handler &);
 ///   CGH.setArg(1, N);         // Registers value given as an argument to the
 ///                             // kernel.
 ///   // The following registers KernelFunctor to be a kernel that will be
-///   // executed in case of queue is bound to the host device, SyclKernel - for
+///   // executed in case of queue is bound to the host device, Kernel - for
 ///   // an OpenCL device. This function clearly indicates that command group
 ///   // represents kernel execution.
-///   CGH.parallel_for(KernelFunctor, SyclKernel);
+///   CGH.parallel_for(KernelFunctor, Kernel);
 ///  });
 /// \endcode
 ///
@@ -184,7 +184,7 @@ private:
     // Now if they are equal we extract argumets from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
-    assert(MSyclKernel && "MSyclKernel is not initialized");
+    assert(MKernel && "MKernel is not initialized");
     const string_class LambdaName = detail::KernelInfo<LambdaNameT>::getName();
     const string_class KernelName = getKernelName();
     return LambdaName == KernelName;
@@ -293,13 +293,13 @@ private:
                        sizeof(sampler), ArgIndex);
   }
 
-  void verifySyclKernelInvoc(const kernel &SyclKernel) {
+  void verifyKernelInvoc(const kernel &Kernel) {
     if (is_host()) {
       throw invalid_object_error(
           "This kernel invocation method cannot be used on the host",
           PI_INVALID_DEVICE);
     }
-    if (SyclKernel.is_host()) {
+    if (Kernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
                                  PI_INVALID_KERNEL);
     }
@@ -483,7 +483,7 @@ public:
 
   /// Registers event dependencies on this command group.
   ///
-  /// \param Event is a vector of valid SYCL events to wait on.
+  /// \param Events is a vector of valid SYCL events to wait on.
   void depends_on(vector_class<event> Events) {
     for (event &Event : Events) {
       MEvents.push_back(std::move(detail::getSyclObjImpl(Event)));
@@ -686,12 +686,12 @@ public:
   /// Executes exactly once. The kernel invocation method has no functors and
   /// cannot be called on host.
   ///
-  /// \param SyclKernel is a SYCL kernel object.
-  void single_task(kernel SyclKernel) {
+  /// \param Kernel is a SYCL kernel object.
+  void single_task(kernel Kernel) {
     throwIfActionIsCreated();
-    verifySyclKernelInvoc(SyclKernel);
+    verifyKernelInvoc(Kernel);
     MNDRDesc.set(range<1>{1});
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
   }
@@ -702,13 +702,12 @@ public:
   /// invocation method has no functors and cannot be called on host.
   ///
   /// \param NumWorkItems is a range defining indexing space.
-  /// \param WorkItemOffset is an offset to be applied to each work item index.
-  /// \param KernelFunc is a SYCL kernel function.
+  /// \param Kenrel is a SYCL kernel function.
   template <int Dims>
-  void parallel_for(range<Dims> NumWorkItems, kernel SyclKernel) {
+  void parallel_for(range<Dims> NumWorkItems, kernel Kenrel) {
     throwIfActionIsCreated();
-    verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    verifyKernelInvoc(Kenrel);
+    MKernel = detail::getSyclObjImpl(std::move(Kenrel));
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -721,13 +720,13 @@ public:
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param WorkItemOffset is an offset to be applied to each work item index.
-  /// \param KernelFunc is a SYCL kernel function.
+  /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel SyclKernel) {
+                    kernel Kernel) {
     throwIfActionIsCreated();
-    verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    verifyKernelInvoc(Kernel);
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -738,14 +737,13 @@ public:
   ///
   /// The SYCL kernel function is defined as SYCL kernel object.
   ///
-  /// \param ExecutionRange is a ND-range defining global and local sizes as
+  /// \param NDRange is a ND-range defining global and local sizes as
   /// well as offset.
-  /// \param KernelFunc is a SYCL kernel function.
-  template <int Dims>
-  void parallel_for(nd_range<Dims> NDRange, kernel SyclKernel) {
+  /// \param Kernel is a SYCL kernel function.
+  template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
     throwIfActionIsCreated();
-    verifySyclKernelInvoc(SyclKernel);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    verifyKernelInvoc(Kernel);
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -753,12 +751,12 @@ public:
 
   /// Defines and invokes a SYCL kernel function.
   ///
-  /// \param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// \param Kernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel SyclKernel, KernelType KernelFunc) {
+  void single_task(kernel Kernel, KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -766,7 +764,7 @@ public:
     kernel_single_task<NameT>(KernelFunc);
 #else
     MNDRDesc.set(range<1>{1});
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -786,14 +784,14 @@ public:
 
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
-  /// \param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// \param Kernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
   /// \param NumWorkItems is a range defining indexing space.
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
+  void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
@@ -802,7 +800,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -814,7 +812,7 @@ public:
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offsets.
   ///
-  /// \param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// \param Kernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
   /// \param NumWorkItems is a range defining indexing space.
   /// \param WorkItemOffset is an offset to be applied to each work item index.
@@ -822,7 +820,7 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
+  void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
@@ -831,7 +829,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -843,15 +841,15 @@ public:
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offsets.
   ///
-  /// \param SyclKernel is a SYCL kernel that is executed on a SYCL device
+  /// \param Kernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
-  /// \param NumWorkItems is a range defining indexing space.
-  /// \param WorkItemOffset is an offset to be applied to each work item index.
+  /// \param NDRange is a ND-range defining global and local sizes as
+  /// well as offset.
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel SyclKernel, nd_range<Dims> NDRange,
+  void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
                     KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
@@ -860,7 +858,7 @@ public:
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NDRange));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
@@ -872,19 +870,19 @@ public:
   /// Hierarchical kernel invocation method of a kernel.
   ///
   /// This version of \c parallel_for_work_group takes two parameters
-  /// representing the same kernel. The first one - \c syclKernel - is a
+  /// representing the same kernel. The first one - \c Kernel - is a
   /// compiled form of the second one - \c kernelFunc, which is the source form
   /// of the kernel. The same source kernel can be compiled multiple times
   /// yielding multiple kernel class objects accessible via the \c program class
   /// interface.
   ///
-  /// \param SyclKernel is a compiled SYCL kernel.
+  /// \param Kernel is a compiled SYCL kernel.
   /// \param NumWorkGroups is a range describing the number of work-groups in
   /// each dimension.
   /// \param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+  void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
@@ -893,7 +891,7 @@ public:
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -902,13 +900,13 @@ public:
   /// Hierarchical kernel invocation method of a kernel.
   ///
   /// This version of \c parallel_for_work_group takes two parameters
-  /// representing the same kernel. The first one - \c syclKernel - is a
+  /// representing the same kernel. The first one - \c Kernel - is a
   /// compiled form of the second one - \c kernelFunc, which is the source form
   /// of the kernel. The same source kernel can be compiled multiple times
   /// yielding multiple kernel class objects accessible via the \c program class
   /// interface.
   ///
-  /// \param SyclKernel is a compiled SYCL kernel.
+  /// \param Kernel is a compiled SYCL kernel.
   /// \param NumWorkGroups is a range describing the number of work-groups in
   /// each dimension.
   /// \param WorkGroupSize is a range describing the size of work-groups in
@@ -916,7 +914,7 @@ public:
   /// \param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+  void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                KernelType KernelFunc) {
     throwIfActionIsCreated();
@@ -926,7 +924,7 @@ public:
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
-    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -1266,7 +1264,7 @@ private:
   detail::NDRDescT MNDRDesc;
   string_class MKernelName;
   /// Storage for a sycl::kernel object.
-  shared_ptr_class<detail::kernel_impl> MSyclKernel;
+  shared_ptr_class<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill.
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
   /// Pointer to the source host memory or accessor(depending on command type).
