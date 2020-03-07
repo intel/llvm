@@ -39,12 +39,12 @@ public:
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// \param Device is a SYCL device that is used to dispatch tasks submitted
   /// to the queue.
-  /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
-  /// @param PropList is a list of properties to use for queue construction.
+  /// \param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
       : queue_impl(Device,
@@ -55,14 +55,14 @@ public:
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
   ///
-  /// @param Device is a SYCL device that is used to dispatch tasks submitted
+  /// \param Device is a SYCL device that is used to dispatch tasks submitted
   /// to the queue.
-  /// @param Context is a SYCL context to associate with the queue being
+  /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
-  /// @param AsyncHandler is a SYCL asynchronous exception handler.
-  /// @param Order specifies whether the queue being constructed as in-order
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
-  /// @param PropList is a list of properties to use for queue construction.
+  /// \param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
              async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
@@ -81,10 +81,10 @@ public:
 
   /// Constructs a SYCL queue from plugin interoperability handle.
   ///
-  /// @param PiQueue is a raw PI queue handle.
-  /// @param Context is a SYCL context to associate with the queue being
+  /// \param PiQueue is a raw PI queue handle.
+  /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
-  /// @param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, ContextImplPtr Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
@@ -111,7 +111,7 @@ public:
     }
   }
 
-  /// @return an OpenCL interoperability queue handle.
+  /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
     if (MOpenCLInterop) {
       getPlugin().call<PiApiKind::piQueueRetain>(MCommandQueue);
@@ -122,7 +122,7 @@ public:
         PI_INVALID_QUEUE);
   }
 
-  /// @return an associated SYCL context.
+  /// \return an associated SYCL context.
   context get_context() const {
     return createSyclObjFromImpl<context>(MContext);
   }
@@ -131,10 +131,10 @@ public:
 
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
-  /// @return an associated SYCL device.
+  /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 
-  /// @return true if this queue is a SYCL host queue.
+  /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
   /// Queries SYCL queue for information.
@@ -149,9 +149,9 @@ public:
   /// On a kernel error, this command group function object is then scheduled
   /// for execution on a secondary queue.
   ///
-  /// @param CGF is a function object containing command group.
-  /// @param Self is a shared_ptr to this queue.
-  /// @return a SYCL event object, which corresponds to the queue the command
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a shared_ptr to this queue.
+  /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const function_class<void(handler &)> &CGF,
                shared_ptr_class<queue_impl> Self,
@@ -170,9 +170,9 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// @param CGF is a function object containing command group.
-  /// @param Self is a shared_ptr to this queue.
-  /// @return a SYCL event object for the submitted command group.
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a shared_ptr to this queue.
+  /// \return a SYCL event object for the submitted command group.
   event submit(const function_class<void(handler &)> &CGF,
                shared_ptr_class<queue_impl> Self) {
     return submit_impl(CGF, std::move(Self));
@@ -189,7 +189,7 @@ public:
     MEvents.clear();
   }
 
-  /// @return list of asynchronous exceptions occurred during execution.
+  /// \return list of asynchronous exceptions occurred during execution.
   exception_list getExceptionList() const { return MExceptions; }
 
   void wait_and_throw() {
@@ -223,7 +223,7 @@ public:
 
   /// Creates PI queue.
   ///
-  /// @param Order specifies whether the queue being constructed as in-order
+  /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
@@ -254,7 +254,7 @@ public:
     return Queue;
   }
 
-  /// @return a raw PI handle for a free queue. The returned handle is not
+  /// \return a raw PI handle for a free queue. The returned handle is not
   /// retained. It is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getExclusiveQueueHandleRef() {
     std::lock_guard<mutex_class> Guard(MMutex);
@@ -276,7 +276,7 @@ public:
     return MQueues[FreeQueueNum];
   }
 
-  /// @return a raw PI queue handle. The returned handle is not retained. It
+  /// \return a raw PI queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
   RT::PiQueue &getHandleRef() {
     if (MSupportOOO) {
@@ -297,13 +297,13 @@ public:
     return getExclusiveQueueHandleRef();
   }
 
-  /// @return true if the queue was constructed with property specified by
+  /// \return true if the queue was constructed with property specified by
   /// PropertyT.
   template <typename propertyT> bool has_property() const {
     return MPropList.has_property<propertyT>();
   }
 
-  /// @return a copy of the property of type PropertyT that the queue was
+  /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
   /// property, an invalid_object_error SYCL exception.
   template <typename propertyT> propertyT get_property() const {
@@ -312,33 +312,33 @@ public:
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
-  /// @param Impl is a shared_ptr to this queue.
-  /// @param Ptr is a USM pointer to the memory to fill.
-  /// @param Value is a value to be set. Value is cast as an unsigned char.
-  /// @param Count is a number of bytes to fill.
-  /// @return an event representing fill operation.
+  /// \param Impl is a shared_ptr to this queue.
+  /// \param Ptr is a USM pointer to the memory to fill.
+  /// \param Value is a value to be set. Value is cast as an unsigned char.
+  /// \param Count is a number of bytes to fill.
+  /// \return an event representing fill operation.
   event memset(shared_ptr_class<queue_impl> Impl, void *Ptr, int Value,
                size_t Count);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
-  /// @param Impl is a shared_ptr to this queue.
-  /// @param Dest is a USM pointer to the destination memory.
-  /// @param Src is a USM pointer to the source memory.
-  /// @param Count is a number of bytes to copy.
+  /// \param Impl is a shared_ptr to this queue.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Count is a number of bytes to copy.
   event memcpy(shared_ptr_class<queue_impl> Impl, void *Dest, const void *Src,
                size_t Count);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
-  /// @param Ptr is a USM pointer to the allocation.
-  /// @param Length is a number of bytes in the allocation.
-  /// @param Advice is a device-defined advice for the specified allocation.
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
-  /// @param ExceptionPtr is a pointer to exception to be put.
+  /// \param ExceptionPtr is a pointer to exception to be put.
   void reportAsyncException(std::exception_ptr ExceptionPtr) {
     std::lock_guard<mutex_class> Guard(MMutex);
     MExceptions.PushBack(ExceptionPtr);
@@ -347,9 +347,9 @@ public:
 private:
   /// Performs command group submission to the queue.
   ///
-  /// @param CGF is a function object containing command group.
-  /// @param Self is a pointer to this queue.
-  /// @return a SYCL event representing submitted command group.
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a pointer to this queue.
+  /// \return a SYCL event representing submitted command group.
   event submit_impl(const function_class<void(handler &)> &CGF,
                     shared_ptr_class<queue_impl> Self) {
     handler Handler(std::move(Self), MHostQueue);
@@ -361,7 +361,7 @@ private:
 
   /// Stores an event that should be associated with the queue
   ///
-  /// @param Event is the event to be stored
+  /// \param Event is the event to be stored
   void addEvent(event Event);
 
   /// Protects all the fields that can be changed by class' methods.

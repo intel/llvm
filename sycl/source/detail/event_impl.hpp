@@ -38,8 +38,8 @@ public:
   /// The SyclContext must match the plug-in context associated with the
   /// ClEvent.
   ///
-  /// @param Event is a valid instance of plug-in event.
-  /// @param SyclContext is an instance of SYCL context.
+  /// \param Event is a valid instance of plug-in event.
+  /// \param SyclContext is an instance of SYCL context.
   event_impl(RT::PiEvent Event, const context &SyclContext);
   event_impl(QueueImplPtr Queue);
 
@@ -48,19 +48,19 @@ public:
   /// All devices that do not support OpenCL interoperability are treated as
   /// host device to avoid attempts to call method get on such events.
   //
-  /// @return true if this event is a SYCL host event.
+  /// \return true if this event is a SYCL host event.
   bool is_host() const;
 
   /// Returns a valid OpenCL event interoperability handle.
   ///
-  /// @return a valid instance of OpenCL cl_event.
+  /// \return a valid instance of OpenCL cl_event.
   cl_event get() const;
 
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
-  /// @param Self is a pointer to this event.
+  /// \param Self is a pointer to this event.
   void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
 
   /// Waits for the event.
@@ -70,7 +70,7 @@ public:
   /// asynchronous error handler with those errors. Self is needed in order to
   /// pass shared_ptr to Scheduler.
   ///
-  /// @param Self is a pointer to this event.
+  /// \param Self is a pointer to this event.
   void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
 
   /// Queries this event for profiling information.
@@ -83,14 +83,14 @@ public:
   /// property::queue::enable_profiling property, an invalid_object_error SYCL
   /// exception is thrown.
   ///
-  /// @return depends on template parameter.
+  /// \return depends on template parameter.
   template <info::event_profiling param>
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
   /// Queries this SYCL event for information.
   ///
-  /// @return depends on the information being requested.
+  /// \return depends on the information being requested.
   template <info::event param>
   typename info::param_traits<info::event, param>::return_type get_info() const;
 
@@ -105,20 +105,20 @@ public:
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
-  /// @return a reference to an instance of plug-in event handle.
+  /// \return a reference to an instance of plug-in event handle.
   RT::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
-  /// @return a const reference to an instance of plug-in event handle.
+  /// \return a const reference to an instance of plug-in event handle.
   const RT::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
-  /// @return a shared pointer to a valid context_impl.
+  /// \return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
-  // @return the Plugin associated with the context of this event.
+  // \return the Plugin associated with the context of this event.
   // Should be called when this is not a Host Event.
   const plugin &getPlugin() const;
 
@@ -127,22 +127,22 @@ public:
   /// Provided PiContext inside ContextImplPtr must be associated
   /// with the PiEvent object stored in this class
   ///
-  /// @param Context is a shared pointer to an instance of valid context_impl.
+  /// \param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
 
   /// Returns command that is associated with the event.
   ///
-  /// @return a generic pointer to Command object instance.
+  /// \return a generic pointer to Command object instance.
   void *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
   ///
-  /// @param Command is a generic pointer to Command object instance.
+  /// \param Command is a generic pointer to Command object instance.
   void setCommand(void *Command) { MCommand = Command; }
 
   /// Returns host profiling information.
   ///
-  /// @return a pointer to HostProfilingInfo instance.
+  /// \return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
 private:

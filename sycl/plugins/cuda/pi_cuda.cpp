@@ -1143,16 +1143,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// With the PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of PI_TRUE
 /// creates a primary CUDA context and activates it on the CUDA context stack.
 ///
-/// @param[in] properties 0 terminated array of key/id-value combinations. Can
+/// \param[in] properties 0 terminated array of key/id-value combinations. Can
 /// be nullptr. Only accepts property key/id PI_CONTEXT_PROPERTIES_CUDA_PRIMARY
 /// with a pi_bool value.
-/// @param[in] num_devices Number of devices to create the context for.
-/// @param[in] devices Devices to create the context for.
-/// @param[in] pfn_notify Callback, currently unused.
-/// @param[in] user_data User data for callback.
-/// @param[out] retcontext Set to created context on success.
+/// \param[in] num_devices Number of devices to create the context for.
+/// \param[in] devices Devices to create the context for.
+/// \param[in] pfn_notify Callback, currently unused.
+/// \param[in] user_data User data for callback.
+/// \param[out] retcontext Set to created context on success.
 ///
-/// @return PI_SUCCESS on success, otherwise an error return code.
+/// \return PI_SUCCESS on success, otherwise an error return code.
 pi_result cuda_piContextCreate(const pi_context_properties *properties,
                                pi_uint32 num_devices, const pi_device *devices,
                                void (*pfn_notify)(const char *errinfo,
