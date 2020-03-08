@@ -39,7 +39,7 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
     std::ifstream File(SpvFile, std::ios::binary);
     if (!File.is_open()) {
       std::cerr << std::strerror(errno);
-      throw compile_program_error("Cannot open SPIRV file\n");
+      throw compile_program_error("Cannot open SPIRV file\n", PI_INVALID_VALUE);
     }
     File.seekg(0, std::ios::end);
     vector_class<char> Spv(File.tellg());

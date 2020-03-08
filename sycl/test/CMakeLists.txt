@@ -5,7 +5,7 @@ get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 set(SYCL_INCLUDE "${dst_dir}")
 
 set(RT_TEST_ARGS ${RT_TEST_ARGS} "-v")
-set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib -D SYCL_INCLUDE=${dst_deploy_dir}")
+set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX} -D SYCL_INCLUDE=${dst_deploy_dir}")
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in

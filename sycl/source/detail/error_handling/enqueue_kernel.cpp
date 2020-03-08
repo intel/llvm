@@ -21,8 +21,8 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
-bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
-                                const NDRDescT &NDRDesc) {
+bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
+                                   pi_kernel Kernel, const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   const plugin &Plugin = DeviceImpl.getPlugin();
@@ -168,6 +168,46 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
       "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+}
+
+bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
+                                const NDRDescT &NDRDesc) {
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  if (HasLocalSize) {
+    size_t MaxThreadsPerBlock[3] = {};
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
+        MaxThreadsPerBlock, nullptr);
+
+    for (size_t I = 0; I < 3; ++I) {
+      if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
+        throw sycl::nd_range_error(
+            "The number of work-items in each dimension of a work-group cannot "
+            "exceed info::device::max_work_item_sizes which is {" +
+                std::to_string(MaxThreadsPerBlock[0]) + ", " +
+                std::to_string(MaxThreadsPerBlock[1]) + ", " +
+                std::to_string(MaxThreadsPerBlock[2]) + "} for this device",
+            PI_INVALID_WORK_GROUP_SIZE);
+      }
+    }
+  }
+
+  // Backend specific invalid work group size handing
+  // TODO: Find a better way to determine the backend
+  std::string PlatformName =
+      DeviceImpl.get_platform().get_info<info::platform::name>();
+  if (PlatformName.find("OpenCL") != std::string::npos) {
+    return oclHandleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
+  }
+
+  // Fallback
+  constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
+  throw runtime_error(
+      "PI backend failed. PI backend returns: " + codeToString(Error), Error);
 }
 
 bool handleError(pi_result Error, const device_impl &DeviceImpl,

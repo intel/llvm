@@ -3253,6 +3253,9 @@ class OffloadingActionBuilder final {
     /// Type of output file for FPGA device compilation.
     types::ID FPGAOutType = types::TY_FPGA_AOCX;
 
+    /// List of objects to extract FPGA dependency info from
+    ActionList FPGAObjectInputs;
+
     /// List of CUDA architectures to use in this compilation with NVPTX targets.
     SmallVector<CudaArch, 8> GpuArchList;
 
@@ -3417,8 +3420,12 @@ class OffloadingActionBuilder final {
           // Check if the type of the file is the same as the action. Do not
           // unbundle it if it is not. Do not unbundle .so files, for example,
           // which are not object files.
-          if (IA->getType() == types::TY_Object && !isObjectFile(FileName))
-            return ABRT_Inactive;
+          if (IA->getType() == types::TY_Object) {
+            if (!isObjectFile(FileName))
+              return ABRT_Inactive;
+            if (Args.hasArg(options::OPT_fintelfpga))
+              FPGAObjectInputs.push_back(IA);
+          }
           // When creating FPGA device fat objects, all host objects are
           // partially linked.  Gather that list here.
           if (IA->getType() == types::TY_Object ||
@@ -3598,6 +3605,15 @@ class OffloadingActionBuilder final {
           Action *DeviceBECompileAction;
           ActionList BEActionList;
           BEActionList.push_back(DeviceLinkAction);
+          for (Action *A : FPGAObjectInputs) {
+            // Send any known objects through the unbundler to grab the
+            // dependency file associated.
+            ActionList AL;
+            AL.push_back(A);
+            Action *UnbundleAction = C.MakeAction<OffloadUnbundlingJobAction>(
+                AL, types::TY_FPGA_Dependencies);
+            BEActionList.push_back(UnbundleAction);
+          }
           for (const auto &A : DeviceLibObjects)
             BEActionList.push_back(A);
           DeviceBECompileAction =
@@ -4462,8 +4478,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
             IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           // Pass the Input along to linker only.
           continue;
-        UnbundlerInputs.push_back(LI);
       }
+      UnbundlerInputs.push_back(LI);
     }
     const Arg *LastArg;
     auto addUnbundlerInput = [&](types::ID T, const Arg *A) {
@@ -5484,14 +5500,25 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                                 DependentOffloadKind)}] =
           CurI;
     }
-
-    // Now that we have all the results generated, select the one that should be
-    // returned for the current depending action.
-    std::pair<const Action *, std::string> ActionTC = {
-        A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-    assert(CachedResults.find(ActionTC) != CachedResults.end() &&
-           "Result does not exist??");
-    Result = CachedResults[ActionTC];
+    // Do a check for a dependency file unbundle for FPGA.  This is out of line
+    // from a regular unbundle, so just create and return the name of the
+    // unbundled file.
+    if (JA->getType() == types::TY_FPGA_Dependencies) {
+      std::string TmpFileName =
+          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput), "d");
+      const char *TmpFile =
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+      Result = InputInfo(types::TY_FPGA_Dependencies, TmpFile, TmpFile);
+      UnbundlingResults.push_back(Result);
+    } else {
+      // Now that we have all the results generated, select the one that should
+      // be returned for the current depending action.
+      std::pair<const Action *, std::string> ActionTC = {
+          A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
+      assert(CachedResults.find(ActionTC) != CachedResults.end() &&
+             "Result does not exist??");
+      Result = CachedResults[ActionTC];
+    }
   } else if (JA->getType() == types::TY_Nothing)
     Result = InputInfo(A, BaseInput);
   else {
