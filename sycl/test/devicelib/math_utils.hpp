@@ -1,7 +1,6 @@
 #ifndef MATH_UTILS
 #include <complex>
 #include <limits>
-using namespace std;
 // T must be float-point type
 template <typename T>
 bool is_about_FP(T x, T y) {
@@ -9,15 +8,15 @@ bool is_about_FP(T x, T y) {
     return true;
   else {
     if (x != 0 && y != 0) {
-      T max_v = fmax(abs(x), abs(y));
-      return (abs(x - y) / max_v) <
-              numeric_limits<T>::epsilon() * 100;
+      T max_v = std::fmax(std::abs(x), std::abs(y));
+      return (std::abs(x - y) / max_v) <
+              std::numeric_limits<T>::epsilon() * 100;
     }
     else {
       if (x != 0)
-        return abs(x) < numeric_limits<T>::epsilon() * 100;
+        return std::abs(x) < std::numeric_limits<T>::epsilon() * 100;
       else
-        return abs(y) < numeric_limits<T>::epsilon() * 100;
+        return std::abs(y) < std::numeric_limits<T>::epsilon() * 100;
     }
   }
 }
