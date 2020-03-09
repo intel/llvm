@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -22,18 +22,22 @@
 #include <iostream>
 #include <numeric>
 #include <vector>
+#include <algorithm>
 
 void checkHostAccessor(cl::sycl::queue &q) {
-  std::size_t size =
-      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
-      8;
+  std::size_t subbuf_align =
+      q.get_device().
+          get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
+  std::size_t size = subbuf_align;
+  size = std::max(size, 10 * 2 * sizeof(int)); // hold at least 20 elements
   size /= sizeof(int);
   size *= 2;
+
   std::vector<int> data(size);
   std::iota(data.begin(), data.end(), 0);
   {
     cl::sycl::buffer<int, 1> buf(data.data(), size);
-    cl::sycl::buffer<int, 1> subbuf(buf, {size / 2}, {10});
+    cl::sycl::buffer<int, 1> subbuf(buf, {size /2}, {10});
 
     {
       auto host_acc = subbuf.get_access<cl::sycl::access::mode::write>();
@@ -59,9 +63,11 @@ void checkHostAccessor(cl::sycl::queue &q) {
 }
 
 void check1DSubBuffer(cl::sycl::queue &q) {
-  std::size_t size =
-      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
-      8;
+  std::size_t subbuf_align =
+      q.get_device().
+          get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
+  std::size_t size = subbuf_align;
+  size = std::max(size, 32 * sizeof(int)); // hold at least 32 elements
   size /= sizeof(int);
   size *= 2;
 
