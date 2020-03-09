@@ -4,13 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==-------------- usm_free.cpp - SYCL USM free malloc_shared and free test
-//-------------==//
-//
 // This test checks if users will successfully allocate 160, 0, and -16 bytes of
 // shared memory, and also test user can call free() without worrying about
 // nullptr or invalid memory descriptor returned from malloc.
-//==-------------------------------------------------------------------------------------==//
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -41,7 +37,7 @@ int main(int argc, char *argv[]) {
   std::cout << "ia : " << ia << " ja: " << ja << " result : " << result
             << std::endl;
 
-  // followings should not throws CL_INVALID_VALUE
+  // followings should not throw CL_INVALID_VALUE
   cl::sycl::free(ia, myQueue);
   cl::sycl::free(nullptr, myQueue);
   cl::sycl::free(ja, myQueue);
