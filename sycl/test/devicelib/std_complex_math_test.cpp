@@ -5,6 +5,8 @@
 #include <cassert>
 #include "math_utils.hpp"
 
+using namespace std;
+
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
