@@ -19,15 +19,14 @@
 // 2) Exceptions if we trying to create sub buffer not according to spec
 
 #include <CL/sycl.hpp>
+#include <algorithm>
 #include <iostream>
 #include <numeric>
 #include <vector>
-#include <algorithm>
 
 void checkHostAccessor(cl::sycl::queue &q) {
   std::size_t subbuf_align =
-      q.get_device().
-          get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
+      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
   std::size_t size = subbuf_align;
   size = std::max(size, 10 * 2 * sizeof(int)); // hold at least 20 elements
   size /= sizeof(int);
@@ -37,7 +36,7 @@ void checkHostAccessor(cl::sycl::queue &q) {
   std::iota(data.begin(), data.end(), 0);
   {
     cl::sycl::buffer<int, 1> buf(data.data(), size);
-    cl::sycl::buffer<int, 1> subbuf(buf, {size /2}, {10});
+    cl::sycl::buffer<int, 1> subbuf(buf, {size / 2}, {10});
 
     {
       auto host_acc = subbuf.get_access<cl::sycl::access::mode::write>();
@@ -64,8 +63,7 @@ void checkHostAccessor(cl::sycl::queue &q) {
 
 void check1DSubBuffer(cl::sycl::queue &q) {
   std::size_t subbuf_align =
-      q.get_device().
-          get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
+      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
   std::size_t size = subbuf_align;
   size = std::max(size, 32 * sizeof(int)); // hold at least 32 elements
   size /= sizeof(int);
@@ -207,7 +205,7 @@ void copyBlock() {
   using typename cl::sycl::access::mode;
   using buffer = cl::sycl::buffer<int, 1>;
 
-  auto CopyF = [](buffer& Buffer, buffer& Block, size_t Idx, size_t BlockSize) {
+  auto CopyF = [](buffer &Buffer, buffer &Block, size_t Idx, size_t BlockSize) {
     auto Subbuf = buffer(Buffer, Idx * BlockSize, BlockSize);
     auto *Src = Subbuf.get_access<mode::read>().get_pointer();
     auto *Dst = Block.get_access<mode::write>().get_pointer();
@@ -250,8 +248,7 @@ void copyBlock() {
                "Invalid data in block buffer");
       }
     }
-  }
-  catch (cl::sycl::exception& ex) {
+  } catch (cl::sycl::exception &ex) {
     assert(false && "Unexpected exception captured!");
   }
 }
