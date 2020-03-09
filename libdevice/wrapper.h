@@ -9,9 +9,9 @@
 #ifndef __LIBDEVICE_WRAPPER_H__
 #define __LIBDEVICE_WRAPPER_H__
 
+#include "device.h"
 #include <cstddef>
 #include <cstdint>
-#include "device.h"
 
 DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
@@ -22,10 +22,9 @@ DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
 DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
 
 DEVICE_EXTERN_C
-void __devicelib_assert_fail(
-    const char *expr, const char *file,
-    int32_t line, const char *func,
-    uint64_t gid0, uint64_t gid1, uint64_t gid2,
-    uint64_t lid0, uint64_t lid1, uint64_t lid2);
+void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
+                             const char *func, uint64_t gid0, uint64_t gid1,
+                             uint64_t gid2, uint64_t lid0, uint64_t lid1,
+                             uint64_t lid2);
 
 #endif // __LIBDEVICE_WRAPPER_H__

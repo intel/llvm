@@ -31,11 +31,9 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
   char expr[256];
   __truncate_wchar_char_str(wexpr, expr, sizeof(expr));
 
-  __devicelib_assert_fail(expr, file, line, /*func=*/nullptr,
-                          __spirv_GlobalInvocationId_x(),
-                          __spirv_GlobalInvocationId_y(),
-                          __spirv_GlobalInvocationId_z(),
-                          __spirv_LocalInvocationId_x(),
-                          __spirv_LocalInvocationId_y(),
-                          __spirv_LocalInvocationId_z());
+  __devicelib_assert_fail(
+      expr, file, line, /*func=*/nullptr, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
 }

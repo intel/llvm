@@ -10,13 +10,11 @@
 #include "wrapper.h"
 
 DEVICE_EXTERN_C
-void __assert_fail(const char *expr, const char *file,
-                   unsigned int line, const char *func) {
-  __devicelib_assert_fail(expr, file, line, func,
-                          __spirv_GlobalInvocationId_x(),
-                          __spirv_GlobalInvocationId_y(),
-                          __spirv_GlobalInvocationId_z(),
-                          __spirv_LocalInvocationId_x(),
-                          __spirv_LocalInvocationId_y(),
-                          __spirv_LocalInvocationId_z());
+void __assert_fail(const char *expr, const char *file, unsigned int line,
+                   const char *func) {
+  __devicelib_assert_fail(
+      expr, file, line, func, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
 }
