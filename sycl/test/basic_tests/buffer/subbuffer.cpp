@@ -19,6 +19,7 @@
 // 2) Exceptions if we trying to create sub buffer not according to spec
 
 #include <CL/sycl.hpp>
+
 #include <algorithm>
 #include <iostream>
 #include <numeric>
