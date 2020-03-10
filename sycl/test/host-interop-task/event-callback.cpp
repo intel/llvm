@@ -35,7 +35,7 @@ void Thread1Fn(Context &Ctx) {
   })
   // T1.2. submit host task using event of K1 as a lock with callback to set
   //       flag F = true
-  .when_complete([&Ctx] (const S::event &E) {
+  .when_complete([&Ctx] () {
     bool Expected = false;
     bool Desired = true;
     assert(Ctx.Flag.compare_exchange_strong(Expected, Desired));
@@ -70,7 +70,7 @@ void test() {
   S::queue Queue(EH);
 
   // optional
-  Queue.set_host_task_thread_pool_size(4);
+  Queue.set_event_cb_thread_pool_size(4);
 
   Context Ctx{{false}, Queue, "", {10}};
 
