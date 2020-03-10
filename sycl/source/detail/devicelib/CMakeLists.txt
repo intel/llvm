@@ -142,7 +142,7 @@ endif()
 if (WIN32)
     set(install_dest bin)
 else()
-    set(install_dest lib)
+    set(install_dest lib${LLVM_LIBDIR_SUFFIX})
 endif()
 
 install(FILES ${devicelib-obj-file}

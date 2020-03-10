@@ -202,7 +202,7 @@ add_subdirectory( source )
 
 # Auxilliary extras for SYCL headers/library
 if (NOT WIN32)
-  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py" DESTINATION lib COMPONENT sycl-headers-extras)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py" DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-headers-extras)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
