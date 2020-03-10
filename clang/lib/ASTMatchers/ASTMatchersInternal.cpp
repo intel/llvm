@@ -347,12 +347,18 @@ bool OptionallyVariadicOperator(const DynTypedNode &DynNode,
                                 BoundNodesTreeBuilder *Builder,
                                 ArrayRef<DynTypedMatcher> InnerMatchers) {
   BoundNodesTreeBuilder Result;
+  bool Matched = false;
   for (const DynTypedMatcher &InnerMatcher : InnerMatchers) {
     BoundNodesTreeBuilder BuilderInner(*Builder);
-    if (InnerMatcher.matches(DynNode, Finder, &BuilderInner))
+    if (InnerMatcher.matches(DynNode, Finder, &BuilderInner)) {
+      Matched = true;
       Result.addMatch(BuilderInner);
+    }
   }
-  *Builder = std::move(Result);
+  // If there were no matches, we can't assign to `*Builder`; we'd (incorrectly)
+  // clear it because `Result` is empty.
+  if (Matched)
+    *Builder = std::move(Result);
   return true;
 }
 
@@ -513,7 +519,13 @@ bool HasNameMatcher::matchesNodeFullFast(const NamedDecl &Node) const {
   if (Ctx->isFunctionOrMethod())
     return Patterns.foundMatch(/*AllowFullyQualified=*/false);
 
-  for (; Ctx && isa<NamedDecl>(Ctx); Ctx = Ctx->getParent()) {
+  for (; Ctx; Ctx = Ctx->getParent()) {
+    // Linkage Spec can just be ignored
+    // FIXME: Any other DeclContext kinds that can be safely disregarded
+    if (isa<LinkageSpecDecl>(Ctx))
+      continue;
+    if (!isa<NamedDecl>(Ctx))
+      break;
     if (Patterns.foundMatch(/*AllowFullyQualified=*/false))
       return true;
 
