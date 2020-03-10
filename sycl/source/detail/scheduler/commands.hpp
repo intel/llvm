@@ -38,8 +38,8 @@ enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
 // The struct represents the result of command enqueueing
 struct EnqueueResultT {
-  enum ResultT { SUCCESS, BLOCKED, FAILED };
-  EnqueueResultT(ResultT Result = SUCCESS, Command *Cmd = nullptr,
+  enum ResultT { SyclEnqueueSuccess, SyclEnqueueBlocked, SyclEnqueueFailed };
+  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
                  cl_int ErrCode = CL_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   // Indicates result of enqueueing

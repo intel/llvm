@@ -1,12 +1,10 @@
-//==-------- handler.cpp --- SYCL command group handler --------*- C++ -*---==//
+//==-------- handler.cpp --- SYCL command group handler --------------------==//
 //
-// Copyright (C) 2019 Intel Corporation. All rights reserved.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// The information and source code contained herein is the exclusive property
-// of Intel Corporation and may not be disclosed, examined or reproduced in
-// whole or in part without explicit written authorization from the company.
-//
-// ===--------------------------------------------------------------------=== //
+//===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
@@ -26,7 +24,7 @@ event handler::finalize() {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
+        std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
@@ -79,9 +77,11 @@ event handler::finalize() {
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.");
+                        "explicit memory operation.",
+                        PI_INVALID_OPERATION);
   default:
-    throw runtime_error("Unhandled type of command group");
+    throw runtime_error("Unhandled type of command group",
+                        PI_INVALID_OPERATION);
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -174,7 +174,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::host_image:
     case access::target::host_buffer: {
       throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.");
+          "Unsupported accessor target case.", PI_INVALID_OPERATION);
       break;
     }
     }
@@ -189,7 +189,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 }
 
 void handler::extractArgsAndReqs() {
-  assert(MSyclKernel && "MSyclKernel is not initialized");
+  assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(MArgs);
   MArgs.clear();
 
@@ -199,7 +199,7 @@ void handler::extractArgsAndReqs() {
         return (first.MIndex < second.MIndex);
       });
 
-  const bool IsKernelCreatedFromSource = MSyclKernel->isCreatedFromSource();
+  const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -246,7 +246,7 @@ void handler::extractArgsAndReqsFromLambda(
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
 string_class handler::getKernelName() {
-  return MSyclKernel->get_info<info::kernel::function_name>();
+  return MKernel->get_info<info::kernel::function_name>();
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

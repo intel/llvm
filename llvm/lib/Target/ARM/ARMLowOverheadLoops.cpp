@@ -342,7 +342,7 @@ MachineInstr *LowOverheadLoop::isSafeToDefineLR() {
   // Find an insertion point:
   // - Is there a (mov lr, Count) before Start? If so, and nothing else writes
   //   to Count before Start, we can insert at that mov.
-  if (auto *LRDef = RDA.getReachingMIDef(Start, ARM::LR))
+  if (auto *LRDef = RDA.getUniqueReachingMIDef(Start, ARM::LR))
     if (IsMoveLR(LRDef) && RDA.hasSameReachingDef(Start, LRDef, CountReg))
       return LRDef;
 
@@ -479,7 +479,7 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt) {
   };
 
   MBB = VCTP->getParent();
-  if (MachineInstr *Def = RDA.getReachingMIDef(&MBB->back(), NumElements)) {
+  if (auto *Def = RDA.getUniqueReachingMIDef(&MBB->back(), NumElements)) {
     SmallPtrSet<MachineInstr*, 2> ElementChain;
     SmallPtrSet<MachineInstr*, 2> Ignore = { VCTP };
     unsigned ExpectedVectorWidth = getTailPredVectorWidth(VCTP->getOpcode());
@@ -815,10 +815,13 @@ void ARMLowOverheadLoops::RevertWhile(MachineInstr *MI) const {
 bool ARMLowOverheadLoops::RevertLoopDec(MachineInstr *MI) const {
   LLVM_DEBUG(dbgs() << "ARM Loops: Reverting to sub: " << *MI);
   MachineBasicBlock *MBB = MI->getParent();
-  MachineInstr *Last = &MBB->back();
   SmallPtrSet<MachineInstr*, 1> Ignore;
-  if (Last->getOpcode() == ARM::t2LoopEnd)
-    Ignore.insert(Last);
+  for (auto I = MachineBasicBlock::iterator(MI), E = MBB->end(); I != E; ++I) {
+    if (I->getOpcode() == ARM::t2LoopEnd) {
+      Ignore.insert(&*I);
+      break;
+    }
+  }
 
   // If nothing defines CPSR between LoopDec and LoopEnd, use a t2SUBS.
   bool SetFlags = RDA->isSafeToDefRegAt(MI, ARM::CPSR, Ignore);
@@ -897,8 +900,7 @@ void ARMLowOverheadLoops::IterationCountDCE(LowOverheadLoop &LoLoop) {
   if (!LoLoop.IsTailPredicationLegal())
     return;
 
-  auto *Def = RDA->getReachingMIDef(LoLoop.Start,
-                                    LoLoop.Start->getOperand(0).getReg());
+  MachineInstr *Def = RDA->getMIOperand(LoLoop.Start, 0);
   if (!Def)
     return;
 
@@ -1131,6 +1133,9 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
 
   for (auto *MBB : reverse(PostOrder))
     recomputeLivenessFlags(*MBB);
+
+  // We've moved, removed and inserted new instructions, so update RDA.
+  RDA->reset();
 }
 
 bool ARMLowOverheadLoops::RevertNonLoops() {

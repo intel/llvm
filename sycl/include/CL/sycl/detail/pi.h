@@ -31,19 +31,19 @@
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
 //
-#include <CL/opencl.h>
 #include <CL/cl_usm_ext.h>
+#include <CL/opencl.h>
 #include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-typedef int32_t     pi_int32;
-typedef uint32_t    pi_uint32;
-typedef uint64_t    pi_uint64;
-typedef pi_uint32   pi_bool;
-typedef pi_uint64   pi_bitfield;
+typedef int32_t pi_int32;
+typedef uint32_t pi_uint32;
+typedef uint64_t pi_uint64;
+typedef pi_uint32 pi_bool;
+typedef pi_uint64 pi_bitfield;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -53,75 +53,78 @@ typedef pi_uint64   pi_bitfield;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS                      = CL_SUCCESS,
-  PI_RESULT_INVALID_KERNEL_NAME   = CL_INVALID_KERNEL_NAME,
-  PI_INVALID_OPERATION            = CL_INVALID_OPERATION,
-  PI_INVALID_KERNEL               = CL_INVALID_KERNEL,
-  PI_INVALID_QUEUE_PROPERTIES     = CL_INVALID_QUEUE_PROPERTIES,
-  PI_INVALID_VALUE                = CL_INVALID_VALUE,
-  PI_INVALID_CONTEXT              = CL_INVALID_CONTEXT,
-  PI_INVALID_PLATFORM             = CL_INVALID_PLATFORM,
-  PI_INVALID_DEVICE               = CL_INVALID_DEVICE,
-  PI_INVALID_BINARY               = CL_INVALID_BINARY,
-  PI_INVALID_QUEUE                = CL_INVALID_COMMAND_QUEUE,
-  PI_OUT_OF_HOST_MEMORY           = CL_OUT_OF_HOST_MEMORY,
-  PI_INVALID_PROGRAM              = CL_INVALID_PROGRAM,
-  PI_INVALID_MEM_OBJECT           = CL_INVALID_MEM_OBJECT,
-  PI_OUT_OF_RESOURCES             = CL_OUT_OF_RESOURCES,
-  PI_INVALID_EVENT                = CL_INVALID_EVENT,
-  PI_INVALID_EVENT_WAIT_LIST      = CL_INVALID_EVENT_WAIT_LIST,
+  PI_SUCCESS = CL_SUCCESS,
+  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
+  PI_INVALID_OPERATION = CL_INVALID_OPERATION,
+  PI_INVALID_KERNEL = CL_INVALID_KERNEL,
+  PI_INVALID_QUEUE_PROPERTIES = CL_INVALID_QUEUE_PROPERTIES,
+  PI_INVALID_VALUE = CL_INVALID_VALUE,
+  PI_INVALID_CONTEXT = CL_INVALID_CONTEXT,
+  PI_INVALID_PLATFORM = CL_INVALID_PLATFORM,
+  PI_INVALID_DEVICE = CL_INVALID_DEVICE,
+  PI_INVALID_BINARY = CL_INVALID_BINARY,
+  PI_INVALID_QUEUE = CL_INVALID_COMMAND_QUEUE,
+  PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY,
+  PI_INVALID_PROGRAM = CL_INVALID_PROGRAM,
+  PI_INVALID_MEM_OBJECT = CL_INVALID_MEM_OBJECT,
+  PI_OUT_OF_RESOURCES = CL_OUT_OF_RESOURCES,
+  PI_INVALID_EVENT = CL_INVALID_EVENT,
+  PI_INVALID_EVENT_WAIT_LIST = CL_INVALID_EVENT_WAIT_LIST,
   PI_MISALIGNED_SUB_BUFFER_OFFSET = CL_MISALIGNED_SUB_BUFFER_OFFSET,
-  PI_BUILD_PROGRAM_FAILURE        = CL_BUILD_PROGRAM_FAILURE,
-  PI_INVALID_WORK_GROUP_SIZE      = CL_INVALID_WORK_GROUP_SIZE,
-  PI_ERROR_UNKNOWN                = -999 
+  PI_BUILD_PROGRAM_FAILURE = CL_BUILD_PROGRAM_FAILURE,
+  PI_INVALID_WORK_GROUP_SIZE = CL_INVALID_WORK_GROUP_SIZE,
+  PI_COMPILER_NOT_AVAILABLE = CL_COMPILER_NOT_AVAILABLE,
+  PI_PROFILING_INFO_NOT_AVAILABLE = CL_PROFILING_INFO_NOT_AVAILABLE,
+  PI_DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,
+  PI_ERROR_UNKNOWN = -999
 } _pi_result;
 
 typedef enum {
-  PI_EVENT_COMPLETE  = CL_COMPLETE,
-  PI_EVENT_RUNNING   = CL_RUNNING,
+  PI_EVENT_COMPLETE = CL_COMPLETE,
+  PI_EVENT_RUNNING = CL_RUNNING,
   PI_EVENT_SUBMITTED = CL_SUBMITTED,
-  PI_EVENT_QUEUED    = CL_QUEUED
+  PI_EVENT_QUEUED = CL_QUEUED
 } _pi_event_status;
 
 typedef enum {
-  PI_COMMAND_KERNEL_LAUNCH   = CL_COMMAND_NDRANGE_KERNEL,
+  PI_COMMAND_KERNEL_LAUNCH = CL_COMMAND_NDRANGE_KERNEL,
   PI_COMMAND_MEMBUFFER_WRITE = CL_COMMAND_WRITE_BUFFER,
-  PI_COMMAND_MEMBUFFER_READ  = CL_COMMAND_READ_BUFFER,
-  PI_COMMAND_USER            = CL_COMMAND_USER,
-  PI_COMMAND_EVENTS_WAIT     = CL_COMMAND_MARKER,
-  PI_COMMAND_MEMBUFFER_COPY  = CL_COMMAND_COPY_BUFFER,
-  PI_COMMAND_MEMBUFFER_FILL  = CL_COMMAND_FILL_BUFFER
+  PI_COMMAND_MEMBUFFER_READ = CL_COMMAND_READ_BUFFER,
+  PI_COMMAND_USER = CL_COMMAND_USER,
+  PI_COMMAND_EVENTS_WAIT = CL_COMMAND_MARKER,
+  PI_COMMAND_MEMBUFFER_COPY = CL_COMMAND_COPY_BUFFER,
+  PI_COMMAND_MEMBUFFER_FILL = CL_COMMAND_FILL_BUFFER
 } _pi_command_type;
 
 typedef enum {
   PI_PLATFORM_INFO_EXTENSIONS = CL_PLATFORM_EXTENSIONS,
-  PI_PLATFORM_INFO_NAME       = CL_PLATFORM_NAME,
-  PI_PLATFORM_INFO_PROFILE    = CL_PLATFORM_PROFILE,
-  PI_PLATFORM_INFO_VENDOR     = CL_PLATFORM_VENDOR,
-  PI_PLATFORM_INFO_VERSION    = CL_PLATFORM_VERSION,
+  PI_PLATFORM_INFO_NAME = CL_PLATFORM_NAME,
+  PI_PLATFORM_INFO_PROFILE = CL_PLATFORM_PROFILE,
+  PI_PLATFORM_INFO_VENDOR = CL_PLATFORM_VENDOR,
+  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION,
 } _pi_platform_info;
 
 typedef enum {
   PI_PROGRAM_INFO_REFERENCE_COUNT = CL_PROGRAM_REFERENCE_COUNT,
-  PI_PROGRAM_INFO_CONTEXT         = CL_PROGRAM_CONTEXT,
-  PI_PROGRAM_INFO_NUM_DEVICES     = CL_PROGRAM_NUM_DEVICES,
-  PI_PROGRAM_INFO_DEVICES         = CL_PROGRAM_DEVICES,
-  PI_PROGRAM_INFO_SOURCE          = CL_PROGRAM_SOURCE,
-  PI_PROGRAM_INFO_BINARY_SIZES    = CL_PROGRAM_BINARY_SIZES,
-  PI_PROGRAM_INFO_BINARIES        = CL_PROGRAM_BINARIES,
-  PI_PROGRAM_INFO_KERNEL_NAMES    = CL_PROGRAM_KERNEL_NAMES
+  PI_PROGRAM_INFO_CONTEXT = CL_PROGRAM_CONTEXT,
+  PI_PROGRAM_INFO_NUM_DEVICES = CL_PROGRAM_NUM_DEVICES,
+  PI_PROGRAM_INFO_DEVICES = CL_PROGRAM_DEVICES,
+  PI_PROGRAM_INFO_SOURCE = CL_PROGRAM_SOURCE,
+  PI_PROGRAM_INFO_BINARY_SIZES = CL_PROGRAM_BINARY_SIZES,
+  PI_PROGRAM_INFO_BINARIES = CL_PROGRAM_BINARIES,
+  PI_PROGRAM_INFO_KERNEL_NAMES = CL_PROGRAM_KERNEL_NAMES
 } _pi_program_info;
 
 typedef enum {
-  PI_PROGRAM_BUILD_INFO_STATUS  = CL_PROGRAM_BUILD_STATUS,
+  PI_PROGRAM_BUILD_INFO_STATUS = CL_PROGRAM_BUILD_STATUS,
   PI_PROGRAM_BUILD_INFO_OPTIONS = CL_PROGRAM_BUILD_OPTIONS,
-  PI_PROGRAM_BUILD_INFO_LOG     = CL_PROGRAM_BUILD_LOG
+  PI_PROGRAM_BUILD_INFO_LOG = CL_PROGRAM_BUILD_LOG
 } _pi_program_build_info;
 
 typedef enum {
-  PI_PROGRAM_BUILD_STATUS_NONE        = CL_BUILD_NONE,
-  PI_PROGRAM_BUILD_STATUS_ERROR       = CL_BUILD_ERROR,
-  PI_PROGRAM_BUILD_STATUS_SUCCESS     = CL_BUILD_SUCCESS,
+  PI_PROGRAM_BUILD_STATUS_NONE = CL_BUILD_NONE,
+  PI_PROGRAM_BUILD_STATUS_ERROR = CL_BUILD_ERROR,
+  PI_PROGRAM_BUILD_STATUS_SUCCESS = CL_BUILD_SUCCESS,
   PI_PROGRAM_BUILD_STATUS_IN_PROGRESS = CL_BUILD_IN_PROGRESS
 } _pi_program_build_status;
 
@@ -135,80 +138,96 @@ typedef enum : pi_uint64 {
 } _pi_device_type;
 
 typedef enum {
-  PI_DEVICE_INFO_TYPE                          = CL_DEVICE_TYPE,
-  PI_DEVICE_INFO_VENDOR_ID                     = CL_DEVICE_VENDOR_ID,
-  PI_DEVICE_INFO_MAX_COMPUTE_UNITS             = CL_DEVICE_MAX_COMPUTE_UNITS,
-  PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS      = CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,
-  PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES           = CL_DEVICE_MAX_WORK_ITEM_SIZES,
-  PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE           = CL_DEVICE_MAX_WORK_GROUP_SIZE,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR   = CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT  = CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT    = CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG   = CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT  = CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE = CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE,
-  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF   = CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR      = CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT     = CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT       = CL_DEVICE_NATIVE_VECTOR_WIDTH_INT,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG      = CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT     = CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE    = CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE,
-  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF      = CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF,
-  PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY           = CL_DEVICE_MAX_CLOCK_FREQUENCY,
-  PI_DEVICE_INFO_ADDRESS_BITS                  = CL_DEVICE_ADDRESS_BITS,
-  PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE            = CL_DEVICE_MAX_MEM_ALLOC_SIZE,
-  PI_DEVICE_INFO_IMAGE_SUPPORT                 = CL_DEVICE_IMAGE_SUPPORT,
-  PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS           = CL_DEVICE_MAX_READ_IMAGE_ARGS,
-  PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS          = CL_DEVICE_MAX_WRITE_IMAGE_ARGS,
-  PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT            = CL_DEVICE_IMAGE2D_MAX_HEIGHT,
-  PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH             = CL_DEVICE_IMAGE2D_MAX_WIDTH,
-  PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT            = CL_DEVICE_IMAGE3D_MAX_HEIGHT,
-  PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH             = CL_DEVICE_IMAGE3D_MAX_WIDTH,
-  PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH             = CL_DEVICE_IMAGE3D_MAX_DEPTH,
-  PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE         = CL_DEVICE_IMAGE_MAX_BUFFER_SIZE,
-  PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE          = CL_DEVICE_IMAGE_MAX_ARRAY_SIZE,
-  PI_DEVICE_INFO_MAX_SAMPLERS                  = CL_DEVICE_MAX_SAMPLERS,
-  PI_DEVICE_INFO_MAX_PARAMETER_SIZE            = CL_DEVICE_MAX_PARAMETER_SIZE,
-  PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN           = CL_DEVICE_MEM_BASE_ADDR_ALIGN,
-  PI_DEVICE_INFO_HALF_FP_CONFIG                = CL_DEVICE_HALF_FP_CONFIG,
-  PI_DEVICE_INFO_SINGLE_FP_CONFIG              = CL_DEVICE_SINGLE_FP_CONFIG,
-  PI_DEVICE_INFO_DOUBLE_FP_CONFIG              = CL_DEVICE_DOUBLE_FP_CONFIG,
-  PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE         = CL_DEVICE_GLOBAL_MEM_CACHE_TYPE,
-  PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE         = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
-  PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE     = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
-  PI_DEVICE_INFO_GLOBAL_MEM_SIZE               = CL_DEVICE_GLOBAL_MEM_SIZE,
-  PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE      = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  PI_DEVICE_INFO_MAX_CONSTANT_ARGS             = CL_DEVICE_MAX_CONSTANT_ARGS,
-  PI_DEVICE_INFO_LOCAL_MEM_TYPE                = CL_DEVICE_LOCAL_MEM_TYPE,
-  PI_DEVICE_INFO_LOCAL_MEM_SIZE                = CL_DEVICE_LOCAL_MEM_SIZE,
-  PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT      = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
-  PI_DEVICE_INFO_HOST_UNIFIED_MEMORY           = CL_DEVICE_HOST_UNIFIED_MEMORY,
-  PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION    = CL_DEVICE_PROFILING_TIMER_RESOLUTION,
-  PI_DEVICE_INFO_IS_ENDIAN_LITTLE              = CL_DEVICE_ENDIAN_LITTLE,
-  PI_DEVICE_INFO_IS_AVAILABLE                  = CL_DEVICE_AVAILABLE,
-  PI_DEVICE_INFO_IS_COMPILER_AVAILABLE         = CL_DEVICE_COMPILER_AVAILABLE,
-  PI_DEVICE_INFO_IS_LINKER_AVAILABLE           = CL_DEVICE_LINKER_AVAILABLE,
-  PI_DEVICE_INFO_EXECUTION_CAPABILITIES        = CL_DEVICE_EXECUTION_CAPABILITIES,
-  PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES    = CL_DEVICE_QUEUE_ON_DEVICE_PROPERTIES,
-  PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES      = CL_DEVICE_QUEUE_ON_HOST_PROPERTIES,
-  PI_DEVICE_INFO_BUILT_IN_KERNELS              = CL_DEVICE_BUILT_IN_KERNELS,
-  PI_DEVICE_INFO_PLATFORM                      = CL_DEVICE_PLATFORM,
-  PI_DEVICE_INFO_REFERENCE_COUNT               = CL_DEVICE_REFERENCE_COUNT,
-  PI_DEVICE_INFO_NAME                          = CL_DEVICE_NAME,
-  PI_DEVICE_INFO_VENDOR                        = CL_DEVICE_VENDOR,
-  PI_DEVICE_INFO_DRIVER_VERSION                = CL_DRIVER_VERSION,
-  PI_DEVICE_INFO_PROFILE                       = CL_DEVICE_PROFILE,
-  PI_DEVICE_INFO_VERSION                       = CL_DEVICE_VERSION,
-  PI_DEVICE_INFO_OPENCL_C_VERSION              = CL_DEVICE_OPENCL_C_VERSION,
-  PI_DEVICE_INFO_EXTENSIONS                    = CL_DEVICE_EXTENSIONS,
-  PI_DEVICE_INFO_PRINTF_BUFFER_SIZE            = CL_DEVICE_PRINTF_BUFFER_SIZE,
-  PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC   = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
-  PI_DEVICE_INFO_PARENT_DEVICE                 = CL_DEVICE_PARENT_DEVICE,
-  PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES     = CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
-  PI_DEVICE_INFO_PARTITION_PROPERTIES          = CL_DEVICE_PARTITION_PROPERTIES,
-  PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN     = CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
-  PI_DEVICE_INFO_PARTITION_TYPE                = CL_DEVICE_PARTITION_TYPE,
+  PI_DEVICE_INFO_TYPE = CL_DEVICE_TYPE,
+  PI_DEVICE_INFO_VENDOR_ID = CL_DEVICE_VENDOR_ID,
+  PI_DEVICE_INFO_MAX_COMPUTE_UNITS = CL_DEVICE_MAX_COMPUTE_UNITS,
+  PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,
+  PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES = CL_DEVICE_MAX_WORK_ITEM_SIZES,
+  PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE = CL_DEVICE_MAX_WORK_GROUP_SIZE,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE,
+  PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF =
+      CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR = CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT =
+      CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = CL_DEVICE_NATIVE_VECTOR_WIDTH_INT,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT =
+      CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE =
+      CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE,
+  PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF,
+  PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY = CL_DEVICE_MAX_CLOCK_FREQUENCY,
+  PI_DEVICE_INFO_ADDRESS_BITS = CL_DEVICE_ADDRESS_BITS,
+  PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = CL_DEVICE_MAX_MEM_ALLOC_SIZE,
+  PI_DEVICE_INFO_IMAGE_SUPPORT = CL_DEVICE_IMAGE_SUPPORT,
+  PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS = CL_DEVICE_MAX_READ_IMAGE_ARGS,
+  PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = CL_DEVICE_MAX_WRITE_IMAGE_ARGS,
+  PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = CL_DEVICE_IMAGE2D_MAX_HEIGHT,
+  PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH = CL_DEVICE_IMAGE2D_MAX_WIDTH,
+  PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = CL_DEVICE_IMAGE3D_MAX_HEIGHT,
+  PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH = CL_DEVICE_IMAGE3D_MAX_WIDTH,
+  PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH = CL_DEVICE_IMAGE3D_MAX_DEPTH,
+  PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = CL_DEVICE_IMAGE_MAX_BUFFER_SIZE,
+  PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE = CL_DEVICE_IMAGE_MAX_ARRAY_SIZE,
+  PI_DEVICE_INFO_MAX_SAMPLERS = CL_DEVICE_MAX_SAMPLERS,
+  PI_DEVICE_INFO_MAX_PARAMETER_SIZE = CL_DEVICE_MAX_PARAMETER_SIZE,
+  PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = CL_DEVICE_MEM_BASE_ADDR_ALIGN,
+  PI_DEVICE_INFO_HALF_FP_CONFIG = CL_DEVICE_HALF_FP_CONFIG,
+  PI_DEVICE_INFO_SINGLE_FP_CONFIG = CL_DEVICE_SINGLE_FP_CONFIG,
+  PI_DEVICE_INFO_DOUBLE_FP_CONFIG = CL_DEVICE_DOUBLE_FP_CONFIG,
+  PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE = CL_DEVICE_GLOBAL_MEM_CACHE_TYPE,
+  PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
+  PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE =
+      CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
+  PI_DEVICE_INFO_GLOBAL_MEM_SIZE = CL_DEVICE_GLOBAL_MEM_SIZE,
+  PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  PI_DEVICE_INFO_MAX_CONSTANT_ARGS = CL_DEVICE_MAX_CONSTANT_ARGS,
+  PI_DEVICE_INFO_LOCAL_MEM_TYPE = CL_DEVICE_LOCAL_MEM_TYPE,
+  PI_DEVICE_INFO_LOCAL_MEM_SIZE = CL_DEVICE_LOCAL_MEM_SIZE,
+  PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
+  PI_DEVICE_INFO_HOST_UNIFIED_MEMORY = CL_DEVICE_HOST_UNIFIED_MEMORY,
+  PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION =
+      CL_DEVICE_PROFILING_TIMER_RESOLUTION,
+  PI_DEVICE_INFO_IS_ENDIAN_LITTLE = CL_DEVICE_ENDIAN_LITTLE,
+  PI_DEVICE_INFO_IS_AVAILABLE = CL_DEVICE_AVAILABLE,
+  PI_DEVICE_INFO_IS_COMPILER_AVAILABLE = CL_DEVICE_COMPILER_AVAILABLE,
+  PI_DEVICE_INFO_IS_LINKER_AVAILABLE = CL_DEVICE_LINKER_AVAILABLE,
+  PI_DEVICE_INFO_EXECUTION_CAPABILITIES = CL_DEVICE_EXECUTION_CAPABILITIES,
+  PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES =
+      CL_DEVICE_QUEUE_ON_DEVICE_PROPERTIES,
+  PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = CL_DEVICE_QUEUE_ON_HOST_PROPERTIES,
+  PI_DEVICE_INFO_BUILT_IN_KERNELS = CL_DEVICE_BUILT_IN_KERNELS,
+  PI_DEVICE_INFO_PLATFORM = CL_DEVICE_PLATFORM,
+  PI_DEVICE_INFO_REFERENCE_COUNT = CL_DEVICE_REFERENCE_COUNT,
+  PI_DEVICE_INFO_NAME = CL_DEVICE_NAME,
+  PI_DEVICE_INFO_VENDOR = CL_DEVICE_VENDOR,
+  PI_DEVICE_INFO_DRIVER_VERSION = CL_DRIVER_VERSION,
+  PI_DEVICE_INFO_PROFILE = CL_DEVICE_PROFILE,
+  PI_DEVICE_INFO_VERSION = CL_DEVICE_VERSION,
+  PI_DEVICE_INFO_OPENCL_C_VERSION = CL_DEVICE_OPENCL_C_VERSION,
+  PI_DEVICE_INFO_EXTENSIONS = CL_DEVICE_EXTENSIONS,
+  PI_DEVICE_INFO_PRINTF_BUFFER_SIZE = CL_DEVICE_PRINTF_BUFFER_SIZE,
+  PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC =
+      CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
+  PI_DEVICE_INFO_PARENT_DEVICE = CL_DEVICE_PARENT_DEVICE,
+  PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES =
+      CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+  PI_DEVICE_INFO_PARTITION_PROPERTIES = CL_DEVICE_PARTITION_PROPERTIES,
+  PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN =
+      CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
+  PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE,
 } _pi_device_info;
 
 typedef enum {
@@ -216,88 +235,94 @@ typedef enum {
   PI_LOCAL_MEM_TYPE_GLOBAL = CL_GLOBAL
 } _pi_local_mem_type;
 
+typedef intptr_t pi_context_properties;
+
 // TODO: populate
 typedef enum {
-  PI_CONTEXT_INFO_DEVICES         = CL_CONTEXT_DEVICES,
-  PI_CONTEXT_INFO_NUM_DEVICES     = CL_CONTEXT_NUM_DEVICES,  
+  PI_CONTEXT_INFO_DEVICES = CL_CONTEXT_DEVICES,
+  PI_CONTEXT_INFO_NUM_DEVICES = CL_CONTEXT_NUM_DEVICES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT
 } _pi_context_info;
 
 // TODO: populate
 typedef enum {
-  PI_QUEUE_INFO_DEVICE          = CL_QUEUE_DEVICE,
+  PI_QUEUE_INFO_DEVICE = CL_QUEUE_DEVICE,
   PI_QUEUE_INFO_REFERENCE_COUNT = CL_QUEUE_REFERENCE_COUNT,
-  PI_QUEUE_INFO_PROPERTIES      = CL_QUEUE_PROPERTIES,
-  PI_QUEUE_INFO_CONTEXT         = CL_QUEUE_CONTEXT
+  PI_QUEUE_INFO_PROPERTIES = CL_QUEUE_PROPERTIES,
+  PI_QUEUE_INFO_CONTEXT = CL_QUEUE_CONTEXT
 } _pi_queue_info;
 
 typedef enum {
-  PI_KERNEL_INFO_FUNCTION_NAME   = CL_KERNEL_FUNCTION_NAME,
-  PI_KERNEL_INFO_NUM_ARGS        = CL_KERNEL_NUM_ARGS,
+  PI_KERNEL_INFO_FUNCTION_NAME = CL_KERNEL_FUNCTION_NAME,
+  PI_KERNEL_INFO_NUM_ARGS = CL_KERNEL_NUM_ARGS,
   PI_KERNEL_INFO_REFERENCE_COUNT = CL_KERNEL_REFERENCE_COUNT,
-  PI_KERNEL_INFO_CONTEXT         = CL_KERNEL_CONTEXT,
-  PI_KERNEL_INFO_PROGRAM         = CL_KERNEL_PROGRAM
+  PI_KERNEL_INFO_CONTEXT = CL_KERNEL_CONTEXT,
+  PI_KERNEL_INFO_PROGRAM = CL_KERNEL_PROGRAM,
+  PI_KERNEL_INFO_ATTRIBUTES = CL_KERNEL_ATTRIBUTES
 } _pi_kernel_info;
 
 typedef enum {
-  PI_KERNEL_GROUP_INFO_SIZE         = CL_KERNEL_WORK_GROUP_SIZE,
+  PI_KERNEL_GROUP_INFO_SIZE = CL_KERNEL_WORK_GROUP_SIZE,
   PI_KERNEL_COMPILE_GROUP_INFO_SIZE = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-  PI_KERNEL_LOCAL_MEM_SIZE          = CL_KERNEL_LOCAL_MEM_SIZE
+  PI_KERNEL_LOCAL_MEM_SIZE = CL_KERNEL_LOCAL_MEM_SIZE,
+  PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE =
+      CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+  PI_KERNEL_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE
 } _pi_kernel_group_info;
 
 typedef enum {
-  PI_IMAGE_INFO_FORMAT       = CL_IMAGE_FORMAT,
+  PI_IMAGE_INFO_FORMAT = CL_IMAGE_FORMAT,
   PI_IMAGE_INFO_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
-  PI_IMAGE_INFO_ROW_PITCH    = CL_IMAGE_ROW_PITCH,
-  PI_IMAGE_INFO_SLICE_PITCH  = CL_IMAGE_SLICE_PITCH,
-  PI_IMAGE_INFO_WIDTH        = CL_IMAGE_WIDTH,
-  PI_IMAGE_INFO_HEIGHT       = CL_IMAGE_HEIGHT,
-  PI_IMAGE_INFO_DEPTH        = CL_IMAGE_DEPTH
+  PI_IMAGE_INFO_ROW_PITCH = CL_IMAGE_ROW_PITCH,
+  PI_IMAGE_INFO_SLICE_PITCH = CL_IMAGE_SLICE_PITCH,
+  PI_IMAGE_INFO_WIDTH = CL_IMAGE_WIDTH,
+  PI_IMAGE_INFO_HEIGHT = CL_IMAGE_HEIGHT,
+  PI_IMAGE_INFO_DEPTH = CL_IMAGE_DEPTH
 } _pi_image_info;
 
 typedef enum {
-  PI_MEM_TYPE_BUFFER         = CL_MEM_OBJECT_BUFFER,
-  PI_MEM_TYPE_IMAGE2D        = CL_MEM_OBJECT_IMAGE2D,
-  PI_MEM_TYPE_IMAGE3D        = CL_MEM_OBJECT_IMAGE3D,
-  PI_MEM_TYPE_IMAGE2D_ARRAY  = CL_MEM_OBJECT_IMAGE2D_ARRAY,
-  PI_MEM_TYPE_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
-  PI_MEM_TYPE_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
+  PI_MEM_TYPE_BUFFER = CL_MEM_OBJECT_BUFFER,
+  PI_MEM_TYPE_IMAGE2D = CL_MEM_OBJECT_IMAGE2D,
+  PI_MEM_TYPE_IMAGE3D = CL_MEM_OBJECT_IMAGE3D,
+  PI_MEM_TYPE_IMAGE2D_ARRAY = CL_MEM_OBJECT_IMAGE2D_ARRAY,
+  PI_MEM_TYPE_IMAGE1D = CL_MEM_OBJECT_IMAGE1D,
+  PI_MEM_TYPE_IMAGE1D_ARRAY = CL_MEM_OBJECT_IMAGE1D_ARRAY,
   PI_MEM_TYPE_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
 } _pi_mem_type;
 
 typedef enum {
-  PI_IMAGE_CHANNEL_ORDER_A         = CL_A,
-  PI_IMAGE_CHANNEL_ORDER_R         = CL_R,
-  PI_IMAGE_CHANNEL_ORDER_RG        = CL_RG,
-  PI_IMAGE_CHANNEL_ORDER_RA        = CL_RA,
-  PI_IMAGE_CHANNEL_ORDER_RGB       = CL_RGB,
-  PI_IMAGE_CHANNEL_ORDER_RGBA      = CL_RGBA,
-  PI_IMAGE_CHANNEL_ORDER_BGRA      = CL_BGRA,
-  PI_IMAGE_CHANNEL_ORDER_ARGB      = CL_ARGB,
-  PI_IMAGE_CHANNEL_ORDER_ABGR      = CL_ABGR,
+  PI_IMAGE_CHANNEL_ORDER_A = CL_A,
+  PI_IMAGE_CHANNEL_ORDER_R = CL_R,
+  PI_IMAGE_CHANNEL_ORDER_RG = CL_RG,
+  PI_IMAGE_CHANNEL_ORDER_RA = CL_RA,
+  PI_IMAGE_CHANNEL_ORDER_RGB = CL_RGB,
+  PI_IMAGE_CHANNEL_ORDER_RGBA = CL_RGBA,
+  PI_IMAGE_CHANNEL_ORDER_BGRA = CL_BGRA,
+  PI_IMAGE_CHANNEL_ORDER_ARGB = CL_ARGB,
+  PI_IMAGE_CHANNEL_ORDER_ABGR = CL_ABGR,
   PI_IMAGE_CHANNEL_ORDER_INTENSITY = CL_INTENSITY,
   PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
-  PI_IMAGE_CHANNEL_ORDER_Rx        = CL_Rx,
-  PI_IMAGE_CHANNEL_ORDER_RGx       = CL_RGx,
-  PI_IMAGE_CHANNEL_ORDER_RGBx      = CL_RGBx
+  PI_IMAGE_CHANNEL_ORDER_Rx = CL_Rx,
+  PI_IMAGE_CHANNEL_ORDER_RGx = CL_RGx,
+  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx
 } _pi_image_channel_order;
 
 typedef enum {
-  PI_IMAGE_CHANNEL_TYPE_SNORM_INT8       = CL_SNORM_INT8,
-  PI_IMAGE_CHANNEL_TYPE_SNORM_INT16      = CL_SNORM_INT16,
-  PI_IMAGE_CHANNEL_TYPE_UNORM_INT8       = CL_UNORM_INT8,
-  PI_IMAGE_CHANNEL_TYPE_UNORM_INT16      = CL_UNORM_INT16,
-  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565  = CL_UNORM_SHORT_565,
-  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555  = CL_UNORM_SHORT_555,
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT8 = CL_SNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT16 = CL_SNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT8 = CL_UNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT16 = CL_UNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565 = CL_UNORM_SHORT_565,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555 = CL_UNORM_SHORT_555,
   PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010 = CL_UNORM_INT_101010,
-  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8      = CL_SIGNED_INT8,
-  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16     = CL_SIGNED_INT16,
-  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32     = CL_SIGNED_INT32,
-  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8    = CL_UNSIGNED_INT8,
-  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16   = CL_UNSIGNED_INT16,
-  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
-  PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT       = CL_HALF_FLOAT,
-  PI_IMAGE_CHANNEL_TYPE_FLOAT            = CL_FLOAT
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8 = CL_SIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16 = CL_SIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32 = CL_SIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8 = CL_UNSIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16 = CL_UNSIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32 = CL_UNSIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT = CL_HALF_FLOAT,
+  PI_IMAGE_CHANNEL_TYPE_FLOAT = CL_FLOAT
 } _pi_image_channel_type;
 
 typedef enum {
@@ -309,37 +334,36 @@ const pi_bool PI_TRUE = CL_TRUE;
 const pi_bool PI_FALSE = CL_FALSE;
 
 typedef enum {
- PI_SAMPLER_INFO_REFERENCE_COUNT   = CL_SAMPLER_REFERENCE_COUNT,
- PI_SAMPLER_INFO_CONTEXT           = CL_SAMPLER_CONTEXT,
- PI_SAMPLER_INFO_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS,
- PI_SAMPLER_INFO_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE,
- PI_SAMPLER_INFO_FILTER_MODE       = CL_SAMPLER_FILTER_MODE,
- PI_SAMPLER_INFO_MIP_FILTER_MODE   = CL_SAMPLER_MIP_FILTER_MODE,
- PI_SAMPLER_INFO_LOD_MIN           = CL_SAMPLER_LOD_MIN,
- PI_SAMPLER_INFO_LOD_MAX           = CL_SAMPLER_LOD_MAX
+  PI_SAMPLER_INFO_REFERENCE_COUNT = CL_SAMPLER_REFERENCE_COUNT,
+  PI_SAMPLER_INFO_CONTEXT = CL_SAMPLER_CONTEXT,
+  PI_SAMPLER_INFO_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS,
+  PI_SAMPLER_INFO_ADDRESSING_MODE = CL_SAMPLER_ADDRESSING_MODE,
+  PI_SAMPLER_INFO_FILTER_MODE = CL_SAMPLER_FILTER_MODE,
+  PI_SAMPLER_INFO_MIP_FILTER_MODE = CL_SAMPLER_MIP_FILTER_MODE,
+  PI_SAMPLER_INFO_LOD_MIN = CL_SAMPLER_LOD_MIN,
+  PI_SAMPLER_INFO_LOD_MAX = CL_SAMPLER_LOD_MAX
 } _pi_sampler_info;
 
 typedef enum {
   PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = CL_ADDRESS_MIRRORED_REPEAT,
-  PI_SAMPLER_ADDRESSING_MODE_REPEAT          = CL_ADDRESS_REPEAT,
-  PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE   = CL_ADDRESS_CLAMP_TO_EDGE,
-  PI_SAMPLER_ADDRESSING_MODE_CLAMP           = CL_ADDRESS_CLAMP,
-  PI_SAMPLER_ADDRESSING_MODE_NONE            = CL_ADDRESS_NONE
+  PI_SAMPLER_ADDRESSING_MODE_REPEAT = CL_ADDRESS_REPEAT,
+  PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = CL_ADDRESS_CLAMP_TO_EDGE,
+  PI_SAMPLER_ADDRESSING_MODE_CLAMP = CL_ADDRESS_CLAMP,
+  PI_SAMPLER_ADDRESSING_MODE_NONE = CL_ADDRESS_NONE
 } _pi_sampler_addressing_mode;
 
 typedef enum {
   PI_SAMPLER_FILTER_MODE_NEAREST = CL_FILTER_NEAREST,
-  PI_SAMPLER_FILTER_MODE_LINEAR  = CL_FILTER_LINEAR,
+  PI_SAMPLER_FILTER_MODE_LINEAR = CL_FILTER_LINEAR,
 } _pi_sampler_filter_mode;
 
 typedef enum {
-  PI_EVENT_INFO_QUEUE                    = CL_EVENT_COMMAND_QUEUE,
-  PI_EVENT_INFO_COMMAND_TYPE             = CL_EVENT_COMMAND_TYPE,
-  PI_EVENT_INFO_REFERENCE_COUNT          = CL_EVENT_REFERENCE_COUNT,
+  PI_EVENT_INFO_QUEUE = CL_EVENT_COMMAND_QUEUE,
+  PI_EVENT_INFO_COMMAND_TYPE = CL_EVENT_COMMAND_TYPE,
+  PI_EVENT_INFO_REFERENCE_COUNT = CL_EVENT_REFERENCE_COUNT,
   PI_EVENT_INFO_COMMAND_EXECUTION_STATUS = CL_EVENT_COMMAND_EXECUTION_STATUS,
-  PI_EVENT_INFO_CONTEXT                  = CL_EVENT_CONTEXT
+  PI_EVENT_INFO_CONTEXT = CL_EVENT_CONTEXT
 } _pi_event_info;
-
 
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
@@ -347,43 +371,43 @@ typedef enum {
 //
 typedef pi_bitfield pi_mem_flags;
 // Access
-const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
 // Host pointer
-const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 typedef pi_bitfield pi_queue_properties;
 const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
-        CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
 const pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
 const pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
-        CL_QUEUE_ON_DEVICE_DEFAULT;
+    CL_QUEUE_ON_DEVICE_DEFAULT;
 
-typedef _pi_result                  pi_result;
-typedef _pi_platform_info           pi_platform_info;
-typedef _pi_device_type             pi_device_type;
-typedef _pi_device_info             pi_device_info;
-typedef _pi_context_info            pi_context_info;
-typedef _pi_queue_info              pi_queue_info;
-typedef _pi_image_info              pi_image_info;
-typedef _pi_mem_type                pi_mem_type;
-typedef _pi_image_channel_order     pi_image_channel_order;
-typedef _pi_image_channel_type      pi_image_channel_type;
-typedef _pi_buffer_create_type      pi_buffer_create_type;
+typedef _pi_result pi_result;
+typedef _pi_platform_info pi_platform_info;
+typedef _pi_device_type pi_device_type;
+typedef _pi_device_info pi_device_info;
+typedef _pi_context_info pi_context_info;
+typedef _pi_queue_info pi_queue_info;
+typedef _pi_image_info pi_image_info;
+typedef _pi_mem_type pi_mem_type;
+typedef _pi_image_channel_order pi_image_channel_order;
+typedef _pi_image_channel_type pi_image_channel_type;
+typedef _pi_buffer_create_type pi_buffer_create_type;
 typedef _pi_sampler_addressing_mode pi_sampler_addressing_mode;
-typedef _pi_sampler_filter_mode     pi_sampler_filter_mode;
-typedef _pi_sampler_info            pi_sampler_info;
-typedef _pi_event_status            pi_event_status;
-typedef _pi_event_info              pi_event_info;
-typedef _pi_command_type            pi_command_type;
-typedef _pi_program_info            pi_program_info;
-typedef _pi_program_build_info      pi_program_build_info;
-typedef _pi_program_build_status    pi_program_build_status;
-typedef _pi_kernel_info             pi_kernel_info;
-typedef _pi_kernel_group_info       pi_kernel_group_info;
+typedef _pi_sampler_filter_mode pi_sampler_filter_mode;
+typedef _pi_sampler_info pi_sampler_info;
+typedef _pi_event_status pi_event_status;
+typedef _pi_event_info pi_event_info;
+typedef _pi_command_type pi_command_type;
+typedef _pi_program_info pi_program_info;
+typedef _pi_program_build_info pi_program_build_info;
+typedef _pi_program_build_status pi_program_build_status;
+typedef _pi_kernel_info pi_kernel_info;
+typedef _pi_kernel_group_info pi_kernel_group_info;
 
 // Entry type, matches OpenMP for compatibility
 struct _pi_offload_entry_struct {
@@ -394,17 +418,17 @@ struct _pi_offload_entry_struct {
   int32_t reserved;
 };
 
-typedef _pi_offload_entry_struct * _pi_offload_entry;
+typedef _pi_offload_entry_struct *_pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
 // format is not determined
-static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE    = 0;
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE = 0;
 // specific to a device
-static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE  = 1;
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE = 1;
 // portable binary types go next
 // SPIR-V
-static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV   = 2;
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV = 2;
 // LLVM bitcode
 static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
@@ -432,11 +456,14 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
 #define PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 
+/// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
+#define PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+
 /// This struct is a record of the device binary information. If the Kind field
-/// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec field
-/// can still be specific and denote e.g. FPGA target.
-/// It must match the __tgt_device_image structure generated by
-/// the clang-offload-wrapper tool when their Version field match.
+/// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
+/// field can still be specific and denote e.g. FPGA target. It must match the
+/// __tgt_device_image structure generated by the clang-offload-wrapper tool
+/// when their Version field match.
 struct pi_device_binary_struct {
   /// version of this structure - for backward compatibility;
   /// all modifications which change order/type/offsets of existing fields
@@ -473,7 +500,7 @@ struct pi_device_binary_struct {
   _pi_offload_entry EntriesBegin;
   _pi_offload_entry EntriesEnd;
 };
-typedef pi_device_binary_struct * pi_device_binary;
+typedef pi_device_binary_struct *pi_device_binary;
 
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
@@ -494,7 +521,7 @@ struct pi_device_binaries_struct {
   _pi_offload_entry *HostEntriesBegin;
   _pi_offload_entry *HostEntriesEnd;
 };
-typedef pi_device_binaries_struct *  pi_device_binaries;
+typedef pi_device_binaries_struct *pi_device_binaries;
 
 // Opaque types that make reading build log errors easier.
 struct _pi_platform;
@@ -507,15 +534,15 @@ struct _pi_kernel;
 struct _pi_event;
 struct _pi_sampler;
 
-typedef _pi_platform *    pi_platform;
-typedef _pi_device *      pi_device;
-typedef _pi_context *     pi_context;
-typedef _pi_queue *       pi_queue;
-typedef _pi_mem *         pi_mem;
-typedef _pi_program *     pi_program;
-typedef _pi_kernel *      pi_kernel;
-typedef _pi_event *       pi_event;
-typedef _pi_sampler *     pi_sampler;
+typedef _pi_platform *pi_platform;
+typedef _pi_device *pi_device;
+typedef _pi_context *pi_context;
+typedef _pi_queue *pi_queue;
+typedef _pi_mem *pi_mem;
+typedef _pi_program *pi_program;
+typedef _pi_kernel *pi_kernel;
+typedef _pi_event *pi_event;
+typedef _pi_sampler *pi_sampler;
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -535,8 +562,8 @@ typedef struct {
   pi_mem buffer;
 } _pi_image_desc;
 
-typedef _pi_image_format   pi_image_format;
-typedef _pi_image_desc     pi_image_desc;
+typedef _pi_image_format pi_image_format;
+typedef _pi_image_desc pi_image_desc;
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -563,54 +590,39 @@ pi_result piPluginInit(pi_plugin *plugin_info);
 //
 // Platform
 //
-pi_result piPlatformsGet(
-  pi_uint32      num_entries,
-  pi_platform *  platforms,
-  pi_uint32 *    num_platforms);
+pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
+                         pi_uint32 *num_platforms);
 
-pi_result piPlatformGetInfo(
-  pi_platform       platform,
-  pi_platform_info  param_name,
-  size_t            param_value_size,
-  void *            param_value,
-  size_t *          param_value_size_ret);
+pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info param_name,
+                            size_t param_value_size, void *param_value,
+                            size_t *param_value_size_ret);
 
 //
 // Device
 //
-pi_result piDevicesGet(
-  pi_platform      platform,
-  pi_device_type   device_type,
-  pi_uint32        num_entries,
-  pi_device *      devices,
-  pi_uint32 *      num_devices);
+pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
+                       pi_uint32 num_entries, pi_device *devices,
+                       pi_uint32 *num_devices);
 
-pi_result piDeviceGetInfo(
-  pi_device       device,
-  pi_device_info  param_name,
-  size_t          param_value_size,
-  void *          param_value,
-  size_t *        param_value_size_ret);
+pi_result piDeviceGetInfo(pi_device device, pi_device_info param_name,
+                          size_t param_value_size, void *param_value,
+                          size_t *param_value_size_ret);
 
 pi_result piDeviceRetain(pi_device device);
 
 pi_result piDeviceRelease(pi_device device);
 
 pi_result piDevicePartition(
-  pi_device     device,
-  const cl_device_partition_property * properties, // TODO: untie from OpenCL
-  pi_uint32     num_devices,
-  pi_device *   out_devices,
-  pi_uint32 *   out_num_devices);
+    pi_device device,
+    const cl_device_partition_property *properties, // TODO: untie from OpenCL
+    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices);
 
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
 ///
-pi_result piextDeviceSelectBinary(
-  pi_device           device,
-  pi_device_binary *  binaries,
-  pi_uint32           num_binaries,
-  pi_device_binary *  selected_binary);
+pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
+                                  pi_uint32 num_binaries,
+                                  pi_device_binary *selected_binary);
 
 /// Retrieves a device function pointer to a user-defined function
 /// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query
@@ -620,33 +632,23 @@ pi_result piextDeviceSelectBinary(
 /// must present in the list of devices returned by \c get_device method for
 /// \arg \c program.
 ///
-pi_result piextGetDeviceFunctionPointer(
-  pi_device        device,
-  pi_program       program,
-  const char *     function_name,
-  pi_uint64 *      function_pointer_ret);
+pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
+                                        const char *function_name,
+                                        pi_uint64 *function_pointer_ret);
 
 //
 // Context
 //
-pi_result piContextCreate(
-  const cl_context_properties * properties, // TODO: untie from OpenCL
-  pi_uint32         num_devices,
-  const pi_device * devices,
-  void (*           pfn_notify)(
-    const char * errinfo,
-    const void * private_info,
-    size_t       cb,
-    void *       user_data),
-  void *            user_data,
-  pi_context *      ret_context);
+pi_result piContextCreate(const pi_context_properties *properties,
+                          pi_uint32 num_devices, const pi_device *devices,
+                          void (*pfn_notify)(const char *errinfo,
+                                             const void *private_info,
+                                             size_t cb, void *user_data),
+                          void *user_data, pi_context *ret_context);
 
-pi_result piContextGetInfo(
-  pi_context         context,
-  pi_context_info    param_name,
-  size_t             param_value_size,
-  void *             param_value,
-  size_t *           param_value_size_ret);
+pi_result piContextGetInfo(pi_context context, pi_context_info param_name,
+                           size_t param_value_size, void *param_value,
+                           size_t *param_value_size_ret);
 
 pi_result piContextRetain(pi_context context);
 
@@ -655,18 +657,12 @@ pi_result piContextRelease(pi_context context);
 //
 // Queue
 //
-pi_result piQueueCreate(
-  pi_context                  context,
-  pi_device                   device,
-  pi_queue_properties         properties,
-  pi_queue *                  queue);
+pi_result piQueueCreate(pi_context context, pi_device device,
+                        pi_queue_properties properties, pi_queue *queue);
 
-pi_result piQueueGetInfo(
-  pi_queue            command_queue,
-  pi_queue_info       param_name,
-  size_t              param_value_size,
-  void *              param_value,
-  size_t *            param_value_size_ret);
+pi_result piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret);
 
 pi_result piQueueRetain(pi_queue command_queue);
 
@@ -677,118 +673,75 @@ pi_result piQueueFinish(pi_queue command_queue);
 //
 // Memory
 //
-pi_result piMemBufferCreate(
-  pi_context   context,
-  pi_mem_flags flags,
-  size_t       size,
-  void *       host_ptr,
-  pi_mem *     ret_mem);
+pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+                            void *host_ptr, pi_mem *ret_mem);
 
-pi_result piMemImageCreate(
-  pi_context              context,
-  pi_mem_flags            flags,
-  const pi_image_format * image_format,
-  const pi_image_desc *   image_desc,
-  void *                  host_ptr,
-  pi_mem *                ret_mem);
+pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
+                           const pi_image_format *image_format,
+                           const pi_image_desc *image_desc, void *host_ptr,
+                           pi_mem *ret_mem);
 
-pi_result piMemGetInfo(
-  pi_mem           mem,
-  cl_mem_info      param_name, // TODO: untie from OpenCL
-  size_t           param_value_size,
-  void *           param_value,
-  size_t *         param_value_size_ret);
+pi_result piMemGetInfo(pi_mem mem,
+                       cl_mem_info param_name, // TODO: untie from OpenCL
+                       size_t param_value_size, void *param_value,
+                       size_t *param_value_size_ret);
 
-pi_result piMemImageGetInfo (
-  pi_mem          image,
-  pi_image_info   param_name,
-  size_t          param_value_size,
-  void *          param_value ,
-  size_t *        param_value_size_ret);
+pi_result piMemImageGetInfo(pi_mem image, pi_image_info param_name,
+                            size_t param_value_size, void *param_value,
+                            size_t *param_value_size_ret);
 
-pi_result piMemRetain(
-  pi_mem mem);
+pi_result piMemRetain(pi_mem mem);
 
-pi_result piMemRelease(
-  pi_mem mem);
+pi_result piMemRelease(pi_mem mem);
 
-
-pi_result piMemBufferPartition(
-    pi_mem                    buffer,
-    pi_mem_flags              flags,
-    pi_buffer_create_type     buffer_create_type,
-    void *                    buffer_create_info,
-    pi_mem *                  ret_mem);
+pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
+                               pi_buffer_create_type buffer_create_type,
+                               void *buffer_create_info, pi_mem *ret_mem);
 //
 // Program
 //
-pi_result piProgramCreate(
-  pi_context    context,
-  const void *  il,
-  size_t        length,
-  pi_program *  res_program);
+pi_result piProgramCreate(pi_context context, const void *il, size_t length,
+                          pi_program *res_program);
 
-pi_result piclProgramCreateWithSource(
-  pi_context        context,
-  pi_uint32         count,
-  const char **     strings,
-  const size_t *    lengths,
-  pi_program *      ret_program);
+pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
+                                      const char **strings,
+                                      const size_t *lengths,
+                                      pi_program *ret_program);
 
-pi_result piclProgramCreateWithBinary(
-  pi_context                     context,
-  pi_uint32                      num_devices,
-  const pi_device *              device_list,
-  const size_t *                 lengths,
-  const unsigned char **         binaries,
-  pi_int32 *                     binary_status,
-  pi_program *                   ret_program);
+pi_result piclProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
+                                      const pi_device *device_list,
+                                      const size_t *lengths,
+                                      const unsigned char **binaries,
+                                      pi_int32 *binary_status,
+                                      pi_program *ret_program);
 
-pi_result piProgramGetInfo(
-  pi_program          program,
-  pi_program_info     param_name,
-  size_t              param_value_size,
-  void *              param_value,
-  size_t *            param_value_size_ret);
+pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
+                           size_t param_value_size, void *param_value,
+                           size_t *param_value_size_ret);
 
-pi_result piProgramLink(
-  pi_context          context,
-  pi_uint32           num_devices,
-  const pi_device *   device_list,
-  const char *        options,
-  pi_uint32           num_input_programs,
-  const pi_program *  input_programs,
-  void (*  pfn_notify)(pi_program program,
-                       void * user_data),
-  void *              user_data,
-  pi_program *        ret_program);
+pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
+                        const pi_device *device_list, const char *options,
+                        pi_uint32 num_input_programs,
+                        const pi_program *input_programs,
+                        void (*pfn_notify)(pi_program program, void *user_data),
+                        void *user_data, pi_program *ret_program);
 
 pi_result piProgramCompile(
-  pi_program           program,
-  pi_uint32            num_devices,
-  const pi_device *    device_list,
-  const char *         options,
-  pi_uint32            num_input_headers,
-  const pi_program *   input_headers,
-  const char **        header_include_names,
-  void (*  pfn_notify)(pi_program program, void * user_data),
-  void *               user_data);
+    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
+    const char *options, pi_uint32 num_input_headers,
+    const pi_program *input_headers, const char **header_include_names,
+    void (*pfn_notify)(pi_program program, void *user_data), void *user_data);
 
-pi_result piProgramBuild(
-  pi_program           program,
-  pi_uint32            num_devices,
-  const pi_device *    device_list,
-  const char *         options,
-  void (*  pfn_notify)(pi_program program, void * user_data),
-  void *               user_data);
+pi_result piProgramBuild(pi_program program, pi_uint32 num_devices,
+                         const pi_device *device_list, const char *options,
+                         void (*pfn_notify)(pi_program program,
+                                            void *user_data),
+                         void *user_data);
 
 pi_result piProgramGetBuildInfo(
-  pi_program              program,
-  pi_device               device,
-  cl_program_build_info   param_name, // TODO: untie from OpenCL
-  size_t                  param_value_size,
-  void *                  param_value,
-  size_t *                param_value_size_ret);
+    pi_program program, pi_device device,
+    cl_program_build_info param_name, // TODO: untie from OpenCL
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 pi_result piProgramRetain(pi_program program);
 
@@ -802,71 +755,53 @@ typedef enum {
   /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
   /// provides an explicit list of pointers that the kernel will access
-  PI_USM_PTRS               = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
+  PI_USM_PTRS = CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL
 } _pi_kernel_exec_info;
 
-typedef _pi_kernel_exec_info      pi_kernel_exec_info;
+typedef _pi_kernel_exec_info pi_kernel_exec_info;
 
-pi_result piKernelCreate(
-  pi_program      program,
-  const char *    kernel_name,
-  pi_kernel *     ret_kernel);
+pi_result piKernelCreate(pi_program program, const char *kernel_name,
+                         pi_kernel *ret_kernel);
 
-pi_result piKernelSetArg(
-  pi_kernel    kernel,
-  pi_uint32    arg_index,
-  size_t       arg_size,
-  const void * arg_value);
+pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index, size_t arg_size,
+                         const void *arg_value);
 
-pi_result piKernelGetInfo(
-  pi_kernel       kernel,
-  pi_kernel_info  param_name,
-  size_t          param_value_size,
-  void *          param_value,
-  size_t *        param_value_size_ret);
+pi_result piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
+                          size_t param_value_size, void *param_value,
+                          size_t *param_value_size_ret);
 
-pi_result piKernelGetGroupInfo(
-  pi_kernel                  kernel,
-  pi_device                  device,
-  pi_kernel_group_info       param_name,
-  size_t                     param_value_size,
-  void *                     param_value,
-  size_t *                   param_value_size_ret);
+pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                               pi_kernel_group_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret);
 
 pi_result piKernelGetSubGroupInfo(
-  pi_kernel                   kernel,
-  pi_device                   device,
-  cl_kernel_sub_group_info    param_name, // TODO: untie from OpenCL
-  size_t                      input_value_size,
-  const void*                 input_value,
-  size_t                      param_value_size,
-  void*                       param_value,
-  size_t*                     param_value_size_ret);
+    pi_kernel kernel, pi_device device,
+    cl_kernel_sub_group_info param_name, // TODO: untie from OpenCL
+    size_t input_value_size, const void *input_value, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret);
 
-pi_result piKernelRetain(pi_kernel    kernel);
+pi_result piKernelRetain(pi_kernel kernel);
 
-pi_result piKernelRelease(pi_kernel    kernel);
+pi_result piKernelRelease(pi_kernel kernel);
 
 /// Sets up pointer arguments for CL kernels. An extra indirection
 /// is required due to CL argument conventions.
 ///
-/// @param kernel is the kernel to be launched
-/// @param arg_index is the index of the kernel argument
-/// @param arg_size is the size in bytes of the argument (ignored in CL)
-/// @param arg_value is the pointer argument
-pi_result piextKernelSetArgPointer(
-  pi_kernel    kernel,
-  pi_uint32    arg_index,
-  size_t       arg_size,
-  const void * arg_value);
+/// \param kernel is the kernel to be launched
+/// \param arg_index is the index of the kernel argument
+/// \param arg_size is the size in bytes of the argument (ignored in CL)
+/// \param arg_value is the pointer argument
+pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
+                                   size_t arg_size, const void *arg_value);
 
 /// API to set attributes controlling kernel execution
 ///
-/// @param kernel is the pi kernel to execute
-/// @param param_name is a pi_kernel_exec_info value that specifies the info
+/// \param kernel is the pi kernel to execute
+/// \param param_name is a pi_kernel_exec_info value that specifies the info
 ///        passed to the kernel
-/// @param param_value_size is the size of the value in bytes
-/// @param param_value is a pointer to the value to set for the kernel
+/// \param param_value_size is the size of the value in bytes
+/// \param param_value is a pointer to the value to set for the kernel
 ///
 /// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to
 ///    the pi_bool value PI_TRUE
@@ -877,39 +812,29 @@ pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
 //
 // Events
 //
-pi_result piEventCreate(
-  pi_context    context,
-  pi_event *    ret_event);
+pi_result piEventCreate(pi_context context, pi_event *ret_event);
 
-pi_result piEventGetInfo(
-  pi_event         event,
-  cl_event_info    param_name, // TODO: untie from OpenCL
-  size_t           param_value_size,
-  void *           param_value,
-  size_t *         param_value_size_ret);
+pi_result piEventGetInfo(pi_event event,
+                         cl_event_info param_name, // TODO: untie from OpenCL
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret);
 
-pi_result piEventGetProfilingInfo(
-  pi_event            event,
-  cl_profiling_info   param_name, // TODO: untie from OpenCL
-  size_t              param_value_size,
-  void *              param_value,
-  size_t *            param_value_size_ret);
+pi_result
+piEventGetProfilingInfo(pi_event event,
+                        cl_profiling_info param_name, // TODO: untie from OpenCL
+                        size_t param_value_size, void *param_value,
+                        size_t *param_value_size_ret);
 
-pi_result piEventsWait(
-  pi_uint32           num_events,
-  const pi_event *    event_list);
+pi_result piEventsWait(pi_uint32 num_events, const pi_event *event_list);
 
-pi_result piEventSetCallback(
-  pi_event    event,
-  pi_int32    command_exec_callback_type,
-  void (*     pfn_notify)(pi_event event,
-                          pi_int32 event_command_status,
-                          void *   user_data),
-  void *      user_data);
+pi_result piEventSetCallback(pi_event event,
+                             pi_int32 command_exec_callback_type,
+                             void (*pfn_notify)(pi_event event,
+                                                pi_int32 event_command_status,
+                                                void *user_data),
+                             void *user_data);
 
-pi_result piEventSetStatus(
-  pi_event   event,
-  pi_int32   execution_status);
+pi_result piEventSetStatus(pi_event event, pi_int32 execution_status);
 
 pi_result piEventRetain(pi_event event);
 
@@ -918,17 +843,13 @@ pi_result piEventRelease(pi_event event);
 //
 // Sampler
 //
-pi_result piSamplerCreate(
-  pi_context                     context,
-  const pi_sampler_properties *  sampler_properties,
-  pi_sampler *                   result_sampler);
+pi_result piSamplerCreate(pi_context context,
+                          const pi_sampler_properties *sampler_properties,
+                          pi_sampler *result_sampler);
 
-pi_result piSamplerGetInfo(
-  pi_sampler         sampler,
-  pi_sampler_info    param_name,
-  size_t             param_value_size,
-  void *             param_value,
-  size_t *           param_value_size_ret);
+pi_result piSamplerGetInfo(pi_sampler sampler, pi_sampler_info param_name,
+                           size_t param_value_size, void *param_value,
+                           size_t *param_value_size_ret);
 
 pi_result piSamplerRetain(pi_sampler sampler);
 
@@ -938,232 +859,156 @@ pi_result piSamplerRelease(pi_sampler sampler);
 // Queue Commands
 //
 pi_result piEnqueueKernelLaunch(
-  pi_queue          queue,
-  pi_kernel         kernel,
-  pi_uint32         work_dim,
-  const size_t *    global_work_offset,
-  const size_t *    global_work_size,
-  const size_t *    local_work_size,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueNativeKernel(
-  pi_queue         queue,
-  void             (*user_func)(void *),
-  void *           args,
-  size_t           cb_args,
-  pi_uint32        num_mem_objects,
-  const pi_mem *   mem_list,
-  const void **    args_mem_loc,
-  pi_uint32        num_events_in_wait_list,
-  const pi_event * event_wait_list,
-  pi_event *       event);
+pi_result
+piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
+                      size_t cb_args, pi_uint32 num_mem_objects,
+                      const pi_mem *mem_list, const void **args_mem_loc,
+                      pi_uint32 num_events_in_wait_list,
+                      const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueEventsWait(
-  pi_queue          command_queue,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+pi_result piEnqueueEventsWait(pi_queue command_queue,
+                              pi_uint32 num_events_in_wait_list,
+                              const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferRead(
-  pi_queue            queue,
-  pi_mem              buffer,
-  pi_bool             blocking_read,
-  size_t              offset,
-  size_t              size,
-  void *              ptr,
-  pi_uint32           num_events_in_wait_list,
-  const pi_event *    event_wait_list,
-  pi_event *          event);
+pi_result piEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
+                                 pi_bool blocking_read, size_t offset,
+                                 size_t size, void *ptr,
+                                 pi_uint32 num_events_in_wait_list,
+                                 const pi_event *event_wait_list,
+                                 pi_event *event);
 
-pi_result piEnqueueMemBufferReadRect(
-  pi_queue            command_queue,
-  pi_mem              buffer,
-  pi_bool             blocking_read,
-  const size_t *      buffer_offset,
-  const size_t *      host_offset,
-  const size_t *      region,
-  size_t              buffer_row_pitch,
-  size_t              buffer_slice_pitch,
-  size_t              host_row_pitch,
-  size_t              host_slice_pitch,
-  void *              ptr,
-  pi_uint32           num_events_in_wait_list,
-  const pi_event *    event_wait_list,
-  pi_event *          event);
+pi_result
+piEnqueueMemBufferReadRect(pi_queue command_queue, pi_mem buffer,
+                           pi_bool blocking_read, const size_t *buffer_offset,
+                           const size_t *host_offset, const size_t *region,
+                           size_t buffer_row_pitch, size_t buffer_slice_pitch,
+                           size_t host_row_pitch, size_t host_slice_pitch,
+                           void *ptr, pi_uint32 num_events_in_wait_list,
+                           const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferWrite(
-  pi_queue           command_queue,
-  pi_mem             buffer,
-  pi_bool            blocking_write,
-  size_t             offset,
-  size_t             size,
-  const void *       ptr,
-  pi_uint32          num_events_in_wait_list,
-  const pi_event *   event_wait_list,
-  pi_event *         event);
+pi_result piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
+                                  pi_bool blocking_write, size_t offset,
+                                  size_t size, const void *ptr,
+                                  pi_uint32 num_events_in_wait_list,
+                                  const pi_event *event_wait_list,
+                                  pi_event *event);
 
-pi_result piEnqueueMemBufferWriteRect(
-  pi_queue            command_queue,
-  pi_mem              buffer,
-  pi_bool             blocking_write,
-  const size_t *      buffer_offset,
-  const size_t *      host_offset,
-  const size_t *      region,
-  size_t              buffer_row_pitch,
-  size_t              buffer_slice_pitch,
-  size_t              host_row_pitch,
-  size_t              host_slice_pitch,
-  const void *        ptr,
-  pi_uint32           num_events_in_wait_list,
-  const pi_event *    event_wait_list,
-  pi_event *          event);
+pi_result
+piEnqueueMemBufferWriteRect(pi_queue command_queue, pi_mem buffer,
+                            pi_bool blocking_write, const size_t *buffer_offset,
+                            const size_t *host_offset, const size_t *region,
+                            size_t buffer_row_pitch, size_t buffer_slice_pitch,
+                            size_t host_row_pitch, size_t host_slice_pitch,
+                            const void *ptr, pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferCopy(
-  pi_queue            command_queue,
-  pi_mem              src_buffer,
-  pi_mem              dst_buffer,
-  size_t              src_offset,
-  size_t              dst_offset,
-  size_t              size,
-  pi_uint32           num_events_in_wait_list,
-  const pi_event *    event_wait_list,
-  pi_event *          event);
+pi_result piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
+                                 pi_mem dst_buffer, size_t src_offset,
+                                 size_t dst_offset, size_t size,
+                                 pi_uint32 num_events_in_wait_list,
+                                 const pi_event *event_wait_list,
+                                 pi_event *event);
 
 pi_result piEnqueueMemBufferCopyRect(
-  pi_queue            command_queue,
-  pi_mem              src_buffer,
-  pi_mem              dst_buffer,
-  const size_t *      src_origin,
-  const size_t *      dst_origin,
-  const size_t *      region,
-  size_t              src_row_pitch,
-  size_t              src_slice_pitch,
-  size_t              dst_row_pitch,
-  size_t              dst_slice_pitch,
-  pi_uint32           num_events_in_wait_list,
-  const pi_event *    event_wait_list,
-  pi_event *          event);
+    pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
+    const size_t *src_origin, const size_t *dst_origin, const size_t *region,
+    size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
+    size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferFill(
-  pi_queue           command_queue,
-  pi_mem             buffer,
-  const void *       pattern,
-  size_t             pattern_size,
-  size_t             offset,
-  size_t             size,
-  pi_uint32          num_events_in_wait_list,
-  const pi_event *   event_wait_list,
-  pi_event *         event);
+pi_result piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
+                                 const void *pattern, size_t pattern_size,
+                                 size_t offset, size_t size,
+                                 pi_uint32 num_events_in_wait_list,
+                                 const pi_event *event_wait_list,
+                                 pi_event *event);
 
-pi_result piEnqueueMemImageRead(
-  pi_queue          command_queue,
-  pi_mem            image,
-  pi_bool           blocking_read,
-  const size_t *    origin,
-  const size_t *    region,
-  size_t            row_pitch,
-  size_t            slice_pitch,
-  void *            ptr,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+pi_result piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
+                                pi_bool blocking_read, const size_t *origin,
+                                const size_t *region, size_t row_pitch,
+                                size_t slice_pitch, void *ptr,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event);
 
-pi_result piEnqueueMemImageWrite(
-  pi_queue          command_queue,
-  pi_mem            image,
-  pi_bool           blocking_write,
-  const size_t *    origin,
-  const size_t *    region,
-  size_t            input_row_pitch,
-  size_t            input_slice_pitch,
-  const void *      ptr,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+pi_result piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
+                                 pi_bool blocking_write, const size_t *origin,
+                                 const size_t *region, size_t input_row_pitch,
+                                 size_t input_slice_pitch, const void *ptr,
+                                 pi_uint32 num_events_in_wait_list,
+                                 const pi_event *event_wait_list,
+                                 pi_event *event);
 
-pi_result piEnqueueMemImageCopy(
-  pi_queue          command_queue,
-  pi_mem            src_image,
-  pi_mem            dst_image,
-  const size_t *    src_origin,
-  const size_t *    dst_origin,
-  const size_t *    region,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+pi_result piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
+                                pi_mem dst_image, const size_t *src_origin,
+                                const size_t *dst_origin, const size_t *region,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event);
 
-pi_result piEnqueueMemImageFill(
-  pi_queue          command_queue,
-  pi_mem            image,
-  const void *      fill_color,
-  const size_t *    origin,
-  const size_t *    region,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event);
+pi_result piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
+                                const void *fill_color, const size_t *origin,
+                                const size_t *region,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event);
 
 pi_result piEnqueueMemBufferMap(
-  pi_queue          command_queue,
-  pi_mem            buffer,
-  pi_bool           blocking_map,
-  cl_map_flags      map_flags,  // TODO: untie from OpenCL
-  size_t            offset,
-  size_t            size,
-  pi_uint32         num_events_in_wait_list,
-  const pi_event *  event_wait_list,
-  pi_event *        event,
-  void* *           ret_map);
+    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
+    cl_map_flags map_flags, // TODO: untie from OpenCL
+    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event, void **ret_map);
 
-pi_result piEnqueueMemUnmap(
-  pi_queue         command_queue,
-  pi_mem           memobj,
-  void *           mapped_ptr,
-  pi_uint32        num_events_in_wait_list,
-  const pi_event * event_wait_list,
-  pi_event *       event);
+pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
+                            void *mapped_ptr, pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list, pi_event *event);
 
-pi_result piextKernelSetArgMemObj(
-  pi_kernel kernel,
-  pi_uint32 arg_index,
-  const pi_mem *arg_value);
+pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
+                                  const pi_mem *arg_value);
 
 ///
 // USM
 ///
 typedef enum {
-  PI_USM_HOST_SUPPORT          = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
-  PI_USM_DEVICE_SUPPORT        = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
-  PI_USM_SINGLE_SHARED_SUPPORT = CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
-  PI_USM_CROSS_SHARED_SUPPORT  = CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_HOST_SUPPORT = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
+  PI_USM_DEVICE_SUPPORT = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
+  PI_USM_SINGLE_SHARED_SUPPORT =
+      CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+  PI_USM_CROSS_SHARED_SUPPORT =
+      CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
   PI_USM_SYSTEM_SHARED_SUPPORT = CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL
 } _pi_usm_capability_query;
 
 typedef enum : pi_bitfield {
-  PI_USM_ACCESS                   = CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL,
-  PI_USM_ATOMIC_ACCESS            = CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL,
-  PI_USM_CONCURRENT_ACCESS        = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ACCESS_INTEL,
-  PI_USM_CONCURRENT_ATOMIC_ACCESS = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ATOMIC_ACCESS_INTEL
+  PI_USM_ACCESS = CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL,
+  PI_USM_ATOMIC_ACCESS = CL_UNIFIED_SHARED_MEMORY_ATOMIC_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ACCESS = CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ACCESS_INTEL,
+  PI_USM_CONCURRENT_ATOMIC_ACCESS =
+      CL_UNIFIED_SHARED_MEMORY_CONCURRENT_ATOMIC_ACCESS_INTEL
 } _pi_usm_capabilities;
 
 typedef enum {
-  PI_MEM_ALLOC_TYPE        = CL_MEM_ALLOC_TYPE_INTEL,
-  PI_MEM_ALLOC_BASE_PTR    = CL_MEM_ALLOC_BASE_PTR_INTEL,
-  PI_MEM_ALLOC_SIZE        = CL_MEM_ALLOC_SIZE_INTEL,
-  PI_MEM_ALLOC_DEVICE      = CL_MEM_ALLOC_DEVICE_INTEL,
-  PI_MEM_ALLOC_INFO_TBD0   = CL_MEM_ALLOC_INFO_TBD0_INTEL,
-  PI_MEM_ALLOC_INFO_TBD1   = CL_MEM_ALLOC_INFO_TBD1_INTEL,
+  PI_MEM_ALLOC_TYPE = CL_MEM_ALLOC_TYPE_INTEL,
+  PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
+  PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
+  PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
+  PI_MEM_ALLOC_INFO_TBD0 = CL_MEM_ALLOC_INFO_TBD0_INTEL,
+  PI_MEM_ALLOC_INFO_TBD1 = CL_MEM_ALLOC_INFO_TBD1_INTEL,
 } _pi_mem_info;
 
 typedef enum {
   PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
-  PI_MEM_TYPE_HOST    = CL_MEM_TYPE_HOST_INTEL,
-  PI_MEM_TYPE_DEVICE  = CL_MEM_TYPE_DEVICE_INTEL,
-  PI_MEM_TYPE_SHARED  = CL_MEM_TYPE_SHARED_INTEL
+  PI_MEM_TYPE_HOST = CL_MEM_TYPE_HOST_INTEL,
+  PI_MEM_TYPE_DEVICE = CL_MEM_TYPE_DEVICE_INTEL,
+  PI_MEM_TYPE_SHARED = CL_MEM_TYPE_SHARED_INTEL
 } _pi_usm_type;
 
-typedef enum : pi_bitfield  {
+typedef enum : pi_bitfield {
   PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
 } _pi_usm_mem_properties;
 
@@ -1171,138 +1016,113 @@ typedef enum : pi_bitfield {
   PI_USM_MIGRATION_TBD0 = (1 << 0)
 } _pi_usm_migration_flags;
 
-typedef _pi_usm_capability_query  pi_usm_capability_query;
-typedef _pi_usm_capabilities      pi_usm_capabilities;
-typedef _pi_mem_info              pi_mem_info;
-typedef _pi_usm_type              pi_usm_type;
-typedef _pi_usm_mem_properties    pi_usm_mem_properties;
-typedef _pi_usm_migration_flags   pi_usm_migration_flags;
+typedef _pi_usm_capability_query pi_usm_capability_query;
+typedef _pi_usm_capabilities pi_usm_capabilities;
+typedef _pi_mem_info pi_mem_info;
+typedef _pi_usm_type pi_usm_type;
+typedef _pi_usm_mem_properties pi_usm_mem_properties;
+typedef _pi_usm_migration_flags pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.
 ///
-/// @param result_ptr contains the allocated memory
-/// @param context is the pi_context
-/// @param pi_usm_mem_properties are optional allocation properties
-/// @param size_t is the size of the allocation
-/// @param alignment is the desired alignment of the allocation
-pi_result piextUSMHostAlloc(
-  void **                 result_ptr,
-  pi_context              context,
-  pi_usm_mem_properties * properties,
-  size_t                  size,
-  pi_uint32               alignment);
+/// \param result_ptr contains the allocated memory
+/// \param context is the pi_context
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
+/// \param alignment is the desired alignment of the allocation
+pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
+                            pi_usm_mem_properties *properties, size_t size,
+                            pi_uint32 alignment);
 
 /// Allocates device memory
 ///
-/// @param result_ptr contains the allocated memory
-/// @param context is the pi_context
-/// @param device is the device the memory will be allocated on
-/// @param pi_usm_mem_properties are optional allocation properties
-/// @param size_t is the size of the allocation
-/// @param alignment is the desired alignment of the allocation
-pi_result piextUSMDeviceAlloc(
-  void **                 result_ptr,
-  pi_context              context,
-  pi_device               device,
-  pi_usm_mem_properties * properties,
-  size_t                  size,
-  pi_uint32               alignment);
+/// \param result_ptr contains the allocated memory
+/// \param context is the pi_context
+/// \param device is the device the memory will be allocated on
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
+/// \param alignment is the desired alignment of the allocation
+pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                              pi_device device,
+                              pi_usm_mem_properties *properties, size_t size,
+                              pi_uint32 alignment);
 
 /// Allocates memory accessible on both host and device
 ///
-/// @param result_ptr contains the allocated memory
-/// @param context is the pi_context
-/// @param device is the device the memory will be allocated on
-/// @param pi_usm_mem_properties are optional allocation properties
-/// @param size_t is the size of the allocation
-/// @param alignment is the desired alignment of the allocation
-pi_result piextUSMSharedAlloc(
-  void **                 result_ptr,
-  pi_context              context,
-  pi_device               device,
-  pi_usm_mem_properties * properties,
-  size_t                  size,
-  pi_uint32               alignment);
+/// \param result_ptr contains the allocated memory
+/// \param context is the pi_context
+/// \param device is the device the memory will be allocated on
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
+/// \param alignment is the desired alignment of the allocation
+pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                              pi_device device,
+                              pi_usm_mem_properties *properties, size_t size,
+                              pi_uint32 alignment);
 
 /// Frees allocated USM memory
 ///
-/// @param context is the pi_context of the allocation
-/// @param ptr is the memory to be freed
-pi_result piextUSMFree(
-  pi_context context,
-  void *     ptr);
+/// \param context is the pi_context of the allocation
+/// \param ptr is the memory to be freed
+pi_result piextUSMFree(pi_context context, void *ptr);
 
 /// USM Memset API
 ///
-/// @param queue is the queue to submit to
-/// @param ptr is the ptr to memset
-/// @param value is value to set.  It is interpreted as an 8-bit value and the upper
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to memset
+/// \param value is value to set.  It is interpreted as an 8-bit value and the
+/// upper
 ///        24 bits are ignored
-/// @param count is the size in bytes to memset
-/// @param num_events_in_waitlist is the number of events to wait on
-/// @param events_waitlist is an array of events to wait on
-/// @param event is the event that represents this operation
-pi_result piextUSMEnqueueMemset(
-  pi_queue         queue,
-  void *           ptr,
-  pi_int32         value,
-  size_t           count,
-  pi_uint32        num_events_in_waitlist,
-  const pi_event * events_waitlist,
-  pi_event *       event);
+/// \param count is the size in bytes to memset
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
+                                size_t count, pi_uint32 num_events_in_waitlist,
+                                const pi_event *events_waitlist,
+                                pi_event *event);
 
 /// USM Memcpy API
 ///
-/// @param queue is the queue to submit to
-/// @param blocking is whether this operation should block the host
-/// @param src_ptr is the data to be copied
-/// @param dst_ptr is the location the data will be copied
-/// @param size is number of bytes to copy
-/// @param num_events_in_waitlist is the number of events to wait on
-/// @param events_waitlist is an array of events to wait on
-/// @param event is the event that represents this operation
-pi_result piextUSMEnqueueMemcpy(
-  pi_queue         queue,
-  pi_bool          blocking,
-  void *           dst_ptr,
-  const void *     src_ptr,
-  size_t           size,
-  pi_uint32        num_events_in_waitlist,
-  const pi_event * events_waitlist,
-  pi_event *       event);
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param src_ptr is the data to be copied
+/// \param dst_ptr is the location the data will be copied
+/// \param size is number of bytes to copy
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
+                                const void *src_ptr, size_t size,
+                                pi_uint32 num_events_in_waitlist,
+                                const pi_event *events_waitlist,
+                                pi_event *event);
 
 /// Hint to migrate memory to the device
 ///
-/// @param queue is the queue to submit to
-/// @param ptr points to the memory to migrate
-/// @param size is the number of bytes to migrate
-/// @param flags is a bitfield used to specify memory migration options
-/// @param num_events_in_waitlist is the number of events to wait on
-/// @param events_waitlist is an array of events to wait on
-/// @param event is the event that represents this operation
-pi_result piextUSMEnqueuePrefetch(
-  pi_queue               queue,
-  const void *           ptr,
-  size_t                 size,
-  pi_usm_migration_flags flags,
-  pi_uint32              num_events_in_waitlist,
-  const pi_event *       events_waitlist,
-  pi_event *             event);
+/// \param queue is the queue to submit to
+/// \param ptr points to the memory to migrate
+/// \param size is the number of bytes to migrate
+/// \param flags is a bitfield used to specify memory migration options
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
+                                  pi_usm_migration_flags flags,
+                                  pi_uint32 num_events_in_waitlist,
+                                  const pi_event *events_waitlist,
+                                  pi_event *event);
 
 /// USM Memadvise API
 ///
-/// @param queue is the queue to submit to
-/// @param ptr is the data to be advised
-/// @param length is the size in bytes of the memory to advise
-/// @param advice is device specific advice
-/// @param event is the event that represents this operation
+/// \param queue is the queue to submit to
+/// \param ptr is the data to be advised
+/// \param length is the size in bytes of the memory to advise
+/// \param advice is device specific advice
+/// \param event is the event that represents this operation
 // USM memadvise API to govern behavior of automatic migration mechanisms
-pi_result piextUSMEnqueueMemAdvise(
-  pi_queue     queue,
-  const void * ptr,
-  size_t       length,
-  int          advice,
-  pi_event *   event);
+pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+                                   size_t length, int advice, pi_event *event);
 
 /// API to query information about USM allocated pointers
 /// Valid Queries:
@@ -1314,19 +1134,16 @@ pi_result piextUSMEnqueueMemAdvise(
 ///                     allocation is in bytes. Result is a size_t.
 ///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
 ///
-/// @param context is the pi_context
-/// @param ptr is the pointer to query
-/// @param param_name is the type of query to perform
-/// @param param_value_size is the size of the result in bytes
-/// @param param_value is the result
-/// @param param_value_ret is how many bytes were written
-pi_result piextUSMGetMemAllocInfo(
-  pi_context   context,
-  const void * ptr,
-  pi_mem_info  param_name,
-  size_t       param_value_size,
-  void *       param_value,
-  size_t *     param_value_size_ret);
+/// \param context is the pi_context
+/// \param ptr is the pointer to query
+/// \param param_name is the type of query to perform
+/// \param param_value_size is the size of the result in bytes
+/// \param param_value is the result
+/// \param param_value_ret is how many bytes were written
+pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
+                                  pi_mem_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

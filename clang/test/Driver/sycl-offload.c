@@ -717,7 +717,7 @@
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME]].bc"{{.*}} "[[DEVICE_BASE_NAME]].ii"
 // CHK-FSYCL-SAVE-TEMPS: llvm-link{{.*}} "[[DEVICE_BASE_NAME]].bc"{{.*}} "-o" "[[DEVICE_BASE_NAME]].bc"
 // CHK-FSYCL-SAVE-TEMPS: llvm-spirv{{.*}} "-o" "[[DEVICE_BASE_NAME]].spv"{{.*}} "[[DEVICE_BASE_NAME]].bc"
-// CHK-FSYCL-SAVE-TEMPS: clang-offload-wrapper{{.*}} "-o=[[TEMPFILE:[a-z0-9/-]+]].bc"{{.*}} "[[DEVICE_BASE_NAME]].spv"
+// CHK-FSYCL-SAVE-TEMPS: clang-offload-wrapper{{.*}} "-o=[[TEMPFILE:[a-z0-9_/-]+]].bc"{{.*}} "[[DEVICE_BASE_NAME]].spv"
 // CHK-FSYCL-SAVE-TEMPS: llc{{.*}} "-o" "[[DEVICE_OBJ_NAME:[a-z0-9\-]+]].o"{{.*}} "[[TEMPFILE]].bc"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[DEVICE_BASE_NAME]].h"{{.*}} "[[DEVICE_BASE_NAME]].ii"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-include" "[[DEVICE_BASE_NAME]].h"{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_BASE_NAME:[a-z0-9_-]+]].ii"

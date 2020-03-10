@@ -234,9 +234,10 @@ public:
     MHostPtrReadOnly = iterator_to_const_type_t<InputIterator>::value;
     setAlign(RequiredAlign);
     if (useHostPtr())
-      throw invalid_parameter_error(
+      throw runtime_error(
           "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.");
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();

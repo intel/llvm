@@ -4,7 +4,7 @@ set(LIBS
   MLIRStandardOps
   )
 
-add_llvm_library(MLIRLinalgOps
+add_mlir_dialect_library(MLIRLinalgOps
   LinalgOps.cpp
   LinalgTypes.cpp
 
@@ -19,5 +19,6 @@ add_dependencies(MLIRLinalgOps
   ${LIBS}
   MLIRLinalgOpsIncGen
   MLIRLinalgStructuredOpsIncGen
+  MLIRLinalgStructuredOpsInterfaceIncGen
   )
 target_link_libraries(MLIRLinalgOps ${LIBS})

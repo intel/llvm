@@ -38,21 +38,21 @@ if platform.system() == "Linux":
     config.available_features.add('linux')
     # Propagate 'LD_LIBRARY_PATH' through the environment.
     if 'LD_LIBRARY_PATH' in os.environ:
-        config.environment['LD_LIBRARY_PATH'] = os.path.pathsep.join((config.environment['LD_LIBRARY_PATH'], config.llvm_build_libs_dir))
+        config.environment['LD_LIBRARY_PATH'] = os.path.pathsep.join((config.environment['LD_LIBRARY_PATH'], config.sycl_libs_dir))
     else:
-        config.environment['LD_LIBRARY_PATH'] = config.llvm_build_libs_dir
+        config.environment['LD_LIBRARY_PATH'] = config.sycl_libs_dir
 
 elif platform.system() == "Windows":
     config.available_features.add('windows')
     if 'LIB' in os.environ:
-        config.environment['LIB'] = os.path.pathsep.join((config.environment['LIB'], config.llvm_build_libs_dir))
+        config.environment['LIB'] = os.path.pathsep.join((config.environment['LIB'], config.sycl_libs_dir))
     else:
-        config.environment['LIB'] = config.llvm_build_libs_dir
+        config.environment['LIB'] = config.sycl_libs_dir
 
     if 'PATH' in os.environ:
-        config.environment['PATH'] = os.path.pathsep.join((config.environment['PATH'], config.llvm_build_bins_dir))
+        config.environment['PATH'] = os.path.pathsep.join((config.environment['PATH'], config.sycl_tools_dir))
     else:
-        config.environment['PATH'] = config.llvm_build_bins_dir
+        config.environment['PATH'] = config.sycl_tools_dir
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
@@ -61,34 +61,33 @@ elif platform.system() == "Darwin":
     else:
         config.environment['CPATH'] = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"
     config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
-    config.environment['DYLD_LIBRARY_PATH'] = config.llvm_build_libs_dir
+    config.environment['DYLD_LIBRARY_PATH'] = config.sycl_libs_dir
 
 # propagate the environment variable OCL_ICD_FILANEMES to use proper runtime.
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
-config.substitutions.append( ('%clang_cc1', ' ' + config.clang + ' -cc1 ') )
-config.substitutions.append( ('%clangxx', ' ' + config.clangxx ) )
-config.substitutions.append( ('%clang_cl', ' ' + config.clang_cl ) )
-config.substitutions.append( ('%clang', ' ' + config.clang ) )
-config.substitutions.append( ('%llvm_build_libs_dir',  config.llvm_build_libs_dir ) )
+config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
+config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
+config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
+
+llvm_config.use_clang()
 
 tools = ['llvm-spirv']
-tool_dirs = [config.llvm_tools_dir]
+tool_dirs = [config.sycl_tools_dir]
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 if "opencl-aot" in config.llvm_enable_projects:
     if 'PATH' in os.environ:
         print("Adding path to opencl-aot tool to PATH")
-        os.environ['PATH'] = os.path.pathsep.join((os.getenv('PATH'), config.llvm_build_bins_dir))
+        os.environ['PATH'] = os.path.pathsep.join((os.getenv('PATH'), config.sycl_tools_dir))
 
 backend=lit_config.params.get('SYCL_BE', "PI_OPENCL")
 
-get_device_count_by_type_path = os.path.join(config.llvm_binary_dir,
-    "bin", "get_device_count_by_type")
+get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
 
 def getDeviceCount(device_type):
     is_cuda = False;
@@ -170,7 +169,7 @@ else:
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-if getDeviceCount("accelerator")[0]:
+if getDeviceCount("accelerator")[0] and platform.system() == "Linux":
     print("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
     acc_check_substitute = "| FileCheck %s"
@@ -186,7 +185,7 @@ if not cuda:
 
 
 path = config.environment['PATH']
-path = os.path.pathsep.join((config.llvm_tools_dir, path))
+path = os.path.pathsep.join((config.sycl_tools_dir, path))
 config.environment['PATH'] = path
 
 # Device AOT compilation tools aren't part of the SYCL project,
