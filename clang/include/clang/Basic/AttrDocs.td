@@ -1935,6 +1935,26 @@ pointer address bits to bank on.
   }];
 }
 
+def IntelFPGAForcePow2DepthAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "force_pow2_depth (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+provides explicit control over the geometry of memory blocks used in a given
+memory system.
+
+In the presence of this attribute, the compiler:
+
+1. Will automatically size the memory depth to the next largest power of 2 if
+force_pow2_depth is set to 1, and will prefer width-stitching of RAM blocks
+over depth-stitching.
+
+2. Will not size the memory to the next largest power of 2 if force_pow2_depth
+is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
+can be lowered.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
