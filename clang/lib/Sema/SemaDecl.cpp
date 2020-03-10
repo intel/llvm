@@ -7060,10 +7060,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   // Static variables declared inside SYCL device code must be const or
   // constexpr
-  if (getLangOpts().SYCLIsDevice && SCSpec == DeclSpec::SCS_static &&
-      !R.isConstant(Context))
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
     SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
         << Sema::KernelNonConstStaticDataVariable;
+    else if (NewVD->getTSCSpec() == DeclSpec::TSCS_thread_local)
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case CSK_unspecified:
