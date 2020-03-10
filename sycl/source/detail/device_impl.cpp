@@ -64,7 +64,7 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
   if (!Platform) {
     RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
                                   // of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_PLATFORM,
+    Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PLATFORM,
                                             sizeof(plt), &plt, nullptr);
     Platform = std::make_shared<platform_impl>(plt, Plugin);
   }
