@@ -17,7 +17,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-event handler::finalize() {
+event handler::finalize(const cl::sycl::detail::code_location &Payload) {
   sycl::event EventRet;
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
@@ -28,52 +28,53 @@ event handler::finalize() {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
+        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
+        Payload));
     break;
   }
   case detail::CG::INTEROP_TASK_CODEPLAY:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType));
+        std::move(MRequirements), std::move(MEvents), MCGType, Payload));
     break;
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
   case detail::CG::COPY_ACC_TO_ACC:
-    CommandGroup.reset(
-        new detail::CGCopy(MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
-                           std::move(MAccStorage), std::move(MSharedPtrStorage),
-                           std::move(MRequirements), std::move(MEvents)));
+    CommandGroup.reset(new detail::CGCopy(
+        MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), Payload));
     break;
   case detail::CG::FILL:
     CommandGroup.reset(new detail::CGFill(
         std::move(MPattern), MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents)));
+        std::move(MRequirements), std::move(MEvents), Payload));
     break;
   case detail::CG::UPDATE_HOST:
     CommandGroup.reset(new detail::CGUpdateHost(
         MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents)));
+        std::move(MEvents), Payload));
     break;
   case detail::CG::COPY_USM:
     CommandGroup.reset(new detail::CGCopyUSM(
         MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents)));
+        std::move(MRequirements), std::move(MEvents), Payload));
     break;
   case detail::CG::FILL_USM:
     CommandGroup.reset(new detail::CGFillUSM(
         std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents)));
+        std::move(MRequirements), std::move(MEvents), Payload));
     break;
   case detail::CG::PREFETCH_USM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents)));
+        std::move(MEvents), Payload));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "

@@ -26,6 +26,10 @@ if(SYCL_ENABLE_WERROR)
   endif()
 endif()
 
+# Create a soft option for enabling or disabling the instrumentation
+# of the SYCL runtime and expect enabling
+option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
+
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
@@ -217,6 +221,13 @@ add_custom_target( sycl-toolchain
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."
 )
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_dependencies( sycl-toolchain xpti)
+  if (MSVC)
+    add_dependencies( sycl-toolchain xptid)
+  endif()
+endif()
 
 if (NOT DEFINED LLVM_INCLUDE_TESTS)
   set(LLVM_INCLUDE_TESTS ON)

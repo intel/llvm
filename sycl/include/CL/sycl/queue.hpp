@@ -167,8 +167,21 @@ public:
   /// scheduled for execution on the device.
   ///
   /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T> event submit(T CGF) { return submit_impl(CGF); }
+  template <typename T>
+  event
+  submit(T CGF
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+         ,
+         const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit_impl(CGF, CodeLoc);
+  }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -178,17 +191,38 @@ public:
   ///
   /// \param CGF is a function object containing command group.
   /// \param SecondaryQueue is a fallback SYCL queue.
+  /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  template <typename T> event submit(T CGF, queue &SecondaryQueue) {
-    return submit_impl(CGF, SecondaryQueue);
+  template <typename T>
+  event
+  submit(T CGF, queue &SecondaryQueue
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+         ,
+         const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit_impl(CGF, SecondaryQueue, CodeLoc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
   /// Synchronous errors will be reported through SYCL exceptions.
-  void wait();
+  /// @param CodeLoc is the code location of the submit call (default argument)
+  void wait(
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    wait_proxy(CodeLoc);
+  }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -197,7 +231,24 @@ public:
   /// errors will be passed to the async_handler passed to the queue on
   /// construction. If no async_handler was provided then asynchronous
   /// exceptions will be lost.
-  void wait_and_throw();
+  /// @param CodeLoc is the code location of the submit call (default argument)
+  void wait_and_throw(
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    wait_and_throw_proxy(CodeLoc);
+  }
+
+  /// Proxy method for wait to forward the code location information to the
+  /// implementation
+  void wait_proxy(const detail::code_location &CodeLoc);
+  /// Proxy method for wait_and_throw to forward the code location information
+  /// to the implementation
+  void wait_and_throw_proxy(const detail::code_location &CodeLoc);
 
   /// Checks if any asynchronous errors have been produced by the queue and if
   /// so reports them to the async_handler passed on the queue construction.
@@ -254,23 +305,47 @@ public:
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.template single_task<KernelName, KernelType>(KernelFunc);
-    });
+  event single_task(
+      KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(event DepEvent, KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvent);
-      CGH.template single_task<KernelName, KernelType>(KernelFunc);
-    });
+  event single_task(
+      event DepEvent, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -278,13 +353,24 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(const vector_class<event> &DepEvents,
-                    KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvents);
-      CGH.template single_task<KernelName, KernelType>(KernelFunc);
-    });
+  event single_task(
+      const vector_class<event> &DepEvents, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -292,13 +378,25 @@ public:
   ///
   /// \param NumWorkItems is a range that specifies the work space of the kernel
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+                                                                  KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -307,15 +405,26 @@ public:
   /// \param NumWorkItems is a range that specifies the work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, event DepEvent,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvent);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, event DepEvent, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+                                                                  KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -325,16 +434,27 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvents);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, const vector_class<event> &DepEvents,
+      KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+                                                                  KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range and
@@ -343,14 +463,25 @@ public:
   /// \param NumWorkItems is a range that specifies the work space of the kernel
   /// \param WorkItemOffset specifies the offset for each work item id
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.template parallel_for<KernelName, KernelType, Dims>(
-          NumWorkItems, WorkItemOffset, KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range and
@@ -360,15 +491,27 @@ public:
   /// \param WorkItemOffset specifies the offset for each work item id
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     event DepEvent, KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvent);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(
-          NumWorkItems, WorkItemOffset, KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, event DepEvent,
+      KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range and
@@ -379,16 +522,27 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvents);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(
-          NumWorkItems, WorkItemOffset, KernelFunc);
-    });
+  event parallel_for(
+      range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+      const vector_class<event> &DepEvents, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -397,13 +551,25 @@ public:
   /// \param ExecutionRange is a range that specifies the work space of the
   /// kernel
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      nd_range<Dims> ExecutionRange, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              ExecutionRange, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -413,15 +579,26 @@ public:
   /// kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(nd_range<Dims> ExecutionRange, event DepEvent,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvent);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      nd_range<Dims> ExecutionRange, event DepEvent, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              ExecutionRange, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -432,16 +609,27 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
   /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(nd_range<Dims> ExecutionRange,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc) {
-    return submit([&](handler &CGH) {
-      CGH.depends_on(DepEvents);
-      CGH.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
-                                                              KernelFunc);
-    });
+  event parallel_for(
+      nd_range<Dims> ExecutionRange, const vector_class<event> &DepEvents,
+      KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName, KernelType, Dims>(
+              ExecutionRange, KernelFunc);
+        },
+        CodeLoc);
   }
 
   /// Returns whether the queue is in order or OoO
@@ -455,9 +643,11 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH);
+  event submit_impl(function_class<void(handler &)> CGH,
+                    const detail::code_location &CodeLoc);
   /// A template-free version of submit.
-  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue);
+  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+                    const detail::code_location &CodeLoc);
 };
 
 } // namespace sycl
