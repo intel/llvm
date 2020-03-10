@@ -1,16 +1,16 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fms-extensions \
 // RUN: -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device  -fsyntax-only \
-// RUN: -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s 
+// RUN: -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s
 // check random triple aux-triple with sycl-device
 
 // RUN: %clang_cc1 -triple spir64-unknown-windows-sycldevice -fsyntax-only \
-// RUN: -fms-extensions -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s 
+// RUN: -fms-extensions -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s
 // check without -aux-triple but sycl-device
 
 // RUN: %clang_cc1 -triple spir64-unknown-windows-sycldevice -fsycl-is-device \
 // RUN: -aux-triple x86_64-pc-windows-msvc -fms-extensions -fsyntax-only \
 // RUN: -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s --check-prefixes CHECKALL
-// check -aux-tripe without sycl-device 
+// check -aux-tripe without sycl-device
 
 // RUN: %clang_cc1 -triple spir64-unknown-windows-sycldevice -fsyntax-only \
 // RUN: -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -fms-extensions \
@@ -40,7 +40,7 @@ int  __declspec(dllexport) foo(int a) {
    return a;
 }
 // expected-note@+1 {{'bar' declared here}}
-int __declspec(dllimport) bar();
+SYCL_EXTERNAL int __declspec(dllimport) bar();
 // expected-note@+2 {{previous attribute is here}}
 // expected-note@+1 {{previous declaration is here}}
 int __declspec(dllimport) foobar();

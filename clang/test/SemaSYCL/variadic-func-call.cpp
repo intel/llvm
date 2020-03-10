@@ -1,13 +1,13 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -fsyntax-only -verify %s
 
-void variadic(int, ...);
+void variadic(int, ...) {}
 namespace NS {
-void variadic(int, ...);
+void variadic(int, ...) {}
 }
 
 struct S {
-  S(int, ...);
-  void operator()(int, ...);
+  S(int, ...) {}
+  void operator()(int, ...) {}
 };
 
 void foo() {
@@ -15,8 +15,8 @@ void foo() {
   x(5, 10); //expected-error{{SYCL kernel cannot call a variadic function}}
 }
 
-void overloaded(int, int);
-void overloaded(int, ...);
+void overloaded(int, int) {}
+void overloaded(int, ...) {}
 template <typename, typename Func>
 __attribute__((sycl_kernel)) void task(Func KF) {
   KF(); // expected-note 2 {{called by 'task}}

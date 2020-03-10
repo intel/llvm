@@ -3,10 +3,10 @@
 // CHECK: %opencl.pipe_ro_t
 
 using WPipeTy = __attribute__((pipe("write_only"))) const int;
-WPipeTy WPipeCreator();
+SYCL_EXTERNAL WPipeTy WPipeCreator();
 
 using RPipeTy = __attribute__((pipe("read_only"))) const int;
-RPipeTy RPipeCreator();
+SYCL_EXTERNAL RPipeTy RPipeCreator();
 
 template <typename PipeTy>
 void foo(PipeTy Pipe) {}
@@ -24,7 +24,7 @@ template <int N>
 constexpr PipeStorageTy
     TempStorage __attribute__((io_pipe_id(N))) = {2};
 
-void boo(PipeStorageTy PipeStorage);
+SYCL_EXTERNAL void boo(PipeStorageTy PipeStorage);
 
 template <int ID>
 struct ethernet_pipe {
