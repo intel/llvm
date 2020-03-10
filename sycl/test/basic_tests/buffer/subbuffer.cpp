@@ -64,8 +64,7 @@ void checkHostAccessor(cl::sycl::queue &q) {
 void check1DSubBuffer(cl::sycl::queue &q) {
   std::size_t subbuf_align =
       q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
-  std::size_t size = subbuf_align;
-  size = std::max(size, 32 * sizeof(int)); // hold at least 32 elements
+   std::size_t size = std::max(subbuf_align, 32 * sizeof(int)); // hold at least 32 elements
   size /= sizeof(int);
   size *= 2;
 
