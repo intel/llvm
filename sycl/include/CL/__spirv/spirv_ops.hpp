@@ -13,6 +13,13 @@
 #include <cstdint>
 #include <type_traits>
 
+// Convergent attribute
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_CONVERGENT__ __attribute__((convergent))
+#else
+#define __SYCL_CONVERGENT__
+#endif
+
 #ifdef __SYCL_DEVICE_ONLY__
 
 template <typename RetT, typename ImageT>
@@ -45,11 +52,10 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 //
 
 template <typename dataT>
-__ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
-                                     __attribute__((opencl_local)) dataT *Dest,
-                                     __attribute__((opencl_global)) dataT *Src,
-                                     size_t NumElements, size_t Stride,
-                                     __ocl_event_t E) noexcept {
+__SYCL_CONVERGENT__ __ocl_event_t __spirv_GroupAsyncCopy(
+    __spv::Scope Execution, __attribute__((opencl_local)) dataT *Dest,
+    __attribute__((opencl_global)) dataT *Src, size_t NumElements,
+    size_t Stride, __ocl_event_t E) noexcept {
   for (int i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
   }
@@ -58,11 +64,10 @@ __ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
 }
 
 template <typename dataT>
-__ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
-                                     __attribute__((opencl_global)) dataT *Dest,
-                                     __attribute__((opencl_local)) dataT *Src,
-                                     size_t NumElements, size_t Stride,
-                                     __ocl_event_t E) noexcept {
+__SYCL_CONVERGENT__ __ocl_event_t __spirv_GroupAsyncCopy(
+    __spv::Scope Execution, __attribute__((opencl_global)) dataT *Dest,
+    __attribute__((opencl_local)) dataT *Src, size_t NumElements, size_t Stride,
+    __ocl_event_t E) noexcept {
   for (int i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];
   }
@@ -71,13 +76,13 @@ __ocl_event_t __spirv_GroupAsyncCopy(__spv::Scope Execution,
 }
 #else
 template <typename dataT>
-extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
     __spv::Scope Execution, __attribute__((opencl_local)) dataT *Dest,
     __attribute__((opencl_global)) dataT *Src, size_t NumElements,
     size_t Stride, __ocl_event_t E) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __ocl_event_t __spirv_GroupAsyncCopy(
     __spv::Scope Execution, __attribute__((opencl_global)) dataT *Dest,
     __attribute__((opencl_local)) dataT *Src, size_t NumElements, size_t Stride,
     __ocl_event_t E) noexcept;
@@ -182,95 +187,86 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
-extern SYCL_EXTERNAL bool __spirv_GroupAll(__spv::Scope Execution,
-                                           bool Predicate) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL bool
+__spirv_GroupAll(__spv::Scope Execution, bool Predicate) noexcept;
 
-extern SYCL_EXTERNAL bool __spirv_GroupAny(__spv::Scope Execution,
-                                           bool Predicate) noexcept;
-
-template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupBroadcast(__spv::Scope Execution,
-                                                  dataT Value,
-                                                  size_t LocalId) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL bool
+__spirv_GroupAny(__spv::Scope Execution, bool Predicate) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupBroadcast(
+    __spv::Scope Execution, dataT Value, size_t LocalId) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT
 __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
                        __ocl_vec_t<size_t, 2> LocalId) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT
 __spirv_GroupBroadcast(__spv::Scope Execution, dataT Value,
                        __ocl_vec_t<size_t, 3> LocalId) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupIAdd(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupIAdd(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFAdd(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupFAdd(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupUMin(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupUMin(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupSMin(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupSMin(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFMin(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupFMin(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupUMax(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupUMax(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupSMax(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupSMax(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_GroupFMax(__spv::Scope Execution,
-                                             __spv::GroupOperation Op,
-                                             dataT Value) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_GroupFMax(
+    __spv::Scope Execution, __spv::GroupOperation Op, dataT Value) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT
 __spirv_SubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_SubgroupShuffleDownINTEL(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupShuffleDownINTEL(
     dataT Current, dataT Next, uint32_t Delta) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_SubgroupShuffleUpINTEL(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupShuffleUpINTEL(
     dataT Previous, dataT Current, uint32_t Delta) noexcept;
 template <typename dataT>
-extern SYCL_EXTERNAL dataT
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT
 __spirv_SubgroupShuffleXorINTEL(dataT Data, uint32_t Value) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
     const __attribute__((opencl_global)) uint8_t *Ptr) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL void
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
 __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint8_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
     const __attribute__((opencl_global)) uint16_t *Ptr) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL void
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
 __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint16_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
     const __attribute__((opencl_global)) uint32_t *Ptr) noexcept;
 
 template <typename dataT>
-extern SYCL_EXTERNAL void
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
 __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
                                 dataT Data) noexcept;
 
@@ -538,7 +534,7 @@ __SPIRV_DECLARE_OCL3(select) // select
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
-extern __ocl_event_t
+__SYCL_CONVERGENT__ extern __ocl_event_t
 OpGroupAsyncCopyGlobalToLocal(__spv::Scope Execution, dataT *Dest, dataT *Src,
                               size_t NumElements, size_t Stride,
                               __ocl_event_t E) noexcept {
@@ -550,7 +546,7 @@ OpGroupAsyncCopyGlobalToLocal(__spv::Scope Execution, dataT *Dest, dataT *Src,
 }
 
 template <typename dataT>
-extern __ocl_event_t
+__SYCL_CONVERGENT__ extern __ocl_event_t
 OpGroupAsyncCopyLocalToGlobal(__spv::Scope Execution, dataT *Dest, dataT *Src,
                               size_t NumElements, size_t Stride,
                               __ocl_event_t E) noexcept {
@@ -565,13 +561,13 @@ extern void __spirv_ocl_prefetch(const char *Ptr, size_t NumBytes) noexcept;
 
 #endif // !__SYCL_DEVICE_ONLY__
 
-extern SYCL_EXTERNAL void __spirv_ControlBarrier(__spv::Scope Execution,
-                                                 __spv::Scope Memory,
-                                                 uint32_t Semantics) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
+__spirv_ControlBarrier(__spv::Scope Execution, __spv::Scope Memory,
+                       uint32_t Semantics) noexcept;
 
-extern SYCL_EXTERNAL void __spirv_MemoryBarrier(__spv::Scope Memory,
-                                                uint32_t Semantics) noexcept;
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
+__spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept;
 
-extern SYCL_EXTERNAL void
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
 __spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
                         __ocl_event_t *WaitEvents) noexcept;
