@@ -216,11 +216,10 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       if (VD->getTLSKind() != VarDecl::TLS_None)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_thread_unsupported);
 
-      if (VD->getStorageClass() == SC_Static &&
-          !IsConst)
+      if (!IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
-      else if (VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD) && !IsConst)
+      else if (!IsConst && VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
     }

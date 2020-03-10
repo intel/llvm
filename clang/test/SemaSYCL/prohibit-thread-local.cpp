@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
 thread_local const int prohobit_ns_scope = 0;
 thread_local int prohobit_ns_scope2 = 0;
@@ -39,11 +39,12 @@ void usage() {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel))
-// expected-note@+1 2{{called by}}
-void kernel_single_task(Func kernelFunc) { kernelFunc(); }
+// expected-note@+2 2{{called by}}
+void
+kernel_single_task(Func kernelFunc) { kernelFunc(); }
 
 int main() {
   // expected-note@+1 2{{called by}}
-  kernel_single_task<class fake_kernel>([](){ usage(); } );
+  kernel_single_task<class fake_kernel>([]() { usage(); });
   return 0;
 }

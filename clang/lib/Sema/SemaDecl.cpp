@@ -7062,8 +7062,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // constexpr
   if (getLangOpts().SYCLIsDevice) {
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
-    SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
-        << Sema::KernelNonConstStaticDataVariable;
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
+          << Sema::KernelNonConstStaticDataVariable;
     else if (NewVD->getTSCSpec() == DeclSpec::TSCS_thread_local)
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
   }
