@@ -58,7 +58,8 @@ namespace sycl {
 // Forward declaration
 
 class handler;
-template <typename T, int Dimensions, typename AllocatorT> class buffer;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 namespace detail {
 
 /// This class is the default KernelName template parameter type for kernel
