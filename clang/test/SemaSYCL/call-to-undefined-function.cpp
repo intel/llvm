@@ -1,7 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
 void defined() {
-  // empty
 }
 
 void undefined();
@@ -16,7 +15,6 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 
 template <typename T>
 void definedTpl() {
-  // empty
 }
 
 template <typename T>
@@ -28,25 +26,21 @@ extern SYCL_EXTERNAL void undefinedExternalTpl();
 
 template <typename T, bool X>
 void definedPartialTpl() {
-  // empty
 }
 
 template <>
 void definedPartialTpl<char, true>() {
-  // empty
 }
 
 template <typename T, bool X>
 struct Tpl {
   void defined() {
-    // empty
   }
 };
 
 template <typename T>
 struct Tpl<T, true> {
   void defined() {
-    // empty
   }
 };
 
@@ -54,7 +48,6 @@ template <typename T, bool X>
 struct TplWithTplMethod {
   template <typename T2, bool Y>
   void defined() {
-    // empty
   }
 };
 
@@ -62,7 +55,6 @@ template <typename T>
 struct TplWithTplMethod<T, true> {
   template <typename T2, bool Y>
   void defined() {
-    // empty
   }
 };
 
@@ -70,12 +62,10 @@ template <typename T, bool X>
 struct TplWithTplMethod2 {
   template <typename T2, bool Y>
   void defined() {
-    // empty
   }
 
   template <>
   void defined<char, true>() {
-    // empty
   }
 };
 
@@ -83,12 +73,10 @@ template <typename T>
 struct TplWithTplMethod2<T, true> {
   template <typename T2, bool Y>
   void defined() {
-    // empty
   }
 
   template <>
   void defined<char, true>() {
-    // empty
   }
 };
 
@@ -101,7 +89,6 @@ void useFwDeclFn() {
 }
 
 void forwardDeclFn() {
-  // empty
 }
 
 int main() {
@@ -179,5 +166,4 @@ int main() {
 }
 
 void forwardDeclFn2() {
-  // empty
 }
