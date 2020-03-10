@@ -135,7 +135,7 @@ device getDeviceFromHandler(handler &);
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
 class handler {
-private:
+protected:
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
@@ -1240,7 +1240,7 @@ public:
     MCGType = detail::CG::PREFETCH_USM;
   }
 
-private:
+protected:
   shared_ptr_class<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
