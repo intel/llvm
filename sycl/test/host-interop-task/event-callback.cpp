@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <atomic>

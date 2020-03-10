@@ -7,6 +7,9 @@ set(SYCL_INCLUDE "${dst_dir}")
 set(RT_TEST_ARGS ${RT_TEST_ARGS} "-v")
 set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX} -D SYCL_INCLUDE=${dst_deploy_dir}")
 
+find_package(Threads REQUIRED)
+set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
