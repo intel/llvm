@@ -7,7 +7,6 @@
 class Functor {
 public:
   [[cl::reqd_work_group_size(4, 1, 1)]] void operator()() {}
-
 };
 
 template <typename name, typename Func>
@@ -24,17 +23,25 @@ void bar() {
 // expected-note@-1 {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(32, 1, 1)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
 
-[[cl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {} // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {}   // expected-note {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(16, 16, 1)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
 
-[[cl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {} // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {}   // expected-note {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 class Functor16 {
 public:
-  [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
+  [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
 };
 
+#ifdef TRIGGER_ERROR
+class Functor32 {
+public:
+  //expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
+  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() {}
+};
+#endif
 class Functor16x16x16 {
 public:
   [[cl::reqd_work_group_size(16, 16, 16)]] void operator()() {}
@@ -42,7 +49,7 @@ public:
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[cl::reqd_work_group_size(8, 1, 1)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
@@ -77,14 +84,16 @@ void bar() {
   FunctorAttr fattr;
   kernel<class kernel_name4>(fattr);
 
-  kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32)]] {
-   f32x32x32();
+  kernel<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32), cl::reqd_work_group_size(32, 32, 32)]] {
+    f32x32x32();
   });
-
 
 #ifdef TRIGGER_ERROR
   Functor8 f8;
   kernel<class kernel_name6>(f8);
+
+  Functor32 f32;
+  kernel<class kernel_name1>(f32);
 
   kernel<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
     f4x1x1();
@@ -102,7 +111,7 @@ void bar() {
   });
 
   // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-  kernel<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]] []() {
+  kernel<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]][]() {
     f32x32x32();
   });
 
@@ -110,9 +119,9 @@ void bar() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 1 1
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 1 1 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: ReqdWorkGroupSizeAttr {{.*}} 4 1 1
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 1 1 4
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 16 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4

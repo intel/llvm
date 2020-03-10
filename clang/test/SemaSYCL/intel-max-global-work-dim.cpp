@@ -82,8 +82,8 @@ int main() {
   kernel<class test_kernel5>(
       TRIFuncObjGood2());
   // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel5
-  // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 4 1 1
-  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 8 1 1
+  // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
+  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 3
 
 #ifdef TRIGGER_ERROR
