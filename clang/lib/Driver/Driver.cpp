@@ -5524,9 +5524,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
   else {
     std::string OffloadingPrefix;
     // When generating binaries with -fsycl-link-target or -fsycl-link, the
-    // output file prefix is the triple arch only.
+    // output file prefix is the triple arch only.  Do not add the arch when
+    // compiling for FPGA with -fsycl-link.
     if (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
-        Args.hasArg(options::OPT_fsycl_link_EQ)) {
+        (Args.hasArg(options::OPT_fsycl_link_EQ) &&
+         !Args.hasArg(options::OPT_fintelfpga))) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {

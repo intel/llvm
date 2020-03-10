@@ -86,6 +86,16 @@
 // RUN: | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN
 // CHK-FPGA-LINK-WARN: warning: appending to an existing archive 'dummy.a'
 
+/// -fintelfpga -fsycl-link name creation without output file specified
+// RUN: mkdir -p %t_dir
+// RUN: touch %t_dir/dummy_file.cpp
+// RUN: %clang++ -### -fsycl -fintelfpga -fsycl-link %t_dir/dummy_file.cpp 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHK-SYCL-LINK-LIN -DINPUTSRC=dummy_file %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -fsycl-link %t_dir/dummy_file.cpp 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHK-SYCL-LINK-WIN -DINPUTSRC=dummy_file %s
+// CHK-SYCL-LINK-LIN: llvm-ar{{.*}} "cr" "[[INPUTSRC]].a"
+// CHK-SYCL-LINK-WIN: lib.exe{{.*}} "-OUT:[[INPUTSRC]].a"
+
 /// -fintelfpga with AOCR library and additional object
 // RUN:  touch %t2.o
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.a %t2.o 2>&1 \
