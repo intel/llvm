@@ -22,6 +22,8 @@ public:
       : Command(detail::Command::ALLOCA, Queue) {}
   void printDot(std::ostream &Stream) const override {}
 
+  void emitInstrumentationData() override {}
+
   cl_int enqueueImp() override { return MRetVal; }
 
   cl_int MRetVal = CL_SUCCESS;
