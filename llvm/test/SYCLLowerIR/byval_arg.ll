@@ -6,7 +6,7 @@
 
 %struct.baz = type { i64 }
 
-; CHECK: @[[SHADOW:[a-zA-Z0-9]+]] = internal unnamed_addr addrspace(3) global %struct.baz undef
+; CHECK: @[[SHADOW:[a-zA-Z0-9]+]] = unnamed_addr addrspace(3) global %struct.baz
 
 define internal spir_func void @wibble(%struct.baz* byval(%struct.baz) %arg1) !work_group_scope !0 {
 ; CHECK-LABEL: @wibble(

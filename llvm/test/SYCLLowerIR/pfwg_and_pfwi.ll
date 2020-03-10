@@ -13,9 +13,9 @@
 %struct.foo = type { %struct.barney }
 %struct.foo.0 = type { i8 }
 
-; CHECK: @[[PFWG_SHADOW:.*]] = internal unnamed_addr addrspace(3) global %struct.bar addrspace(4)*
-; CHECK: @[[PFWI_SHADOW:.*]] = internal unnamed_addr addrspace(3) global %struct.foo.0
-; CHECK: @[[GROUP_SHADOW:.*]] = internal unnamed_addr addrspace(3) global %struct.zot
+; CHECK: @[[PFWG_SHADOW:.*]] = unnamed_addr addrspace(3) global %struct.bar addrspace(4)*
+; CHECK: @[[PFWI_SHADOW:.*]] = unnamed_addr addrspace(3) global %struct.foo.0
+; CHECK: @[[GROUP_SHADOW:.*]] = unnamed_addr addrspace(3) global %struct.zot
 
 define internal spir_func void @wibble(%struct.bar addrspace(4)* %arg, %struct.zot* byval(%struct.zot) align 8 %arg1) align 2 !work_group_scope !0 {
 ; CHECK-LABEL: @wibble(

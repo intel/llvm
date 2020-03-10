@@ -838,7 +838,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
       new GlobalVariable(M,                              // module
                          T,                              // type
                          false,                          // isConstant
-                         GlobalValue::InternalLinkage,   // Linkage
+                         GlobalValue::ExternalLinkage,   // Linkage
                          UndefValue::get(T),             // Initializer
                          Name,                           // Name
                          nullptr,                        // InsertBefore

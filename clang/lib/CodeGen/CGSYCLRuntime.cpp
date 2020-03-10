@@ -82,7 +82,7 @@ void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
 #endif // NDEBUG
   // generate global variable in the address space selected by the clang CodeGen
   // (should be local)
-  CGF.EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
+  CGF.EmitStaticVarDecl(D, llvm::GlobalValue::ExternalLinkage);
 }
 
 bool CGSYCLRuntime::actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
