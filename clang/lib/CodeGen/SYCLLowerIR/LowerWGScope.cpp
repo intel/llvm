@@ -442,13 +442,15 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 //
 static void materializeLocalsInWIScopeBlocksImpl(
     const DenseMap<BasicBlock *, std::unique_ptr<LocalsSet>> &BB2MatLocals,
-    const DenseMap<AllocaInst *, GlobalVariable *> &Local2Shadow, const Triple &TT) {
+    const DenseMap<AllocaInst *, GlobalVariable *> &Local2Shadow,
+    const Triple &TT) {
   for (auto &P : BB2MatLocals) {
     // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
     BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
     // Add a barrier to the original block:
-    Instruction *At = spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
+    Instruction *At =
+        spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
 
     for (AllocaInst *L : *P.second.get()) {
       auto MapEntry = Local2Shadow.find(L);
@@ -533,10 +535,9 @@ static bool localMustBeMaterialized(const AllocaInst *L, const BasicBlock &BB) {
 //   have any noticible effect, though, as reading from Shadow always goes to a
 //   register file anyway.
 //
-void materializeLocalsInWIScopeBlocks(
-    SmallPtrSetImpl<AllocaInst *> &Locals,
-    SmallPtrSetImpl<BasicBlock *> &WIScopeBBs,
-    const Triple &TT) {
+void materializeLocalsInWIScopeBlocks(SmallPtrSetImpl<AllocaInst *> &Locals,
+                                      SmallPtrSetImpl<BasicBlock *> &WIScopeBBs,
+                                      const Triple &TT) {
   // maps local variable to its "shadow" workgroup-shared global:
   DenseMap<AllocaInst *, GlobalVariable *> Local2Shadow;
   // records which locals must be materialized at the beginning of a block:
@@ -718,8 +719,7 @@ static void shareByValParams(Function &F, const Triple &TT) {
   spirv::genWGBarrier(MergeBB->front(), TT);
 }
 
-PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
-                                            const llvm::Triple &TT,
+PreservedAnalyses SYCLLowerWGScopePass::run(Function &F, const llvm::Triple &TT,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
@@ -876,16 +876,16 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-#define CREATE_CALLEE(NAME, FN_NAME) \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy); \
-  assert(FnCallee##NAME && "spirv intrinsic creation failed"); \
+#define CREATE_CALLEE(NAME, FN_NAME)                                           \
+  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
+  assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
   auto NAME = Bld.CreateCall(FnCallee##NAME, {});
 
-      CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
-      CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
-      CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
-      CREATE_CALLEE(WorkgroupSize_Y, "_Z23__spirv_WorkgroupSize_yv");
-      CREATE_CALLEE(WorkgroupSize_Z, "_Z23__spirv_WorkgroupSize_zv");
+    CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
+    CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
+    CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
+    CREATE_CALLEE(WorkgroupSize_Y, "_Z23__spirv_WorkgroupSize_yv");
+    CREATE_CALLEE(WorkgroupSize_Z, "_Z23__spirv_WorkgroupSize_zv");
 
 #undef CREATE_CALLEE
 
@@ -894,12 +894,11 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
     // 3: + (__spirv_WorkgroupSize_z() * __spirv_LocalInvocationId_y())
     // 4: + (__spirv_LocalInvocationId_z())
     return Bld.CreateAdd(
-      Bld.CreateAdd(
-        Bld.CreateMul(
-          Bld.CreateMul(WorkgroupSize_Y, WorkgroupSize_Z), // 1
-          LocalInvocationId_X), // 2
-        Bld.CreateMul(WorkgroupSize_Z, LocalInvocationId_Y)), // 3
-      LocalInvocationId_Z); // 4
+        Bld.CreateAdd(
+            Bld.CreateMul(Bld.CreateMul(WorkgroupSize_Y, WorkgroupSize_Z), // 1
+                          LocalInvocationId_X),                            // 2
+            Bld.CreateMul(WorkgroupSize_Z, LocalInvocationId_Y)),          // 3
+        LocalInvocationId_Z);                                              // 4
   } else {
     StringRef Name = "__spirv_BuiltInLocalInvocationIndex";
     GlobalVariable *G = M.getGlobalVariable(Name);

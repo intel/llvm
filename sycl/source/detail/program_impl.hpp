@@ -41,7 +41,7 @@ public:
   /// associated with the provided context and the devices that are associated
   /// with the context.
   ///
-  /// @param Context is a pointer to SYCL context impl.
+  /// \param Context is a pointer to SYCL context impl.
   explicit program_impl(ContextImplPtr Context);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
@@ -50,8 +50,8 @@ public:
   /// associated with the provided context and the devices in the provided
   /// DeviceList.
   ///
-  /// @param Context is a pointer to SYCL context impl.
-  /// @param DeviceList is a list of SYCL devices.
+  /// \param Context is a pointer to SYCL context impl.
+  /// \param DeviceList is a list of SYCL devices.
   program_impl(ContextImplPtr Context, vector_class<device> DeviceList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
@@ -66,8 +66,8 @@ public:
   /// programs won't be allowed due to only compiled state of each and every
   /// program in the list and thus unknown state of caching resolution.
   ///
-  /// @param ProgramList is a list of program_impl instances.
-  /// @param LinkOptions is a string containing valid OpenCL link options.
+  /// \param ProgramList is a list of program_impl instances.
+  /// \param LinkOptions is a string containing valid OpenCL link options.
   program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
                string_class LinkOptions = "");
 
@@ -82,16 +82,16 @@ public:
   /// The instance of plugin interface program will be retained on
   /// construction.
   ///
-  /// @param Context is a pointer to SYCL context impl.
-  /// @param Program is an instance of plugin interface interoperability
+  /// \param Context is a pointer to SYCL context impl.
+  /// \param Program is an instance of plugin interface interoperability
   /// program.
   program_impl(ContextImplPtr Context, RT::PiProgram Program);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
   ///
-  /// @param Context is a pointer to SYCL context impl.
-  /// @param Kernel is a raw PI kernel handle.
+  /// \param Context is a pointer to SYCL context impl.
+  /// \param Kernel is a raw PI kernel handle.
   program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
 
   ~program_impl();
@@ -102,17 +102,17 @@ public:
   /// If the program is created for a SYCL host device, an
   /// invalid_object_error exception is thrown.
   ///
-  /// @return a valid OpenCL cl_program instance.
+  /// \return a valid OpenCL cl_program instance.
   cl_program get() const;
 
-  /// @return a reference to a raw PI program handle. PI program is not
+  /// \return a reference to a raw PI program handle. PI program is not
   /// retained before return.
   RT::PiProgram &getHandleRef() { return MProgram; }
-  /// @return a constant reference to a raw PI program handle. PI program is
+  /// \return a constant reference to a raw PI program handle. PI program is
   /// not retained before return.
   const RT::PiProgram &getHandleRef() const { return MProgram; }
 
-  /// @return true if this SYCL program is a host program.
+  /// \return true if this SYCL program is a host program.
   bool is_host() const { return MContext->is_host(); }
 
   /// Compiles the SYCL kernel function into the encapsulated raw program.
@@ -126,7 +126,9 @@ public:
   /// query info::device::is_compiler_available, a feature_not_supported
   /// exception is thrown.
   ///
-  /// @param CompileOptions is a string of valid OpenCL compile options.
+  /// \param KernelName is a string containing SYCL kernel name.
+  /// \param CompileOptions is a string of valid OpenCL compile options.
+  /// \param Module is an OS handle to user code module.
   void compile_with_kernel_name(string_class KernelName,
                                 string_class CompileOptions,
                                 OSModuleHandle Module);
@@ -142,8 +144,8 @@ public:
   /// information query info::device::is_compiler_available, a
   /// feature_not_supported SYCL exception is thrown.
   ///
-  /// @param KernelSource is a string containing OpenCL C kernel source code.
-  /// @param CompileOptions is a string containing OpenCL compile options.
+  /// \param KernelSource is a string containing OpenCL C kernel source code.
+  /// \param CompileOptions is a string containing OpenCL compile options.
   void compile_with_source(string_class KernelSource,
                            string_class CompileOptions = "");
 
@@ -159,8 +161,9 @@ public:
   /// info::device::is_linker_available, a feature_not_supported SYCL
   /// exception is thrown.
   ///
-  /// @param KernelName is a string containing SYCL kernel name.
-  /// @param BuildOptions is a string containing OpenCL compile options.
+  /// \param KernelName is a string containing SYCL kernel name.
+  /// \param BuildOptions is a string containing OpenCL compile options.
+  /// \param M is an OS handle to user code module.
   void build_with_kernel_name(string_class KernelName,
                               string_class BuildOptions, OSModuleHandle M);
 
@@ -175,8 +178,8 @@ public:
   /// info::device::is_linker_available, a feature_not_supported SYCL
   /// exception is thrown.
   ///
-  /// @param KernelSource is a string containing OpenCL C kernel source code.
-  /// @param BuildOptions is a string containing OpenCL build options.
+  /// \param KernelSource is a string containing OpenCL C kernel source code.
+  /// \param BuildOptions is a string containing OpenCL build options.
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "");
 
@@ -190,7 +193,7 @@ public:
   /// information query info::device::is_linker_available, a
   /// feature_not_supported exception is thrown.
   ///
-  /// @param LinkOptions is a string containing OpenCL link options.
+  /// \param LinkOptions is a string containing OpenCL link options.
   void link(string_class LinkOptions = "");
 
   /// Checks if kernel is available for this program.
@@ -198,7 +201,7 @@ public:
   /// The SYCL kernel is defined by kernel name. If the program state is
   /// program_state::none an invalid_object_error SYCL exception is thrown.
   ///
-  /// @return true if the SYCL kernel is available.
+  /// \return true if the SYCL kernel is available.
   bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
 
   /// Returns a SYCL kernel for the SYCL kernel function defined by kernel
@@ -207,7 +210,7 @@ public:
   /// If program is in the program_state::none state or if the SYCL kernel
   /// function is not available, an invalid_object_error exception is thrown.
   ///
-  /// @return a valid instance of SYCL kernel.
+  /// \return a valid instance of SYCL kernel.
   kernel get_kernel(string_class KernelName,
                     shared_ptr_class<program_impl> PtrToSelf,
                     bool IsCreatedFromSource) const;
@@ -225,24 +228,24 @@ public:
   /// program_state::linked states, an invalid_object_error SYCL exception
   /// is thrown.
   ///
-  /// @return a vector of vectors representing the compiled binaries for each
+  /// \return a vector of vectors representing the compiled binaries for each
   /// associated SYCL device.
   vector_class<vector_class<char>> get_binaries() const;
 
-  /// @return the SYCL context that this program was constructed with.
+  /// \return the SYCL context that this program was constructed with.
   context get_context() const {
     if (is_host())
       return context();
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  // @return the Plugin associated withh the context of this program.
+  // \return the Plugin associated withh the context of this program.
   const plugin &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
   }
 
-  /// @return a vector of devices that are associated with this program.
+  /// \return a vector of devices that are associated with this program.
   vector_class<device> get_devices() const { return MDevices; }
 
   /// Returns compile options that were provided when the encapsulated program
@@ -254,7 +257,7 @@ public:
   /// cl_program was explicitly compiled, in which case the compile options
   /// used in the explicit compile are returned.
   ///
-  /// @return a string of valid OpenCL compile options.
+  /// \return a string of valid OpenCL compile options.
   string_class get_compile_options() const { return MCompileOptions; }
 
   /// Returns compile options that were provided to the most recent invocation
@@ -270,7 +273,7 @@ public:
   /// links a vector of programs, then the link options passed to this
   /// constructor are returned.
   ///
-  /// @return a string of valid OpenCL compile options.
+  /// \return a string of valid OpenCL compile options.
   string_class get_link_options() const { return MLinkOptions; }
 
   /// Returns the compile, link, or build options, from whichever of those
@@ -280,10 +283,10 @@ public:
   /// program, or if the program includes the host device in its device list,
   /// then an empty string is returned.
   ///
-  /// @return a string of valid OpenCL build options.
+  /// \return a string of valid OpenCL build options.
   string_class get_build_options() const { return MBuildOptions; }
 
-  /// @return the current state of this SYCL program.
+  /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
 private:
@@ -292,7 +295,7 @@ private:
   /// If there's at least one device that does not support this feature,
   /// a feature_not_supported exception is thrown.
   ///
-  /// @param Devices is a vector of SYCL devices.
+  /// \param Devices is a vector of SYCL devices.
   template <info::device param>
   void check_device_feature_support(const vector_class<device> &Devices) {
     for (const auto &Device : Devices) {
@@ -306,61 +309,61 @@ private:
 
   /// Creates a plugin interface kernel using its name.
   ///
-  /// @param Module is an OS handle to user code module.
-  /// @param KernelName is a name of kernel to be created.
+  /// \param Module is an OS handle to user code module.
+  /// \param KernelName is a name of kernel to be created.
   void create_pi_program_with_kernel_name(OSModuleHandle Module,
                                           const string_class &KernelName);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///
-  /// @param Source is a string containing OpenCL C source code.
+  /// \param Source is a string containing OpenCL C source code.
   void create_cl_program_with_source(const string_class &Source);
 
   /// Compiles underlying plugin interface program.
   ///
-  /// @param Options is a string containing OpenCL compile options.
+  /// \param Options is a string containing OpenCL compile options.
   void compile(const string_class &Options);
 
   /// Builds underlying plugin interface program.
   ///
-  /// @param Options is a string containing OpenCL build options.
+  /// \param Options is a string containing OpenCL build options.
   void build(const string_class &Options);
 
-  /// @return a vector of devices managed by the plugin.
+  /// \return a vector of devices managed by the plugin.
   vector_class<RT::PiDevice> get_pi_devices() const;
 
-  /// @return true if caching is allowed for this program.
+  /// \return true if caching is allowed for this program.
   bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
-  /// @param Options is a string containing OpenCL C build options.
-  /// @return true if caching is allowed for this program and build options.
+  /// \param Options is a string containing OpenCL C build options.
+  /// \return true if caching is allowed for this program and build options.
   static bool is_cacheable_with_options(const string_class &Options) {
     return Options.empty();
   }
 
-  /// @param KernelName is a string containing OpenCL kernel name.
-  /// @return true if underlying OpenCL program has kernel with specific name.
+  /// \param KernelName is a string containing OpenCL kernel name.
+  /// \return true if underlying OpenCL program has kernel with specific name.
   bool has_cl_kernel(const string_class &KernelName) const;
 
-  /// @param KernelName is a string containing PI kernel name.
-  /// @return an instance of PI kernel with specific name. If kernel is
+  /// \param KernelName is a string containing PI kernel name.
+  /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const;
 
-  /// @return a vector of sorted in ascending order SYCL devices.
+  /// \return a vector of sorted in ascending order SYCL devices.
   vector_class<device>
   sort_devices_by_cl_device_id(vector_class<device> Devices);
 
   /// Throws an invalid_object_exception if state of this program is in the
   /// specified state.
   ///
-  /// @param State is a program state to match against.
+  /// \param State is a program state to match against.
   void throw_if_state_is(program_state State) const;
 
   /// Throws an invalid_object_exception if state of this program is not in
   /// the specified state.
   ///
-  /// @param State is a program state to match against.
+  /// \param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
   RT::PiProgram MProgram = nullptr;

@@ -10,10 +10,10 @@
 // CHECK-SPIRV: FNegate
 // CHECK-SPIRV: FNegate
 
-// CHECK-LLVM: fsub half 0xH8000, %
-// CHECK-LLVM: fsub float -0.000000e+00, %
-// CHECK-LLVM: fsub double -0.000000e+00, % 
-// CHECK-LLVM: fsub <8 x double> <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>, %
+// CHECK-LLVM: fneg half %
+// CHECK-LLVM: fneg float %
+// CHECK-LLVM: fneg double %
+// CHECK-LLVM: fneg <8 x double> %
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable

@@ -323,8 +323,10 @@ def SVector: VecOf<SScalar>;
 // UHalfVector is a vector of half-sized _unsigned integers_.
 def DblVector: VecOf<DoubleSize<Scalar>>;
 def DblPredicate: PredOf<DoubleSize<Scalar>>;
-def HalfVector: VecOf<HalfSize<Scalar>>;
-def UHalfVector: VecOf<Unsigned<HalfSize<Scalar>>>;
+def HalfScalar: HalfSize<Scalar>;
+def HalfVector: VecOf<HalfScalar>;
+def UHalfScalar: Unsigned<HalfSize<Scalar>>;
+def UHalfVector: VecOf<UHalfScalar>;
 
 // Expands to the 32-bit integer of the same signedness as Scalar.
 def Scalar32: CopyKind<u32, Scalar>;
@@ -506,8 +508,8 @@ multiclass IntrinsicMX<Type rettype, dag arguments, dag cg,
   // provides the input value of the output register, i.e. all the
   // inactive lanes in the predicated operation take their values from
   // this.
-  def "_m" # nameSuffix:
-     Intrinsic<rettype, !con((args rettype:$inactive), arguments), cg> {
+  def : Intrinsic<rettype, !con((args rettype:$inactive), arguments), cg>,
+        NameOverride<NAME # "_m" # nameSuffix> {
     let pnt = pnt_m;
   }
 
@@ -515,8 +517,8 @@ multiclass IntrinsicMX<Type rettype, dag arguments, dag cg,
     // The _x variant leaves off that parameter, and simply uses an
     // undef value of the same type.
 
-    def "_x" # nameSuffix:
-      Intrinsic<rettype, arguments, (seq (undef rettype):$inactive, cg)> {
+    def : Intrinsic<rettype, arguments, (seq (undef rettype):$inactive, cg)>,
+          NameOverride<NAME # "_x" # nameSuffix> {
       let pnt = pnt_x;
     }
   }

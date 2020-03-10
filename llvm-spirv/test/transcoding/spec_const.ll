@@ -7,6 +7,10 @@
 ; RUN: llvm-spirv -r -spec-const "0:i1:1 1:i8:11 2:i16:22 3:i32:33 4:i64:44 5:f16:5.5 6:f32:6.6 7:f64:7.7" %t.spv -o %t.rev.spec.bc
 ; RUN: llvm-dis < %t.rev.spec.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPEC
 
+; CHECK-SPIRV-NOT: Capability Matrix
+; CHECK-SPIRV-NOT: Capability Shader
+; CHECK-SPIRV: Capability Kernel
+
 ; CHECK-SPIRV-DAG: Decorate [[SC0:[0-9]+]] SpecId 0
 ; CHECK-SPIRV-DAG: Decorate [[SC1:[0-9]+]] SpecId 1
 ; CHECK-SPIRV-DAG: Decorate [[SC2:[0-9]+]] SpecId 2

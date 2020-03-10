@@ -32,8 +32,8 @@ public:
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param UseCUDAPrimaryContext is a bool determining whether to use the
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   explicit context(const async_handler &AsyncHandler = {},
                    bool UseCUDAPrimaryContext = false);
@@ -45,9 +45,9 @@ public:
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// @param Device is an instance of SYCL device.
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param UseCUDAPrimaryContext is a bool determining whether to use the
+  /// \param Device is an instance of SYCL device.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   explicit context(const device &Device, async_handler AsyncHandler = {},
                    bool UseCUDAPrimaryContext = false);
@@ -59,9 +59,9 @@ public:
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// @param Platform is an instance of SYCL platform.
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param UseCUDAPrimaryContext is a bool determining whether to use the
+  /// \param Platform is an instance of SYCL platform.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   explicit context(const platform &Platform, async_handler AsyncHandler = {},
                    bool UseCUDAPrimaryContext = false);
@@ -74,9 +74,9 @@ public:
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// @param DeviceList is a list of SYCL device instances.
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param UseCUDAPrimaryContext is a bool determining whether to use the
+  /// \param DeviceList is a list of SYCL device instances.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   explicit context(const vector_class<device> &DeviceList,
                    async_handler AsyncHandler = {},
@@ -88,8 +88,8 @@ public:
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// @param ClContext is an instance of OpenCL cl_context.
-  /// @param AsyncHandler is an instance of async_handler.
+  /// \param ClContext is an instance of OpenCL cl_context.
+  /// \param AsyncHandler is an instance of async_handler.
   context(cl_context ClContext, async_handler AsyncHandler = {});
 
   /// Queries this SYCL context for information.
@@ -115,22 +115,22 @@ public:
   ///
   /// The OpenCL cl_context handle is retained on return.
   ///
-  /// @return a valid instance of OpenCL cl_context.
+  /// \return a valid instance of OpenCL cl_context.
   cl_context get() const;
 
   /// Checks if this context is a SYCL host context.
   ///
-  /// @return true if this context is a SYCL host context.
+  /// \return true if this context is a SYCL host context.
   bool is_host() const;
 
   /// Gets platform associated with this SYCL context.
   ///
-  /// @return a valid instance of SYCL platform.
+  /// \return a valid instance of SYCL platform.
   platform get_platform() const;
 
   /// Gets devices associated with this SYCL context.
   ///
-  /// @return a vector of valid SYCL device instances.
+  /// \return a vector of valid SYCL device instances.
   vector_class<device> get_devices() const;
 
 private:
