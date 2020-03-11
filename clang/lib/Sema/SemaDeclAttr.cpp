@@ -2938,14 +2938,15 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     WGSize[1] = SYCLIntelReqdWorkGroupSizeAttr::DefaultYDim;
     WGSize[2] = SYCLIntelReqdWorkGroupSizeAttr::DefaultZDim;
   }
-  if (i < AL.getNumArgs())
-    if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
-                             /*StrictlyUnsigned=*/true))
+  for (unsigned i = 0; i < 3; ++i) {
+    if (i < AL.getNumArgs())
+      if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
+                               /*StrictlyUnsigned=*/true))
+        return;
+    if (WGSize[i] == 0) {
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
+          << AL << E->getSourceRange();
       return;
-  if (WGSize[i] == 0) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-        << AL << E->getSourceRange();
-    return;
     }
   }
 
