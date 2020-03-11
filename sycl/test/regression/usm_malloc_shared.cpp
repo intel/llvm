@@ -32,6 +32,10 @@ int main(int argc, char *argv[]) {
   double *ja = (double *)malloc_shared(0, myQueue);
   double *result = (double *)malloc_shared(-16, myQueue);
 
+  assert(ia != nullptr);
+  assert(ja == nullptr);
+  assert(result == nullptr);
+  
   std::cout << "ia : " << ia << " ja: " << ja << " result : " << result
             << std::endl;
 
