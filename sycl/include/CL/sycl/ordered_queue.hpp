@@ -88,15 +88,62 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
-  template <typename T> event submit(T cgf) { return submit_impl(cgf); }
-
-  template <typename T> event submit(T cgf, ordered_queue &secondaryQueue) {
-    return submit_impl(cgf, secondaryQueue);
+  /// @param Loc is the code location of the submit call (default argument)
+  template <typename T>
+  event
+  submit(T cgf
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+         ,
+         const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit_impl(cgf, CodeLoc);
   }
 
-  void wait();
+  template <typename T>
+  event
+  submit(T cgf, ordered_queue &secondaryQueue
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+         ,
+         const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit_impl(cgf, secondaryQueue, CodeLoc);
+  }
 
-  void wait_and_throw();
+  /// @param CodeLoc is the code location of the submit call (default argument)
+  void wait(
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    wait_proxy(CodeLoc);
+  }
+
+  /// @param CodeLoc is the code location of the submit call (default argument)
+  void wait_and_throw(
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    wait_and_throw_proxy(CodeLoc);
+  }
+
+  void wait_proxy(const detail::code_location &CodeLoc);
+
+  void wait_and_throw_proxy(const detail::code_location &CodeLoc);
 
   void throw_asynchronous();
 
@@ -114,45 +161,88 @@ public:
 
   // single_task version with a kernel represented as a lambda.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(KernelType KernelFunc) {
-    submit([&](handler &cgh) {
-      cgh.template single_task<KernelName, KernelType>(KernelFunc);
-    });
+  void single_task(
+      KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    submit(
+        [&](handler &cgh) {
+          cgh.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
   }
 
   // parallel_for version with a kernel represented as a lambda + range that
   // specifies global size only.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
+  void parallel_for(
+      range<Dims> NumWorkItems, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
     // By-value or By-reference for this?
-    submit([&](handler &cgh) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                              KernelFunc);
-    });
+    submit(
+        [&](handler &cgh) {
+          cgh.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
+                                                                  KernelFunc);
+        },
+        CodeLoc);
   }
 
   // parallel_for version with a kernel represented as a lambda + range and
   // offset that specify global size and global offset correspondingly.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    KernelType KernelFunc) {
-    submit([&](handler &cgh) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(
-          NumWorkItems, WorkItemOffset, KernelFunc);
-    });
+  void parallel_for(
+      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    submit(
+        [&](handler &cgh) {
+          cgh.template parallel_for<KernelName, KernelType, Dims>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
   }
 
   // parallel_for version with a kernel represented as a lambda + nd_range that
   // specifies global, local sizes and offset.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
-    submit([&](handler &cgh) {
-      cgh.template parallel_for<KernelName, KernelType, Dims>(ExecutionRange,
-                                                              KernelFunc);
-    });
+  void parallel_for(
+      nd_range<Dims> ExecutionRange, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    submit(
+        [&](handler &cgh) {
+          cgh.template parallel_for<KernelName, KernelType, Dims>(
+              ExecutionRange, KernelFunc);
+        },
+        CodeLoc);
   }
 
 private:
@@ -160,9 +250,11 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
-  event submit_impl(function_class<void(handler &)> CGH);
   event submit_impl(function_class<void(handler &)> CGH,
-                    ordered_queue &secondQueue);
+                    const detail::code_location &CodeLoc);
+  event submit_impl(function_class<void(handler &)> CGH,
+                    ordered_queue &secondQueue,
+                    const detail::code_location &CodeLoc);
 };
 
 #undef __SYCL_DEPRECATED__

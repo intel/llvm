@@ -2895,7 +2895,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
     if (A->getNumber() == 0)
       Result &= checkZeroDim(A, WGSize[0], WGSize[1], WGSize[2],
-                             /*ReverseAttrs=*/ true);
+                             /*ReverseAttrs=*/true);
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
@@ -2935,14 +2935,17 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
+  // For a SYCLDevice WorkGroupAttr arguments are reversed
+  if (S.getLangOpts().SYCLIsDevice) {
+    std::swap(WGSize[0], WGSize[2]);
+  }
+  WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
+  if (Existing &&
+      !(Existing->getXDim() == WGSize[0] && Existing->getYDim() == WGSize[1] &&
+        Existing->getZDim() == WGSize[2]))
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
   if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
     return;
-
-  WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
-  if (Existing && !(Existing->getXDim() == WGSize[0] &&
-                    Existing->getYDim() == WGSize[1] &&
-                    Existing->getZDim() == WGSize[2]))
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
   D->addAttr(::new (S.Context)
                  WorkGroupAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));

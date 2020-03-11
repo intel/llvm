@@ -764,8 +764,7 @@ public:
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -774,18 +773,19 @@ public:
 #endif
   }
 
-  template <int Dims = Dimensions, typename AllocatorT>
-  accessor(buffer<DataT, 1, AllocatorT> &BufferRef,
-           detail::enable_if_t<Dims == 0 &&
-                               (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
-                               handler> &CommandGroupHandler)
+  template <int Dims = Dimensions, typename AllocatorT,
+	   typename = typename detail::enable_if_t<
+		   (Dims == 0) && 
+                    (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>
+		    			>
+  accessor(buffer<DataT,1,AllocatorT> &BufferRef,
+		  handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -794,11 +794,11 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename detail::enable_if_t<
-                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
-                * = nullptr>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef)
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           ((!IsPlaceH && IsHostBuf) ||
+                                            (IsPlaceH &&
+                                             (IsGlobalBuf || IsConstantBuf)))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
@@ -815,9 +815,10 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           (!IsPlaceH &&
+                                            (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
@@ -834,10 +835,11 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           ((!IsPlaceH && IsHostBuf) ||
+                                            (IsPlaceH &&
+                                             (IsGlobalBuf || IsConstantBuf)))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
@@ -855,9 +857,10 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           (!IsPlaceH &&
+                                            (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
@@ -933,17 +936,17 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if<Dims == 0 &&
-                                       AccessMode == access::mode::atomic,
-                                   atomic<DataT, AS>>::type() const {
+  operator typename detail::enable_if_t<
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
+      const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if<(Dims > 0) && AccessMode == access::mode::atomic,
-                          atomic<DataT, AS>>::type
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -952,7 +955,7 @@ public:
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                               atomic<DataT, AS>>::type
+                               atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return atomic<DataT, AS>(

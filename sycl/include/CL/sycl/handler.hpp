@@ -1,12 +1,10 @@
-//==-------- handler.hpp --- SYCL command group handler --------*- C++ -*---==//
+//==-------- handler.hpp --- SYCL command group handler --------------------==//
 //
-// Copyright (C) 2018 Intel Corporation. All rights reserved.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// The information and source code contained herein is the exclusive property
-// of Intel Corporation and may not be disclosed, examined or reproduced in
-// whole or in part without explicit written authorization from the company.
-//
-// ===--------------------------------------------------------------------=== //
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
@@ -60,7 +58,8 @@ namespace sycl {
 // Forward declaration
 
 class handler;
-template <typename T, int Dimensions, typename AllocatorT> class buffer;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 namespace detail {
 
 /// This class is the default KernelName template parameter type for kernel
@@ -195,8 +194,9 @@ private:
   /// It's expected that the method is the latest method executed before
   /// object destruction.
   ///
-  /// \return a SYCL event object representing the command group.
-  event finalize();
+  /// \param Payload contains the code location of user code
+  /// \return a SYCL event object representing the command group
+  event finalize(const cl::sycl::detail::code_location &Payload = {});
 
   /// Saves streams associated with this handler.
   ///

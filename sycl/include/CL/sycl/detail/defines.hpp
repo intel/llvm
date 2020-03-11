@@ -33,11 +33,11 @@
 #endif
 
 #if __cplusplus >= 201402
-  #define __SYCL_DEPRECATED__                                                  \
-    [[deprecated("Replaced by in_order queue property")]]
+#define __SYCL_DEPRECATED__                                                    \
+  [[deprecated("Replaced by in_order queue property")]]
 #elif !defined _MSC_VER
-  #define __SYCL_DEPRECATED__ __attribute__                                    \
-    ((deprecated("Replaced by in_order queue property")))
+#define __SYCL_DEPRECATED__                                                    \
+  __attribute__((deprecated("Replaced by in_order queue property")))
 #else
-  #define __SYCL_DEPRECATED__
+#define __SYCL_DEPRECATED__
 #endif

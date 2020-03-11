@@ -27,11 +27,19 @@ EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
 }
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Will contain the list of dependencies for the Release Command
+  std::set<Command *> DepCommands;
+#endif
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Capture the dependencies
+    DepCommands.insert(Cmd);
+#endif
     GraphProcessor::waitForEvent(Cmd->getEvent());
   }
   for (Command *Cmd : Record->MWriteLeaves) {
@@ -39,6 +47,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    DepCommands.insert(Cmd);
+#endif
     GraphProcessor::waitForEvent(Cmd->getEvent());
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
@@ -47,6 +58,11 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
     bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Report these dependencies to the Command so these dependencies can be
+    // reported as edges
+    ReleaseCmd->resolveReleaseDependencies(DepCommands);
+#endif
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent());
   }
 }

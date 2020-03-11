@@ -824,11 +824,11 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
       } else if (S == "llvm.loop.ii.count") {
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
-        LoopControl |= spv::InitiationIntervalINTEL;
+        LoopControl |= spv::LoopControlInitiationIntervalINTEL;
       } else if (S == "llvm.loop.max_concurrency.count") {
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
-        LoopControl |= spv::MaxConcurrencyINTEL;
+        LoopControl |= spv::LoopControlMaxConcurrencyINTEL;
       } else if (S == "llvm.loop.parallel_access_indices") {
         // Intel FPGA IVDep loop attribute
         LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
@@ -855,7 +855,7 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
       Parameters.push_back(ArraySflnPair.first);
       Parameters.push_back(ArraySflnPair.second);
     }
-    LoopControl |= spv::DependencyArrayINTEL;
+    LoopControl |= spv::LoopControlDependencyArrayINTEL;
   }
 
   return static_cast<spv::LoopControlMask>(LoopControl);

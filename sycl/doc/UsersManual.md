@@ -1,6 +1,6 @@
 # Overview
 
-The SYCL* Compiler contains many options to generate the desired binaries for
+The DPC++ Compiler contains many options to generate the desired binaries for
 your application.
 
 ## SYCL specific command line options
@@ -185,7 +185,7 @@ $ clang++ -fsycl-device-only -fno-sycl-use-bitcode sycl-app.cpp -o sycl-app.spv
 
 # Static archives with SYCL device code
 
-The SYCL Compiler contains support to create and use static archives that
+The DPC++ Compiler contains support to create and use static archives that
 contain device enabled fat objects.
 
 ## Build your objects
