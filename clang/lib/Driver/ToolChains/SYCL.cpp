@@ -277,8 +277,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
         if (!Ext.empty()) {
           types::ID Ty =
               getToolChain().LookupTypeForExtension(Ext.drop_front());
-          if (Ty == types::TY_INVALID)
-            continue;
           if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
             // Project report should be saved into CWD, so strip off any
             // directory information if provided with the input file.
