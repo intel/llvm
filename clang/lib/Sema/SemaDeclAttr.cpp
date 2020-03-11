@@ -36,6 +36,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/MathExtras.h"
+#include <type_traits>
 
 using namespace clang;
 using namespace sema;
@@ -2926,7 +2927,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
   return Result;
 }
 
-#include <type_traits>
+//#include <type_traits>
 // Handles reqd_work_group_size, work_group_size_hint and max_work_group_size
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
