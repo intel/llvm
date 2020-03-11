@@ -1,7 +1,12 @@
 #pragma once
 
-#include <list>
+#include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
 #include <thread>
+#include <vector>
 
 #include <CL/sycl/detail/defines.hpp>
 
@@ -10,19 +15,68 @@ namespace sycl {
 namespace detail {
 
 class ThreadPool {
-  std::list<std::thread> MLaunchedThreads;
-public:
-  ThreadPool() {}
-  ~ThreadPool() {
-    for (std::thread &Thr : MLaunchedThreads) {
-      if (Thr.joinable())
-        Thr.join();
+  std::vector<std::thread> MLaunchedThreads;
+
+  size_t MThreadCount;
+  std::queue<std::function<void()>> MJobQueue;
+  std::mutex MJobQueueMutex;
+  std::condition_variable MDoSmthOrStop;
+  std::atomic_bool MStop;
+
+  void worker() {
+    std::unique_lock<std::mutex> Lock(MJobQueueMutex);
+
+    for (;;) {
+      MDoSmthOrStop.wait(
+          Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
+
+      if (MStop.load())
+        break;
+
+      std::function<void()> Job = std::move(MJobQueue.front());
+      MJobQueue.pop();
+      Lock.unlock();
+
+      Job();
+
+      Lock.lock();
     }
   }
 
-  template <typename FuncT, typename... ArgsT>
-  void submit(FuncT &&Func, ArgsT... Args) {
-    MLaunchedThreads.emplace_back(Func, Args...);
+public:
+  ThreadPool(unsigned int ThreadCount = std::max(
+                 1L,
+                 static_cast<long>(std::thread::hardware_concurrency()) - 1))
+      : MThreadCount(ThreadCount) {}
+
+  ~ThreadPool() { finishAndWait(); }
+
+  void start() {
+    MLaunchedThreads.reserve(MThreadCount);
+
+    MStop.store(false);
+
+    for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
+      MLaunchedThreads.emplace_back(&ThreadPool::worker, this);
+  }
+
+  void finishAndWait() {
+    MStop.store(true);
+
+    MDoSmthOrStop.notify_all();
+
+    for (std::thread &Thread : MLaunchedThreads)
+      if (Thread.joinable())
+        Thread.join();
+  }
+
+  void submit(std::function<void()> &&Func) {
+    {
+      std::lock_guard<std::mutex> Lock(MJobQueueMutex);
+      MJobQueue.emplace(Func);
+    }
+
+    MDoSmthOrStop.notify_one();
   }
 };
 
