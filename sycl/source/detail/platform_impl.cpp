@@ -19,6 +19,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
@@ -146,8 +147,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
 }
 
 static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
-                            RT::PiPlatform PiPlatform,
-                            const plugin &Plugin) {
+                            RT::PiPlatform PiPlatform, const plugin &Plugin) {
   const std::vector<DevDescT> WhiteList(getWhiteListDesc());
   if (WhiteList.empty())
     return;
@@ -270,6 +270,7 @@ platform_impl::get_info() const {
 #include <CL/sycl/info/platform_traits.def>
 #undef PARAM_TRAITS_SPEC
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

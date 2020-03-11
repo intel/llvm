@@ -16,6 +16,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 static Command *getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
@@ -88,6 +89,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   return Cmd->enqueue(EnqueueResult, Blocking);
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

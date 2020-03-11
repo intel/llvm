@@ -27,8 +27,10 @@ namespace sycl {
 class context;
 class device;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class queue_impl;
 }
+} // namespace detail
 
 class queue {
 public:
@@ -298,7 +300,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  event prefetch(const void* Ptr, size_t Count) {
+  event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
@@ -638,7 +640,7 @@ public:
   bool is_in_order() const;
 
 private:
-  shared_ptr_class<detail::queue_impl> impl;
+  shared_ptr_class<detail::sycl_private::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
@@ -656,8 +658,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::queue> {
   size_t operator()(const cl::sycl::queue &q) const {
-    return std::hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
+    return std::hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(q));
   }
 };

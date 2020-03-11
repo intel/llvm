@@ -27,6 +27,7 @@ namespace sycl {
 // Forward declaration
 class device;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
@@ -157,6 +158,7 @@ private:
   mutable KernelProgramCache MKernelProgramCache;
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

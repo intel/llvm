@@ -24,6 +24,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
+
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
@@ -185,6 +187,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

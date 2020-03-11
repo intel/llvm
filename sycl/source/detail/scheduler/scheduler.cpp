@@ -19,11 +19,12 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
                                                 const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
+  return cl::sycl::detail::Scheduler::getInstance().addHostAccessor(Req,
+                                                                    destructor);
 }
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
@@ -121,14 +122,12 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
-#pragma warning(disable:4073)
+#pragma warning(disable : 4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
 
-Scheduler &Scheduler::getInstance() {
-  return instance;
-}
+Scheduler &Scheduler::getInstance() { return instance; }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
   std::lock_guard<std::mutex> lock(MGraphLock);
@@ -178,7 +177,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Req->MBlockedCmd->MCanEnqueue = true;
-  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+  MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
@@ -193,11 +192,12 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(new queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-          QueueOrder::Ordered, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(
+      new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+                     QueueOrder::Ordered, /*PropList=*/{}));
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

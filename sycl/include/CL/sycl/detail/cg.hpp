@@ -420,14 +420,14 @@ class CGExecKernel : public CG {
 public:
   NDRDescT MNDRDesc;
   unique_ptr_class<HostKernelBase> MHostKernel;
-  shared_ptr_class<detail::kernel_impl> MSyclKernel;
+  shared_ptr_class<detail::sycl_private::kernel_impl> MSyclKernel;
   vector_class<ArgDesc> MArgs;
   string_class MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreams;
 
   CGExecKernel(NDRDescT NDRDesc, unique_ptr_class<HostKernelBase> HKernel,
-               shared_ptr_class<detail::kernel_impl> SyclKernel,
+               shared_ptr_class<detail::sycl_private::kernel_impl> SyclKernel,
                vector_class<vector_class<char>> ArgsStorage,
                vector_class<detail::AccessorImplPtr> AccStorage,
                vector_class<shared_ptr_class<const void>> SharedPtrStorage,

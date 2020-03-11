@@ -19,8 +19,10 @@ namespace sycl {
 // Forward declaration
 class context;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class event_impl;
 }
+} // namespace detail
 
 class event {
 public:
@@ -113,9 +115,9 @@ public:
   get_profiling_info() const;
 
 private:
-  event(shared_ptr_class<detail::event_impl> EventImpl);
+  event(shared_ptr_class<detail::sycl_private::event_impl> EventImpl);
 
-  shared_ptr_class<detail::event_impl> impl;
+  shared_ptr_class<detail::sycl_private::event_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -130,7 +132,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::event> {
   size_t operator()(const cl::sycl::event &e) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::event_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::event_impl>>()(
         cl::sycl::detail::getSyclObjImpl(e));
   }
 };

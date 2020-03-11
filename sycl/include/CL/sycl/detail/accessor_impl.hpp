@@ -18,7 +18,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+__SYCL_INLINE_NAMESPACE(sycl_private) {
+struct MemObjRecord;
 class Command;
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
@@ -37,8 +40,7 @@ public:
   range<Dims> MemRange;
 
   bool operator==(const AccessorImplDevice &Rhs) const {
-    return (Offset == Rhs.Offset &&
-            AccessRange == Rhs.AccessRange &&
+    return (Offset == Rhs.Offset && AccessRange == Rhs.AccessRange &&
             MemRange == Rhs.MemRange);
   }
 };
@@ -95,7 +97,7 @@ public:
 
   void *MData = nullptr;
 
-  Command *MBlockedCmd = nullptr;
+  sycl_private::Command *MBlockedCmd = nullptr;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;

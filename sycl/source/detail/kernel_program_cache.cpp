@@ -13,6 +13,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 KernelProgramCache::~KernelProgramCache() {
   for (auto &ProgIt : MCachedPrograms) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
@@ -40,6 +41,7 @@ KernelProgramCache::~KernelProgramCache() {
     Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
-}
-}
-}
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

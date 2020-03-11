@@ -17,6 +17,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 vector_class<info::fp_config> read_fp_bitfield(cl_device_fp_config bits);
 
@@ -427,6 +428,7 @@ template <> struct get_device_info<bool, info::device::usm_system_allocator> {
   }
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

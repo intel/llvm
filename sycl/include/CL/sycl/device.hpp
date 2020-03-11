@@ -20,8 +20,10 @@ namespace sycl {
 // Forward declarations
 class device_selector;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class device_impl;
 }
+} // namespace detail
 class device {
 public:
   /// Constructs a SYCL device instance as a host device.
@@ -164,8 +166,9 @@ public:
   get_devices(info::device_type deviceType = info::device_type::all);
 
 private:
-  shared_ptr_class<detail::device_impl> impl;
-  device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
+  shared_ptr_class<detail::sycl_private::device_impl> impl;
+  device(shared_ptr_class<detail::sycl_private::device_impl> impl)
+      : impl(impl) {}
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -185,7 +188,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::device> {
   size_t operator()(const cl::sycl::device &Device) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::device_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::device_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Device));
   }
 };

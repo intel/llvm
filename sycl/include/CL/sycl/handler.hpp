@@ -66,8 +66,10 @@ namespace detail {
 /// invocation APIs such as single_task.
 class auto_name {};
 
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class kernel_impl;
 class queue_impl;
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 class stream_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -140,7 +142,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
+  handler(shared_ptr_class<detail::sycl_private::queue_impl> Queue, bool IsHost)
       : MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
   /// Stores copy of Arg passed to the MArgsStorage.
@@ -1242,7 +1244,7 @@ public:
   }
 
 private:
-  shared_ptr_class<detail::queue_impl> MQueue;
+  shared_ptr_class<detail::sycl_private::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
@@ -1264,7 +1266,7 @@ private:
   detail::NDRDescT MNDRDesc;
   string_class MKernelName;
   /// Storage for a sycl::kernel object.
-  shared_ptr_class<detail::kernel_impl> MKernel;
+  shared_ptr_class<detail::sycl_private::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill.
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
   /// Pointer to the source host memory or accessor(depending on command type).
@@ -1286,7 +1288,7 @@ private:
   bool MIsHost = false;
 
   // Make queue_impl class friend to be able to call finalize method.
-  friend class detail::queue_impl;
+  friend class detail::sycl_private::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>

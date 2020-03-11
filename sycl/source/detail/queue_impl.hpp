@@ -25,6 +25,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
@@ -400,6 +401,7 @@ private:
   bool MSupportOOO = true;
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

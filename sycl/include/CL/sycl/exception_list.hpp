@@ -20,8 +20,10 @@ namespace sycl {
 
 // Forward declaration
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class queue_impl;
 }
+} // namespace detail
 
 class exception_list {
 public:
@@ -39,9 +41,9 @@ public:
   iterator end() const;
 
 private:
-  friend class detail::queue_impl;
+  friend class detail::sycl_private::queue_impl;
   void PushBack(const_reference Value);
-  void PushBack(value_type&& Value);
+  void PushBack(value_type &&Value);
   void Clear() noexcept;
   vector_class<exception_ptr_class> MList;
 };

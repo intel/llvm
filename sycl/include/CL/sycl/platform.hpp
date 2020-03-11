@@ -20,8 +20,10 @@ namespace sycl {
 class device_selector;
 class device;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class platform_impl;
 }
+} // namespace detail
 
 class platform {
 public:
@@ -99,8 +101,9 @@ public:
   static vector_class<platform> get_platforms();
 
 private:
-  shared_ptr_class<detail::platform_impl> impl;
-  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
+  shared_ptr_class<detail::sycl_private::platform_impl> impl;
+  platform(shared_ptr_class<detail::sycl_private::platform_impl> impl)
+      : impl(impl) {}
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -114,7 +117,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::platform> {
   size_t operator()(const cl::sycl::platform &p) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::platform_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::platform_impl>>()(
         cl::sycl::detail::getSyclObjImpl(p));
   }
 };

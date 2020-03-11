@@ -14,6 +14,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 device_impl::device_impl()
     : MIsHostDevice(true),
@@ -34,8 +35,9 @@ device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
 
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
+                                          sizeof(RT::PiDevice), &parent,
+                                          nullptr);
 
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice) {
@@ -161,13 +163,11 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
-  if (!is_partition_supported(
-          info::partition_property::partition_by_counts)) {
+  if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
   }
   static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
-      0};
+      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
   vector_class<cl_device_partition_property> Properties(P, P + 3);
   Properties.insert(Properties.begin() + 1, Counts.begin(), Counts.end());
   return create_sub_devices(Properties.data(), Counts.size());
@@ -190,11 +190,11 @@ vector_class<device> device_impl::create_sub_devices(
   const cl_device_partition_property Properties[3] = {
       CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
       (cl_device_partition_property)AffinityDomain, 0};
-  size_t SubDevicesCount =
-      get_info<info::device::partition_max_sub_devices>();
+  size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

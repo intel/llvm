@@ -28,6 +28,7 @@ namespace sycl {
 class kernel;
 
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
@@ -390,6 +391,7 @@ template <> context program_impl::get_info<info::program::context>() const;
 template <>
 vector_class<device> program_impl::get_info<info::program::devices>() const;
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

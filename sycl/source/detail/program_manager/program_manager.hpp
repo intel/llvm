@@ -34,8 +34,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 class context_impl;
+
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using DeviceImage = pi_device_binary_struct;
 
@@ -142,6 +144,7 @@ private:
   /// True iff a SPIRV file has been specified with an environment variable
   bool m_UseSpvFile = false;
 };
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

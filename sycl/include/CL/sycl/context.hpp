@@ -20,8 +20,10 @@ namespace sycl {
 class device;
 class platform;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class context_impl;
 }
+} // namespace detail
 
 class context {
 public:
@@ -135,9 +137,9 @@ public:
 
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
-  context(shared_ptr_class<detail::context_impl> Impl);
+  context(shared_ptr_class<detail::sycl_private::context_impl> Impl);
 
-  shared_ptr_class<detail::context_impl> impl;
+  shared_ptr_class<detail::sycl_private::context_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
@@ -156,7 +158,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::context> {
   size_t operator()(const cl::sycl::context &Context) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::context_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::context_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Context));
   }
 };

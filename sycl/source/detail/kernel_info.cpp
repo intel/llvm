@@ -12,6 +12,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
+
 template <>
 cl::sycl::range<3>
 get_kernel_work_group_info_host<info::kernel_work_group::global_work_size>(
@@ -49,6 +51,7 @@ get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
   return 0;
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -25,8 +25,10 @@ namespace sycl {
 class context;
 class device;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class queue_impl;
 }
+} // namespace detail
 
 class __SYCL_DEPRECATED__ ordered_queue {
 
@@ -246,7 +248,7 @@ public:
   }
 
 private:
-  shared_ptr_class<detail::queue_impl> impl;
+  shared_ptr_class<detail::sycl_private::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
@@ -265,7 +267,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::ordered_queue> {
   size_t operator()(const cl::sycl::ordered_queue &q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
+    return std::hash<
+        std::shared_ptr<cl::sycl::detail::sycl_private::queue_impl>>()(
         cl::sycl::detail::getSyclObjImpl(q));
   }
 };

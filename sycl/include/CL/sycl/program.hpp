@@ -22,8 +22,10 @@ namespace sycl {
 class context;
 class device;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class program_impl;
 }
+} // namespace detail
 
 enum class program_state { none, compiled, linked };
 
@@ -294,7 +296,7 @@ public:
   program_state get_state() const;
 
 private:
-  program(shared_ptr_class<detail::program_impl> impl);
+  program(shared_ptr_class<detail::sycl_private::program_impl> impl);
 
   /// Template-free version of get_kernel.
   ///
@@ -330,7 +332,7 @@ private:
                               string_class buildOptions,
                               detail::OSModuleHandle M);
 
-  shared_ptr_class<detail::program_impl> impl;
+  shared_ptr_class<detail::sycl_private::program_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -343,7 +345,8 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::program> {
   size_t operator()(const cl::sycl::program &prg) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::program_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<
+        cl::sycl::detail::sycl_private::program_impl>>()(
         cl::sycl::detail::getSyclObjImpl(prg));
   }
 };

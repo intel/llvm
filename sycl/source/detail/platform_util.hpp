@@ -19,6 +19,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 struct PlatformUtil {
   enum class TypeIndex : unsigned int {
@@ -43,6 +44,7 @@ struct PlatformUtil {
   static void prefetch(const char *Ptr, size_t NumBytes);
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

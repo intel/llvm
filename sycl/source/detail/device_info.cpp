@@ -23,6 +23,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // Specialization for parent device
 template <>
@@ -488,8 +489,8 @@ template <> cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
                       PI_INVALID_DEVICE);
 }
 
-template <> vector_class<size_t>
-get_device_info_host<info::device::sub_group_sizes>() {
+template <>
+vector_class<size_t> get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
                       PI_INVALID_DEVICE);
@@ -529,6 +530,7 @@ template <> bool get_device_info_host<info::device::usm_system_allocator>() {
   return true;
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

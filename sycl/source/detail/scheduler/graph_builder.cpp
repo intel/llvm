@@ -26,6 +26,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // The function checks whether two requirements overlaps or not. This
 // information can be used to prove that executing two kernels that
@@ -340,7 +341,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 // The function implements SYCL host accessor logic: host accessor
 // should provide access to the buffer in user space.
 Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
-                                                const bool destructor) {
+                                                  const bool destructor) {
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
@@ -545,8 +546,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
         // To ensure that the leader allocation is removed first
         AllocaCmd->getReleaseCmd()->addDep(
-            DepDesc(LinkedAllocaCmd->getReleaseCmd(), AllocaCmd->getRequirement(),
-                    LinkedAllocaCmd));
+            DepDesc(LinkedAllocaCmd->getReleaseCmd(),
+                    AllocaCmd->getRequirement(), LinkedAllocaCmd));
 
         // Device allocation takes ownership of the host ptr during
         // construction, host allocation doesn't. So, device allocation should
@@ -767,6 +768,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
   MemObject->MRecord.reset();
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

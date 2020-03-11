@@ -24,15 +24,16 @@ namespace sycl {
 namespace detail {
 
 // Forward declarations
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class context_impl;
 class event_impl;
 class plugin;
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 
-using ContextImplPtr = shared_ptr_class<context_impl>;
-using EventImplPtr = shared_ptr_class<event_impl>;
+using ContextImplPtr = shared_ptr_class<sycl_private::context_impl>;
+using EventImplPtr = shared_ptr_class<sycl_private::event_impl>;
 
-template <typename T>
-class aligned_allocator;
+template <typename T> class aligned_allocator;
 using sycl_memory_object_allocator = aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
@@ -83,7 +84,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const plugin &getPlugin() const;
+  const sycl_private::plugin &getPlugin() const;
 
   size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
@@ -149,9 +150,7 @@ public:
     if (!FinalData)
       MUploadDataFunctor = nullptr;
     else
-      MUploadDataFunctor = [this, FinalData]() {
-        updateHostMemory(FinalData);
-      };
+      MUploadDataFunctor = [this, FinalData]() { updateHostMemory(FinalData); };
   }
 
   template <typename Destination>

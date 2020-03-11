@@ -16,6 +16,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 template <info::event_profiling Param> struct get_event_profiling_info {
   using RetType =
@@ -42,6 +43,7 @@ template <info::event Param> struct get_event_info {
   }
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

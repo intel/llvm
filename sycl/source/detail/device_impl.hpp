@@ -22,6 +22,7 @@ namespace sycl {
 class platform;
 
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // Forward declaration
 class platform_impl;
@@ -205,6 +206,7 @@ private:
   PlatformImplPtr MPlatform;
 }; // class device_impl
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

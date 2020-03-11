@@ -16,6 +16,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // The platform information methods
 template <typename T, info::platform param> struct get_platform_info {};
@@ -66,6 +67,7 @@ template <> string_class get_platform_info_host<info::platform::vendor>();
 template <>
 vector_class<string_class> get_platform_info_host<info::platform::extensions>();
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

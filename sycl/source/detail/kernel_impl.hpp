@@ -25,6 +25,7 @@ namespace sycl {
 class program;
 
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class program_impl;
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -147,6 +148,7 @@ private:
   bool MCreatedFromSource = true;
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -26,6 +26,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
@@ -62,9 +63,7 @@ RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
 
-const plugin &event_impl::getPlugin() const {
-  return MContext->getPlugin();
-}
+const plugin &event_impl::getPlugin() const { return MContext->getPlugin(); }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
@@ -255,10 +254,11 @@ static uint64_t getTimestamp() {
       .count();
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
+
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

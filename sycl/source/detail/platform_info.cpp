@@ -1,4 +1,5 @@
-//==----------- platform_info.cpp -----------------------------------------------==//
+//==----------- platform_info.cpp
+//-----------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +12,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 template <> string_class get_platform_info_host<info::platform::profile>() {
   return "FULL PROFILE";
@@ -35,6 +37,7 @@ get_platform_info_host<info::platform::extensions>() {
   return {};
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

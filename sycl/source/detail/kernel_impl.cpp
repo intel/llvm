@@ -18,6 +18,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
     : kernel_impl(Kernel, Context,
@@ -25,8 +26,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
                   /*IsCreatedFromSource*/ true) {}
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource)
+                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource)
     : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
       MCreatedFromSource(IsCreatedFromSource) {
@@ -42,8 +42,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
 }
 
-kernel_impl::kernel_impl(ContextImplPtr Context,
-                         ProgramImplPtr ProgramImpl)
+kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
     : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
 
 kernel_impl::~kernel_impl() {
@@ -159,6 +158,7 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

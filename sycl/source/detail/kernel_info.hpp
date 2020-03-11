@@ -17,6 +17,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // OpenCL kernel information methods
 template <typename T, info::kernel Param> struct get_kernel_info {};
@@ -58,8 +59,8 @@ struct get_kernel_work_group_info {
     T Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T), &Result,
-        nullptr);
+        Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T),
+        &Result, nullptr);
     return Result;
   }
 };
@@ -160,6 +161,7 @@ struct get_kernel_sub_group_info_with_input<size_t, Param, cl::sycl::range<3>> {
     return Result;
   }
 };
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

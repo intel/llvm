@@ -16,12 +16,15 @@ namespace sycl {
 
 namespace detail {
 
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class event_impl;
 class context_impl;
 struct MemObjRecord;
+class Scheduler;
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 
-using EventImplPtr = shared_ptr_class<detail::event_impl>;
-using ContextImplPtr = shared_ptr_class<detail::context_impl>;
+using EventImplPtr = shared_ptr_class<detail::sycl_private::event_impl>;
+using ContextImplPtr = shared_ptr_class<detail::sycl_private::context_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
@@ -67,8 +70,8 @@ protected:
   // fixme replace with unique_ptr_class once it is implemented. Standard
   // unique_ptr requires knowlege of sizeof(MemObjRecord) at compile time
   // which is unavailable.
-  shared_ptr_class<MemObjRecord> MRecord;
-  friend class Scheduler;
+  shared_ptr_class<sycl_private::MemObjRecord> MRecord;
+  friend class sycl_private::Scheduler;
 };
 
 } // namespace detail

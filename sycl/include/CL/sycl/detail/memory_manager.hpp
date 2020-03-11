@@ -20,13 +20,15 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class queue_impl;
 class event_impl;
 class context_impl;
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using QueueImplPtr = std::shared_ptr<detail::sycl_private::queue_impl>;
+using EventImplPtr = std::shared_ptr<detail::sycl_private::event_impl>;
+using ContextImplPtr = std::shared_ptr<detail::sycl_private::context_impl>;
 
 // The class contains methods that work with memory. All operations with
 // device memory should go through MemoryManager.
@@ -133,7 +135,6 @@ public:
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent &OutEvent);
-
 };
 } // namespace detail
 } // namespace sycl

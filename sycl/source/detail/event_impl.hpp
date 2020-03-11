@@ -20,10 +20,14 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
+
+// Forward declarations
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
+
+using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
 using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
@@ -163,6 +167,7 @@ private:
   void *MCommand = nullptr;
 };
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

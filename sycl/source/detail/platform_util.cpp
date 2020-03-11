@@ -19,6 +19,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // Used by methods that duplicate OpenCL behaviour in order to get CPU info
 static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
@@ -131,8 +132,8 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   const char *PtrEnd = Ptr + NumBytes;
 
   // Set the pointer to the beginning of the current cache line.
-  Ptr = reinterpret_cast<const char *>(
-            reinterpret_cast<size_t>(Ptr) & CacheLineMask);
+  Ptr = reinterpret_cast<const char *>(reinterpret_cast<size_t>(Ptr) &
+                                       CacheLineMask);
   for (; Ptr < PtrEnd; Ptr += CacheLineSize) {
 #if defined(SYCL_RT_OS_LINUX)
     __builtin_prefetch(Ptr);
@@ -142,6 +143,7 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   }
 }
 
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

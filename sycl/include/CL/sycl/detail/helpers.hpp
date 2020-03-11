@@ -41,12 +41,14 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
   }
 }
 
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class context_impl;
+}
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-std::vector<RT::PiEvent>
-getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                std::shared_ptr<cl::sycl::detail::context_impl> Context);
+std::vector<RT::PiEvent> getOrWaitEvents(
+    std::vector<cl::sycl::event> DepEvents,
+    std::shared_ptr<cl::sycl::detail::sycl_private::context_impl> Context);
 
 void waitEvents(std::vector<cl::sycl::event> DepEvents);
 

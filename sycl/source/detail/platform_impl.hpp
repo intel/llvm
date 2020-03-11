@@ -12,8 +12,8 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -23,6 +23,7 @@ class device_selector;
 class device;
 
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // TODO: implement extension management for host device
 // TODO: implement parameters treatment for host device
@@ -125,6 +126,7 @@ private:
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
 };
+} // __SYCL_INLINE_NAMESPACE(sycl_private)
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

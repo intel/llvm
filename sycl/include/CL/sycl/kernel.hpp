@@ -20,8 +20,10 @@ namespace sycl {
 class program;
 class context;
 namespace detail {
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 class kernel_impl;
 }
+} // namespace detail
 
 class kernel {
 public:
@@ -117,9 +119,9 @@ public:
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
-  kernel(std::shared_ptr<detail::kernel_impl> Impl);
+  kernel(std::shared_ptr<detail::sycl_private::kernel_impl> Impl);
 
-  shared_ptr_class<detail::kernel_impl> impl;
+  shared_ptr_class<detail::sycl_private::kernel_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -132,7 +134,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::kernel> {
   size_t operator()(const cl::sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::sycl_private::kernel_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Kernel));
   }
 };
