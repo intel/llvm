@@ -52,6 +52,13 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <access::address_space _Space = Space,
+            typename = typename std::enable_if<
+                _Space == Space &&
+                Space == access::address_space::constant_space>::type>
+  multi_ptr(const ElementType *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -316,7 +323,7 @@ public:
             typename = typename std::enable_if<
                 _Space == Space &&
                 Space == access::address_space::constant_space>::type>
-  multi_ptr(const ElementType *pointer) : m_Pointer((pointer_t)(pointer)) {}
+  multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
 #endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
