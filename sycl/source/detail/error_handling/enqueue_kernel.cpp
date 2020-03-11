@@ -226,7 +226,7 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
     if (NDRDesc.LocalSize[i] > MaxWISize[i])
       throw sycl::nd_range_error(
           "Number of work-items in a work-group exceed limit for dimension "
-          "{i}: {NDRDesc.LocalSize[i]} > {MaxWISize[i]}",
+          "{I}: {NDRDesc.LocalSize[I]} > {MaxWISize[I]}",
           PI_INVALID_WORK_ITEM_SIZE);
   }
   return 0;
