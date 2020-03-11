@@ -13,9 +13,9 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+#include "../helpers.hpp"
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <iostream>
 #include <memory>
 #include <utility>

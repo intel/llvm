@@ -5,9 +5,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
-
-#include <cassert>
 
 namespace s = cl::sycl;
 using namespace std;
@@ -34,8 +33,8 @@ template <typename T, typename R> void check_nan(s::queue &Queue) {
     });
     Queue.wait_and_throw();
   }
-  assert(s::isnan(Data));
-  assert(s::all(s::isnan(VData)));
+  CHECK(s::isnan(Data));
+  CHECK(s::all(s::isnan(VData)));
 }
 
 int main() {

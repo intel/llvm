@@ -12,9 +12,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
-
-#include <cassert>
 
 using namespace cl::sycl;
 
@@ -55,10 +54,11 @@ int main() {
     context Context1 = Queue1.get_context();
     try {
       kernel Kernel(ClKernel, Context1);
-    } catch (cl::sycl::invalid_parameter_error e) {
-      Pass = true;
+      CHECK(!"Expected exception not caught");
+    } catch (cl::sycl::invalid_parameter_error ExpectedException) {
+      std::cout << "Expected exception caught " << ExpectedException.what()
+                << std::endl;
     }
-    assert(Pass);
 
     kernel Kernel(ClKernel, Context);
 

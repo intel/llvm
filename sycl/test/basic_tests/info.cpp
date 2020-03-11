@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <string>
@@ -314,6 +315,7 @@ int main() {
   if (!dev.is_host()) {
     try {
       print_info<info::device::parent_device, device>(dev, "Parent device");
+      CHECK(!"Expected exception has not been caught");
     } catch (invalid_object_error e) {
       std::cout << "Expected exception has been caught: " << e.what()
                 << std::endl;

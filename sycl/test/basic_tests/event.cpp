@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -40,7 +41,7 @@ int main() {
     cl::sycl::event Event;
     size_t hash = std::hash<cl::sycl::event>()(Event);
     cl::sycl::event MovedEvent(std::move(Event));
-    assert(hash == std::hash<cl::sycl::event>()(MovedEvent));
+    CHECK(hash == std::hash<cl::sycl::event>()(MovedEvent));
   }
 
   {
@@ -49,7 +50,7 @@ int main() {
     size_t hash = std::hash<cl::sycl::event>()(Event);
     cl::sycl::event WillMovedEvent;
     WillMovedEvent = std::move(Event);
-    assert(hash == std::hash<cl::sycl::event>()(WillMovedEvent));
+    CHECK(hash == std::hash<cl::sycl::event>()(WillMovedEvent));
   }
 
   {
@@ -57,9 +58,9 @@ int main() {
     cl::sycl::event Event;
     size_t hash = std::hash<cl::sycl::event>()(Event);
     cl::sycl::event EventCopy(Event);
-    assert(hash == std::hash<cl::sycl::event>()(Event));
-    assert(hash == std::hash<cl::sycl::event>()(EventCopy));
-    assert(Event == EventCopy);
+    CHECK(hash == std::hash<cl::sycl::event>()(Event));
+    CHECK(hash == std::hash<cl::sycl::event>()(EventCopy));
+    CHECK(Event == EventCopy);
   }
 
   {
@@ -68,9 +69,9 @@ int main() {
     size_t hash = std::hash<cl::sycl::event>()(Event);
     cl::sycl::event WillEventCopy;
     WillEventCopy = Event;
-    assert(hash == std::hash<cl::sycl::event>()(Event));
-    assert(hash == std::hash<cl::sycl::event>()(WillEventCopy));
-    assert(Event == WillEventCopy);
+    CHECK(hash == std::hash<cl::sycl::event>()(Event));
+    CHECK(hash == std::hash<cl::sycl::event>()(WillEventCopy));
+    CHECK(Event == WillEventCopy);
   }
 
   // Check wait and wait_and_throw methods do not crash

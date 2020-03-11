@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -29,10 +30,10 @@ int main() {
     context Context(deviceA);
     size_t hash = hash_class<context>()(Context);
     context MovedContext(std::move(Context));
-    assert(hash == hash_class<context>()(MovedContext));
-    assert(deviceA.is_host() == MovedContext.is_host());
+    CHECK(hash == hash_class<context>()(MovedContext));
+    CHECK(deviceA.is_host() == MovedContext.is_host());
     if (!deviceA.is_host()) {
-      assert(MovedContext.get() != nullptr);
+      CHECK(MovedContext.get() != nullptr);
     }
   }
   {
@@ -41,10 +42,10 @@ int main() {
     size_t hash = hash_class<context>()(Context);
     context WillMovedContext(deviceB);
     WillMovedContext = std::move(Context);
-    assert(hash == hash_class<context>()(WillMovedContext));
-    assert(deviceA.is_host() == WillMovedContext.is_host());
+    CHECK(hash == hash_class<context>()(WillMovedContext));
+    CHECK(deviceA.is_host() == WillMovedContext.is_host());
     if (!deviceA.is_host()) {
-      assert(WillMovedContext.get() != nullptr);
+      CHECK(WillMovedContext.get() != nullptr);
     }
   }
   {
@@ -52,10 +53,10 @@ int main() {
     context Context(deviceA);
     size_t hash = hash_class<context>()(Context);
     context ContextCopy(Context);
-    assert(hash == hash_class<context>()(Context));
-    assert(hash == hash_class<context>()(ContextCopy));
-    assert(Context == ContextCopy);
-    assert(Context.is_host() == ContextCopy.is_host());
+    CHECK(hash == hash_class<context>()(Context));
+    CHECK(hash == hash_class<context>()(ContextCopy));
+    CHECK(Context == ContextCopy);
+    CHECK(Context.is_host() == ContextCopy.is_host());
   }
   {
     std::cout << "copy assignment operator" << std::endl;
@@ -63,9 +64,11 @@ int main() {
     size_t hash = hash_class<context>()(Context);
     context WillContextCopy(deviceB);
     WillContextCopy = Context;
-    assert(hash == hash_class<context>()(Context));
-    assert(hash == hash_class<context>()(WillContextCopy));
-    assert(Context == WillContextCopy);
-    assert(Context.is_host() == WillContextCopy.is_host());
+    CHECK(hash == hash_class<context>()(Context));
+    CHECK(hash == hash_class<context>()(WillContextCopy));
+    CHECK(Context == WillContextCopy);
+    CHECK(Context.is_host() == WillContextCopy.is_host());
   }
+
+  return 0;
 }

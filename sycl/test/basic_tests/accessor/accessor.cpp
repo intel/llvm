@@ -11,8 +11,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../../helpers.hpp"
 #include <CL/sycl.hpp>
-#include <cassert>
 
 namespace sycl {
 using namespace cl::sycl;
@@ -77,19 +77,19 @@ int main() {
     auto acc_src = buf_src.get_access<sycl::access::mode::read>();
     auto acc_dst = buf_dst.get_access<sycl::access::mode::read_write>();
 
-    assert(!acc_src.is_placeholder());
-    assert(acc_src.get_size() == sizeof(src));
-    assert(acc_src.get_count() == 2);
-    assert(acc_src.get_range() == sycl::range<1>(2));
+    CHECK(!acc_src.is_placeholder());
+    CHECK(acc_src.get_size() == sizeof(src));
+    CHECK(acc_src.get_count() == 2);
+    CHECK(acc_src.get_range() == sycl::range<1>(2));
 
     // Make sure that operator[] is defined for both size_t and id<1>.
     // Implicit conversion from IdxSzT to size_t guarantees that no
     // implicit conversion from size_t to id<1> will happen.
-    assert(acc_src[IdxSzT(0)] + acc_src[IdxID1(1)] == 10);
+    CHECK(acc_src[IdxSzT(0)] + acc_src[IdxID1(1)] == 10);
 
     acc_dst[0] = acc_src[0] + acc_src[IdxID1(0)];
     acc_dst[id1] = acc_src[1] + acc_src[IdxSzT(1)];
-    assert(dst[0] == 6 && dst[1] == 14);
+    CHECK(dst[0] == 6 && dst[1] == 14);
   }
 
   // Three-dimensional host accessor.
@@ -101,10 +101,10 @@ int main() {
       sycl::buffer<int, 3> buf(data, sycl::range<3>(2, 3, 4));
       auto acc = buf.get_access<sycl::access::mode::read_write>();
 
-      assert(!acc.is_placeholder());
-      assert(acc.get_size() == sizeof(data));
-      assert(acc.get_count() == 24);
-      assert(acc.get_range() == sycl::range<3>(2, 3, 4));
+      CHECK(!acc.is_placeholder());
+      CHECK(acc.get_size() == sizeof(data));
+      CHECK(acc.get_count() == 24);
+      CHECK(acc.get_range() == sycl::range<3>(2, 3, 4));
 
       for (int i = 0; i < 2; ++i)
         for (int j = 0; j < 3; ++j)
@@ -112,7 +112,7 @@ int main() {
             acc[IdxID3(i, j, k)] += acc[sycl::id<3>(i, j, k)];
     }
     for (int i = 0; i < 24; ++i) {
-      assert(data[i] == 2 * i);
+      CHECK(data[i] == 2 * i);
     }
   }
   int data = 5;
@@ -125,16 +125,16 @@ int main() {
 
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-      assert(!acc.is_placeholder());
-      assert(acc.get_size() == sizeof(int));
-      assert(acc.get_count() == 1);
-      assert(acc.get_range() == sycl::range<1>(1));
+      CHECK(!acc.is_placeholder());
+      CHECK(acc.get_size() == sizeof(int));
+      CHECK(acc.get_count() == 1);
+      CHECK(acc.get_range() == sycl::range<1>(1));
       cgh.single_task<class kernel>(
           [=]() { acc[IdxSzT(0)] += acc[IdxID1(0)]; });
     });
     Queue.wait();
   }
-  assert(data == 10);
+  CHECK(data == 10);
 
   // Device accessor with 2-dimensional subscript operators.
   {
@@ -158,7 +158,7 @@ int main() {
         for (int j = 0; j < 3; j++) {
           std::cout << "array[" << i << "][" << j << "]=" << array[i][j]
                     << std::endl;
-          assert(array[i][j] == i * 3 + j);
+          CHECK(array[i][j] == i * 3 + j);
         }
       }
     }
@@ -188,7 +188,7 @@ int main() {
           for (int k = 0; k < 4; k++) {
             std::cout << "array[" << i << "][" << j << "][" << k
                       << "]=" << array[i][j][k] << std::endl;
-            assert(array[i][j][k] == k + 4 * (j + 3 * i));
+            CHECK(array[i][j][k] == k + 4 * (j + 3 * i));
           }
         }
       }
@@ -211,7 +211,7 @@ int main() {
 
       auto host_acc = buf.get_access<sycl::access::mode::read>();
       for (int i = 0; i != 3; ++i)
-        assert(host_acc[i] == 42);
+        CHECK(host_acc[i] == 42);
 
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
@@ -262,7 +262,7 @@ int main() {
       }
       for (int i = 0; i < 10; i++) {
         std::cout << "array[" << i << "]=" << array[i] << std::endl;
-        assert(array[i] == 333);
+        CHECK(array[i] == 333);
       }
     }
   }
@@ -296,8 +296,8 @@ int main() {
       for (int i = 0; i < 10; i++) {
         std::cout << "array1[" << i << "]=" << array1[i] << std::endl;
         std::cout << "array2[" << i << "]=" << array2[i] << std::endl;
-        assert(array1[i] == 333);
-        assert(array2[i] == 666);
+        CHECK(array1[i] == 333);
+        CHECK(array2[i] == 666);
       }
     }
   }
@@ -326,7 +326,7 @@ int main() {
       }
       for (int i = 0; i < 10; i++) {
         std::cout << "array[" << i << "]=" << array[i] << std::endl;
-        assert(array[i] == 333);
+        CHECK(array[i] == 333);
       }
     }
   }
@@ -374,7 +374,7 @@ int main() {
           });
         });
       }
-      assert(data == 399);
+      CHECK(data == 399);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -424,8 +424,8 @@ int main() {
                    sycl::access::target::host_buffer>
         acc6(buf3, sycl::range<1>(1));
 
-    assert(acc4 == 2);
-    assert(acc5[0] == 4);
-    assert(acc6[0] == 6);
+    CHECK(acc4 == 2);
+    CHECK(acc5[0] == 4);
+    CHECK(acc6[0] == 6);
   }
 }

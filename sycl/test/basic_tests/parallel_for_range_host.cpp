@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
-
 #include <iostream>
 
 using namespace cl::sycl;
@@ -25,7 +25,7 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case 'a' failed: no exception has been thrown"
               << std::endl;
-    return 1;
+    CHECK(!"Expected exception not caught");
   } catch (nd_range_error) {
     // We expect an error to be thrown!
   }
@@ -65,7 +65,7 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case 'd' failed: no exception has been thrown"
               << std::endl;
-    return 1;
+    CHECK(!"Expected exception not caught");
   } catch (nd_range_error) {
   }
 
@@ -78,7 +78,7 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case 'e' failed: no exception has been thrown"
               << std::endl;
-    return 1;
+    CHECK(!"Expected exception not caught");
   } catch (nd_range_error) {
   }
 
@@ -91,7 +91,7 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case 'f' failed: no exception has been thrown"
               << std::endl;
-    return 1;
+    CHECK(!"Expected exception not caught");
   } catch (nd_range_error) {
   }
 

@@ -10,6 +10,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // XFAIL: cuda
 
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -42,7 +43,7 @@ int main() {
     q.wait_and_throw();
 
     for (int i = 0; i < count; i++) {
-      assert(dest[i] == i * 2);
+      CHECK(dest[i] == i * 2);
     }
 
     try {
@@ -51,7 +52,7 @@ int main() {
         cgh.memcpy(nullptr, src, sizeof(float) * count);
       });
       q.wait_and_throw();
-      assert(false && "Expected error from copying to nullptr");
+      CHECK(false && "Expected error from copying to nullptr");
     } catch (runtime_error e) {
     }
   }

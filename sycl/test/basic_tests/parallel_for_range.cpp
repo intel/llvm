@@ -4,8 +4,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
 
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
-
 #include <iostream>
 
 using namespace cl::sycl;
@@ -38,7 +38,7 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
                  "thrown\n";
-    return 1; // We shouldn't be here, exception is expected
+    CHECK(!"Expected exception not caught");
   } catch (nd_range_error &E) {
     if (string_class(E.what()).find(
             "Specified local size doesn't match the required work-group size "
@@ -60,7 +60,7 @@ int main() {
   }
 
   string_class OCLVersionStr = D.get_info<info::device::version>();
-  assert(OCLVersionStr.size() >= 10 &&
+  CHECK(OCLVersionStr.size() >= 10 &&
          "Unexpected device version string"); // strlen("OpenCL X.Y")
   const char *OCLVersion = &OCLVersionStr[7]; // strlen("OpenCL ")
   if (OCLVersion[0] == '1' || (OCLVersion[0] == '2' && OCLVersion[2] == '0')) {
@@ -75,7 +75,7 @@ int main() {
       std::cerr
           << "Test case ReqdWGSizeNegativeB failed: no exception has been "
              "thrown\n";
-      return 1; // We shouldn't be here, exception is expected
+      CHECK(!"Expected exception not caught");
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find(
               "OpenCL 1.x and 2.0 requires to pass local size argument even if "
@@ -145,7 +145,7 @@ int main() {
         std::cerr
             << "Test case OpenCL1XNegativeA failed: no exception has been "
                "thrown\n";
-        return 1; // We shouldn't be here, exception is expected
+        CHECK(!"Expected exception not caught");
       }
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find("Non-uniform work-groups are not "
@@ -182,7 +182,7 @@ int main() {
         std::cerr
             << "Test case OpenCL1XNegativeB failed: no exception has been "
                "thrown\n";
-        return 1; // We shouldn't be here, exception is expected
+        CHECK(!"Expected exception not caught");
       }
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find("Non-uniform work-groups are not "
@@ -220,7 +220,7 @@ int main() {
       Q.wait_and_throw();
       std::cerr << "Test case OpenCL1XNegativeC failed: no exception has been "
                    "thrown\n";
-      return 1; // We shouldn't be here, exception is expected
+      CHECK(!"Expected exception not caught");
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find(
               "Total number of work-items in a work-group cannot exceed "
@@ -269,7 +269,7 @@ int main() {
         std::cerr
             << "Test case OpenCL2XNegativeA failed: no exception has been "
                "thrown\n";
-        return 1; // We shouldn't be here, exception is expected
+        CHECK(!"Expected exception not caught");
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Total number of work-items in a work-group cannot exceed "
@@ -314,7 +314,7 @@ int main() {
           std::cerr
               << "Test case OpenCL2XNegativeB failed: no exception has been "
                  "thrown\n";
-          return 1; // We shouldn't be here, exception is expected
+          CHECK(!"Expected exception not caught");
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
@@ -354,7 +354,7 @@ int main() {
           std::cerr
               << "Test case OpenCL2XNegativeC failed: no exception has been "
                  "thrown\n";
-          return 1; // We shouldn't be here, exception is expected
+          CHECK(!"Expected exception not caught");
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
@@ -468,7 +468,7 @@ int main() {
           std::cerr
               << "Test case OpenCL2XNegativeD failed: no exception has been "
                  "thrown\n";
-          return 1; // We shouldn't be here, exception is expected
+          CHECK(!"Expected exception not caught");
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
@@ -515,7 +515,7 @@ int main() {
           std::cerr
               << "Test case OpenCL2XNegativeE failed: no exception has been "
                  "thrown\n";
-          return 1; // We shouldn't be here, exception is expected
+          CHECK(!"Expected exception not caught");
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
@@ -551,8 +551,10 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case NegativeA failed: no exception has been "
                  "thrown\n";
-    return 1; // We shouldn't be here, exception is expected
-  } catch (runtime_error) {
+    CHECK(!"Expected exception not caught");
+  } catch (runtime_error ExpectedException) {
+    std::cout << "Expected exception caught " << ExpectedException.what()
+              << std::endl;
   }
 
   // parallel_for_work_group with 0-based local range
@@ -564,8 +566,10 @@ int main() {
     Q.wait_and_throw();
     std::cerr << "Test case NegativeB failed: no exception has been "
                  "thrown\n";
-    return 1; // We shouldn't be here, exception is expected
-  } catch (runtime_error) {
+    CHECK(!"Expected exception not caught");
+  } catch (runtime_error ExpectedException) {
+    std::cout << "Expected exception caught " << ExpectedException.what()
+              << std::endl;
   }
 
   return 0;

@@ -10,6 +10,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // XFAIL: cuda
 
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -38,7 +39,7 @@ int main() {
     q.wait_and_throw();
 
     for (int i = 0; i < count; i++) {
-      assert(src[i] == 0x2a2a2a2a);
+      CHECK(src[i] == 0x2a2a2a2a);
     }
 
     try {
@@ -47,7 +48,7 @@ int main() {
         cgh.memset(nullptr, 0, sizeof(uint32_t) * count);
       });
       q.wait_and_throw();
-      assert(false && "Expected error from writing to nullptr");
+      CHECK(false && "Expected error from writing to nullptr");
     } catch (runtime_error e) {
     }
   }

@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+#include "../../helpers.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl;
@@ -30,8 +30,12 @@ int main() {
       CGH.single_task<class Dummy2>([]() {});
     });
     Queue.throw_asynchronous();
-  } catch (sycl::exception &E) {
+    CHECK(!"Expected exception not caught");
+  } catch (sycl::exception &ExpectedException) {
     // CHECK: Attempt to set multiple actions for the command group
-    std::cout << E.what() << std::endl;
+    // Using std::cout as input for FileCheck.
+    std::cout << ExpectedException.what() << std::endl;
   }
+
+  return 0;
 }

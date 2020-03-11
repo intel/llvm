@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../helpers.hpp"
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <set>
@@ -42,9 +43,10 @@ int getExpectedQueueNumber(cl_device_id device_id, int default_value) {
                                  sizeof(reportedProps),
                                  &reportedProps,
                                  NULL);
-   assert(CL_SUCCESS == iRet && "Failed to obtain queue info from ocl device");
+   CHECK(CL_SUCCESS == iRet && "Failed to obtain queue info from ocl device");
    return (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-              ? 1 : default_value;
+              ? 1
+              : default_value;
 }
 
 int main() {

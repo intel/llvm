@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../../helpers.hpp"
 #include <CL/sycl.hpp>
-
 #include <climits>
 
 // This tests verifies basic cases of using cl::sycl::buffer::reinterpret
@@ -130,7 +130,7 @@ int main() {
         cl::sycl::id<1>{offset}, cl::sycl::range<1>{sub_buf_size}, val);
 
     for (std::size_t i = 0; i < sub_buf_size + offset; ++i) {
-      assert(data[i] == expected_data[i] &&
+      CHECK(data[i] == expected_data[i] &&
              "1D sub buffer int->char reinterpret failed");
     }
   }
@@ -153,7 +153,7 @@ int main() {
         cl::sycl::id<1>{offset}, cl::sycl::range<1>{sub_buf_size}, val);
 
     for (std::size_t i = 0; i < sub_buf_size + offset; ++i) {
-      assert(data[i] == expected_data[i] &&
+      CHECK(data[i] == expected_data[i] &&
              "1D sub buffer char->int reinterpret failed");
     }
   }
@@ -199,7 +199,7 @@ int main() {
 
     for (std::size_t i = 0; i < rows; ++i)
       for (std::size_t j = 0; j < cols; ++j)
-        assert(data[i * cols + j] == expected_data[i * cols + j] &&
+        CHECK(data[i * cols + j] == expected_data[i * cols + j] &&
                "2D->1D->sub buffer reinterpret failed");
   }
 
@@ -227,7 +227,7 @@ int main() {
 
     for (std::size_t i = 0; i < buf_row; ++i)
       for (std::size_t j = 0; j < buf_col; ++j)
-        assert(data[i * buf_col + j] == expected_data[i * buf_col + j] &&
+        CHECK(data[i * buf_col + j] == expected_data[i * buf_col + j] &&
                "2D sub buffer int->char reinterpret failed");
   }
 
@@ -252,8 +252,8 @@ int main() {
 
     for (std::size_t i = 0; i < buf_row; ++i)
       for (std::size_t j = 0; j < buf_col; ++j)
-        assert(data[i * buf_col + j] == expected_data[i * buf_col + j] &&
-               "2D sub buffer int->char reinterpret failed");
+        CHECK(data[i * buf_col + j] == expected_data[i * buf_col + j] &&
+              "2D sub buffer int->char reinterpret failed");
   }
 
   return failed;

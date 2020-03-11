@@ -7,9 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-
+#include <cstdlib>
 
 using namespace cl;
+
+void check(bool condition, const char *conditionString, const char *filename,
+           const long line) noexcept {
+  if (!condition) {
+    std::cerr << "CHECK failed in " << filename << "#" << line << " " << conditionString << "\n";
+    std::abort();
+  }
+}
+
+#define CHECK(CONDITION) check(CONDITION, #CONDITION, __FILE__, __LINE__)
 
 template <class VecT, int EndIdx = VecT::get_count(), int StartIdx = 0>
 class VecPrinter {
@@ -68,7 +78,7 @@ public:
                           std::cerr << E.what() << std::endl;
                         }
                       }
-                      abort();
+                      std::abort();
                     },
                     PropList) {}
 

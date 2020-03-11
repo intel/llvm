@@ -18,6 +18,7 @@
 // 1) Correct results after usage of different type of accessors to sub buffer
 // 2) Exceptions if we trying to create sub buffer not according to spec
 
+#include "../../helpers.hpp"
 #include <CL/sycl.hpp>
 
 #include <algorithm>
@@ -53,12 +54,12 @@ void checkHostAccessor(cl::sycl::queue &q) {
     {
       auto host_acc = subbuf.get_access<cl::sycl::access::mode::read>();
       for (int i = 0; i < 10; ++i)
-        assert(host_acc[i] == ((size / 2 + i) * -100) &&
-               "Sub buffer host accessor test failed.");
+        CHECK(host_acc[i] == ((size / 2 + i) * -100) &&
+              "Sub buffer host accessor test failed.");
     }
   }
-  assert(data[0] == 0 && data[size - 1] == (size - 1) &&
-         data[size / 2] == (size / 2 * -100) && "Loss of data");
+  CHECK(data[0] == 0 && data[size - 1] == (size - 1) &&
+        data[size / 2] == (size / 2 * -100) && "Loss of data");
 }
 
 void check1DSubBuffer(cl::sycl::queue &q) {
@@ -108,16 +109,16 @@ void check1DSubBuffer(cl::sycl::queue &q) {
 
   } catch (const cl::sycl::exception &e) {
     std::cerr << e.what() << std::endl;
-    assert(false && "Exception was caught");
+    CHECK(false && "Exception was caught");
   }
 
   for (int i = offset; i < subbuf_size; ++i)
-    assert(vec[i] == (i > 34 ? i * 10 : i * -10) &&
-           "Invalid result in 1d sub buffer");
+    CHECK(vec[i] == (i > 34 ? i * 10 : i * -10) &&
+          "Invalid result in 1d sub buffer");
 
   for (int i = 0; i < subbuf_size; ++i)
-    assert(vec2[i] == (i < 3 ? (32 + i) : (32 + i) * -1) &&
-           "Invalid result in 1d sub buffer");
+    CHECK(vec2[i] == (i < 3 ? (32 + i) : (32 + i) * -1) &&
+          "Invalid result in 1d sub buffer");
 }
 
 void checkExceptions() {
@@ -130,7 +131,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 0},
                                      /*size*/ cl::sycl::range<2>{2, 2}};
-    assert(!"non contiguous region exception wasn't caught");
+    CHECK(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -138,7 +139,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
                                      /*size*/ cl::sycl::range<2>{2, 6}};
-    assert(!"non contiguous region exception wasn't caught");
+    CHECK(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -147,7 +148,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{0, 2, 1},
                                      /*size*/ cl::sycl::range<3>{1, 2, 3}};
-    assert(!"non contiguous region exception wasn't caught");
+    CHECK(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -156,7 +157,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{0, 0, 0},
                                      /*size*/ cl::sycl::range<3>{2, 3, 4}};
-    assert(!"non contiguous region exception wasn't caught");
+    CHECK(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -165,7 +166,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
                                      /*size*/ cl::sycl::range<2>{2, 8}};
-    assert(!"out of bounds exception wasn't caught");
+    CHECK(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -174,7 +175,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{1, 1, 1},
                                      /*size*/ cl::sycl::range<3>{1, 1, 4}};
-    assert(!"out of bounds exception wasn't caught");
+    CHECK(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -183,7 +184,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{3, 3, 0},
                                      /*size*/ cl::sycl::range<3>{1, 2, 4}};
-    assert(!"out of bounds exception wasn't caught");
+    CHECK(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -194,7 +195,7 @@ void checkExceptions() {
                                      /*size*/ cl::sycl::range<2>{2, 8}};
     cl::sycl::buffer<int, 2> sub_sub_buf(sub_buf, cl::sycl::range<2>{0, 0},
                                          /*size*/ cl::sycl::range<2>{0, 0});
-    assert(!"invalid subbuffer exception wasn't caught");
+    CHECK(!"invalid subbuffer exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -243,12 +244,13 @@ void copyBlock() {
       auto *V = BlockB.get_access<mode::read>().get_pointer();
 
       for (size_t Idx2 = 0; Idx2 < BlockSize; ++Idx2) {
-        assert(V[Idx2] == Idx2 + BlockSize * Idx &&
-               "Invalid data in block buffer");
+        CHECK(V[Idx2] == Idx2 + BlockSize * Idx &&
+              "Invalid data in block buffer");
       }
     }
-  } catch (cl::sycl::exception &ex) {
-    assert(false && "Unexpected exception captured!");
+  }
+  catch (cl::sycl::exception& ex) {
+    CHECK(false && "Unexpected exception captured!");
   }
 }
 
@@ -274,7 +276,7 @@ void checkMultipleContexts() {
           sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 2; });
     });
   }
-  assert(a[N / 2 - 1] == 1 && a[N / 2] == 2 && "Sub buffer data loss");
+  CHECK(a[N / 2 - 1] == 1 && a[N / 2] == 2 && "Sub buffer data loss");
 }
 
 int main() {

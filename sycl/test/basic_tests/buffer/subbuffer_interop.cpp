@@ -13,9 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../../helpers.hpp"
 #include <CL/sycl.hpp>
-
-#include <cassert>
 #include <memory>
 #include <numeric>
 
@@ -111,12 +110,12 @@ int main() {
       if (i < NSize / 2 && AMem[i] != i) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= NSize / 2 && AMem[i] != 0) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       }
     }
@@ -179,22 +178,22 @@ int main() {
       if (i < NSize / 4 && AMem[i] != 0) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= NSize / 4 && i < 2 * NSize / 4 && AMem[i] != i) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= 2 * NSize / 4 && i < 3 * NSize / 4 && AMem[i] != 0) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= 3 * NSize / 4 && AMem[i] != i) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       }
     }
@@ -269,17 +268,17 @@ int main() {
       if (i < NSize / 4 && AMem[i] != 0) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= NSize / 4 && i < 2 * NSize / 4 && AMem[i] != 1) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       } else if (i >= 2 * NSize / 4 && AMem[i] != i) {
         std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
-        assert(false);
+        CHECK(false);
         Failed = true;
       }
     }
@@ -317,7 +316,7 @@ int main() {
     {
       auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
-      assert(host_acc[0] == 256 && "Invalid subbuffer origin");
+      CHECK(host_acc[0] == 256 && "Invalid subbuffer origin");
     }
 
     Q.submit([&](cl::sycl::handler &cgh) {
@@ -331,7 +330,7 @@ int main() {
     {
       auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
-      assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
+      CHECK(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
     }
   }
 
