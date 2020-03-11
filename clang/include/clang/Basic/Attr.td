@@ -2422,6 +2422,14 @@ def ReqdWorkGroupSize : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLIntelReqdWorkGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intel","reqd_work_group_size">];
+  let Args = [IntArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
+              DefaultIntArgument<"ZDim", 1>];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
 def WorkGroupSizeHint :  InheritableAttr {
   // Does not have a [[]] spelling because it is an OpenCL-related attribute.
   let Spellings = [GNU<"work_group_size_hint">];
