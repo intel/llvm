@@ -717,7 +717,7 @@ pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info param_name,
 /// the "handle" (if it was pointing to a null) from the given PI device.
 /// NOTE: The instance of the PI device created is retained.
 ///
-pi_result piextDeviceInterop(
+pi_result piextDeviceConvert(
     pi_device *device, ///< [in,out] the pointer to PI device
     void **handle);    ///< [in,out] the pointer to the raw device handle
 
@@ -827,7 +827,7 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 /// the "handle" (if it was pointing to a null) from the given PI program.
 /// NOTE: The instance of the PI program created is retained.
 ///
-pi_result piextProgramInterop(
+pi_result piextProgramConvert(
     pi_context context,  ///< [in] the PI context of the program
     pi_program *program, ///< [in,out] the pointer to PI program
     void **handle);      ///< [in,out] the pointer to the raw program handle

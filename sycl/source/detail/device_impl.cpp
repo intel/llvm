@@ -38,7 +38,7 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
   if (Device == nullptr) {
     assert(InteropDeviceHandle != nullptr);
     // Get PI device from the raw device handle.
-    Plugin.call<PiApiKind::piextDeviceInterop>(&MDevice,
+    Plugin.call<PiApiKind::piextDeviceConvert>(&MDevice,
                                                (void **)&InteropDeviceHandle);
     InteroperabilityConstructor = true;
   }
@@ -56,7 +56,7 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
   if (!MIsRootDevice && !InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
-    // piextDeviceInterop.
+    // piextDeviceConvert.
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
 
@@ -98,7 +98,7 @@ cl_device_id device_impl::get() const {
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
   void *handle = nullptr;
-  Plugin.call<PiApiKind::piextDeviceInterop>(
+  Plugin.call<PiApiKind::piextDeviceConvert>(
       const_cast<RT::PiDevice *>(&MDevice), &handle);
   return pi::cast<cl_device_id>(handle);
 }

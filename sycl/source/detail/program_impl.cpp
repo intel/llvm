@@ -92,18 +92,18 @@ program_impl::program_impl(ContextImplPtr Context,
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
     assert(InteropProgram != nullptr &&
-           "No InteropProgram/PiProgram defined with piextProgramInterop");
+           "No InteropProgram/PiProgram defined with piextProgramConvert");
     // Translate the raw program handle into PI program.
-    Plugin.call<PiApiKind::piextProgramInterop>(
+    Plugin.call<PiApiKind::piextProgramConvert>(
         Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
   } else
     Plugin.call<PiApiKind::piProgramRetain>(Program);
 
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_NUM_DEVICES,
-                                           sizeof(pi_uint32), &NumDevices,
-                                           nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
+      nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
                                            sizeof(RT::PiDevice) * NumDevices,
