@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
   assert(ia != nullptr);
   assert(ja == nullptr);
   assert(result == nullptr);
-  
+
   std::cout << "ia : " << ia << " ja: " << ja << " result : " << result
             << std::endl;
 
