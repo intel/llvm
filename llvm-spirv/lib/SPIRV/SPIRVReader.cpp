@@ -3052,7 +3052,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       if (BV->hasDecorate(DecorationIOPipeStorageINTEL, 0, &ID)) {
         auto Literals = BV->getDecorationLiterals(DecorationIOPipeStorageINTEL);
         assert(Literals.size() == 1 &&
-               "IO PipeStorage decoration shall have 1 ID literal");
+               "IO PipeStorage decoration shall have 1 extra operand");
         GV->setMetadata("io_pipe_id", getMDNodeStringIntVec(Context, Literals));
       }
       return;
