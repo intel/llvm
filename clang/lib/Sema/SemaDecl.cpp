@@ -18016,6 +18016,12 @@ Decl *Sema::getObjCDeclContext() const {
 }
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
+  // Due to SYCL functions are template we check if they have appropriate
+  // attribute prior to checking if it is a template
+  if (LangOpts.SYCLIsDevice &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
+    return FunctionEmissionStatus::Emitted;
+
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
@@ -18077,6 +18083,23 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
         && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
+      return FunctionEmissionStatus::Emitted;
+  }
+
+  if (getLangOpts().SYCLIsDevice) {
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+      return FunctionEmissionStatus::Unknown;
+
+    // Check whether this function is externally visible -- if so, it's
+    // known-emitted.
+    //
+    // We have to check the GVA linkage of the function's *definition* -- if we
+    // only have a declaration, we don't know whether or not the function will
+    // be emitted, because (say) the definition could include "inline".
+    FunctionDecl *Def = FD->getDefinition();
+
+    if (Def &&
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
       return FunctionEmissionStatus::Emitted;
   }
 

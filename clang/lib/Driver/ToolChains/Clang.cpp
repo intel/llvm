@@ -4124,6 +4124,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   } else if (IsSYCL) {
     // Ensure the default version in SYCL mode is 1.2.1
     CmdArgs.push_back("-sycl-std=1.2.1");
+    // The user had not pass SYCL version, thus we'll employ no-sycl-strict
+    // to allow address-space unqualified pointers in function params/return
+    // along with marking the same function with explicit SYCL_EXTERNAL
+    CmdArgs.push_back("-Wno-sycl-strict");
   }
 
   if (IsOpenMPDevice) {

@@ -194,8 +194,9 @@ private:
   /// It's expected that the method is the latest method executed before
   /// object destruction.
   ///
-  /// \return a SYCL event object representing the command group.
-  event finalize();
+  /// \param Payload contains the code location of user code
+  /// \return a SYCL event object representing the command group
+  event finalize(const cl::sycl::detail::code_location &Payload = {});
 
   /// Saves streams associated with this handler.
   ///

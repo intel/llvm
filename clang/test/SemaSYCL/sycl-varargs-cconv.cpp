@@ -1,13 +1,15 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DEF %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_INVALID_DECL %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID1 %s
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -DPRINTF_VALID2 %s
+// The following runs use -Wno-sycl-strict to bypass SYCL_EXTERNAL applied to
+// funtion with raw pointer parameter
+// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only -DPRINTF_INVALID_DEF %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_INVALID_DECL %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID1 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID2 %s
 
 #if defined(PRINTF_INVALID_DECL)
-extern "C" int __spirv_ocl_printf(const char *__format, ...);
+extern "C" SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 namespace A {
-  int __spirv_ocl_printf(const char *__format, ...);
+SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);
 }
 #elif defined(PRINTF_INVALID_DEF)
 int __spirv_ocl_printf(const char *__format, ...) {
@@ -17,23 +19,26 @@ int __spirv_ocl_printf(const char *__format, ...) {
 class A {
   friend int __spirv_ocl_printf(const char *__format, ...);
 };
+SYCL_EXTERNAL
 int __spirv_ocl_printf(const char *__format, ...);
 #elif defined(PRINTF_VALID2)
 extern "C" {
-  extern "C++" {
-    int __spirv_ocl_printf(const char *__format, ...);
-  }
+extern "C++" {
+SYCL_EXTERNAL
+int __spirv_ocl_printf(const char *__format, ...);
+}
 }
 #else
-int __spirv_ocl_printf(const char *__format, ...);
+SYCL_EXTERNAL
+int __spirv_ocl_printf(const char *, ...);
 #endif
 
-int __cdecl foo(int, ...); // expected-no-error
+SYCL_EXTERNAL int __cdecl foo(int, ...); // expected-no-error
 
 float bar(float f, ...) { return ++f; } // expected-no-error
 
 void bar() {
-  foo(5); // expected-no-error
+  foo(5);    // expected-no-error
   bar(7.0f); // expected-no-error
 }
 

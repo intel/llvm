@@ -33,6 +33,7 @@ int main() {
   program prg(q.get_context());
 
   prg.build_with_kernel_type<class SingleTask>();
+  CHECK(prg.has_kernel<class SingleTask>());
   kernel krn = prg.get_kernel<class SingleTask>();
 
   q.submit([&](handler &cgh) {

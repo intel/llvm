@@ -16,11 +16,69 @@
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #include <CL/cl_ext_intel.h>
+
+#include <cstdint>
 #include <string>
 #include <type_traits>
 
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
+
+// Default signature enables the passing of user code location information to
+// public methods as a default argument. If the end-user wants to disable the
+// code location information, they must compile the code with
+// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+// We define a sycl stream name and this will
+// be used by the instrumentation framework
+constexpr const char *SYCL_STREAM_NAME = "sycl";
+// Data structure that captures the user code
+// location information using the builtin capabilities
+// of the compiler
+struct code_location {
+#ifdef _MSC_VER
+  // Since MSVC does not support the required builtins, we
+  // implement the version with "unknown"s which is handled
+  // correctly by the instrumentation
+  static constexpr code_location current(const char *fileName = nullptr,
+                                         const char *funcName = nullptr,
+                                         unsigned long lineNo = 0,
+                                         unsigned long columnNo = 0) noexcept {
+    return code_location(fileName, funcName, lineNo, columnNo);
+  }
+#else
+  static constexpr code_location
+  current(const char *fileName = __builtin_FILE(),
+          const char *funcName = __builtin_FUNCTION(),
+          unsigned long lineNo = __builtin_LINE(),
+          unsigned long columnNo = 0) noexcept {
+    return code_location(fileName, funcName, lineNo, columnNo);
+  }
+#endif
+
+  constexpr code_location(const char *file, const char *func, int line,
+                          int col) noexcept
+      : MFileName(file), MFunctionName(func), MLineNo(line), MColumnNo(col) {}
+
+  constexpr code_location() noexcept
+      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0), MColumnNo(0) {}
+
+  constexpr unsigned long lineNumber() const noexcept { return MLineNo; }
+  constexpr unsigned long columnNumber() const noexcept { return MColumnNo; }
+  constexpr const char *fileName() const noexcept { return MFileName; }
+  constexpr const char *functionName() const noexcept { return MFunctionName; }
+
+private:
+  const char *MFileName;
+  const char *MFunctionName;
+  unsigned long MLineNo;
+  unsigned long MColumnNo;
+};
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -28,12 +86,14 @@ namespace detail {
 
 const char *stringifyErrorCode(cl_int error);
 
-static inline std::string codeToString(cl_int code){
-  return std::string(std::to_string(code) + " (" +
-         stringifyErrorCode(code) + ")");
+static inline std::string codeToString(cl_int code) {
+  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
+                     ")");
 }
 
-}}} // __SYCL_INLINE_NAMESPACE(cl)::sycl::detail
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code

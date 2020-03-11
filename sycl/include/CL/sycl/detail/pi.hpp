@@ -18,6 +18,13 @@
 #include <cassert>
 #include <string>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Forward declarations
+namespace xpti {
+struct trace_event_data_t;
+}
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

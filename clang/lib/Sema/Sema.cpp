@@ -974,6 +974,7 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
     MarkDevice();
+    finalizeSYCLDelayedAnalysis();
   }
 
   // Finalize analysis of OpenMP-specific constructs.
