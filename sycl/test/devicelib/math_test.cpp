@@ -10,61 +10,28 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-float a = 0;
-float b = 1;
-float c = 0.5;
-float d = 2;
-float e = 5;
+#define TEST_NUM 38
+
+float ref[TEST_NUM] = {
+1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5,
+0, 2, 0, 0, 1, 0, 2, 0, 0, 0,
+0, 0, 1, 0, 1, 2, 0, 1, 2, 5,
+0, 0, 0, 0, 0.5, 0.5, NAN, NAN,};
+
+float refIptr = 1;
 
 void device_math_test(s::queue &deviceQueue) {
-  s::range<1> numOfItems{38};
-  float result[38] = {-1};
-  float ref[38] = {
-      b,
-      a,
-      a,
-      a,
-      a,
-      a,
-      a,
-      b,
-      b,
-      c,
-      a,
-      d,
-      a,
-      a,
-      b,
-      a,
-      d,
-      a,
-      a,
-      a,
-      a,
-      a,
-      b,
-      a,
-      b,
-      d,
-      a,
-      b,
-      d,
-      e,
-      a,
-      a,
-      a,
-      a,
-      c,
-      c,
-      a,
-      a,
-  };
-  int expv = -1;
+  s::range<1> numOfItems{TEST_NUM};
+  float result[TEST_NUM] = {-1};
+  // Variable exponent is an integer value to store the exponent in frexp function
+  int exponent = -1;
+  // Variable iptr stores the integral part of float point in modf function
   float iptr = -1;
+  // Variable quo stores the sign and some bits of x/y in remquo function
   int quo = -1;
   {
     s::buffer<float, 1> buffer1(result, numOfItems);
-    s::buffer<int, 1> buffer2(&expv, s::range<1>{1});
+    s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
     s::buffer<float, 1> buffer3(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
     deviceQueue.submit([&](cl::sycl::handler &cgh) {
@@ -186,8 +153,9 @@ void device_math_test(s::queue &deviceQueue) {
           res_access[i++] = expm1f(a);
         }
         {
-          float a = 0;
-          res_access[i++] = fdimf(1, a);
+          float a = 1;
+          float b = 0;
+          res_access[i++] = fdimf(a, b);
         }
         {
           float a = 1;
@@ -237,13 +205,15 @@ void device_math_test(s::queue &deviceQueue) {
       });
     });
   }
-  for (int i = 0; i < 36; ++i) {
+  // Compare result with reference
+  for (int i = 0; i < TEST_NUM; ++i) {
     assert(is_about_FP(result[i], ref[i]));
   }
-  assert(std::isnan(result[36]));
-  assert(std::isnan(result[37]));
-  assert(is_about_FP(iptr, b));
-  assert(expv == 0);
+  // Test modf integral part
+  assert(is_about_FP(iptr, refIptr));
+  // Test frexp exponent
+  assert(exponent == 0);
+  // Test remquo sign
   assert(quo == 0);
 }
 
