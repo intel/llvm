@@ -108,7 +108,7 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 }
 
 } // namespace detail
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
