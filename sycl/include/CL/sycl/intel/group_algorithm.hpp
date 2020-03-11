@@ -31,8 +31,8 @@ template <> size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 
-template <int dimensions>
-id<dimensions> linear_id_to_id(range<dimensions>, size_t i);
+template <int Dimensions>
+id<Dimensions> linear_id_to_id(range<Dimensions>, size_t i);
 template <> id<1> linear_id_to_id(range<1> r, size_t i) { return id<1>(i); }
 template <> id<2> linear_id_to_id(range<2> r, size_t i) {
   id<2> result;
