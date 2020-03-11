@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/Thread.h"
-#include "Plugins/Process/Utility/UnwindLLDB.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/FormatEntity.h"
@@ -42,7 +41,7 @@
 #include "lldb/Target/ThreadPlanStepThrough.h"
 #include "lldb/Target/ThreadPlanStepUntil.h"
 #include "lldb/Target/ThreadSpec.h"
-#include "lldb/Target/Unwind.h"
+#include "lldb/Target/UnwindLLDB.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/State.h"
@@ -1658,9 +1657,7 @@ StackFrameListSP Thread::GetStackFrameList() {
 void Thread::ClearStackFrames() {
   std::lock_guard<std::recursive_mutex> guard(m_frame_mutex);
 
-  Unwind *unwinder = GetUnwinder();
-  if (unwinder)
-    unwinder->Clear();
+  GetUnwinder().Clear();
 
   // Only store away the old "reference" StackFrameList if we got all its
   // frames:
@@ -2099,10 +2096,10 @@ size_t Thread::GetStackFrameStatus(Stream &strm, uint32_t first_frame,
       strm, first_frame, num_frames, show_frame_info, num_frames_with_source);
 }
 
-Unwind *Thread::GetUnwinder() {
+Unwind &Thread::GetUnwinder() {
   if (!m_unwinder_up)
     m_unwinder_up.reset(new UnwindLLDB(*this));
-  return m_unwinder_up.get();
+  return *m_unwinder_up;
 }
 
 void Thread::Flush() {

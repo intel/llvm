@@ -244,6 +244,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(hasAnyDeclaration);
   REGISTER_MATCHER(hasAnyName);
   REGISTER_MATCHER(hasAnyOperatorName);
+  REGISTER_MATCHER(hasAnyOverloadedOperatorName);
   REGISTER_MATCHER(hasAnyParameter);
   REGISTER_MATCHER(hasAnyPlacementArg);
   REGISTER_MATCHER(hasAnySelector);
@@ -358,6 +359,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(isClass);
   REGISTER_MATCHER(isClassMessage);
   REGISTER_MATCHER(isClassMethod);
+  REGISTER_MATCHER(isComparisonOperator);
   REGISTER_MATCHER(isConst);
   REGISTER_MATCHER(isConstQualified);
   REGISTER_MATCHER(isConstexpr);

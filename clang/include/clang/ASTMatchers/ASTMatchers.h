@@ -2749,13 +2749,29 @@ AST_MATCHER_P(NamedDecl, matchesName, std::string, RegExp) {
 ///
 /// Usable as: Matcher<CXXOperatorCallExpr>, Matcher<FunctionDecl>
 inline internal::PolymorphicMatcherWithParam1<
-    internal::HasOverloadedOperatorNameMatcher, StringRef,
+    internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
     AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>
 hasOverloadedOperatorName(StringRef Name) {
   return internal::PolymorphicMatcherWithParam1<
-      internal::HasOverloadedOperatorNameMatcher, StringRef,
-      AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>(Name);
+      internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
+      AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>(
+      {std::string(Name)});
 }
+
+/// Matches overloaded operator names.
+///
+/// Matches overloaded operator names specified in strings without the
+/// "operator" prefix: e.g. "<<".
+///
+///   hasAnyOverloadesOperatorName("+", "-")
+/// Is equivalent to
+///   anyOf(hasOverloadedOperatorName("+"), hasOverloadedOperatorName("-"))
+extern const internal::VariadicFunction<
+    internal::PolymorphicMatcherWithParam1<
+        internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
+        AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>,
+    StringRef, internal::hasAnyOverloadedOperatorNameFunc>
+    hasAnyOverloadedOperatorName;
 
 /// Matches C++ classes that are directly or indirectly derived from a class
 /// matching \c Base, or Objective-C classes that directly or indirectly
@@ -4783,12 +4799,32 @@ extern const internal::VariadicFunction<
 ///            (matcher = cxxOperatorCallExpr(isAssignmentOperator()))
 /// \code
 ///   struct S { S& operator=(const S&); };
-///   void x() { S s1, s2; s1 = s2; })
+///   void x() { S s1, s2; s1 = s2; }
 /// \endcode
 AST_POLYMORPHIC_MATCHER(isAssignmentOperator,
                         AST_POLYMORPHIC_SUPPORTED_TYPES(BinaryOperator,
                                                         CXXOperatorCallExpr)) {
   return Node.isAssignmentOp();
+}
+
+/// Matches comparison operators.
+///
+/// Example 1: matches a == b (matcher = binaryOperator(isComparisonOperator()))
+/// \code
+///   if (a == b)
+///     a += b;
+/// \endcode
+///
+/// Example 2: matches s1 < s2
+///            (matcher = cxxOperatorCallExpr(isComparisonOperator()))
+/// \code
+///   struct S { bool operator<(const S& other); };
+///   void x(S s1, S s2) { bool b1 = s1 < s2; }
+/// \endcode
+AST_POLYMORPHIC_MATCHER(isComparisonOperator,
+                        AST_POLYMORPHIC_SUPPORTED_TYPES(BinaryOperator,
+                                                        CXXOperatorCallExpr)) {
+  return Node.isComparisonOp();
 }
 
 /// Matches the left hand side of binary operator expressions.

@@ -1423,26 +1423,9 @@ multiclass avx512_subvec_broadcast_rm_dq<bits<8> opc, string OpcodeStr,
                            AVX5128IBase, EVEX;
 }
 
-let Predicates = [HasAVX512] in {
-  // 32-bit targets will fail to load a i64 directly but can use ZEXT_LOAD.
-  def : Pat<(v8i64 (X86VBroadcast (v2i64 (X86vzload64 addr:$src)))),
-            (VPBROADCASTQZrm addr:$src)>;
-}
-
-let Predicates = [HasVLX] in {
-  // 32-bit targets will fail to load a i64 directly but can use ZEXT_LOAD.
-  def : Pat<(v2i64 (X86VBroadcast (v2i64 (X86vzload64 addr:$src)))),
-            (VPBROADCASTQZ128rm addr:$src)>;
-  def : Pat<(v4i64 (X86VBroadcast (v2i64 (X86vzload64 addr:$src)))),
-            (VPBROADCASTQZ256rm addr:$src)>;
-}
 let Predicates = [HasVLX, HasBWI] in {
   // loadi16 is tricky to fold, because !isTypeDesirableForOp, justifiably.
   // This means we'll encounter truncated i32 loads; match that here.
-  def : Pat<(v8i16 (X86VBroadcast (i16 (trunc (i32 (load addr:$src)))))),
-            (VPBROADCASTWZ128rm addr:$src)>;
-  def : Pat<(v16i16 (X86VBroadcast (i16 (trunc (i32 (load addr:$src)))))),
-            (VPBROADCASTWZ256rm addr:$src)>;
   def : Pat<(v8i16 (X86VBroadcast
               (i16 (trunc (i32 (extloadi16 addr:$src)))))),
             (VPBROADCASTWZ128rm addr:$src)>;
@@ -1454,28 +1437,16 @@ let Predicates = [HasVLX, HasBWI] in {
             (VPBROADCASTWZ256rm addr:$src)>;
   def : Pat<(v16i16 (X86VBroadcast
               (i16 (trunc (i32 (zextloadi16 addr:$src)))))),
-            (VPBROADCASTWZ256rm addr:$src)>;
-
-  // FIXME this is to handle aligned extloads from i8.
-  def : Pat<(v8i16 (X86VBroadcast (loadi16 addr:$src))),
-            (VPBROADCASTWZ128rm addr:$src)>;
-  def : Pat<(v16i16 (X86VBroadcast (loadi16 addr:$src))),
             (VPBROADCASTWZ256rm addr:$src)>;
 }
 let Predicates = [HasBWI] in {
   // loadi16 is tricky to fold, because !isTypeDesirableForOp, justifiably.
   // This means we'll encounter truncated i32 loads; match that here.
-  def : Pat<(v32i16 (X86VBroadcast (i16 (trunc (i32 (load addr:$src)))))),
-            (VPBROADCASTWZrm addr:$src)>;
   def : Pat<(v32i16 (X86VBroadcast
               (i16 (trunc (i32 (extloadi16 addr:$src)))))),
             (VPBROADCASTWZrm addr:$src)>;
   def : Pat<(v32i16 (X86VBroadcast
               (i16 (trunc (i32 (zextloadi16 addr:$src)))))),
-            (VPBROADCASTWZrm addr:$src)>;
-
-  // FIXME this is to handle aligned extloads from i8.
-  def : Pat<(v32i16 (X86VBroadcast (loadi16 addr:$src))),
             (VPBROADCASTWZrm addr:$src)>;
 }
 
@@ -4460,8 +4431,6 @@ let Predicates = [HasAVX512] in {
             (VMOV64toPQIZrr GR64:$src)>;
 
   // AVX 128-bit movd/movq instruction write zeros in the high 128-bit part.
-  def : Pat<(v2i64 (X86vzmovl (v2i64 (scalar_to_vector (zextloadi64i32 addr:$src))))),
-            (VMOVDI2PDIZrm addr:$src)>;
   def : Pat<(v4i32 (X86vzload32 addr:$src)),
             (VMOVDI2PDIZrm addr:$src)>;
   def : Pat<(v8i32 (X86vzload32 addr:$src)),
@@ -10871,10 +10840,6 @@ defm VMOVDDUP : avx512_movddup<0x12, "vmovddup", X86Movddup, SchedWriteFShuffle>
 let Predicates = [HasVLX] in {
 def : Pat<(v2f64 (X86VBroadcast f64:$src)),
           (VMOVDDUPZ128rr (v2f64 (COPY_TO_REGCLASS FR64X:$src, VR128X)))>;
-def : Pat<(v2f64 (X86VBroadcast (v2f64 (simple_load addr:$src)))),
-          (VMOVDDUPZ128rm addr:$src)>;
-def : Pat<(v2f64 (X86VBroadcast (v2f64 (X86vzload64 addr:$src)))),
-          (VMOVDDUPZ128rm addr:$src)>;
 
 def : Pat<(vselect (v2i1 VK2WM:$mask), (v2f64 (X86VBroadcast f64:$src)),
                    (v2f64 VR128X:$src0)),
@@ -10888,13 +10853,6 @@ def : Pat<(vselect (v2i1 VK2WM:$mask), (v2f64 (X86VBroadcastld64 addr:$src)),
                    (v2f64 VR128X:$src0)),
           (VMOVDDUPZ128rmk VR128X:$src0, VK2WM:$mask, addr:$src)>;
 def : Pat<(vselect (v2i1 VK2WM:$mask), (v2f64 (X86VBroadcastld64 addr:$src)),
-                   immAllZerosV),
-          (VMOVDDUPZ128rmkz VK2WM:$mask, addr:$src)>;
-
-def : Pat<(vselect (v2i1 VK2WM:$mask), (v2f64 (X86VBroadcast (v2f64 (simple_load addr:$src)))),
-                   (v2f64 VR128X:$src0)),
-          (VMOVDDUPZ128rmk VR128X:$src0, VK2WM:$mask, addr:$src)>;
-def : Pat<(vselect (v2i1 VK2WM:$mask), (v2f64 (X86VBroadcast (v2f64 (simple_load addr:$src)))),
                    immAllZerosV),
           (VMOVDDUPZ128rmkz VK2WM:$mask, addr:$src)>;
 }
