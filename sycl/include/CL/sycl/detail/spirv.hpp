@@ -28,17 +28,17 @@ GroupBroadcast(T x, IdT local_id) {
   return __spirv_GroupBroadcast(S, ocl_x, ocl_id);
 }
 
-template <__spv::Scope S, typename T, int dimensions>
-T GroupBroadcast(T x, id<dimensions> local_id) {
-  if (dimensions == 1) {
+template <__spv::Scope S, typename T, int Dimensions>
+T GroupBroadcast(T x, id<Dimensions> local_id) {
+  if (Dimensions == 1) {
     return GroupBroadcast<S>(x, local_id[0]);
   }
-  using IdT = vec<size_t, dimensions>;
+  using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   IdT vec_id;
-  for (int i = 0; i < dimensions; ++i) {
-    vec_id[i] = local_id[dimensions - i - 1];
+  for (int i = 0; i < Dimensions; ++i) {
+    vec_id[i] = local_id[Dimensions - i - 1];
   }
   OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
   OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(vec_id);
