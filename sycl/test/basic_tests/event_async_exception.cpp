@@ -33,7 +33,7 @@ int main() {
 
     e.wait_and_throw();
     return 1;
-  } catch (runtime_error e) {
+  } catch (runtime_error expectedException) {
     return 0;
   }
 }

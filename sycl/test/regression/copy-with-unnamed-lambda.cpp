@@ -2,7 +2,6 @@
 // The purpose of this test is to check that the following code can be
 // successfully compiled
 #include <CL/sycl.hpp>
-
 #include <iostream>
 
 int main() {
@@ -14,6 +13,7 @@ int main() {
         std::cerr << "Caught async SYCL exception: " << E.what() << std::endl;
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   };
 
   cl::sycl::queue Q(AsyncHandler);

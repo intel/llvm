@@ -215,7 +215,7 @@ int main() {
 
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
-      return 1;
+      throw;
     }
   }
 
@@ -237,7 +237,7 @@ int main() {
         buf.get_access<sycl::access::mode::discard_read_write>();
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
-      return 1;
+      throw;
     }
   }
 
@@ -349,11 +349,11 @@ int main() {
 
       auto host_acc = buf.get_access<sycl::access::mode::read>();
       for (int i = 0; i != 3; ++i)
-        assert(host_acc[i] == 42);
+        CHECK(host_acc[i] == 42);
 
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
-      return 1;
+      throw;
     }
   }
 
@@ -376,8 +376,8 @@ int main() {
       }
       assert(data == 399);
     } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what();
-      return 1;
+      std::cerr << "SYCL exception caught: " << e.what();
+      throw;
     }
   }
 

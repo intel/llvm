@@ -127,6 +127,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
         std::cerr << "Unknown async exception was caught." << std::endl;
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   });
   device dev = deviceQueue.get_device();
   bool unsupported = true;

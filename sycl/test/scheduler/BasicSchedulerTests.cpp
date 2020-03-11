@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-
 #include <iostream>
 
 using namespace cl;
@@ -36,6 +35,7 @@ template <class TestFuncT> void runTest(TestFuncT TestFunc) {
         std::cerr << "Unknown async exception was caught." << std::endl;
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   });
 
   TestFunc(Queue);

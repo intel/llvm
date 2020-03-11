@@ -267,6 +267,7 @@ int main() {
         std::cout << E1.what();
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   });
   std::cout << "Using device: "
             << Q.get_device().get_info<cl::sycl::info::device::name>() << "\n";

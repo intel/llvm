@@ -58,6 +58,7 @@ int main() {
         std::cerr << "Unknown async exception was caught." << std::endl;
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   });
 #ifdef HALF_IS_SUPPORTED
   if (Queue.get_device().has_extension("cl_khr_fp16"))

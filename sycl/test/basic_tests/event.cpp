@@ -16,6 +16,7 @@ int main() {
     cl::sycl::event e;
   } catch (cl::sycl::device_error e) {
     std::cout << "Failed to create device for event" << std::endl;
+    throw;
   }
   try {
     std::cout << "Try create OpenCL event" << std::endl;
@@ -28,11 +29,10 @@ int main() {
                 << ((cl_e.get() == u_e) ? " matches " : " does not match ")
                 << u_e << std::endl;
 
-    } else {
-      std::cout << "Failed to create OpenCL context" << std::endl;
     }
   } catch (cl::sycl::device_error e) {
     std::cout << "Failed to create device for context" << std::endl;
+    throw;
   }
 
   {
@@ -106,4 +106,6 @@ int main() {
     }
     }
   }
+
+  return 0;
 }

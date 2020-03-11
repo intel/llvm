@@ -45,6 +45,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
         std::cerr << "Unknown async exception was caught." << std::endl;
       }
     }
+    throw "ERROR: Asynchronous exception(s)";
   });
 
   int shouldCrash = getenv("SHOULD_CRASH") ? 1 : 0;

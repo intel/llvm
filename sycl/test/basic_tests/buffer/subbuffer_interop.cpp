@@ -105,6 +105,7 @@ int main() {
       clReleaseProgram(clProgram);
     } catch (exception &ex) {
       std::cout << ex.what() << std::endl;
+      throw;
     }
 
     for (int i = 0; i < NSize; ++i) {
@@ -173,6 +174,7 @@ int main() {
       clReleaseProgram(clProgram);
     } catch (exception &ex) {
       std::cout << ex.what() << std::endl;
+      throw;
     }
 
     for (int i = 0; i < NSize; ++i) {
@@ -263,6 +265,7 @@ int main() {
       clReleaseProgram(clProgram);
     } catch (exception &ex) {
       std::cout << ex.what() << std::endl;
+      throw;
     }
 
     for (int i = 0; i < NSize; ++i) {

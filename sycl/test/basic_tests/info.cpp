@@ -361,4 +361,6 @@ int main() {
   std::cout << separator << "Platform from context information\n" << separator;
   auto cplt = ctx.get_info<cl::sycl::info::context::platform>();
   print_info<info::platform::name, string_class>(cplt, "Name");
+
+  return 0;
 }

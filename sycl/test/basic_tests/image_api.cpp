@@ -145,6 +145,7 @@ int main() {
     EventRet.wait();
   } catch (const s::exception &E) {
     std::cout << "SYCL exception caught: " << E.what() << std::endl;
+    throw;
   }
 
   s::float4 Expected{10.f, 20.f, 30.f, 40.f};

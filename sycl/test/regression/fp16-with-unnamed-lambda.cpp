@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 #include <CL/sycl.hpp>
-
+#include <cstdlib>
 #include <iostream>
 
 int main() {
@@ -13,6 +13,7 @@ int main() {
         std::cerr << "Caught async SYCL exception: " << E.what() << std::endl;
       }
     }
+    std::abort();
   };
 
   cl::sycl::queue Q(AsyncHandler);

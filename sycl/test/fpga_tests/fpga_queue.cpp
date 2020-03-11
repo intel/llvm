@@ -22,16 +22,19 @@ const int maxNumQueues = 256;
 
 void GetCLQueue(event sycl_event, std::set<cl_command_queue>& cl_queues) {
   try {
-    cl_command_queue cl_queue;
-    cl_event cl_event = sycl_event.get();
-    cl_int error = clGetEventInfo(cl_event, CL_EVENT_COMMAND_QUEUE,
-                                  sizeof(cl_queue), &cl_queue, nullptr);
-    assert(CL_SUCCESS == error && "Failed to obtain queue from OpenCL event");
+    if (!sycl_event.is_host()) {
+      cl_command_queue cl_queue;
+      cl_event cl_event = sycl_event.get();
+      cl_int error = clGetEventInfo(cl_event, CL_EVENT_COMMAND_QUEUE,
+                                    sizeof(cl_queue), &cl_queue, nullptr);
+      CHECK(CL_SUCCESS == error && "Failed to obtain queue from OpenCL event");
 
-    cl_queues.insert(cl_queue);
+      cl_queues.insert(cl_queue);
+    }
   } catch (invalid_object_error e) {
     std::cout << "Failed to get OpenCL queue from SYCL event: " << e.what()
               << std::endl;
+    throw;
   }
 }
 
