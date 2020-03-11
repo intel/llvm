@@ -88,7 +88,8 @@ if "opencl-aot" in config.llvm_enable_projects:
         print("Adding path to opencl-aot tool to PATH")
         os.environ['PATH'] = os.path.pathsep.join((os.getenv('PATH'), config.sycl_tools_dir))
 
-backend=lit_config.params.get('SYCL_BE', "PI_OPENCL")
+backend = lit_config.params.get('SYCL_BE', "PI_OPENCL")
+config.environment['SYCL_BE'] = backend
 
 get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
 
@@ -157,8 +158,6 @@ if gpu_count > 0:
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=GPU "
         gpu_check_on_linux_substitute = "| FileCheck %s"
-        if cuda:
-            gpu_run_on_linux_substitute += " SYCL_BE=PI_CUDA "
 
 config.substitutions.append( ('%GPU_RUN_PLACEHOLDER',  gpu_run_substitute) )
 config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux_substitute) )
