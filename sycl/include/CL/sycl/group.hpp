@@ -83,12 +83,12 @@ private:
 
 template <int Dimensions = 1> class group {
 public:
-#ifdef __SYCL_INTEL_GROUP_ALGORITHMS__
+#ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
   using range_type = range<Dimensions>;
   using linear_id_type = size_t;
   static constexpr int dimensions = Dimensions;
-#endif
+#endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 
   group() = delete;
 

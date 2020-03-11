@@ -15,7 +15,7 @@
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/intel/functional.hpp>
 
-#ifdef __SYCL_INTEL_GROUP_ALGORITHMS__
+#ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -619,4 +619,4 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
 } // namespace intel
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-#endif // __SYCL_INTEL_GROUP_ALGORITHMS__
+#endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
