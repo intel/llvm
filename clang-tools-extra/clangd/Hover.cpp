@@ -26,6 +26,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Index/IndexSymbol.h"
@@ -530,41 +531,48 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
     llvm::consumeError(CurLoc.takeError());
     return llvm::None;
   }
-  auto TokensTouchingCursor =
-      syntax::spelledTokensTouching(*CurLoc, AST.getTokens());
+  const auto &TB = AST.getTokens();
+  auto TokensTouchingCursor = syntax::spelledTokensTouching(*CurLoc, TB);
+  // Early exit if there were no tokens around the cursor.
   if (TokensTouchingCursor.empty())
     return llvm::None;
 
-  // In general we prefer the touching token that works over the one that
-  // doesn't, see SelectionTree::create(). The following locations are used only
-  // for triggering on macros and auto/decltype, so simply choosing the lone
-  // identifier-or-keyword token is equivalent.
-  SourceLocation IdentLoc;
-  SourceLocation AutoLoc;
+  // To be used as a backup for highlighting the selected token, we use back as
+  // it aligns better with biases elsewhere (editors tend to send the position
+  // for the left of the hovered token).
+  CharSourceRange HighlightRange =
+      TokensTouchingCursor.back().range(SM).toCharRange(SM);
+  llvm::Optional<HoverInfo> HI;
+  // Macros and deducedtype only works on identifiers and auto/decltype keywords
+  // respectively. Therefore they are only trggered on whichever works for them,
+  // similar to SelectionTree::create().
   for (const auto &Tok : TokensTouchingCursor) {
-    if (Tok.kind() == tok::identifier)
-      IdentLoc = Tok.location();
-    if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype)
-      AutoLoc = Tok.location();
+    if (Tok.kind() == tok::identifier) {
+      // Prefer the identifier token as a fallback highlighting range.
+      HighlightRange = Tok.range(SM).toCharRange(SM);
+      if (auto M = locateMacroAt(Tok, AST.getPreprocessor())) {
+        HI = getHoverContents(*M, AST);
+        break;
+      }
+    } else if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype) {
+      if (auto Deduced = getDeducedType(AST.getASTContext(), Tok.location())) {
+        HI = getHoverContents(*Deduced, AST.getASTContext(), Index);
+        HighlightRange = Tok.range(SM).toCharRange(SM);
+        break;
+      }
+    }
   }
 
-  llvm::Optional<HoverInfo> HI;
-  if (auto Deduced = getDeducedType(AST.getASTContext(), AutoLoc)) {
-    HI = getHoverContents(*Deduced, AST.getASTContext(), Index);
-    HI->SymRange =
-        getTokenRange(AST.getSourceManager(), AST.getLangOpts(), AutoLoc);
-  } else if (auto M = locateMacroAt(IdentLoc, AST.getPreprocessor())) {
-    HI = getHoverContents(*M, AST);
-    HI->SymRange =
-        getTokenRange(AST.getSourceManager(), AST.getLangOpts(), IdentLoc);
-  } else {
+  // If it wasn't auto/decltype or macro, look for decls and expressions.
+  if (!HI) {
     auto Offset = SM.getFileOffset(*CurLoc);
     // Editors send the position on the left of the hovered character.
     // So our selection tree should be biased right. (Tested with VSCode).
-    SelectionTree ST = SelectionTree::createRight(
-        AST.getASTContext(), AST.getTokens(), Offset, Offset);
+    SelectionTree ST =
+        SelectionTree::createRight(AST.getASTContext(), TB, Offset, Offset);
     std::vector<const Decl *> Result;
     if (const SelectionTree::Node *N = ST.commonAncestor()) {
+      // FIXME: Fill in HighlightRange with range coming from N->ASTNode.
       auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias);
       if (!Decls.empty()) {
         HI = getHoverContents(Decls.front(), Index);
@@ -587,14 +595,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   if (auto Formatted =
           tooling::applyAllReplacements(HI->Definition, Replacements))
     HI->Definition = *Formatted;
-  // FIXME: We should rather fill this with info coming from SelectionTree node.
-  if (!HI->SymRange) {
-    SourceLocation ToHighlight = TokensTouchingCursor.front().location();
-    if (IdentLoc.isValid())
-      ToHighlight = IdentLoc;
-    HI->SymRange =
-        getTokenRange(AST.getSourceManager(), AST.getLangOpts(), ToHighlight);
-  }
+  HI->SymRange = halfOpenToRange(SM, HighlightRange);
 
   return HI;
 }

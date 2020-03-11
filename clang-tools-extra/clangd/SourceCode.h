@@ -21,6 +21,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
@@ -67,11 +68,6 @@ Position offsetToPosition(llvm::StringRef Code, size_t Offset);
 /// Turn a SourceLocation into a [line, column] pair.
 /// FIXME: This should return an error if the location is invalid.
 Position sourceLocToPosition(const SourceManager &SM, SourceLocation Loc);
-
-/// Returns the taken range at \p TokLoc.
-llvm::Optional<Range> getTokenRange(const SourceManager &SM,
-                                    const LangOptions &LangOpts,
-                                    SourceLocation TokLoc);
 
 /// Return the file location, corresponding to \p P. Note that one should take
 /// care to avoid comparing the result with expansion locations.
@@ -281,8 +277,9 @@ struct DefinedMacro {
   llvm::StringRef Name;
   const MacroInfo *Info;
 };
-/// Gets the macro at a specified \p Loc.
-llvm::Optional<DefinedMacro> locateMacroAt(SourceLocation Loc,
+/// Gets the macro referenced by \p SpelledTok. It must be a spelled token
+/// aligned to the beginning of an identifier.
+llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
                                            Preprocessor &PP);
 
 /// Infers whether this is a header from the FileName and LangOpts (if

@@ -170,6 +170,12 @@ TEST_F(FormatTestCSharp, CSharpFatArrows) {
   verifyFormat("public override string ToString() => \"{Name}\\{Age}\";");
 }
 
+TEST_F(FormatTestCSharp, CSharpConditionalExpressions) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  // conditional expression is not seen as a NullConditional.
+  verifyFormat("var y = A < B ? -1 : 1;", Style);
+}
+
 TEST_F(FormatTestCSharp, CSharpNullConditional) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
   Style.SpaceBeforeParens = FormatStyle::SBPO_Always;
@@ -266,6 +272,15 @@ TEST_F(FormatTestCSharp, Attributes) {
   verifyFormat("void MethodA([In][Out] ref double x)\n"
                "{\n"
                "}");
+
+  // [] in an attribute do not cause premature line wrapping or indenting.
+  verifyFormat(R"(//
+public class A
+{
+    [SomeAttribute(new[] { RED, GREEN, BLUE }, -1.0f, 1.0f)]
+    [DoNotSerialize]
+    public Data MemberVariable;
+})");
 
   //  Unwrappable lines go on a line of their own.
   // 'target:' is not treated as a label.
@@ -601,6 +616,7 @@ TEST_F(FormatTestCSharp, CSharpSpaces) {
 
   Style.SpacesInSquareBrackets = true;
   verifyFormat(R"(private float[ , ] Values;)", Style);
+  verifyFormat(R"(string dirPath = args?[ 0 ];)", Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpNullableTypes) {

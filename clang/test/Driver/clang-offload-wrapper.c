@@ -119,9 +119,9 @@
 
 // CHECK-IR: [[SYCL_DESC:@.+]] = internal constant [[SYCL_DESCTY]] { i16 1, i16 2, [[SYCL_IMAGETY]]* getelementptr inbounds ([2 x [[SYCL_IMAGETY]]], [2 x [[SYCL_IMAGETY]]]* [[SYCL_IMAGES]], i64 0, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }
 
-// CHECK-IR: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_REGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* [[SYCL_REGFN:@.+]], i8* null }]
+// CHECK-IR: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 1, void ()* [[OMP_REGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 1, void ()* [[SYCL_REGFN:@.+]], i8* null }]
 
-// CHECK-IR: @llvm.global_dtors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_UNREGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* [[SYCL_UNREGFN:@.+]], i8* null }]
+// CHECK-IR: @llvm.global_dtors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 1, void ()* [[OMP_UNREGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 1, void ()* [[SYCL_UNREGFN:@.+]], i8* null }]
 
 // CHECK-IR: define internal void [[OMP_REGFN]]()
 // CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* [[OMP_DESC]])
