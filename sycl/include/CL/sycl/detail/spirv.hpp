@@ -18,6 +18,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace spirv {
+
+// Broadcast with scalar local index
 template <__spv::Scope S, typename T, typename IdT>
 detail::enable_if_t<std::is_integral<IdT>::value, T>
 GroupBroadcast(T x, IdT local_id) {
@@ -28,6 +30,7 @@ GroupBroadcast(T x, IdT local_id) {
   return __spirv_GroupBroadcast(S, ocl_x, ocl_id);
 }
 
+// Broadcast with vector local index
 template <__spv::Scope S, typename T, int Dimensions>
 T GroupBroadcast(T x, id<Dimensions> local_id) {
   if (Dimensions == 1) {
@@ -44,6 +47,7 @@ T GroupBroadcast(T x, id<Dimensions> local_id) {
   OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(vec_id);
   return __spirv_GroupBroadcast(S, ocl_x, ocl_id);
 }
+
 } // namespace spirv
 } // namespace detail
 } // namespace sycl
