@@ -2945,7 +2945,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
         return;
     if (WGSize[i] == 0) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-          << AL << E->getSourceRange();
+          << AL << AL.getArgAsExpr(i)->getSourceRange();
       return;
     }
   }
