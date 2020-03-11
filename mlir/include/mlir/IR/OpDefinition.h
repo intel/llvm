@@ -381,6 +381,10 @@ LogicalResult verifyResultsAreBoolLike(Operation *op);
 LogicalResult verifyResultsAreFloatLike(Operation *op);
 LogicalResult verifyResultsAreSignlessIntegerLike(Operation *op);
 LogicalResult verifyIsTerminator(Operation *op);
+LogicalResult verifyZeroSuccessor(Operation *op);
+LogicalResult verifyOneSuccessor(Operation *op);
+LogicalResult verifyNSuccessors(Operation *op, unsigned numSuccessors);
+LogicalResult verifyAtLeastNSuccessors(Operation *op, unsigned numSuccessors);
 LogicalResult verifyOperandSizeAttr(Operation *op, StringRef sizeAttrName);
 LogicalResult verifyResultSizeAttr(Operation *op, StringRef sizeAttrName);
 } // namespace impl
@@ -409,6 +413,9 @@ protected:
     return 0;
   }
 };
+
+//===----------------------------------------------------------------------===//
+// Operand Traits
 
 namespace detail {
 /// Utility trait base that provides accessors for derived traits that have
@@ -521,6 +528,9 @@ public:
 template <typename ConcreteType>
 class VariadicOperands
     : public detail::MultiOperandTraitBase<ConcreteType, VariadicOperands> {};
+
+//===----------------------------------------------------------------------===//
+// Result Traits
 
 /// This class provides return value APIs for ops that are known to have
 /// zero results.
@@ -644,6 +654,119 @@ template <typename ConcreteType>
 class VariadicResults
     : public detail::MultiResultTraitBase<ConcreteType, VariadicResults> {};
 
+//===----------------------------------------------------------------------===//
+// Terminator Traits
+
+/// This class provides the API for ops that are known to be terminators.
+template <typename ConcreteType>
+class IsTerminator : public TraitBase<ConcreteType, IsTerminator> {
+public:
+  static AbstractOperation::OperationProperties getTraitProperties() {
+    return static_cast<AbstractOperation::OperationProperties>(
+        OperationProperty::Terminator);
+  }
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyIsTerminator(op);
+  }
+};
+
+/// This class provides verification for ops that are known to have zero
+/// successors.
+template <typename ConcreteType>
+class ZeroSuccessor : public TraitBase<ConcreteType, ZeroSuccessor> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyZeroSuccessor(op);
+  }
+};
+
+namespace detail {
+/// Utility trait base that provides accessors for derived traits that have
+/// multiple successors.
+template <typename ConcreteType, template <typename> class TraitType>
+struct MultiSuccessorTraitBase : public TraitBase<ConcreteType, TraitType> {
+  using succ_iterator = Operation::succ_iterator;
+  using succ_range = SuccessorRange;
+
+  /// Return the number of successors.
+  unsigned getNumSuccessors() {
+    return this->getOperation()->getNumSuccessors();
+  }
+
+  /// Return the successor at `index`.
+  Block *getSuccessor(unsigned i) {
+    return this->getOperation()->getSuccessor(i);
+  }
+
+  /// Set the successor at `index`.
+  void setSuccessor(Block *block, unsigned i) {
+    return this->getOperation()->setSuccessor(block, i);
+  }
+
+  /// Successor iterator access.
+  succ_iterator succ_begin() { return this->getOperation()->succ_begin(); }
+  succ_iterator succ_end() { return this->getOperation()->succ_end(); }
+  succ_range getSuccessors() { return this->getOperation()->getSuccessors(); }
+};
+} // end namespace detail
+
+/// This class provides APIs for ops that are known to have a single successor.
+template <typename ConcreteType>
+class OneSuccessor : public TraitBase<ConcreteType, OneSuccessor> {
+public:
+  Block *getSuccessor() { return this->getOperation()->getSuccessor(0); }
+  void setSuccessor(Block *succ) {
+    this->getOperation()->setSuccessor(succ, 0);
+  }
+
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyOneSuccessor(op);
+  }
+};
+
+/// This class provides the API for ops that are known to have a specified
+/// number of successors.
+template <unsigned N>
+class NSuccessors {
+public:
+  static_assert(N > 1, "use ZeroSuccessor/OneSuccessor for N < 2");
+
+  template <typename ConcreteType>
+  class Impl : public detail::MultiSuccessorTraitBase<ConcreteType,
+                                                      NSuccessors<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyNSuccessors(op, N);
+    }
+  };
+};
+
+/// This class provides APIs for ops that are known to have at least a specified
+/// number of successors.
+template <unsigned N>
+class AtLeastNSuccessors {
+public:
+  template <typename ConcreteType>
+  class Impl
+      : public detail::MultiSuccessorTraitBase<ConcreteType,
+                                               AtLeastNSuccessors<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyAtLeastNSuccessors(op, N);
+    }
+  };
+};
+
+/// This class provides the API for ops which have an unknown number of
+/// successors.
+template <typename ConcreteType>
+class VariadicSuccessors
+    : public detail::MultiSuccessorTraitBase<ConcreteType, VariadicSuccessors> {
+};
+
+//===----------------------------------------------------------------------===//
+// Misc Traits
+
 /// This class provides verification for ops that are known to have the same
 /// operand shape: all operands are scalars, vectors/tensors of the same
 /// shape.
@@ -747,16 +870,6 @@ public:
   }
 };
 
-/// This class adds property that the operation has no side effects.
-template <typename ConcreteType>
-class HasNoSideEffect : public TraitBase<ConcreteType, HasNoSideEffect> {
-public:
-  static AbstractOperation::OperationProperties getTraitProperties() {
-    return static_cast<AbstractOperation::OperationProperties>(
-        OperationProperty::NoSideEffect);
-  }
-};
-
 /// This class verifies that all operands of the specified op have a float type,
 /// a vector thereof, or a tensor thereof.
 template <typename ConcreteType>
@@ -786,41 +899,6 @@ class SameTypeOperands : public TraitBase<ConcreteType, SameTypeOperands> {
 public:
   static LogicalResult verifyTrait(Operation *op) {
     return impl::verifySameTypeOperands(op);
-  }
-};
-
-/// This class provides the API for ops that are known to be terminators.
-template <typename ConcreteType>
-class IsTerminator : public TraitBase<ConcreteType, IsTerminator> {
-public:
-  static AbstractOperation::OperationProperties getTraitProperties() {
-    return static_cast<AbstractOperation::OperationProperties>(
-        OperationProperty::Terminator);
-  }
-  static LogicalResult verifyTrait(Operation *op) {
-    return impl::verifyIsTerminator(op);
-  }
-
-  unsigned getNumSuccessors() {
-    return this->getOperation()->getNumSuccessors();
-  }
-  unsigned getNumSuccessorOperands(unsigned index) {
-    return this->getOperation()->getNumSuccessorOperands(index);
-  }
-
-  Block *getSuccessor(unsigned index) {
-    return this->getOperation()->getSuccessor(index);
-  }
-
-  void setSuccessor(Block *block, unsigned index) {
-    return this->getOperation()->setSuccessor(block, index);
-  }
-
-  void addSuccessorOperand(unsigned index, Value value) {
-    return this->getOperation()->addSuccessorOperand(index, value);
-  }
-  void addSuccessorOperands(unsigned index, ArrayRef<Value> values) {
-    return this->getOperation()->addSuccessorOperand(index, values);
   }
 };
 
@@ -1198,6 +1276,222 @@ private:
   /// A pointer to the impl concept object.
   Concept *impl;
 };
+
+//===----------------------------------------------------------------------===//
+// Operation Side-Effect Modeling
+//===----------------------------------------------------------------------===//
+
+// TODO(riverriddle) This should be in its own file in a proper
+// traits/interfaces directory. Move it there when we have one.
+
+namespace SideEffects {
+//===--------------------------------------------------------------------===//
+// Effects
+
+/// This class represents a base class for a specific effect type.
+class Effect {
+public:
+  /// This base class is used for derived effects that are non-parametric.
+  template <typename DerivedEffect, typename BaseEffect = Effect>
+  class Base : public BaseEffect {
+  public:
+    using BaseT = Base<DerivedEffect>;
+
+    /// Return the unique identifier for the base effects class.
+    static ClassID *getEffectID() { return ClassID::getID<DerivedEffect>(); }
+
+    /// 'classof' used to support llvm style cast functionality.
+    static bool classof(const ::mlir::SideEffects::Effect *effect) {
+      return effect->getEffectID() == BaseT::getEffectID();
+    }
+
+    /// Returns a unique instance for the derived effect class.
+    static DerivedEffect *get() {
+      return BaseEffect::template get<DerivedEffect>();
+    }
+    using BaseEffect::get;
+
+  protected:
+    Base() : BaseEffect(BaseT::getEffectID()){};
+  };
+
+  /// Return the unique identifier for the base effects class.
+  ClassID *getEffectID() const { return id; }
+
+  /// Returns a unique instance for the given effect class.
+  template <typename DerivedEffect> static DerivedEffect *get() {
+    static_assert(std::is_base_of<Effect, DerivedEffect>::value,
+                  "expected DerivedEffect to inherit from Effect");
+
+    static DerivedEffect instance;
+    return &instance;
+  }
+
+protected:
+  Effect(ClassID *id) : id(id) {}
+
+private:
+  /// The id of the derived effect class.
+  ClassID *id;
+};
+
+//===--------------------------------------------------------------------===//
+// Resources
+
+/// This class represents a specific resource that an effect applies to. This
+/// class represents an abstract interface for a given resource.
+class Resource {
+public:
+  virtual ~Resource() {}
+
+  /// This base class is used for derived effects that are non-parametric.
+  template <typename DerivedResource, typename BaseResource = Resource>
+  class Base : public BaseResource {
+  public:
+    using BaseT = Base<DerivedResource>;
+
+    /// Returns a unique instance for the given effect class.
+    static DerivedResource *get() {
+      static DerivedResource instance;
+      return &instance;
+    }
+
+    /// Return the unique identifier for the base resource class.
+    static ClassID *getResourceID() {
+      return ClassID::getID<DerivedResource>();
+    }
+
+    /// 'classof' used to support llvm style cast functionality.
+    static bool classof(const Resource *resource) {
+      return resource->getResourceID() == BaseT::getResourceID();
+    }
+
+  protected:
+    Base() : BaseResource(BaseT::getResourceID()){};
+  };
+
+  /// Return the unique identifier for the base resource class.
+  ClassID *getResourceID() const { return id; }
+
+  /// Return a string name of the resource.
+  virtual StringRef getName() = 0;
+
+protected:
+  Resource(ClassID *id) : id(id) {}
+
+private:
+  /// The id of the derived resource class.
+  ClassID *id;
+};
+
+/// A conservative default resource kind.
+struct DefaultResource : public Resource::Base<DefaultResource> {
+  StringRef getName() final { return "<Default>"; }
+};
+
+/// This class represents a specific instance of an effect. It contains the
+/// effect being applied, a resource that corresponds to where the effect is
+/// applied, and an optional value(either operand, result, or region entry
+/// argument) that the effect is applied to.
+template <typename EffectT> class EffectInstance {
+public:
+  EffectInstance(EffectT *effect, Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource) {}
+  EffectInstance(EffectT *effect, Value value,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(value) {}
+
+  /// Return the effect being applied.
+  EffectT *getEffect() const { return effect; }
+
+  /// Return the value the effect is applied on, or nullptr if there isn't a
+  /// known value being affected.
+  Value getValue() const { return value; }
+
+  /// Return the resource that the effect applies to.
+  Resource *getResource() const { return resource; }
+
+private:
+  /// The specific effect being applied.
+  EffectT *effect;
+
+  /// The resource that the given value resides in.
+  Resource *resource;
+
+  /// The value that the effect applies to. This is optionally null.
+  Value value;
+};
+} // namespace SideEffects
+
+//===----------------------------------------------------------------------===//
+// SideEffect Traits
+
+namespace OpTrait {
+/// This trait indicates that an operation never has side effects.
+template <typename ConcreteType>
+class HasNoSideEffect : public TraitBase<ConcreteType, HasNoSideEffect> {
+public:
+  static AbstractOperation::OperationProperties getTraitProperties() {
+    return static_cast<AbstractOperation::OperationProperties>(
+        OperationProperty::NoSideEffect);
+  }
+};
+/// This trait indicates that the side effects of an operation includes the
+/// effects of operations nested within its regions. If the operation has no
+/// derived effects interfaces, the operation itself can be assumed to have no
+/// side effects.
+template <typename ConcreteType>
+class HasRecursiveSideEffects
+    : public TraitBase<ConcreteType, HasRecursiveSideEffects> {};
+} // namespace OpTrait
+
+//===----------------------------------------------------------------------===//
+// Operation Memory-Effect Modeling
+//===----------------------------------------------------------------------===//
+
+namespace MemoryEffects {
+/// This class represents the base class used for memory effects.
+struct Effect : public SideEffects::Effect {
+  using SideEffects::Effect::Effect;
+
+  /// A base class for memory effects that provides helper utilities.
+  template <typename DerivedEffect>
+  using Base = SideEffects::Effect::Base<DerivedEffect, Effect>;
+
+  static bool classof(const SideEffects::Effect *effect);
+};
+using EffectInstance = SideEffects::EffectInstance<Effect>;
+
+/// The following effect indicates that the operation allocates from some
+/// resource. An 'allocate' effect implies only allocation of the resource, and
+/// not any visible mutation or dereference.
+struct Allocate : public Effect::Base<Allocate> {};
+
+/// The following effect indicates that the operation frees some resource that
+/// has been allocated. An 'allocate' effect implies only de-allocation of the
+/// resource, and not any visible allocation, mutation or dereference.
+struct Free : public Effect::Base<Free> {};
+
+/// The following effect indicates that the operation reads from some resource.
+/// A 'read' effect implies only dereferencing of the resource, and not any
+/// visible mutation.
+struct Read : public Effect::Base<Read> {};
+
+/// The following effect indicates that the operation writes to some resource. A
+/// 'write' effect implies only mutating a resource, and not any visible
+/// dereference or read.
+struct Write : public Effect::Base<Write> {};
+} // namespace MemoryEffects
+
+//===----------------------------------------------------------------------===//
+// SideEffect Interfaces
+
+/// Include the definitions of the side effect interfaces.
+#include "mlir/IR/SideEffectInterfaces.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Common Operation Folders/Parsers/Printers
+//===----------------------------------------------------------------------===//
 
 // These functions are out-of-line implementations of the methods in UnaryOp and
 // BinaryOp, which avoids them being template instantiated/duplicated.

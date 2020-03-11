@@ -256,8 +256,6 @@ public:
                              getNumCols());
   }
 
-  AffineExpr toAffineExpr(unsigned idx, MLIRContext *context);
-
   /// Adds constraints (lower and upper bounds) for the specified 'affine.for'
   /// operation's Value using IR information stored in its bound maps. The
   /// right identifier is first looked up using forOp's Value. Asserts if the
@@ -659,13 +657,6 @@ private:
   // constraints. This is conservatively set low and can be raised if needed.
   constexpr static unsigned kExplosionFactor = 32;
 };
-
-/// Simplify an affine expression by flattening and some amount of
-/// simple analysis. This has complexity linear in the number of nodes in
-/// 'expr'. Returns the simplified expression, which is the same as the input
-///  expression if it can't be simplified.
-AffineExpr simplifyAffineExpr(AffineExpr expr, unsigned numDims,
-                              unsigned numSymbols);
 
 /// Flattens 'expr' into 'flattenedExpr', which contains the coefficients of the
 /// dimensions, symbols, and additional variables that represent floor divisions

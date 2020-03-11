@@ -29,7 +29,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <condition_variable>
+#include <functional>
 #include <mutex>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -1041,6 +1043,21 @@ template <template <class> class TT> int foo() {
   EXPECT_THAT(Completions, Contains(Named("TT")));
 }
 
+TEST(CompletionTest, RecordCCResultCallback) {
+  std::vector<CodeCompletion> RecordedCompletions;
+  CodeCompleteOptions Opts;
+  Opts.RecordCCResult = [&RecordedCompletions](const CodeCompletion &CC,
+                                               const SymbolQualitySignals &,
+                                               const SymbolRelevanceSignals &,
+                                               float Score) {
+    RecordedCompletions.push_back(CC);
+  };
+
+  completions("int xy1, xy2; int a = xy^", /*IndexSymbols=*/{}, Opts);
+  EXPECT_THAT(RecordedCompletions,
+              UnorderedElementsAre(Named("xy1"), Named("xy2")));
+}
+
 SignatureHelp signatures(llvm::StringRef Text, Position Point,
                          std::vector<Symbol> IndexSymbols = {}) {
   std::unique_ptr<SymbolIndex> Index;
@@ -1509,7 +1526,7 @@ TEST(CompletionTest, DocumentationFromChangedFileCrash) {
     }
     int a = fun^
   )cpp");
-  Server.addDocument(FooCpp, Source.code(), WantDiagnostics::Yes);
+  Server.addDocument(FooCpp, Source.code(), "null", WantDiagnostics::Yes);
   // We need to wait for preamble to build.
   ASSERT_TRUE(Server.blockUntilIdleForTest());
 
@@ -1575,7 +1592,7 @@ TEST(CompletionTest, NonDocComments) {
   // FIXME: Auto-completion in a template requires disabling delayed template
   // parsing.
   CDB.ExtraClangFlags.push_back("-fno-delayed-template-parsing");
-  runAddDocument(Server, FooCpp, Source.code(), WantDiagnostics::Yes);
+  runAddDocument(Server, FooCpp, Source.code(), "null", WantDiagnostics::Yes);
   CodeCompleteResult Completions = cantFail(runCodeComplete(
       Server, FooCpp, Source.point(), clangd::CodeCompleteOptions()));
 

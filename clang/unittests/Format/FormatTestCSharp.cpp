@@ -546,6 +546,14 @@ Shape[] shapes = new[] { new Circle { Radius = 2.7281, Colour = Colours.Red },
                              Colour = Colours.Yellow,
                          } };)",
                Style);
+
+  // Lambdas can be supplied as initialiser arguments.
+  verifyFormat(R"(//
+private Transformer _transformer = new X.Y {
+    Filler = (Shape shape) => { return new Transform.Fill(shape, RED); },
+    Scaler = (Shape shape) => { return new Transform.Resize(shape, 0.1); },
+};)",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpNamedArguments) {
@@ -623,7 +631,17 @@ TEST_F(FormatTestCSharp, CSharpNullableTypes) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
   Style.SpacesInSquareBrackets = false;
 
+  verifyFormat(R"(//
+public class A {
+  void foo() { int? value = some.bar(); }
+})",
+               Style); // int? is nullable not a conditional expression.
+
+  verifyFormat(R"(void foo(int? x, int? y, int? z) {})",
+               Style); // Nullables in function definitions.
+
   verifyFormat(R"(public float? Value;)", Style); // no space before `?`.
+
   verifyFormat(R"(int?[] arr = new int?[10];)",
                Style); // An array of a nullable type.
 }

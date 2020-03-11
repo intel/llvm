@@ -6631,9 +6631,8 @@ ExpectedStmt ASTNodeImporter::VisitStmtExpr(StmtExpr *E) {
   if (Err)
     return std::move(Err);
 
-  return new (Importer.getToContext())
-      StmtExpr(ToSubStmt, ToType, ToLParenLoc, ToRParenLoc,
-               E->isInstantiationDependent());
+  return new (Importer.getToContext()) StmtExpr(
+      ToSubStmt, ToType, ToLParenLoc, ToRParenLoc);
 }
 
 ExpectedStmt ASTNodeImporter::VisitUnaryOperator(UnaryOperator *E) {
@@ -8221,11 +8220,7 @@ Expected<Stmt *> ASTImporter::Import(Stmt *FromS) {
     // constructors.
     ToE->setValueKind(FromE->getValueKind());
     ToE->setObjectKind(FromE->getObjectKind());
-    ToE->setTypeDependent(FromE->isTypeDependent());
-    ToE->setValueDependent(FromE->isValueDependent());
-    ToE->setInstantiationDependent(FromE->isInstantiationDependent());
-    ToE->setContainsUnexpandedParameterPack(
-        FromE->containsUnexpandedParameterPack());
+    ToE->setDependence(FromE->getDependence());
   }
 
   // Record the imported statement object.

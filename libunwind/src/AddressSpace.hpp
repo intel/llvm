@@ -392,24 +392,22 @@ LocalAddressSpace::getEncodedP(pint_t &addr, pint_t end, uint8_t encoding,
   return result;
 }
 
-#if defined(_LIBUNWIND_ARM_EHABI) || defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
-struct _LIBUNWIND_HIDDEN dl_iterate_cb_data {
-  LocalAddressSpace *addressSpace;
-  UnwindInfoSections *sects;
-  uintptr_t targetAddr;
-};
-
-static int findUnwindSectionByPhdr(struct dl_phdr_info *pinfo, size_t, void *data) {
-  auto cbdata = static_cast<dl_iterate_cb_data *>(data);
-  bool found_obj = false;
-  bool found_hdr = false;
-
-  assert(cbdata);
-  assert(cbdata->sects);
-
-  if (cbdata->targetAddr < pinfo->dlpi_addr) {
-    return false;
-  }
+#ifdef __APPLE__
+#elif defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND) && defined(_LIBUNWIND_IS_BAREMETAL)
+#elif defined(_LIBUNWIND_ARM_EHABI) && defined(_LIBUNWIND_IS_BAREMETAL)
+#elif defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND) && defined(_WIN32)
+#elif defined(_LIBUNWIND_SUPPORT_SEH_UNWIND) && defined(_WIN32)
+#elif defined(_LIBUNWIND_ARM_EHABI) && defined(__BIONIC__)
+// Code inside findUnwindSections handles all these cases.
+//
+// Although the above ifdef chain is ugly, there doesn't seem to be a cleaner
+// way to handle it. The generalized boolean expression is:
+//
+//  A OR (B AND C) OR (D AND C) OR (B AND E) OR (F AND E) OR (D AND G)
+//
+// Running it through various boolean expression simplifiers gives expressions
+// that don't help at all.
+#elif defined(_LIBUNWIND_ARM_EHABI) || defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
 
 #if !defined(Elf_Half)
   typedef ElfW(Half) Elf_Half;
@@ -421,8 +419,8 @@ static int findUnwindSectionByPhdr(struct dl_phdr_info *pinfo, size_t, void *dat
   typedef ElfW(Addr) Elf_Addr;
 #endif
 
+static Elf_Addr calculateImageBase(struct dl_phdr_info *pinfo) {
   Elf_Addr image_base = pinfo->dlpi_addr;
-
 #if defined(__ANDROID__) && __ANDROID_API__ < 18
   if (image_base == 0) {
     // Normally, an image base of 0 indicates a non-PIE executable. On
@@ -440,11 +438,32 @@ static int findUnwindSectionByPhdr(struct dl_phdr_info *pinfo, size_t, void *dat
     }
   }
 #endif
+  return image_base;
+}
 
-  #if defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
-    #if !defined(_LIBUNWIND_SUPPORT_DWARF_INDEX)
-     #error "_LIBUNWIND_SUPPORT_DWARF_UNWIND requires _LIBUNWIND_SUPPORT_DWARF_INDEX on this platform."
-   #endif
+struct _LIBUNWIND_HIDDEN dl_iterate_cb_data {
+  LocalAddressSpace *addressSpace;
+  UnwindInfoSections *sects;
+  uintptr_t targetAddr;
+};
+
+#if defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
+  #if !defined(_LIBUNWIND_SUPPORT_DWARF_INDEX)
+    #error "_LIBUNWIND_SUPPORT_DWARF_UNWIND requires _LIBUNWIND_SUPPORT_DWARF_INDEX on this platform."
+  #endif
+
+int findUnwindSectionsByPhdr(struct dl_phdr_info *pinfo, size_t, void *data) {
+  auto *cbdata = static_cast<dl_iterate_cb_data *>(data);
+  bool found_obj = false;
+  bool found_hdr = false;
+
+  assert(cbdata);
+  assert(cbdata->sects);
+
+  if (cbdata->targetAddr < pinfo->dlpi_addr)
+    return 0;
+
+  Elf_Addr image_base = calculateImageBase(pinfo);
   size_t object_length;
 
   for (Elf_Half i = 0; i < pinfo->dlpi_phnum; i++) {
@@ -476,7 +495,25 @@ static int findUnwindSectionByPhdr(struct dl_phdr_info *pinfo, size_t, void *dat
   } else {
     return false;
   }
- #else // defined(_LIBUNWIND_ARM_EHABI)
+}
+
+#else  // defined(LIBUNWIND_SUPPORT_DWARF_UNWIND)
+// Given all the #ifdef's above, the code here is for
+// defined(LIBUNWIND_ARM_EHABI)
+
+int findUnwindSectionsByPhdr(struct dl_phdr_info *pinfo, size_t, void *data) {
+  auto *cbdata = static_cast<dl_iterate_cb_data *>(data);
+  bool found_obj = false;
+  bool found_hdr = false;
+
+  assert(cbdata);
+  assert(cbdata->sects);
+
+  if (cbdata->targetAddr < pinfo->dlpi_addr)
+    return 0;
+
+  Elf_Addr image_base = calculateImageBase(pinfo);
+
   for (Elf_Half i = 0; i < pinfo->dlpi_phnum; i++) {
     const Elf_Phdr *phdr = &pinfo->dlpi_phdr[i];
     if (phdr->p_type == PT_LOAD) {
@@ -492,10 +529,10 @@ static int findUnwindSectionByPhdr(struct dl_phdr_info *pinfo, size_t, void *dat
     }
   }
   return found_obj && found_hdr;
-  #endif
 }
-
+#endif  // defined(LIBUNWIND_SUPPORT_DWARF_UNWIND)
 #endif  // defined(_LIBUNWIND_ARM_EHABI) || defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
+
 
 inline bool LocalAddressSpace::findUnwindSections(pint_t targetAddr,
                                                   UnwindInfoSections &info) {
@@ -589,7 +626,7 @@ inline bool LocalAddressSpace::findUnwindSections(pint_t targetAddr,
     return true;
 #elif defined(_LIBUNWIND_ARM_EHABI) || defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
   dl_iterate_cb_data cb_data = {this, &info, targetAddr};
-  int found = dl_iterate_phdr(findUnwindSectionByPhdr, &cb_data);
+  int found = dl_iterate_phdr(findUnwindSectionsByPhdr, &cb_data);
   return static_cast<bool>(found);
 #endif
 

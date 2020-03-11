@@ -363,11 +363,12 @@ static unsigned getBitWidth(Type type) {
     // TODO: Make sure not caller relies on the actual pointer width value.
     return 64;
   }
-  if (type.isSignlessIntOrFloat()) {
+
+  if (type.isIntOrFloat())
     return type.getIntOrFloatBitWidth();
-  }
+
   if (auto vectorType = type.dyn_cast<VectorType>()) {
-    assert(vectorType.getElementType().isSignlessIntOrFloat());
+    assert(vectorType.getElementType().isIntOrFloat());
     return vectorType.getNumElements() *
            vectorType.getElementType().getIntOrFloatBitWidth();
   }
@@ -500,7 +501,7 @@ static void printAtomicUpdateOp(Operation *op, OpAsmPrinter &printer) {
 static LogicalResult verifyAtomicUpdateOp(Operation *op) {
   auto ptrType = op->getOperand(0).getType().cast<spirv::PointerType>();
   auto elementType = ptrType.getPointeeType();
-  if (!elementType.isSignlessInteger())
+  if (!elementType.isa<IntegerType>())
     return op->emitOpError(
                "pointer operand must point to an integer value, found ")
            << elementType;
@@ -942,15 +943,34 @@ static LogicalResult verify(spirv::BitcastOp bitcastOp) {
 }
 
 //===----------------------------------------------------------------------===//
+// spv.BranchOp
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> spirv::BranchOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool spirv::BranchOp::canEraseSuccessorOperand() { return true; }
+
+//===----------------------------------------------------------------------===//
 // spv.BranchConditionalOp
 //===----------------------------------------------------------------------===//
+
+Optional<OperandRange>
+spirv::BranchConditionalOp::getSuccessorOperands(unsigned index) {
+  assert(index < 2 && "invalid successor index");
+  return index == kTrueIndex ? getTrueBlockArguments()
+                             : getFalseBlockArguments();
+}
+
+bool spirv::BranchConditionalOp::canEraseSuccessorOperand() { return true; }
 
 static ParseResult parseBranchConditionalOp(OpAsmParser &parser,
                                             OperationState &state) {
   auto &builder = parser.getBuilder();
   OpAsmParser::OperandType condInfo;
   Block *dest;
-  SmallVector<Value, 4> destOperands;
 
   // Parse the condition.
   Type boolTy = builder.getI1Type();
@@ -975,17 +995,24 @@ static ParseResult parseBranchConditionalOp(OpAsmParser &parser,
   }
 
   // Parse the true branch.
+  SmallVector<Value, 4> trueOperands;
   if (parser.parseComma() ||
-      parser.parseSuccessorAndUseList(dest, destOperands))
+      parser.parseSuccessorAndUseList(dest, trueOperands))
     return failure();
-  state.addSuccessor(dest, destOperands);
+  state.addSuccessors(dest);
+  state.addOperands(trueOperands);
 
   // Parse the false branch.
-  destOperands.clear();
+  SmallVector<Value, 4> falseOperands;
   if (parser.parseComma() ||
-      parser.parseSuccessorAndUseList(dest, destOperands))
+      parser.parseSuccessorAndUseList(dest, falseOperands))
     return failure();
-  state.addSuccessor(dest, destOperands);
+  state.addSuccessors(dest);
+  state.addOperands(falseOperands);
+  state.addAttribute(
+      spirv::BranchConditionalOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({1, static_cast<int32_t>(trueOperands.size()),
+                                static_cast<int32_t>(falseOperands.size())}));
 
   return success();
 }
@@ -1003,11 +1030,11 @@ static void print(spirv::BranchConditionalOp branchOp, OpAsmPrinter &printer) {
   }
 
   printer << ", ";
-  printer.printSuccessorAndUseList(branchOp.getOperation(),
-                                   spirv::BranchConditionalOp::kTrueIndex);
+  printer.printSuccessorAndUseList(branchOp.getTrueBlock(),
+                                   branchOp.getTrueBlockArguments());
   printer << ", ";
-  printer.printSuccessorAndUseList(branchOp.getOperation(),
-                                   spirv::BranchConditionalOp::kFalseIndex);
+  printer.printSuccessorAndUseList(branchOp.getFalseBlock(),
+                                   branchOp.getFalseBlockArguments());
 }
 
 static LogicalResult verify(spirv::BranchConditionalOp branchOp) {
@@ -1265,7 +1292,7 @@ static LogicalResult verify(spirv::ConstantOp constOp) {
       numElements *= t.getNumElements();
       opElemType = t.getElementType();
     }
-    if (!opElemType.isSignlessIntOrFloat()) {
+    if (!opElemType.isIntOrFloat()) {
       return constOp.emitOpError("only support nested array result type");
     }
 
@@ -1769,8 +1796,6 @@ static LogicalResult verify(spirv::GlobalVariableOp varOp) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::GroupNonUniformBallotOp ballotOp) {
-  // TODO(antiagainst): check the result integer type's signedness bit is 0.
-
   spirv::Scope scope = ballotOp.execution_scope();
   if (scope != spirv::Scope::Workgroup && scope != spirv::Scope::Subgroup)
     return ballotOp.emitOpError(
@@ -1895,7 +1920,7 @@ static inline bool hasOneBranchOpTo(Block &srcBlock, Block &dstBlock) {
     return false;
 
   auto branchOp = dyn_cast<spirv::BranchOp>(srcBlock.back());
-  return branchOp && branchOp.getSuccessor(0) == &dstBlock;
+  return branchOp && branchOp.getSuccessor() == &dstBlock;
 }
 
 static LogicalResult verify(spirv::LoopOp loopOp) {

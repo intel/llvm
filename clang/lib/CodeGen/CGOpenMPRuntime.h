@@ -1776,6 +1776,27 @@ public:
                                                      LValue PrivLVal,
                                                      const VarDecl *VD,
                                                      SourceLocation Loc);
+
+  /// Emits list of dependecies based on the provided data (array of
+  /// dependence/expression pairs).
+  /// \param ForDepobj true if the memory for depencies is alloacted for depobj
+  /// directive. In this case, the variable is allocated in dynamically.
+  /// \returns Pointer to the first element of the array casted to VoidPtr type.
+  Address emitDependClause(
+      CodeGenFunction &CGF,
+      ArrayRef<std::pair<OpenMPDependClauseKind, const Expr *>> Dependencies,
+      bool ForDepobj, SourceLocation Loc);
+
+  /// Emits the code to destroy the dependency object provided in depobj
+  /// directive.
+  void emitDestroyClause(CodeGenFunction &CGF, LValue DepobjLVal,
+                         SourceLocation Loc);
+
+  /// Updates the dependency kind in the specified depobj object.
+  /// \param DepobjLVal LValue for the main depobj object.
+  /// \param NewDepKind New dependency kind.
+  void emitUpdateClause(CodeGenFunction &CGF, LValue DepobjLVal,
+                        OpenMPDependClauseKind NewDepKind, SourceLocation Loc);
 };
 
 /// Class supports emissionof SIMD-only code.
