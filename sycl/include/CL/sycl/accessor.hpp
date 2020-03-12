@@ -195,12 +195,8 @@ protected:
       AccessMode == access::mode::read_write;
 
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using RefType =
-      typename std::conditional<AS == access::address_space::constant_space,
-                                const DataT &, DataT &>::type;
-  using PtrType =
-      typename std::conditional<AS == access::address_space::constant_space,
-                                const DataT *, DataT *>::type;
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 #else
   using RefType = DataT &;
   using PtrType = DataT *;

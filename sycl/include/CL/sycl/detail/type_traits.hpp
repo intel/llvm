@@ -290,7 +290,7 @@ using const_if_const_AS =
     typename std::conditional<AS == access::address_space::constant_space,
                               const DataT, DataT>::type;
 #else
-template<access::address_space AS, class DataT>
+template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
 
