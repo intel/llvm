@@ -84,15 +84,9 @@ public:
     return *this;
   }
 
-#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   using ReturnPtr = detail::const_if_const_AS<Space, ElementType> *;
   using ReturnRef = detail::const_if_const_AS<Space, ElementType> &;
-  using ReturnConstRef = ReturnRef;
-#else
-  using ReturnPtr = ElementType *;
-  using ReturnRef = ElementType &;
   using ReturnConstRef = const ElementType &;
-#endif
 
   ReturnRef operator*() const {
     return *reinterpret_cast<ReturnPtr>(m_Pointer);
@@ -382,11 +376,7 @@ public:
           Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
-#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   using ReturnPtr = detail::const_if_const_AS<Space, void> *;
-#else
-  using ReturnPtr = void *;
-#endif
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
 
