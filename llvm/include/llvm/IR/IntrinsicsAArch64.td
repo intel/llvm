@@ -1146,6 +1146,11 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
                    llvm_i32_ty],
                   [IntrNoMem, ImmArg<2>]>;
 
+  class SVE2_CONFLICT_DETECT_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMAnyPointerType<llvm_any_ty>,
+                 LLVMMatchType<1>]>;
+
   class SVE2_3VectorArg_Indexed_Intrinsic
     : Intrinsic<[llvm_anyvector_ty],
                 [LLVMMatchType<0>,
@@ -1498,6 +1503,7 @@ def int_aarch64_sve_clastb_n  : AdvSIMD_SVE_ReduceWithInit_Intrinsic;
 def int_aarch64_sve_compact   : AdvSIMD_Pred1VectorArg_Intrinsic;
 def int_aarch64_sve_dupq_lane : AdvSIMD_SVE_DUPQ_Intrinsic;
 def int_aarch64_sve_ext       : AdvSIMD_2VectorArgIndexed_Intrinsic;
+def int_aarch64_sve_sel       : AdvSIMD_Pred2VectorArg_Intrinsic;
 def int_aarch64_sve_lasta     : AdvSIMD_SVE_Reduce_Intrinsic;
 def int_aarch64_sve_lastb     : AdvSIMD_SVE_Reduce_Intrinsic;
 def int_aarch64_sve_rev       : AdvSIMD_1VectorArg_Intrinsic;
@@ -2166,3 +2172,16 @@ def int_aarch64_sve_bext_x : AdvSIMD_2VectorArg_Intrinsic;
 def int_aarch64_sve_bgrp_x : AdvSIMD_2VectorArg_Intrinsic;
 
 }
+
+//
+// SVE2 - Contiguous conflict detection
+//
+
+def int_aarch64_sve_whilerw_b : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilerw_h : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilerw_s : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilerw_d : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilewr_b : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilewr_h : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilewr_s : SVE2_CONFLICT_DETECT_Intrinsic;
+def int_aarch64_sve_whilewr_d : SVE2_CONFLICT_DETECT_Intrinsic;

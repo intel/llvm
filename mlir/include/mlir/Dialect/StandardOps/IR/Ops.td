@@ -13,10 +13,10 @@
 #ifndef STANDARD_OPS
 #define STANDARD_OPS
 
-include "mlir/Analysis/CallInterfaces.td"
-include "mlir/Analysis/ControlFlowInterfaces.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
-include "mlir/IR/SideEffects.td"
+include "mlir/Interfaces/SideEffects.td"
 
 def Std_Dialect : Dialect {
   let name = "std";

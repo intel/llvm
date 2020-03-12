@@ -82,13 +82,6 @@ New checks
 
   Checks for usages of identifiers reserved for use by the implementation.
 
-- New :doc:`bugprone-suspicious-include
-  <clang-tidy/checks/bugprone-suspicious-include>` check.
-
-  Finds cases where an include refers to what appears to be an implementation
-  file, which often leads to hard-to-track-down ODR violations, and diagnoses
-  them.
-
 - New :doc:`cert-oop57-cpp
   <clang-tidy/checks/cert-oop57-cpp>` check.
 
@@ -139,6 +132,9 @@ Changes in existing checks
 
 Renamed checks
 ^^^^^^^^^^^^^^
+
+- The 'fuchsia-restrict-system-headers' check was renamed to :doc:`portability-restrict-system-includes
+  <clang-tidy/checks/portability-restrict-system-includes>`
 
 Improvements to include-fixer
 -----------------------------
