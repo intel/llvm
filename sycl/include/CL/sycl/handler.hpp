@@ -23,6 +23,7 @@
 #include <CL/sycl/stl.hpp>
 
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -337,7 +338,7 @@ protected:
     using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
-    if (KI::getName() != "") {
+    if (std::strlen(KI::getName()) > 0) {
       MArgs.clear();
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
                                    &KI::getParamDesc(0));

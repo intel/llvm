@@ -530,13 +530,27 @@ convertWriteData(const vec<cl_int, 4> WriteData,
   }
 }
 
+template <typename T>
+struct pixel_type_helper {
+  using type = T;
+};
+
+template <> struct pixel_type_helper<float> {
+  using type = int32_t;
+};
+
+template <> struct pixel_type_helper<double> {
+  using type = int64_t;
+};
+
 template <typename ChannelType>
 vec<ChannelType, 4> processFloatDataToPixel(vec<cl_float, 4> WriteData,
                                             float MulFactor) {
   vec<cl_float, 4> Temp = WriteData * MulFactor;
   vec<cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
   vec<cl_int, 4> TempInIntSaturated =
-      cl::sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
+      cl::sycl::clamp(TempInInt, min_v<typename pixel_type_helper<ChannelType>::type>(),
+              max_v<typename pixel_type_helper<ChannelType>::type>());
   return TempInIntSaturated.convert<ChannelType>();
 }
 
@@ -616,7 +630,7 @@ convertWriteData(const vec<cl_float, 4> WriteData,
   case image_channel_type::fp32:
     return WriteData.convert<ChannelType>();
   default:
-    break;
+    throw cl::sycl::invalid_parameter_error("Unsupported data type", PI_INVALID_VALUE);
   }
 }
 
@@ -659,7 +673,7 @@ convertWriteData(const vec<cl_half, 4> WriteData,
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
   default:
-    break;
+    throw cl::sycl::invalid_parameter_error("Unsupported data type", PI_INVALID_VALUE);
   }
 }
 
