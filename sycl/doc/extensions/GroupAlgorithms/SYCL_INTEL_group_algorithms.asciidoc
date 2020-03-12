@@ -62,6 +62,7 @@ The extension introduces the following functions:
 - +any_of+
 - +all_of+
 - +none_of+
+- +leader+
 - +broadcast+
 - +reduce+
 - +exclusive_scan+
@@ -179,6 +180,15 @@ It is undefined behavior for any of these functions to be invoked within a +para
 
 |+template <typename Group, typename Ptr, class Predicate> bool none_of(Group g, Ptr first, Ptr last, Predicate pred);+
 |Return +true+ if _pred_ returns +true+ for no element in the range [_first_, _last_). _first_, _last_ and _pred_ must be the same for all work-items in the group.
+|===
+
+==== Elect
+
+|===
+|Function|Description
+
+|+template <typename Group> bool leader(Group g);+
+|Return +true+ if the calling work-item is the elected leader of the group.
 |===
 
 ==== Collectives
