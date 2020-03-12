@@ -272,17 +272,22 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   } else {
     // Output directory is based off of the first object name
     for (Arg * Cur : Args) {
-      SmallString<128> AN = Cur->getSpelling();
-      StringRef Ext(llvm::sys::path::extension(AN));
-      if (!Ext.empty()) {
-        types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
-        if (Ty == types::TY_INVALID)
-          continue;
-        if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-          llvm::sys::path::replace_extension(AN, "prj");
-          ReportOptArg += Args.MakeArgString(AN);
-          break;
-        }
+      if (Cur->getOption().getKind() != Option::InputClass)
+        continue;
+      SmallString<128> ArgName = Cur->getSpelling();
+      StringRef Ext(llvm::sys::path::extension(ArgName));
+      if (Ext.empty())
+        continue;
+      types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
+      if (Ty == types::TY_INVALID)
+        continue;
+      if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
+        // Project report should be saved into CWD, so strip off any
+        // directory information if provided with the input file.
+        ArgName = llvm::sys::path::filename(ArgName);
+        llvm::sys::path::replace_extension(ArgName, "prj");
+        ReportOptArg += Args.MakeArgString(ArgName);
+        break;
       }
     }
   }

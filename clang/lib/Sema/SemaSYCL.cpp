@@ -322,14 +322,6 @@ public:
 
     CheckSYCLType(E->getType(), E->getSourceRange());
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
-        if (VD->getTLSKind() != VarDecl::TLS_None)
-          SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
-        SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
-            << Sema::KernelGlobalVariable;
-      }
       if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
         VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(VD);
@@ -1905,7 +1897,7 @@ bool Util::matchQualifiedTypeName(const QualType &Ty,
 
   if (!RecTy)
     return false; // only classes/structs supported
-  const auto *Ctx = dyn_cast<DeclContext>(RecTy);
+  const auto *Ctx = cast<DeclContext>(RecTy);
   StringRef Name = "";
 
   for (const auto &Scope : llvm::reverse(Scopes)) {
