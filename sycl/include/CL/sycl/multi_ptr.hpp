@@ -85,8 +85,8 @@ public:
   }
 
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using ReturnPtr = detail::const_if_const_AS<Space, ElementType>*;
-  using ReturnRef = detail::const_if_const_AS<Space, ElementType>&;
+  using ReturnPtr = detail::const_if_const_AS<Space, ElementType> *;
+  using ReturnRef = detail::const_if_const_AS<Space, ElementType> &;
   using ReturnConstRef = ReturnRef;
 #else
   using ReturnPtr = ElementType *;
@@ -383,7 +383,7 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using ReturnPtr = detail::const_if_const_AS<Space, void>*;
+  using ReturnPtr = detail::const_if_const_AS<Space, void> *;
 #else
   using ReturnPtr = void *;
 #endif
@@ -437,11 +437,10 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
-  template <access::address_space _Space = Space,
-            typename = typename std::enable_if<
-                _Space == Space &&
-                Space == access::address_space::constant_space>::type>
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
