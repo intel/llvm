@@ -26,10 +26,10 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-__SYCL_INLINE_NAMESPACE(sycl_private) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 // Threat all devices that don't support interoperability as host devices to
 // avoid attempts to call method get on such events.

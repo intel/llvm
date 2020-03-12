@@ -41,11 +41,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-__SYCL_INLINE_NAMESPACE(sycl_private) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
+__SYCL_INLINE_NAMESPACE(sycl_private) {
 
 #ifdef __GNUG__
 struct DemangleHandle {
