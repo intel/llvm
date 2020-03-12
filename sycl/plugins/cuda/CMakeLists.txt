@@ -44,6 +44,6 @@ target_compile_definitions(
 )
 
 install(TARGETS pi_cuda
-  LIBRARY DESTINATION "lib" COMPONENT pi_cuda
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
   RUNTIME DESTINATION "bin" COMPONENT pi_cuda
 )

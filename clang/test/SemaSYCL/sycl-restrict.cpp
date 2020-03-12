@@ -6,6 +6,13 @@ namespace std {
 class type_info;
 typedef __typeof__(sizeof(int)) size_t;
 } // namespace std
+
+// we're testing a restricted mode, thus just provide a stub implementation for
+// function with address-space-unspecified pointers.
+void *operator new(std::size_t) {
+  return reinterpret_cast<void *>(1);
+}
+
 namespace Check_User_Operators {
 class Fraction {
   // expected-error@+2 {{SYCL kernel cannot call a recursive function}}

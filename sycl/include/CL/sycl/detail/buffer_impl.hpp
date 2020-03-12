@@ -30,7 +30,8 @@ namespace sycl {
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class accessor;
-template <typename T, int Dimensions, typename AllocatorT> class buffer;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 class handler;
 
 using buffer_allocator = detail::sycl_memory_object_allocator;

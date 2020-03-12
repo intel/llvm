@@ -35,9 +35,9 @@ public:
   /// The constructed context_impl will use the AsyncHandler parameter to
   /// handle exceptions.
   ///
-  /// @param Device is an instance of SYCL device.
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param useCUDAPrimaryContext is a bool determining whether to use the
+  /// \param Device is an instance of SYCL device.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
   ///        primary context in the CUDA backend.
   context_impl(const device &Device, async_handler AsyncHandler,
                bool UseCUDAPrimaryContext);
@@ -50,9 +50,11 @@ public:
   /// The constructed context_impl will use the AsyncHandler parameter to
   /// handle exceptions.
   ///
-  /// @param DeviceList is a list of SYCL device instances.
-  /// @param AsyncHandler is an instance of async_handler.
-  context_impl(const vector_class<cl::sycl::device> Devices,
+  /// \param DeviceList is a list of SYCL device instances.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
+  ///        primary context in the CUDA backend.
+  context_impl(const vector_class<cl::sycl::device> DeviceList,
                async_handler AsyncHandler, bool UseCUDAPrimaryContext);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -60,9 +62,9 @@ public:
   /// The constructed context_impl will use the AsyncHandler parameter to
   /// handle exceptions.
   ///
-  /// @param PiContext is an instance of a valid plug-in context handle.
-  /// @param AsyncHandler is an instance of async_handler.
-  /// @param &Plugin is the reference to the underlying Plugin that this
+  /// \param PiContext is an instance of a valid plug-in context handle.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                const plugin &Plugin);
@@ -71,23 +73,23 @@ public:
 
   /// Gets OpenCL interoperability context handle.
   ///
-  /// @return an instance of OpenCL cl_context.
+  /// \return an instance of OpenCL cl_context.
   cl_context get() const;
 
   /// Checks if this context is a host context.
   ///
-  /// @return true if this context is a host context.
+  /// \return true if this context is a host context.
   bool is_host() const;
 
   /// Gets asynchronous exception handler.
   ///
-  /// @return an instance of SYCL async_handler.
+  /// \return an instance of SYCL async_handler.
   const async_handler &get_async_handler() const;
 
-  /// @return the Plugin associated with the platform of this context.
+  /// \return the Plugin associated with the platform of this context.
   const plugin &getPlugin() const { return MPlatform->getPlugin(); }
 
-  /// @return the PlatformImpl associated with this context.
+  /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
@@ -104,7 +106,7 @@ public:
   /// be safely passed to the underlying native runtime API. Warning. Returned
   /// reference will be invalid if context_impl was destroyed.
   ///
-  /// @return an instance of raw plug-in context handle.
+  /// \return an instance of raw plug-in context handle.
   RT::PiContext &getHandleRef();
 
   /// Gets the underlying context object (if any) without reference count
@@ -114,7 +116,7 @@ public:
   /// be safely passed to the underlying native runtime API. Warning. Returned
   /// reference will be invalid if context_impl was destroyed.
   ///
-  /// @return an instance of raw plug-in context handle.
+  /// \return an instance of raw plug-in context handle.
   const RT::PiContext &getHandleRef() const;
 
   /// Unlike `get_info<info::context::devices>', this function returns a
@@ -132,7 +134,7 @@ public:
   /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
   /// more details.
   ///
-  /// @returns a map with device library programs.
+  /// \returns a map with device library programs.
   std::map<DeviceLibExt, RT::PiProgram> &getCachedLibPrograms() {
     return MCachedLibPrograms;
   }

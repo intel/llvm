@@ -190,9 +190,11 @@ private:
   /// if any offsets were adjusted.
   bool layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec);
 
+  /// Perform relaxation on a single fragment - returns true if the fragment
+  /// changes as a result of relaxation.
+  bool relaxFragment(MCAsmLayout &Layout, MCFragment &F);
   bool relaxInstruction(MCAsmLayout &Layout, MCRelaxableFragment &IF);
   bool relaxLEB(MCAsmLayout &Layout, MCLEBFragment &IF);
-  bool relaxBoundaryAlign(MCAsmLayout &Layout, MCBoundaryAlignFragment &BF);
   bool relaxDwarfLineAddr(MCAsmLayout &Layout, MCDwarfLineAddrFragment &DF);
   bool relaxDwarfCallFrameFragment(MCAsmLayout &Layout,
                                    MCDwarfCallFrameFragment &DF);

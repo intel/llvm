@@ -24,6 +24,7 @@ public:
         MRequirement{std::move(Req)} {}
 
   void printDot(std::ostream &Stream) const override {}
+  void emitInstrumentationData() override {}
 
   const cl::sycl::detail::Requirement *getRequirement() const final {
     return &MRequirement;

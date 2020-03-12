@@ -685,7 +685,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & InitiationIntervalINTEL) {
+  if (LC & LoopControlInitiationIntervalINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.ii.count", LoopControlParameters[NumParam])));
@@ -693,7 +693,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & MaxConcurrencyINTEL) {
+  if (LC & LoopControlMaxConcurrencyINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_concurrency.count",
@@ -702,7 +702,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & DependencyArrayINTEL) {
+  if (LC & LoopControlDependencyArrayINTEL) {
     // Collect array variable <-> safelen information
     std::map<Value *, unsigned> ArraySflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
@@ -2194,8 +2194,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                          BV->getName(), BB);
+    auto Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
+                                         BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }

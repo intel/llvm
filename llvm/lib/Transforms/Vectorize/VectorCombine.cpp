@@ -23,6 +23,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Vectorize.h"
 #include "llvm/Transforms/Utils/Local.h"
 
@@ -33,6 +34,10 @@ using namespace llvm::PatternMatch;
 STATISTIC(NumVecCmp, "Number of vector compares formed");
 STATISTIC(NumVecBO, "Number of vector binops formed");
 
+static cl::opt<bool> DisableVectorCombine(
+    "disable-vector-combine", cl::init(false), cl::Hidden,
+    cl::desc("Disable all vector combine transforms"));
+
 /// Compare the relative costs of extracts followed by scalar operation vs.
 /// vector operation followed by extract:
 /// opcode (extelt V0, C), (extelt V1, C) --> extelt (opcode V0, V1), C
@@ -41,8 +46,9 @@ STATISTIC(NumVecBO, "Number of vector binops formed");
 static bool isExtractExtractCheap(Instruction *Ext0, Instruction *Ext1,
                                   unsigned Opcode,
                                   const TargetTransformInfo &TTI) {
-  assert(Ext0->getOperand(1) == Ext1->getOperand(1) &&
-         isa<ConstantInt>(Ext0->getOperand(1)) &&
+  assert(isa<ConstantInt>(Ext0->getOperand(1)) &&
+         (cast<ConstantInt>(Ext0->getOperand(1))->getZExtValue() ==
+          cast<ConstantInt>(Ext1->getOperand(1))->getZExtValue()) &&
          "Expected same constant extract index");
 
   Type *ScalarTy = Ext0->getType();
@@ -175,6 +181,9 @@ static bool foldExtractExtract(Instruction &I, const TargetTransformInfo &TTI) {
 /// handled in the callers of this function.
 static bool runImpl(Function &F, const TargetTransformInfo &TTI,
                     const DominatorTree &DT) {
+  if (DisableVectorCombine)
+    return false;
+
   bool MadeChange = false;
   for (BasicBlock &BB : F) {
     // Ignore unreachable basic blocks.
