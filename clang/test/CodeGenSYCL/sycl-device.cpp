@@ -5,11 +5,39 @@ int bar(int b);
 
 class A {
 public:
-  // TODO: check for constructor/destructor as well
-
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv
+  __attribute__((sycl_device)) void foo() {}
+
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev
   __attribute__((sycl_device))
-  void foo() {}
+  A() {}
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev
+  __attribute__((sycl_device)) ~A() {}
+
+  template <typename T>
+  __attribute__((sycl_device)) void AFoo(T t) {}
+
+  // Templates are emitted when they are instantiated
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A4AFooIiEEvT_
+  template <>
+  __attribute__((sycl_device)) void AFoo<int>(int t) {}
+};
+
+template <typename T>
+struct B {
+  T data;
+  B(T _data) : data(_data) {}
+
+  __attribute__((sycl_device)) void BFoo(T t) {}
+};
+
+template <>
+struct B<int> {
+  int data;
+  B(int _data) : data(_data) {}
+
+  // CHECK-DAG: _ZN1BIiE4BFooEi
+  __attribute__((sycl_device)) void BFoo(int t) {}
 };
 
 // CHECK-DAG: define spir_func i32 @_Z3fooii
