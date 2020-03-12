@@ -7,6 +7,6 @@ typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
 // AccessorBaseHost must have getOffset, getMemoryRange, and getPtr methods
 
 // CHECK: CXXRecordDecl {{.*}} class AccessorBaseHost definition
-// CHECK: CXXMethodDecl {{.*}} getOffset 'id<3> &()'
-// CHECK: CXXMethodDecl {{.*}} getMemoryRange 'range<3> &()'
-// CHECK: CXXMethodDecl {{.*}} getPtr 'void *()'
+// CHECK: CXXMethodDecl {{.*}} getOffset 'const id<3> &() const'
+// CHECK: CXXMethodDecl {{.*}} getMemoryRange 'const range<3> &() const'
+// CHECK: CXXMethodDecl {{.*}} getPtr 'void *() const'

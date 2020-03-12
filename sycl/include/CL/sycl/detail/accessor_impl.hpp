@@ -77,16 +77,6 @@ public:
                    bool IsSubBuffer = false);
 
 protected:
-  id<3> &getOffset() {
-    return MCachedOffset;
-  }
-  range<3> &getAccessRange() {
-    return MCachedAccessRange;
-  }
-  range<3> &getMemoryRange() {
-    return MCachedMemoryRange;
-  }
-
   unsigned int getElemSize() const {
       return MCachedElemSize;
   }
