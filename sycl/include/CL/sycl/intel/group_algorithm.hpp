@@ -616,6 +616,19 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
       detail::identity<typename OutPtr::element_type, BinaryOperation>::value);
 }
 
+template <typename Group> bool leader(Group g) {
+  static_assert(detail::is_group<Group>::value,
+                "Group algorithms only support the sycl::group class.");
+#ifdef __SYCL_DEVICE_ONLY__
+  nd_item<Group::dimensions> it =
+      ::sycl::detail::Builder::getNDItem<Group::dimensions>();
+  typename Group::linear_id_type linear_id = it.get_local_linear_id();
+  return (linear_id == 0);
+#else
+  throw runtime_error("Group algorithms are not supported on host device.");
+#endif
+}
+
 } // namespace intel
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
