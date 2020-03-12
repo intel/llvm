@@ -1,18 +1,18 @@
-# SYCL\* Compiler and Runtime architecture design
+# oneAPI DPC++ Compiler and Runtime architecture design
 
 ## Introduction
 
-This document describes the architecture of the SYCL compiler and runtime
-library.  Base SYCL specification version is
-[1.2.1](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf).
+This document describes the architecture of the DPC++ compiler and runtime
+library. For DPC++ specification see
+[spec](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html).
 
-## SYCL Compiler architecture
+## DPC++ Compiler architecture
 
-SYCL application compilation flow:
+DPC++ application compilation flow:
 
-![High level component diagram for SYCL Compiler](Compiler-HLD.svg)
+![High level component diagram for DPC++ Compiler](images/Compiler-HLD.svg)
 
-SYCL compiler logically can be split into the host compiler and a number of
+DPC++ compiler logically can be split into the host compiler and a number of
 device compilers—one per each supported target. Clang driver orchestrates the
 compilation process, it will invoke the device compiler once per each requested
 target, then it will invoke the host compiler to compile the host part of a
@@ -31,7 +31,7 @@ applies additional restrictions on the device code (e.g. no exceptions or
 virtual calls), generates LLVM IR for the device code only and "integration
 header" which provides information like kernel name, parameters order and data
 type for the runtime library.
-- **Middle-end** - transforms the initial LLVM IR* to get consumed by the
+- **Middle-end** - transforms the initial LLVM IR to get consumed by the
 back-end. Today middle-end transformations include just a couple of passes:
   - Optionally: Address space inference pass
   - TBD: potentially the middle-end optimizer can run any LLVM IR
@@ -78,7 +78,7 @@ Q.submit([&](handler& cgh) {
 ...
 ```
 
-In this example, the SYCL compiler needs to compile the lambda expression passed
+In this example, the compiler needs to compile the lambda expression passed
 to the `cl::sycl::handler::parallel_for` method, as well as the function `foo`
 called from the lambda expression for the device.
 The compiler must also ignore the `bar` function when we compile the
@@ -87,9 +87,9 @@ portion of the source code (the contents of the lambda expression passed to the
 `cl::sycl::handler::parallel_for` and any function called from this lambda
 expression).
 
-The current approach is to use the SYCL kernel attribute in the SYCL runtime to
+The current approach is to use the SYCL kernel attribute in the runtime to
 mark code passed to `cl::sycl::handler::parallel_for` as "kernel functions".
-The SYCL runtime library can't mark foo as "device" code - this is a compiler
+The runtime library can't mark foo as "device" code - this is a compiler
 job: to traverse all symbols accessible from kernel functions and add them to
 the "device part" of the code marking them with the new SYCL device attribute.
 
@@ -160,8 +160,8 @@ must be passed to the clang driver:
 
 `-fsycl`
 
-With this option specified, the driver will invoke the host SYCL compiler and a
-number of device compilers for targets specified in the `-fsycl-targets`
+With this option specified, the driver will invoke the host compiler and a
+number of SYCL device compilers for targets specified in the `-fsycl-targets`
 option.  If `-fsycl-targets` is not specified, then single SPIR-V target is
 assumed, and single device compiler for this target is invoked.
 
@@ -188,7 +188,7 @@ a set of target architectures for which to compile device code. By default the
 compiler generates SPIR-V and OpenCL device JIT compiler produces native target
 binary.
 
-There are existing options for OpenMP* offload:
+There are existing options for OpenMP\* offload:
 
 `-fopenmp-targets=triple1,triple2`
 
@@ -477,7 +477,7 @@ produced by OpenCL C front-end compiler.
 It's a regular function, which can conflict with user code produced from C++
 source.
 
-SYCL compiler uses modified solution developed for OpenCL C++ compiler
+DPC++ compiler uses modified solution developed for OpenCL C++ compiler
 prototype:
 
 - Compiler: https://github.com/KhronosGroup/SPIR/tree/spirv-1.1
@@ -546,17 +546,11 @@ compiler:
 
 ### Compiler/Runtime interface
 
-## SYCL Runtime architecture
+## DPC++ Runtime architecture
 
 *TBD*
 
-## Supported extensions
+## DPC++ Language extensions to SYCL
 
-- [Intel subgroups](extensions/SubGroupNDRange/SubGroupNDRange.md)
+List of language extensions can be found at [extensions](extensions)
 
-## Unsupported extensions/proposals
-
-- [Ordered queue](extensions/OrderedQueue/OrderedQueue.adoc)
-- [Unified shared memory](extensions/USM/USM.adoc)
-
-\*Other names and brands may be claimed as the property of others.

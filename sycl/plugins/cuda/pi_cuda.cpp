@@ -9,13 +9,15 @@
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
-#include <memory>
 #include <limits>
+#include <memory>
 #include <mutex>
+#include <regex>
 
 std::string getCudaVersionString() {
   int driver_version = 0;
@@ -445,6 +447,28 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                                 const char *value) {
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
+}
+
+/// Finds kernel names by searching for entry points in the PTX source, as the
+/// CUDA driver API doesn't expose an operation for this.
+/// Note: This is currently only being used by the SYCL program class for the
+///       has_kernel method, so an alternative would be to move the has_kernel
+///       query to PI and use cuModuleGetFunction to check for a kernel.
+std::string getKernelNames(pi_program program) {
+  std::string source(program->source_,
+                     program->source_ + program->sourceLength_);
+  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
+  std::string names("");
+  std::smatch match;
+  bool first_match = true;
+  while (std::regex_search(source, match, entries_pattern)) {
+    assert(match.size() == 2);
+    names += first_match ? "" : ";";
+    names += match[1]; // Second element is the group.
+    source = match.suffix().str();
+    first_match = false;
+  }
+  return names;
 }
 
 /// RAII object that calls the reference count release function on the held PI
@@ -1993,7 +2017,7 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
                         &program->source_);
   case PI_PROGRAM_INFO_KERNEL_NAMES: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "not implemented");
+                   getKernelNames(program).c_str());
   }
   default:
     PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
