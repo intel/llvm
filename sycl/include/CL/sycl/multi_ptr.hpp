@@ -11,6 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <cassert>
 #include <cstddef>
 
@@ -53,10 +54,7 @@ public:
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  template <access::address_space _Space = Space,
-            typename = typename std::enable_if<
-                _Space == Space &&
-                Space == access::address_space::constant_space>::type>
+  template <typename = typename detail::const_if_const_AS<Space, ElementType>>
   multi_ptr(const ElementType *pointer) : m_Pointer((pointer_t)(pointer)) {}
 #endif
 
@@ -87,12 +85,8 @@ public:
   }
 
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using ReturnPtr =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const ElementType *, ElementType *>::type;
-  using ReturnRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const ElementType &, ElementType &>::type;
+  using ReturnPtr = detail::const_if_const_AS<Space, ElementType>*;
+  using ReturnRef = detail::const_if_const_AS<Space, ElementType>&;
   using ReturnConstRef = ReturnRef;
 #else
   using ReturnPtr = ElementType *;
@@ -319,10 +313,7 @@ public:
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  template <access::address_space _Space = Space,
-            typename = typename std::enable_if<
-                _Space == Space &&
-                Space == access::address_space::constant_space>::type>
+  template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
 #endif
 #endif
@@ -392,9 +383,7 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
-  using ReturnPtr =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const void *, void *>::type;
+  using ReturnPtr = detail::const_if_const_AS<Space, void>*;
 #else
   using ReturnPtr = void *;
 #endif
@@ -581,8 +570,7 @@ multi_ptr<ElementType, Space> make_ptr(ElementType *pointer) {
 }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
 template <typename ElementType, access::address_space Space,
-          typename = typename std::enable_if<
-              Space == access::address_space::constant_space>::type>
+          typename = typename detail::const_if_const_AS<Space, ElementType>>
 multi_ptr<ElementType, Space> make_ptr(const ElementType *pointer) {
   return multi_ptr<ElementType, Space>(pointer);
 }
