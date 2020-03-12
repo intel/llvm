@@ -1473,24 +1473,30 @@ static bool haveSameOperands(const IntrinsicInst &I, const IntrinsicInst &E,
 // start/end intrinsics in between). As this handles only the most trivial
 // cases, tracking the nesting level is not needed:
 //
-//   call @llvm.foo.start(i1 0) ; &I
 //   call @llvm.foo.start(i1 0)
-//   call @llvm.foo.end(i1 0) ; This one will not be skipped: it will be removed
+//   call @llvm.foo.start(i1 0) ; This one won't be skipped: it will be removed
 //   call @llvm.foo.end(i1 0)
-static bool removeTriviallyEmptyRange(IntrinsicInst &I, unsigned StartID,
-                                      unsigned EndID, InstCombiner &IC) {
-  assert(I.getIntrinsicID() == StartID &&
-         "Start intrinsic does not have expected ID");
-  BasicBlock::iterator BI(I), BE(I.getParent()->end());
-  for (++BI; BI != BE; ++BI) {
-    if (auto *E = dyn_cast<IntrinsicInst>(BI)) {
-      if (isa<DbgInfoIntrinsic>(E) || E->getIntrinsicID() == StartID)
+//   call @llvm.foo.end(i1 0) ; &I
+static bool removeTriviallyEmptyRange(
+    IntrinsicInst &EndI, InstCombiner &IC,
+    std::function<bool(const IntrinsicInst &)> IsStart) {
+  // We start from the end intrinsic and scan backwards, so that InstCombine
+  // has already processed (and potentially removed) all the instructions
+  // before the end intrinsic.
+  BasicBlock::reverse_iterator BI(EndI), BE(EndI.getParent()->rend());
+  for (; BI != BE; ++BI) {
+    if (auto *I = dyn_cast<IntrinsicInst>(&*BI)) {
+      if (isa<DbgInfoIntrinsic>(I) ||
+          I->getIntrinsicID() == EndI.getIntrinsicID())
         continue;
-      if (E->getIntrinsicID() == EndID &&
-          haveSameOperands(I, *E, E->getNumArgOperands())) {
-        IC.eraseInstFromFunction(*E);
-        IC.eraseInstFromFunction(I);
-        return true;
+      if (IsStart(*I)) {
+        if (haveSameOperands(EndI, *I, EndI.getNumArgOperands())) {
+          IC.eraseInstFromFunction(*I);
+          IC.eraseInstFromFunction(EndI);
+          return true;
+        }
+        // Skip start intrinsics that don't pair with this end intrinsic.
+        continue;
       }
     }
     break;
@@ -1748,13 +1754,11 @@ static Instruction *SimplifyNVVMIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
   llvm_unreachable("All SpecialCase enumerators should be handled in switch.");
 }
 
-Instruction *InstCombiner::visitVAStartInst(VAStartInst &I) {
-  removeTriviallyEmptyRange(I, Intrinsic::vastart, Intrinsic::vaend, *this);
-  return nullptr;
-}
-
-Instruction *InstCombiner::visitVACopyInst(VACopyInst &I) {
-  removeTriviallyEmptyRange(I, Intrinsic::vacopy, Intrinsic::vaend, *this);
+Instruction *InstCombiner::visitVAEndInst(VAEndInst &I) {
+  removeTriviallyEmptyRange(I, *this, [](const IntrinsicInst &I) {
+    return I.getIntrinsicID() == Intrinsic::vastart ||
+           I.getIntrinsicID() == Intrinsic::vacopy;
+  });
   return nullptr;
 }
 
@@ -2185,7 +2189,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
         llvm_unreachable("unexpected intrinsic ID");
       }
       Value *NewCall = Builder.CreateBinaryIntrinsic(NewIID, X, Y, II);
-      Instruction *FNeg = BinaryOperator::CreateFNeg(NewCall);
+      Instruction *FNeg = UnaryOperator::CreateFNeg(NewCall);
       FNeg->copyIRFlags(II);
       return FNeg;
     }
@@ -2350,7 +2354,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     if (match(II->getArgOperand(0), m_OneUse(m_FNeg(m_Value(X))))) {
       // sin(-x) --> -sin(x)
       Value *NewSin = Builder.CreateUnaryIntrinsic(Intrinsic::sin, X, II);
-      Instruction *FNeg = BinaryOperator::CreateFNeg(NewSin);
+      Instruction *FNeg = UnaryOperator::CreateFNeg(NewSin);
       FNeg->copyFastMathFlags(II);
       return FNeg;
     }
@@ -2538,50 +2542,6 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       }
     }
     break;
-
-  case Intrinsic::x86_vcvtph2ps_128:
-  case Intrinsic::x86_vcvtph2ps_256: {
-    auto Arg = II->getArgOperand(0);
-    auto ArgType = cast<VectorType>(Arg->getType());
-    auto RetType = cast<VectorType>(II->getType());
-    unsigned ArgWidth = ArgType->getNumElements();
-    unsigned RetWidth = RetType->getNumElements();
-    assert(RetWidth <= ArgWidth && "Unexpected input/return vector widths");
-    assert(ArgType->isIntOrIntVectorTy() &&
-           ArgType->getScalarSizeInBits() == 16 &&
-           "CVTPH2PS input type should be 16-bit integer vector");
-    assert(RetType->getScalarType()->isFloatTy() &&
-           "CVTPH2PS output type should be 32-bit float vector");
-
-    // Constant folding: Convert to generic half to single conversion.
-    if (isa<ConstantAggregateZero>(Arg))
-      return replaceInstUsesWith(*II, ConstantAggregateZero::get(RetType));
-
-    if (isa<ConstantDataVector>(Arg)) {
-      auto VectorHalfAsShorts = Arg;
-      if (RetWidth < ArgWidth) {
-        SmallVector<uint32_t, 8> SubVecMask;
-        for (unsigned i = 0; i != RetWidth; ++i)
-          SubVecMask.push_back((int)i);
-        VectorHalfAsShorts = Builder.CreateShuffleVector(
-            Arg, UndefValue::get(ArgType), SubVecMask);
-      }
-
-      auto VectorHalfType =
-          VectorType::get(Type::getHalfTy(II->getContext()), RetWidth);
-      auto VectorHalfs =
-          Builder.CreateBitCast(VectorHalfAsShorts, VectorHalfType);
-      auto VectorFloats = Builder.CreateFPExt(VectorHalfs, RetType);
-      return replaceInstUsesWith(*II, VectorFloats);
-    }
-
-    // We only use the lowest lanes of the argument.
-    if (Value *V = SimplifyDemandedVectorEltsLow(Arg, ArgWidth, RetWidth)) {
-      II->setArgOperand(0, V);
-      return II;
-    }
-    break;
-  }
 
   case Intrinsic::x86_sse_cvtss2si:
   case Intrinsic::x86_sse_cvtss2si64:
@@ -4056,7 +4016,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       return eraseInstFromFunction(CI);
     break;
   }
-  case Intrinsic::lifetime_start:
+  case Intrinsic::lifetime_end:
     // Asan needs to poison memory to detect invalid access which is possible
     // even for empty lifetime range.
     if (II->getFunction()->hasFnAttribute(Attribute::SanitizeAddress) ||
@@ -4064,8 +4024,9 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
         II->getFunction()->hasFnAttribute(Attribute::SanitizeHWAddress))
       break;
 
-    if (removeTriviallyEmptyRange(*II, Intrinsic::lifetime_start,
-                                  Intrinsic::lifetime_end, *this))
+    if (removeTriviallyEmptyRange(*II, *this, [](const IntrinsicInst &I) {
+          return I.getIntrinsicID() == Intrinsic::lifetime_start;
+        }))
       return nullptr;
     break;
   case Intrinsic::assume: {

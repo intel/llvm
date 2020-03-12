@@ -54,4 +54,3 @@
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation
->>>>>>> 863d9752105f390b31b3d08d1980d2888c15b034

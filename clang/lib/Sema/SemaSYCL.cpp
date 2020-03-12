@@ -322,14 +322,6 @@ public:
 
     CheckSYCLType(E->getType(), E->getSourceRange());
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
-      if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
-        if (VD->getTLSKind() != VarDecl::TLS_None)
-          SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
-        SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
-            << Sema::KernelGlobalVariable;
-      }
       if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
         VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(VD);
@@ -537,6 +529,7 @@ private:
     }
     return true;
   }
+
   Sema &SemaRef;
 };
 
@@ -1410,18 +1403,6 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-// Do we know that we will eventually codegen the given function?
-static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
-  assert(FD && "Given function may not be null.");
-
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
-    return true;
-
-  // Otherwise, the function is known-emitted if it's in our set of
-  // known-emitted functions.
-  return S.DeviceKnownEmittedFns.count(FD) > 0;
-}
-
 Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
                                                    unsigned DiagID) {
   assert(getLangOpts().SYCLIsDevice &&
@@ -1430,29 +1411,104 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
     if (ConstructingOpenCLKernel || !FD)
       return DeviceDiagBuilder::K_Nop;
-    if (isKnownEmitted(*this, FD))
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
     return DeviceDiagBuilder::K_Deferred;
   }();
   return DeviceDiagBuilder(DiagKind, Loc, DiagID, FD, *this);
 }
 
-void Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
+bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
   assert(Callee && "Callee may not be null.");
 
   // Errors in unevaluated context don't need to be generated,
   // so we can safely skip them.
-  if (isUnevaluatedContext())
-    return;
+  if (isUnevaluatedContext() || isConstantEvaluated())
+    return true;
 
   FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
 
+  if (!Caller)
+    return true;
+
+  bool CallerKnownEmitted =
+      getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted;
+
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
-  if (Caller && isKnownEmitted(*this, Caller))
-    markKnownEmitted(*this, Caller, Callee, Loc, isKnownEmitted);
-  else if (Caller)
+  if (CallerKnownEmitted)
+    markKnownEmitted(*this, Caller, Callee, Loc, [](Sema &S, FunctionDecl *FD) {
+      return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
+    });
+  else
     DeviceCallGraph[Caller].insert({Callee, Loc});
+
+  DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
+
+  // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
+
+  DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+      << Sema::KernelCallUndefinedFunction;
+  DeviceDiagBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
+                    Caller, *this)
+      << Callee;
+
+  return DiagKind != DeviceDiagBuilder::K_Immediate &&
+         DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
+}
+
+static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
+                                      const FunctionDecl *Caller,
+                                      const SourceLocation &Loc) {
+  // Somehow an unspecialized template appears to be in callgraph or list of
+  // device functions. We don't want to emit diagnostic here.
+  if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
+    return;
+
+  // Don't emit diagnostic for functions not called from device code
+  if (!Caller->hasAttr<SYCLDeviceAttr>() && !Caller->hasAttr<SYCLKernelAttr>())
+    return;
+
+  bool RedeclHasAttr = false;
+
+  for (const Decl *Redecl : Callee->redecls()) {
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
+      if ((FD->hasAttr<SYCLDeviceAttr>() &&
+           !FD->getAttr<SYCLDeviceAttr>()->isImplicit()) ||
+          FD->hasAttr<SYCLKernelAttr>()) {
+        RedeclHasAttr = true;
+        break;
+      }
+    }
+  }
+
+  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
+  bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
+
+  if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
+    SemaRef.Diag(Loc, diag::err_sycl_restrict)
+        << Sema::KernelCallUndefinedFunction;
+    SemaRef.Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
+    SemaRef.Diag(Caller->getLocation(), diag::note_called_by) << Caller;
+  }
+}
+
+void Sema::finalizeSYCLDelayedAnalysis() {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+
+  llvm::DenseSet<const FunctionDecl *> Checked;
+
+  for (const auto &EmittedWithLoc : DeviceKnownEmittedFns) {
+    const FunctionDecl *Caller = EmittedWithLoc.getSecond().FD;
+    const SourceLocation &Loc = EmittedWithLoc.getSecond().Loc;
+    const FunctionDecl *Callee = EmittedWithLoc.getFirst();
+
+    if (Checked.insert(Callee).second)
+      emitCallToUndefinedFnDiag(*this, Callee, Caller, Loc);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1841,7 +1897,7 @@ bool Util::matchQualifiedTypeName(const QualType &Ty,
 
   if (!RecTy)
     return false; // only classes/structs supported
-  const auto *Ctx = dyn_cast<DeclContext>(RecTy);
+  const auto *Ctx = cast<DeclContext>(RecTy);
   StringRef Name = "";
 
   for (const auto &Scope : llvm::reverse(Scopes)) {

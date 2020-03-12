@@ -47,6 +47,7 @@
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <unordered_map>
 
 using namespace clang;
 using namespace sema;
@@ -7059,10 +7060,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   // Static variables declared inside SYCL device code must be const or
   // constexpr
-  if (getLangOpts().SYCLIsDevice && SCSpec == DeclSpec::SCS_static &&
-      !R.isConstant(Context))
-    SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
-        << Sema::KernelNonConstStaticDataVariable;
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
+          << Sema::KernelNonConstStaticDataVariable;
+    else if (NewVD->getTSCSpec() == DeclSpec::TSCS_thread_local)
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case CSK_unspecified:
@@ -14485,6 +14489,77 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   return FD;
 }
 
+/// If this function is a C++ replaceable global allocation function
+/// (C++2a [basic.stc.dynamic.allocation], C++2a [new.delete]),
+/// adds any function attributes that we know a priori based on the standard.
+///
+/// We need to check for duplicate attributes both here and where user-written
+/// attributes are applied to declarations.
+void Sema::AddKnownFunctionAttributesForReplaceableGlobalAllocationFunction(
+    FunctionDecl *FD) {
+  if (FD->isInvalidDecl())
+    return;
+
+  if (FD->getDeclName().getCXXOverloadedOperator() != OO_New &&
+      FD->getDeclName().getCXXOverloadedOperator() != OO_Array_New)
+    return;
+
+  Optional<unsigned> AlignmentParam;
+  bool IsNothrow = false;
+  if (!FD->isReplaceableGlobalAllocationFunction(&AlignmentParam, &IsNothrow))
+    return;
+
+  // C++2a [basic.stc.dynamic.allocation]p4:
+  //   An allocation function that has a non-throwing exception specification
+  //   indicates failure by returning a null pointer value. Any other allocation
+  //   function never returns a null pointer value and indicates failure only by
+  //   throwing an exception [...]
+  if (!IsNothrow && !FD->hasAttr<ReturnsNonNullAttr>())
+    FD->addAttr(ReturnsNonNullAttr::CreateImplicit(Context, FD->getLocation()));
+
+  // C++2a [basic.stc.dynamic.allocation]p2:
+  //   An allocation function attempts to allocate the requested amount of
+  //   storage. [...] If the request succeeds, the value returned by a
+  //   replaceable allocation function is a [...] pointer value p0 different
+  //   from any previously returned value p1 [...]
+  //
+  // However, this particular information is being added in codegen,
+  // because there is an opt-out switch for it (-fno-assume-sane-operator-new)
+
+  // C++2a [basic.stc.dynamic.allocation]p2:
+  //   An allocation function attempts to allocate the requested amount of
+  //   storage. If it is successful, it returns the address of the start of a
+  //   block of storage whose length in bytes is at least as large as the
+  //   requested size.
+  if (!FD->hasAttr<AllocSizeAttr>()) {
+    FD->addAttr(AllocSizeAttr::CreateImplicit(
+        Context, /*ElemSizeParam=*/ParamIdx(1, FD),
+        /*NumElemsParam=*/ParamIdx(), FD->getLocation()));
+  }
+
+  // C++2a [basic.stc.dynamic.allocation]p3:
+  //   For an allocation function [...], the pointer returned on a successful
+  //   call shall represent the address of storage that is aligned as follows:
+  //   (3.1) If the allocation function takes an argument of type
+  //         std​::​align_­val_­t, the storage will have the alignment
+  //         specified by the value of this argument.
+  if (AlignmentParam.hasValue() && !FD->hasAttr<AllocAlignAttr>()) {
+    FD->addAttr(AllocAlignAttr::CreateImplicit(
+        Context, ParamIdx(AlignmentParam.getValue(), FD), FD->getLocation()));
+  }
+
+  // FIXME:
+  // C++2a [basic.stc.dynamic.allocation]p3:
+  //   For an allocation function [...], the pointer returned on a successful
+  //   call shall represent the address of storage that is aligned as follows:
+  //   (3.2) Otherwise, if the allocation function is named operator new[],
+  //         the storage is aligned for any object that does not have
+  //         new-extended alignment ([basic.align]) and is no larger than the
+  //         requested size.
+  //   (3.3) Otherwise, the storage is aligned for any object that does not
+  //         have new-extended alignment and is of the requested size.
+}
+
 /// Adds any function attributes that we know a priori based on
 /// the declaration of this function.
 ///
@@ -14584,6 +14659,8 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
         FD->addAttr(CUDAHostAttr::CreateImplicit(Context, FD->getLocation()));
     }
   }
+
+  AddKnownFunctionAttributesForReplaceableGlobalAllocationFunction(FD);
 
   // If C++ exceptions are enabled but we are told extern "C" functions cannot
   // throw, add an implicit nothrow attribute to any extern "C" function we come
@@ -17507,9 +17584,11 @@ static void CheckForDuplicateEnumValues(Sema &S, ArrayRef<Decl *> Elements,
   typedef SmallVector<std::unique_ptr<ECDVector>, 3> DuplicatesVector;
 
   typedef llvm::PointerUnion<EnumConstantDecl*, ECDVector*> DeclOrVector;
+
+  // DenseMaps cannot contain the all ones int64_t value, so use unordered_map.
   typedef std::unordered_map<int64_t, DeclOrVector> ValueToVectorMap;
 
-  // Use int64_t as a key to avoid needing special handling for DenseMap keys.
+  // Use int64_t as a key to avoid needing special handling for map keys.
   auto EnumConstantToKey = [](const EnumConstantDecl *D) {
     llvm::APSInt Val = D->getInitVal();
     return Val.isSigned() ? Val.getSExtValue() : Val.getZExtValue();
@@ -17940,6 +18019,12 @@ Decl *Sema::getObjCDeclContext() const {
 }
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
+  // Due to SYCL functions are template we check if they have appropriate
+  // attribute prior to checking if it is a template
+  if (LangOpts.SYCLIsDevice &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
+    return FunctionEmissionStatus::Emitted;
+
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
@@ -18001,6 +18086,23 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD) {
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def))
         && (!LangOpts.OpenMP || OMPES == FunctionEmissionStatus::Emitted))
+      return FunctionEmissionStatus::Emitted;
+  }
+
+  if (getLangOpts().SYCLIsDevice) {
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+      return FunctionEmissionStatus::Unknown;
+
+    // Check whether this function is externally visible -- if so, it's
+    // known-emitted.
+    //
+    // We have to check the GVA linkage of the function's *definition* -- if we
+    // only have a declaration, we don't know whether or not the function will
+    // be emitted, because (say) the definition could include "inline".
+    FunctionDecl *Def = FD->getDefinition();
+
+    if (Def &&
+        !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
       return FunctionEmissionStatus::Emitted;
   }
 

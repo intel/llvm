@@ -279,7 +279,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size",
+                                   PI_INVALID_WORK_GROUP_SIZE);
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -320,7 +321,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size");
+        throw sycl::nd_range_error("Invalid local size for global size",
+                                   PI_INVALID_WORK_GROUP_SIZE);
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -366,11 +368,21 @@ public:
      vector_class<detail::AccessorImplPtr> AccStorage,
      vector_class<shared_ptr_class<const void>> SharedPtrStorage,
      vector_class<Requirement *> Requirements,
-     vector_class<detail::EventImplPtr> Events)
+     vector_class<detail::EventImplPtr> Events, detail::code_location loc = {})
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
-        MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
+        MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {
+    // Capture the user code-location from Q.submit(), Q.parallel_for()
+    // etc for later use; if code location information is not available,
+    // the file name and function name members will be empty strings
+    if (loc.functionName())
+      MFunctionName = loc.functionName();
+    if (loc.fileName())
+      MFileName = loc.fileName();
+    MLine = loc.lineNumber();
+    MColumn = loc.columnNumber();
+  }
 
   CG(CG &&CommandGroup) = default;
 
@@ -395,6 +407,12 @@ public:
   vector_class<Requirement *> MRequirements;
   // List of events that order the execution of this CG
   vector_class<detail::EventImplPtr> MEvents;
+  // Member variables to capture the user code-location
+  // information from Q.submit(), Q.parallel_for() etc
+  // Storage for function name and source file name
+  string_class MFunctionName, MFileName;
+  // Storage for line and column of code location
+  int32_t MLine, MColumn;
 };
 
 // The class which represents "execute kernel" command group.
@@ -418,10 +436,10 @@ public:
                vector_class<ArgDesc> Args, string_class KernelName,
                detail::OSModuleHandle OSModuleHandle,
                vector_class<shared_ptr_class<detail::stream_impl>> Streams,
-               CGTYPE Type)
+               CGTYPE Type, detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
@@ -448,10 +466,11 @@ public:
          vector_class<detail::AccessorImplPtr> AccStorage,
          vector_class<shared_ptr_class<const void>> SharedPtrStorage,
          vector_class<Requirement *> Requirements,
-         vector_class<detail::EventImplPtr> Events)
+         vector_class<detail::EventImplPtr> Events,
+         detail::code_location loc = {})
       : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MSrc(Src), MDst(Dst) {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
@@ -468,10 +487,11 @@ public:
          vector_class<detail::AccessorImplPtr> AccStorage,
          vector_class<shared_ptr_class<const void>> SharedPtrStorage,
          vector_class<Requirement *> Requirements,
-         vector_class<detail::EventImplPtr> Events)
+         vector_class<detail::EventImplPtr> Events,
+         detail::code_location loc = {})
       : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
   Requirement *getReqToFill() { return MPtr; }
 };
@@ -485,10 +505,11 @@ public:
                vector_class<detail::AccessorImplPtr> AccStorage,
                vector_class<shared_ptr_class<const void>> SharedPtrStorage,
                vector_class<Requirement *> Requirements,
-               vector_class<detail::EventImplPtr> Events)
+               vector_class<detail::EventImplPtr> Events,
+               detail::code_location loc = {})
       : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
@@ -506,10 +527,11 @@ public:
             vector_class<detail::AccessorImplPtr> AccStorage,
             vector_class<shared_ptr_class<const void>> SharedPtrStorage,
             vector_class<Requirement *> Requirements,
-            vector_class<detail::EventImplPtr> Events)
+            vector_class<detail::EventImplPtr> Events,
+            detail::code_location loc = {})
       : CG(COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MSrc(Src), MDst(Dst), MLength(Length) {}
 
   void *getSrc() { return MSrc; }
@@ -529,10 +551,11 @@ public:
             vector_class<detail::AccessorImplPtr> AccStorage,
             vector_class<shared_ptr_class<const void>> SharedPtrStorage,
             vector_class<Requirement *> Requirements,
-            vector_class<detail::EventImplPtr> Events)
+            vector_class<detail::EventImplPtr> Events,
+            detail::code_location loc = {})
       : CG(FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -550,10 +573,11 @@ public:
                 vector_class<detail::AccessorImplPtr> AccStorage,
                 vector_class<shared_ptr_class<const void>> SharedPtrStorage,
                 vector_class<Requirement *> Requirements,
-                vector_class<detail::EventImplPtr> Events)
+                vector_class<detail::EventImplPtr> Events,
+                detail::code_location loc = {})
       : CG(PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -568,10 +592,11 @@ public:
                 std::vector<detail::AccessorImplPtr> AccStorage,
                 std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                 std::vector<Requirement *> Requirements,
-                std::vector<detail::EventImplPtr> Events, CGTYPE Type)
+                std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+                detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events)),
+           std::move(Events), std::move(loc)),
         MInteropTask(std::move(InteropTask)) {}
 };
 

@@ -224,6 +224,7 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
     return getBackend().evaluateTargetFixup(*this, Layout, Fixup, DF, Target,
                                             Value, WasForced);
 
+  unsigned FixupFlags = getBackendPtr()->getFixupKindInfo(Fixup.getKind()).Flags;
   bool IsPCRel = getBackendPtr()->getFixupKindInfo(Fixup.getKind()).Flags &
                  MCFixupKindInfo::FKF_IsPCRel;
 
@@ -239,8 +240,9 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
       if (A->getKind() != MCSymbolRefExpr::VK_None || SA.isUndefined()) {
         IsResolved = false;
       } else if (auto *Writer = getWriterPtr()) {
-        IsResolved = Writer->isSymbolRefDifferenceFullyResolvedImpl(
-            *this, SA, *DF, false, true);
+        IsResolved = (FixupFlags & MCFixupKindInfo::FKF_Constant) ||
+                     Writer->isSymbolRefDifferenceFullyResolvedImpl(
+                         *this, SA, *DF, false, true);
       }
     }
   } else {
@@ -283,6 +285,43 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
   return IsResolved;
 }
 
+/// Check if the branch crosses the boundary.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch cross the boundary.
+static bool mayCrossBoundary(uint64_t StartAddr, uint64_t Size,
+                             Align BoundaryAlignment) {
+  uint64_t EndAddr = StartAddr + Size;
+  return (StartAddr >> Log2(BoundaryAlignment)) !=
+         ((EndAddr - 1) >> Log2(BoundaryAlignment));
+}
+
+/// Check if the branch is against the boundary.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch is against the boundary.
+static bool isAgainstBoundary(uint64_t StartAddr, uint64_t Size,
+                              Align BoundaryAlignment) {
+  uint64_t EndAddr = StartAddr + Size;
+  return (EndAddr & (BoundaryAlignment.value() - 1)) == 0;
+}
+
+/// Check if the branch needs padding.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch needs padding.
+static bool needPadding(uint64_t StartAddr, uint64_t Size,
+                        Align BoundaryAlignment) {
+  return mayCrossBoundary(StartAddr, Size, BoundaryAlignment) ||
+         isAgainstBoundary(StartAddr, Size, BoundaryAlignment);
+}
+
 uint64_t MCAssembler::computeFragmentSize(const MCAsmLayout &Layout,
                                           const MCFragment &F) const {
   assert(getBackendPtr() && "Requires assembler backend");
@@ -312,8 +351,26 @@ uint64_t MCAssembler::computeFragmentSize(const MCAsmLayout &Layout,
   case MCFragment::FT_LEB:
     return cast<MCLEBFragment>(F).getContents().size();
 
-  case MCFragment::FT_BoundaryAlign:
-    return cast<MCBoundaryAlignFragment>(F).getSize();
+  case MCFragment::FT_BoundaryAlign: {
+    const MCBoundaryAlignFragment &BF = cast<MCBoundaryAlignFragment>(F);
+    // MCBoundaryAlignFragment that doesn't emit NOP should have 0 size.
+    if (!BF.canEmitNops())
+      return 0;
+
+    uint64_t AlignedOffset = Layout.getFragmentOffset(&BF);
+    uint64_t AlignedSize = 0;
+    const MCFragment *F = BF.getNextNode();
+    // If the branch is unfused, it is emitted into one fragment, otherwise it
+    // is emitted into two fragments at most, the next
+    // MCBoundaryAlignFragment(if exists) also marks the end of the branch.
+    for (int I = 0, N = BF.isFused() ? 2 : 1;
+         I != N && !isa<MCBoundaryAlignFragment>(F); ++I, F = F->getNextNode())
+      AlignedSize += computeFragmentSize(Layout, *F);
+    Align BoundaryAlignment = BF.getAlignment();
+    return needPadding(AlignedOffset, AlignedSize, BoundaryAlignment)
+               ? offsetToAlignment(AlignedOffset, BoundaryAlignment)
+               : 0U;
+  }
 
   case MCFragment::FT_SymbolId:
     return 4;
@@ -955,72 +1012,6 @@ bool MCAssembler::relaxLEB(MCAsmLayout &Layout, MCLEBFragment &LF) {
   return OldSize != LF.getContents().size();
 }
 
-/// Check if the branch crosses the boundary.
-///
-/// \param StartAddr start address of the fused/unfused branch.
-/// \param Size size of the fused/unfused branch.
-/// \param BoundaryAlignment alignment requirement of the branch.
-/// \returns true if the branch cross the boundary.
-static bool mayCrossBoundary(uint64_t StartAddr, uint64_t Size,
-                             Align BoundaryAlignment) {
-  uint64_t EndAddr = StartAddr + Size;
-  return (StartAddr >> Log2(BoundaryAlignment)) !=
-         ((EndAddr - 1) >> Log2(BoundaryAlignment));
-}
-
-/// Check if the branch is against the boundary.
-///
-/// \param StartAddr start address of the fused/unfused branch.
-/// \param Size size of the fused/unfused branch.
-/// \param BoundaryAlignment alignment requirement of the branch.
-/// \returns true if the branch is against the boundary.
-static bool isAgainstBoundary(uint64_t StartAddr, uint64_t Size,
-                              Align BoundaryAlignment) {
-  uint64_t EndAddr = StartAddr + Size;
-  return (EndAddr & (BoundaryAlignment.value() - 1)) == 0;
-}
-
-/// Check if the branch needs padding.
-///
-/// \param StartAddr start address of the fused/unfused branch.
-/// \param Size size of the fused/unfused branch.
-/// \param BoundaryAlignment alignment requirement of the branch.
-/// \returns true if the branch needs padding.
-static bool needPadding(uint64_t StartAddr, uint64_t Size,
-                        Align BoundaryAlignment) {
-  return mayCrossBoundary(StartAddr, Size, BoundaryAlignment) ||
-         isAgainstBoundary(StartAddr, Size, BoundaryAlignment);
-}
-
-bool MCAssembler::relaxBoundaryAlign(MCAsmLayout &Layout,
-                                     MCBoundaryAlignFragment &BF) {
-  // The MCBoundaryAlignFragment that doesn't emit NOP should not be relaxed.
-  if (!BF.canEmitNops())
-    return false;
-
-  uint64_t AlignedOffset = Layout.getFragmentOffset(BF.getNextNode());
-  uint64_t AlignedSize = 0;
-  const MCFragment *F = BF.getNextNode();
-  // If the branch is unfused, it is emitted into one fragment, otherwise it is
-  // emitted into two fragments at most, the next MCBoundaryAlignFragment(if
-  // exists) also marks the end of the branch.
-  for (auto i = 0, N = BF.isFused() ? 2 : 1;
-       i != N && !isa<MCBoundaryAlignFragment>(F); ++i, F = F->getNextNode()) {
-    AlignedSize += computeFragmentSize(Layout, *F);
-  }
-  uint64_t OldSize = BF.getSize();
-  AlignedOffset -= OldSize;
-  Align BoundaryAlignment = BF.getAlignment();
-  uint64_t NewSize = needPadding(AlignedOffset, AlignedSize, BoundaryAlignment)
-                         ? offsetToAlignment(AlignedOffset, BoundaryAlignment)
-                         : 0U;
-  if (NewSize == OldSize)
-    return false;
-  BF.setSize(NewSize);
-  Layout.invalidateFragmentsFrom(&BF);
-  return true;
-}
-
 bool MCAssembler::relaxDwarfLineAddr(MCAsmLayout &Layout,
                                      MCDwarfLineAddrFragment &DF) {
   MCContext &Context = Layout.getAssembler().getContext();
@@ -1106,6 +1097,28 @@ bool MCAssembler::relaxCVDefRange(MCAsmLayout &Layout,
   return OldSize != F.getContents().size();
 }
 
+bool MCAssembler::relaxFragment(MCAsmLayout &Layout, MCFragment &F) {
+  switch(F.getKind()) {
+  default:
+    return false;
+  case MCFragment::FT_Relaxable:
+    assert(!getRelaxAll() &&
+           "Did not expect a MCRelaxableFragment in RelaxAll mode");
+    return relaxInstruction(Layout, cast<MCRelaxableFragment>(F));
+  case MCFragment::FT_Dwarf:
+    return relaxDwarfLineAddr(Layout, cast<MCDwarfLineAddrFragment>(F));
+  case MCFragment::FT_DwarfFrame:
+    return relaxDwarfCallFrameFragment(Layout,
+                                       cast<MCDwarfCallFrameFragment>(F));
+  case MCFragment::FT_LEB:
+    return relaxLEB(Layout, cast<MCLEBFragment>(F));
+  case MCFragment::FT_CVInlineLines:
+    return relaxCVInlineLineTable(Layout, cast<MCCVInlineLineTableFragment>(F));
+  case MCFragment::FT_CVDefRange:
+    return relaxCVDefRange(Layout, cast<MCCVDefRangeFragment>(F));
+  }
+}
+
 bool MCAssembler::layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec) {
   // Holds the first fragment which needed relaxing during this layout. It will
   // remain NULL if none were relaxed.
@@ -1116,39 +1129,7 @@ bool MCAssembler::layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec) {
   // Attempt to relax all the fragments in the section.
   for (MCSection::iterator I = Sec.begin(), IE = Sec.end(); I != IE; ++I) {
     // Check if this is a fragment that needs relaxation.
-    bool RelaxedFrag = false;
-    switch(I->getKind()) {
-    default:
-      break;
-    case MCFragment::FT_Relaxable:
-      assert(!getRelaxAll() &&
-             "Did not expect a MCRelaxableFragment in RelaxAll mode");
-      RelaxedFrag = relaxInstruction(Layout, *cast<MCRelaxableFragment>(I));
-      break;
-    case MCFragment::FT_Dwarf:
-      RelaxedFrag = relaxDwarfLineAddr(Layout,
-                                       *cast<MCDwarfLineAddrFragment>(I));
-      break;
-    case MCFragment::FT_DwarfFrame:
-      RelaxedFrag =
-        relaxDwarfCallFrameFragment(Layout,
-                                    *cast<MCDwarfCallFrameFragment>(I));
-      break;
-    case MCFragment::FT_LEB:
-      RelaxedFrag = relaxLEB(Layout, *cast<MCLEBFragment>(I));
-      break;
-    case MCFragment::FT_BoundaryAlign:
-      RelaxedFrag =
-          relaxBoundaryAlign(Layout, *cast<MCBoundaryAlignFragment>(I));
-      break;
-    case MCFragment::FT_CVInlineLines:
-      RelaxedFrag =
-          relaxCVInlineLineTable(Layout, *cast<MCCVInlineLineTableFragment>(I));
-      break;
-    case MCFragment::FT_CVDefRange:
-      RelaxedFrag = relaxCVDefRange(Layout, *cast<MCCVDefRangeFragment>(I));
-      break;
-    }
+    bool RelaxedFrag = relaxFragment(Layout, *I);
     if (RelaxedFrag && !FirstRelaxedFragment)
       FirstRelaxedFragment = &*I;
   }

@@ -9,13 +9,15 @@
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
-#include <memory>
 #include <limits>
+#include <memory>
 #include <mutex>
+#include <regex>
 
 std::string getCudaVersionString() {
   int driver_version = 0;
@@ -445,6 +447,28 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                                 const char *value) {
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
+}
+
+/// Finds kernel names by searching for entry points in the PTX source, as the
+/// CUDA driver API doesn't expose an operation for this.
+/// Note: This is currently only being used by the SYCL program class for the
+///       has_kernel method, so an alternative would be to move the has_kernel
+///       query to PI and use cuModuleGetFunction to check for a kernel.
+std::string getKernelNames(pi_program program) {
+  std::string source(program->source_,
+                     program->source_ + program->sourceLength_);
+  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
+  std::string names("");
+  std::smatch match;
+  bool first_match = true;
+  while (std::regex_search(source, match, entries_pattern)) {
+    assert(match.size() == 2);
+    names += first_match ? "" : ";";
+    names += match[1]; // Second element is the group.
+    source = match.suffix().str();
+    first_match = false;
+  }
+  return names;
 }
 
 /// RAII object that calls the reference count release function on the held PI
@@ -1143,16 +1167,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// With the PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of PI_TRUE
 /// creates a primary CUDA context and activates it on the CUDA context stack.
 ///
-/// @param[in] properties 0 terminated array of key/id-value combinations. Can
+/// \param[in] properties 0 terminated array of key/id-value combinations. Can
 /// be nullptr. Only accepts property key/id PI_CONTEXT_PROPERTIES_CUDA_PRIMARY
 /// with a pi_bool value.
-/// @param[in] num_devices Number of devices to create the context for.
-/// @param[in] devices Devices to create the context for.
-/// @param[in] pfn_notify Callback, currently unused.
-/// @param[in] user_data User data for callback.
-/// @param[out] retcontext Set to created context on success.
+/// \param[in] num_devices Number of devices to create the context for.
+/// \param[in] devices Devices to create the context for.
+/// \param[in] pfn_notify Callback, currently unused.
+/// \param[in] user_data User data for callback.
+/// \param[out] retcontext Set to created context on success.
 ///
-/// @return PI_SUCCESS on success, otherwise an error return code.
+/// \return PI_SUCCESS on success, otherwise an error return code.
 pi_result cuda_piContextCreate(const pi_context_properties *properties,
                                pi_uint32 num_devices, const pi_device *devices,
                                void (*pfn_notify)(const char *errinfo,
@@ -1993,7 +2017,7 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
                         &program->source_);
   case PI_PROGRAM_INFO_KERNEL_NAMES: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "not implemented");
+                   getKernelNames(program).c_str());
   }
   default:
     PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -2107,6 +2131,9 @@ pi_result cuda_piKernelGetInfo(
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      kernel->get_program());
     }
+    case PI_KERNEL_INFO_ATTRIBUTES: {
+      return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    }
     default: {
       PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
@@ -2151,6 +2178,24 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       cl::sycl::detail::pi::assertion(cuFuncGetAttribute(&bytes,
                                        CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                                        kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }

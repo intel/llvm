@@ -11,17 +11,17 @@ using bool4 = bool __attribute__((ext_vector_type(4)));
 using bool8 = bool __attribute__((ext_vector_type(8)));
 using bool16 = bool __attribute__((ext_vector_type(16)));
 
-extern bool1 foo1();
+extern SYCL_EXTERNAL bool1 foo1();
 // CHECK-DAG: declare spir_func zeroext i1 @[[FOO1:[a-zA-Z0-9_]+]]()
-extern bool2 foo2();
+extern SYCL_EXTERNAL bool2 foo2();
 // CHECK-DAG: declare spir_func <2 x i1> @[[FOO2:[a-zA-Z0-9_]+]]()
-extern bool3 foo3();
+extern SYCL_EXTERNAL bool3 foo3();
 // CHECK-DAG: declare spir_func <3 x i1> @[[FOO3:[a-zA-Z0-9_]+]]()
-extern bool4 foo4();
+extern SYCL_EXTERNAL bool4 foo4();
 // CHECK-DAG: declare spir_func <4 x i1> @[[FOO4:[a-zA-Z0-9_]+]]()
-extern bool8 foo8();
+extern SYCL_EXTERNAL bool8 foo8();
 // CHECK-DAG: declare spir_func <8 x i1> @[[FOO8:[a-zA-Z0-9_]+]]()
-extern bool16 foo16();
+extern SYCL_EXTERNAL bool16 foo16();
 // CHECK-DAG: declare spir_func <16 x i1> @[[FOO16:[a-zA-Z0-9_]+]]()
 
 void bar (bool1 b) {};

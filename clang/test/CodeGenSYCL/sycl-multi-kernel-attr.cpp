@@ -17,5 +17,5 @@ void bar() {
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name() {{.*}} !reqd_work_group_size ![[WGSIZE:[0-9]+]] !intel_reqd_sub_group_size ![[SGSIZE:[0-9]+]]
-// CHECK: ![[WGSIZE]] = !{i32 32, i32 16, i32 16}
+// CHECK: ![[WGSIZE]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[SGSIZE]] = !{i32 4}
