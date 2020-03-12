@@ -15,10 +15,12 @@ void usage() {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+  //expected-note@+1{{called by}}
   kernelFunc();
 }
 
 int main() {
+  //expected-note@+1{{called by}}
   kernel_single_task<class fake_kernel>([]() { usage(); });
   return 0;
 }
