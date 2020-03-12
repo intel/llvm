@@ -114,7 +114,7 @@ const int EXIT_SKIP_TEST = 42;
 int main(int argc, char *argv[]) {
   assert(argc > 1);
 
-  char **ChildArgv = new char*;
+  char **ChildArgv = new char *;
   ChildArgv[0] = argv[1];
 
   int Child = fork();
