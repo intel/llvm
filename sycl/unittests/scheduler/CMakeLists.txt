@@ -11,6 +11,7 @@ add_sycl_unittest(SchedulerTests
     FinishedCmdCleanup.cpp
     LeafLimit.cpp
     MemObjCommandCleanup.cpp
+    ImageApi.cpp
     utils.cpp
 )
 

@@ -13,9 +13,9 @@
 
 #include <gtest/gtest.h>
 
-TEST_F(Scheduler, ImageApi) {
+TEST_F(SchedulerTest, ImageApi) {
 
-  size_t Size = 256;
+  constexpr size_t Size = 256;
   std::array<sycl::float4, Size> Src;
   std::array<sycl::float4, Size> Dest;
   std::fill(Src.begin(), Src.end(), sycl::float4{1.0f, 2.0f, 3.0f, 4.0f});
