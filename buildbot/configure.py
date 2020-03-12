@@ -18,6 +18,7 @@ def do_configure(args):
     sycl_build_pi_cuda = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
+    llvm_build_shared_libs = 'OFF'
 
     if platform.system() == 'Linux':
         icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so")
@@ -35,6 +36,9 @@ def do_configure(args):
 
     if args.docs:
         llvm_enable_doxygen = 'ON'
+
+    if args.shared_libs:
+        llvm_build_shared_libs = 'ON'
 
     install_dir = os.path.join(args.obj_dir, "install")
 
@@ -56,15 +60,15 @@ def do_configure(args):
         "-DSYCL_ENABLE_WERROR=ON",
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
-        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen)
+        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
+         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
+        llvm_dir
     ]
 
     if not args.no_ocl:
       cmake_cmd.extend([
             "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
             "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
-
-    cmake_cmd.append(llvm_dir)
 
     print(cmake_cmd)
 
@@ -97,6 +101,7 @@ def main():
     parser.add_argument("--assertions", action='store_true', help="build with assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
+    parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
 
     args = parser.parse_args()
 
