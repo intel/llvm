@@ -252,13 +252,13 @@ event_impl::get_info<info::event::command_execution_status>() const {
 void event_impl::when_complete(std::shared_ptr<event_impl> Self,
                                std::function<void ()> Func) {
   if (auto Queue = MQueue.lock())
-    Queue->getHostTaskThreadPool().submit([Self, Func] () {
-     Self->wait_and_throw(Self);
+    Queue->getHostTaskAndEventCallbackThreadPool().submit([Self, Func] () {
+      Self->wait_and_throw(Self);
 
-     Func();
+      Func();
     });
   else
-   throw runtime_error("Queue not available", PI_ERROR_UNKNOWN);
+    throw runtime_error("Queue not available", PI_ERROR_UNKNOWN);
 }
 
 static uint64_t getTimestamp() {

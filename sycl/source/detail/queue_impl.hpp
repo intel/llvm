@@ -347,8 +347,15 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
-  ThreadPool &getHostTaskThreadPool() {
-    return MHostTaskThreadPool;
+  void set_event_cb_and_host_task_thread_pool_size(size_t Threads) {
+    MHostTaskAndEventCallbackThreadPoolThreadsCount = Threads;
+  }
+
+  ThreadPool &getHostTaskAndEventCallbackThreadPool() {
+    if (!MHostTaskAndEventCallbackThreadPool)
+      initHostTaskAndEventCallbackThreadPool();
+
+    return *MHostTaskAndEventCallbackThreadPool;
   }
 
 private:
@@ -382,6 +389,8 @@ private:
   /// \param Event is the event to be stored
   void addEvent(event Event);
 
+  void initHostTaskAndEventCallbackThreadPool();
+
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;
 
@@ -404,7 +413,12 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
-  ThreadPool MHostTaskThreadPool;
+  size_t MHostTaskAndEventCallbackThreadPoolThreadsCount = 0;
+
+  // Thread pool for host task and event callbacks execution.
+  // The thread pool is instntiated upon the very first call to
+  // getHostTaskAndEventCallbackThreadPool
+  std::unique_ptr<ThreadPool> MHostTaskAndEventCallbackThreadPool;
 };
 
 } // namespace detail

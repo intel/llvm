@@ -637,9 +637,7 @@ public:
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
 
-  void set_event_cb_thread_pool_size(unsigned int) {
-    /* Not implemented yet */
-  }
+  void set_event_cb_and_host_task_thread_pool_size(size_t Threads);
 
 private:
   shared_ptr_class<detail::queue_impl> impl;

@@ -185,6 +185,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
+void queue_impl::initHostTaskAndEventCallbackThreadPool() {
+  if (MHostTaskAndEventCallbackThreadPoolThreadsCount)
+    MHostTaskAndEventCallbackThreadPool.reset(
+          new ThreadPool(MHostTaskAndEventCallbackThreadPoolThreadsCount));
+  else
+    MHostTaskAndEventCallbackThreadPool.reset(new ThreadPool);
+
+  MHostTaskAndEventCallbackThreadPool->start();
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

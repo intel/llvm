@@ -70,7 +70,7 @@ void test() {
   S::queue Queue(EH);
 
   // optional
-  Queue.set_event_cb_thread_pool_size(4);
+  Queue.set_event_cb_and_host_task_thread_pool_size(4);
 
   Context Ctx{{false}, Queue, "", {10}};
 
