@@ -43,37 +43,16 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    access::mode AccessMode,
                                    detail::SYCLMemObjI *SYCLMemObject, int Dims,
                                    int ElemSize, int OffsetInBytes,
-                                   bool IsSubBuffer) {
+                                   bool IsSubBuffer) : MCachedOffset(Offset),
+                                   MCachedAccessRange(AccessRange), MCachedMemoryRange(MemoryRange),
+                                   MCachedElemSize(ElemSize) {
   impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
       Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
       ElemSize, OffsetInBytes, IsSubBuffer));
 }
 
-void AccessorBaseHost::initializeCache() {
-  MCacheInitialized = true;
-  MCachedOffset = impl->MOffset;
-  MCachedAccessRange = impl->MAccessRange;
-  MCachedMemoryRange = impl->MMemoryRange;
-  MCachedPtr = impl->MData;
-  MCachedElemSize = impl->MElemSize;
-}
-
-unsigned int AccessorBaseHost::getConstElemSize() const {
-  return impl->MElemSize;
-}
-
-const id<3> &AccessorBaseHost::getConstOffset() const { return impl->MOffset; }
-
-const range<3> &AccessorBaseHost::getConstAccessRange() const {
-  return impl->MAccessRange;
-}
-
-void *AccessorBaseHost::getConstPtr() const {
-  return const_cast<void *>(impl->MData);
-}
-
-const range<3> &AccessorBaseHost::getConstMemoryRange() const {
-  return impl->MMemoryRange;
+void *AccessorBaseHost::getPtr() const {
+  return impl->MData;
 }
 
 LocalAccessorImplHost::LocalAccessorImplHost(sycl::range<3> Size, int Dims,

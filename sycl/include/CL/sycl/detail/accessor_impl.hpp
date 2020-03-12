@@ -14,6 +14,12 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
+#if __has_attribute(const)
+#define CONST_ATTR __attribute__((const))
+#else
+#define CONST_ATTR
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -72,52 +78,30 @@ public:
 
 protected:
   id<3> &getOffset() {
-    if (!MCacheInitialized)
-      initializeCache();
     return MCachedOffset;
   }
   range<3> &getAccessRange() {
-    if (!MCacheInitialized)
-      initializeCache();
     return MCachedAccessRange;
   }
   range<3> &getMemoryRange() {
-    if (!MCacheInitialized)
-      initializeCache();
     return MCachedMemoryRange;
-  }
-  void *getPtr() {
-    if (!MCacheInitialized)
-      initializeCache();
-    return MCachedPtr;
   }
 
   unsigned int getElemSize() const {
-    if (MCacheInitialized)
       return MCachedElemSize;
-    return getConstElemSize();
   }
 
   const id<3> &getOffset() const {
-    if (MCacheInitialized)
       return MCachedOffset;
-    return getConstOffset();
   }
   const range<3> &getAccessRange() const {
-    if (MCacheInitialized)
       return MCachedAccessRange;
-    return getConstAccessRange();
   }
   const range<3> &getMemoryRange() const {
-    if (MCacheInitialized)
       return MCachedMemoryRange;
-    return getConstMemoryRange();
   }
-  void *getPtr() const {
-    if (MCacheInitialized)
-      return MCachedPtr;
-    return getConstPtr();
-  }
+
+  CONST_ATTR void *getPtr() const;
 
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
@@ -125,16 +109,6 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  void initializeCache();
-
-  unsigned int getConstElemSize() const;
-
-  const id<3> &getConstOffset() const;
-  const range<3> &getConstAccessRange() const;
-  const range<3> &getConstMemoryRange() const;
-  void *getConstPtr() const;
-
-  bool MCacheInitialized = false;
   id<3> MCachedOffset{};
   range<3> MCachedAccessRange{0, 0, 0};
   range<3> MCachedMemoryRange{0, 0, 0};
@@ -187,3 +161,5 @@ void addHostAccessorAndWait(Requirement *Req);
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#undef CONST_ATTR
