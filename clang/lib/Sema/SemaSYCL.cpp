@@ -410,8 +410,6 @@ public:
         Attrs.insert(A);
       if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-      if (auto *A = FD->getAttr<SYCLIntelReqdWorkGroupSizeAttr>())
-        Attrs.insert(A);
       // Allow the following kernel attributes only on lambda functions and
       // function objects that are called directly from a kernel (i.e. the one
       // passed to the parallel_for function). For all other cases,
@@ -1358,23 +1356,6 @@ void Sema::MarkDevice(void) {
         case attr::Kind::ReqdWorkGroupSize: {
           auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if (Existing->getXDim() != Attr->getXDim() ||
-                Existing->getYDim() != Attr->getYDim() ||
-                Existing->getZDim() != Attr->getZDim()) {
-              Diag(SYCLKernel->getLocation(),
-                   diag::err_conflicting_sycl_kernel_attributes);
-              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
-              SYCLKernel->setInvalidDecl();
-            }
-          } else {
-            SYCLKernel->addAttr(A);
-          }
-          break;
-        }
-        case attr::Kind::SYCLIntelReqdWorkGroupSize: {
-          auto *Attr = cast<SYCLIntelReqdWorkGroupSizeAttr>(A);
-          if (auto *Existing = SYCLKernel->getAttr<SYCLIntelReqdWorkGroupSizeAttr>()) {
             if (Existing->getXDim() != Attr->getXDim() ||
                 Existing->getYDim() != Attr->getYDim() ||
                 Existing->getZDim() != Attr->getZDim()) {

@@ -30,9 +30,16 @@ void bar() {
 [[intel::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {} // expected-note {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
+#ifdef TRIGGER_ERROR
+class Functor32 {
+public:
+  [[cl::reqd_work_group_size(32)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
+};
+#endif
+
 class Functor16 {
 public:
-  [[intel::reqd_work_group_size(16, 1)]] void operator()() {}
+  [[intel::reqd_work_group_size(16)]] void operator()() {}
 };
 
 class Functor16x16x16 {
@@ -110,13 +117,13 @@ void bar() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: SYCLIntelReqdWorkGroupSizeAttr {{.*}}  1 1 16
+// CHECK: ReqdWorkGroupSizeAttr {{.*}}  1 1 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: SYCLIntelReqdWorkGroupSizeAttr {{.*}} 1 1 4
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 1 1 4
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-// CHECK: SYCLIntelReqdWorkGroupSizeAttr {{.*}} 16 16 16
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 16 16 16
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 128 128 128
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: SYCLIntelReqdWorkGroupSizeAttr {{.*}} 32 32 32
+// CHECK: ReqdWorkGroupSizeAttr {{.*}} 32 32 32
 #endif // __SYCL_DEVICE_ONLY__

@@ -644,16 +644,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelReqdWorkGroupSizeAttr *A =
-          FD->getAttr<SYCLIntelReqdWorkGroupSizeAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("reqd_work_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {

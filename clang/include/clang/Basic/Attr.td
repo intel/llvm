@@ -2415,16 +2415,9 @@ def NoDeref : TypeAttr {
 
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"cl","reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
-}
-
-def SYCLIntelReqdWorkGroupSize : InheritableAttr {
-  let Spellings = [CXX11<"intel","reqd_work_group_size">];
-  let Args = [IntArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
+                   CXX11<"cl","reqd_work_group_size">, 
+                   CXX11<"intel","reqd_work_group_size">];
+  let Args = [UnsignedArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
               DefaultIntArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
