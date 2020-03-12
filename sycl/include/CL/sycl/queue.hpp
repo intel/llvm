@@ -80,7 +80,7 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
-        const property_list &PropList = {});
+                 const property_list &PropList = {});
 
   /// Constructs a SYCL queue instance that is associated with the context
   /// provided, using the device returned by the device selector.
