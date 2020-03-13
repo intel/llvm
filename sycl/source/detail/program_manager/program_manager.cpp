@@ -71,7 +71,7 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
   // FIXME: we don't yet support multiple devices with a single binary.
   const detail::plugin &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
-  cl_uint NumDevices = 0;
+  pi_uint32 NumDevices = 0;
   Plugin.call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
                                            PI_CONTEXT_INFO_NUM_DEVICES,
                                            sizeof(NumDevices), &NumDevices,
@@ -443,7 +443,7 @@ ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
   RT::PiProgram Program;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piKernelGetInfo>(
-      Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(cl_program), &Program, nullptr);
+      Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program, nullptr);
   return Program;
 }
 

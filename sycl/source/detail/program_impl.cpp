@@ -85,10 +85,10 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
 
   // TODO handle the case when cl_program build is in progress
-  cl_uint NumDevices;
+  pi_uint32 NumDevices;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
-                                           sizeof(cl_uint), &NumDevices,
+                                           sizeof(pi_uint32), &NumDevices,
                                            nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
@@ -413,11 +413,11 @@ cl_uint program_impl::get_info<info::program::reference_count>() const {
     throw invalid_object_error("This instance of program is a host instance",
                                PI_INVALID_PROGRAM);
   }
-  cl_uint Result;
+  pi_uint32 Result;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram,
                                            PI_PROGRAM_INFO_REFERENCE_COUNT,
-                                           sizeof(cl_uint), &Result, nullptr);
+                                           sizeof(pi_uint32), &Result, nullptr);
   return Result;
 }
 

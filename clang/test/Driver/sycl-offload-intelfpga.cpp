@@ -232,6 +232,16 @@
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
 // CHK-FPGA-REPORT-OPT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder=[[OUTDIR]]{{/|\\\\}}file.prj"
 
+/// -fintelfpga output report file from dir/source
+// RUN: mkdir -p %t_dir
+// RUN: touch %t_dir/dummy.cpp
+// RUN: %clangxx -### -fsycl -fintelfpga %t_dir/dummy.cpp  2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
+// RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy.cpp 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
+// CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder=dummy.prj"
+// CHK-FPGA-REPORT-OPT2-NOT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder=[[OUTDIR]]{{.*}}"
+
 /// -fintelfpga static lib (aoco)
 // RUN:  echo "Dummy AOCO image" > %t.aoco
 // RUN:  echo "void foo() {}" > %t.c
