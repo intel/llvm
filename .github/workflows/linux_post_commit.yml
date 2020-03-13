@@ -12,7 +12,7 @@ jobs:
        matrix:
          config: ["Default", "SharedLibs", "Assertions"]
 
-      steps:
+     steps:
      - uses: actions/checkout@v2
        with:
          path: src
