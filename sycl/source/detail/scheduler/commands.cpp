@@ -190,11 +190,13 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                             &GlueEventHandle);
-      EventImplPtr *GlueEventCopy =
-          new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-      Plugin.call<PiApiKind::piEventSetCallback>(
-          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
-          /*void *data=*/(GlueEventCopy));
+
+      Event->when_complete(Event, [GlueEvent] () {
+        RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+        const detail::plugin &Plugin = GlueEvent->getPlugin();
+        Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
+      });
+
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
       continue;
