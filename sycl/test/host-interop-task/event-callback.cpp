@@ -8,7 +8,6 @@
 #include <thread>
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 
 namespace S = cl::sycl;
 
