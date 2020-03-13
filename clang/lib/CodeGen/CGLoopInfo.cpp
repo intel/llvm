@@ -541,10 +541,9 @@ MDNode *LoopInfo::createMetadata(
 
   if (Attrs.SYCLLoopPipeliningDisable) {
     LLVMContext &Ctx = Header->getContext();
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
-        ConstantAsMetadata::get(ConstantInt::get(
-            llvm::Type::getInt32Ty(Ctx), 0))};
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+                        ConstantAsMetadata::get(
+                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 0))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
