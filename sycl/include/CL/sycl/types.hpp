@@ -266,7 +266,27 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   };
 #else
   // TODO implement device side conversion.
-  return static_cast<R>(Value);
+  switch (roundingMode) {
+    // Round to nearest even is default rounding mode for floating-point types
+  case rounding_mode::automatic:
+    // Round to nearest even.
+  case rounding_mode::rte: {
+    R Result = std::rint(Value);
+    return Result;
+  }
+    // Round toward zero.
+  case rounding_mode::rtz:
+    return std::trunc(Value);
+    // Round toward positive infinity.
+  case rounding_mode::rtp:
+    return std::ceil(Value);
+    // Round toward negative infinity.
+  case rounding_mode::rtn:
+    return std::floor(Value);
+  default:
+    assert(!"Unsupported rounding mode!");
+    return static_cast<R>(Value);
+  };
 #endif
 }
 
