@@ -73,7 +73,7 @@ template <typename Group, typename Ptr, class Function>
 Function for_each(Group g, Ptr first, Ptr last, Function f) {
 #ifdef __SYCL_DEVICE_ONLY__
   nd_item<Group::dimensions> it =
-      ::sycl::detail::Builder::getNDItem<Group::dimensions>();
+      cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
   ptrdiff_t offset = it.get_local_linear_id();
   ptrdiff_t stride = detail::get_local_linear_range(g);
   for (Ptr p = first + offset; p < last; p += stride) {
@@ -91,18 +91,16 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 namespace intel {
 
 template <typename T>
-using EnableIfIsScalarArithmetic =
-    ::sycl::detail::enable_if_t<::sycl::detail::is_scalar_arithmetic<T>::value,
-                                T>;
+using EnableIfIsScalarArithmetic = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_scalar_arithmetic<T>::value, T>;
 
 template <typename T>
-using EnableIfIsVectorArithmetic =
-    ::sycl::detail::enable_if_t<::sycl::detail::is_vector_arithmetic<T>::value,
-                                T>;
+using EnableIfIsVectorArithmetic = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_vector_arithmetic<T>::value, T>;
 
 template <typename Ptr, typename T>
 using EnableIfIsPointer =
-    ::sycl::detail::enable_if_t<::sycl::detail::is_pointer<Ptr>::value, T>;
+    cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
 template <typename Group> bool all_of(Group g, bool pred) {
   static_assert(detail::is_group<Group>::value,
@@ -488,7 +486,7 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   nd_item<Group::dimensions> it =
-      ::sycl::detail::Builder::getNDItem<Group::dimensions>();
+      cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
   ptrdiff_t offset = it.get_local_linear_id();
   ptrdiff_t stride = detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
@@ -607,7 +605,7 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   nd_item<Group::dimensions> it =
-      ::sycl::detail::Builder::getNDItem<Group::dimensions>();
+      cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
   ptrdiff_t offset = it.get_local_linear_id();
   ptrdiff_t stride = detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
@@ -653,7 +651,7 @@ template <typename Group> bool leader(Group g) {
                 "Group algorithms only support the sycl::group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   nd_item<Group::dimensions> it =
-      ::sycl::detail::Builder::getNDItem<Group::dimensions>();
+      cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
   typename Group::linear_id_type linear_id = it.get_local_linear_id();
   return (linear_id == 0);
 #else
