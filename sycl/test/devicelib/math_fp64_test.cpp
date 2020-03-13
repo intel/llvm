@@ -23,10 +23,13 @@ double refIptr = 1;
 void device_math_test(s::queue &deviceQueue) {
   s::range<1> numOfItems{TEST_NUM};
   double result[TEST_NUM] = {-1};
+
   // Variable exponent is an integer value to store the exponent in frexp function
   int exponent = -1;
+
   // Variable iptr stores the integral part of float point in modf function
   double iptr = -1;
+
   // Variable quo stores the sign and some bits of x/y in remquo function
   int quo = -1;
   {
@@ -40,179 +43,61 @@ void device_math_test(s::queue &deviceQueue) {
       auto iptr_access = buffer3.template get_access<sycl_write>(cgh);
       auto quo_access = buffer4.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
-        int i = 0;
-        {
-          double a = 0;
-          res_access[i++] = cos(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = sin(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = log(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = acos(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = asin(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = atan(a);
-        }
-        {
-          double a = 0;
-          double b = 1;
-          res_access[i++] = atan2(a, b);
-        }
-        {
-          double a = 0;
-          res_access[i++] = cosh(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = exp(a);
-        }
-        {
-          double a = 1.5;
-          double b = 1;
-          res_access[i++] = fmod(a, b);
-        }
-        {
-          double a = 0;
-          res_access[i++] = frexp(a, &exp_access[0]);
-        }
-        {
-          double a = 1;
-          res_access[i++] = ldexp(a, 1);
-        }
-        {
-          double a = 1;
-          res_access[i++] = log10(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = modf(a, &iptr_access[0]);
-        }
-        {
-          double a = 1;
-          double b = 1;
-          res_access[i++] = pow(a, b);
-        }
-        {
-          double a = 0;
-          res_access[i++] = sinh(a);
-        }
-        {
-          double a = 4;
-          res_access[i++] = sqrt(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = tan(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = tanh(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = acosh(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = asinh(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = atanh(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = cbrt(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = erf(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = erfc(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = exp2(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = expm1(a);
-        }
-        {
-          double a = 1;
-          double b = 0;
-          res_access[i++] = fdim(a, b);
-        }
-        {
-          double a = 1;
-          double b = 1;
-          double c = 1;
-          res_access[i++] = fma(a, b, c);
-        }
-        {
-          double a = 3;
-          double b = 4;
-          res_access[i++] = hypot(a, b);
-        }
-        {
-          double a = 1;
-          res_access[i++] = ilogb(a);
-        }
-        {
-          double a = 0;
-          res_access[i++] = log1p(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = log2(a);
-        }
-        {
-          double a = 1;
-          res_access[i++] = logb(a);
-        }
-        {
-          double a = 0.5;
-          double b = 1;
-          res_access[i++] = remainder(a, b);
-        }
-        {
-          double a = 0.5;
-          double b = 1;
-          res_access[i++] = remquo(a, b, &quo_access[0]);
-        }
-        {
-          double a = NAN;
-          res_access[i++] = tgamma(a);
-        }
-        {
-          double a = NAN;
-          res_access[i++] = lgamma(a);
-        }
+	int i = 0;
+        res_access[i++] = std::cos(0.0);
+        res_access[i++] = std::sin(0.0);
+        res_access[i++] = std::log(1.0);
+        res_access[i++] = std::acos(1.0);
+        res_access[i++] = std::asin(0.0);
+        res_access[i++] = std::atan(0.0);
+        res_access[i++] = std::atan2(0.0, 1.0);
+        res_access[i++] = std::cosh(0.0);
+        res_access[i++] = std::exp(0.0);
+        res_access[i++] = std::fmod(1.5, 1.0);
+        res_access[i++] = std::frexp(0.0, &exp_access[0]);
+        res_access[i++] = std::ldexp(1.0, 1);
+        res_access[i++] = std::log10(1.0);
+        res_access[i++] = std::modf(1.0, &iptr_access[0]);
+        res_access[i++] = std::pow(1.0, 1.0);
+        res_access[i++] = std::sinh(0.0);
+        res_access[i++] = std::sqrt(4.0);
+        res_access[i++] = std::tan(0.0);
+        res_access[i++] = std::tanh(0.0);
+        res_access[i++] = std::acosh(1.0);
+        res_access[i++] = std::asinh(0.0);
+        res_access[i++] = std::atanh(0.0);
+        res_access[i++] = std::cbrt(1.0);
+        res_access[i++] = std::erf(0.0);
+        res_access[i++] = std::erfc(0.0);
+        res_access[i++] = std::exp2(1.0);
+        res_access[i++] = std::expm1(0.0);
+        res_access[i++] = std::fdim(1.0, 0.0);
+        res_access[i++] = std::fma(1.0, 1.0, 1.0);
+        res_access[i++] = std::hypot(3.0, 4.0);
+        res_access[i++] = std::ilogb(1.0);
+        res_access[i++] = std::log1p(0.0);
+        res_access[i++] = std::log2(1.0);
+        res_access[i++] = std::logb(1.0);
+        res_access[i++] = std::remainder(0.5, 1.0);
+        res_access[i++] = std::remquo(0.5, 1.0, &quo_access[0]);
+        double a = NAN;
+        res_access[i++] = std::tgamma(a);
+        res_access[i++] = std::lgamma(a);
       });
     });
   }
+
   // Compare result with reference
   for (int i = 0; i < TEST_NUM; ++i) {
     assert(is_about_FP(result[i], ref[i]));
   }
+
   // Test modf integral part
   assert(is_about_FP(iptr, refIptr));
+
   // Test frexp exponent
   assert(exponent == 0);
+
   // Test remquo sign
   assert(quo == 0);
 }

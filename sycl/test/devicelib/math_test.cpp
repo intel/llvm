@@ -23,10 +23,13 @@ float refIptr = 1;
 void device_math_test(s::queue &deviceQueue) {
   s::range<1> numOfItems{TEST_NUM};
   float result[TEST_NUM] = {-1};
+
   // Variable exponent is an integer value to store the exponent in frexp function
   int exponent = -1;
+
   // Variable iptr stores the integral part of float point in modf function
   float iptr = -1;
+
   // Variable quo stores the sign and some bits of x/y in remquo function
   int quo = -1;
   {
@@ -41,178 +44,60 @@ void device_math_test(s::queue &deviceQueue) {
       auto quo_access = buffer4.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
         int i = 0;
-        {
-          float a = 0;
-          res_access[i++] = cosf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = sinf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = logf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = acosf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = asinf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = atanf(a);
-        }
-        {
-          float a = 0;
-          float b = 1;
-          res_access[i++] = atan2f(a, b);
-        }
-        {
-          float a = 0;
-          res_access[i++] = coshf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = expf(a);
-        }
-        {
-          float a = 1.5;
-          float b = 1;
-          res_access[i++] = fmodf(a, b);
-        }
-        {
-          float a = 0;
-          res_access[i++] = frexpf(a, &exp_access[0]);
-        }
-        {
-          float a = 1;
-          res_access[i++] = ldexpf(a, 1);
-        }
-        {
-          float a = 1;
-          res_access[i++] = log10f(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = modff(a, &iptr_access[0]);
-        }
-        {
-          float a = 1;
-          float b = 1;
-          res_access[i++] = powf(a, b);
-        }
-        {
-          float a = 0;
-          res_access[i++] = sinhf(a);
-        }
-        {
-          float a = 4;
-          res_access[i++] = sqrtf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = tanf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = tanhf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = acoshf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = asinhf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = atanhf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = cbrtf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = erff(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = erfcf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = exp2f(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = expm1f(a);
-        }
-        {
-          float a = 1;
-          float b = 0;
-          res_access[i++] = fdimf(a, b);
-        }
-        {
-          float a = 1;
-          float b = 1;
-          float c = 1;
-          res_access[i++] = fmaf(a, b, c);
-        }
-        {
-          float a = 3;
-          float b = 4;
-          res_access[i++] = hypotf(a, b);
-        }
-        {
-          float a = 1;
-          res_access[i++] = ilogbf(a);
-        }
-        {
-          float a = 0;
-          res_access[i++] = log1pf(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = log2f(a);
-        }
-        {
-          float a = 1;
-          res_access[i++] = logbf(a);
-        }
-        {
-          float a = 0.5;
-          float b = 1;
-          res_access[i++] = remainderf(a, b);
-        }
-        {
-          float a = 0.5;
-          float b = 1;
-          res_access[i++] = remquof(a, b, &quo_access[0]);
-        }
-        {
-          float a = NAN;
-          res_access[i++] = tgammaf(a);
-        }
-        {
-          float a = NAN;
-          res_access[i++] = lgammaf(a);
-        }
+        res_access[i++] = std::cos(0.0f);
+        res_access[i++] = std::sin(0.0f);
+        res_access[i++] = std::log(1.0f);
+        res_access[i++] = std::acos(1.0f);
+        res_access[i++] = std::asin(0.0f);
+        res_access[i++] = std::atan(0.0f);
+        res_access[i++] = std::atan2(0.0f, 1.0f);
+        res_access[i++] = std::cosh(0.0f);
+        res_access[i++] = std::exp(0.0f);
+        res_access[i++] = std::fmod(1.5f, 1.0f);
+        res_access[i++] = std::frexp(0.0f, &exp_access[0]);
+        res_access[i++] = std::ldexp(1.0f, 1);
+        res_access[i++] = std::log10(1.0f);
+        res_access[i++] = std::modf(1.0f, &iptr_access[0]);
+        res_access[i++] = std::pow(1.0f, 1.0f);
+        res_access[i++] = std::sinh(0.0f);
+        res_access[i++] = std::sqrt(4.0f);
+        res_access[i++] = std::tan(0.0f);
+        res_access[i++] = std::tanh(0.0f);
+        res_access[i++] = std::acosh(1.0f);
+        res_access[i++] = std::asinh(0.0f);
+        res_access[i++] = std::atanh(0.0f);
+        res_access[i++] = std::cbrt(1.0f);
+        res_access[i++] = std::erf(0.0f);
+        res_access[i++] = std::erfc(0.0f);
+        res_access[i++] = std::exp2(1.0f);
+        res_access[i++] = std::expm1(0.0f);
+        res_access[i++] = std::fdim(1.0f, 0.0f);
+        res_access[i++] = std::fma(1.0f, 1.0f, 1.0f);
+        res_access[i++] = std::hypot(3.0f, 4.0f);
+        res_access[i++] = std::ilogb(1.0f);
+        res_access[i++] = std::log1p(0.0f);
+        res_access[i++] = std::log2(1.0f);
+        res_access[i++] = std::logb(1.0f);
+        res_access[i++] = std::remainder(0.5f, 1.0f);
+        res_access[i++] = std::remquo(0.5f, 1.0f, &quo_access[0]);
+        float a = NAN;
+        res_access[i++] = std::tgamma(a);
+        res_access[i++] = std::lgamma(a);
       });
     });
   }
+
   // Compare result with reference
   for (int i = 0; i < TEST_NUM; ++i) {
     assert(is_about_FP(result[i], ref[i]));
   }
+
   // Test modf integral part
   assert(is_about_FP(iptr, refIptr));
+
   // Test frexp exponent
   assert(exponent == 0);
+
   // Test remquo sign
   assert(quo == 0);
 }
