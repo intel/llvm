@@ -691,6 +691,8 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  default:
+    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
   return PI_OUT_OF_RESOURCES;
@@ -1010,7 +1012,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_LOCAL_MEM_TYPE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_LOCAL_MEM_TYPE_LOCAL);
+                   PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   }
   case PI_DEVICE_INFO_LOCAL_MEM_SIZE: {
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
@@ -1051,16 +1053,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t{1000u});
   }
-  case PI_DEVICE_INFO_IS_ENDIAN_LITTLE: {
+  case PI_DEVICE_INFO_ENDIAN_LITTLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret, true);
   }
-  case PI_DEVICE_INFO_IS_AVAILABLE: {
+  case PI_DEVICE_INFO_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret, true);
   }
-  case PI_DEVICE_INFO_IS_COMPILER_AVAILABLE: {
+  case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret, true);
   }
-  case PI_DEVICE_INFO_IS_LINKER_AVAILABLE: {
+  case PI_DEVICE_INFO_LINKER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret, true);
   }
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
@@ -1630,8 +1632,8 @@ pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
         event_wait_list, nullptr);
       
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_WRITE, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
       retImplEv->start();
     }
 
@@ -1675,8 +1677,8 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
         event_wait_list, nullptr);
 
     if (retEvent) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_READ, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
       retImplEv->start();
     }
 
@@ -1915,8 +1917,8 @@ pi_result cuda_piEnqueueKernelLaunch(
     auto argIndices = kernel->get_arg_indices();
 
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_KERNEL_LAUNCH, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
       retImplEv->start();
     }
 
@@ -2153,7 +2155,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   if (kernel != nullptr) {
 
     switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_SIZE: {
+    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
       cl::sycl::detail::pi::assertion(cuFuncGetAttribute(&max_threads,
                                        CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
@@ -2161,7 +2163,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      size_t(max_threads));
     }
-    case PI_KERNEL_COMPILE_GROUP_INFO_SIZE: {
+    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
       // Returns the work-group size specified in the kernel source or IL.
       // If the work-group size is not specified in the kernel source or IL,
       // (0, 0, 0) is returned.
@@ -2172,7 +2174,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfoArray(3, param_value_size, param_value,
                           param_value_size_ret, group_size);
     }
-    case PI_KERNEL_LOCAL_MEM_SIZE: {
+    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
       // OpenCL LOCAL == CUDA SHARED
       int bytes = 0;
       cl::sycl::detail::pi::assertion(cuFuncGetAttribute(&bytes,
@@ -2181,7 +2183,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
-    case PI_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
       // Work groups should be multiples of the warp size
       int warpSize = 0;
       cl::sycl::detail::pi::assertion(
@@ -2190,7 +2192,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      static_cast<size_t>(warpSize));
     }
-    case PI_KERNEL_PRIVATE_MEM_SIZE: {
+    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
       // OpenCL PRIVATE == CUDA LOCAL
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
@@ -2279,7 +2281,7 @@ pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
   assert(event != nullptr);
 
   switch (param_name) {
-  case PI_EVENT_INFO_QUEUE:
+  case PI_EVENT_INFO_COMMAND_QUEUE:
     return getInfo<pi_queue>(param_value_size, param_value,
                              param_value_size_ret, event->get_queue());
   case PI_EVENT_INFO_COMMAND_TYPE:
@@ -2456,7 +2458,7 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 
     if (event) {
       auto new_event =
-          _pi_event::make_native(PI_COMMAND_EVENTS_WAIT, command_queue);
+          _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
       new_event->start();
       new_event->record();
       *event = new_event;
@@ -2550,8 +2552,8 @@ pi_result cuda_piEnqueueMemBufferReadRect(
         event_wait_list, nullptr);
 
     if (retEvent) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_READ, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
       retImplEv->start();
     }
 
@@ -2601,8 +2603,8 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
         event_wait_list, nullptr);
 
     if (retEvent) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_WRITE, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
       retImplEv->start();
     }
 
@@ -2656,8 +2658,8 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     result = PI_CHECK_ERROR(cuMemcpyDtoDAsync(dst, src, size, stream));
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_COPY, command_queue);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY,
+                                              command_queue);
       new_event->record();
       *event = new_event;
     }
@@ -2694,8 +2696,8 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
                                       event_wait_list, nullptr);
 
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_COPY, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
       retImplEv->start();
     }
 
@@ -2798,8 +2800,8 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_MEMBUFFER_FILL, command_queue);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL,
+                                              command_queue);
       new_event->record();
       *event = new_event;
     }
