@@ -532,6 +532,12 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
+  SmallString<128> P(getDriver().getInstalledDir());
+  llvm::sys::path::append(P, "..");
+  llvm::sys::path::append(P, "include");
+  llvm::sys::path::append(P, "sycl");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(P));
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 }
 

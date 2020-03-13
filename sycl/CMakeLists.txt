@@ -54,9 +54,9 @@ endif()
 # Unlike PACKAGE_VERSION, CLANG_VERSION does not include LLVM_VERSION_SUFFIX.
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
-set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
-set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
-set(dst_deploy_dir ${CMAKE_INSTALL_PREFIX}/lib/clang/${CLANG_VERSION}/include)
+set(SYCL_INST_INC_DIRECTORY "include/sycl")
+set(dst_dir ${LLVM_BINARY_DIR}/${SYCL_INST_INC_DIRECTORY})
+set(dst_deploy_dir ${CMAKE_INSTALL_PREFIX}/${SYCL_INST_INC_DIRECTORY})
 
 # Find OpenCL headers and libraries installed in the system and use them to
 # build SYCL runtime.
@@ -137,7 +137,7 @@ target_include_directories(OpenCL-Headers
   INTERFACE ${OPENCL_INCLUDE}
 )
 install(DIRECTORY ${OPENCL_INCLUDE}/CL
-  DESTINATION ${LLVM_INST_INC_DIRECTORY}
+  DESTINATION ${dst_deploy_dir}
   COMPONENT opencl-headers
 )
 
@@ -159,7 +159,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${dst_dir}/CL
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
-install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/." DESTINATION ${dst_deploy_dir} COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
