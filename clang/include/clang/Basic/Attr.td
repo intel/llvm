@@ -2417,7 +2417,7 @@ def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
                    CXX11<"cl","reqd_work_group_size">, 
                    CXX11<"intel","reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
+  let Args = [IntArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
               DefaultIntArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
