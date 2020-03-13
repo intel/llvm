@@ -1983,6 +1983,17 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def ReqdWorkGroupSizeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "cl::reqd_work_group_size, intel::reqd_work_group_size";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the dimensions 
+of a work group. Values must be positive integers. Default arguments 
+equaling to one can be used for second and third dimensions if 
+intel::reqd_work_group_size spelling was applied. 
+  }];
+}
+
 def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "max_work_group_size (IntelFPGA)";

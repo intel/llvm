@@ -2413,6 +2413,8 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
+//Default arguments in ReqWorkGroupSize can be used only with
+//intel::reqd_work_group_size spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
                    CXX11<"cl","reqd_work_group_size">, 
@@ -2420,7 +2422,7 @@ def ReqdWorkGroupSize : InheritableAttr {
   let Args = [IntArgument<"XDim">, DefaultIntArgument<"YDim", 1>,
               DefaultIntArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [ReqdWorkGroupSizeAttrDocs];
 }
 
 def WorkGroupSizeHint :  InheritableAttr {
