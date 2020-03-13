@@ -14,11 +14,13 @@
 #ifndef MLIR_DIALECT_STANDARDOPS_IR_OPS_H
 #define MLIR_DIALECT_STANDARDOPS_IR_OPS_H
 
-#include "mlir/Analysis/CallInterfaces.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 // Pull in all enum type definitions and utility function declarations.
 #include "mlir/Dialect/StandardOps/IR/OpsEnums.h.inc"
@@ -38,37 +40,6 @@ public:
   /// the desired resultant type.
   Operation *materializeConstant(OpBuilder &builder, Attribute value, Type type,
                                  Location loc) override;
-};
-
-/// The predicate indicates the type of the comparison to perform:
-/// (un)orderedness, (in)equality and less/greater than (or equal to) as
-/// well as predicates that are always true or false.
-enum class CmpFPredicate {
-  FirstValidValue,
-  // Always false
-  AlwaysFalse = FirstValidValue,
-  // Ordered comparisons
-  OEQ,
-  OGT,
-  OGE,
-  OLT,
-  OLE,
-  ONE,
-  // Both ordered
-  ORD,
-  // Unordered comparisons
-  UEQ,
-  UGT,
-  UGE,
-  ULT,
-  ULE,
-  UNE,
-  // Any unordered
-  UNO,
-  // Always true
-  AlwaysTrue,
-  // Number of predicates.
-  NumPredicates
 };
 
 #define GET_OP_CLASSES

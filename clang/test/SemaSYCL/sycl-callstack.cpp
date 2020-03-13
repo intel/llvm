@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only -std=c++17 %s
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel))

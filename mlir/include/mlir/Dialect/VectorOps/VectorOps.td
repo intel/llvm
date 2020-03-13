@@ -187,12 +187,15 @@ def Vector_ReductionOp :
   Vector_Op<"reduction", [NoSideEffect,
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
-    Arguments<(ins StrAttr:$kind, AnyVector:$vector)>,
+    Arguments<(ins StrAttr:$kind, AnyVector:$vector, Variadic<AnyType>:$acc)>,
     Results<(outs AnyType:$dest)> {
   let summary = "reduction operation";
   let description = [{
     Reduces an 1-D vector "horizontally" into a scalar using the given
     operation (add/mul/min/max for int/fp and and/or/xor for int only).
+    Some reductions (add/mul for fp) also allow an optional fused
+    accumulator.
+
     Note that these operations are restricted to 1-D vectors to remain
     close to the corresponding LLVM intrinsics:
 
@@ -203,34 +206,9 @@ def Vector_ReductionOp :
       %1 = vector.reduction "add", %0 : vector<16xf32> into f32
 
       %3 = vector.reduction "xor", %2 : vector<4xi32> into i32
-    ```
-  }];
-  let verifier = [{ return ::verify(*this); }];
-  let assemblyFormat = [{
-    $kind `,` $vector attr-dict `:` type($vector) `into` type($dest)
-  }];
-  let extraClassDeclaration = [{
-    VectorType getVectorType() {
-      return vector().getType().cast<VectorType>();
-    }
-  }];
-}
 
-// TODO(ajcbik): quick version with "fused" accumulator; next step
-//               will merge Reduction/ReductionV2 into one with
-//               an optional accumulator instead
-def Vector_ReductionV2Op :
-  Vector_Op<"reductionv2", [NoSideEffect]>,
-    Arguments<(ins StrAttr:$kind, VectorOf<[F32, F64]>:$vector, AnyType:$acc)>,
-    Results<(outs AnyType:$dest)> {
-  let summary = "reduction operation";
-  let description = [{
-     As vector.reduction, but with a fused accumulator (add/mul for fp only).
-  }];
-  let verifier = ?;
-  let assemblyFormat = [{
-    $kind `,` $vector `,` $acc attr-dict `:`
-      type($vector) `,` type($acc) `into` type($dest)
+      %4 = vector.reduction "mul", %0, %1 : vector<16xf32> into f32
+    ```
   }];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
@@ -469,7 +447,7 @@ def Vector_FMAOp :
     to the `llvm.fma.*` intrinsic.
 
     Example:
-    
+
     ```
       %3 = vector.fma %0, %1, %2: vector<8x16xf32>
     ```
@@ -713,9 +691,8 @@ def Vector_ReshapeOp :
   Vector_Op<"reshape", [AttrSizedOperandSegments, NoSideEffect]>,
     Arguments<(ins AnyVector:$vector, Variadic<Index>:$input_shape,
                Variadic<Index>:$output_shape,
-               I64ArrayAttr:$fixed_vector_sizes,
-               I32ElementsAttr:$operand_segment_sizes)>,
-    Results<(outs AnyVector)> {
+               I64ArrayAttr:$fixed_vector_sizes)>,
+    Results<(outs AnyVector:$result)> {
   let summary = "vector reshape operation";
   let description = [{
     Reshapes its vector operand from 'input_shape' to 'output_shape' maintaining
@@ -821,6 +798,11 @@ def Vector_ReshapeOp :
     }
     static StringRef getInputShapeAttrName() { return "input_shape"; }
     static StringRef getOutputShapeAttrName() { return "output_shape"; }
+  }];
+
+  let assemblyFormat = [{
+    $vector `,` `[` $input_shape `]` `,` `[` $output_shape `]` `,`
+    $fixed_vector_sizes attr-dict `:` type($vector) `to` type($result)
   }];
 }
 
@@ -1109,7 +1091,12 @@ def Vector_ShapeCastOp :
     described above is applied to each source/result tuple element pair.
 
     It is currently assumed that this operation does not require moving data,
-    and that it will be canonicalized away before lowering vector operations.
+    and that it will be folded away before lowering vector operations.
+
+    There is an exception to the folding expectation when targeting
+    llvm.intr.matrix operations. We need a type conversion back and forth from a
+    2-D MLIR vector to a 1-D flattened LLVM vector.shape_cast lowering to LLVM
+    is supported in that particular case, for now.
 
     Examples:
 
@@ -1125,6 +1112,14 @@ def Vector_ShapeCastOp :
     %5 = vector.shape_cast %4 : tuple<vector<3x4x2xf32>, vector<3x3x2xf32>> to
                                 tuple<vector<12x2xf32>, vector<9x2xf32>>
     ```
+  }];
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return source().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return getResult().getType().cast<VectorType>();
+    }
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
 }
@@ -1339,6 +1334,67 @@ def Vector_PrintOp :
     }
   }];
   let assemblyFormat = "$source attr-dict `:` type($source)";
+}
+
+//===----------------------------------------------------------------------===//
+// Ops used for supporting progressive lowering and conversion type changes.
+//===----------------------------------------------------------------------===//
+
+/// Vector dialect matrix multiplication op that operates on flattened 1-D
+/// MLIR vectors. This is the counterpart of llvm.matrix.multiply in MLIR.
+/// This may seem redundant with vector.contract but it serves the purposes of
+/// more progressive lowering and localized type conversion on the path:
+///   `vector<...x...xf32> -> vector<...xf32> -> !llvm<... x float>`.
+def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
+        PredOpTrait<"lhs operand and result have same element type",
+                    TCresVTEtIsSameAsOpBase<0, 0>>,
+        PredOpTrait<"rhs operand and result have same element type",
+                    TCresVTEtIsSameAsOpBase<0, 1>>]>,
+      Arguments<(
+        // TODO(ntv, fhahn): tighten vector element types that make sense.
+        ins VectorOfRankAndType<[1],
+              [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$lhs,
+            VectorOfRankAndType<[1],
+              [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$rhs,
+            I32Attr:$lhs_rows, I32Attr:$lhs_columns, I32Attr:$rhs_columns)>,
+      Results<(
+        outs VectorOfRankAndType<[1],
+               [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$res)>
+{
+  let summary = "Vector matrix multiplication op that operates on flattened 1-D"
+    " MLIR vectors";
+  let description = [{
+    This is the counterpart of llvm.matrix.multiply in MLIR. It serves the
+    purposes of more progressive lowering and localized type conversion.
+
+    The ‘vector.matrix_multiply’ op treats `lhs` as matrix with <lhs_rows> rows
+    and <lhs_columns> columns, `rhs` as matrix with <lhs_columns> rows and
+    <rhs_columns> and multiplies them. The result matrix is returned embedded in
+    the result vector.
+
+    Example:
+
+    ```
+      %C = vector.matrix_multiply %A, %B
+        { lhs_rows = 4: i32, lhs_columns = 16: i32 , rhs_columns = 3: i32 } :
+        (vector<64xf64>, vector<48xf64>) -> vector<12xf64>
+    ```
+  }];
+  let builders = [
+   OpBuilder<"Builder *builder, OperationState &result, Value lhs, Value rhs, "
+             "unsigned lhsRows, unsigned lhsColumns, unsigned rhsColumns",
+   [{
+     result.addOperands({lhs, rhs});
+     result.addAttribute("lhs_rows", builder->getI32IntegerAttr(lhsRows));
+     result.addAttribute("lhs_columns", builder->getI32IntegerAttr(lhsColumns));
+     result.addAttribute("rhs_columns", builder->getI32IntegerAttr(rhsColumns));
+     result.addTypes(VectorType::get(lhsRows * lhsColumns,
+       lhs.getType().cast<VectorType>().getElementType()));
+   }]>,
+  ];
+  let verifier = ?;
+  let assemblyFormat = "$lhs `,` $rhs attr-dict "
+    "`:` `(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
 #endif // VECTOR_OPS

@@ -137,16 +137,6 @@ LogicalResult mlir::getFlattenedAffineExprs(
                                    localVarCst);
 }
 
-MutableIntegerSet::MutableIntegerSet(IntegerSet set, MLIRContext *context)
-    : numDims(set.getNumDims()), numSymbols(set.getNumSymbols()) {
-  // TODO(bondhugula)
-}
-
-// Universal set.
-MutableIntegerSet::MutableIntegerSet(unsigned numDims, unsigned numSymbols,
-                                     MLIRContext *context)
-    : numDims(numDims), numSymbols(numSymbols) {}
-
 //===----------------------------------------------------------------------===//
 // FlatAffineConstraints.
 //===----------------------------------------------------------------------===//
@@ -1400,7 +1390,8 @@ std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(
     // - 1.
     addCoeffs(ineq, lb);
     std::transform(lb.begin(), lb.end(), lb.begin(), std::negate<int64_t>());
-    auto expr = mlir::toAffineExpr(lb, dimCount, symCount, localExprs, context);
+    auto expr =
+        getAffineExprFromFlatForm(lb, dimCount, symCount, localExprs, context);
     exprs.push_back(expr);
   }
   auto lbMap =
@@ -1413,7 +1404,8 @@ std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(
     auto ineq = getInequality(idx);
     // Extract the upper bound (in terms of other coeff's + const).
     addCoeffs(ineq, ub);
-    auto expr = mlir::toAffineExpr(ub, dimCount, symCount, localExprs, context);
+    auto expr =
+        getAffineExprFromFlatForm(ub, dimCount, symCount, localExprs, context);
     // Upper bound is exclusive.
     exprs.push_back(expr + 1);
   }

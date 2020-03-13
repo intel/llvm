@@ -390,6 +390,68 @@ void AllocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 }
 
 //===----------------------------------------------------------------------===//
+// AndOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AndOp::fold(ArrayRef<Attribute> operands) {
+  /// and(x, 0) -> 0
+  if (matchPattern(rhs(), m_Zero()))
+    return rhs();
+  /// and(x,x) -> x
+  if (lhs() == rhs())
+    return rhs();
+
+  return constFoldBinaryOp<IntegerAttr>(operands,
+                                        [](APInt a, APInt b) { return a & b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AssumeAlignmentOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(AssumeAlignmentOp op) {
+  unsigned alignment = op.alignment().getZExtValue();
+  if (!llvm::isPowerOf2_32(alignment))
+    return op.emitOpError("alignment must be power of 2");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtomicRMWOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(AtomicRMWOp op) {
+  if (op.getMemRefType().getRank() != op.getNumOperands() - 2)
+    return op.emitOpError(
+        "expects the number of subscripts to be equal to memref rank");
+  switch (op.kind()) {
+  case AtomicRMWKind::addf:
+  case AtomicRMWKind::maxf:
+  case AtomicRMWKind::minf:
+  case AtomicRMWKind::mulf:
+    if (!op.value().getType().isa<FloatType>())
+      return op.emitOpError()
+             << "with kind '" << stringifyAtomicRMWKind(op.kind())
+             << "' expects a floating-point type";
+    break;
+  case AtomicRMWKind::addi:
+  case AtomicRMWKind::maxs:
+  case AtomicRMWKind::maxu:
+  case AtomicRMWKind::mins:
+  case AtomicRMWKind::minu:
+  case AtomicRMWKind::muli:
+    if (!op.value().getType().isa<IntegerType>())
+      return op.emitOpError()
+             << "with kind '" << stringifyAtomicRMWKind(op.kind())
+             << "' expects an integer type";
+    break;
+  default:
+    break;
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // BranchOp
 //===----------------------------------------------------------------------===//
 
@@ -415,18 +477,25 @@ struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
 };
 } // end anonymous namespace.
 
-Block *BranchOp::getDest() { return getSuccessor(0); }
+Block *BranchOp::getDest() { return getSuccessor(); }
 
-void BranchOp::setDest(Block *block) { return setSuccessor(block, 0); }
+void BranchOp::setDest(Block *block) { return setSuccessor(block); }
 
 void BranchOp::eraseOperand(unsigned index) {
-  getOperation()->eraseSuccessorOperand(0, index);
+  getOperation()->eraseOperand(index);
 }
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
   results.insert<SimplifyBrToBlockWithSinglePred>(context);
 }
+
+Optional<OperandRange> BranchOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool BranchOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // CallOp
@@ -580,55 +649,6 @@ OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
 // CmpFOp
 //===----------------------------------------------------------------------===//
 
-// Returns an array of mnemonics for CmpFPredicates indexed by values thereof.
-static inline const char *const *getCmpFPredicateNames() {
-  static const char *predicateNames[] = {
-      /*AlwaysFalse*/ "false",
-      /*OEQ*/ "oeq",
-      /*OGT*/ "ogt",
-      /*OGE*/ "oge",
-      /*OLT*/ "olt",
-      /*OLE*/ "ole",
-      /*ONE*/ "one",
-      /*ORD*/ "ord",
-      /*UEQ*/ "ueq",
-      /*UGT*/ "ugt",
-      /*UGE*/ "uge",
-      /*ULT*/ "ult",
-      /*ULE*/ "ule",
-      /*UNE*/ "une",
-      /*UNO*/ "uno",
-      /*AlwaysTrue*/ "true",
-  };
-  static_assert(std::extent<decltype(predicateNames)>::value ==
-                    (size_t)CmpFPredicate::NumPredicates,
-                "wrong number of predicate names");
-  return predicateNames;
-}
-
-// Returns a value of the predicate corresponding to the given mnemonic.
-// Returns NumPredicates (one-past-end) if there is no such mnemonic.
-CmpFPredicate CmpFOp::getPredicateByName(StringRef name) {
-  return llvm::StringSwitch<CmpFPredicate>(name)
-      .Case("false", CmpFPredicate::AlwaysFalse)
-      .Case("oeq", CmpFPredicate::OEQ)
-      .Case("ogt", CmpFPredicate::OGT)
-      .Case("oge", CmpFPredicate::OGE)
-      .Case("olt", CmpFPredicate::OLT)
-      .Case("ole", CmpFPredicate::OLE)
-      .Case("one", CmpFPredicate::ONE)
-      .Case("ord", CmpFPredicate::ORD)
-      .Case("ueq", CmpFPredicate::UEQ)
-      .Case("ugt", CmpFPredicate::UGT)
-      .Case("uge", CmpFPredicate::UGE)
-      .Case("ult", CmpFPredicate::ULT)
-      .Case("ule", CmpFPredicate::ULE)
-      .Case("une", CmpFPredicate::UNE)
-      .Case("uno", CmpFPredicate::UNO)
-      .Case("true", CmpFPredicate::AlwaysTrue)
-      .Default(CmpFPredicate::NumPredicates);
-}
-
 static void buildCmpFOp(Builder *build, OperationState &result,
                         CmpFPredicate predicate, Value lhs, Value rhs) {
   result.addOperands({lhs, rhs});
@@ -638,73 +658,8 @@ static void buildCmpFOp(Builder *build, OperationState &result,
       build->getI64IntegerAttr(static_cast<int64_t>(predicate)));
 }
 
-static ParseResult parseCmpFOp(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 2> ops;
-  SmallVector<NamedAttribute, 4> attrs;
-  Attribute predicateNameAttr;
-  Type type;
-  if (parser.parseAttribute(predicateNameAttr, CmpFOp::getPredicateAttrName(),
-                            attrs) ||
-      parser.parseComma() || parser.parseOperandList(ops, 2) ||
-      parser.parseOptionalAttrDict(attrs) || parser.parseColonType(type) ||
-      parser.resolveOperands(ops, type, result.operands))
-    return failure();
-
-  if (!predicateNameAttr.isa<StringAttr>())
-    return parser.emitError(parser.getNameLoc(),
-                            "expected string comparison predicate attribute");
-
-  // Rewrite string attribute to an enum value.
-  StringRef predicateName = predicateNameAttr.cast<StringAttr>().getValue();
-  auto predicate = CmpFOp::getPredicateByName(predicateName);
-  if (predicate == CmpFPredicate::NumPredicates)
-    return parser.emitError(parser.getNameLoc(),
-                            "unknown comparison predicate \"" + predicateName +
-                                "\"");
-
-  auto builder = parser.getBuilder();
-  Type i1Type = getCheckedI1SameShape(type);
-  if (!i1Type)
-    return parser.emitError(parser.getNameLoc(),
-                            "expected type with valid i1 shape");
-
-  attrs[0].second = builder.getI64IntegerAttr(static_cast<int64_t>(predicate));
-  result.attributes = attrs;
-
-  result.addTypes({i1Type});
-  return success();
-}
-
-static void print(OpAsmPrinter &p, CmpFOp op) {
-  p << "cmpf ";
-
-  auto predicateValue =
-      op.getAttrOfType<IntegerAttr>(CmpFOp::getPredicateAttrName()).getInt();
-  assert(predicateValue >= static_cast<int>(CmpFPredicate::FirstValidValue) &&
-         predicateValue < static_cast<int>(CmpFPredicate::NumPredicates) &&
-         "unknown predicate index");
-  p << '"' << getCmpFPredicateNames()[predicateValue] << '"' << ", " << op.lhs()
-    << ", " << op.rhs();
-  p.printOptionalAttrDict(op.getAttrs(),
-                          /*elidedAttrs=*/{CmpFOp::getPredicateAttrName()});
-  p << " : " << op.lhs().getType();
-}
-
-static LogicalResult verify(CmpFOp op) {
-  auto predicateAttr =
-      op.getAttrOfType<IntegerAttr>(CmpFOp::getPredicateAttrName());
-  if (!predicateAttr)
-    return op.emitOpError("requires an integer attribute named 'predicate'");
-  auto predicate = predicateAttr.getInt();
-  if (predicate < (int64_t)CmpFPredicate::FirstValidValue ||
-      predicate >= (int64_t)CmpFPredicate::NumPredicates)
-    return op.emitOpError("'predicate' attribute value out of range");
-
-  return success();
-}
-
-// Compute `lhs` `pred` `rhs`, where `pred` is one of the known floating point
-// comparison predicates.
+/// Compute `lhs` `pred` `rhs`, where `pred` is one of the known floating point
+/// comparison predicates.
 static bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
                               const APFloat &rhs) {
   auto cmpResult = lhs.compare(rhs);
@@ -747,9 +702,8 @@ static bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
     return cmpResult == APFloat::cmpUnordered;
   case CmpFPredicate::AlwaysTrue:
     return true;
-  default:
-    llvm_unreachable("unknown comparison predicate");
   }
+  llvm_unreachable("unknown comparison predicate");
 }
 
 // Constant folding hook for comparisons.
@@ -801,6 +755,13 @@ void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<SimplifyConstCondBranchPred>(context);
 }
+
+Optional<OperandRange> CondBranchOp::getSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == trueIndex ? getTrueOperands() : getFalseOperands();
+}
+
+bool CondBranchOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // Constant*Op
@@ -1123,44 +1084,6 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
-//===----------------------------------------------------------------------===//
-// SignedDivIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult SignedDivIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // Don't fold if it would overflow or if it requires a division by zero.
-  bool overflowOrDiv0 = false;
-  auto result = constFoldBinaryOp<IntegerAttr>(operands, [&](APInt a, APInt b) {
-    if (overflowOrDiv0 || !b) {
-      overflowOrDiv0 = true;
-      return a;
-    }
-    return a.sdiv_ov(b, overflowOrDiv0);
-  });
-  return overflowOrDiv0 ? Attribute() : result;
-}
-
-//===----------------------------------------------------------------------===//
-// UnsignedDivIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult UnsignedDivIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // Don't fold if it would require a division by zero.
-  bool div0 = false;
-  auto result = constFoldBinaryOp<IntegerAttr>(operands, [&](APInt a, APInt b) {
-    if (div0 || !b) {
-      div0 = true;
-      return a;
-    }
-    return a.udiv(b);
-  });
-  return div0 ? Attribute() : result;
-}
-
 // ---------------------------------------------------------------------------
 // DmaStartOp
 // ---------------------------------------------------------------------------
@@ -1404,6 +1327,36 @@ OpFoldResult ExtractElementOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// FPExtOp
+//===----------------------------------------------------------------------===//
+
+bool FPExtOp::areCastCompatible(Type a, Type b) {
+  if (auto fa = a.dyn_cast<FloatType>())
+    if (auto fb = b.dyn_cast<FloatType>())
+      return fa.getWidth() < fb.getWidth();
+  if (auto va = a.dyn_cast<VectorType>())
+    if (auto vb = b.dyn_cast<VectorType>())
+      return va.getShape().equals(vb.getShape()) &&
+             areCastCompatible(va.getElementType(), vb.getElementType());
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
+// FPTruncOp
+//===----------------------------------------------------------------------===//
+
+bool FPTruncOp::areCastCompatible(Type a, Type b) {
+  if (auto fa = a.dyn_cast<FloatType>())
+    if (auto fb = b.dyn_cast<FloatType>())
+      return fa.getWidth() > fb.getWidth();
+  if (auto va = a.dyn_cast<VectorType>())
+    if (auto vb = b.dyn_cast<VectorType>())
+      return va.getShape().equals(vb.getShape()) &&
+             areCastCompatible(va.getElementType(), vb.getElementType());
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
 // IndexCastOp
 //===----------------------------------------------------------------------===//
 
@@ -1550,6 +1503,22 @@ OpFoldResult MulIOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// OrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult OrOp::fold(ArrayRef<Attribute> operands) {
+  /// or(x, 0) -> x
+  if (matchPattern(rhs(), m_Zero()))
+    return lhs();
+  /// or(x,x) -> x
+  if (lhs() == rhs())
+    return rhs();
+
+  return constFoldBinaryOp<IntegerAttr>(operands,
+                                        [](APInt a, APInt b) { return a | b; });
+}
+
+//===----------------------------------------------------------------------===//
 // PrefetchOp
 //===----------------------------------------------------------------------===//
 
@@ -1632,58 +1601,6 @@ OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// SignedRemIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult SignedRemIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "remi_signed takes two operands");
-
-  auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
-  if (!rhs)
-    return {};
-  auto rhsValue = rhs.getValue();
-
-  // x % 1 = 0
-  if (rhsValue.isOneValue())
-    return IntegerAttr::get(rhs.getType(), APInt(rhsValue.getBitWidth(), 0));
-
-  // Don't fold if it requires division by zero.
-  if (rhsValue.isNullValue())
-    return {};
-
-  auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
-  if (!lhs)
-    return {};
-  return IntegerAttr::get(lhs.getType(), lhs.getValue().srem(rhsValue));
-}
-
-//===----------------------------------------------------------------------===//
-// UnsignedRemIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult UnsignedRemIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "remi_unsigned takes two operands");
-
-  auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
-  if (!rhs)
-    return {};
-  auto rhsValue = rhs.getValue();
-
-  // x % 1 = 0
-  if (rhsValue.isOneValue())
-    return IntegerAttr::get(rhs.getType(), APInt(rhsValue.getBitWidth(), 0));
-
-  // Don't fold if it requires division by zero.
-  if (rhsValue.isNullValue())
-    return {};
-
-  auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
-  if (!lhs)
-    return {};
-  return IntegerAttr::get(lhs.getType(), lhs.getValue().urem(rhsValue));
-}
-
-//===----------------------------------------------------------------------===//
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
@@ -1705,15 +1622,6 @@ static LogicalResult verify(ReturnOp op) {
              << ") doesn't match function result type (" << results[i] << ")";
 
   return success();
-}
-
-//===----------------------------------------------------------------------===//
-// SIToFPOp
-//===----------------------------------------------------------------------===//
-
-// sitofp is applicable from integer types to float types.
-bool SIToFPOp::areCastCompatible(Type a, Type b) {
-  return a.isSignlessInteger() && b.isa<FloatType>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1755,6 +1663,60 @@ static LogicalResult verify(SignExtendIOp op) {
            << dstType << " must be wider than operand type " << srcType;
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// SignedDivIOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult SignedDivIOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "binary operation takes two operands");
+
+  // Don't fold if it would overflow or if it requires a division by zero.
+  bool overflowOrDiv0 = false;
+  auto result = constFoldBinaryOp<IntegerAttr>(operands, [&](APInt a, APInt b) {
+    if (overflowOrDiv0 || !b) {
+      overflowOrDiv0 = true;
+      return a;
+    }
+    return a.sdiv_ov(b, overflowOrDiv0);
+  });
+  return overflowOrDiv0 ? Attribute() : result;
+}
+
+//===----------------------------------------------------------------------===//
+// SignedRemIOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult SignedRemIOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "remi_signed takes two operands");
+
+  auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
+  if (!rhs)
+    return {};
+  auto rhsValue = rhs.getValue();
+
+  // x % 1 = 0
+  if (rhsValue.isOneValue())
+    return IntegerAttr::get(rhs.getType(), APInt(rhsValue.getBitWidth(), 0));
+
+  // Don't fold if it requires division by zero.
+  if (rhsValue.isNullValue())
+    return {};
+
+  auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
+  if (!lhs)
+    return {};
+  return IntegerAttr::get(lhs.getType(), lhs.getValue().srem(rhsValue));
+}
+
+//===----------------------------------------------------------------------===//
+// SIToFPOp
+//===----------------------------------------------------------------------===//
+
+// sitofp is applicable from integer types to float types.
+bool SIToFPOp::areCastCompatible(Type a, Type b) {
+  return a.isSignlessInteger() && b.isa<FloatType>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1827,51 +1789,355 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// AndOp
+// SubViewOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AndOp::fold(ArrayRef<Attribute> operands) {
-  /// and(x, 0) -> 0
-  if (matchPattern(rhs(), m_Zero()))
-    return rhs();
-  /// and(x,x) -> x
-  if (lhs() == rhs())
-    return rhs();
+// Returns a MemRefType with dynamic sizes and offset and the same stride as the
+// `memRefType` passed as argument.
+// TODO(andydavis,ntv) Evolve to a more powerful inference that can also keep
+// sizes and offset static.
+static Type inferSubViewResultType(MemRefType memRefType) {
+  auto rank = memRefType.getRank();
+  int64_t offset;
+  SmallVector<int64_t, 4> strides;
+  auto res = getStridesAndOffset(memRefType, strides, offset);
+  assert(succeeded(res) && "SubViewOp expected strided memref type");
+  (void)res;
 
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a & b; });
+  // Assume sizes and offset are fully dynamic for now until canonicalization
+  // occurs on the ranges. Typed strides don't change though.
+  offset = MemRefType::getDynamicStrideOrOffset();
+  // Overwrite strides because verifier will not pass.
+  // TODO(b/144419106): don't force degrade the strides to fully dynamic.
+  for (auto &stride : strides)
+    stride = MemRefType::getDynamicStrideOrOffset();
+  auto stridedLayout =
+      makeStridedLinearLayoutMap(strides, offset, memRefType.getContext());
+  SmallVector<int64_t, 4> sizes(rank, ShapedType::kDynamicSize);
+  return MemRefType::Builder(memRefType)
+      .setShape(sizes)
+      .setAffineMaps(stridedLayout);
 }
 
-//===----------------------------------------------------------------------===//
-// OrOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult OrOp::fold(ArrayRef<Attribute> operands) {
-  /// or(x, 0) -> x
-  if (matchPattern(rhs(), m_Zero()))
-    return lhs();
-  /// or(x,x) -> x
-  if (lhs() == rhs())
-    return rhs();
-
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a | b; });
+void mlir::SubViewOp::build(Builder *b, OperationState &result, Value source,
+                            ValueRange offsets, ValueRange sizes,
+                            ValueRange strides, Type resultType,
+                            ArrayRef<NamedAttribute> attrs) {
+  if (!resultType)
+    resultType = inferSubViewResultType(source.getType().cast<MemRefType>());
+  build(b, result, resultType, source, offsets, sizes, strides);
+  result.addAttributes(attrs);
 }
 
-//===----------------------------------------------------------------------===//
-// XOrOp
-//===----------------------------------------------------------------------===//
+void mlir::SubViewOp::build(Builder *b, OperationState &result, Type resultType,
+                            Value source) {
+  build(b, result, source, /*offsets=*/{}, /*sizes=*/{}, /*strides=*/{},
+        resultType);
+}
 
-OpFoldResult XOrOp::fold(ArrayRef<Attribute> operands) {
-  /// xor(x, 0) -> x
-  if (matchPattern(rhs(), m_Zero()))
-    return lhs();
-  /// xor(x,x) -> 0
-  if (lhs() == rhs())
-    return Builder(getContext()).getZeroAttr(getType());
+static LogicalResult verify(SubViewOp op) {
+  auto baseType = op.getBaseMemRefType().cast<MemRefType>();
+  auto subViewType = op.getType();
 
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a ^ b; });
+  // The rank of the base and result subview must match.
+  if (baseType.getRank() != subViewType.getRank()) {
+    return op.emitError(
+        "expected rank of result type to match rank of base type ");
+  }
+
+  // The base memref and the view memref should be in the same memory space.
+  if (baseType.getMemorySpace() != subViewType.getMemorySpace())
+    return op.emitError("different memory spaces specified for base memref "
+                        "type ")
+           << baseType << " and subview memref type " << subViewType;
+
+  // Verify that the base memref type has a strided layout map.
+  int64_t baseOffset;
+  SmallVector<int64_t, 4> baseStrides;
+  if (failed(getStridesAndOffset(baseType, baseStrides, baseOffset)))
+    return op.emitError("base type ") << subViewType << " is not strided";
+
+  // Verify that the result memref type has a strided layout map.
+  int64_t subViewOffset;
+  SmallVector<int64_t, 4> subViewStrides;
+  if (failed(getStridesAndOffset(subViewType, subViewStrides, subViewOffset)))
+    return op.emitError("result type ") << subViewType << " is not strided";
+
+  // Num offsets should either be zero or rank of memref.
+  if (op.getNumOffsets() != 0 && op.getNumOffsets() != subViewType.getRank()) {
+    return op.emitError("expected number of dynamic offsets specified to match "
+                        "the rank of the result type ")
+           << subViewType;
+  }
+
+  // Num sizes should either be zero or rank of memref.
+  if (op.getNumSizes() != 0 && op.getNumSizes() != subViewType.getRank()) {
+    return op.emitError("expected number of dynamic sizes specified to match "
+                        "the rank of the result type ")
+           << subViewType;
+  }
+
+  // Num strides should either be zero or rank of memref.
+  if (op.getNumStrides() != 0 && op.getNumStrides() != subViewType.getRank()) {
+    return op.emitError("expected number of dynamic strides specified to match "
+                        "the rank of the result type ")
+           << subViewType;
+  }
+
+  // Verify that if the shape of the subview type is static, then sizes are not
+  // dynamic values, and vice versa.
+  if ((subViewType.hasStaticShape() && op.getNumSizes() != 0) ||
+      (op.getNumSizes() == 0 && !subViewType.hasStaticShape())) {
+    return op.emitError("invalid to specify dynamic sizes when subview result "
+                        "type is statically shaped and viceversa");
+  }
+
+  // Verify that if dynamic sizes are specified, then the result memref type
+  // have full dynamic dimensions.
+  if (op.getNumSizes() > 0) {
+    if (llvm::any_of(subViewType.getShape(), [](int64_t dim) {
+          return dim != ShapedType::kDynamicSize;
+        })) {
+      // TODO: This is based on the assumption that number of size arguments are
+      // either 0, or the rank of the result type. It is possible to have more
+      // fine-grained verification where only particular dimensions are
+      // dynamic. That probably needs further changes to the shape op
+      // specification.
+      return op.emitError("expected shape of result type to be fully dynamic "
+                          "when sizes are specified");
+    }
+  }
+
+  // Verify that if dynamic offsets are specified or base memref has dynamic
+  // offset or base memref has dynamic strides, then the subview offset is
+  // dynamic.
+  if ((op.getNumOffsets() > 0 ||
+       baseOffset == MemRefType::getDynamicStrideOrOffset() ||
+       llvm::is_contained(baseStrides,
+                          MemRefType::getDynamicStrideOrOffset())) &&
+      subViewOffset != MemRefType::getDynamicStrideOrOffset()) {
+    return op.emitError(
+        "expected result memref layout map to have dynamic offset");
+  }
+
+  // For now, verify that if dynamic strides are specified, then all the result
+  // memref type have dynamic strides.
+  if (op.getNumStrides() > 0) {
+    if (llvm::any_of(subViewStrides, [](int64_t stride) {
+          return stride != MemRefType::getDynamicStrideOrOffset();
+        })) {
+      return op.emitError("expected result type to have dynamic strides");
+    }
+  }
+
+  // If any of the base memref has dynamic stride, then the corresponding
+  // stride of the subview must also have dynamic stride.
+  assert(baseStrides.size() == subViewStrides.size());
+  for (auto stride : enumerate(baseStrides)) {
+    if (stride.value() == MemRefType::getDynamicStrideOrOffset() &&
+        subViewStrides[stride.index()] !=
+            MemRefType::getDynamicStrideOrOffset()) {
+      return op.emitError(
+          "expected result type to have dynamic stride along a dimension if "
+          "the base memref type has dynamic stride along that dimension");
+    }
+  }
+  return success();
+}
+
+raw_ostream &mlir::operator<<(raw_ostream &os, SubViewOp::Range &range) {
+  return os << "range " << range.offset << ":" << range.size << ":"
+            << range.stride;
+}
+
+SmallVector<SubViewOp::Range, 8> SubViewOp::getRanges() {
+  SmallVector<Range, 8> res;
+  unsigned rank = getType().getRank();
+  res.reserve(rank);
+  for (unsigned i = 0; i < rank; ++i)
+    res.emplace_back(Range{*(offsets().begin() + i), *(sizes().begin() + i),
+                           *(strides().begin() + i)});
+  return res;
+}
+
+LogicalResult
+SubViewOp::getStaticStrides(SmallVectorImpl<int64_t> &staticStrides) {
+  // If the strides are dynamic return failure.
+  if (getNumStrides())
+    return failure();
+
+  // When static, the stride operands can be retrieved by taking the strides of
+  // the result of the subview op, and dividing the strides of the base memref.
+  int64_t resultOffset, baseOffset;
+  SmallVector<int64_t, 2> resultStrides, baseStrides;
+  if (failed(
+          getStridesAndOffset(getBaseMemRefType(), baseStrides, baseOffset)) ||
+      llvm::is_contained(baseStrides, MemRefType::getDynamicStrideOrOffset()) ||
+      failed(getStridesAndOffset(getType(), resultStrides, resultOffset)))
+    return failure();
+
+  assert(static_cast<int64_t>(resultStrides.size()) == getType().getRank() &&
+         baseStrides.size() == resultStrides.size() &&
+         "base and result memrefs must have the same rank");
+  assert(!llvm::is_contained(resultStrides,
+                             MemRefType::getDynamicStrideOrOffset()) &&
+         "strides of subview op must be static, when there are no dynamic "
+         "strides specified");
+  staticStrides.resize(getType().getRank());
+  for (auto resultStride : enumerate(resultStrides)) {
+    auto baseStride = baseStrides[resultStride.index()];
+    // The result stride is expected to be a multiple of the base stride. Abort
+    // if that is not the case.
+    if (resultStride.value() < baseStride ||
+        resultStride.value() % baseStride != 0)
+      return failure();
+    staticStrides[resultStride.index()] = resultStride.value() / baseStride;
+  }
+  return success();
+}
+
+namespace {
+
+/// Pattern to rewrite a subview op with constant size arguments.
+class SubViewOpShapeFolder final : public OpRewritePattern<SubViewOp> {
+public:
+  using OpRewritePattern<SubViewOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
+                                     PatternRewriter &rewriter) const override {
+    MemRefType subViewType = subViewOp.getType();
+    // Follow all or nothing approach for shapes for now. If all the operands
+    // for sizes are constants then fold it into the type of the result memref.
+    if (subViewType.hasStaticShape() ||
+        llvm::any_of(subViewOp.sizes(), [](Value operand) {
+          return !matchPattern(operand, m_ConstantIndex());
+        })) {
+      return matchFailure();
+    }
+    SmallVector<int64_t, 4> staticShape(subViewOp.getNumSizes());
+    for (auto size : llvm::enumerate(subViewOp.sizes())) {
+      auto defOp = size.value().getDefiningOp();
+      assert(defOp);
+      staticShape[size.index()] = cast<ConstantIndexOp>(defOp).getValue();
+    }
+    MemRefType newMemRefType =
+        MemRefType::Builder(subViewType).setShape(staticShape);
+    auto newSubViewOp = rewriter.create<SubViewOp>(
+        subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
+        ArrayRef<Value>(), subViewOp.strides(), newMemRefType);
+    // Insert a memref_cast for compatibility of the uses of the op.
+    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
+                                              subViewOp.getType());
+    return matchSuccess();
+  }
+};
+
+// Pattern to rewrite a subview op with constant stride arguments.
+class SubViewOpStrideFolder final : public OpRewritePattern<SubViewOp> {
+public:
+  using OpRewritePattern<SubViewOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
+                                     PatternRewriter &rewriter) const override {
+    if (subViewOp.getNumStrides() == 0) {
+      return matchFailure();
+    }
+    // Follow all or nothing approach for strides for now. If all the operands
+    // for strides are constants then fold it into the strides of the result
+    // memref.
+    int64_t baseOffset, resultOffset;
+    SmallVector<int64_t, 4> baseStrides, resultStrides;
+    MemRefType subViewType = subViewOp.getType();
+    if (failed(getStridesAndOffset(subViewOp.getBaseMemRefType(), baseStrides,
+                                   baseOffset)) ||
+        failed(getStridesAndOffset(subViewType, resultStrides, resultOffset)) ||
+        llvm::is_contained(baseStrides,
+                           MemRefType::getDynamicStrideOrOffset()) ||
+        llvm::any_of(subViewOp.strides(), [](Value stride) {
+          return !matchPattern(stride, m_ConstantIndex());
+        })) {
+      return matchFailure();
+    }
+
+    SmallVector<int64_t, 4> staticStrides(subViewOp.getNumStrides());
+    for (auto stride : llvm::enumerate(subViewOp.strides())) {
+      auto defOp = stride.value().getDefiningOp();
+      assert(defOp);
+      assert(baseStrides[stride.index()] > 0);
+      staticStrides[stride.index()] =
+          cast<ConstantIndexOp>(defOp).getValue() * baseStrides[stride.index()];
+    }
+    AffineMap layoutMap = makeStridedLinearLayoutMap(
+        staticStrides, resultOffset, rewriter.getContext());
+    MemRefType newMemRefType =
+        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
+    auto newSubViewOp = rewriter.create<SubViewOp>(
+        subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
+        subViewOp.sizes(), ArrayRef<Value>(), newMemRefType);
+    // Insert a memref_cast for compatibility of the uses of the op.
+    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
+                                              subViewOp.getType());
+    return matchSuccess();
+  }
+};
+
+// Pattern to rewrite a subview op with constant offset arguments.
+class SubViewOpOffsetFolder final : public OpRewritePattern<SubViewOp> {
+public:
+  using OpRewritePattern<SubViewOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
+                                     PatternRewriter &rewriter) const override {
+    if (subViewOp.getNumOffsets() == 0) {
+      return matchFailure();
+    }
+    // Follow all or nothing approach for offsets for now. If all the operands
+    // for offsets are constants then fold it into the offset of the result
+    // memref.
+    int64_t baseOffset, resultOffset;
+    SmallVector<int64_t, 4> baseStrides, resultStrides;
+    MemRefType subViewType = subViewOp.getType();
+    if (failed(getStridesAndOffset(subViewOp.getBaseMemRefType(), baseStrides,
+                                   baseOffset)) ||
+        failed(getStridesAndOffset(subViewType, resultStrides, resultOffset)) ||
+        llvm::is_contained(baseStrides,
+                           MemRefType::getDynamicStrideOrOffset()) ||
+        baseOffset == MemRefType::getDynamicStrideOrOffset() ||
+        llvm::any_of(subViewOp.offsets(), [](Value stride) {
+          return !matchPattern(stride, m_ConstantIndex());
+        })) {
+      return matchFailure();
+    }
+
+    auto staticOffset = baseOffset;
+    for (auto offset : llvm::enumerate(subViewOp.offsets())) {
+      auto defOp = offset.value().getDefiningOp();
+      assert(defOp);
+      assert(baseStrides[offset.index()] > 0);
+      staticOffset +=
+          cast<ConstantIndexOp>(defOp).getValue() * baseStrides[offset.index()];
+    }
+
+    AffineMap layoutMap = makeStridedLinearLayoutMap(
+        resultStrides, staticOffset, rewriter.getContext());
+    MemRefType newMemRefType =
+        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
+    auto newSubViewOp = rewriter.create<SubViewOp>(
+        subViewOp.getLoc(), subViewOp.source(), ArrayRef<Value>(),
+        subViewOp.sizes(), subViewOp.strides(), newMemRefType);
+    // Insert a memref_cast for compatibility of the uses of the op.
+    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
+                                              subViewOp.getType());
+    return matchSuccess();
+  }
+};
+
+} // end anonymous namespace
+
+void SubViewOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                            MLIRContext *context) {
+  results.insert<SubViewOpShapeFolder, SubViewOpStrideFolder,
+                 SubViewOpOffsetFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1923,6 +2189,51 @@ static LogicalResult verify(TruncateIOp op) {
            << srcType << " must be wider than result type " << dstType;
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UnsignedDivIOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult UnsignedDivIOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "binary operation takes two operands");
+
+  // Don't fold if it would require a division by zero.
+  bool div0 = false;
+  auto result = constFoldBinaryOp<IntegerAttr>(operands, [&](APInt a, APInt b) {
+    if (div0 || !b) {
+      div0 = true;
+      return a;
+    }
+    return a.udiv(b);
+  });
+  return div0 ? Attribute() : result;
+}
+
+//===----------------------------------------------------------------------===//
+// UnsignedRemIOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult UnsignedRemIOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "remi_unsigned takes two operands");
+
+  auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
+  if (!rhs)
+    return {};
+  auto rhsValue = rhs.getValue();
+
+  // x % 1 = 0
+  if (rhsValue.isOneValue())
+    return IntegerAttr::get(rhs.getType(), APInt(rhsValue.getBitWidth(), 0));
+
+  // Don't fold if it requires division by zero.
+  if (rhsValue.isNullValue())
+    return {};
+
+  auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
+  if (!lhs)
+    return {};
+  return IntegerAttr::get(lhs.getType(), lhs.getValue().urem(rhsValue));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2165,411 +2476,19 @@ void ViewOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 }
 
 //===----------------------------------------------------------------------===//
-// SubViewOp
+// XOrOp
 //===----------------------------------------------------------------------===//
 
-// Returns a MemRefType with dynamic sizes and offset and the same stride as the
-// `memRefType` passed as argument.
-// TODO(andydavis,ntv) Evolve to a more powerful inference that can also keep
-// sizes and offset static.
-static Type inferSubViewResultType(MemRefType memRefType) {
-  auto rank = memRefType.getRank();
-  int64_t offset;
-  SmallVector<int64_t, 4> strides;
-  auto res = getStridesAndOffset(memRefType, strides, offset);
-  assert(succeeded(res) && "SubViewOp expected strided memref type");
-  (void)res;
+OpFoldResult XOrOp::fold(ArrayRef<Attribute> operands) {
+  /// xor(x, 0) -> x
+  if (matchPattern(rhs(), m_Zero()))
+    return lhs();
+  /// xor(x,x) -> 0
+  if (lhs() == rhs())
+    return Builder(getContext()).getZeroAttr(getType());
 
-  // Assume sizes and offset are fully dynamic for now until canonicalization
-  // occurs on the ranges. Typed strides don't change though.
-  offset = MemRefType::getDynamicStrideOrOffset();
-  // Overwrite strides because verifier will not pass.
-  // TODO(b/144419106): don't force degrade the strides to fully dynamic.
-  for (auto &stride : strides)
-    stride = MemRefType::getDynamicStrideOrOffset();
-  auto stridedLayout =
-      makeStridedLinearLayoutMap(strides, offset, memRefType.getContext());
-  SmallVector<int64_t, 4> sizes(rank, ShapedType::kDynamicSize);
-  return MemRefType::Builder(memRefType)
-      .setShape(sizes)
-      .setAffineMaps(stridedLayout);
-}
-
-void mlir::SubViewOp::build(Builder *b, OperationState &result, Value source,
-                            ValueRange offsets, ValueRange sizes,
-                            ValueRange strides, Type resultType,
-                            ArrayRef<NamedAttribute> attrs) {
-  if (!resultType)
-    resultType = inferSubViewResultType(source.getType().cast<MemRefType>());
-  auto segmentAttr = b->getI32VectorAttr(
-      {1, static_cast<int>(offsets.size()), static_cast<int32_t>(sizes.size()),
-       static_cast<int32_t>(strides.size())});
-  build(b, result, resultType, source, offsets, sizes, strides, segmentAttr);
-  result.addAttributes(attrs);
-}
-
-void mlir::SubViewOp::build(Builder *b, OperationState &result, Type resultType,
-                            Value source) {
-  build(b, result, source, /*offsets=*/{}, /*sizes=*/{}, /*strides=*/{},
-        resultType);
-}
-
-static ParseResult parseSubViewOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType srcInfo;
-  SmallVector<OpAsmParser::OperandType, 4> offsetsInfo;
-  SmallVector<OpAsmParser::OperandType, 4> sizesInfo;
-  SmallVector<OpAsmParser::OperandType, 4> stridesInfo;
-  auto indexType = parser.getBuilder().getIndexType();
-  Type srcType, dstType;
-  if (parser.parseOperand(srcInfo) ||
-      parser.parseOperandList(offsetsInfo, OpAsmParser::Delimiter::Square) ||
-      parser.parseOperandList(sizesInfo, OpAsmParser::Delimiter::Square) ||
-      parser.parseOperandList(stridesInfo, OpAsmParser::Delimiter::Square)) {
-    return failure();
-  }
-
-  auto builder = parser.getBuilder();
-  result.addAttribute(
-      SubViewOp::getOperandSegmentSizeAttr(),
-      builder.getI32VectorAttr({1, static_cast<int>(offsetsInfo.size()),
-                                static_cast<int32_t>(sizesInfo.size()),
-                                static_cast<int32_t>(stridesInfo.size())}));
-
-  return failure(
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(srcType) ||
-      parser.resolveOperand(srcInfo, srcType, result.operands) ||
-      parser.resolveOperands(offsetsInfo, indexType, result.operands) ||
-      parser.resolveOperands(sizesInfo, indexType, result.operands) ||
-      parser.resolveOperands(stridesInfo, indexType, result.operands) ||
-      parser.parseKeywordType("to", dstType) ||
-      parser.addTypeToList(dstType, result.types));
-}
-
-static void print(OpAsmPrinter &p, SubViewOp op) {
-  p << op.getOperationName() << ' ' << op.getOperand(0) << '[' << op.offsets()
-    << "][" << op.sizes() << "][" << op.strides() << ']';
-
-  std::array<StringRef, 1> elidedAttrs = {
-      SubViewOp::getOperandSegmentSizeAttr()};
-  p.printOptionalAttrDict(op.getAttrs(), elidedAttrs);
-  p << " : " << op.getOperand(0).getType() << " to " << op.getType();
-}
-
-static LogicalResult verify(SubViewOp op) {
-  auto baseType = op.getBaseMemRefType().cast<MemRefType>();
-  auto subViewType = op.getType();
-
-  // The rank of the base and result subview must match.
-  if (baseType.getRank() != subViewType.getRank()) {
-    return op.emitError(
-        "expected rank of result type to match rank of base type ");
-  }
-
-  // The base memref and the view memref should be in the same memory space.
-  if (baseType.getMemorySpace() != subViewType.getMemorySpace())
-    return op.emitError("different memory spaces specified for base memref "
-                        "type ")
-           << baseType << " and subview memref type " << subViewType;
-
-  // Verify that the base memref type has a strided layout map.
-  int64_t baseOffset;
-  SmallVector<int64_t, 4> baseStrides;
-  if (failed(getStridesAndOffset(baseType, baseStrides, baseOffset)))
-    return op.emitError("base type ") << subViewType << " is not strided";
-
-  // Verify that the result memref type has a strided layout map.
-  int64_t subViewOffset;
-  SmallVector<int64_t, 4> subViewStrides;
-  if (failed(getStridesAndOffset(subViewType, subViewStrides, subViewOffset)))
-    return op.emitError("result type ") << subViewType << " is not strided";
-
-  // Num offsets should either be zero or rank of memref.
-  if (op.getNumOffsets() != 0 && op.getNumOffsets() != subViewType.getRank()) {
-    return op.emitError("expected number of dynamic offsets specified to match "
-                        "the rank of the result type ")
-           << subViewType;
-  }
-
-  // Num sizes should either be zero or rank of memref.
-  if (op.getNumSizes() != 0 && op.getNumSizes() != subViewType.getRank()) {
-    return op.emitError("expected number of dynamic sizes specified to match "
-                        "the rank of the result type ")
-           << subViewType;
-  }
-
-  // Num strides should either be zero or rank of memref.
-  if (op.getNumStrides() != 0 && op.getNumStrides() != subViewType.getRank()) {
-    return op.emitError("expected number of dynamic strides specified to match "
-                        "the rank of the result type ")
-           << subViewType;
-  }
-
-  // Verify that if the shape of the subview type is static, then sizes are not
-  // dynamic values, and vice versa.
-  if ((subViewType.hasStaticShape() && op.getNumSizes() != 0) ||
-      (op.getNumSizes() == 0 && !subViewType.hasStaticShape())) {
-    return op.emitError("invalid to specify dynamic sizes when subview result "
-                        "type is statically shaped and viceversa");
-  }
-
-  // Verify that if dynamic sizes are specified, then the result memref type
-  // have full dynamic dimensions.
-  if (op.getNumSizes() > 0) {
-    if (llvm::any_of(subViewType.getShape(), [](int64_t dim) {
-          return dim != ShapedType::kDynamicSize;
-        })) {
-      // TODO: This is based on the assumption that number of size arguments are
-      // either 0, or the rank of the result type. It is possible to have more
-      // fine-grained verification where only particular dimensions are
-      // dynamic. That probably needs further changes to the shape op
-      // specification.
-      return op.emitError("expected shape of result type to be fully dynamic "
-                          "when sizes are specified");
-    }
-  }
-
-  // Verify that if dynamic offsets are specified or base memref has dynamic
-  // offset or base memref has dynamic strides, then the subview offset is
-  // dynamic.
-  if ((op.getNumOffsets() > 0 ||
-       baseOffset == MemRefType::getDynamicStrideOrOffset() ||
-       llvm::is_contained(baseStrides,
-                          MemRefType::getDynamicStrideOrOffset())) &&
-      subViewOffset != MemRefType::getDynamicStrideOrOffset()) {
-    return op.emitError(
-        "expected result memref layout map to have dynamic offset");
-  }
-
-  // For now, verify that if dynamic strides are specified, then all the result
-  // memref type have dynamic strides.
-  if (op.getNumStrides() > 0) {
-    if (llvm::any_of(subViewStrides, [](int64_t stride) {
-          return stride != MemRefType::getDynamicStrideOrOffset();
-        })) {
-      return op.emitError("expected result type to have dynamic strides");
-    }
-  }
-
-  // If any of the base memref has dynamic stride, then the corresponding
-  // stride of the subview must also have dynamic stride.
-  assert(baseStrides.size() == subViewStrides.size());
-  for (auto stride : enumerate(baseStrides)) {
-    if (stride.value() == MemRefType::getDynamicStrideOrOffset() &&
-        subViewStrides[stride.index()] !=
-            MemRefType::getDynamicStrideOrOffset()) {
-      return op.emitError(
-          "expected result type to have dynamic stride along a dimension if "
-          "the base memref type has dynamic stride along that dimension");
-    }
-  }
-  return success();
-}
-
-raw_ostream &mlir::operator<<(raw_ostream &os, SubViewOp::Range &range) {
-  return os << "range " << range.offset << ":" << range.size << ":"
-            << range.stride;
-}
-
-SmallVector<SubViewOp::Range, 8> SubViewOp::getRanges() {
-  SmallVector<Range, 8> res;
-  unsigned rank = getType().getRank();
-  res.reserve(rank);
-  for (unsigned i = 0; i < rank; ++i)
-    res.emplace_back(Range{*(offsets().begin() + i), *(sizes().begin() + i),
-                           *(strides().begin() + i)});
-  return res;
-}
-
-LogicalResult
-SubViewOp::getStaticStrides(SmallVectorImpl<int64_t> &staticStrides) {
-  // If the strides are dynamic return failure.
-  if (getNumStrides())
-    return failure();
-
-  // When static, the stride operands can be retrieved by taking the strides of
-  // the result of the subview op, and dividing the strides of the base memref.
-  int64_t resultOffset, baseOffset;
-  SmallVector<int64_t, 2> resultStrides, baseStrides;
-  if (failed(
-          getStridesAndOffset(getBaseMemRefType(), baseStrides, baseOffset)) ||
-      llvm::is_contained(baseStrides, MemRefType::getDynamicStrideOrOffset()) ||
-      failed(getStridesAndOffset(getType(), resultStrides, resultOffset)))
-    return failure();
-
-  assert(static_cast<int64_t>(resultStrides.size()) == getType().getRank() &&
-         baseStrides.size() == resultStrides.size() &&
-         "base and result memrefs must have the same rank");
-  assert(!llvm::is_contained(resultStrides,
-                             MemRefType::getDynamicStrideOrOffset()) &&
-         "strides of subview op must be static, when there are no dynamic "
-         "strides specified");
-  staticStrides.resize(getType().getRank());
-  for (auto resultStride : enumerate(resultStrides)) {
-    auto baseStride = baseStrides[resultStride.index()];
-    // The result stride is expected to be a multiple of the base stride. Abort
-    // if that is not the case.
-    if (resultStride.value() < baseStride ||
-        resultStride.value() % baseStride != 0)
-      return failure();
-    staticStrides[resultStride.index()] = resultStride.value() / baseStride;
-  }
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// AssumeAlignmentOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(AssumeAlignmentOp op) {
-  unsigned alignment = op.alignment().getZExtValue();
-  if (!llvm::isPowerOf2_32(alignment))
-    return op.emitOpError("alignment must be power of 2");
-  return success();
-}
-
-namespace {
-
-/// Pattern to rewrite a subview op with constant size arguments.
-class SubViewOpShapeFolder final : public OpRewritePattern<SubViewOp> {
-public:
-  using OpRewritePattern<SubViewOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
-                                     PatternRewriter &rewriter) const override {
-    MemRefType subViewType = subViewOp.getType();
-    // Follow all or nothing approach for shapes for now. If all the operands
-    // for sizes are constants then fold it into the type of the result memref.
-    if (subViewType.hasStaticShape() ||
-        llvm::any_of(subViewOp.sizes(), [](Value operand) {
-          return !matchPattern(operand, m_ConstantIndex());
-        })) {
-      return matchFailure();
-    }
-    SmallVector<int64_t, 4> staticShape(subViewOp.getNumSizes());
-    for (auto size : llvm::enumerate(subViewOp.sizes())) {
-      auto defOp = size.value().getDefiningOp();
-      assert(defOp);
-      staticShape[size.index()] = cast<ConstantIndexOp>(defOp).getValue();
-    }
-    MemRefType newMemRefType =
-        MemRefType::Builder(subViewType).setShape(staticShape);
-    auto newSubViewOp = rewriter.create<SubViewOp>(
-        subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
-        ArrayRef<Value>(), subViewOp.strides(), newMemRefType);
-    // Insert a memref_cast for compatibility of the uses of the op.
-    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
-                                              subViewOp.getType());
-    return matchSuccess();
-  }
-};
-
-// Pattern to rewrite a subview op with constant stride arguments.
-class SubViewOpStrideFolder final : public OpRewritePattern<SubViewOp> {
-public:
-  using OpRewritePattern<SubViewOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
-                                     PatternRewriter &rewriter) const override {
-    if (subViewOp.getNumStrides() == 0) {
-      return matchFailure();
-    }
-    // Follow all or nothing approach for strides for now. If all the operands
-    // for strides are constants then fold it into the strides of the result
-    // memref.
-    int64_t baseOffset, resultOffset;
-    SmallVector<int64_t, 4> baseStrides, resultStrides;
-    MemRefType subViewType = subViewOp.getType();
-    if (failed(getStridesAndOffset(subViewOp.getBaseMemRefType(), baseStrides,
-                                   baseOffset)) ||
-        failed(getStridesAndOffset(subViewType, resultStrides, resultOffset)) ||
-        llvm::is_contained(baseStrides,
-                           MemRefType::getDynamicStrideOrOffset()) ||
-        llvm::any_of(subViewOp.strides(), [](Value stride) {
-          return !matchPattern(stride, m_ConstantIndex());
-        })) {
-      return matchFailure();
-    }
-
-    SmallVector<int64_t, 4> staticStrides(subViewOp.getNumStrides());
-    for (auto stride : llvm::enumerate(subViewOp.strides())) {
-      auto defOp = stride.value().getDefiningOp();
-      assert(defOp);
-      assert(baseStrides[stride.index()] > 0);
-      staticStrides[stride.index()] =
-          cast<ConstantIndexOp>(defOp).getValue() * baseStrides[stride.index()];
-    }
-    AffineMap layoutMap = makeStridedLinearLayoutMap(
-        staticStrides, resultOffset, rewriter.getContext());
-    MemRefType newMemRefType =
-        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
-    auto newSubViewOp = rewriter.create<SubViewOp>(
-        subViewOp.getLoc(), subViewOp.source(), subViewOp.offsets(),
-        subViewOp.sizes(), ArrayRef<Value>(), newMemRefType);
-    // Insert a memref_cast for compatibility of the uses of the op.
-    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
-                                              subViewOp.getType());
-    return matchSuccess();
-  }
-};
-
-// Pattern to rewrite a subview op with constant offset arguments.
-class SubViewOpOffsetFolder final : public OpRewritePattern<SubViewOp> {
-public:
-  using OpRewritePattern<SubViewOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(SubViewOp subViewOp,
-                                     PatternRewriter &rewriter) const override {
-    if (subViewOp.getNumOffsets() == 0) {
-      return matchFailure();
-    }
-    // Follow all or nothing approach for offsets for now. If all the operands
-    // for offsets are constants then fold it into the offset of the result
-    // memref.
-    int64_t baseOffset, resultOffset;
-    SmallVector<int64_t, 4> baseStrides, resultStrides;
-    MemRefType subViewType = subViewOp.getType();
-    if (failed(getStridesAndOffset(subViewOp.getBaseMemRefType(), baseStrides,
-                                   baseOffset)) ||
-        failed(getStridesAndOffset(subViewType, resultStrides, resultOffset)) ||
-        llvm::is_contained(baseStrides,
-                           MemRefType::getDynamicStrideOrOffset()) ||
-        baseOffset == MemRefType::getDynamicStrideOrOffset() ||
-        llvm::any_of(subViewOp.offsets(), [](Value stride) {
-          return !matchPattern(stride, m_ConstantIndex());
-        })) {
-      return matchFailure();
-    }
-
-    auto staticOffset = baseOffset;
-    for (auto offset : llvm::enumerate(subViewOp.offsets())) {
-      auto defOp = offset.value().getDefiningOp();
-      assert(defOp);
-      assert(baseStrides[offset.index()] > 0);
-      staticOffset +=
-          cast<ConstantIndexOp>(defOp).getValue() * baseStrides[offset.index()];
-    }
-
-    AffineMap layoutMap = makeStridedLinearLayoutMap(
-        resultStrides, staticOffset, rewriter.getContext());
-    MemRefType newMemRefType =
-        MemRefType::Builder(subViewType).setAffineMaps(layoutMap);
-    auto newSubViewOp = rewriter.create<SubViewOp>(
-        subViewOp.getLoc(), subViewOp.source(), ArrayRef<Value>(),
-        subViewOp.sizes(), subViewOp.strides(), newMemRefType);
-    // Insert a memref_cast for compatibility of the uses of the op.
-    rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, newSubViewOp,
-                                              subViewOp.getType());
-    return matchSuccess();
-  }
-};
-
-} // end anonymous namespace
-
-void SubViewOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                            MLIRContext *context) {
-  results.insert<SubViewOpShapeFolder, SubViewOpStrideFolder,
-                 SubViewOpOffsetFolder>(context);
+  return constFoldBinaryOp<IntegerAttr>(operands,
+                                        [](APInt a, APInt b) { return a ^ b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2590,71 +2509,6 @@ static LogicalResult verify(ZeroExtendIOp op) {
     return op.emitError("result type ")
            << dstType << " must be wider than operand type " << srcType;
 
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// FPExtOp
-//===----------------------------------------------------------------------===//
-
-bool FPExtOp::areCastCompatible(Type a, Type b) {
-  if (auto fa = a.dyn_cast<FloatType>())
-    if (auto fb = b.dyn_cast<FloatType>())
-      return fa.getWidth() < fb.getWidth();
-  if (auto va = a.dyn_cast<VectorType>())
-    if (auto vb = b.dyn_cast<VectorType>())
-      return va.getShape().equals(vb.getShape()) &&
-             areCastCompatible(va.getElementType(), vb.getElementType());
-  return false;
-}
-
-//===----------------------------------------------------------------------===//
-// FPTruncOp
-//===----------------------------------------------------------------------===//
-
-bool FPTruncOp::areCastCompatible(Type a, Type b) {
-  if (auto fa = a.dyn_cast<FloatType>())
-    if (auto fb = b.dyn_cast<FloatType>())
-      return fa.getWidth() > fb.getWidth();
-  if (auto va = a.dyn_cast<VectorType>())
-    if (auto vb = b.dyn_cast<VectorType>())
-      return va.getShape().equals(vb.getShape()) &&
-             areCastCompatible(va.getElementType(), vb.getElementType());
-  return false;
-}
-
-//===----------------------------------------------------------------------===//
-// AtomicRMWOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(AtomicRMWOp op) {
-  if (op.getMemRefType().getRank() != op.getNumOperands() - 2)
-    return op.emitOpError(
-        "expects the number of subscripts to be equal to memref rank");
-  switch (op.kind()) {
-  case AtomicRMWKind::addf:
-  case AtomicRMWKind::maxf:
-  case AtomicRMWKind::minf:
-  case AtomicRMWKind::mulf:
-    if (!op.value().getType().isa<FloatType>())
-      return op.emitOpError()
-             << "with kind '" << stringifyAtomicRMWKind(op.kind())
-             << "' expects a floating-point type";
-    break;
-  case AtomicRMWKind::addi:
-  case AtomicRMWKind::maxs:
-  case AtomicRMWKind::maxu:
-  case AtomicRMWKind::mins:
-  case AtomicRMWKind::minu:
-  case AtomicRMWKind::muli:
-    if (!op.value().getType().isa<IntegerType>())
-      return op.emitOpError()
-             << "with kind '" << stringifyAtomicRMWKind(op.kind())
-             << "' expects an integer type";
-    break;
-  default:
-    break;
-  }
   return success();
 }
 

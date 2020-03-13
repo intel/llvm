@@ -138,7 +138,10 @@ struct LocIndex {
     return (static_cast<uint64_t>(Location) << 32) | Index;
   }
 
-  static LocIndex fromRawInteger(uint64_t ID) {
+  template<typename IntT> static LocIndex fromRawInteger(IntT ID) {
+    static_assert(std::is_unsigned<IntT>::value &&
+                      sizeof(ID) == sizeof(uint64_t),
+                  "Cannot convert raw integer to LocIndex");
     return {static_cast<uint32_t>(ID >> 32), static_cast<uint32_t>(ID)};
   }
 
@@ -956,6 +959,10 @@ void LiveDebugValues::emitEntryValues(MachineInstr &MI,
                                       VarLocMap &VarLocIDs,
                                       TransferMap &Transfers,
                                       VarLocSet &KillSet) {
+  // Do not insert entry value locations after a terminator.
+  if (MI.isTerminator())
+    return;
+
   for (uint64_t ID : KillSet) {
     LocIndex Idx = LocIndex::fromRawInteger(ID);
     const VarLoc &VL = VarLocIDs[Idx];
@@ -1000,6 +1007,7 @@ void LiveDebugValues::insertTransferDebugPair(
     // Record the new location as an open range, and a postponed transfer
     // inserting a DBG_VALUE for this location.
     OpenRanges.insert(LocId, VL);
+    assert(!MI.isTerminator() && "Cannot insert DBG_VALUE after terminator");
     TransferDebugPair MIP = {&MI, LocId};
     Transfers.push_back(MIP);
   };
@@ -1117,7 +1125,7 @@ void LiveDebugValues::transferRegisterDef(
 
   if (auto *TPC = getAnalysisIfAvailable<TargetPassConfig>()) {
     auto &TM = TPC->getTM<TargetMachine>();
-    if (TM.Options.EnableDebugEntryValues)
+    if (TM.Options.ShouldEmitDebugEntryValues())
       emitEntryValues(MI, OpenRanges, VarLocIDs, Transfers, KillSet);
   }
 }
@@ -1622,7 +1630,7 @@ void LiveDebugValues::recordEntryValue(const MachineInstr &MI,
                                        VarLocMap &VarLocIDs) {
   if (auto *TPC = getAnalysisIfAvailable<TargetPassConfig>()) {
     auto &TM = TPC->getTM<TargetMachine>();
-    if (!TM.Options.EnableDebugEntryValues)
+    if (!TM.Options.ShouldEmitDebugEntryValues())
       return;
   }
 
@@ -1775,6 +1783,8 @@ bool LiveDebugValues::ExtendRanges(MachineFunction &MF) {
 
   // Add any DBG_VALUE instructions created by location transfers.
   for (auto &TR : Transfers) {
+    assert(!TR.TransferInst->isTerminator() &&
+           "Cannot insert DBG_VALUE after terminator");
     MachineBasicBlock *MBB = TR.TransferInst->getParent();
     const VarLoc &VL = VarLocIDs[TR.LocationID];
     MachineInstr *MI = VL.BuildDbgValue(MF);

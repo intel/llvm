@@ -864,7 +864,7 @@ public:
   }
 };
 
-/// Progressive lowering of ConstractionOp.
+/// Progressive lowering of ContractionOp.
 /// One:
 ///   %x = vector.contract with at least one free/batch dimension
 /// is replaced by:
@@ -1017,8 +1017,8 @@ private:
       Value zero = zeroVector(loc, lhsType, rewriter);
       Value fma = rewriter.create<vector::FMAOp>(loc, op.lhs(), op.rhs(), zero);
       StringAttr kind = rewriter.getStringAttr("add");
-      return rewriter.create<vector::ReductionV2Op>(loc, resType, kind, fma,
-                                                    op.acc());
+      return rewriter.create<vector::ReductionOp>(loc, resType, kind, fma,
+                                                  op.acc());
     }
     // Construct new iterator types and affine map array attribute.
     SmallVector<AffineMap, 4> lowIndexingMaps;
@@ -1067,9 +1067,8 @@ private:
     SmallVector<Attribute, 4> results;
     for (auto it : llvm::enumerate(iteratorTypes)) {
       int64_t idx = it.index();
-      if (idx == index) {
+      if (idx == index)
         continue;
-      }
       results.push_back(it.value());
     }
     return results;
@@ -1078,6 +1077,7 @@ private:
   // Helper to construct an affine map with one index removed.
   static AffineMap adjustMap(AffineMap map, int64_t index,
                              PatternRewriter &rewriter) {
+    auto *ctx = rewriter.getContext();
     SmallVector<AffineExpr, 4> results;
     for (int64_t i = 0, e = map.getNumResults(); i < e; ++i) {
       int64_t idx = map.getResult(i).cast<AffineDimExpr>().getPosition();
@@ -1085,13 +1085,11 @@ private:
         continue;
       // Re-insert remaining indices, but renamed when occurring
       // after the removed index.
-      auto targetExpr =
-          getAffineDimExpr(idx < index ? idx : idx - 1, rewriter.getContext());
+      auto targetExpr = getAffineDimExpr(idx < index ? idx : idx - 1, ctx);
       results.push_back(targetExpr);
     }
-    // Since (...) -> () cannot be represented properly,
-    // we resort to an empty map when this situation happens.
-    return results.empty() ? AffineMap::get(rewriter.getContext())
+    // The (...) -> () affine map has its own factory method.
+    return results.empty() ? AffineMap::get(map.getNumDims() - 1, 0, ctx)
                            : AffineMap::get(map.getNumDims() - 1, 0, results);
   }
 
@@ -1172,6 +1170,75 @@ private:
   }
 };
 
+/// ShapeOp 2D -> 1D downcast serves the purpose of flattening 2-D to 1-D
+/// vectors progressively on the way to target llvm.matrix intrinsics.
+/// This iterates over the most major dimension of the 2-D vector and performs
+/// rewrites into:
+///   vector.extract from 2-D + vector.insert_strided_slice offset into 1-D
+class ShapeCastOp2DDownCastRewritePattern
+    : public OpRewritePattern<vector::ShapeCastOp> {
+public:
+  using OpRewritePattern<vector::ShapeCastOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(vector::ShapeCastOp op,
+                                     PatternRewriter &rewriter) const override {
+    auto sourceVectorType = op.getSourceVectorType();
+    auto resultVectorType = op.getResultVectorType();
+    if (sourceVectorType.getRank() != 2 || resultVectorType.getRank() != 1)
+      return matchFailure();
+
+    auto loc = op.getLoc();
+    auto elemType = sourceVectorType.getElementType();
+    Value zero = rewriter.create<ConstantOp>(loc, elemType,
+                                             rewriter.getZeroAttr(elemType));
+    Value desc = rewriter.create<SplatOp>(loc, resultVectorType, zero);
+    unsigned mostMinorVectorSize = sourceVectorType.getShape()[1];
+    for (int64_t i = 0, e = sourceVectorType.getShape().front(); i != e; ++i) {
+      Value vec = rewriter.create<vector::ExtractOp>(loc, op.source(), i);
+      desc = rewriter.create<vector::InsertStridedSliceOp>(
+          loc, vec, desc,
+          /*offsets=*/i * mostMinorVectorSize, /*strides=*/1);
+    }
+    rewriter.replaceOp(op, desc);
+    return matchSuccess();
+  }
+};
+
+/// ShapeOp 1D -> 2D upcast serves the purpose of unflattening 2-D from 1-D
+/// vectors progressively on the way from targeting llvm.matrix intrinsics.
+/// This iterates over the most major dimension of the 2-D vector and performs
+/// rewrites into:
+///   vector.strided_slice from 1-D + vector.insert into 2-D
+class ShapeCastOp2DUpCastRewritePattern
+    : public OpRewritePattern<vector::ShapeCastOp> {
+public:
+  using OpRewritePattern<vector::ShapeCastOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(vector::ShapeCastOp op,
+                                     PatternRewriter &rewriter) const override {
+    auto sourceVectorType = op.getSourceVectorType();
+    auto resultVectorType = op.getResultVectorType();
+    if (sourceVectorType.getRank() != 1 || resultVectorType.getRank() != 2)
+      return matchFailure();
+
+    auto loc = op.getLoc();
+    auto elemType = sourceVectorType.getElementType();
+    Value zero = rewriter.create<ConstantOp>(loc, elemType,
+                                             rewriter.getZeroAttr(elemType));
+    Value desc = rewriter.create<SplatOp>(loc, resultVectorType, zero);
+    unsigned mostMinorVectorSize = resultVectorType.getShape()[1];
+    for (int64_t i = 0, e = resultVectorType.getShape().front(); i != e; ++i) {
+      Value vec = rewriter.create<vector::StridedSliceOp>(
+          loc, op.source(), /*offsets=*/i * mostMinorVectorSize,
+          /*sizes=*/mostMinorVectorSize,
+          /*strides=*/1);
+      desc = rewriter.create<vector::InsertOp>(loc, vec, desc, i);
+    }
+    rewriter.replaceOp(op, desc);
+    return matchSuccess();
+  }
+};
+
 } // namespace
 
 // TODO(andydavis) Add pattern to rewrite ExtractSlices(ConstantMaskOp).
@@ -1189,5 +1256,9 @@ void mlir::vector::populateVectorSlicesLoweringPatterns(
 
 void mlir::vector::populateVectorContractLoweringPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ContractionOpLowering>(context);
+  patterns.insert<ContractionOpLowering,
+                  // Shape 2d up/down casts are used as part of contraction
+                  // lowering.
+                  ShapeCastOp2DDownCastRewritePattern,
+                  ShapeCastOp2DUpCastRewritePattern>(context);
 }
