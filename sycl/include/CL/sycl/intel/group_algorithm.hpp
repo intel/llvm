@@ -32,19 +32,21 @@ template <> size_t get_local_linear_range<group<3>>(group<3> g) {
 }
 
 template <int Dimensions>
-id<Dimensions> linear_id_to_id(range<Dimensions>, size_t i);
-template <> id<1> linear_id_to_id(range<1> r, size_t i) { return id<1>(i); }
-template <> id<2> linear_id_to_id(range<2> r, size_t i) {
+id<Dimensions> linear_id_to_id(range<Dimensions>, size_t linear_id);
+template <> id<1> linear_id_to_id(range<1> r, size_t linear_id) {
+  return id<1>(linear_id);
+}
+template <> id<2> linear_id_to_id(range<2> r, size_t linear_id) {
   id<2> result;
-  result[0] = i / r[1];
-  result[1] = i % r[1];
+  result[0] = linear_id / r[1];
+  result[1] = linear_id % r[1];
   return result;
 }
-template <> id<3> linear_id_to_id(range<3> r, size_t i) {
+template <> id<3> linear_id_to_id(range<3> r, size_t linear_id) {
   id<3> result;
-  result[0] = i / (r[1] * r[2]);
-  result[1] = (i % (r[1] * r[2])) / r[2];
-  result[2] = i % r[2];
+  result[0] = linear_id / (r[1] * r[2]);
+  result[1] = (linear_id % (r[1] * r[2])) / r[2];
+  result[2] = linear_id % r[2];
   return result;
 }
 
