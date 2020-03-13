@@ -21,28 +21,28 @@ namespace sycl {
 namespace detail {
 
 template <typename Group> size_t get_local_linear_range(Group g);
-template <> size_t get_local_linear_range<group<1>>(group<1> g) {
+template <> inline size_t get_local_linear_range<group<1>>(group<1> g) {
   return g.get_local_range(0);
 }
-template <> size_t get_local_linear_range<group<2>>(group<2> g) {
+template <> inline size_t get_local_linear_range<group<2>>(group<2> g) {
   return g.get_local_range(0) * g.get_local_range(1);
 }
-template <> size_t get_local_linear_range<group<3>>(group<3> g) {
+template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 
 template <int Dimensions>
 id<Dimensions> linear_id_to_id(range<Dimensions>, size_t linear_id);
-template <> id<1> linear_id_to_id(range<1> r, size_t linear_id) {
+template <> inline id<1> linear_id_to_id(range<1> r, size_t linear_id) {
   return id<1>(linear_id);
 }
-template <> id<2> linear_id_to_id(range<2> r, size_t linear_id) {
+template <> inline id<2> linear_id_to_id(range<2> r, size_t linear_id) {
   id<2> result;
   result[0] = linear_id / r[1];
   result[1] = linear_id % r[1];
   return result;
 }
-template <> id<3> linear_id_to_id(range<3> r, size_t linear_id) {
+template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
   id<3> result;
   result[0] = linear_id / (r[1] * r[2]);
   result[1] = (linear_id % (r[1] * r[2])) / r[2];
