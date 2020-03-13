@@ -191,7 +191,7 @@ extern SYCL_EXTERNAL bool __spirv_GroupAny(__spv::Scope Execution,
 template <typename dataT>
 extern SYCL_EXTERNAL dataT __spirv_GroupBroadcast(__spv::Scope Execution,
                                                   dataT Value,
-                                                  uint32_t LocalId) noexcept;
+                                                  size_t LocalId) noexcept;
 
 template <typename dataT>
 extern SYCL_EXTERNAL dataT
