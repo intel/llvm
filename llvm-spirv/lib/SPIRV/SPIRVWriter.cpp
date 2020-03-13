@@ -856,6 +856,34 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           unsigned SafeLen = IVDep.getSafeLen();
           for (auto &ArrayId : IVDep.getArrayVariables())
             DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+        } else if (S == "llvm.loop.intel.pipelining.enable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlPipelineEnableINTEL;
+        } else if (S == "llvm.loop.coalesce.enable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopControl |= spv::LoopControlLoopCoalesceINTEL;
+        } else if (S == "llvm.loop.coalesce.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlLoopCoalesceINTEL;
+        } else if (S == "llvm.loop.max_interleaving.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlMaxInterleavingINTEL;
+        } else if (S == "llvm.loop.intel.speculated.iterations.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlSpeculatedIterationsINTEL;
         }
       }
     }

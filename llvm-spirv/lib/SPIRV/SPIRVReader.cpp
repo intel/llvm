@@ -786,6 +786,47 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
   }
+  if (LC & LoopControlPipelineEnableINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.intel.pipelining.enable",
+                                        LoopControlParameters[NumParam])));
+    ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlLoopCoalesceINTEL) {
+    if (LoopControlParameters.size()) {
+      Metadata.push_back(llvm::MDNode::get(
+          *Context,
+          getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
+                                          LoopControlParameters[NumParam])));
+      ++NumParam;
+    } else { // If LoopCoalesce has no parameters
+      Metadata.push_back(llvm::MDNode::get(
+          *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
+    }
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlMaxInterleavingINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.max_interleaving.count",
+                                        LoopControlParameters[NumParam])));
+    ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlSpeculatedIterationsINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context, getMetadataFromNameAndParameter(
+                      "llvm.loop.intel.speculated.iterations.count",
+                      LoopControlParameters[NumParam])));
+    ++NumParam;
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
 
   // Set the first operand to refer itself

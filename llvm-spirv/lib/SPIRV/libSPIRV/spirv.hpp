@@ -505,6 +505,10 @@ enum LoopControlMask {
     LoopControlInitiationIntervalINTEL = 0x10000,
     LoopControlMaxConcurrencyINTEL = 0x20000,
     LoopControlDependencyArrayINTEL = 0x40000,
+    LoopControlPipelineEnableINTEL = 0x80000,
+    LoopControlLoopCoalesceINTEL = 0x100000,
+    LoopControlMaxInterleavingINTEL = 0x200000,
+    LoopControlSpeculatedIterationsINTEL = 0x400000,
 };
 
 enum FunctionControlShift {
