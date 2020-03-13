@@ -127,7 +127,9 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
   static_assert(detail::is_group<Group>::value,
                 "Group algorithms only support the sycl::group class.");
   bool partial = true;
-  detail::for_each(g, first, last, [&](auto x) { partial &= pred(x); });
+  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
+    partial &= pred(x);
+  });
   return all_of(g, partial);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -160,7 +162,9 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
   static_assert(detail::is_group<Group>::value,
                 "Group algorithms only support the sycl::group class.");
   bool partial = false;
-  detail::for_each(g, first, last, [&](auto x) { partial |= pred(x); });
+  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
+    partial |= pred(x);
+  });
   return any_of(g, partial);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -369,8 +373,9 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Ptr::element_type partial =
       detail::identity<typename Ptr::element_type, BinaryOperation>::value;
-  detail::for_each(g, first, last,
-                   [&](auto x) { partial = binary_op(partial, x); });
+  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
+    partial = binary_op(partial, x);
+  });
   return reduce(g, partial, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -389,8 +394,9 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
 #ifdef __SYCL_DEVICE_ONLY__
   T partial =
       detail::identity<typename Ptr::element_type, BinaryOperation>::value;
-  detail::for_each(g, first, last,
-                   [&](auto x) { partial = binary_op(partial, x); });
+  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
+    partial = binary_op(partial, x);
+  });
   return reduce(g, partial, init, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",

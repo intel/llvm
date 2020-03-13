@@ -131,9 +131,14 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
+#if __cplusplus >= 201402L
   test(q, input, output, plus<>(), 0);
   test(q, input, output, minimum<>(), std::numeric_limits<int>::max());
   test(q, input, output, maximum<>(), std::numeric_limits<int>::lowest());
+#endif
+  test(q, input, output, plus<int>(), 0);
+  test(q, input, output, minimum<int>(), std::numeric_limits<int>::max());
+  test(q, input, output, maximum<int>(), std::numeric_limits<int>::lowest());
 
   std::cout << "Test passed." << std::endl;
 }
