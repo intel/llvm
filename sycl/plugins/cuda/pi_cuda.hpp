@@ -6,9 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// This source is the definition of the SYCL Plugin Interface
-/// (PI). It is the interface between the device-agnostic SYCL runtime layer
-/// and underlying "native" runtimes such as OpenCL.
+/// \defgroup sycl_pi_cuda CUDA Plugin
+/// \ingroup sycl_pi
+
+/// \file pi_cuda.hpp
+/// Definition of CUDA Plugin. It is the interface between the device-agnostic
+/// SYCL runtime layer and underlying CUDA runtime.
+///
+/// \ingroup sycl_pi_cuda
 
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
