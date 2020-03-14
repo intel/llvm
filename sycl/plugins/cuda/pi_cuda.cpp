@@ -24,7 +24,8 @@ std::string getCudaVersionString() {
   cuDriverGetVersion(&driver_version);
   // The version is returned as (1000 major + 10 minor).
   std::stringstream stream;
-  stream << "CUDA " << driver_version / 1000 << "." << driver_version % 100;
+  stream << "CUDA " << driver_version / 1000 << "."
+         << driver_version % 1000 / 10;
   return stream.str();
 }
 
@@ -469,6 +470,13 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                                 const char *value) {
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
+}
+
+int getAttribute(pi_device device, CUdevice_attribute attribute) {
+  int value;
+  cl::sycl::detail::pi::assertion(
+      cuDeviceGetAttribute(&value, attribute, device->get()) == CUDA_SUCCESS);
+  return value;
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -1176,6 +1184,125 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    static_cast<cl_device_partition_property>(0u));
   }
+
+    // Intel USM extensions
+
+  case PI_DEVICE_INFO_USM_HOST_SUPPORT: {
+    // from cl_intel_unified_shared_memory: "The host memory access capabilities
+    // apply to any host allocation."
+    //
+    // query if/how the device can access page-locked host memory, possibly
+    // through PCIe, using the same pointer as the host
+    pi_bitfield value = {};
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
+      // the device shares a unified address space with the host
+      if (getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
+          6) {
+        // compute capability 6.x introduces operations that are atomic with
+        // respect to other CPUs and GPUs in the system
+        value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
+                PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
+      } else {
+        // on GPU architectures with compute capability lower than 6.x, atomic
+        // operations from the GPU to CPU memory will not be atomic with respect
+        // to CPU initiated atomic operations
+        value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
+      }
+    }
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_DEVICE_INFO_USM_DEVICE_SUPPORT: {
+    // from cl_intel_unified_shared_memory:
+    // "The device memory access capabilities apply to any device allocation
+    // associated with this device."
+    //
+    // query how the device can access memory allocated on the device itself (?)
+    pi_bitfield value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
+                        PI_USM_CONCURRENT_ACCESS |
+                        PI_USM_CONCURRENT_ATOMIC_ACCESS;
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
+    // from cl_intel_unified_shared_memory:
+    // "The single device shared memory access capabilities apply to any shared
+    // allocation associated with this device."
+    //
+    // query if/how the device can access managed memory associated to it
+    pi_bitfield value = {};
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_MANAGED_MEMORY)) {
+      // the device can allocate managed memory on this system
+      value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS;
+    }
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      // the device can coherently access managed memory concurrently with the
+      // CPU
+      value |= PI_USM_CONCURRENT_ACCESS;
+      if (getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
+          6) {
+        // compute capability 6.x introduces operations that are atomic with
+        // respect to other CPUs and GPUs in the system
+        value |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
+      }
+    }
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
+    // from cl_intel_unified_shared_memory:
+    // "The cross-device shared memory access capabilities apply to any shared
+    // allocation associated with this device, or to any shared memory
+    // allocation on another device that also supports the same cross-device
+    // shared memory access capability."
+    //
+    // query if/how the device can access managed memory associated to other
+    // devices
+    pi_bitfield value = {};
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_MANAGED_MEMORY)) {
+      // the device can allocate managed memory on this system
+      value |= PI_USM_ACCESS;
+    }
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      // all devices with the CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS
+      // attribute can coherently access managed memory concurrently with the
+      // CPU
+      value |= PI_USM_CONCURRENT_ACCESS;
+    }
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
+        6) {
+      // compute capability 6.x introduces operations that are atomic with
+      // respect to other CPUs and GPUs in the system
+      if (value & PI_USM_ACCESS)
+        value |= PI_USM_ATOMIC_ACCESS;
+      if (value & PI_USM_CONCURRENT_ACCESS)
+        value |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
+    }
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+    // from cl_intel_unified_shared_memory:
+    // "The shared system memory access capabilities apply to any allocations
+    // made by a system allocator, such as malloc or new."
+    //
+    // query if/how the device can access pageable host memory allocated by the
+    // system allocator
+    pi_bitfield value = {};
+    if (getAttribute(device, CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS)) {
+      // the device suppports coherently accessing pageable memory without
+      // calling cuMemHostRegister/cudaHostRegister on it
+      if (getAttribute(device,
+                       CU_DEVICE_ATTRIBUTE_HOST_NATIVE_ATOMIC_SUPPORTED)) {
+        // the link between the device and the host supports native atomic
+        // operations
+        value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
+                PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
+      } else {
+        // the link between the device and the host does not support native
+        // atomic operations
+        value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
+      }
+    }
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+
   default:
     PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -2346,6 +2473,13 @@ pi_result cuda_piKernelSetExecInfo(
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
+                                        size_t arg_size,
+                                        const void *arg_value) {
+  kernel->set_kernel_arg(arg_index, arg_size, arg_value);
+  return PI_SUCCESS;
+}
+
 //
 // Events
 //
@@ -3009,6 +3143,312 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   return ret_err;
 }
 
+// USM
+pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                                 pi_usm_mem_properties *properties, size_t size,
+                                 pi_uint32 alignment) {
+  assert(result_ptr != nullptr);
+  assert(context != nullptr);
+  assert(properties == nullptr);
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemAllocHost(result_ptr, size));
+  } catch (pi_result error) {
+    result = error;
+  }
+  assert(*result_ptr % alignment == 0);
+  return result;
+}
+
+pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                                   pi_device device,
+                                   pi_usm_mem_properties *properties,
+                                   size_t size, pi_uint32 alignment) {
+  assert(result_ptr != nullptr);
+  assert(context != nullptr);
+  assert(device != nullptr);
+  assert(properties == nullptr);
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemAlloc((CUdeviceptr *)result_ptr, size));
+  } catch (pi_result error) {
+    result = error;
+  }
+  assert(*result_ptr % alignment == 0);
+  return result;
+}
+
+pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                                   pi_device device,
+                                   pi_usm_mem_properties *properties,
+                                   size_t size, pi_uint32 alignment) {
+  assert(result_ptr != nullptr);
+  assert(context != nullptr);
+  assert(device != nullptr);
+  assert(properties == nullptr);
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)result_ptr, size,
+                                              CU_MEM_ATTACH_GLOBAL));
+  } catch (pi_result error) {
+    result = error;
+  }
+  assert(*result_ptr % alignment == 0);
+  return result;
+}
+
+pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
+  assert(context != nullptr);
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    unsigned int type;
+    result = PI_CHECK_ERROR(cuPointerGetAttribute(
+        &type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
+    assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
+    if (type == CU_MEMORYTYPE_DEVICE) {
+      result = PI_CHECK_ERROR(cuMemFree((CUdeviceptr)ptr));
+    }
+    if (type == CU_MEMORYTYPE_HOST) {
+      result = PI_CHECK_ERROR(cuMemFreeHost(ptr));
+    }
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
+                                     size_t count,
+                                     pi_uint32 num_events_in_waitlist,
+                                     const pi_event *events_waitlist,
+                                     pi_event *event) {
+  assert(queue != nullptr);
+  assert(ptr != nullptr);
+  CUstream cuStream = queue->get();
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(queue->get_context());
+    result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                      events_waitlist, nullptr);
+    if (event) {
+      event_ptr = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+      event_ptr->start();
+    }
+    result = PI_CHECK_ERROR(cuMemsetD8Async(
+        (CUdeviceptr)ptr, (unsigned char)value & 0xFF, count, cuStream));
+    if (event) {
+      result = event_ptr->record();
+      *event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+  return result;
+}
+
+pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
+                                     void *dst_ptr, const void *src_ptr,
+                                     size_t size,
+                                     pi_uint32 num_events_in_waitlist,
+                                     const pi_event *events_waitlist,
+                                     pi_event *event) {
+  assert(queue != nullptr);
+  assert(dst_ptr != nullptr);
+  assert(src_ptr != nullptr);
+  CUstream cuStream = queue->get();
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(queue->get_context());
+    result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                      events_waitlist, nullptr);
+    if (event) {
+      event_ptr = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+      event_ptr->start();
+    }
+    result = PI_CHECK_ERROR(cuMemcpyAsync(
+        (CUdeviceptr)dst_ptr, (CUdeviceptr)src_ptr, size, cuStream));
+    if (event) {
+      result = event_ptr->record();
+    }
+    if (blocking) {
+      result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+    if (event) {
+      *event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+  return result;
+}
+
+pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
+                                       size_t size,
+                                       pi_usm_migration_flags flags,
+                                       pi_uint32 num_events_in_waitlist,
+                                       const pi_event *events_waitlist,
+                                       pi_event *event) {
+  assert(queue != nullptr);
+  assert(ptr != nullptr);
+  CUstream cuStream = queue->get();
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  // TODO implement handling the flags once the expected behaviour
+  // of piextUSMEnqueuePrefetch is detailed in the USM extension
+  assert(flags == 0u);
+
+  try {
+    ScopedContext active(queue->get_context());
+    result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                      events_waitlist, nullptr);
+    if (event) {
+      event_ptr = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+      event_ptr->start();
+    }
+    result = PI_CHECK_ERROR(cuMemPrefetchAsync(
+        (CUdeviceptr)ptr, size, queue->get_context()->get_device()->get(),
+        cuStream));
+    if (event) {
+      result = event_ptr->record();
+      *event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+  return result;
+}
+
+// USM memadvise API to govern behavior of automatic migration mechanisms
+pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+                                        size_t length, int advice,
+                                        pi_event *event) {
+  assert(queue != nullptr);
+  assert(ptr != nullptr);
+  // TODO implement a mapping to cuMemAdvise once the expected behaviour
+  // of piextUSMEnqueueMemAdvise is detailed in the USM extension
+  return cuda_piEnqueueEventsWait(queue, 0, nullptr, event);
+}
+
+/// API to query information about USM allocated pointers
+/// Valid Queries:
+///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
+///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
+///                         the queried pointer fell inside an allocation.
+///                         Result must fit in void *
+///   PI_MEM_ALLOC_SIZE returns how big the queried pointer's
+///                     allocation is in bytes. Result is a size_t.
+///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
+///
+/// \param context is the pi_context
+/// \param ptr is the pointer to query
+/// \param param_name is the type of query to perform
+/// \param param_value_size is the size of the result in bytes
+/// \param param_value is the result
+/// \param param_value_ret is how many bytes were written
+pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
+                                       pi_mem_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret) {
+  assert(context != nullptr);
+  assert(ptr != nullptr);
+  pi_result result = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+    switch (param_name) {
+    case PI_MEM_ALLOC_TYPE: {
+      unsigned int value;
+      // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+      CUresult ret = cuPointerGetAttribute(
+          &value, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr);
+      if (ret == CUDA_ERROR_INVALID_VALUE) {
+        // pointer not known to the CUDA subsystem
+        return getInfo(param_value_size, param_value, param_value_size_ret,
+                       PI_MEM_TYPE_UNKNOWN);
+      }
+      result = check_error(ret, __func__, __LINE__ - 5, __FILE__);
+      if (value) {
+        // pointer to managed memory
+        return getInfo(param_value_size, param_value, param_value_size_ret,
+                       PI_MEM_TYPE_SHARED);
+      }
+      result = PI_CHECK_ERROR(cuPointerGetAttribute(
+          &value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
+      assert(value == CU_MEMORYTYPE_DEVICE or value == CU_MEMORYTYPE_HOST);
+      if (value == CU_MEMORYTYPE_DEVICE) {
+        // pointer to device memory
+        return getInfo(param_value_size, param_value, param_value_size_ret,
+                       PI_MEM_TYPE_DEVICE);
+      }
+      if (value == CU_MEMORYTYPE_HOST) {
+        // pointer to host memory
+        return getInfo(param_value_size, param_value, param_value_size_ret,
+                       PI_MEM_TYPE_HOST);
+      }
+      // should never get here
+      __builtin_unreachable();
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     PI_MEM_TYPE_UNKNOWN);
+    }
+    case PI_MEM_ALLOC_BASE_PTR: {
+#if __CUDA_API_VERSION >= 10020
+      // CU_POINTER_ATTRIBUTE_RANGE_START_ADDR was introduced in CUDA 10.2
+      unsigned int value;
+      result = PI_CHECK_ERROR(cuPointerGetAttribute(
+          &value, CU_POINTER_ATTRIBUTE_RANGE_START_ADDR, (CUdeviceptr)ptr));
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     value);
+#else
+      return PI_INVALID_VALUE;
+#endif
+    }
+    case PI_MEM_ALLOC_SIZE: {
+#if __CUDA_API_VERSION >= 10020
+      // CU_POINTER_ATTRIBUTE_RANGE_SIZE was introduced in CUDA 10.2
+      unsigned int value;
+      result = PI_CHECK_ERROR(cuPointerGetAttribute(
+          &value, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)ptr));
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     value);
+#else
+      return PI_INVALID_VALUE;
+#endif
+    }
+    case PI_MEM_ALLOC_DEVICE: {
+      unsigned int value;
+      result = PI_CHECK_ERROR(cuPointerGetAttribute(
+          &value, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)ptr));
+      pi_platform platform;
+      result = cuda_piPlatformsGet(0, &platform, nullptr);
+      pi_device device = platform->devices_[value].get();
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     device);
+    }
+    // not documented/implemented yet
+    case PI_MEM_ALLOC_INFO_TBD0:
+    case PI_MEM_ALLOC_INFO_TBD1: {
+      return PI_INVALID_VALUE;
+    }
+    }
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -3027,7 +3467,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   std::memset(&(PluginInit->PiFunctionTable), 0,
               sizeof(PluginInit->PiFunctionTable));
 
-// Forward calls to OpenCL RT.
+// Forward calls to CUDA RT.
 #define _PI_CL(pi_api, cuda_api)                                         \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&cuda_api);
 
@@ -3081,7 +3521,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, cuda_piKernelRetain)
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
-
+  _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
   // Event
   _PI_CL(piEventCreate, cuda_piEventCreate)
   _PI_CL(piEventGetInfo, cuda_piEventGetInfo)
@@ -3113,6 +3553,16 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemImageFill, cuda_piEnqueueMemImageFill)
   _PI_CL(piEnqueueMemBufferMap, cuda_piEnqueueMemBufferMap)
   _PI_CL(piEnqueueMemUnmap, cuda_piEnqueueMemUnmap)
+  // USM
+  _PI_CL(piextUSMHostAlloc, cuda_piextUSMHostAlloc)
+  _PI_CL(piextUSMDeviceAlloc, cuda_piextUSMDeviceAlloc)
+  _PI_CL(piextUSMSharedAlloc, cuda_piextUSMSharedAlloc)
+  _PI_CL(piextUSMFree, cuda_piextUSMFree)
+  _PI_CL(piextUSMEnqueueMemset, cuda_piextUSMEnqueueMemset)
+  _PI_CL(piextUSMEnqueueMemcpy, cuda_piextUSMEnqueueMemcpy)
+  _PI_CL(piextUSMEnqueuePrefetch, cuda_piextUSMEnqueuePrefetch)
+  _PI_CL(piextUSMEnqueueMemAdvise, cuda_piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
 
