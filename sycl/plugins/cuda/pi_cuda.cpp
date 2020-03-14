@@ -917,7 +917,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{max_alloc});
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, false);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_FALSE);
   }
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, 0);
@@ -3021,6 +3022,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // PI interface supports higher version or the same version.
   strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
 
+  // Set whole function table to zero to make it easier to detect if
+  // functions are not set up below.
+  std::memset(&(PluginInit->PiFunctionTable), 0,
+              sizeof(PluginInit->PiFunctionTable));
+
 // Forward calls to OpenCL RT.
 #define _PI_CL(pi_api, cuda_api)                                         \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&cuda_api);
@@ -3075,6 +3081,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, cuda_piKernelRetain)
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
+
   // Event
   _PI_CL(piEventCreate, cuda_piEventCreate)
   _PI_CL(piEventGetInfo, cuda_piEventGetInfo)
@@ -3106,6 +3113,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemImageFill, cuda_piEnqueueMemImageFill)
   _PI_CL(piEnqueueMemBufferMap, cuda_piEnqueueMemBufferMap)
   _PI_CL(piEnqueueMemUnmap, cuda_piEnqueueMemUnmap)
+
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
 
 #undef _PI_CL
