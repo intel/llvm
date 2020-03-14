@@ -25,7 +25,7 @@ template <info::event_profiling Param> struct get_event_profiling_info {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piEventGetProfilingInfo>(
-        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr);
+        Event, pi_profiling_info(Param), sizeof(Result), &Result, nullptr);
     return Result;
   }
 };
