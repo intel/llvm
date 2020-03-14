@@ -21,6 +21,8 @@ declare void @callee()
 declare void @callee_fnptr(void ()*)
 declare void @invokee()
 declare i8* @returner()
+declare i8* @returner1(i8*)
+declare i32 @__gxx_personality_v0(...)
 
 ; Test that retain+release elimination is suppressed when the
 ; retain is an objc_retainAutoreleasedReturnValue, since it's
@@ -399,6 +401,30 @@ entry:
   %0 = call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %call) nounwind
   %1 = call i8* @llvm.objc.autoreleaseReturnValue(i8* %0) nounwind
   ret i8* %1
+}
+
+; CHECK-LABEL: define i8* @test29(
+; CHECK: call i8* @llvm.objc.retainAutoreleasedReturnValue(
+; CHECK: call i8* @llvm.objc.autoreleaseReturnValue(
+
+define i8* @test29(i8* %k) local_unnamed_addr personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+entry:
+  %0 = tail call i8* @llvm.objc.retain(i8* %k)
+  %call = invoke i8* @returner1(i8* %k)
+          to label %invoke.cont unwind label %lpad
+
+invoke.cont:
+  %1 = bitcast i8* %call to i8*
+  %2 = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %1)
+  tail call void @llvm.objc.release(i8* %k), !clang.imprecise_release !0
+  %3 = tail call i8* @llvm.objc.autoreleaseReturnValue(i8* %1)
+  ret i8* %call
+
+lpad:
+  %4 = landingpad { i8*, i32 }
+          cleanup
+  tail call void @llvm.objc.release(i8* %k) #1, !clang.imprecise_release !0
+  resume { i8*, i32 } %4
 }
 
 !0 = !{}

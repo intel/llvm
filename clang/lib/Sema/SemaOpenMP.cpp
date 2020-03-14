@@ -159,6 +159,7 @@ private:
     Expr *TaskgroupReductionRef = nullptr;
     llvm::DenseSet<QualType> MappedClassesQualTypes;
     SmallVector<Expr *, 4> InnerUsedAllocators;
+    llvm::DenseSet<CanonicalDeclPtr<Decl>> ImplicitTaskFirstprivates;
     /// List of globals marked as declare target link in this target region
     /// (isOpenMPTargetExecutionDirective(Directive) == true).
     llvm::SmallVector<DeclRefExpr *, 4> DeclareTargetLinkVarDecls;
@@ -450,6 +451,12 @@ public:
   /// \return The index of the loop control variable in the list of associated
   /// for-loops (from outer to inner).
   const LCDeclInfo isParentLoopControlVariable(const ValueDecl *D) const;
+  /// Check if the specified variable is a loop control variable for
+  /// current region.
+  /// \return The index of the loop control variable in the list of associated
+  /// for-loops (from outer to inner).
+  const LCDeclInfo isLoopControlVariable(const ValueDecl *D,
+                                         unsigned Level) const;
   /// Get the loop control variable for the I-th loop (or nullptr) in
   /// parent directive.
   const ValueDecl *getParentLoopControlVariable(unsigned I) const;
@@ -498,6 +505,8 @@ public:
   const DSAVarData getTopDSA(ValueDecl *D, bool FromParent);
   /// Returns data-sharing attributes for the specified declaration.
   const DSAVarData getImplicitDSA(ValueDecl *D, bool FromParent) const;
+  /// Returns data-sharing attributes for the specified declaration.
+  const DSAVarData getImplicitDSA(ValueDecl *D, unsigned Level) const;
   /// Checks if the specified variables has data-sharing attributes which
   /// match specified \a CPred predicate in any directive which matches \a DPred
   /// predicate.
@@ -639,6 +648,10 @@ public:
            OMPC_DEFAULTMAP_MODIFIER_unknown;
   }
 
+  DefaultDataSharingAttributes getDefaultDSA(unsigned Level) const {
+    return getStackSize() <= Level ? DSA_unspecified
+                                   : getStackElemAtLevel(Level).DefaultAttr;
+  }
   DefaultDataSharingAttributes getDefaultDSA() const {
     return isStackEmpty() ? DSA_unspecified
                           : getTopOfStack().DefaultAttr;
@@ -931,6 +944,15 @@ public:
   ArrayRef<Expr *> getInnerAllocators() const {
     return getTopOfStack().InnerUsedAllocators;
   }
+  /// Marks the declaration as implicitly firstprivate nin the task-based
+  /// regions.
+  void addImplicitTaskFirstprivate(unsigned Level, Decl *D) {
+    getStackElemAtLevel(Level).ImplicitTaskFirstprivates.insert(D);
+  }
+  /// Checks if the decl is implicitly firstprivate in the task-based region.
+  bool isImplicitTaskFirstprivate(Decl *D) const {
+    return getTopOfStack().ImplicitTaskFirstprivates.count(D) > 0;
+  }
 };
 
 bool isImplicitTaskingRegion(OpenMPDirectiveKind DKind) {
@@ -1141,6 +1163,19 @@ DSAStackTy::isLoopControlVariable(const ValueDecl *D) const {
   auto It = StackElem.LCVMap.find(D);
   if (It != StackElem.LCVMap.end())
     return It->second;
+  return {0, nullptr};
+}
+
+const DSAStackTy::LCDeclInfo
+DSAStackTy::isLoopControlVariable(const ValueDecl *D, unsigned Level) const {
+  assert(!isStackEmpty() && "Data-sharing attributes stack is empty");
+  D = getCanonicalDecl(D);
+  for (unsigned I = Level + 1; I > 0; --I) {
+    const SharingMapTy &StackElem = getStackElemAtLevel(I - 1);
+    auto It = StackElem.LCVMap.find(D);
+    if (It != StackElem.LCVMap.end())
+      return It->second;
+  }
   return {0, nullptr};
 }
 
@@ -1549,6 +1584,15 @@ const DSAStackTy::DSAVarData DSAStackTy::getImplicitDSA(ValueDecl *D,
   const_iterator EndI = end();
   if (FromParent && StartI != EndI)
     ++StartI;
+  return getDSA(StartI, D);
+}
+
+const DSAStackTy::DSAVarData DSAStackTy::getImplicitDSA(ValueDecl *D,
+                                                        unsigned Level) const {
+  if (getStackSize() <= Level)
+    return DSAVarData();
+  D = getCanonicalDecl(D);
+  const_iterator StartI = std::next(begin(), getStackSize() - 1 - Level);
   return getDSA(StartI, D);
 }
 
@@ -2108,9 +2152,7 @@ VarDecl *Sema::isOpenMPCapturedDecl(ValueDecl *D, bool CheckScopeInfo,
 
 void Sema::adjustOpenMPTargetScopeIndex(unsigned &FunctionScopesIndex,
                                         unsigned Level) const {
-  SmallVector<OpenMPDirectiveKind, 4> Regions;
-  getOpenMPCaptureRegions(Regions, DSAStack->getDirective(Level));
-  FunctionScopesIndex -= Regions.size();
+  FunctionScopesIndex -= getOpenMPCaptureLevels(DSAStack->getDirective(Level));
 }
 
 void Sema::startOpenMPLoop() {
@@ -2127,39 +2169,65 @@ void Sema::startOpenMPCXXRangeFor() {
   }
 }
 
-bool Sema::isOpenMPPrivateDecl(const ValueDecl *D, unsigned Level) const {
+OpenMPClauseKind Sema::isOpenMPPrivateDecl(ValueDecl *D, unsigned Level,
+                                           unsigned CapLevel) const {
   assert(LangOpts.OpenMP && "OpenMP is not allowed");
+  if (DSAStack->hasExplicitDirective(
+          [](OpenMPDirectiveKind K) { return isOpenMPTaskingDirective(K); },
+          Level)) {
+    bool IsTriviallyCopyable =
+        D->getType().getNonReferenceType().isTriviallyCopyableType(Context);
+    OpenMPDirectiveKind DKind = DSAStack->getDirective(Level);
+    SmallVector<OpenMPDirectiveKind, 4> CaptureRegions;
+    getOpenMPCaptureRegions(CaptureRegions, DKind);
+    if (isOpenMPTaskingDirective(CaptureRegions[CapLevel]) &&
+        (IsTriviallyCopyable ||
+         !isOpenMPTaskLoopDirective(CaptureRegions[CapLevel]))) {
+      if (DSAStack->hasExplicitDSA(
+              D, [](OpenMPClauseKind K) { return K == OMPC_firstprivate; },
+              Level, /*NotLastprivate=*/true))
+        return OMPC_firstprivate;
+      DSAStackTy::DSAVarData DVar = DSAStack->getImplicitDSA(D, Level);
+      if (DVar.CKind != OMPC_shared &&
+          !DSAStack->isLoopControlVariable(D, Level).first && !DVar.RefExpr) {
+        DSAStack->addImplicitTaskFirstprivate(Level, D);
+        return OMPC_firstprivate;
+      }
+    }
+  }
   if (isOpenMPLoopDirective(DSAStack->getCurrentDirective())) {
     if (DSAStack->getAssociatedLoops() > 0 &&
         !DSAStack->isLoopStarted()) {
       DSAStack->resetPossibleLoopCounter(D);
       DSAStack->loopStart();
-      return true;
+      return OMPC_private;
     }
     if ((DSAStack->getPossiblyLoopCunter() == D->getCanonicalDecl() ||
          DSAStack->isLoopControlVariable(D).first) &&
         !DSAStack->hasExplicitDSA(
             D, [](OpenMPClauseKind K) { return K != OMPC_private; }, Level) &&
         !isOpenMPSimdDirective(DSAStack->getCurrentDirective()))
-      return true;
+      return OMPC_private;
   }
   if (const auto *VD = dyn_cast<VarDecl>(D)) {
     if (DSAStack->isThreadPrivate(const_cast<VarDecl *>(VD)) &&
         DSAStack->isForceVarCapturing() &&
         !DSAStack->hasExplicitDSA(
             D, [](OpenMPClauseKind K) { return K == OMPC_copyin; }, Level))
-      return true;
+      return OMPC_private;
   }
-  return DSAStack->hasExplicitDSA(
-             D, [](OpenMPClauseKind K) { return K == OMPC_private; }, Level) ||
-         (DSAStack->isClauseParsingMode() &&
-          DSAStack->getClauseParsingMode() == OMPC_private) ||
-         // Consider taskgroup reduction descriptor variable a private to avoid
-         // possible capture in the region.
-         (DSAStack->hasExplicitDirective(
-              [](OpenMPDirectiveKind K) { return K == OMPD_taskgroup; },
-              Level) &&
-          DSAStack->isTaskgroupReductionRef(D, Level));
+  return (DSAStack->hasExplicitDSA(
+              D, [](OpenMPClauseKind K) { return K == OMPC_private; }, Level) ||
+          (DSAStack->isClauseParsingMode() &&
+           DSAStack->getClauseParsingMode() == OMPC_private) ||
+          // Consider taskgroup reduction descriptor variable a private
+          // to avoid possible capture in the region.
+          (DSAStack->hasExplicitDirective(
+               [](OpenMPDirectiveKind K) { return K == OMPD_taskgroup; },
+               Level) &&
+           DSAStack->isTaskgroupReductionRef(D, Level)))
+             ? OMPC_private
+             : OMPC_unknown;
 }
 
 void Sema::setOpenMPCaptureKind(FieldDecl *FD, const ValueDecl *D,
@@ -2211,6 +2279,29 @@ bool Sema::isOpenMPTargetCapturedDecl(const ValueDecl *D, unsigned Level,
          DSAStack->hasExplicitDirective(isOpenMPTargetExecutionDirective,
                                         Level) &&
          Regions[CaptureLevel] != OMPD_task;
+}
+
+bool Sema::isOpenMPGlobalCapturedDecl(ValueDecl *D, unsigned Level,
+                                      unsigned CaptureLevel) const {
+  assert(LangOpts.OpenMP && "OpenMP is not allowed");
+  // Return true if the current level is no longer enclosed in a target region.
+
+  if (const auto *VD = dyn_cast<VarDecl>(D)) {
+    if (!VD->hasLocalStorage()) {
+      DSAStackTy::DSAVarData TopDVar =
+          DSAStack->getTopDSA(D, /*FromParent=*/false);
+      unsigned NumLevels =
+          getOpenMPCaptureLevels(DSAStack->getDirective(Level));
+      if (Level == 0)
+        return (NumLevels == CaptureLevel + 1) && TopDVar.CKind != OMPC_shared;
+      DSAStackTy::DSAVarData DVar = DSAStack->getImplicitDSA(D, Level - 1);
+      return DVar.CKind != OMPC_shared ||
+             isOpenMPGlobalCapturedDecl(
+                 D, Level - 1,
+                 getOpenMPCaptureLevels(DSAStack->getDirective(Level - 1)) - 1);
+    }
+  }
+  return true;
 }
 
 void Sema::DestroyDataSharingAttributesStack() { delete DSAStack; }
@@ -3003,6 +3094,16 @@ class DSAAttrChecker final : public StmtVisitor<DSAAttrChecker, void> {
       Visit(S->getInnermostCapturedStmt()->getCapturedStmt());
       TryCaptureCXXThisMembers = SavedTryCaptureCXXThisMembers;
     }
+    // In tasks firstprivates are not captured anymore, need to analyze them
+    // explicitly.
+    if (isOpenMPTaskingDirective(S->getDirectiveKind()) &&
+        !isOpenMPTaskLoopDirective(S->getDirectiveKind())) {
+      for (OMPClause *C : S->clauses())
+        if (auto *FC = dyn_cast<OMPFirstprivateClause>(C)) {
+          for (Expr *Ref : FC->varlists())
+            Visit(Ref);
+        }
+    }
   }
 
 public:
@@ -3025,7 +3126,8 @@ public:
         return;
       VD = VD->getCanonicalDecl();
       // Skip internally declared variables.
-      if (VD->hasLocalStorage() && CS && !CS->capturesVariable(VD))
+      if (VD->hasLocalStorage() && CS && !CS->capturesVariable(VD) &&
+          !Stack->isImplicitTaskFirstprivate(VD))
         return;
 
       DSAStackTy::DSAVarData DVar = Stack->getTopDSA(VD, /*FromParent=*/false);
@@ -3038,7 +3140,8 @@ public:
           OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(VD);
       if (VD->hasGlobalStorage() && CS && !CS->capturesVariable(VD) &&
           (Stack->hasRequiresDeclWithClause<OMPUnifiedSharedMemoryClause>() ||
-           !Res || *Res != OMPDeclareTargetDeclAttr::MT_Link))
+           !Res || *Res != OMPDeclareTargetDeclAttr::MT_Link) &&
+          !Stack->isImplicitTaskFirstprivate(VD))
         return;
 
       SourceLocation ELoc = E->getExprLoc();
@@ -3171,7 +3274,7 @@ public:
       return;
     auto *FD = dyn_cast<FieldDecl>(E->getMemberDecl());
     OpenMPDirectiveKind DKind = Stack->getCurrentDirective();
-    if (auto *TE = dyn_cast<CXXThisExpr>(E->getBase()->IgnoreParens())) {
+    if (auto *TE = dyn_cast<CXXThisExpr>(E->getBase()->IgnoreParenCasts())) {
       if (!FD)
         return;
       DSAStackTy::DSAVarData DVar = Stack->getTopDSA(FD, /*FromParent=*/false);
@@ -3575,7 +3678,7 @@ void Sema::ActOnOpenMPRegionStart(OpenMPDirectiveKind DKind, Scope *CurScope) {
     };
     // Start a captured region for 'parallel'.
     ActOnCapturedRegionStart(DSAStack->getConstructLoc(), CurScope, CR_OpenMP,
-                             ParamsParallel, /*OpenMPCaptureLevel=*/1);
+                             ParamsParallel, /*OpenMPCaptureLevel=*/0);
     QualType Args[] = {VoidPtrTy};
     FunctionProtoType::ExtProtoInfo EPI;
     EPI.Variadic = true;
@@ -3596,7 +3699,7 @@ void Sema::ActOnOpenMPRegionStart(OpenMPDirectiveKind DKind, Scope *CurScope) {
         std::make_pair(StringRef(), QualType()) // __context with shared vars
     };
     ActOnCapturedRegionStart(DSAStack->getConstructLoc(), CurScope, CR_OpenMP,
-                             Params, /*OpenMPCaptureLevel=*/2);
+                             Params, /*OpenMPCaptureLevel=*/1);
     // Mark this captured region as inlined, because we don't use outlined
     // function directly.
     getCurCapturedRegion()->TheCapturedDecl->addAttr(

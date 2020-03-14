@@ -42,6 +42,13 @@ using namespace mlir;
 using llvm::dbgs;
 using mlir::functional::zipMap;
 
+static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
+
+static llvm::cl::opt<bool> lowerToLLVMMatrixIntrinsics(
+    "vector-lower-matrix-intrinsics",
+    llvm::cl::desc("Lower vector.contract to llvm.intr.matrix.multiply"),
+    llvm::cl::init(false), llvm::cl::cat(clOptionsCategory));
+
 /// Given a shape with sizes greater than 0 along all dimensions,
 /// returns the distance, in number of elements, between a slice in a dimension
 /// and the next slice in the same dimension.
@@ -864,6 +871,53 @@ public:
   }
 };
 
+/// Progressive lowering of OuterProductOp.
+/// One:
+///   %x = vector.outerproduct %lhs, %rhs, %acc
+/// is replaced by:
+///   %z = zero-result
+///   %0 = vector.extract %lhs[0]
+///   %1 = vector.broadcast %0
+///   %2 = vector.extract %acc[0]
+///   %3 = vector.fma %1, %arg1, %2
+///   %4 = vector.insert %3, %z[0]
+///   ..
+///   %x = vector.insert %.., %..[N-1]
+///
+class OuterProductOpLowering : public OpRewritePattern<vector::OuterProductOp> {
+public:
+  using OpRewritePattern<vector::OuterProductOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(vector::OuterProductOp op,
+                                     PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+
+    VectorType rhsType = op.getOperandVectorTypeRHS();
+    VectorType resType = op.getVectorType();
+    Type eltType = resType.getElementType();
+    Value acc = (op.acc().empty()) ? nullptr : op.acc()[0];
+
+    Value zero = rewriter.create<ConstantOp>(loc, eltType,
+                                             rewriter.getZeroAttr(eltType));
+    Value result = rewriter.create<SplatOp>(loc, resType, zero);
+    for (int64_t d = 0, e = resType.getDimSize(0); d < e; ++d) {
+      auto pos = rewriter.getI64ArrayAttr(d);
+      Value x = rewriter.create<vector::ExtractOp>(loc, eltType, op.lhs(), pos);
+      Value b = rewriter.create<vector::BroadcastOp>(loc, rhsType, x);
+      Value m;
+      if (acc) {
+        Value z = rewriter.create<vector::ExtractOp>(loc, rhsType, acc, pos);
+        m = rewriter.create<vector::FMAOp>(loc, b, op.rhs(), z);
+      } else {
+        m = rewriter.create<MulFOp>(loc, b, op.rhs());
+      }
+      result = rewriter.create<vector::InsertOp>(loc, resType, m, result, pos);
+    }
+    rewriter.replaceOp(op, result);
+    return matchSuccess();
+  }
+};
+
 /// Progressive lowering of ContractionOp.
 /// One:
 ///   %x = vector.contract with at least one free/batch dimension
@@ -887,6 +941,39 @@ public:
     // TODO(ajcbik): implement masks
     if (llvm::size(op.masks()) != 0)
       return matchFailure();
+
+    // TODO(ntv, ajcbik): implement benefits, cost models, separate this out in
+    // a new pattern.
+    // TODO(ntv, fhahn): once row-major mode is available in LLVM's matrix
+    // intrinsics, use that.
+    if (lowerToLLVMMatrixIntrinsics &&
+        isColumnMajorMatmul(op.indexing_maps())) {
+      VectorType lhsType = op.getLhsType();
+      VectorType rhsType = op.getRhsType();
+      Type flattenedLHSType =
+          VectorType::get(lhsType.getNumElements(), lhsType.getElementType());
+      Type flattenedRHSType =
+          VectorType::get(rhsType.getNumElements(), rhsType.getElementType());
+      auto lhs = rewriter.create<vector::ShapeCastOp>(
+          op.getLoc(), flattenedLHSType, op.lhs());
+      auto rhs = rewriter.create<vector::ShapeCastOp>(
+          op.getLoc(), flattenedRHSType, op.rhs());
+
+      unsigned lhsRows = op.getLhsType().getShape()[0];
+      unsigned lhsColumns = op.getLhsType().getShape()[1];
+      unsigned rhsColumns = op.getRhsType().getShape()[1];
+      Value mul = rewriter.create<vector::MatmulOp>(
+          op.getLoc(), lhs, rhs, lhsRows, lhsColumns, rhsColumns);
+      mul = rewriter.create<vector::ShapeCastOp>(op.getLoc(),
+                                                 op.acc().getType(), mul);
+      Type elementType = op.getLhsType().getElementType();
+      assert(elementType.isIntOrFloat());
+      if (elementType.isa<IntegerType>())
+        rewriter.replaceOpWithNewOp<AddIOp>(op, op.acc(), mul);
+      else
+        rewriter.replaceOpWithNewOp<AddFOp>(op, op.acc(), mul);
+      return matchSuccess();
+    }
 
     // Find first batch dimension in LHS/RHS, and lower when found.
     std::vector<std::pair<int64_t, int64_t>> batchDimMap = op.getBatchDimMap();
@@ -1256,9 +1343,7 @@ void mlir::vector::populateVectorSlicesLoweringPatterns(
 
 void mlir::vector::populateVectorContractLoweringPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ContractionOpLowering,
-                  // Shape 2d up/down casts are used as part of contraction
-                  // lowering.
-                  ShapeCastOp2DDownCastRewritePattern,
-                  ShapeCastOp2DUpCastRewritePattern>(context);
+  patterns.insert<ContractionOpLowering, ShapeCastOp2DDownCastRewritePattern,
+                  ShapeCastOp2DUpCastRewritePattern, OuterProductOpLowering>(
+      context);
 }

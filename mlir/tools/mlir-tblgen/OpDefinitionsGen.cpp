@@ -401,16 +401,19 @@ void OpEmitter::genAttrGetters() {
   // Generate helper method to query whether a named attribute is a derived
   // attribute. This enables, for example, avoiding adding an attribute that
   // overlaps with a derived attribute.
-  auto &method =
-      opClass.newMethod("bool", "isDerivedAttribute", "StringRef name");
-  auto &body = method.body();
   auto derivedAttr = make_filter_range(op.getAttributes(),
                                        [](const NamedAttribute &namedAttr) {
                                          return namedAttr.attr.isDerivedAttr();
                                        });
-  for (auto namedAttr : derivedAttr)
-    body << "    if (name == \"" << namedAttr.name << "\") return true;\n";
-  body << " return false;";
+  if (!derivedAttr.empty()) {
+    opClass.addTrait("DerivedAttributeOpInterface::Trait");
+    auto &method = opClass.newMethod("bool", "isDerivedAttribute",
+                                     "StringRef name", OpMethod::MP_Static);
+    auto &body = method.body();
+    for (auto namedAttr : derivedAttr)
+      body << "    if (name == \"" << namedAttr.name << "\") return true;\n";
+    body << " return false;";
+  }
 }
 
 void OpEmitter::genAttrSetters() {
@@ -1184,15 +1187,21 @@ void OpEmitter::genSideEffectInterfaceMethods() {
                                unsigned index, unsigned kind) {
     for (auto decorator : decorators)
       if (SideEffect *effect = dyn_cast<SideEffect>(&decorator))
-        interfaceEffects[effect->getInterfaceTrait()].push_back(
+        interfaceEffects[effect->getBaseEffectName()].push_back(
             EffectLocation{*effect, index, kind});
   };
 
   // Collect effects that were specified via:
   /// Traits.
-  for (const auto &trait : op.getTraits())
-    if (const auto *opTrait = dyn_cast<tblgen::SideEffectTrait>(&trait))
-      resolveDecorators(opTrait->getEffects(), /*index=*/0, EffectKind::Static);
+  for (const auto &trait : op.getTraits()) {
+    const auto *opTrait = dyn_cast<tblgen::SideEffectTrait>(&trait);
+    if (!opTrait)
+      continue;
+    auto &effects = interfaceEffects[opTrait->getBaseEffectName()];
+    for (auto decorator : opTrait->getEffects())
+      effects.push_back(EffectLocation{cast<SideEffect>(decorator),
+                                       /*index=*/0, EffectKind::Static});
+  }
   /// Operands.
   for (unsigned i = 0, operandIt = 0, e = op.getNumArgs(); i != e; ++i) {
     if (op.getArg(i).is<NamedTypeConstraint *>()) {
@@ -1205,11 +1214,10 @@ void OpEmitter::genSideEffectInterfaceMethods() {
     resolveDecorators(op.getResultDecorators(i), i, EffectKind::Result);
 
   for (auto &it : interfaceEffects) {
-    StringRef baseEffect = it.second.front().effect.getBaseName();
     auto effectsParam =
         llvm::formatv(
             "SmallVectorImpl<SideEffects::EffectInstance<{0}>> &effects",
-            baseEffect)
+            it.first())
             .str();
 
     // Generate the 'getEffects' method.
@@ -1523,14 +1531,6 @@ void OpEmitter::genTraits() {
   unsigned numVariadicSuccessors = op.getNumVariadicSuccessors();
   addSizeCountTrait(opClass, "Successor", numSuccessors, numVariadicSuccessors);
 
-  // Add the native and interface traits.
-  for (const auto &trait : op.getTraits()) {
-    if (auto opTrait = dyn_cast<tblgen::NativeOpTrait>(&trait))
-      opClass.addTrait(opTrait->getTrait());
-    else if (auto opTrait = dyn_cast<tblgen::InterfaceOpTrait>(&trait))
-      opClass.addTrait(opTrait->getTrait());
-  }
-
   // Add variadic size trait and normal op traits.
   int numOperands = op.getNumOperands();
   int numVariadicOperands = op.getNumVariadicOperands();
@@ -1554,6 +1554,14 @@ void OpEmitter::genTraits() {
       opClass.addTrait("OpTrait::NOperands<" + Twine(numOperands) + ">::Impl");
       break;
     }
+  }
+
+  // Add the native and interface traits.
+  for (const auto &trait : op.getTraits()) {
+    if (auto opTrait = dyn_cast<tblgen::NativeOpTrait>(&trait))
+      opClass.addTrait(opTrait->getTrait());
+    else if (auto opTrait = dyn_cast<tblgen::InterfaceOpTrait>(&trait))
+      opClass.addTrait(opTrait->getTrait());
   }
 }
 

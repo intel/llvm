@@ -2296,7 +2296,7 @@ FindPredecessorAutoreleaseWithSafePath(const Value *Arg, BasicBlock *BB,
 
 /// Look for this pattern:
 /// \code
-///    %call = tail call i8* @something(...)
+///    %call = call i8* @something(...)
 ///    %2 = call i8* @objc_retain(i8* %call)
 ///    %3 = call i8* @objc_autorelease(i8* %2)
 ///    ret i8* %3
@@ -2346,7 +2346,8 @@ void ObjCARCOpt::OptimizeReturns(Function &F) {
                                                           Visited, PA);
 
     // Don't remove retainRV/autoreleaseRV pairs if the call isn't a tail call.
-    if (GetBasicARCInstKind(Retain) == ARCInstKind::RetainRV &&
+    if (HasSafePathToCall &&
+        GetBasicARCInstKind(Retain) == ARCInstKind::RetainRV &&
         GetBasicARCInstKind(Autorelease) == ARCInstKind::AutoreleaseRV &&
         !cast<CallInst>(*DependingInstructions.begin())->isTailCall())
       continue;

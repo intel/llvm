@@ -342,6 +342,12 @@ Optional<TiledLinalgOp> static tileLinalgOpImpl(OpBuilder &b, LinalgOp op,
              tileSizes.size() &&
          "expected matching number of tile sizes and loops");
 
+  if (auto convOp = dyn_cast<linalg::ConvOp>(op.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      llvm_unreachable("Unexpected conv with padding");
+  }
+
   // If permutation is empty, use the identity. Build the permutation map
   // otherwise.
   auto invPermutationMap = AffineMap::getMultiDimIdentityMap(
@@ -421,6 +427,12 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ArrayRef<int64_t> tileSizes,
   if (tileSizes.empty())
     return llvm::None;
 
+  if (auto convOp = dyn_cast<linalg::ConvOp>(op.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      llvm_unreachable("Unexpected conv with padding");
+  }
+
   // The following uses the convention that "tiling by zero" skips tiling a
   // particular dimension. This convention is significantly simpler to handle
   // instead of adjusting affine maps to account for missing dimensions.
@@ -491,9 +503,7 @@ static void tileLinalgOps(FuncOp f, ArrayRef<int64_t> tileSizes) {
       op.erase();
   });
   f.walk([](LinalgOp op) {
-    if (!op.getOperation()->hasNoSideEffect())
-      return;
-    if (op.getOperation()->use_empty())
+    if (isOpTriviallyDead(op))
       op.erase();
   });
 }
