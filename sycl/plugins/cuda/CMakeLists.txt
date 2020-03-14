@@ -29,21 +29,22 @@ add_dependencies(sycl-toolchain pi_cuda)
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 
-target_include_directories(pi_cuda PRIVATE "${sycl_inc_dir}")
-
-target_include_directories(pi_cuda INTERFACE ${CUDA_INCLUDE_DIRS})
+target_include_directories(pi_cuda
+  PRIVATE
+    ${sycl_inc_dir}
+  PUBLIC
+    ${CUDA_INCLUDE_DIRS}
+)
 
 target_link_libraries(pi_cuda PUBLIC OpenCL-Headers cudadrv)
 
-target_link_libraries(sycl INTERFACE pi_cuda)
-
 add_common_options(pi_cuda)
-
-target_compile_definitions(
-  sycl PUBLIC USE_PI_CUDA
-)
 
 install(TARGETS pi_cuda
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
   RUNTIME DESTINATION "bin" COMPONENT pi_cuda
 )
+
+# `sycl/source/CMakeLists.txt` adapted when SYCL_BUILD_PI_CUDA is defined:
+# target_link_libraries(sycl PUBLIC pi_cuda)
+# target_compile_definitions(sycl PUBLIC USE_PI_CUDA)

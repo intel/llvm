@@ -284,6 +284,16 @@ template <typename T> struct make_larger {
 
 template <typename T> using make_larger_t = typename make_larger<T>::type;
 
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+template <access::address_space AS, class DataT>
+using const_if_const_AS =
+    typename std::conditional<AS == access::address_space::constant_space,
+                              const DataT, DataT>::type;
+#else
+template <access::address_space AS, class DataT>
+using const_if_const_AS = DataT;
+#endif
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

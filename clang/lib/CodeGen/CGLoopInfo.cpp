@@ -871,8 +871,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // legacy GNU attributes and pragma styles.
   //
   // For attribute ivdep:
-  // 0 - 'llvm.loop.ivdep.enable' metadata will be emitted
-  // n - 'llvm.loop.ivdep.safelen, i32 n' metadata will be emitted
+  // Metadata 'llvm.loop.parallel_access_indices' & index group metadata
+  // will be emitted, depending on the conditions described at the
+  // helpers' site
   // For attribute ii:
   // n - 'llvm.loop.ii.count, i32 n' metadata will be emitted
   // For attribute max_concurrency:

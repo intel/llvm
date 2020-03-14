@@ -440,6 +440,13 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE =
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE =
     CL_SAMPLER_FILTER_MODE;
 
+typedef enum {
+  PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
+  PI_PROFILING_INFO_COMMAND_SUBMIT = CL_PROFILING_COMMAND_SUBMIT,
+  PI_PROFILING_INFO_COMMAND_START = CL_PROFILING_COMMAND_START,
+  PI_PROFILING_INFO_COMMAND_END = CL_PROFILING_COMMAND_END
+} _pi_profiling_info;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -488,6 +495,7 @@ using pi_event_status = _pi_event_status;
 using pi_program_build_info = _pi_program_build_info;
 using pi_program_build_status = _pi_program_build_status;
 using pi_kernel_info = _pi_kernel_info;
+using pi_profiling_info = _pi_profiling_info;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -915,11 +923,9 @@ pi_result piEventGetInfo(pi_event event,
                          size_t param_value_size, void *param_value,
                          size_t *param_value_size_ret);
 
-pi_result
-piEventGetProfilingInfo(pi_event event,
-                        cl_profiling_info param_name, // TODO: untie from OpenCL
-                        size_t param_value_size, void *param_value,
-                        size_t *param_value_size_ret);
+pi_result piEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret);
 
 pi_result piEventsWait(pi_uint32 num_events, const pi_event *event_list);
 

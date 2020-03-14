@@ -25,7 +25,6 @@ public:
 };
 
 FunctionPass *createSYCLLowerWGScopePass();
-void initializeSYCLLowerWGScopeLegacyPassPass(PassRegistry &);
 
 } // namespace llvm
 

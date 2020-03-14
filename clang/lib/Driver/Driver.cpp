@@ -5525,9 +5525,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
   else {
     std::string OffloadingPrefix;
     // When generating binaries with -fsycl-link-target or -fsycl-link, the
-    // output file prefix is the triple arch only.
-    if (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
-        Args.hasArg(options::OPT_fsycl_link_EQ)) {
+    // output file prefix is the triple arch only.  Do not add the arch when
+    // compiling for host.
+    if (!A->getOffloadingHostActiveKinds() &&
+        (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
+         Args.hasArg(options::OPT_fsycl_link_EQ))) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {
