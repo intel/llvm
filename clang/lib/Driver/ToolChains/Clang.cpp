@@ -7181,10 +7181,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
-  bool IsArchiveUnbundle = (!IsMSVCEnv &&
-      C.getDriver().getOffloadStaticLibSeen() &&
-      (types::isArchive(InputType) || InputType == types::TY_Object) &&
-      !(InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR));
+  bool IsArchiveUnbundle =
+      (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
+       (types::isArchive(InputType) || InputType == types::TY_Object) &&
+       !(InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR));
 
   if (IsArchiveUnbundle)
     TypeArg = "oo";
@@ -7666,8 +7666,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 // specific offload target archives which will be sent to the unbundler to
 // produce a list of target objects.
 void PartialLink::ConstructJob(Compilation &C, const JobAction &JA,
-    const InputInfo &Output, const InputInfoList &Inputs,
-    const llvm::opt::ArgList &TCArgs, const char *LinkingOutput) const {
+                               const InputInfo &Output,
+                               const InputInfoList &Inputs,
+                               const llvm::opt::ArgList &TCArgs,
+                               const char *LinkingOutput) const {
   // Construct simple partial link command.
   assert(isa<PartialLinkJobAction>(JA) && "Expecting Partial Link job!");
 

@@ -2485,8 +2485,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       A->claim();
       // Use of -foffload-static-lib and -foffload-whole-static-lib are
       // deprecated with the updated functionality to scan the static libs.
-      Diag(clang::diag::warn_drv_deprecated_option) << A->getAsString(Args) <<
-           A->getValue();
+      Diag(clang::diag::warn_drv_deprecated_option)
+          << A->getAsString(Args) << A->getValue();
     }
   }
   if (CCCIsCPP() && Inputs.empty()) {
@@ -2498,11 +2498,11 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
 }
 
 static bool runBundler(const std::vector<StringRef> &BundlerArgs,
-    Compilation &C) {
+                       Compilation &C) {
   // Find bundler.
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
-  llvm::ErrorOr<std::string> BundlerBinary = llvm::sys::findProgramByName(
-      "clang-offload-bundler", ExecPath);
+  llvm::ErrorOr<std::string> BundlerBinary =
+      llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
   bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
@@ -2533,15 +2533,11 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   // file and the target triple being looked for.
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
-  const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") +
-                       Object);
+  const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
-  std::vector<StringRef> BundlerArgs = { "clang-offload-bundler",
-                                         "-type=ao",
-                                         Targets,
-                                         Inputs,
-                                         "-check-section" };
+  std::vector<StringRef> BundlerArgs = {"clang-offload-bundler", "-type=ao",
+                                        Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -2556,23 +2552,19 @@ static bool hasOffloadSections(Compilation &C, const std::string Archive,
   // file and the target triple being looked for.
   // TODO - Improve checking to check for explicit offload target instead
   // of the generic host availability.
-  const char *Targets =
-      Args.MakeArgString(Twine("-targets=host-") + TT.str());
+  const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
   const char *Inputs = Args.MakeArgString(Twine("-inputs=") + Archive);
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
-  std::vector<StringRef> BundlerArgs = { "clang-offload-bundler",
-                                         "-type=ao",
-                                         Targets,
-                                         Inputs,
-                                         "-check-section" };
+  std::vector<StringRef> BundlerArgs = {"clang-offload-bundler", "-type=ao",
+                                        Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
 // Simple helper function for Linker options, where the option is valid if
 // it has '-' or '--' as the designator.
 static bool optionMatches(const std::string &Option,
-    const std::string &OptCheck) {
+                          const std::string &OptCheck) {
   return (Option == OptCheck || ("-" + Option) == OptCheck);
 }
 
@@ -2580,7 +2572,7 @@ static bool optionMatches(const std::string &Option,
 // handling options and explicitly named static archives as these need to be
 // partially linked.
 static void getLinkerArgs(Compilation &C, DerivedArgList &Args,
-    SmallVector<const char *, 16> &LibArgs) {
+                          SmallVector<const char *, 16> &LibArgs) {
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
     if (A->getOption().getKind() == Option::InputClass) {
@@ -2621,10 +2613,12 @@ static void getLinkerArgs(Compilation &C, DerivedArgList &Args,
 
           llvm::BumpPtrAllocator A;
           llvm::StringSaver S(A);
-          llvm::cl::ExpandResponseFiles(S,
-              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ?
-              llvm::cl::TokenizeWindowsCommandLine :
-              llvm::cl::TokenizeGNUCommandLine, ExpandArgs);
+          llvm::cl::ExpandResponseFiles(
+              S,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
+                  ? llvm::cl::TokenizeWindowsCommandLine
+                  : llvm::cl::TokenizeGNUCommandLine,
+              ExpandArgs);
           for (std::string MA : ExpandArgs)
             addKnownValues(MA);
         } else
@@ -2656,7 +2650,7 @@ static void getLinkerArgs(Compilation &C, DerivedArgList &Args,
 // linker directly, to determine if we need to perform additional work for
 // static offload libraries.
 bool Driver::checkForOffloadStaticLib(Compilation &C,
-    DerivedArgList &Args) const {
+                                      DerivedArgList &Args) const {
   // Check only if enabled with -fsycl
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     return false;
@@ -4635,8 +4629,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     bool IsWholeArchive = false;
     for (std::string MA : LinkArgs) {
       if (isStaticArchiveFile(MA)) {
-        addUnbundlerInput(IsWholeArchive ? types::TY_WholeArchive :
-                          types::TY_Archive, MA.c_str());
+        addUnbundlerInput(IsWholeArchive ? types::TY_WholeArchive
+                                         : types::TY_Archive,
+                          MA.c_str());
         continue;
       }
       if (optionMatches("-no-whole-archive", MA)) {
@@ -4658,8 +4653,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
 
     if (!UnbundlerInputs.empty()) {
-      Action *PartialLink = C.MakeAction<PartialLinkJobAction>(
-          UnbundlerInputs, types::TY_Object);
+      Action *PartialLink =
+          C.MakeAction<PartialLinkJobAction>(UnbundlerInputs, types::TY_Object);
       Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
       ActionList AL;
       AL.push_back(PartialLink);

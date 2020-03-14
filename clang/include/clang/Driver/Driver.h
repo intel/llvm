@@ -653,7 +653,6 @@ public:
   static void getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
-
 };
 
 /// \return True if the last defined optimization level is -Ofast.
