@@ -273,7 +273,7 @@ public:
   pi_context get_context() const noexcept { return context_; };
 
   bool is_user_event() const noexcept {
-    return get_command_type() == PI_COMMAND_USER;
+    return get_command_type() == PI_COMMAND_TYPE_USER;
   }
 
   bool is_native_event() const noexcept { return !is_user_event(); }
@@ -297,7 +297,7 @@ public:
   // make a user event. CUDA has no concept of user events, so this
   // functionality is implemented by the CUDA PI implementation.
   static pi_event make_user(pi_context context) {
-    return new _pi_event(PI_COMMAND_USER, context, nullptr);
+    return new _pi_event(PI_COMMAND_TYPE_USER, context, nullptr);
   }
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
