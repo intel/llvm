@@ -7,6 +7,7 @@
 // RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
+// ENABLED: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DISABLED-NOT: "-fsycl-is-device"
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
