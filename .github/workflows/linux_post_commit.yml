@@ -1,9 +1,6 @@
 name: Linux Post Commit Checks
 
 on:
-  pull_request:
-    branches:
-      - sycl
   push:
     branches:
       - sycl
