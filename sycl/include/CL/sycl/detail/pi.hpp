@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// C++ wrapper of extern "C" PI interfaces
-//
+/// \file pi.hpp
+/// C++ wrapper of extern "C" PI interfaces
+///
+/// \ingroup sycl_pi
+
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>

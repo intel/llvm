@@ -1,4 +1,4 @@
-// RUN: %clangxx -std=c++17 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected %s
+// RUN: %clangxx -std=c++17 -fsyntax-only -Xclang -verify %s -I %sycl_include -Xclang -verify-ignore-unexpected
 //==--------------- ctad.cpp - SYCL vector CTAD fail test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

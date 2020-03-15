@@ -5,13 +5,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This is the definition of a generic offload Plugin Interface (PI), which is
-// used by the SYCL implementation to connect to multiple device back-ends,
-// e.g. to OpenCL. The interface is intentionally kept C-only for the
-// purpose of having full flexibility and interoperability with different
-// environments.
-//
+
+/// \defgroup sycl_pi The Plugin Interface
+// TODO: link to sphinx page
+
+/// \file Main Plugin Interface header file.
+///
+/// This is the definition of a generic offload Plugin Interface (PI), which is
+/// used by the SYCL implementation to connect to multiple device back-ends,
+/// e.g. to OpenCL. The interface is intentionally kept C-only for the
+/// purpose of having full flexibility and interoperability with different
+/// environments.
+///
+/// \ingroup sycl_pi
+
 #ifndef _PI_H_
 #define _PI_H_
 

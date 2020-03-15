@@ -16,6 +16,8 @@
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
 // ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
+// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+
 // DISABLED-NOT: "-fsycl-is-device"
 // DISABLED-NOT: "-sycl-std="
 

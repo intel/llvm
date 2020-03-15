@@ -6,6 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// \file pi_cuda.cpp
+/// Implementation of CUDA Plugin.
+///
+/// \ingroup sycl_pi_cuda
+
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
