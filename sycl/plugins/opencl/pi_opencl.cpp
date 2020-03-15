@@ -5,6 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+/// \defgroup sycl_pi_ocl OpenCL Plugin
+/// \ingroup sycl_pi
+
+/// \file pi_opencl.cpp
+/// Implementation of OpenCL Plugin. It is the interface between device-agnostic
+/// SYCL runtime layer and underlying OpenCL runtime.
+///
+/// \ingroup sycl_pi_ocl
+
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.h>
 
