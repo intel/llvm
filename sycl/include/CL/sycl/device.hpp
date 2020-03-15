@@ -97,7 +97,8 @@ public:
   /// exception must be thrown.
   ///
   /// \param ComputeUnits is a desired count of compute units in each sub
-  /// device. \return A vector class of sub devices partitioned from this SYCL
+  /// device.
+  /// \return A vector class of sub devices partitioned from this SYCL
   /// device equally based on the ComputeUnits parameter.
   template <info::partition_property prop>
   vector_class<device> create_sub_devices(size_t ComputeUnits) const;
@@ -126,7 +127,8 @@ public:
   /// exception must be thrown.
   ///
   /// \param AffinityDomain is one of the values described in Table 4.20 of SYCL
-  /// Spec \return a vector class of sub devices partitioned from this SYCL
+  /// Spec
+  /// \return a vector class of sub devices partitioned from this SYCL
   /// device by affinity domain based on the AffinityDomain parameter
   template <info::partition_property prop>
   vector_class<device>

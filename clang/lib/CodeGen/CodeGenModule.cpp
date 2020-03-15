@@ -464,6 +464,10 @@ void CodeGenModule::Release() {
     CodeGenFunction(*this).EmitCfiCheckStub();
   }
   emitAtAvailableLinkGuard();
+  if (Context.getTargetInfo().getTriple().isWasm() &&
+      !Context.getTargetInfo().getTriple().isOSEmscripten()) {
+    EmitMainVoidAlias();
+  }
   emitLLVMUsed();
   if (SanStats)
     SanStats->finish();
@@ -1910,15 +1914,6 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
     // default, only if it is invoked by a new-expression or delete-expression.
     F->addAttribute(llvm::AttributeList::FunctionIndex,
                     llvm::Attribute::NoBuiltin);
-
-    // A sane operator new returns a non-aliasing pointer.
-    // FIXME: Also add NonNull attribute to the return value
-    // for the non-nothrow forms?
-    auto Kind = FD->getDeclName().getCXXOverloadedOperator();
-    if (getCodeGenOpts().AssumeSaneOperatorNew &&
-        (Kind == OO_New || Kind == OO_Array_New))
-      F->addAttribute(llvm::AttributeList::ReturnIndex,
-                      llvm::Attribute::NoAlias);
   }
 
   if (isa<CXXConstructorDecl>(FD) || isa<CXXDestructorDecl>(FD))
@@ -5813,6 +5808,17 @@ void CodeGenModule::EmitDeferredUnusedCoverageMappings() {
     default:
       break;
     };
+  }
+}
+
+void CodeGenModule::EmitMainVoidAlias() {
+  // In order to transition away from "__original_main" gracefully, emit an
+  // alias for "main" in the no-argument case so that libc can detect when
+  // new-style no-argument main is in used.
+  if (llvm::Function *F = getModule().getFunction("main")) {
+    if (!F->isDeclaration() && F->arg_size() == 0 && !F->isVarArg() &&
+        F->getReturnType()->isIntegerTy(Context.getTargetInfo().getIntWidth()))
+      addUsedGlobal(llvm::GlobalAlias::create("__main_void", F));
   }
 }
 

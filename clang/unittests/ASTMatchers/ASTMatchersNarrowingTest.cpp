@@ -1643,6 +1643,21 @@ TEST(Matcher, HasNameSupportsFunctionScope) {
   EXPECT_TRUE(matches(code, fieldDecl(hasName("::a::F(int)::S::m"))));
 }
 
+TEST(Matcher, HasNameQualifiedSupportsLinkage) {
+  // https://bugs.llvm.org/show_bug.cgi?id=42193
+  std::string code = R"cpp(namespace foo { extern "C" void test(); })cpp";
+  EXPECT_TRUE(matches(code, functionDecl(hasName("test"))));
+  EXPECT_TRUE(matches(code, functionDecl(hasName("foo::test"))));
+  EXPECT_TRUE(matches(code, functionDecl(hasName("::foo::test"))));
+  EXPECT_TRUE(notMatches(code, functionDecl(hasName("::test"))));
+
+  code = R"cpp(namespace foo { extern "C" { void test(); } })cpp";
+  EXPECT_TRUE(matches(code, functionDecl(hasName("test"))));
+  EXPECT_TRUE(matches(code, functionDecl(hasName("foo::test"))));
+  EXPECT_TRUE(matches(code, functionDecl(hasName("::foo::test"))));
+  EXPECT_TRUE(notMatches(code, functionDecl(hasName("::test"))));
+}
+
 TEST(Matcher, HasAnyName) {
   const std::string Code = "namespace a { namespace b { class C; } }";
 
@@ -1995,6 +2010,19 @@ TEST(Optionally, SubmatchersDoNotMatch) {
       recordDecl(optionally(has(fieldDecl(hasName("c")).bind("v")),
                             has(fieldDecl(hasName("d")).bind("v")))),
       std::make_unique<VerifyIdIsBoundTo<FieldDecl>>("v")));
+}
+
+// Regression test.
+TEST(Optionally, SubmatchersDoNotMatchButPreserveBindings) {
+  std::string Code = "class A { int a; int b; };";
+  auto Matcher = recordDecl(decl().bind("decl"),
+                            optionally(has(fieldDecl(hasName("c")).bind("v"))));
+  // "decl" is still bound.
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, Matcher, std::make_unique<VerifyIdIsBoundTo<RecordDecl>>("decl")));
+  // "v" is not bound, but the match still suceeded.
+  EXPECT_TRUE(matchAndVerifyResultFalse(
+      Code, Matcher, std::make_unique<VerifyIdIsBoundTo<FieldDecl>>("v")));
 }
 
 TEST(Optionally, SubmatchersMatch) {

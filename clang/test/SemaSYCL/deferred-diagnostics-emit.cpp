@@ -16,7 +16,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 } // namespace cl
 
 //variadic functions from SYCL kernels emit a deferred diagnostic
-void variadic(int, ...);
+void variadic(int, ...) {}
 
 int calledFromKernel(int a) {
   // expected-error@+1 {{zero-length arrays are not permitted in C++}}

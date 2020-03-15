@@ -75,8 +75,9 @@ public:
 
   bool is_cuda() const {
     const string_class CUDA_PLATFORM_STRING = "NVIDIA CUDA";
-    const string_class PlatformName = get_platform_info<string_class, 
-                                                  info::platform::name>::get(MPlatform, getPlugin());
+    const string_class PlatformName =
+        get_platform_info<string_class, info::platform::name>::get(MPlatform,
+                                                                   getPlugin());
     return PlatformName == CUDA_PLATFORM_STRING;
   }
 

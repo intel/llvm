@@ -212,10 +212,16 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              ObjCInterfaceDecl *ClassReceiver) {
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
-      if (VD->getStorageClass() == SC_Static &&
-          !VD->getType().isConstant(Context))
+      bool IsConst = VD->getType().isConstant(Context);
+      if (VD->getTLSKind() != VarDecl::TLS_None)
+        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_thread_unsupported);
+
+      if (!IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
+      else if (!IsConst && VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
+        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
+            << Sema::KernelGlobalVariable;
     }
   }
 
@@ -301,8 +307,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     if (getLangOpts().CUDA && !CheckCUDACall(Loc, FD))
       return true;
 
-    if (getLangOpts().SYCLIsDevice)
-      checkSYCLDeviceFunction(Loc, FD);
+    if (getLangOpts().SYCLIsDevice && !checkSYCLDeviceFunction(Loc, FD))
+      return true;
   }
 
   if (auto *MD = dyn_cast<CXXMethodDecl>(D)) {
@@ -15443,8 +15449,9 @@ static void EvaluateAndDiagnoseImmediateInvocation(
   Expr::EvalResult Eval;
   Eval.Diag = &Notes;
   ConstantExpr *CE = Candidate.getPointer();
-  if (!CE->EvaluateAsConstantExpr(Eval, Expr::EvaluateForCodeGen,
-                                  SemaRef.getASTContext(), true)) {
+  bool Result = CE->EvaluateAsConstantExpr(Eval, Expr::EvaluateForCodeGen,
+                                           SemaRef.getASTContext(), true);
+  if (!Result || !Notes.empty()) {
     Expr *InnerExpr = CE->getSubExpr()->IgnoreImplicit();
     FunctionDecl *FD = nullptr;
     if (auto *Call = dyn_cast<CallExpr>(InnerExpr))

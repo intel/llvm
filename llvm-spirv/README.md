@@ -24,6 +24,7 @@ The `master` branch of this repo is aimed to be buildable with the latest LLVM `
 
 The translator can be built with the latest(nightly) package of LLVM. For Ubuntu and Debian systems LLVM provides repositories with nightly builds at http://apt.llvm.org/. For example the latest package for Ubuntu 16.04 can be installed with the following commands:
 ```
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
 sudo apt-get install llvm-11-dev llvm-11-tools clang-11 libclang-11-dev

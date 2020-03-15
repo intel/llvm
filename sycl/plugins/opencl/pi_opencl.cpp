@@ -5,6 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+/// \defgroup sycl_pi_ocl OpenCL Plugin
+/// \ingroup sycl_pi
+
+/// \file pi_opencl.cpp
+/// Implementation of OpenCL Plugin. It is the interface between device-agnostic
+/// SYCL runtime layer and underlying OpenCL runtime.
+///
+/// \ingroup sycl_pi_ocl
+
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.h>
 
@@ -51,8 +61,6 @@ CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 
 #undef CONSTFIX
 
-
-
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
 static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
@@ -88,7 +96,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
                             sizeof(cl_platform_id), &curPlatform, nullptr);
 
   if (ret_err != CL_SUCCESS) {
-     return PI_INVALID_CONTEXT;
+    return PI_INVALID_CONTEXT;
   }
 
   T FuncPtr =
@@ -123,7 +131,7 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 
   getExtFuncFromContext<clHostMemAllocName, clHostMemAllocINTEL_fn>(
       cast<pi_context>(CLContext), &HFunc);
-  if (HFunc)  {
+  if (HFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
@@ -604,8 +612,8 @@ pi_result OCL(piextUSMHostAlloc)(void **result_ptr, pi_context context,
 
   if (FuncPtr) {
     Ptr = FuncPtr(cast<cl_context>(context),
-            cast<cl_mem_properties_intel *>(properties), size, alignment,
-            cast<cl_int *>(&RetVal));
+                  cast<cl_mem_properties_intel *>(properties), size, alignment,
+                  cast<cl_int *>(&RetVal));
   }
 
   *result_ptr = Ptr;
@@ -728,7 +736,8 @@ pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
     // This means we need to deref the arg to get the pointer value
     auto PtrToPtr = reinterpret_cast<const intptr_t *>(arg_value);
     auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
+    RetVal =
+        cast<pi_result>(FuncPtr(cast<cl_kernel>(kernel), arg_index, DerefPtr));
   }
 
   return RetVal;
@@ -1072,7 +1081,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemAdvise, OCL(piextUSMEnqueueMemAdvise))
   _PI_CL(piextUSMGetMemAllocInfo, OCL(piextUSMGetMemAllocInfo))
 
-  _PI_CL(piextKernelSetArgMemObj,      OCL(piextKernelSetArgMemObj))
+  _PI_CL(piextKernelSetArgMemObj, OCL(piextKernelSetArgMemObj))
 
 #undef _PI_CL
 
