@@ -54,9 +54,9 @@ endif()
 # Unlike PACKAGE_VERSION, CLANG_VERSION does not include LLVM_VERSION_SUFFIX.
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
-set(SYCL_INST_INC_DIRECTORY "include/sycl")
-set(dst_dir ${LLVM_BINARY_DIR}/${SYCL_INST_INC_DIRECTORY})
-set(dst_deploy_dir ${CMAKE_INSTALL_PREFIX}/${SYCL_INST_INC_DIRECTORY})
+set(SYCL_INCLUDE_DIR "include/sycl")
+set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
+set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 
 # Find OpenCL headers and libraries installed in the system and use them to
 # build SYCL runtime.
@@ -78,7 +78,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
     GIT_TAG           origin/master
     SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc"
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${dst_dir}/CL
+    BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     INSTALL_COMMAND   ""
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
@@ -86,7 +86,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
 else()
   add_custom_target( ocl-headers ALL
     DEPENDS ${OpenCL_INCLUDE_DIRS}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${dst_dir}/CL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     COMMENT "Copying OpenCL headers ..."
   )
 endif()
@@ -137,7 +137,7 @@ target_include_directories(OpenCL-Headers
   INTERFACE ${OPENCL_INCLUDE}
 )
 install(DIRECTORY ${OPENCL_INCLUDE}/CL
-  DESTINATION ${dst_deploy_dir}
+  DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}
   COMPONENT opencl-headers
 )
 
@@ -155,11 +155,11 @@ configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${dst_dir}/CL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
-install(DIRECTORY "${sycl_inc_dir}/." DESTINATION ${dst_deploy_dir} COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/." DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR} COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
