@@ -1,0 +1,15 @@
+# Basic tests
+
+In order to capture the cost of various API calls in the framework and test the
+correctness of the API, a set of basic tests have been created. hey primarily fall under two categories:
+
+1. Sematic tests: These tests perform correctness checks on the API call to
+ensure the right data is being retrieved. The sematic tests are categorized into
+string table tests, trace point tests and notification tests.
+
+2. Performance tests: These test attempt to capture the average cost of various
+operations that are a part of creating trace points in applications. The tests
+are categorized into data structure tests and instrumentation tests.
+
+For more detail on the framework, the tests that are provided and their usage,
+please consult the [XPTI Framework library documentation](doc/XPTI_Framework.md).
