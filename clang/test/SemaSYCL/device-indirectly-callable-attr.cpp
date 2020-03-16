@@ -19,19 +19,15 @@ namespace {
 }
 
 class A {
-  [[intel::device_indirectly_callable]]
-  A() {}
+  [[intel::device_indirectly_callable]] A() {}
 
-  [[intel::device_indirectly_callable]]
-  int func3() {}
+  [[intel::device_indirectly_callable]] int func3() {}
 };
 
 class B {
-  [[intel::device_indirectly_callable]]
-  virtual int foo() {}
+  [[intel::device_indirectly_callable]] virtual int foo(){}
 
-  [[intel::device_indirectly_callable]]
-  virtual int bar() = 0;
+  [[intel::device_indirectly_callable]] virtual int bar() = 0;
 };
 
 void helper() {}
