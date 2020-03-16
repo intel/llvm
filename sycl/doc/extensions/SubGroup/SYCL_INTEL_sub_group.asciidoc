@@ -92,6 +92,8 @@ Several aspects of sub-group functionality are implementation-defined: the size 
 
 To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, nor that two sub-groups within a work-group will make independent forward progress with respect to one another.
 
+The device descriptors below are added to the +info::device+ enumeration class:
+
 |===
 |Device Descriptors|Return Type|Description
 
@@ -108,12 +110,16 @@ To maximize portability across devices, developers should not assume that work-i
 |Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
 |===
 
+An additional query for sub-group information is added to the +kernel+ class:
+
 |===
 |Member Functions|Description
 
 |+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev) const+
 |Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device.
 |===
+
+The kernel descriptors below are added as part of a new +info::kernel_sub_group+ enumeration class:
 
 |===
 |Kernel Descriptors|Return Type|Description
@@ -137,7 +143,9 @@ To maximize portability across devices, developers should not assume that work-i
 
 === The sub_group Class
 
-The +sub_group+ class encapsulates all functionality required to represent a particular sub-group within a parallel execution.  It has common by-value semantics and is not default or user-constructible, and can only be accessed via methods in the +nd_item+ class.
+The +sub_group+ class encapsulates all functionality required to represent a particular sub-group within a parallel execution.  It has common by-value semantics and is not default or user-constructible, and can only be accessed in ND-range kernels.
+
+To provide access to the +sub_group+ class, a new member function is added to the +nd_item+ class:
 
 |===
 |Member Functions|Description
