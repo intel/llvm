@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+/// \file pi.cpp
+/// Implementation of C++ wrappers for PI interface.
+///
+/// \ingroup sycl_pi
+
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -ast-dump %s -I %sycl_include -Wno-sycl-strict | FileCheck %s
 // UNSUPPORTED: windows
 #include <CL/sycl/accessor.hpp>
 

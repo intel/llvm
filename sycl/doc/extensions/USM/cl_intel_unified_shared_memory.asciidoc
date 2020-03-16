@@ -60,7 +60,7 @@ If you are interested in using this feature in your software product, please let
 == Version
 
 Built On: {docdate} +
-Revision: O
+Revision: Q
 
 == Dependencies
 
@@ -75,6 +75,25 @@ Unified Shared Memory provides:
 * Easier integration into existing code bases by representing OpenCL allocations as pointers rather than handles (`cl_mems`), with full support for pointer arithmetic into allocations.
 * Fine-grain control over ownership and accessibility of OpenCL allocations, to optimally choose between performance and programmer convenience.
 * A simpler programming model, by automatically migrating some allocations between OpenCL devices and the host.
+
+While Unified Shared Memory (USM) shares many features with Shared Virtual Memory (SVM), Unified Shared Memory provides a different mix of capabilities and control.
+Specifically:
+
+* The matrix of USM capabilities supports combinations of features beyond the SVM capability queries.
+
+* USM provides explicit control over memory placement and migration by supporting host allocations with wide visibility, devices allocations for best performance, and shared allocations that may migrate between devices and the host.
+
+* USM allocations may be associated with both a device and a context.
+The USM allocation APIs support additional memory flags and optional properties to affect how memory is allocated and migrated.
+
+* There is no need for APIs to map or unmap USM allocations, because host accessible USM allocations do not need to be mapped or unmapped to access the contents of a USM allocation on the host.
+
+* An application may indicate that a kernel may access categories of USM allocations indirectly, without passing a set of all indirectly accessed USM allocations to the kernel, improving usability and reducing driver overhead for kernels that access many USM allocations.
+
+* USM adds API functions to query properties of a USM allocation and to provide memory advice for an allocation.
+
+Unified Shared Memory and Shared Virtual Memory can and will coexist for many implementations.
+All implementations that support Shared Virtual Memory may support at least some types of Unified Shared Memory.
 
 == New API Functions
 
@@ -104,6 +123,10 @@ void*   clSharedMemAllocINTEL(
             cl_int* errcode_ret);
 
 cl_int  clMemFreeINTEL(
+            cl_context context,
+            void* ptr);
+
+cl_int  clMemBlockingFreeINTEL(
             cl_context context,
             void* ptr);
 
@@ -570,16 +593,20 @@ Otherwise, `NULL` will be returned, and _errcode_ret_ will be set to one of the 
 
 ===== Freeing Allocations
 
-The function
+The functions
 
 [source]
 ----
 cl_int  clMemFreeINTEL(
             cl_context context,
             void* ptr);
+
+cl_int  clMemBlockingFreeINTEL(
+            cl_context context,
+            void* ptr);
 ----
 
-frees a Unified Shared Memory allocation.
+free a Unified Shared Memory allocation.
 
 _context_ is a valid OpenCL context used to free the Unified Shared Memory allocation.
 
@@ -587,11 +614,13 @@ _ptr_ is the Unified Shared Memory allocation to free.
 It must be a value returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, or *clSharedMemAllocINTEL*, or a `NULL` pointer.
 If _ptr_ is `NULL` then no action occurs.
 
-Note that *clMemFreeINTEL* does not wait for previously enqueued commands that may be using _ptr_ to finish before freeing _ptr_.
+Note that *clMemFreeINTEL* may not wait for previously enqueued commands that may be using _ptr_ to finish before freeing _ptr_.
 It is the responsibility of the application to make sure enqueued commands that use _ptr_ are complete before freeing _ptr_.
+Applications should take particular care freeing memory allocations with kernels that may access memory indirectly, since a kernel with indirect memory access counts as using all memory allocations of the specified type or types.
+To wait for previously enqueued commands to finish that may be using _ptr_ before freeing _ptr_, use the *clMemBlockingFreeINTEL* function instead.
 
-*clMemFreeINTEL* will return `CL_SUCCESS` if the function executes successfully.
-Otherwise, it will return one of the following error values:
+*clMemFreeINTEL* and *clMemBlockingFreeINTEL* will return `CL_SUCCESS` if the function executes successfully.
+Otherwise, they will return one of the following error values:
 
 * `CL_INVALID_CONTEXT` if _context_ is not a valid context.
 * `CL_INVALID_VALUE` if _ptr_ is not a value returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, *clSharedMemAllocINTEL*, or a `NULL` pointer.
@@ -986,7 +1015,7 @@ Otherwise, it will return one of the following errors:
 * `CL_INVALID_COMMAND_QUEUE` if _command_queue_ is not a valid host command-queue.
 * `CL_INVALID_CONTEXT` if the context associated with _command_queue_ and events in _event_wait_list_ are not the same.
 * `CL_INVALID_VALUE` **TODO**, are any values of _ptr_ and _size_ considered invalid?
-* `CL_INVALID_VALUE` if _advice_ is zero or is not supported advice for the device associated with _command_queue_.
+* `CL_INVALID_VALUE` if _advice_ is not supported advice for the device associated with _command_queue_.
 * `CL_INVALID_EVENT_WAIT_LIST` if _event_wait_list_ is `NULL` and _num_events_in_wait_list_ is greater than zero, or if _event_wait_list_ is not `NULL` and _num_events_in_wait_list_ is zero, or if event objects in _event_wait_list_ are not valid events.
 * `CL_OUT_OF_RESOURCES` if there is a failure to allocate resources required by the OpenCL implementation on the device.
 * `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required by the OpenCL implementation on the host.
@@ -1220,6 +1249,8 @@ Note that some flags will not be valid, such as `CL_MEM_USE_HOST_PTR`.
 |M|2020-01-17|Ben Ashbaugh|Minor name changes, removed const from memfree API.
 |N|2020-01-22|Ben Ashbaugh|Updated write combine description.
 |O|2020-01-23|Ben Ashbaugh|Added aliases for USM migration flags.
+|P|2020-02-28|Ben Ashbaugh|Added blocking memfree API.
+|Q|2020-03-12|Ben Ashbaugh|Name tweak for blocking memfree API, added comparison to SVM, allow zero memory advice.
 |========================================
 
 //************************************************************************
