@@ -117,7 +117,7 @@ The mask is defined such that the least significant bit (LSB) corresponds to the
 |Return the highest +id+ with a corresponding bit set in the mask. If no bits are set, the return value is equal to `size()`.
 
 |+template <typename T = vec<uint32_t,4>> void insert_bits(T bits, id<1> pos = 0)+
-|Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T` must be an integral type of a SYCL vector of integral types.  _pos_ must be a multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ + `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ + `CHAR_BIT * sizeof(T)`) bits are ignored.
+|Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T` must be an integral type or a SYCL vector of integral types.  _pos_ must be a multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ + `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ + `CHAR_BIT * sizeof(T)`) bits are ignored.
 
 |+template <typename T = vec<uint32_t,4>> T extract_bits(id<1> pos = 0) const+
 |Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T` must be an integral type or a SYCL vector of integral types.  _pos_ must be a multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ + `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ + `CHAR_BIT * sizeof(T)`) bits of the return value are zero.
