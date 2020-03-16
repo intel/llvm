@@ -146,6 +146,48 @@ The mask is defined such that the least significant bit (LSB) corresponds to the
 |+void flip(id<1> id)+
 |Toggle the value of the bit corresponding to the specified _id_.
 
+|+bool operator==(group_mask rhs) const+
+|Return true if each bit in this mask is equal to the corresponding bit in +rhs+.
+
+|+bool operator!=(group_mask rhs) const+
+|Return true if any bit in this mask is not equal to the corresponding bit in +rhs+.
+
+|+group_mask operator &=(group_mask rhs)+
+|Set the bits of this mask to the result of performing a bitwise AND with this mask and +rhs+.
+
+|+group_mask operator |=(group_mask rhs)+
+|Set the bits of this mask to the result of performing a bitwise OR with this mask and +rhs+.
+
+|+group_mask operator ^=(group_mask rhs)+
+|Set the bits of this mask to the result of performing a bitwise XOR with this mask and +rhs+.
+
+|+group_mask operator <<=(size_t shift)+
+|Set the bits of this mask to the result of shifting its bits _shift_ positions to the left.
+
+|+group_mask operator >>=(size_t shift)+
+|Set the bits of this mask to the result of shifting its bits _shift_ positions to the right.
+
+|+group_mask operator ~() const+
+|Return a mask representing the result of flipping all the bits in this mask.
+
+|+group_mask operator <<(size_t shift)+
+|Return a mask representing the result of shifting its bits _shift_ positions to the left.
+
+|+group_mask operator >>(size_t shift)+
+|Return a mask representing the result of shifting its bits _shift_ positions to the right.
+
+|===
+|Function|Description
+
+|+group_mask operator &(const group_mask& lhs, const group_mask& rhs)+
+|Return a mask representing the result of performing a bitwise AND of +lhs+ and +rhs+.
+
+|+group_mask operator |(const group_mask& lhs, const group_mask& rhs)+
+|Return a mask representing the result of performing a bitwise OR of +lhs+ and +rhs+.
+
+|+group_mask operator ^(const group_mask& lhs, const group_mask& rhs)+
+|Return a mask representing the result of performing a bitwise XOR of +lhs+ and +rhs+.
+
 |===
 
 ==== Sample Header
@@ -193,21 +235,24 @@ struct group_mask {
   void flip();
   void flip(id<1> id);
 
-  bool operator==(mask rhs) const;
-  bool operator!=(mask rhs) const;
+  bool operator==(group_mask rhs) const;
+  bool operator!=(group_mask rhs) const;
 
-  mask operator &=(mask rhs);
-  mask operator |=(mask rhs);
-  mask operator ^=(mask rhs);
-  mask operator ~() const;
-  mask operator <<=(mask rhs);
-  mask operator >>=(mask rhs);
+  group_mask operator &=(group_mask rhs);
+  group_mask operator |=(group_mask rhs);
+  group_mask operator ^=(group_mask rhs);
+  group_mask operator <<=(size_t);
+  group_mask operator >>=(size_t rhs);
 
-  mask operator &(mask rhs) const;
-  mask operator |(mask rhs) const;
-  mask operator ^(mask rhs) const;
+  group_mask operator ~() const;
+  group_mask operator <<(size_t) const;
+  group_mask operator >>(size_t) const;
 
 };
+
+group_mask operator &(const group_mask& lhs, const group_mask& rhs);
+group_mask operator |(const group_mask& lhs, const group_mask& rhs);
+group_mask operator ^(const group_mask& lhs, const group_mask& rhs);
 
 } // intel
 } // sycl
