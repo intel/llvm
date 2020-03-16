@@ -84,6 +84,15 @@ static void GetObjCImageInfo(Module &M, unsigned &Version, unsigned &Flags,
     } else if (Key == "Objective-C Image Info Section") {
       Section = cast<MDString>(MFE.Val)->getString();
     }
+    // Backend generates L_OBJC_IMAGE_INFO from Swift ABI version + major + minor +
+    // "Objective-C Garbage Collection".
+    else if (Key == "Swift ABI Version") {
+      Flags |= (mdconst::extract<ConstantInt>(MFE.Val)->getZExtValue()) << 8;
+    } else if (Key == "Swift Major Version") {
+      Flags |= (mdconst::extract<ConstantInt>(MFE.Val)->getZExtValue()) << 24;
+    } else if (Key == "Swift Minor Version") {
+      Flags |= (mdconst::extract<ConstantInt>(MFE.Val)->getZExtValue()) << 16;
+    }
   }
 }
 
@@ -1948,7 +1957,11 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
   case GlobalValue::CommonLinkage:
     return XCOFF::C_EXT;
   case GlobalValue::ExternalWeakLinkage:
+  case GlobalValue::LinkOnceODRLinkage:
     return XCOFF::C_WEAKEXT;
+  case GlobalValue::AppendingLinkage:
+    report_fatal_error(
+        "There is no mapping that implements AppendingLinkage for XCOFF.");
   default:
     report_fatal_error(
         "Unhandled linkage when mapping linkage to StorageClass.");

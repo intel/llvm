@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM
-// RUN: %clang_cc1 -triple x86_64-windows -fsycl-is-device -fsyntax-only -fasm-blocks -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -triple x86_64-windows -fasm-blocks %s
 
 void foo() {
   int a;

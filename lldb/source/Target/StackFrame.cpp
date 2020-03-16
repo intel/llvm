@@ -1321,14 +1321,13 @@ lldb::ValueObjectSP StackFrame::GuessValueForAddress(lldb::addr_t addr) {
   pc_range.GetBaseAddress() = GetFrameCodeAddress();
   pc_range.SetByteSize(target_arch.GetMaximumOpcodeByteSize());
 
-  ExecutionContext exe_ctx(shared_from_this());
-
   const char *plugin_name = nullptr;
   const char *flavor = nullptr;
   const bool prefer_file_cache = false;
 
-  DisassemblerSP disassembler_sp = Disassembler::DisassembleRange(
-      target_arch, plugin_name, flavor, exe_ctx, pc_range, prefer_file_cache);
+  DisassemblerSP disassembler_sp =
+      Disassembler::DisassembleRange(target_arch, plugin_name, flavor,
+                                     *target_sp, pc_range, prefer_file_cache);
 
   if (!disassembler_sp || !disassembler_sp->GetInstructionList().GetSize()) {
     return ValueObjectSP();
@@ -1702,13 +1701,12 @@ lldb::ValueObjectSP StackFrame::GuessValueForRegisterAndOffset(ConstString reg,
     return ValueObjectSP();
   }
 
-  ExecutionContext exe_ctx(shared_from_this());
-
   const char *plugin_name = nullptr;
   const char *flavor = nullptr;
   const bool prefer_file_cache = false;
-  DisassemblerSP disassembler_sp = Disassembler::DisassembleRange(
-      target_arch, plugin_name, flavor, exe_ctx, pc_range, prefer_file_cache);
+  DisassemblerSP disassembler_sp =
+      Disassembler::DisassembleRange(target_arch, plugin_name, flavor,
+                                     *target_sp, pc_range, prefer_file_cache);
 
   if (!disassembler_sp || !disassembler_sp->GetInstructionList().GetSize()) {
     return ValueObjectSP();
@@ -1942,16 +1940,14 @@ bool StackFrame::GetStatus(Stream &strm, bool show_frame_info, bool show_source,
           const uint32_t disasm_lines = debugger.GetDisassemblyLineCount();
           if (disasm_lines > 0) {
             const ArchSpec &target_arch = target->GetArchitecture();
-            AddressRange pc_range;
-            pc_range.GetBaseAddress() = GetFrameCodeAddress();
-            pc_range.SetByteSize(disasm_lines *
-                                 target_arch.GetMaximumOpcodeByteSize());
             const char *plugin_name = nullptr;
             const char *flavor = nullptr;
             const bool mixed_source_and_assembly = false;
             Disassembler::Disassemble(
                 target->GetDebugger(), target_arch, plugin_name, flavor,
-                exe_ctx, pc_range, disasm_lines, mixed_source_and_assembly, 0,
+                exe_ctx, GetFrameCodeAddress(),
+                {Disassembler::Limit::Instructions, disasm_lines},
+                mixed_source_and_assembly, 0,
                 Disassembler::eOptionMarkPCAddress, strm);
           }
         }

@@ -114,11 +114,6 @@ AST_MATCHER(CXXConstructExpr,
 
 void RedundantStringCStrCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // Match expressions of type 'string' or 'string*'.
   const auto StringDecl = type(hasUnqualifiedDesugaredType(recordType(
       hasDeclaration(cxxRecordDecl(hasName("::std::basic_string"))))));
@@ -155,11 +150,7 @@ void RedundantStringCStrCheck::registerMatchers(
   // Detect: 's == str.c_str()'  ->  's == str'
   Finder->addMatcher(
       cxxOperatorCallExpr(
-          anyOf(
-              hasOverloadedOperatorName("<"), hasOverloadedOperatorName(">"),
-              hasOverloadedOperatorName(">="), hasOverloadedOperatorName("<="),
-              hasOverloadedOperatorName("!="), hasOverloadedOperatorName("=="),
-              hasOverloadedOperatorName("+")),
+          hasAnyOverloadedOperatorName("<", ">", ">=", "<=", "!=", "==", "+"),
           anyOf(allOf(hasArgument(0, StringExpr),
                       hasArgument(1, StringCStrCallExpr)),
                 allOf(hasArgument(0, StringCStrCallExpr),
@@ -168,11 +159,11 @@ void RedundantStringCStrCheck::registerMatchers(
 
   // Detect: 'dst += str.c_str()'  ->  'dst += str'
   // Detect: 's = str.c_str()'  ->  's = str'
-  Finder->addMatcher(cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("="),
-                                               hasOverloadedOperatorName("+=")),
-                                         hasArgument(0, StringExpr),
-                                         hasArgument(1, StringCStrCallExpr)),
-                     this);
+  Finder->addMatcher(
+      cxxOperatorCallExpr(hasAnyOverloadedOperatorName("=", "+="),
+                          hasArgument(0, StringExpr),
+                          hasArgument(1, StringCStrCallExpr)),
+      this);
 
   // Detect: 'dst.append(str.c_str())'  ->  'dst.append(str)'
   Finder->addMatcher(

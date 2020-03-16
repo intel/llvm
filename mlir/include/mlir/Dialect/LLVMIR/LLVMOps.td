@@ -14,6 +14,8 @@
 #define LLVMIR_OPS
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/SideEffects.td"
 
 class LLVM_Builder<string builder> {
   string llvmBuilder = builder;
@@ -69,40 +71,20 @@ class LLVM_ZeroResultOp<string mnemonic, list<OpTrait> traits = []> :
     LLVM_Op<mnemonic, traits>, Results<(outs)>,
     LLVM_TwoBuilders<LLVM_VoidResultTypeOpBuilder, LLVM_ZeroResultOpBuilder>;
 
+// Opaque builder used for terminator operations that contain successors.
+def LLVM_TerminatorPassthroughOpBuilder : OpBuilder<
+  "Builder *, OperationState &result, ValueRange operands, "
+  "SuccessorRange destinations, ArrayRef<NamedAttribute> attributes = {}",
+  [{
+    result.addOperands(operands);
+    result.addSuccessors(destinations);
+    result.addAttributes(attributes);
+  }]>;
+
 // Base class for LLVM terminator operations.  All terminator operations have
 // zero results and an optional list of successors.
 class LLVM_TerminatorOp<string mnemonic, list<OpTrait> traits = []> :
-    LLVM_Op<mnemonic, !listconcat(traits, [Terminator])> {
-  let builders = [
-    OpBuilder<
-      "Builder *, OperationState &result, "
-      "ValueRange properOperands, "
-      "ArrayRef<Block *> destinations, "
-      "ArrayRef<ValueRange> operands, "
-      "ArrayRef<NamedAttribute> attributes = {}",
-      [{
-        result.addOperands(properOperands);
-        for (auto kvp : llvm::zip(destinations, operands)) {
-          result.addSuccessor(std::get<0>(kvp), std::get<1>(kvp));
-        }
-        for (auto namedAttr : attributes) {
-          result.addAttribute(namedAttr.first, namedAttr.second);
-        }
-      }]
-    >,
-    OpBuilder<
-      "Builder *builder, OperationState &result, "
-      "ValueRange properOperands, "
-      "ArrayRef<Block *> destinations, "
-      "ArrayRef<NamedAttribute> attributes = {}",
-    [{
-        SmallVector<ValueRange, 2> operands(destinations.size(), {});
-        build(builder, result, properOperands,
-            destinations, operands, attributes);
-      }]
-    >,
-  ];
-}
+    LLVM_Op<mnemonic, !listconcat(traits, [Terminator])>;
 
 // Class for arithmetic binary operations.
 class LLVM_ArithmeticOp<string mnemonic, string builderFunc,
@@ -315,22 +297,34 @@ def LLVM_FPExtOp : LLVM_CastOp<"fpext", "CreateFPExt">;
 def LLVM_FPTruncOp : LLVM_CastOp<"fptrunc", "CreateFPTrunc">;
 
 // Call-related operations.
-def LLVM_InvokeOp : LLVM_Op<"invoke", [Terminator]>,
+def LLVM_InvokeOp : LLVM_Op<"invoke", [
+                      AttrSizedOperandSegments,
+                      DeclareOpInterfaceMethods<BranchOpInterface>,
+                      Terminator
+                    ]>,
                     Arguments<(ins OptionalAttr<FlatSymbolRefAttr>:$callee,
-                               Variadic<LLVM_Type>)>,
+                               Variadic<LLVM_Type>:$operands,
+                               Variadic<LLVM_Type>:$normalDestOperands,
+                               Variadic<LLVM_Type>:$unwindDestOperands)>,
                     Results<(outs Variadic<LLVM_Type>)> {
   let successors = (successor AnySuccessor:$normalDest,
                               AnySuccessor:$unwindDest);
 
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, ArrayRef<Type> tys, "
+    "FlatSymbolRefAttr callee, ValueRange ops, Block* normal, "
+    "ValueRange normalOps, Block* unwind, ValueRange unwindOps",
+    [{
+      result.addAttribute("callee", callee);
+      build(b, result, tys, ops, normal, normalOps, unwind, unwindOps);
+    }]>,
+    OpBuilder<
+    "Builder *b, OperationState &result, ArrayRef<Type> tys, "
     "ValueRange ops, Block* normal, "
     "ValueRange normalOps, Block* unwind, ValueRange unwindOps",
     [{
-      result.addTypes(tys);
-      result.addOperands(ops);
-      result.addSuccessor(normal, normalOps);
-      result.addSuccessor(unwind, unwindOps);
+      build(b, result, tys, /*callee=*/FlatSymbolRefAttr(), ops, normalOps,
+            unwindOps, normal, unwind);
     }]>];
   let verifier = [{ return ::verify(*this);  }];
   let parser = [{ return parseInvokeOp(parser, result); }];
@@ -458,16 +452,43 @@ def LLVM_FreezeOp : LLVM_OneResultOp<"freeze", [SameOperandsAndResultType]>,
 }
 
 // Terminators.
-def LLVM_BrOp : LLVM_TerminatorOp<"br", []> {
+def LLVM_BrOp : LLVM_TerminatorOp<"br",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, NoSideEffect]> {
+  let arguments = (ins Variadic<LLVM_Type>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
-  let assemblyFormat = "$dest attr-dict";
+  let assemblyFormat = [{
+    $dest (`(` $destOperands^ `:` type($destOperands) `)`)? attr-dict
+  }];
+  let builders = [LLVM_TerminatorPassthroughOpBuilder];
 }
-def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br", []> {
-  let arguments = (ins LLVMI1:$condition);
+def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br",
+    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+     NoSideEffect]> {
+  let arguments = (ins LLVMI1:$condition,
+                   Variadic<LLVM_Type>:$trueDestOperands,
+                   Variadic<LLVM_Type>:$falseDestOperands);
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
-  let assemblyFormat = "$condition `,` successors attr-dict";
+  let assemblyFormat = [{
+    $condition `,`
+    $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
+    $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
+    attr-dict
+  }];
+
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value condition,"
+    "Block *trueDest, ValueRange trueOperands,"
+    "Block *falseDest, ValueRange falseOperands", [{
+      build(builder, result, condition, trueOperands, falseOperands, trueDest,
+            falseDest);
+  }]>, OpBuilder<
+    "Builder *builder, OperationState &result, Value condition,"
+    "Block *trueDest, Block *falseDest, ValueRange falseOperands = {}", [{
+      build(builder, result, condition, trueDest, ValueRange(), falseDest,
+            falseOperands);
+  }]>, LLVM_TerminatorPassthroughOpBuilder];
 }
-def LLVM_ReturnOp : LLVM_TerminatorOp<"return", []>,
+def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [NoSideEffect]>,
                     Arguments<(ins Variadic<LLVM_Type>:$args)> {
   string llvmBuilder = [{
     if ($_numOperands != 0)
@@ -565,11 +586,15 @@ def LLVM_AddressOfOp
 def LLVM_GlobalOp
     : LLVM_ZeroResultOp<"mlir.global",
                         [IsolatedFromAbove,
-                         SingleBlockImplicitTerminator<"ReturnOp">, Symbol]>,
-      Arguments<(ins TypeAttr:$type, UnitAttr:$constant, StrAttr:$sym_name,
-                 Linkage:$linkage,
-                 OptionalAttr<AnyAttr>:$value,
-                 DefaultValuedAttr<NonNegativeI32Attr, "0">:$addr_space)> {
+                         SingleBlockImplicitTerminator<"ReturnOp">, Symbol]> {
+  let arguments = (ins
+    TypeAttr:$type,
+    UnitAttr:$constant,
+    StrAttr:$sym_name,
+    Linkage:$linkage,
+    OptionalAttr<AnyAttr>:$value,
+    DefaultValuedAttr<Confined<I32Attr, [IntNonNegative]>, "0">:$addr_space
+  );
   let summary = "LLVM dialect global.";
   let description = [{
     Can contain an optional initializer region or attribute for simple
@@ -763,6 +788,79 @@ def LLVM_experimental_vector_reduce_xor : LLVM_VectorReduction<"xor">;
 
 def LLVM_experimental_vector_reduce_v2_fadd : LLVM_VectorReductionV2<"fadd">;
 def LLVM_experimental_vector_reduce_v2_fmul : LLVM_VectorReductionV2<"fmul">;
+
+//
+// LLVM Matrix operations.
+//
+
+/// Create a columnwise, strided 2-D matrix load, as specified in the LLVM
+/// MatrixBuilder.
+/// data    - Start address of the matrix read
+/// rows    - Number of rows in matrix (must be a constant)
+/// columns - Number of columns in matrix (must be a constant)
+/// stride  - Space between columns
+def LLVM_MatrixColumnsWiseLoadOp
+    : LLVM_OneResultOp<"intr.matrix.columnwise.load">,
+      Arguments<(ins LLVM_Type:$data, LLVM_Type:$stride,
+                 I32Attr:$rows, I32Attr:$columns)> {
+  string llvmBuilder = [{
+    llvm::MatrixBuilder<decltype(builder)> mb(builder);
+    $res = mb.CreateMatrixColumnwiseLoad(
+      $data, $rows.getZExtValue(), $columns.getZExtValue(), $stride);
+  }];
+  let assemblyFormat = "$data `,` `<` `stride` `=` $stride `>` attr-dict"
+    "`:` type($res) `from` type($data) `stride` type($stride)";
+}
+
+/// Create a columnwise, strided 2-D matrix store, as specified in the LLVM
+/// MatrixBuilder.
+/// matrix  - Matrix to store
+/// ptr     - Pointer to write back to
+/// rows    - Number of rows in matrix (must be a constant)
+/// columns - Number of columns in matrix (must be a constant)
+/// stride  - Space between columns
+def LLVM_MatrixColumnsWiseStoreOp
+    : LLVM_ZeroResultOp<"intr.matrix.columnwise.store">,
+      Arguments<(ins LLVM_Type:$matrix, LLVM_Type:$data, LLVM_Type:$stride,
+                 I32Attr:$rows, I32Attr:$columns)> {
+  string llvmBuilder = [{
+    llvm::MatrixBuilder<decltype(builder)> mb(builder);
+    mb.CreateMatrixColumnwiseStore(
+      $matrix, $data, $stride, $rows.getZExtValue(), $columns.getZExtValue());
+  }];
+  let assemblyFormat = "$matrix `,` $data `,` `<` `stride` `=` $stride `>` "
+    "attr-dict`:` type($matrix) `to` type($data) `stride` type($stride)";
+}
+
+/// Create a llvm.matrix.multiply call, multiplying 2-D matrices LHS and RHS, as
+/// specified in the LLVM MatrixBuilder.
+def LLVM_MatrixMultiplyOp
+    : LLVM_OneResultOp<"intr.matrix.multiply">,
+      Arguments<(
+        ins LLVM_Type:$lhs, LLVM_Type:$rhs,
+            I32Attr:$lhs_rows, I32Attr:$lhs_columns, I32Attr:$rhs_columns)> {
+  string llvmBuilder = [{
+    llvm::MatrixBuilder<decltype(builder)> mb(builder);
+    $res = mb.CreateMatrixMultiply(
+      $lhs, $rhs, $lhs_rows.getZExtValue(), $lhs_columns.getZExtValue(),
+      $rhs_columns.getZExtValue());
+  }];
+  let assemblyFormat = "$lhs `,` $rhs attr-dict "
+    "`:` `(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
+/// Create a llvm.matrix.transpose call, transposing a `rows` x `columns` 2-D
+/// `matrix`, as specified in the LLVM MatrixBuilder.
+def LLVM_MatrixTranposeOp
+    : LLVM_OneResultOp<"intr.matrix.transpose">,
+      Arguments<(ins LLVM_Type:$matrix, I32Attr:$rows, I32Attr:$columns)> {
+  string llvmBuilder = [{
+    llvm::MatrixBuilder<decltype(builder)> mb(builder);
+    $res = mb.CreateMatrixTranspose(
+      $matrix, $rows.getZExtValue(), $columns.getZExtValue());
+  }];
+  let assemblyFormat = "$matrix attr-dict `:` type($matrix) `into` type($res)";
+}
 
 //
 // Atomic operations.

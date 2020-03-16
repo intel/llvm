@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -fsycl-is-device %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 const int glob1 = 1;
 int glob2 = 2;
 template <typename name, typename Func>

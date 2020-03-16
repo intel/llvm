@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -Wno-return-type -fsycl-is-device -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 //CHECK: FunctionDecl{{.*}}check_ast
 void check_ast()

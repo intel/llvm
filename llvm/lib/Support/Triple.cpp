@@ -14,6 +14,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/TargetParser.h"
+#include <cassert>
 #include <cstring>
 using namespace llvm;
 
@@ -750,9 +751,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 
   case Triple::ppc64:
   case Triple::ppc:
-    if (T.isOSDarwin())
-      return Triple::MachO;
-    else if (T.isOSAIX())
+    if (T.isOSAIX())
       return Triple::XCOFF;
     return Triple::ELF;
 

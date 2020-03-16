@@ -13,17 +13,20 @@
 #ifndef STANDARD_OPS
 #define STANDARD_OPS
 
-include "mlir/Analysis/CallInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/SideEffects.td"
 
-def Std_Dialect : Dialect {
+def StandardOps_Dialect : Dialect {
   let name = "std";
   let cppNamespace = "";
+  let hasConstantMaterializer = 1;
 }
 
 // Base class for Standard dialect ops.
 class Std_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<Std_Dialect, mnemonic, traits> {
+    Op<StandardOps_Dialect, mnemonic, traits> {
   // For every standard op, there needs to be a:
   //   * void print(OpAsmPrinter &p, ${C++ class of Op} op)
   //   * LogicalResult verify(${C++ class of Op} op)
@@ -61,7 +64,7 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
 // Base class for unary ops. Requires single operand and result. Individual
 // classes will have `operand` accessor.
 class UnaryOp<string mnemonic, list<OpTrait> traits = []> :
-    Op<Std_Dialect, mnemonic, !listconcat(traits, [NoSideEffect])> {
+    Op<StandardOps_Dialect, mnemonic, !listconcat(traits, [NoSideEffect])> {
   let results = (outs AnyType);
   let printer = [{
     return printStandardUnaryOp(this->getOperation(), p);
@@ -84,7 +87,7 @@ class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
 // results to be of the same type, but does not constrain them to specific
 // types.  Individual classes will have `lhs` and `rhs` accessor to operands.
 class ArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
-    Op<Std_Dialect, mnemonic,
+    Op<StandardOps_Dialect, mnemonic,
        !listconcat(traits, [NoSideEffect, SameOperandsAndResultType])> {
 
   let results = (outs AnyType);
@@ -121,6 +124,10 @@ class FloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
     ArithmeticOp<mnemonic, traits>,
     Arguments<(ins FloatLike:$lhs, FloatLike:$rhs)>;
 
+//===----------------------------------------------------------------------===//
+// AbsFOp
+//===----------------------------------------------------------------------===//
+
 def AbsFOp : FloatUnaryOp<"absf"> {
   let summary = "floating point absolute-value operation";
   let description = [{
@@ -131,15 +138,27 @@ def AbsFOp : FloatUnaryOp<"absf"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// AddFOp
+//===----------------------------------------------------------------------===//
+
 def AddFOp : FloatArithmeticOp<"addf"> {
   let summary = "floating point addition operation";
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// AddIOp
+//===----------------------------------------------------------------------===//
+
 def AddIOp : IntArithmeticOp<"addi", [Commutative]> {
   let summary = "integer addition operation";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// AllocOp
+//===----------------------------------------------------------------------===//
 
 def AllocOp : Std_Op<"alloc"> {
   let summary = "memory allocation operation";
@@ -213,10 +232,40 @@ def AllocOp : Std_Op<"alloc"> {
   let hasCanonicalizer = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// AndOp
+//===----------------------------------------------------------------------===//
+
 def AndOp : IntArithmeticOp<"and", [Commutative]> {
   let summary = "integer binary and";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// AssumeAlignmentOp
+//===----------------------------------------------------------------------===//
+
+def AssumeAlignmentOp : Std_Op<"assume_alignment"> {
+  let summary =
+      "assertion that gives alignment information to the input memref";
+  let description = [{
+    The assume alignment operation takes a memref and a integer of alignment
+    value, and internally annotates the buffer with the given alignment. If
+    the buffer isn't aligned to the given alignment, the behavior is undefined.
+
+    This operation doesn't affect the semantics of a correct program. It's for
+    optimization only, and the optimization is best-effort.
+  }];
+  let arguments = (ins AnyMemRef:$memref,
+                       Confined<I32Attr, [IntPositive]>:$alignment);
+  let results = (outs);
+
+  let assemblyFormat = "$memref `,` $alignment attr-dict `:` type($memref)";
+}
+
+//===----------------------------------------------------------------------===//
+// AtomicRMWOp
+//===----------------------------------------------------------------------===//
 
 def ATOMIC_RMW_KIND_ADDF    : I64EnumAttrCase<"addf", 0>;
 def ATOMIC_RMW_KIND_ADDI    : I64EnumAttrCase<"addi", 1>;
@@ -281,7 +330,12 @@ def AtomicRMWOp : Std_Op<"atomic_rmw", [
   }];
 }
 
-def BranchOp : Std_Op<"br", [Terminator]> {
+//===----------------------------------------------------------------------===//
+// BranchOp
+//===----------------------------------------------------------------------===//
+
+def BranchOp : Std_Op<"br",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, NoSideEffect, Terminator]> {
   let summary = "branch operation";
   let description = [{
     The "br" operation represents a branch operation in a function.
@@ -295,10 +349,13 @@ def BranchOp : Std_Op<"br", [Terminator]> {
       ^bb3(%3: tensor<*xf32>):
   }];
 
+  let arguments = (ins Variadic<AnyType>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
 
-  let builders = [OpBuilder<"Builder *, OperationState &result, Block *dest", [{
-    result.addSuccessor(dest, llvm::None);
+  let builders = [OpBuilder<"Builder *, OperationState &result, Block *dest, "
+                            "ValueRange destOperands = {}", [{
+    result.addSuccessors(dest);
+    result.addOperands(destOperands);
   }]>];
 
   // BranchOp is fully verified by traits.
@@ -313,8 +370,14 @@ def BranchOp : Std_Op<"br", [Terminator]> {
   }];
 
   let hasCanonicalizer = 1;
-  let assemblyFormat = "$dest attr-dict";
+  let assemblyFormat = [{
+    $dest (`(` $destOperands^ `:` type($destOperands) `)`)? attr-dict
+  }];
 }
+
+//===----------------------------------------------------------------------===//
+// CallOp
+//===----------------------------------------------------------------------===//
 
 def CallOp : Std_Op<"call", [CallOpInterface]> {
   let summary = "call operation";
@@ -372,6 +435,10 @@ def CallOp : Std_Op<"call", [CallOpInterface]> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// CallIndirectOp
+//===----------------------------------------------------------------------===//
+
 def CallIndirectOp : Std_Op<"call_indirect", [
       CallOpInterface,
       TypesMatchWith<"callee input types match argument types",
@@ -423,6 +490,10 @@ def CallIndirectOp : Std_Op<"call_indirect", [
   let assemblyFormat = "$callee `(` $operands `)` attr-dict `:` type($callee)";
 }
 
+//===----------------------------------------------------------------------===//
+// CeilFOp
+//===----------------------------------------------------------------------===//
+
 def CeilFOp : FloatUnaryOp<"ceilf"> {
   let summary = "ceiling of the specified value";
   let description = [{
@@ -431,6 +502,38 @@ def CeilFOp : FloatUnaryOp<"ceilf"> {
     scalar type, a vector whose element type is float, or a tensor of floats.
     It has no standard attributes.
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// CmpFOp
+//===----------------------------------------------------------------------===//
+
+// The predicate indicates the type of the comparison to perform:
+// (un)orderedness, (in)equality and less/greater than (or equal to) as
+// well as predicates that are always true or false.
+def CMPF_P_FALSE   : I64EnumAttrCase<"AlwaysFalse", 0, "false">;
+def CMPF_P_OEQ     : I64EnumAttrCase<"OEQ", 1, "oeq">;
+def CMPF_P_OGT     : I64EnumAttrCase<"OGT", 2, "ogt">;
+def CMPF_P_OGE     : I64EnumAttrCase<"OGE", 3, "oge">;
+def CMPF_P_OLT     : I64EnumAttrCase<"OLT", 4, "olt">;
+def CMPF_P_OLE     : I64EnumAttrCase<"OLE", 5, "ole">;
+def CMPF_P_ONE     : I64EnumAttrCase<"ONE", 6, "one">;
+def CMPF_P_ORD     : I64EnumAttrCase<"ORD", 7, "ord">;
+def CMPF_P_UEQ     : I64EnumAttrCase<"UEQ", 8, "ueq">;
+def CMPF_P_UGT     : I64EnumAttrCase<"UGT", 9, "ugt">;
+def CMPF_P_UGE     : I64EnumAttrCase<"UGE", 10, "uge">;
+def CMPF_P_ULT     : I64EnumAttrCase<"ULT", 11, "ult">;
+def CMPF_P_ULE     : I64EnumAttrCase<"ULE", 12, "ule">;
+def CMPF_P_UNE     : I64EnumAttrCase<"UNE", 13, "une">;
+def CMPF_P_UNO     : I64EnumAttrCase<"UNO", 14, "uno">;
+def CMPF_P_TRUE    : I64EnumAttrCase<"AlwaysTrue", 15, "true">;
+
+def CmpFPredicateAttr : I64EnumAttr<
+    "CmpFPredicate", "",
+    [CMPF_P_FALSE, CMPF_P_OEQ, CMPF_P_OGT, CMPF_P_OGE, CMPF_P_OLT, CMPF_P_OLE,
+     CMPF_P_ONE, CMPF_P_ORD, CMPF_P_UEQ, CMPF_P_UGT, CMPF_P_UGE, CMPF_P_ULT,
+     CMPF_P_ULE, CMPF_P_UNE, CMPF_P_UNO, CMPF_P_TRUE]> {
+  let cppNamespace = "::mlir";
 }
 
 def CmpFOp : Std_Op<"cmpf",
@@ -461,7 +564,11 @@ def CmpFOp : Std_Op<"cmpf",
       %r3 = "std.cmpf"(%0, %1) {predicate: 0} : (f8, f8) -> i1
   }];
 
-  let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
+  let arguments = (ins
+    CmpFPredicateAttr:$predicate,
+    FloatLike:$lhs,
+    FloatLike:$rhs
+  );
   let results = (outs BoolLike:$result);
 
   let builders = [OpBuilder<
@@ -480,8 +587,16 @@ def CmpFOp : Std_Op<"cmpf",
     }
   }];
 
+  let verifier = [{ return success(); }];
+
   let hasFolder = 1;
+
+  let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($lhs)";
 }
+
+//===----------------------------------------------------------------------===//
+// CmpIOp
+//===----------------------------------------------------------------------===//
 
 def CMPI_P_EQ  : I64EnumAttrCase<"eq", 0>;
 def CMPI_P_NE  : I64EnumAttrCase<"ne", 1>;
@@ -558,7 +673,13 @@ def CmpIOp : Std_Op<"cmpi",
   let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($lhs)";
 }
 
-def CondBranchOp : Std_Op<"cond_br", [Terminator]> {
+//===----------------------------------------------------------------------===//
+// CondBranchOp
+//===----------------------------------------------------------------------===//
+
+def CondBranchOp : Std_Op<"cond_br",
+    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+     NoSideEffect, Terminator]> {
   let summary = "conditional branch operation";
   let description = [{
     The "cond_br" operation represents a conditional branch operation in a
@@ -575,8 +696,23 @@ def CondBranchOp : Std_Op<"cond_br", [Terminator]> {
          ...
   }];
 
-  let arguments = (ins I1:$condition);
+  let arguments = (ins I1:$condition,
+                       Variadic<AnyType>:$trueDestOperands,
+                       Variadic<AnyType>:$falseDestOperands);
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
+
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value condition,"
+    "Block *trueDest, ValueRange trueOperands,"
+    "Block *falseDest, ValueRange falseOperands", [{
+      build(builder, result, condition, trueOperands, falseOperands, trueDest,
+            falseDest);
+  }]>, OpBuilder<
+    "Builder *builder, OperationState &result, Value condition,"
+    "Block *trueDest, Block *falseDest, ValueRange falseOperands = {}", [{
+      build(builder, result, condition, trueDest, ValueRange(), falseDest,
+            falseOperands);
+  }]>];
 
   // CondBranchOp is fully verified by traits.
   let verifier = ?;
@@ -609,23 +745,13 @@ def CondBranchOp : Std_Op<"cond_br", [Terminator]> {
       setOperand(getTrueDestOperandIndex() + idx, value);
     }
 
-    operand_iterator true_operand_begin() {
-      return operand_begin() + getTrueDestOperandIndex();
-    }
-    operand_iterator true_operand_end() {
-      return true_operand_begin() + getNumTrueOperands();
-    }
-    operand_range getTrueOperands() {
-      return {true_operand_begin(), true_operand_end()};
-    }
+    operand_range getTrueOperands() { return trueDestOperands(); }
 
-    unsigned getNumTrueOperands()  {
-      return getNumSuccessorOperands(trueIndex);
-    }
+    unsigned getNumTrueOperands()  { return getTrueOperands().size(); }
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      getOperation()->eraseSuccessorOperand(trueIndex, index);
+      eraseSuccessorOperand(trueIndex, index);
     }
 
     // Accessors for operands to the 'false' destination.
@@ -638,21 +764,13 @@ def CondBranchOp : Std_Op<"cond_br", [Terminator]> {
       setOperand(getFalseDestOperandIndex() + idx, value);
     }
 
-    operand_iterator false_operand_begin() { return true_operand_end(); }
-    operand_iterator false_operand_end() {
-      return false_operand_begin() + getNumFalseOperands();
-    }
-    operand_range getFalseOperands() {
-      return {false_operand_begin(), false_operand_end()};
-    }
+    operand_range getFalseOperands() { return falseDestOperands(); }
 
-    unsigned getNumFalseOperands() {
-      return getNumSuccessorOperands(falseIndex);
-    }
+    unsigned getNumFalseOperands() { return getFalseOperands().size(); }
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      getOperation()->eraseSuccessorOperand(falseIndex, index);
+      eraseSuccessorOperand(falseIndex, index);
     }
 
   private:
@@ -666,11 +784,20 @@ def CondBranchOp : Std_Op<"cond_br", [Terminator]> {
   }];
 
   let hasCanonicalizer = 1;
-  let assemblyFormat = "$condition `,` successors attr-dict";
+  let assemblyFormat = [{
+    $condition `,`
+    $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
+    $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
+    attr-dict
+  }];
 }
 
+//===----------------------------------------------------------------------===//
+// ConstantOp
+//===----------------------------------------------------------------------===//
+
 def ConstantOp : Std_Op<"constant",
-    [NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "constant";
 
   let arguments = (ins AnyAttr:$value);
@@ -691,6 +818,10 @@ def ConstantOp : Std_Op<"constant",
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// CopySignOp
+//===----------------------------------------------------------------------===//
+
 def CopySignOp : FloatArithmeticOp<"copysign"> {
   let summary = "A copysign operation";
   let description = [{
@@ -702,6 +833,10 @@ def CopySignOp : FloatArithmeticOp<"copysign"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// CosOp
+//===----------------------------------------------------------------------===//
+
 def CosOp : FloatUnaryOp<"cos"> {
   let summary = "cosine of the specified value";
   let description = [{
@@ -711,6 +846,10 @@ def CosOp : FloatUnaryOp<"cos"> {
     It has no standard attributes.
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// DeallocOp
+//===----------------------------------------------------------------------===//
 
 def DeallocOp : Std_Op<"dealloc"> {
   let summary = "memory deallocation operation";
@@ -731,6 +870,10 @@ def DeallocOp : Std_Op<"dealloc"> {
   let hasFolder = 1;
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
+
+//===----------------------------------------------------------------------===//
+// DimOp
+//===----------------------------------------------------------------------===//
 
 def DimOp : Std_Op<"dim", [NoSideEffect]> {
   let summary = "dimension index operation";
@@ -764,23 +907,25 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// DivFOp
+//===----------------------------------------------------------------------===//
+
 def DivFOp : FloatArithmeticOp<"divf"> {
   let summary = "floating point division operation";
 }
 
-def SignedDivIOp : IntArithmeticOp<"divi_signed"> {
-  let summary = "signed integer division operation";
-  let hasFolder = 1;
-}
-
-def UnsignedDivIOp : IntArithmeticOp<"divi_unsigned"> {
-  let summary = "unsigned integer division operation";
-  let hasFolder = 1;
-}
+//===----------------------------------------------------------------------===//
+// ExpOp
+//===----------------------------------------------------------------------===//
 
 def ExpOp : FloatUnaryOp<"exp"> {
   let summary = "base-e exponential of the specified value";
 }
+
+//===----------------------------------------------------------------------===//
+// ExtractElementOp
+//===----------------------------------------------------------------------===//
 
 def ExtractElementOp : Std_Op<"extract_element",
     [NoSideEffect,
@@ -826,22 +971,9 @@ def ExtractElementOp : Std_Op<"extract_element",
   }];
 }
 
-def IndexCastOp : CastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
-  let summary = "cast between index and integer types";
-  let description = [{
-    Casts between integer scalars and 'index' scalars.  Index is an integer of
-    platform-specific bit width.  If casting to a wider integer, the value is
-    sign-extended.  If casting to a narrower integer, the value is truncated.
-  }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 1;
-}
+//===----------------------------------------------------------------------===//
+// FPExtOp
+//===----------------------------------------------------------------------===//
 
 def FPExtOp : CastOp<"fpext">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point to wider floating-point";
@@ -859,6 +991,10 @@ def FPExtOp : CastOp<"fpext">, Arguments<(ins AnyType:$in)> {
 
   let hasFolder = 0;
 }
+
+//===----------------------------------------------------------------------===//
+// FPTruncOp
+//===----------------------------------------------------------------------===//
 
 def FPTruncOp : CastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point to narrower floating-point";
@@ -878,6 +1014,31 @@ def FPTruncOp : CastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
   let hasFolder = 0;
 }
 
+//===----------------------------------------------------------------------===//
+// IndexCastOp
+//===----------------------------------------------------------------------===//
+
+def IndexCastOp : CastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
+  let summary = "cast between index and integer types";
+  let description = [{
+    Casts between integer scalars and 'index' scalars.  Index is an integer of
+    platform-specific bit width.  If casting to a wider integer, the value is
+    sign-extended.  If casting to a narrower integer, the value is truncated.
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return true if `a` and `b` are valid operand and result pairs for
+    /// the operation.
+    static bool areCastCompatible(Type a, Type b);
+  }];
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// LoadOp
+//===----------------------------------------------------------------------===//
+
 def LoadOp : Std_Op<"load",
      [TypesMatchWith<"result type matches element type of 'memref'",
                      "memref", "result",
@@ -893,7 +1054,9 @@ def LoadOp : Std_Op<"load",
       %3 = load %0[%1, %1] : memref<4x4xi32>
   }];
 
-  let arguments = (ins AnyMemRef:$memref, Variadic<Index>:$indices);
+  let arguments = (ins Arg<AnyMemRef, "the reference to load from",
+                           [MemRead]>:$memref,
+                       Variadic<Index>:$indices);
   let results = (outs AnyType:$result);
 
   let builders = [OpBuilder<
@@ -920,6 +1083,10 @@ def LoadOp : Std_Op<"load",
   let assemblyFormat = "$memref `[` $indices `]` attr-dict `:` type($memref)";
 }
 
+//===----------------------------------------------------------------------===//
+// LogOp
+//===----------------------------------------------------------------------===//
+
 def LogOp : FloatUnaryOp<"log"> {
   let summary = "base-e logarithm of the specified value";
 }
@@ -931,6 +1098,10 @@ def Log10Op : FloatUnaryOp<"log10"> {
 def Log2Op : FloatUnaryOp<"log2"> {
   let summary = "base-2 logarithm of the specified value";
 }
+
+//===----------------------------------------------------------------------===//
+// MemRefCastOp
+//===----------------------------------------------------------------------===//
 
 def MemRefCastOp : CastOp<"memref_cast"> {
   let summary = "memref cast operation";
@@ -986,15 +1157,27 @@ def MemRefCastOp : CastOp<"memref_cast"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// MulFOp
+//===----------------------------------------------------------------------===//
+
 def MulFOp : FloatArithmeticOp<"mulf"> {
   let summary = "floating point multiplication operation";
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// MulIOp
+//===----------------------------------------------------------------------===//
+
 def MulIOp : IntArithmeticOp<"muli", [Commutative]> {
   let summary = "integer multiplication operation";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// NegFOp
+//===----------------------------------------------------------------------===//
 
 def NegFOp : FloatUnaryOp<"negf"> {
   let summary = "floating point negation";
@@ -1006,10 +1189,18 @@ def NegFOp : FloatUnaryOp<"negf"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// OrOp
+//===----------------------------------------------------------------------===//
+
 def OrOp : IntArithmeticOp<"or", [Commutative]> {
   let summary = "integer binary or";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// PrefetchOp
+//===----------------------------------------------------------------------===//
 
 def PrefetchOp : Std_Op<"prefetch"> {
   let summary = "prefetch operation";
@@ -1060,6 +1251,10 @@ def PrefetchOp : Std_Op<"prefetch"> {
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
 def RankOp : Std_Op<"rank", [NoSideEffect]> {
   let summary = "rank operation";
   let description = [{
@@ -1082,21 +1277,20 @@ def RankOp : Std_Op<"rank", [NoSideEffect]> {
   let assemblyFormat = "operands attr-dict `:` type(operands)";
 }
 
+//===----------------------------------------------------------------------===//
+// RemFOp
+//===----------------------------------------------------------------------===//
+
 def RemFOp : FloatArithmeticOp<"remf"> {
   let summary = "floating point division remainder operation";
 }
 
-def SignedRemIOp : IntArithmeticOp<"remi_signed"> {
-  let summary = "signed integer division remainder operation";
-  let hasFolder = 1;
-}
+//===----------------------------------------------------------------------===//
+// ReturnOp
+//===----------------------------------------------------------------------===//
 
-def UnsignedRemIOp : IntArithmeticOp<"remi_unsigned"> {
-  let summary = "unsigned integer division remainder operation";
-  let hasFolder = 1;
-}
-
-def ReturnOp : Std_Op<"return", [Terminator, HasParent<"FuncOp">]> {
+def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+                                 Terminator]> {
   let summary = "return operation";
   let description = [{
     The "return" operation represents a return operation within a function.
@@ -1117,6 +1311,24 @@ def ReturnOp : Std_Op<"return", [Terminator, HasParent<"FuncOp">]> {
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
+
+//===----------------------------------------------------------------------===//
+// RsqrtOp
+//===----------------------------------------------------------------------===//
+
+def RsqrtOp : FloatUnaryOp<"rsqrt"> {
+  let summary = "reciprocal of sqrt (1 / sqrt of the specified value)";
+  let description = [{
+    The `rsqrt` operation computes the reciprocal of the square root. It takes
+    one operand and returns one result of the same type. This type may be a
+    float scalar type, a vector whose element type is float, or a tensor of
+    floats. It has no standard attributes.
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// SelectOp
+//===----------------------------------------------------------------------===//
 
 def SelectOp : Std_Op<"select", [NoSideEffect, SameOperandsAndResultShape,
      AllTypesMatch<["true_value", "false_value", "result"]>,
@@ -1163,6 +1375,64 @@ def SelectOp : Std_Op<"select", [NoSideEffect, SameOperandsAndResultShape,
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// ShiftLeftOp
+//===----------------------------------------------------------------------===//
+
+def ShiftLeftOp : IntArithmeticOp<"shift_left"> {
+  let summary = "integer left-shift";
+  let description = [{
+    The shift_left operation shifts an integer value to the left by a variable
+    amount. The low order bits are filled with zeros.
+
+      %1 = constant 5 : i8                       // %1 is 0b00000101
+      %2 = constant 3 : i8
+      %3 = shift_left %1, %2 : (i8, i8) -> i8    // %3 is 0b00101000
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// SignedDivIOp
+//===----------------------------------------------------------------------===//
+
+def SignedDivIOp : IntArithmeticOp<"divi_signed"> {
+  let summary = "signed integer division operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SignedRemIOp
+//===----------------------------------------------------------------------===//
+
+def SignedRemIOp : IntArithmeticOp<"remi_signed"> {
+  let summary = "signed integer division remainder operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SignedShiftRightOp
+//===----------------------------------------------------------------------===//
+
+def SignedShiftRightOp : IntArithmeticOp<"shift_right_signed"> {
+  let summary = "signed integer right-shift";
+  let description = [{
+    The shift_right_signed operation shifts an integer value to the right by
+    a variable amount. The integer is interpreted as signed. The high order
+    bits in the output are filled with copies of the most-significant bit
+    of the shifted value (which means that the sign of the value is preserved).
+
+      %1 = constant 160 : i8                             // %1 is 0b10100000
+      %2 = constant 3 : i8
+      %3 = shift_right_signed %1, %2 : (i8, i8) -> i8    // %3 is 0b11110100
+      %4 = constant 96 : i8                              // %4 is 0b01100000
+      %5 = shift_right_signed %4, %2 : (i8, i8) -> i8    // %5 is 0b00001100
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// SignExtendIOp
+//===----------------------------------------------------------------------===//
+
 def SignExtendIOp : Std_Op<"sexti",
     [NoSideEffect, SameOperandsAndResultShape]> {
   let summary = "integer sign extension operation";
@@ -1198,46 +1468,9 @@ def SignExtendIOp : Std_Op<"sexti",
   }];
 }
 
-def ShiftLeftOp : IntArithmeticOp<"shift_left"> {
-  let summary = "integer left-shift";
-  let description = [{
-    The shift_left operation shifts an integer value to the left by a variable
-    amount. The low order bits are filled with zeros.
-
-      %1 = constant 5 : i8                       // %1 is 0b00000101
-      %2 = constant 3 : i8
-      %3 = shift_left %1, %2 : (i8, i8) -> i8    // %3 is 0b00101000
-  }];
-}
-
-def SignedShiftRightOp : IntArithmeticOp<"shift_right_signed"> {
-  let summary = "signed integer right-shift";
-  let description = [{
-    The shift_right_signed operation shifts an integer value to the right by
-    a variable amount. The integer is interpreted as signed. The high order
-    bits in the output are filled with copies of the most-significant bit
-    of the shifted value (which means that the sign of the value is preserved).
-
-      %1 = constant 160 : i8                             // %1 is 0b10100000
-      %2 = constant 3 : i8
-      %3 = shift_right_signed %1, %2 : (i8, i8) -> i8    // %3 is 0b11110100
-      %4 = constant 96 : i8                              // %4 is 0b01100000
-      %5 = shift_right_signed %4, %2 : (i8, i8) -> i8    // %5 is 0b00001100
-  }];
-}
-
-def UnsignedShiftRightOp : IntArithmeticOp<"shift_right_unsigned"> {
-  let summary = "unsigned integer right-shift";
-  let description = [{
-    The shift_right_unsigned operation shifts an integer value to the right by
-    a variable amount. The integer is interpreted as unsigned. The high order
-    bits are always filled with zeros.
-
-      %1 = constant 160 : i8                               // %1 is 0b10100000
-      %2 = constant 3 : i8
-      %3 = shift_right_unsigned %1, %2 : (i8, i8) -> i8    // %3 is 0b00010100
-  }];
-}
+//===----------------------------------------------------------------------===//
+// SIToFPOp
+//===----------------------------------------------------------------------===//
 
 def SIToFPOp : CastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from integer type to floating-point";
@@ -1256,6 +1489,10 @@ def SIToFPOp : CastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
 
   let hasFolder = 0;
 }
+
+//===----------------------------------------------------------------------===//
+// SplatOp
+//===----------------------------------------------------------------------===//
 
 def SplatOp : Std_Op<"splat", [NoSideEffect,
      TypesMatchWith<"operand type matches element type of result",
@@ -1297,6 +1534,24 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
   let assemblyFormat = "$input attr-dict `:` type($aggregate)";
 }
 
+//===----------------------------------------------------------------------===//
+// SqrtOp
+//===----------------------------------------------------------------------===//
+
+def SqrtOp : FloatUnaryOp<"sqrt"> {
+  let summary = "sqrt of the specified value";
+  let description = [{
+    The `sqrt` operation computes the square root. It takes one operand and
+    returns one result of the same type. This type may be a float scalar type, a
+    vector whose element type is float, or a tensor of floats. It has no standard
+    attributes.
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// StoreOp
+//===----------------------------------------------------------------------===//
+
 def StoreOp : Std_Op<"store",
      [TypesMatchWith<"type of 'value' matches element type of 'memref'",
                      "memref", "value",
@@ -1313,8 +1568,10 @@ def StoreOp : Std_Op<"store",
       store %v, %A[%i, %j] : memref<4x128xf32, (d0, d1) -> (d0, d1), 0>
   }];
 
-  let arguments = (ins AnyType:$value, AnyMemRef:$memref,
-                   Variadic<Index>:$indices);
+  let arguments = (ins AnyType:$value,
+                       Arg<AnyMemRef, "the reference to store to",
+                           [MemWrite]>:$memref,
+                       Variadic<Index>:$indices);
 
   let builders = [OpBuilder<
     "Builder *, OperationState &result, Value valueToStore, Value memref", [{
@@ -1343,15 +1600,27 @@ def StoreOp : Std_Op<"store",
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// SubFOp
+//===----------------------------------------------------------------------===//
+
 def SubFOp : FloatArithmeticOp<"subf"> {
   let summary = "floating point subtraction operation";
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// SubIOp
+//===----------------------------------------------------------------------===//
+
 def SubIOp : IntArithmeticOp<"subi"> {
   let summary = "integer subtraction operation";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// SubViewOp
+//===----------------------------------------------------------------------===//
 
 def SubViewOp : Std_Op<"subview", [AttrSizedOperandSegments, NoSideEffect]> {
   let summary = "memref subview operation";
@@ -1459,16 +1728,18 @@ def SubViewOp : Std_Op<"subview", [AttrSizedOperandSegments, NoSideEffect]> {
     }
   }];
 
-  // TODO(b/144779634, ravishankarm) : Use different arguments for
-  // offsets, sizes and strides.
   let arguments = (ins
     AnyMemRef:$source,
     Variadic<Index>:$offsets,
     Variadic<Index>:$sizes,
-    Variadic<Index>:$strides,
-    I32ElementsAttr:$operand_segment_sizes
+    Variadic<Index>:$strides
   );
-  let results = (outs AnyMemRef);
+  let results = (outs AnyMemRef:$result);
+
+  let assemblyFormat = [{
+    $source `[` $offsets `]` `[` $sizes `]` `[` $strides `]` attr-dict `:`
+    type($source) `to` type($result)
+  }];
 
   let builders = [
     OpBuilder<
@@ -1519,15 +1790,9 @@ def SubViewOp : Std_Op<"subview", [AttrSizedOperandSegments, NoSideEffect]> {
   let hasCanonicalizer = 1;
 }
 
-def SqrtOp : FloatUnaryOp<"sqrt"> {
-  let summary = "sqrt of the specified value";
-  let description = [{
-    The `sqrt` operation computes the square root. It takes one operand and
-    returns one result of the same type. This type may be a float scalar type, a
-    vector whose element type is float, or a tensor of floats. It has no standard
-    attributes.
-  }];
-}
+//===----------------------------------------------------------------------===//
+// TanhOp
+//===----------------------------------------------------------------------===//
 
 def TanhOp : FloatUnaryOp<"tanh"> {
   let summary = "hyperbolic tangent of the specified value";
@@ -1538,6 +1803,10 @@ def TanhOp : FloatUnaryOp<"tanh"> {
     no standard attributes.
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// TensorCastOp
+//===----------------------------------------------------------------------===//
 
 def TensorCastOp : CastOp<"tensor_cast"> {
   let summary = "tensor cast operation";
@@ -1565,6 +1834,10 @@ def TensorCastOp : CastOp<"tensor_cast"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// TensorLoadOp
+//===----------------------------------------------------------------------===//
+
 def TensorLoadOp : Std_Op<"tensor_load",
     [SameOperandsAndResultShape, SameOperandsAndResultElementType,
      TypesMatchWith<"result type matches tensor equivalent of 'memref'",
@@ -1580,7 +1853,8 @@ def TensorLoadOp : Std_Op<"tensor_load",
        %12 = tensor_load %10 : memref<4x?xf32, #layout, memspace0>
   }];
 
-  let arguments = (ins AnyMemRef:$memref);
+  let arguments = (ins Arg<AnyMemRef, "the reference to load from",
+                           [MemRead]>:$memref);
   let results = (outs AnyTensor:$result);
   // TensorLoadOp is fully verified by traits.
   let verifier = ?;
@@ -1602,6 +1876,10 @@ def TensorLoadOp : Std_Op<"tensor_load",
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
+//===----------------------------------------------------------------------===//
+// TensorStoreOp
+//===----------------------------------------------------------------------===//
+
 def TensorStoreOp : Std_Op<"tensor_store",
     [SameOperandsShape, SameOperandsElementType,
      TypesMatchWith<"type of 'value' matches tensor equivalent of 'memref'",
@@ -1620,12 +1898,18 @@ def TensorStoreOp : Std_Op<"tensor_store",
        tensor_store %8, %10 : memref<4x?xf32, #layout, memspace0>
   }];
 
-  let arguments = (ins AnyTensor:$tensor, AnyMemRef:$memref);
+  let arguments = (ins AnyTensor:$tensor,
+                       Arg<AnyMemRef, "the reference to store to",
+                           [MemWrite]>:$memref);
   // TensorStoreOp is fully verified by traits.
   let verifier = ?;
 
   let assemblyFormat = "$tensor `,` $memref attr-dict `:` type($memref)";
 }
+
+//===----------------------------------------------------------------------===//
+// TruncateIOp
+//===----------------------------------------------------------------------===//
 
 def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
   let summary = "integer truncation operation";
@@ -1658,6 +1942,45 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
     return printStandardCastOp(this->getOperation(), p);
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// UnsignedDivIOp
+//===----------------------------------------------------------------------===//
+
+def UnsignedDivIOp : IntArithmeticOp<"divi_unsigned"> {
+  let summary = "unsigned integer division operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// UnsignedRemIOp
+//===----------------------------------------------------------------------===//
+
+def UnsignedRemIOp : IntArithmeticOp<"remi_unsigned"> {
+  let summary = "unsigned integer division remainder operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// UnsignedShiftRightOp
+//===----------------------------------------------------------------------===//
+
+def UnsignedShiftRightOp : IntArithmeticOp<"shift_right_unsigned"> {
+  let summary = "unsigned integer right-shift";
+  let description = [{
+    The shift_right_unsigned operation shifts an integer value to the right by
+    a variable amount. The integer is interpreted as unsigned. The high order
+    bits are always filled with zeros.
+
+      %1 = constant 160 : i8                               // %1 is 0b10100000
+      %2 = constant 3 : i8
+      %3 = shift_right_unsigned %1, %2 : (i8, i8) -> i8    // %3 is 0b00010100
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// ViewOp
+//===----------------------------------------------------------------------===//
 
 def ViewOp : Std_Op<"view", [NoSideEffect]> {
   let summary = "memref view operation";
@@ -1721,10 +2044,18 @@ def ViewOp : Std_Op<"view", [NoSideEffect]> {
   let hasCanonicalizer = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// XOrOp
+//===----------------------------------------------------------------------===//
+
 def XOrOp : IntArithmeticOp<"xor", [Commutative]> {
   let summary = "integer binary xor";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// ZeroExtendIOp
+//===----------------------------------------------------------------------===//
 
 def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, SameOperandsAndResultShape]> {
   let summary = "integer zero extension operation";
@@ -1757,23 +2088,6 @@ def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, SameOperandsAndResultShape]> 
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
-}
-
-def AssumeAlignmentOp : Std_Op<"assume_alignment"> {
-  let summary =
-      "assertion that gives alignment information to the input memref";
-  let description = [{
-    The assume alignment operation takes a memref and a integer of alignment
-    value, and internally annotates the buffer with the given alignment. If
-    the buffer isn't aligned to the given alignment, the behavior is undefined.
-
-    This operation doesn't affect the semantics of a correct program. It's for
-    optimization only, and the optimization is best-effort.
-  }];
-  let arguments = (ins AnyMemRef:$memref, PositiveI32Attr:$alignment);
-  let results = (outs);
-
-  let assemblyFormat = "$memref `,` $alignment attr-dict `:` type($memref)";
 }
 
 #endif // STANDARD_OPS

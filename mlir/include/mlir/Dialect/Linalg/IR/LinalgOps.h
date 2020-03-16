@@ -22,6 +22,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Interfaces/SideEffects.h"
 #include "mlir/Support/LLVM.h"
 
 namespace mlir {
@@ -61,7 +62,7 @@ SmallVector<AffineExpr, 4> makeAffineDimExprs(unsigned num, unsigned &startIdx,
 
 /// Builds the indexing expressions for a ConvOp `op`. Returns the vector of
 /// AffineMaps representing:
-///   `stride[i] * xs[i] + dilation[i] * zs[i]`
+///   `stride[i] * xs[i] + dilation[i] * zs[i] - pad_low[i]`
 SmallVector<AffineExpr, 4> weightedConvInputIndex(ConvOp op,
                                                   ArrayRef<AffineExpr> xs,
                                                   ArrayRef<AffineExpr> zs);

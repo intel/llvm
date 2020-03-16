@@ -15,11 +15,15 @@
 
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/IR/Function.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/SideEffects.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 class OpBuilder;
 
 namespace spirv {
+class VerCapExtAttr;
 
 // TableGen'erated operation interfaces for querying versions, extensions, and
 // capabilities.

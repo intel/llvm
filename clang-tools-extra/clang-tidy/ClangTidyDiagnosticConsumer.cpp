@@ -26,6 +26,7 @@
 #include "clang/Tooling/Core/Diagnostic.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Regex.h"
 #include <tuple>
 #include <vector>
 using namespace clang;
@@ -62,6 +63,9 @@ protected:
     }
     assert(Error.Message.Message.empty() && "Overwriting a diagnostic message");
     Error.Message = TidyMessage;
+    for (const CharSourceRange &SourceRange : Ranges) {
+      Error.Ranges.emplace_back(Loc.getManager(), SourceRange);
+    }
   }
 
   void emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,

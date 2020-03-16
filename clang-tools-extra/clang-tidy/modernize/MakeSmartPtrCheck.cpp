@@ -54,7 +54,7 @@ MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name,
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void MakeSmartPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle);
+  Options.store(Opts, "IncludeStyle", utils::IncludeSorter::toString(IncludeStyle));
   Options.store(Opts, "MakeSmartPtrFunctionHeader", MakeSmartPtrFunctionHeader);
   Options.store(Opts, "MakeSmartPtrFunction", MakeSmartPtrFunctionName);
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
@@ -429,11 +429,9 @@ void MakeSmartPtrCheck::insertHeader(DiagnosticBuilder &Diag, FileID FD) {
   if (MakeSmartPtrFunctionHeader.empty()) {
     return;
   }
-  if (auto IncludeFixit = Inserter->CreateIncludeInsertion(
-          FD, MakeSmartPtrFunctionHeader,
-          /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader)) {
-    Diag << *IncludeFixit;
-  }
+  Diag << Inserter->CreateIncludeInsertion(
+      FD, MakeSmartPtrFunctionHeader,
+      /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader);
 }
 
 } // namespace modernize
