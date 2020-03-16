@@ -874,10 +874,15 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
+    AttributeList Attr;
+    Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
+                             Attribute::Convergent);
+
 #define CREATE_CALLEE(NAME, FN_NAME)                                           \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
+  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, Attr, RetTy); \
   assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
-  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
+  auto NAME = Bld.CreateCall(FnCallee##NAME, {});                              \
+  NAME->addAttribute(AttributeList::FunctionIndex, Attribute::Convergent);
 
     CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
     CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
@@ -937,8 +942,11 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Type *SemanticsTy = Type::getInt32Ty(Ctx);
   Type *RetTy = Type::getVoidTy(Ctx);
 
+  AttributeList Attr;
+  Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
+                           Attribute::Convergent);
   FunctionCallee FC =
-      M.getOrInsertFunction(Name, RetTy, ScopeTy, ScopeTy, SemanticsTy);
+      M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
 
   IRBuilder<> Bld(Ctx);
@@ -948,5 +956,8 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   auto ArgSema = ConstantInt::get(
       ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
                    asUInt(spirv::MemorySemantics::WorkgroupMemory));
-  return Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
+  auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
+  BarrierCall->addAttribute(llvm::AttributeList::FunctionIndex,
+                            llvm::Attribute::Convergent);
+  return BarrierCall;
 }
