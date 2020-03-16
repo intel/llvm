@@ -271,7 +271,7 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   case rounding_mode::automatic:
     // Round to nearest even.
   case rounding_mode::rte: {
-    R Result = __spirv_OpConvertFToS_RScalarType_rte;
+    R Result = __spirv_ConvertFToS_Rint_rte(Value); 
     return Result;
   }
     // Round toward zero.
