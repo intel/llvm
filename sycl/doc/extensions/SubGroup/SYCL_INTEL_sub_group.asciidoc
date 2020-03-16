@@ -88,7 +88,9 @@ It is illegal for a kernel or function to call a function with a mismatched sub-
 
 === Sub-group Queries
 
-Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.
+Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
+
+Each sub-group in a work-group is one-dimensional.  If the total number of work-items in a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  If the total number of work-items in a work-group is not evenly divisible by the sub-group size, the number of work-items in the final sub-group is equal to the remainder of the total work-group size divided by the sub-group size.
 
 To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, nor that two sub-groups within a work-group will make independent forward progress with respect to one another.
 
