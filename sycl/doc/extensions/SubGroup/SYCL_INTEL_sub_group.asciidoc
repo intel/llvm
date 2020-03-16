@@ -51,7 +51,7 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+This extension is written against the SYCL 1.2.1 specification, Revision 6.
 
 == Overview
 
