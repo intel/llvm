@@ -84,7 +84,7 @@ class Functor
 }
 ----
 
-It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.
+It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.  The +reqd_sub_group_size+ attribute is not propagated from a device function to callers of the function, and must be specified explicitly when a kernel is defined.
 
 === Sub-group Queries
 
