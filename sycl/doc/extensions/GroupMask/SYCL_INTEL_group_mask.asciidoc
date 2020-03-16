@@ -175,6 +175,7 @@ The mask is defined such that the least significant bit (LSB) corresponds to the
 
 |+group_mask operator >>(size_t shift)+
 |Return a mask representing the result of shifting its bits _shift_ positions to the right.
+|===
 
 |===
 |Function|Description
