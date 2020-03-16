@@ -64,7 +64,6 @@ The first version of this document is focused on exposing sub-group functionalit
 Providing a generic group abstraction encapsulating the shared functionality of all synchronizable SYCL groups (i.e. work-groups and sub-groups) in a single interface would enable users to write more general code and simplify the introduction of additional SYCL groups in the future (e.g. device-wide synchronization groups).  Some names in this proposal are chosen to demonstrate how this may look:
 
 - The common interface members of +sub_group+ do not reference sub-groups by name, opting instead for generic names like +get_group_range()+.
-- +get_enqueued_num_sub_groups()+ is exposed as +get_uniform_group_range()+ since future generic groups may not be 'enqueued' but may still be non-uniform.
 - +sub_group+ defines a number of types and static members to simplify writing generic code.
 
 === Attributes
@@ -182,8 +181,8 @@ The member functions of the sub-group class provide a mechanism for a developer 
 |+range<1> get_group_range() const+
 |Return a SYCL +range+ representing the number of sub-groups within the work-group.
 
-|+range<1> get_uniform_group_range() const+
-|Return a SYCL +range+ representing the number of sub-groups per work-group in the uniform region of the nd-range.
+|+range<1> get_max_group_range() const+
+|Return a SYCL +range+ representing the maximum number of sub-groups per work-group within the nd-range.
 |===
 
 An example usage of the +sub_group+ class is given below:
@@ -222,7 +221,6 @@ struct sub_group {
   id_type get_group_id() const;
   linear_id_type get_group_linear_id() const;
   range_type get_group_range() const;
-  range_type get_uniform_group_range() const;
 
 };
 } // intel
