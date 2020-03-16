@@ -27,10 +27,10 @@ class A {
 };
 
 class B {
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a virtual or pure virtual class member function}}
+  [[intel::device_indirectly_callable]]
   virtual int foo() {}
 
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a virtual or pure virtual class member function}}
+  [[intel::device_indirectly_callable]]
   virtual int bar() = 0;
 };
 

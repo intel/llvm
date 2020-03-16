@@ -4428,13 +4428,7 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0 /* static function or anonymous namespace */;
-    return;
-  }
-  if (FD->isVirtualAsWritten() || FD->isPure()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* virtual or pure virtual class member function */;
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
@@ -4455,13 +4449,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0 /* static function or anonymous namespace */;
-    return;
-  }
-  if (FD->isVirtualAsWritten() || FD->isPure()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* virtual or pure virtual class member function */;
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
     return;
   }
 

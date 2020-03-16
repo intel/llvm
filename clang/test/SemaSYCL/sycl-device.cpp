@@ -24,16 +24,14 @@ class A {
   __attribute__((sycl_device))
   A() {}
 
-  __attribute__((sycl_device))
-  int func3() {}
+  __attribute__((sycl_device)) void func3() {}
 };
 
 class B {
-  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a virtual or pure virtual class member function}}
-  virtual int foo() {}
+public:
+  __attribute__((sycl_device)) virtual void foo() {}
 
-  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a virtual or pure virtual class member function}}
-  virtual int bar() = 0;
+  __attribute__((sycl_device)) virtual void bar() = 0;
 };
 
 #if defined(NOT_STRICT)
