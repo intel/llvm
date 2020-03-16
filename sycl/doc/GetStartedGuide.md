@@ -130,8 +130,8 @@ DPC++ toolchain, but replace the cmake command with the following one:
 ```
 cmake -DCMAKE_BUILD_TYPE=Release \
 -DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/llvm/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
+-DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$DPCPP_HOME/llvm/sycl \
+-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$DPCPP_HOME/llvm/llvm-spirv \
 -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
 -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc" \
 -DSYCL_BUILD_PI_CUDA=ON \
@@ -150,16 +150,16 @@ above.
 
 # Use DPC++ toolchain
 
-## Using the SYCL toolchain on CUDA platforms
+## Using the DPC++ toolchain on CUDA platforms
 
-The SYCL toolchain support on CUDA platforms is still in an experimental phase.
-Currently, the SYCL toolchain relies on having a recent OpenCL implementation
-on the system in order to link applications to the SYCL runtime.
+The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
+Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
+on the system in order to link applications to the DPC++ runtime.
 The OpenCL implementation is not used at runtime if only the CUDA backend is 
 used in the application, but must be installed.
 
 The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
-too old to link with the SYCL runtime and lacks some symbols.
+too old to link with the DPC++ runtime and lacks some symbols.
 
 We recommend installing the low level CPU runtime, following the instructions 
 in the next section.
