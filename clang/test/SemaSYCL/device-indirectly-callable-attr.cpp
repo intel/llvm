@@ -25,7 +25,7 @@ class A {
 };
 
 class B {
-  [[intel::device_indirectly_callable]] virtual int foo(){}
+  [[intel::device_indirectly_callable]] virtual int foo() {}
 
   [[intel::device_indirectly_callable]] virtual int bar() = 0;
 };
