@@ -45,15 +45,15 @@ public:
   // Data structure to hold the plugin related information, including the
   // initialization and finalization functions
   struct plugin_data_t {
-    ///< The handle of the loaded shared object
+    /// The handle of the loaded shared object
     xpti_plugin_handle_t handle = nullptr;
-    ///< The initialization entry point
+    /// The initialization entry point
     xpti::plugin_init_t init = nullptr;
-    ///< The finalization entry point
+    /// The finalization entry point
     xpti::plugin_fini_t fini = nullptr;
-    ///< The name of the shared object (in UTF8?))
+    /// The name of the shared object (in UTF8?))
     std::string name;
-    ///< indicates whether the data structure is valid
+    /// indicates whether the data structure is valid
     bool valid = false;
   };
   // Data structures defined to hold the plugin data that can be looked up by
@@ -217,13 +217,13 @@ public:
   }
 
 private:
-  ///< Hash map that maps shared object name to the plugin data
+  /// Hash map that maps shared object name to the plugin data
   plugin_name_lut_t m_name_lut;
-  ///< Hash map that maps shared object handle to the plugin data
+  /// Hash map that maps shared object handle to the plugin data
   plugin_handle_lut_t m_handle_lut;
-  ///< Lock to ensure the operation on these maps are safe
+  /// Lock to ensure the operation on these maps are safe
   tbb::spin_mutex m_mutex;
-  ///< Lock to ensure that only one load happens at a time
+  /// Lock to ensure that only one load happens at a time
   tbb::spin_mutex m_loader;
 };
 
@@ -927,23 +927,23 @@ public:
   }
 
 private:
-  ///< Thread-safe counter used for generating universal IDs
+  /// Thread-safe counter used for generating universal IDs
   xpti::safe_uint64_t m_universal_ids;
-  ///< Manages loading the subscribers and calling their init() functions
+  /// Manages loading the subscribers and calling their init() functions
   xpti::Subscribers m_subscribers;
-  ///< Used to send event notification to subscribers
+  /// Used to send event notification to subscribers
   xpti::Notifications m_notifier;
-  ///< Thread-safe string table
+  /// Thread-safe string table
   xpti::StringTable m_string_table;
-  ///< Thread-safe string table, used for stream IDs
+  /// Thread-safe string table, used for stream IDs
   xpti::StringTable m_stream_string_table;
-  ///< Thread-safe string table, used for vendor IDs
+  /// Thread-safe string table, used for vendor IDs
   xpti::StringTable m_vendor_string_table;
-  ///< Manages the tracepoints - framework caching
+  /// Manages the tracepoints - framework caching
   xpti::Tracepoints m_tracepoints;
-  ///< Flag indicates whether tracing should be enabled
+  /// Flag indicates whether tracing should be enabled
   bool m_trace_enabled;
-  ///< Mutes used for double-check pattern
+  /// Mutes used for double-check pattern
   tbb::spin_mutex m_framework_mutex;
 };
 
