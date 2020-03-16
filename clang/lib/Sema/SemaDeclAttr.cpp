@@ -2922,7 +2922,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   uint32_t WGSize[3];
-  if (AL.getNormalizedFullName() == "intel::reqd_work_group_size") {
+  if (AL.getAttributeSpellingListIndex() == 2) {
     WGSize[1] = ReqdWorkGroupSizeAttr::DefaultYDim;
     WGSize[2] = ReqdWorkGroupSizeAttr::DefaultZDim;
   } else if (!checkAttributeNumArgs(S, AL, 3))

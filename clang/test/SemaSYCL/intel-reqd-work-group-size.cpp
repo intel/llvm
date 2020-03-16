@@ -34,11 +34,20 @@ class Functor32 {
 public:
   [[cl::reqd_work_group_size(32)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
 };
+class Functor33 {
+public:
+  [[intel::reqd_work_group_size(32, 1, -1)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+};
 #endif
 
 class Functor16 {
 public:
   [[intel::reqd_work_group_size(16)]] void operator()() {}
+};
+
+class Functor64 {
+public:
+  [[intel::reqd_work_group_size(64, 64)]] void operator()() {}
 };
 
 class Functor16x16x16 {
