@@ -162,19 +162,19 @@ The mask is defined such that the least significant bit (LSB) corresponds to the
 |Set the bits of this mask to the result of performing a bitwise XOR with this mask and +rhs+.
 
 |+group_mask operator <<=(size_t shift)+
-|Set the bits of this mask to the result of shifting its bits _shift_ positions to the left.
+|Set the bits of this mask to the result of shifting its bits _shift_ positions to the left using a logical shift.  Bits that are shifted out to the left are discarded, and zeroes are shifted in from the right.
 
 |+group_mask operator >>=(size_t shift)+
-|Set the bits of this mask to the result of shifting its bits _shift_ positions to the right.
+|Set the bits of this mask to the result of shifting its bits _shift_ positions to the right using a logical shift.  Bits that are shifted out to the right are discarded, and zeroes are shifted in from the left.
 
 |+group_mask operator ~() const+
 |Return a mask representing the result of flipping all the bits in this mask.
 
 |+group_mask operator <<(size_t shift)+
-|Return a mask representing the result of shifting its bits _shift_ positions to the left.
+|Return a mask representing the result of shifting its bits _shift_ positions to the left using a logical shift.  Bits that are shifted out to the left are discarded, and zeroes are shifted in from the right.
 
 |+group_mask operator >>(size_t shift)+
-|Return a mask representing the result of shifting its bits _shift_ positions to the right.
+|Return a mask representing the result of shifting its bits _shift_ positions to the right using a logical shift.  Bits that are shifted out to the right are discarded, and zeroes are shifted in from the left.
 |===
 
 |===
