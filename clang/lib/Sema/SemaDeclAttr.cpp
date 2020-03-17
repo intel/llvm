@@ -2923,6 +2923,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   uint32_t WGSize[3];
   if (AL.getAttributeSpellingListIndex() == 2) {
+    WorkGroupAttr *Ex = D->getAttr<WorkGroupAttr>
+    std::string str(Ex->getSpelling());
     WGSize[1] = ReqdWorkGroupSizeAttr::DefaultYDim;
     WGSize[2] = ReqdWorkGroupSizeAttr::DefaultZDim;
   } else if (!checkAttributeNumArgs(S, AL, 3))
