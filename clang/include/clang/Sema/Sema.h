@@ -7129,7 +7129,8 @@ public:
                           QualType ObjectType, bool EnteringContext,
                           bool &MemberOfUnknownSpecialization,
                           SourceLocation TemplateKWLoc = SourceLocation(),
-                          AssumedTemplateKind *ATK = nullptr);
+                          AssumedTemplateKind *ATK = nullptr,
+                          bool Disambiguation = false);
 
   TemplateNameKind isTemplateName(Scope *S,
                                   CXXScopeSpec &SS,
@@ -7138,7 +7139,8 @@ public:
                                   ParsedType ObjectType,
                                   bool EnteringContext,
                                   TemplateTy &Template,
-                                  bool &MemberOfUnknownSpecialization);
+                                  bool &MemberOfUnknownSpecialization,
+                                  bool Disambiguation = false);
 
   /// Try to resolve an undeclared template name as a type template.
   ///
