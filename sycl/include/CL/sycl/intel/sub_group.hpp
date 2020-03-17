@@ -133,9 +133,9 @@ namespace intel {
 
 struct sub_group {
 
-  typedef id<1> id_type;
-  typedef range<1> range_type;
-  typedef size_t linear_id_type;
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
   static constexpr int dimensions = 1;
 
   /* --- common interface members --- */
