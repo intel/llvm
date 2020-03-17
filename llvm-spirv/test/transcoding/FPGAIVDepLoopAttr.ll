@@ -52,7 +52,7 @@
 ; }
 
 ; RUN: llvm-as < %s > %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -71,6 +71,9 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown-sycldevice"
 
 %"class._ZTSZ4mainE3$_0.anon" = type { i8 }
+
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
 
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_64:[0-9]+]] 64 0
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_32:[0-9]+]] 32 0

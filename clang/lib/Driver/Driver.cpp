@@ -38,8 +38,8 @@
 #include "ToolChains/NaCl.h"
 #include "ToolChains/NetBSD.h"
 #include "ToolChains/OpenBSD.h"
-#include "ToolChains/PS4CPU.h"
 #include "ToolChains/PPCLinux.h"
+#include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
@@ -72,6 +72,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
@@ -4750,9 +4751,11 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_fsycl_device_only)) {
+      types::ID OutputType =
+          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
                        options::OPT_fno_sycl_use_bitcode, true))
-        return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
+        return C.MakeAction<BackendJobAction>(Input, OutputType);
       // Use of -fsycl-device-only creates a bitcode file, we need to translate
       // that to a SPIR-V file with -fno-sycl-use-bitcode
       auto *BackendAction =
@@ -5524,9 +5527,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
   else {
     std::string OffloadingPrefix;
     // When generating binaries with -fsycl-link-target or -fsycl-link, the
-    // output file prefix is the triple arch only.
-    if (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
-        Args.hasArg(options::OPT_fsycl_link_EQ)) {
+    // output file prefix is the triple arch only.  Do not add the arch when
+    // compiling for host.
+    if (!A->getOffloadingHostActiveKinds() &&
+        (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
+         Args.hasArg(options::OPT_fsycl_link_EQ))) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {

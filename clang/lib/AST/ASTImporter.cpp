@@ -5489,6 +5489,10 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
       continue;
 
     if (VarTemplateDecl *FoundTemplate = dyn_cast<VarTemplateDecl>(FoundDecl)) {
+      // Use the templated decl, some linkage flags are set only there.
+      if (!hasSameVisibilityContextAndLinkage(FoundTemplate->getTemplatedDecl(),
+                                              D->getTemplatedDecl()))
+        continue;
       if (IsStructuralMatch(D, FoundTemplate)) {
         // The Decl in the "From" context has a definition, but in the
         // "To" context we already have a definition.
@@ -6631,8 +6635,9 @@ ExpectedStmt ASTNodeImporter::VisitStmtExpr(StmtExpr *E) {
   if (Err)
     return std::move(Err);
 
-  return new (Importer.getToContext()) StmtExpr(
-      ToSubStmt, ToType, ToLParenLoc, ToRParenLoc);
+  return new (Importer.getToContext())
+      StmtExpr(ToSubStmt, ToType, ToLParenLoc, ToRParenLoc,
+               E->getTemplateDepth());
 }
 
 ExpectedStmt ASTNodeImporter::VisitUnaryOperator(UnaryOperator *E) {
@@ -7906,6 +7911,18 @@ void ASTImporter::RegisterImportedDecl(Decl *FromD, Decl *ToD) {
   MapImported(FromD, ToD);
 }
 
+llvm::Expected<ExprWithCleanups::CleanupObject>
+ASTImporter::Import(ExprWithCleanups::CleanupObject From) {
+  if (auto *CLE = From.dyn_cast<CompoundLiteralExpr *>()) {
+    if (Expected<Expr *> R = Import(CLE))
+      return ExprWithCleanups::CleanupObject(cast<CompoundLiteralExpr>(*R));
+  }
+
+  // FIXME: Handle BlockDecl when we implement importing BlockExpr in
+  //        ASTNodeImporter.
+  return make_error<ImportError>(ImportError::UnsupportedConstruct);
+}
+
 Expected<QualType> ASTImporter::Import(QualType FromT) {
   if (FromT.isNull())
     return QualType{};
@@ -8220,11 +8237,7 @@ Expected<Stmt *> ASTImporter::Import(Stmt *FromS) {
     // constructors.
     ToE->setValueKind(FromE->getValueKind());
     ToE->setObjectKind(FromE->getObjectKind());
-    ToE->setTypeDependent(FromE->isTypeDependent());
-    ToE->setValueDependent(FromE->isValueDependent());
-    ToE->setInstantiationDependent(FromE->isInstantiationDependent());
-    ToE->setContainsUnexpandedParameterPack(
-        FromE->containsUnexpandedParameterPack());
+    ToE->setDependence(FromE->getDependence());
   }
 
   // Record the imported statement object.

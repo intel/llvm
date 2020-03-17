@@ -1,6 +1,6 @@
 //-fsycl-targets=%sycl_triple
-// RUN: %clangxx -fsycl-device-only -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv
-// RUN: %clangxx -include %t.h -g %s -o %t.out -lsycl
+// RUN: %clangxx -fsycl-device-only -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
+// RUN: %clangxx -include %t.h -g %s -o %t.out -lsycl -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
 

@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// C++ wrapper of extern "C" PI interfaces
-//
+/// \file pi.hpp
+/// C++ wrapper of extern "C" PI interfaces
+///
+/// \ingroup sycl_pi
+
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
@@ -114,7 +117,7 @@ std::string platformInfoToString(pi_platform_info info);
 template <class To, class From> To cast(From value);
 
 // Holds the PluginInformation for the plugin that is bound.
-// Currently a global varaible is used to store OpenCL plugin information to be
+// Currently a global variable is used to store OpenCL plugin information to be
 // used with SYCL Interoperability Constructors.
 extern std::shared_ptr<plugin> GlobalPlugin;
 

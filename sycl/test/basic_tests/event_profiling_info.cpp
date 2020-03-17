@@ -6,9 +6,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
-// TODO: fails cuda due to unimplemented param_name 4737 in
-//       cuda_piEventGetProfilingInfo
 //==------------------- event_profiling_info.cpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

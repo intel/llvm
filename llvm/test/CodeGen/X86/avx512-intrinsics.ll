@@ -5783,14 +5783,20 @@ define <4 x float>@test_int_x86_avx512_maskz_vfmadd_ss(<4 x float> %x0, <4 x flo
 ; X64-LABEL: test_int_x86_avx512_maskz_vfmadd_ss:
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1
-; X64-NEXT:    vfmadd213ss {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
+; X64-NEXT:    vmovaps %xmm0, %xmm3
+; X64-NEXT:    vfmadd213ss {{.*#+}} xmm3 = (xmm1 * xmm3) + xmm2
+; X64-NEXT:    vfmadd213ss {rz-sae}, %xmm2, %xmm1, %xmm0 {%k1} {z}
+; X64-NEXT:    vaddps %xmm0, %xmm3, %xmm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_maskz_vfmadd_ss:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vfmadd213ss {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
+; X86-NEXT:    vmovaps %xmm0, %xmm3
+; X86-NEXT:    vfmadd213ss {{.*#+}} xmm3 = (xmm1 * xmm3) + xmm2
+; X86-NEXT:    vfmadd213ss {rz-sae}, %xmm2, %xmm1, %xmm0 {%k1} {z}
+; X86-NEXT:    vaddps %xmm0, %xmm3, %xmm0
 ; X86-NEXT:    retl
   %1 = extractelement <4 x float> %x0, i64 0
   %2 = extractelement <4 x float> %x1, i64 0
@@ -5809,7 +5815,36 @@ define <4 x float>@test_int_x86_avx512_maskz_vfmadd_ss(<4 x float> %x0, <4 x flo
   %15 = select i1 %14, float %12, float 0.000000e+00
   %16 = insertelement <4 x float> %x0, float %15, i64 0
   %res2 = fadd <4 x float> %8, %16
-  ret <4 x float> %8
+  ret <4 x float> %res2
+}
+
+; Make sure we don't commute this to fold the load as that source isn't commutable.
+define <4 x float> @test_int_x86_avx512_maskz_vfmadd_ss_load0(i8 zeroext %0, <4 x float>* nocapture readonly %1, float %2, float %3) {
+; X64-LABEL: test_int_x86_avx512_maskz_vfmadd_ss_load0:
+; X64:       # %bb.0:
+; X64-NEXT:    vmovaps (%rsi), %xmm2
+; X64-NEXT:    kmovw %edi, %k1
+; X64-NEXT:    vfmadd213ss {{.*#+}} xmm2 = (xmm0 * xmm2) + xmm1
+; X64-NEXT:    vmovaps %xmm2, %xmm0
+; X64-NEXT:    retq
+;
+; X86-LABEL: test_int_x86_avx512_maskz_vfmadd_ss_load0:
+; X86:       # %bb.0:
+; X86-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    vmovaps (%ecx), %xmm0
+; X86-NEXT:    kmovw %eax, %k1
+; X86-NEXT:    vfmadd132ss {{.*#+}} xmm0 = (xmm0 * mem) + xmm1
+; X86-NEXT:    retl
+  %5 = load <4 x float>, <4 x float>* %1, align 16
+  %6 = extractelement <4 x float> %5, i64 0
+  %7 = tail call float @llvm.fma.f32(float %6, float %2, float %3) #2
+  %8 = bitcast i8 %0 to <8 x i1>
+  %9 = extractelement <8 x i1> %8, i64 0
+  %10 = select i1 %9, float %7, float 0.000000e+00
+  %11 = insertelement <4 x float> %5, float %10, i64 0
+  ret <4 x float> %11
 }
 
 define <2 x double>@test_int_x86_avx512_mask3_vfmadd_sd(<2 x double> %x0, <2 x double> %x1, <2 x double> %x2, i8 %x3,i32 %x4 ){

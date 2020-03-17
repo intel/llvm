@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only %s
 
 // Check that a function used in an unevaluated context is not subject
 // to delayed device diagnostics.

@@ -195,6 +195,14 @@ template <typename T>
 struct is_arithmetic
     : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
 
+template <typename T>
+struct is_scalar_arithmetic
+    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+
+template <typename T>
+struct is_vector_arithmetic
+    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
 
@@ -283,6 +291,16 @@ template <typename T> struct make_larger {
 };
 
 template <typename T> using make_larger_t = typename make_larger<T>::type;
+
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+template <access::address_space AS, class DataT>
+using const_if_const_AS =
+    typename std::conditional<AS == access::address_space::constant_space,
+                              const DataT, DataT>::type;
+#else
+template <access::address_space AS, class DataT>
+using const_if_const_AS = DataT;
+#endif
 
 } // namespace detail
 } // namespace sycl

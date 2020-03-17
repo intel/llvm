@@ -915,9 +915,9 @@ define <32 x i8> @shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_00_18_00_00_
 ;
 ; AVX2-LABEL: shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_00_18_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpermq {{.*#+}} ymm1 = ymm0[2,3,0,1]
-; AVX2-NEXT:    vpblendw {{.*#+}} ymm0 = ymm0[0],ymm1[1,2,3,4,5,6,7],ymm0[8],ymm1[9,10,11,12,13,14,15]
-; AVX2-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm1[4,5,6,7]
+; AVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX2-NEXT:    vpblendw {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3,4,5,6,7]
+; AVX2-NEXT:    vperm2i128 {{.*#+}} ymm0 = ymm1[0,1],ymm0[0,1]
 ; AVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16]
 ; AVX2-NEXT:    retq
 ;
@@ -945,9 +945,9 @@ define <32 x i8> @shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_00_18_00_00_
 ;
 ; XOPAVX2-LABEL: shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_00_18_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00:
 ; XOPAVX2:       # %bb.0:
-; XOPAVX2-NEXT:    vpermq {{.*#+}} ymm1 = ymm0[2,3,0,1]
-; XOPAVX2-NEXT:    vpblendw {{.*#+}} ymm0 = ymm0[0],ymm1[1,2,3,4,5,6,7],ymm0[8],ymm1[9,10,11,12,13,14,15]
-; XOPAVX2-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm1[4,5,6,7]
+; XOPAVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; XOPAVX2-NEXT:    vpblendw {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3,4,5,6,7]
+; XOPAVX2-NEXT:    vperm2i128 {{.*#+}} ymm0 = ymm1[0,1],ymm0[0,1]
 ; XOPAVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16]
 ; XOPAVX2-NEXT:    retq
   %shuffle = shufflevector <32 x i8> %a, <32 x i8> %b, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 18, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
@@ -967,9 +967,9 @@ define <32 x i8> @shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_19_00_00_00_
 ;
 ; AVX2-LABEL: shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_19_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpermq {{.*#+}} ymm1 = ymm0[2,3,0,1]
-; AVX2-NEXT:    vpblendw {{.*#+}} ymm0 = ymm0[0],ymm1[1,2,3,4,5,6,7],ymm0[8],ymm1[9,10,11,12,13,14,15]
-; AVX2-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm1[4,5,6,7]
+; AVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX2-NEXT:    vpblendw {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3,4,5,6,7]
+; AVX2-NEXT:    vperm2i128 {{.*#+}} ymm0 = ymm1[0,1],ymm0[0,1]
 ; AVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16]
 ; AVX2-NEXT:    retq
 ;
@@ -997,9 +997,9 @@ define <32 x i8> @shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_19_00_00_00_
 ;
 ; XOPAVX2-LABEL: shuffle_v32i8_00_00_00_00_00_00_00_00_00_00_00_00_19_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00:
 ; XOPAVX2:       # %bb.0:
-; XOPAVX2-NEXT:    vpermq {{.*#+}} ymm1 = ymm0[2,3,0,1]
-; XOPAVX2-NEXT:    vpblendw {{.*#+}} ymm0 = ymm0[0],ymm1[1,2,3,4,5,6,7],ymm0[8],ymm1[9,10,11,12,13,14,15]
-; XOPAVX2-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm1[4,5,6,7]
+; XOPAVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; XOPAVX2-NEXT:    vpblendw {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3,4,5,6,7]
+; XOPAVX2-NEXT:    vperm2i128 {{.*#+}} ymm0 = ymm1[0,1],ymm0[0,1]
 ; XOPAVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16]
 ; XOPAVX2-NEXT:    retq
   %shuffle = shufflevector <32 x i8> %a, <32 x i8> %b, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 19, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
@@ -2276,7 +2276,7 @@ define <32 x i8> @shuffle_v32i8_32_01_34_03_36_05_38_07_40_09_42_11_44_13_46_15_
 define <32 x i8> @load_fold_pblendvb(<32 x i8>* %px, <32 x i8> %y) {
 ; AVX1-LABEL: load_fold_pblendvb:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303]
+; AVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [18374686483949879295,18374686483949879295,18374686483949879295,18374686483949879295]
 ; AVX1-NEXT:    vandnps (%rdi), %ymm1, %ymm2
 ; AVX1-NEXT:    vandps %ymm1, %ymm0, %ymm0
 ; AVX1-NEXT:    vorps %ymm2, %ymm0, %ymm0
@@ -2297,7 +2297,7 @@ define <32 x i8> @load_fold_pblendvb(<32 x i8>* %px, <32 x i8> %y) {
 ;
 ; XOPAVX1-LABEL: load_fold_pblendvb:
 ; XOPAVX1:       # %bb.0:
-; XOPAVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303]
+; XOPAVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [18374686483949879295,18374686483949879295,18374686483949879295,18374686483949879295]
 ; XOPAVX1-NEXT:    vpcmov %ymm1, (%rdi), %ymm0, %ymm0
 ; XOPAVX1-NEXT:    retq
 ;
@@ -2314,7 +2314,7 @@ define <32 x i8> @load_fold_pblendvb(<32 x i8>* %px, <32 x i8> %y) {
 define <32 x i8> @load_fold_pblendvb_commute(<32 x i8>* %px, <32 x i8> %y) {
 ; AVX1-LABEL: load_fold_pblendvb_commute:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303]
+; AVX1-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [18374686483949879295,18374686483949879295,18374686483949879295,18374686483949879295]
 ; AVX1-NEXT:    vandnps %ymm0, %ymm1, %ymm0
 ; AVX1-NEXT:    vandps (%rdi), %ymm1, %ymm1
 ; AVX1-NEXT:    vorps %ymm0, %ymm1, %ymm0
@@ -2338,7 +2338,7 @@ define <32 x i8> @load_fold_pblendvb_commute(<32 x i8>* %px, <32 x i8> %y) {
 ; XOPAVX1-LABEL: load_fold_pblendvb_commute:
 ; XOPAVX1:       # %bb.0:
 ; XOPAVX1-NEXT:    vmovdqa (%rdi), %ymm1
-; XOPAVX1-NEXT:    vbroadcastsd {{.*#+}} ymm2 = [-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303,-5.4861292804117373E+303]
+; XOPAVX1-NEXT:    vbroadcastsd {{.*#+}} ymm2 = [18374686483949879295,18374686483949879295,18374686483949879295,18374686483949879295]
 ; XOPAVX1-NEXT:    vpcmov %ymm2, %ymm0, %ymm1, %ymm0
 ; XOPAVX1-NEXT:    retq
 ;

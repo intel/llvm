@@ -1643,11 +1643,11 @@ cl_int ExecCGCommand::enqueueImp() {
         pi_mem MemArg = (pi_mem)AllocaCmd->getMemAllocation();
         Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex, &MemArg);
 #else
-        cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
+        RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(cl_mem), &MemArg);
+                                               sizeof(RT::PiMem), &MemArg);
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(cl_mem), &MemArg);
+                                               sizeof(RT::PiMem), &MemArg);
 #endif
         break;
       }

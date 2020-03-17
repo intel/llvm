@@ -48,10 +48,17 @@ function(add_sycl_rt_library LIB_NAME)
   target_include_directories(
       ${LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} "${sycl_inc_dir}")
   target_link_libraries(${LIB_NAME}
-      PRIVATE OpenCL::Headers
-      PRIVATE ${OpenCL_LIBRARIES}
-      PRIVATE ${CMAKE_DL_LIBS}
+      PRIVATE
+        OpenCL::Headers
+        ${OpenCL_LIBRARIES}
+        ${CMAKE_DL_LIBS}
+      PUBLIC
+        $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
+
+  target_compile_definitions(${LIB_NAME}
+    PUBLIC
+      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
 
   add_common_options(${LIB_NAME})
 

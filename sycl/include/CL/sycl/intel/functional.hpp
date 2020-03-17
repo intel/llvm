@@ -44,7 +44,8 @@ template <> struct maximum<void> {
   template <typename T, typename U>
   auto operator()(T &&lhs, U &&rhs) const ->
       typename std::common_type<T &&, U &&>::type {
-    return std::greater<>()(std::forward<const T>(lhs), std::forward<const U>(rhs))
+    return std::greater<>()(std::forward<const T>(lhs),
+                            std::forward<const U>(rhs))
                ? std::forward<T>(lhs)
                : std::forward<U>(rhs);
   }
@@ -54,5 +55,60 @@ template <> struct maximum<void> {
 template <typename T = void> using plus = std::plus<T>;
 
 } // namespace intel
+
+#ifdef __SYCL_DEVICE_ONLY__
+namespace detail {
+
+struct GroupOpISigned {};
+struct GroupOpIUnsigned {};
+struct GroupOpFP {};
+
+template <typename T, typename = void> struct GroupOpTag;
+
+template <typename T>
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
+  using type = GroupOpISigned;
+};
+
+template <typename T>
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
+  using type = GroupOpIUnsigned;
+};
+
+template <typename T>
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
+  using type = GroupOpFP;
+};
+
+#define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
+  template <typename T, __spv::GroupOperation O, __spv::Scope S>               \
+  static T calc(GroupTag, T x, BinaryOperation op) {                           \
+    using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
+    OCLT Arg = x;                                                              \
+    OCLT Ret = __spirv_Group##SPIRVOperation(S, O, Arg);                       \
+    return Ret;                                                                \
+  }
+
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, intel::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, intel::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
+
+#undef __SYCL_CALC_OVERLOAD
+
+template <typename T, __spv::GroupOperation O, __spv::Scope S,
+          template <typename> class BinaryOperation>
+static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
+  return calc<T, O, S>(typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
+}
+
+} // namespace detail
+#endif // __SYCL_DEVICE_ONLY__
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

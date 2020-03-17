@@ -12,7 +12,7 @@
 
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 
-#include "mlir/Analysis/CallInterfaces.h"
+#include "mlir/Dialect/SPIRV/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/IR/Builders.h"
@@ -20,6 +20,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Support/StringExtras.h"
 #include "llvm/ADT/bit.h"
 
@@ -97,10 +98,12 @@ getStrArrayAttrForEnumList(Builder &builder, ArrayRef<Ty> enumValues,
   return builder.getStrArrayAttr(enumValStrs);
 }
 
+/// Parses the next string attribute in `parser` as an enumerant of the given
+/// `EnumClass`.
 template <typename EnumClass>
 static ParseResult
-parseEnumAttribute(EnumClass &value, OpAsmParser &parser,
-                   StringRef attrName = spirv::attributeName<EnumClass>()) {
+parseEnumStrAttr(EnumClass &value, OpAsmParser &parser,
+                 StringRef attrName = spirv::attributeName<EnumClass>()) {
   Attribute attrVal;
   SmallVector<NamedAttribute, 1> attr;
   auto loc = parser.getCurrentLocation();
@@ -122,11 +125,49 @@ parseEnumAttribute(EnumClass &value, OpAsmParser &parser,
   return success();
 }
 
+/// Parses the next string attribute in `parser` as an enumerant of the given
+/// `EnumClass` and inserts the enumerant into `state` as an 32-bit integer
+/// attribute with the enum class's name as attribute name.
 template <typename EnumClass>
 static ParseResult
-parseEnumAttribute(EnumClass &value, OpAsmParser &parser, OperationState &state,
-                   StringRef attrName = spirv::attributeName<EnumClass>()) {
-  if (parseEnumAttribute(value, parser)) {
+parseEnumStrAttr(EnumClass &value, OpAsmParser &parser, OperationState &state,
+                 StringRef attrName = spirv::attributeName<EnumClass>()) {
+  if (parseEnumStrAttr(value, parser)) {
+    return failure();
+  }
+  state.addAttribute(attrName, parser.getBuilder().getI32IntegerAttr(
+                                   llvm::bit_cast<int32_t>(value)));
+  return success();
+}
+
+/// Parses the next keyword in `parser` as an enumerant of the given
+/// `EnumClass`.
+template <typename EnumClass>
+static ParseResult
+parseEnumKeywordAttr(EnumClass &value, OpAsmParser &parser,
+                     StringRef attrName = spirv::attributeName<EnumClass>()) {
+  StringRef keyword;
+  SmallVector<NamedAttribute, 1> attr;
+  auto loc = parser.getCurrentLocation();
+  if (parser.parseKeyword(&keyword))
+    return failure();
+  if (Optional<EnumClass> attr = spirv::symbolizeEnum<EnumClass>()(keyword)) {
+    value = attr.getValue();
+    return success();
+  }
+  return parser.emitError(loc, "invalid ")
+         << attrName << " attribute specification: " << keyword;
+}
+
+/// Parses the next keyword in `parser` as an enumerant of the given `EnumClass`
+/// and inserts the enumerant into `state` as an 32-bit integer attribute with
+/// the enum class's name as attribute name.
+template <typename EnumClass>
+static ParseResult
+parseEnumKeywordAttr(EnumClass &value, OpAsmParser &parser,
+                     OperationState &state,
+                     StringRef attrName = spirv::attributeName<EnumClass>()) {
+  if (parseEnumKeywordAttr(value, parser)) {
     return failure();
   }
   state.addAttribute(attrName, parser.getBuilder().getI32IntegerAttr(
@@ -143,7 +184,7 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
   }
 
   spirv::MemoryAccess memoryAccessAttr;
-  if (parseEnumAttribute(memoryAccessAttr, parser, state)) {
+  if (parseEnumStrAttr(memoryAccessAttr, parser, state)) {
     return failure();
   }
 
@@ -363,11 +404,12 @@ static unsigned getBitWidth(Type type) {
     // TODO: Make sure not caller relies on the actual pointer width value.
     return 64;
   }
-  if (type.isSignlessIntOrFloat()) {
+
+  if (type.isIntOrFloat())
     return type.getIntOrFloatBitWidth();
-  }
+
   if (auto vectorType = type.dyn_cast<VectorType>()) {
-    assert(vectorType.getElementType().isSignlessIntOrFloat());
+    assert(vectorType.getElementType().isIntOrFloat());
     return vectorType.getNumElements() *
            vectorType.getElementType().getIntOrFloatBitWidth();
   }
@@ -462,8 +504,8 @@ static ParseResult parseAtomicUpdateOp(OpAsmParser &parser,
   OpAsmParser::OperandType ptrInfo, valueInfo;
   Type type;
   llvm::SMLoc loc;
-  if (parseEnumAttribute(scope, parser, state, kMemoryScopeAttrName) ||
-      parseEnumAttribute(memoryScope, parser, state, kSemanticsAttrName) ||
+  if (parseEnumStrAttr(scope, parser, state, kMemoryScopeAttrName) ||
+      parseEnumStrAttr(memoryScope, parser, state, kSemanticsAttrName) ||
       parser.parseOperandList(operandInfo, (hasValue ? 2 : 1)) ||
       parser.getCurrentLocation(&loc) || parser.parseColonType(type))
     return failure();
@@ -500,7 +542,7 @@ static void printAtomicUpdateOp(Operation *op, OpAsmPrinter &printer) {
 static LogicalResult verifyAtomicUpdateOp(Operation *op) {
   auto ptrType = op->getOperand(0).getType().cast<spirv::PointerType>();
   auto elementType = ptrType.getPointeeType();
-  if (!elementType.isSignlessInteger())
+  if (!elementType.isa<IntegerType>())
     return op->emitOpError(
                "pointer operand must point to an integer value, found ")
            << elementType;
@@ -520,10 +562,10 @@ static ParseResult parseGroupNonUniformArithmeticOp(OpAsmParser &parser,
   spirv::Scope executionScope;
   spirv::GroupOperation groupOperation;
   OpAsmParser::OperandType valueInfo;
-  if (parseEnumAttribute(executionScope, parser, state,
-                         kExecutionScopeAttrName) ||
-      parseEnumAttribute(groupOperation, parser, state,
-                         kGroupOperationAttrName) ||
+  if (parseEnumStrAttr(executionScope, parser, state,
+                       kExecutionScopeAttrName) ||
+      parseEnumStrAttr(groupOperation, parser, state,
+                       kGroupOperationAttrName) ||
       parser.parseOperand(valueInfo))
     return failure();
 
@@ -844,11 +886,11 @@ static ParseResult parseAtomicCompareExchangeWeakOp(OpAsmParser &parser,
   spirv::MemorySemantics equalSemantics, unequalSemantics;
   SmallVector<OpAsmParser::OperandType, 3> operandInfo;
   Type type;
-  if (parseEnumAttribute(memoryScope, parser, state, kMemoryScopeAttrName) ||
-      parseEnumAttribute(equalSemantics, parser, state,
-                         kEqualSemanticsAttrName) ||
-      parseEnumAttribute(unequalSemantics, parser, state,
-                         kUnequalSemanticsAttrName) ||
+  if (parseEnumStrAttr(memoryScope, parser, state, kMemoryScopeAttrName) ||
+      parseEnumStrAttr(equalSemantics, parser, state,
+                       kEqualSemanticsAttrName) ||
+      parseEnumStrAttr(unequalSemantics, parser, state,
+                       kUnequalSemanticsAttrName) ||
       parser.parseOperandList(operandInfo, 3))
     return failure();
 
@@ -942,15 +984,34 @@ static LogicalResult verify(spirv::BitcastOp bitcastOp) {
 }
 
 //===----------------------------------------------------------------------===//
+// spv.BranchOp
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> spirv::BranchOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool spirv::BranchOp::canEraseSuccessorOperand() { return true; }
+
+//===----------------------------------------------------------------------===//
 // spv.BranchConditionalOp
 //===----------------------------------------------------------------------===//
+
+Optional<OperandRange>
+spirv::BranchConditionalOp::getSuccessorOperands(unsigned index) {
+  assert(index < 2 && "invalid successor index");
+  return index == kTrueIndex ? getTrueBlockArguments()
+                             : getFalseBlockArguments();
+}
+
+bool spirv::BranchConditionalOp::canEraseSuccessorOperand() { return true; }
 
 static ParseResult parseBranchConditionalOp(OpAsmParser &parser,
                                             OperationState &state) {
   auto &builder = parser.getBuilder();
   OpAsmParser::OperandType condInfo;
   Block *dest;
-  SmallVector<Value, 4> destOperands;
 
   // Parse the condition.
   Type boolTy = builder.getI1Type();
@@ -975,17 +1036,24 @@ static ParseResult parseBranchConditionalOp(OpAsmParser &parser,
   }
 
   // Parse the true branch.
+  SmallVector<Value, 4> trueOperands;
   if (parser.parseComma() ||
-      parser.parseSuccessorAndUseList(dest, destOperands))
+      parser.parseSuccessorAndUseList(dest, trueOperands))
     return failure();
-  state.addSuccessor(dest, destOperands);
+  state.addSuccessors(dest);
+  state.addOperands(trueOperands);
 
   // Parse the false branch.
-  destOperands.clear();
+  SmallVector<Value, 4> falseOperands;
   if (parser.parseComma() ||
-      parser.parseSuccessorAndUseList(dest, destOperands))
+      parser.parseSuccessorAndUseList(dest, falseOperands))
     return failure();
-  state.addSuccessor(dest, destOperands);
+  state.addSuccessors(dest);
+  state.addOperands(falseOperands);
+  state.addAttribute(
+      spirv::BranchConditionalOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({1, static_cast<int32_t>(trueOperands.size()),
+                                static_cast<int32_t>(falseOperands.size())}));
 
   return success();
 }
@@ -1003,11 +1071,11 @@ static void print(spirv::BranchConditionalOp branchOp, OpAsmPrinter &printer) {
   }
 
   printer << ", ";
-  printer.printSuccessorAndUseList(branchOp.getOperation(),
-                                   spirv::BranchConditionalOp::kTrueIndex);
+  printer.printSuccessorAndUseList(branchOp.getTrueBlock(),
+                                   branchOp.getTrueBlockArguments());
   printer << ", ";
-  printer.printSuccessorAndUseList(branchOp.getOperation(),
-                                   spirv::BranchConditionalOp::kFalseIndex);
+  printer.printSuccessorAndUseList(branchOp.getFalseBlock(),
+                                   branchOp.getFalseBlockArguments());
 }
 
 static LogicalResult verify(spirv::BranchConditionalOp branchOp) {
@@ -1265,7 +1333,7 @@ static LogicalResult verify(spirv::ConstantOp constOp) {
       numElements *= t.getNumElements();
       opElemType = t.getElementType();
     }
-    if (!opElemType.isSignlessIntOrFloat()) {
+    if (!opElemType.isIntOrFloat()) {
       return constOp.emitOpError("only support nested array result type");
     }
 
@@ -1367,7 +1435,7 @@ static ParseResult parseEntryPointOp(OpAsmParser &parser,
   SmallVector<Attribute, 4> interfaceVars;
 
   FlatSymbolRefAttr fn;
-  if (parseEnumAttribute(execModel, parser, state) ||
+  if (parseEnumStrAttr(execModel, parser, state) ||
       parser.parseAttribute(fn, Type(), kFnNameAttrName, state.attributes)) {
     return failure();
   }
@@ -1425,7 +1493,7 @@ static ParseResult parseExecutionModeOp(OpAsmParser &parser,
   spirv::ExecutionMode execMode;
   Attribute fn;
   if (parser.parseAttribute(fn, kFnNameAttrName, state.attributes) ||
-      parseEnumAttribute(execMode, parser, state)) {
+      parseEnumStrAttr(execMode, parser, state)) {
     return failure();
   }
 
@@ -1488,7 +1556,7 @@ static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &state) {
 
   // Parse the optional function control keyword.
   spirv::FunctionControl fnControl;
-  if (parseEnumAttribute(fnControl, parser, state))
+  if (parseEnumStrAttr(fnControl, parser, state))
     return failure();
 
   // If additional attributes are present, parse them.
@@ -1769,8 +1837,6 @@ static LogicalResult verify(spirv::GlobalVariableOp varOp) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::GroupNonUniformBallotOp ballotOp) {
-  // TODO(antiagainst): check the result integer type's signedness bit is 0.
-
   spirv::Scope scope = ballotOp.execution_scope();
   if (scope != spirv::Scope::Workgroup && scope != spirv::Scope::Subgroup)
     return ballotOp.emitOpError(
@@ -1815,8 +1881,7 @@ static ParseResult parseLoadOp(OpAsmParser &parser, OperationState &state) {
   spirv::StorageClass storageClass;
   OpAsmParser::OperandType ptrInfo;
   Type elementType;
-  if (parseEnumAttribute(storageClass, parser) ||
-      parser.parseOperand(ptrInfo) ||
+  if (parseEnumStrAttr(storageClass, parser) || parser.parseOperand(ptrInfo) ||
       parseMemoryAccessAttributes(parser, state) ||
       parser.parseOptionalAttrDict(state.attributes) || parser.parseColon() ||
       parser.parseType(elementType)) {
@@ -1895,7 +1960,7 @@ static inline bool hasOneBranchOpTo(Block &srcBlock, Block &dstBlock) {
     return false;
 
   auto branchOp = dyn_cast<spirv::BranchOp>(srcBlock.back());
-  return branchOp && branchOp.getSuccessor(0) == &dstBlock;
+  return branchOp && branchOp.getSuccessor() == &dstBlock;
 }
 
 static LogicalResult verify(spirv::LoopOp loopOp) {
@@ -2043,38 +2108,15 @@ void spirv::ModuleOp::build(Builder *builder, OperationState &state) {
   ensureTerminator(*state.addRegion(), *builder, state.location);
 }
 
-// TODO(ravishankarm): This is only here for resolving some dependency outside
-// of mlir. Remove once it is done.
-void spirv::ModuleOp::build(Builder *builder, OperationState &state,
-                            IntegerAttr addressing_model,
-                            IntegerAttr memory_model) {
-  state.addAttribute("addressing_model", addressing_model);
-  state.addAttribute("memory_model", memory_model);
-  build(builder, state);
-}
-
 void spirv::ModuleOp::build(Builder *builder, OperationState &state,
                             spirv::AddressingModel addressing_model,
-                            spirv::MemoryModel memory_model,
-                            ArrayRef<spirv::Capability> capabilities,
-                            ArrayRef<spirv::Extension> extensions,
-                            ArrayAttr extended_instruction_sets) {
+                            spirv::MemoryModel memory_model) {
   state.addAttribute(
       "addressing_model",
       builder->getI32IntegerAttr(static_cast<int32_t>(addressing_model)));
   state.addAttribute("memory_model", builder->getI32IntegerAttr(
                                          static_cast<int32_t>(memory_model)));
-  if (!capabilities.empty())
-    state.addAttribute("capabilities",
-                       getStrArrayAttrForEnumList<spirv::Capability>(
-                           *builder, capabilities, spirv::stringifyCapability));
-  if (!extensions.empty())
-    state.addAttribute("extensions",
-                       getStrArrayAttrForEnumList<spirv::Extension>(
-                           *builder, extensions, spirv::stringifyExtension));
-  if (extended_instruction_sets)
-    state.addAttribute("extended_instruction_sets", extended_instruction_sets);
-  build(builder, state);
+  ensureTerminator(*state.addRegion(), *builder, state.location);
 }
 
 static ParseResult parseModuleOp(OpAsmParser &parser, OperationState &state) {
@@ -2083,15 +2125,22 @@ static ParseResult parseModuleOp(OpAsmParser &parser, OperationState &state) {
   // Parse attributes
   spirv::AddressingModel addrModel;
   spirv::MemoryModel memoryModel;
-  if (parseEnumAttribute(addrModel, parser, state) ||
-      parseEnumAttribute(memoryModel, parser, state)) {
+  if (parseEnumKeywordAttr(addrModel, parser, state) ||
+      parseEnumKeywordAttr(memoryModel, parser, state))
     return failure();
+
+  if (succeeded(parser.parseOptionalKeyword("requires"))) {
+    spirv::VerCapExtAttr vceTriple;
+    if (parser.parseAttribute(vceTriple,
+                              spirv::ModuleOp::getVCETripleAttrName(),
+                              state.attributes))
+      return failure();
   }
 
-  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
+  if (parser.parseOptionalAttrDictWithKeyword(state.attributes))
     return failure();
 
-  if (parser.parseOptionalAttrDictWithKeyword(state.attributes))
+  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
     return failure();
 
   spirv::ModuleOp::ensureTerminator(*body, parser.getBuilder(), state.location);
@@ -2101,35 +2150,32 @@ static ParseResult parseModuleOp(OpAsmParser &parser, OperationState &state) {
 static void print(spirv::ModuleOp moduleOp, OpAsmPrinter &printer) {
   printer << spirv::ModuleOp::getOperationName();
 
-  // Only print out addressing model and memory model in a nicer way if both
-  // presents. Otherwise, print them in the general form. This helps
-  // debugging ill-formed ModuleOp.
   SmallVector<StringRef, 2> elidedAttrs;
+
+  printer << " " << spirv::stringifyAddressingModel(moduleOp.addressing_model())
+          << " " << spirv::stringifyMemoryModel(moduleOp.memory_model());
   auto addressingModelAttrName = spirv::attributeName<spirv::AddressingModel>();
   auto memoryModelAttrName = spirv::attributeName<spirv::MemoryModel>();
-  if (moduleOp.getAttr(addressingModelAttrName) &&
-      moduleOp.getAttr(memoryModelAttrName)) {
-    printer << " \""
-            << spirv::stringifyAddressingModel(moduleOp.addressing_model())
-            << "\" \"" << spirv::stringifyMemoryModel(moduleOp.memory_model())
-            << '"';
-    elidedAttrs.assign({addressingModelAttrName, memoryModelAttrName});
+  elidedAttrs.assign({addressingModelAttrName, memoryModelAttrName});
+
+  if (Optional<spirv::VerCapExtAttr> triple = moduleOp.vce_triple()) {
+    printer << " requires " << *triple;
+    elidedAttrs.push_back(spirv::ModuleOp::getVCETripleAttrName());
   }
 
+  printer.printOptionalAttrDictWithKeyword(moduleOp.getAttrs(), elidedAttrs);
   printer.printRegion(moduleOp.body(), /*printEntryBlockArgs=*/false,
                       /*printBlockTerminators=*/false);
-  printer.printOptionalAttrDictWithKeyword(moduleOp.getAttrs(), elidedAttrs);
 }
 
 static LogicalResult verify(spirv::ModuleOp moduleOp) {
   auto &op = *moduleOp.getOperation();
   auto *dialect = op.getDialect();
-  auto &body = op.getRegion(0).front();
   DenseMap<std::pair<spirv::FuncOp, spirv::ExecutionModel>, spirv::EntryPointOp>
       entryPoints;
   SymbolTable table(moduleOp);
 
-  for (auto &op : body) {
+  for (auto &op : moduleOp.getBlock()) {
     if (op.getDialect() != dialect)
       return op.emitError("'spv.module' can only contain spv.* ops");
 
@@ -2179,26 +2225,6 @@ static LogicalResult verify(spirv::ModuleOp moduleOp) {
             return op.emitError(
                 "functions in 'spv.module' can only contain spv.* ops");
         }
-    }
-  }
-
-  // Verify capabilities. ODS already guarantees that we have an array of
-  // string attributes.
-  if (auto caps = moduleOp.getAttrOfType<ArrayAttr>("capabilities")) {
-    for (auto cap : caps.getValue()) {
-      auto capStr = cap.cast<StringAttr>().getValue();
-      if (!spirv::symbolizeCapability(capStr))
-        return moduleOp.emitOpError("uses unknown capability: ") << capStr;
-    }
-  }
-
-  // Verify extensions. ODS already guarantees that we have an array of
-  // string attributes.
-  if (auto exts = moduleOp.getAttrOfType<ArrayAttr>("extensions")) {
-    for (auto ext : exts.getValue()) {
-      auto extStr = ext.cast<StringAttr>().getValue();
-      if (!spirv::symbolizeExtension(extStr))
-        return moduleOp.emitOpError("uses unknown extension: ") << extStr;
     }
   }
 
@@ -2454,7 +2480,7 @@ static ParseResult parseStoreOp(OpAsmParser &parser, OperationState &state) {
   SmallVector<OpAsmParser::OperandType, 2> operandInfo;
   auto loc = parser.getCurrentLocation();
   Type elementType;
-  if (parseEnumAttribute(storageClass, parser) ||
+  if (parseEnumStrAttr(storageClass, parser) ||
       parser.parseOperandList(operandInfo, 2) ||
       parseMemoryAccessAttributes(parser, state) || parser.parseColon() ||
       parser.parseType(elementType)) {

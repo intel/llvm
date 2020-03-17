@@ -83,7 +83,7 @@ TEST_F(DISABLED_CudaEventTests, PICreateEvent) {
 
 TEST_F(DISABLED_CudaEventTests, piGetInfoNativeEvent) {
 
-  auto foo = _pi_event::make_native(PI_COMMAND_KERNEL_LAUNCH, _queue);
+  auto foo = _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, _queue);
   ASSERT_NE(foo, nullptr);
 
   pi_event_status paramValue = {};

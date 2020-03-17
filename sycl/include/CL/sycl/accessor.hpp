@@ -194,8 +194,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
-  using RefType = DataT &;
-  using PtrType = DataT *;
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   using AccType =
       accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>;
@@ -682,9 +682,10 @@ class accessor :
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType = DataT *;
+
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
@@ -1019,9 +1020,10 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType = DataT *;
+
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;

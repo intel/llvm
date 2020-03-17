@@ -85,6 +85,7 @@
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Vectorize.h"
 #include <algorithm>
@@ -3227,6 +3228,38 @@ bool BoUpSLP::areAllUsersVectorized(Instruction *I) const {
          });
 }
 
+static std::pair<unsigned, unsigned>
+getVectorCallCosts(CallInst *CI, VectorType *VecTy, TargetTransformInfo *TTI,
+                   TargetLibraryInfo *TLI) {
+  Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
+
+  // Calculate the cost of the scalar and vector calls.
+  FastMathFlags FMF;
+  if (auto *FPMO = dyn_cast<FPMathOperator>(CI))
+    FMF = FPMO->getFastMathFlags();
+
+  SmallVector<Value *, 4> Args(CI->arg_operands());
+  int IntrinsicCost = TTI->getIntrinsicInstrCost(ID, CI->getType(), Args, FMF,
+                                                 VecTy->getNumElements());
+
+  auto Shape =
+      VFShape::get(*CI, {static_cast<unsigned>(VecTy->getNumElements()), false},
+                   false /*HasGlobalPred*/);
+  Function *VecFunc = VFDatabase(*CI).getVectorizedFunction(Shape);
+  int LibCost = IntrinsicCost;
+  if (!CI->isNoBuiltin() && VecFunc) {
+    // Calculate the cost of the vector library call.
+    SmallVector<Type *, 4> VecTys;
+    for (Use &Arg : CI->args())
+      VecTys.push_back(
+          VectorType::get(Arg->getType(), VecTy->getNumElements()));
+
+    // If the corresponding vector call is cheaper, return its cost.
+    LibCost = TTI->getCallInstrCost(nullptr, VecTy, VecTys);
+  }
+  return {IntrinsicCost, LibCost};
+}
+
 int BoUpSLP::getEntryCost(TreeEntry *E) {
   ArrayRef<Value*> VL = E->Scalars;
 
@@ -3539,9 +3572,8 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
       }
       int ScalarCallCost = VecTy->getNumElements() * ScalarEltCost;
 
-      SmallVector<Value *, 4> Args(CI->arg_operands());
-      int VecCallCost = TTI->getIntrinsicInstrCost(ID, CI->getType(), Args, FMF,
-                                                   VecTy->getNumElements());
+      auto VecCallCosts = getVectorCallCosts(CI, VecTy, TTI, TLI);
+      int VecCallCost = std::min(VecCallCosts.first, VecCallCosts.second);
 
       LLVM_DEBUG(dbgs() << "SLP: Call cost " << VecCallCost - ScalarCallCost
                         << " (" << VecCallCost << "-" << ScalarCallCost << ")"
@@ -4446,13 +4478,18 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       if (Function *FI = CI->getCalledFunction())
         IID = FI->getIntrinsicID();
 
+      Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
+
+      auto VecCallCosts = getVectorCallCosts(CI, VecTy, TTI, TLI);
+      bool UseIntrinsic = VecCallCosts.first <= VecCallCosts.second;
+
       Value *ScalarArg = nullptr;
       std::vector<Value *> OpVecs;
       for (int j = 0, e = CI->getNumArgOperands(); j < e; ++j) {
         ValueList OpVL;
         // Some intrinsics have scalar arguments. This argument should not be
         // vectorized.
-        if (hasVectorInstrinsicScalarOpd(IID, j)) {
+        if (UseIntrinsic && hasVectorInstrinsicScalarOpd(IID, j)) {
           CallInst *CEI = cast<CallInst>(VL0);
           ScalarArg = CEI->getArgOperand(j);
           OpVecs.push_back(CEI->getArgOperand(j));
@@ -4465,9 +4502,16 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       }
 
       Module *M = F->getParent();
-      Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
       Type *Tys[] = { VectorType::get(CI->getType(), E->Scalars.size()) };
       Function *CF = Intrinsic::getDeclaration(M, ID, Tys);
+
+      if (!UseIntrinsic) {
+        VFShape Shape = VFShape::get(
+            *CI, {static_cast<unsigned>(VecTy->getNumElements()), false},
+            false /*HasGlobalPred*/);
+        CF = VFDatabase(*CI).getVectorizedFunction(Shape);
+      }
+
       SmallVector<OperandBundleDef, 1> OpBundles;
       CI->getOperandBundlesAsDefs(OpBundles);
       Value *V = Builder.CreateCall(CF, OpVecs, OpBundles);
@@ -5561,6 +5605,7 @@ struct SLPVectorizer : public FunctionPass {
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<DemandedBitsWrapperPass>();
     AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
+    AU.addRequired<InjectTLIMappingsLegacy>();
     AU.addPreserved<LoopInfoWrapperPass>();
     AU.addPreserved<DominatorTreeWrapperPass>();
     AU.addPreserved<AAResultsWrapperPass>();
@@ -5854,25 +5899,15 @@ bool SLPVectorizerPass::tryToVectorizeList(ArrayRef<Value *> VL, BoUpSLP &R,
   LLVM_DEBUG(dbgs() << "SLP: Trying to vectorize a list of length = "
                     << VL.size() << ".\n");
 
-  // Check that all of the parts are scalar instructions of the same type,
+  // Check that all of the parts are instructions of the same type,
   // we permit an alternate opcode via InstructionsState.
   InstructionsState S = getSameOpcode(VL);
   if (!S.getOpcode())
     return false;
 
   Instruction *I0 = cast<Instruction>(S.OpValue);
-  unsigned Sz = R.getVectorElementSize(I0);
-  unsigned MinVF = std::max(2U, R.getMinVecRegSize() / Sz);
-  unsigned MaxVF = std::max<unsigned>(PowerOf2Floor(VL.size()), MinVF);
-  if (MaxVF < 2) {
-    R.getORE()->emit([&]() {
-      return OptimizationRemarkMissed(SV_NAME, "SmallVF", I0)
-             << "Cannot SLP vectorize list: vectorization factor "
-             << "less than 2 is not supported";
-    });
-    return false;
-  }
-
+  // Make sure invalid types (including vector type) are rejected before
+  // determining vectorization factor for scalar instructions.
   for (Value *V : VL) {
     Type *Ty = V->getType();
     if (!isValidElementType(Ty)) {
@@ -5888,6 +5923,18 @@ bool SLPVectorizerPass::tryToVectorizeList(ArrayRef<Value *> VL, BoUpSLP &R,
       });
       return false;
     }
+  }
+
+  unsigned Sz = R.getVectorElementSize(I0);
+  unsigned MinVF = std::max(2U, R.getMinVecRegSize() / Sz);
+  unsigned MaxVF = std::max<unsigned>(PowerOf2Floor(VL.size()), MinVF);
+  if (MaxVF < 2) {
+    R.getORE()->emit([&]() {
+      return OptimizationRemarkMissed(SV_NAME, "SmallVF", I0)
+             << "Cannot SLP vectorize list: vectorization factor "
+             << "less than 2 is not supported";
+    });
+    return false;
   }
 
   bool Changed = false;
@@ -7476,6 +7523,7 @@ INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LoopSimplify)
 INITIALIZE_PASS_DEPENDENCY(DemandedBitsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(InjectTLIMappingsLegacy)
 INITIALIZE_PASS_END(SLPVectorizer, SV_NAME, lv_name, false, false)
 
 Pass *llvm::createSLPVectorizerPass() { return new SLPVectorizer(); }

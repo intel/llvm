@@ -110,11 +110,12 @@ struct PtrValueType<ElementType, access::address_space::constant_space> {
   // of emitting incorrect (in terms of OpenCL) address space casts from
   // constant to generic (and vise-versa). So, global address space is used here
   // instead of constant to avoid incorrect address space casts in the produced
-  // device code. "const" qualifier is not used here because multi_ptr interface
-  // contains function members which return pure ElementType without qualifiers
-  // and adding const qualifier here will require adding const casts to
-  // multi_ptr methods to remove const qualifiers from underlying pointer type.
+  // device code.
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using type = const __OPENCL_GLOBAL_AS__ ElementType;
+#else
   using type = __OPENCL_GLOBAL_AS__ ElementType;
+#endif
 };
 
 template <typename ElementType>
