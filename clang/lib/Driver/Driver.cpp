@@ -2572,7 +2572,7 @@ static bool optionMatches(const std::string &Option,
 // handling options and explicitly named static archives as these need to be
 // partially linked.
 static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
-    DerivedArgList &Args) {
+                                                   DerivedArgList &Args) {
   SmallVector<const char *, 16> LibArgs;
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
@@ -2603,8 +2603,8 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
           // that take arguments which we should not add to the known values.
           // Handle -z and -rpath for now - can be expanded if/when usage shows
           // the need.
-          if (PrevArg != "-z" && PrevArg != "-rpath" &&
-              V[0] != '-' && isObjectFile(V.str())) {
+          if (PrevArg != "-z" && PrevArg != "-rpath" && V[0] != '-' &&
+              isObjectFile(V.str())) {
             LibArgs.push_back(Args.MakeArgString(V));
             return;
           }
@@ -2667,8 +2667,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
     return true;
   SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args));
   for (const StringRef &OLArg : OffloadLibArgs)
-    if (isStaticArchiveFile(OLArg) &&
-        hasOffloadSections(C, OLArg, Args)) {
+    if (isStaticArchiveFile(OLArg) && hasOffloadSections(C, OLArg, Args)) {
       // FPGA binaries with AOCX or AOCR sections are not considered fat
       // static archives.
       if (Args.hasArg(options::OPT_fintelfpga))
@@ -4636,9 +4635,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     bool IsWholeArchive = false;
     for (const StringRef &LA : LinkArgs) {
       if (isStaticArchiveFile(LA)) {
-        addUnbundlerInput(IsWholeArchive ? types::TY_WholeArchive
-                                         : types::TY_Archive,
-                          LA);
+        addUnbundlerInput(
+            IsWholeArchive ? types::TY_WholeArchive : types::TY_Archive, LA);
         continue;
       }
       if (optionMatches("-no-whole-archive", LA.str())) {
