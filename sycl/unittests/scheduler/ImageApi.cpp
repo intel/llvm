@@ -45,7 +45,7 @@ TEST_F(SchedulerTest, ImageApi) {
                           sycl::addressing_mode::clamp,
                           sycl::filtering_mode::nearest);
 
-    CGH.parallel_for<class ImgTest>(Range, [=](sycl::id<Dimensions> ID) {
+    CGH.parallel_for<class ImgTest>(Range, [=](sycl::id<2> ID) {
       sycl::int2 Coords{ID[1], ID[0]};
       sycl::float4 Color = SrcAcc.read(Coords, Sampler);
       Color *= 10.0f;
