@@ -2662,8 +2662,8 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
   getLinkerArgs(C, Args, OffloadLibArgs);
   for (std::string MA : OffloadLibArgs)
     if (isStaticArchiveFile(MA) && hasOffloadSections(C, MA, Args)) {
-      // For FPGA binaries with AOCX or AOCR sections are not
-      // considered fat static archives
+      // FPGA binaries with AOCX or AOCR sections are not considered fat
+      // static archives.
       if (Args.hasArg(options::OPT_fintelfpga))
         return !(hasFPGABinary(C, MA, types::TY_FPGA_AOCR) ||
                  hasFPGABinary(C, MA, types::TY_FPGA_AOCX));
@@ -4598,6 +4598,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   OffloadBuilder.appendTopLevelLinkAction(Actions);
 
+  // Go through all of the args, and create a Linker specific argument list.
+  // When dealing with fat static archives, this is fed into the partial link
+  // step on Linux or each archive is individually addressed on Windows.
+  SmallVector<const char *, 16> LinkArgs;
+  getLinkerArgs(C, Args, LinkArgs);
   // When a static fat archive is provided, create a new unbundling step
   // for all of the objects.
   if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
@@ -4622,10 +4627,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       UnbundlerInputs.push_back(Current);
     };
-    // Go through all of the args, and create a Linker specific argument list.
-    // This is fed into the partial link step.
-    SmallVector<const char *, 16> LinkArgs;
-    getLinkerArgs(C, Args, LinkArgs);
     bool IsWholeArchive = false;
     for (std::string MA : LinkArgs) {
       if (isStaticArchiveFile(MA)) {
@@ -4671,8 +4672,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     OffloadBuilder.addDeviceDependencesToHostAction(
         Current, InputArg, phases::Link, PL.back(), PL);
   };
-  SmallVector<const char *, 16> LinkArgs;
-  getLinkerArgs(C, Args, LinkArgs);
   for (std::string MA : LinkArgs) {
     // At this point, we will process the archives for FPGA AOCO and individual
     // archive unbundling for Windows.

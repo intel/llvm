@@ -7183,8 +7183,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
   bool IsArchiveUnbundle =
       (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
-       (types::isArchive(InputType) || InputType == types::TY_Object) &&
-       !(InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR));
+       (types::isArchive(InputType) || InputType == types::TY_Object));
 
   if (IsArchiveUnbundle)
     TypeArg = "oo";
