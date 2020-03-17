@@ -16,12 +16,13 @@
 TEST_F(SchedulerTest, ImageApi) {
 
   constexpr size_t Size = 256;
+  constexpr int Dimensions = 2;
+
   std::array<sycl::float4, Size> Src;
   std::array<sycl::float4, Size> Dest;
   std::fill(Src.begin(), Src.end(), sycl::float4{1.0f, 2.0f, 3.0f, 4.0f});
   std::fill(Dest.begin(), Dest.end(), sycl::float4{0.0f, 0.0f, 0.0f, 0.0});
 
-  constexpr int Dimensions = 2;
   constexpr sycl::image_channel_order ChannelOrder =
       sycl::image_channel_order::rgba;
   constexpr sycl::image_channel_type ChannelType =
