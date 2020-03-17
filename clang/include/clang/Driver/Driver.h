@@ -663,7 +663,7 @@ bool isOptimizationLevelFast(const llvm::opt::ArgList &Args);
 bool isObjectFile(std::string FileName);
 
 /// \return True if the filename has a static archive/lib extension.
-bool isStaticArchiveFile(const std::string &FileName);
+bool isStaticArchiveFile(const StringRef &FileName);
 
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);
