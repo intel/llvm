@@ -17,7 +17,8 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 
-template <typename T, class BinaryOperation> class sycl_subgr;
+template <typename T, class BinaryOperation>
+class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -67,7 +68,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T>
+void check(queue &Queue, size_t G = 240, size_t L = 60) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;

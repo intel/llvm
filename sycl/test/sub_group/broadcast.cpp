@@ -15,9 +15,11 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T> class sycl_subgr;
+template <typename T>
+class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue) {
+template <typename T>
+void check(queue &Queue) {
   const int G = 240, L = 60;
   try {
     nd_range<1> NdRange(G, L);
