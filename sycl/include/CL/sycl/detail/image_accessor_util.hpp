@@ -552,8 +552,6 @@ vec<ChannelType, 4>
 convertWriteData(const vec<cl_float, 4> WriteData,
                  const image_channel_type ImageChannelType) {
 
-  vec<ChannelType, 4> PixelData;
-
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
     // convert_char_sat_rte(f * 127.0f)
@@ -581,7 +579,8 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     {
       vec<cl_ushort, 4> PixelData =
           processFloatDataToPixel<cl_ushort>(WriteData, 32.0f);
-      PixelData = cl::sycl::min(PixelData, static_cast<ChannelType>(0x1f));
+      PixelData =
+          cl::sycl::min(PixelData, static_cast<const ChannelType>(0x1f));
       // Compressing the data into the first element of PixelData.
       // This is needed so that the data can be directly stored into the pixel
       // location from the first element.
@@ -791,8 +790,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 template <typename DataT>
 DataT ReadPixelData(const cl_int4 PixelCoord, const id<3> ImgPitch,
                     const image_channel_type ImageChannelType,
-                    const image_channel_order ImageChannelOrder,
-                    void *BasePtr, const uint8_t ElementSize) {
+                    const image_channel_order ImageChannelOrder, void *BasePtr,
+                    const uint8_t ElementSize) {
   DataT Color(0);
   auto Ptr = static_cast<unsigned char *>(BasePtr) +
              getImageOffset(PixelCoord, ImgPitch,
@@ -917,29 +916,28 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
   cl_int i0 = CoordValues.s0(), j0 = CoordValues.s1(), k0 = CoordValues.s2(),
          i1 = CoordValues.s4(), j1 = CoordValues.s5(), k1 = CoordValues.s6();
 
-  auto getColorInFloat =
-      [&](cl_int4 V) {
-        DataT Res = getColor<DataT>(V, SmplAddrMode,
-                                    ImgRange, ImgPitch, ImgChannelType,
-                                    ImgChannelOrder, BasePtr, ElementSize);
-        return Res.template convert<cl_float>();
-      };
+  auto getColorInFloat = [&](cl_int4 V) {
+    DataT Res =
+        getColor<DataT>(V, SmplAddrMode, ImgRange, ImgPitch, ImgChannelType,
+                        ImgChannelOrder, BasePtr, ElementSize);
+    return Res.template convert<cl_float>();
+  };
 
   // Get Color Values at each Coordinate.
   cl_float4 Ci0j0k0 = getColorInFloat(cl_int4{i0, j0, k0, 0});
-  
+
   cl_float4 Ci1j0k0 = getColorInFloat(cl_int4{i1, j0, k0, 0});
-  
+
   cl_float4 Ci0j1k0 = getColorInFloat(cl_int4{i0, j1, k0, 0});
-  
+
   cl_float4 Ci1j1k0 = getColorInFloat(cl_int4{i1, j1, k0, 0});
-  
+
   cl_float4 Ci0j0k1 = getColorInFloat(cl_int4{i0, j0, k1, 0});
-  
+
   cl_float4 Ci1j0k1 = getColorInFloat(cl_int4{i1, j0, k1, 0});
-  
+
   cl_float4 Ci0j1k1 = getColorInFloat(cl_int4{i0, j1, k1, 0});
-  
+
   cl_float4 Ci1j1k1 = getColorInFloat(cl_int4{i1, j1, k1, 0});
 
   cl_float a = abc.x();
