@@ -21,6 +21,9 @@ DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_x();
 DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
 DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
 
+DEVICE_EXTERNAL int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *fmt, ...);
+
 DEVICE_EXTERN_C
 void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
                              const char *func, uint64_t gid0, uint64_t gid1,

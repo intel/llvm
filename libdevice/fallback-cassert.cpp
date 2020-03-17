@@ -8,8 +8,6 @@
 
 #include "wrapper.h"
 
-#include <CL/__spirv/spirv_ops.hpp>
-
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
