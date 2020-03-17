@@ -255,7 +255,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
         SmallString<128> DepName(ArgName);
         llvm::sys::path::replace_extension(DepName, "d");
         FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-          Args.MakeArgString(DepName), Args.MakeArgString(DepName)));
+                                         Args.MakeArgString(DepName),
+                                         Args.MakeArgString(DepName)));
       }
       if (createdReportName.empty()) {
         // Project report should be saved into CWD, so strip off any
