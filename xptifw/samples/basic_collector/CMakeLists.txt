@@ -10,13 +10,11 @@ remove_definitions(-DXPTI_STATIC_LIBRARY)
 add_definitions(-DXPTI_API_EXPORTS)
 add_library(basic_collector SHARED ${SOURCES})
 add_dependencies(basic_collector xptifw)
-if (MSVC)
+target_link_libraries(basic_collector
+          PRIVATE xptifw
+          )
+if (UNIX)
   target_link_libraries(basic_collector
-            PRIVATE xptifw
-            )
-else()
-  target_link_libraries(basic_collector
-            PRIVATE xptifw
             PRIVATE dl
             )
 endif()

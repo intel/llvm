@@ -227,8 +227,8 @@ private:
   tbb::spin_mutex m_loader;
 };
 
-/// @brief Helper class to create and  manage tracepoints
-/// @details The class uses the global string table to register the strings it
+/// \brief Helper class to create and  manage tracepoints
+/// \details The class uses the global string table to register the strings it
 /// encounters in various payloads and builds internal hash maps to manage them.
 /// This is a single point for managing tracepoints.
 class Tracepoints {
@@ -560,8 +560,8 @@ private:
   tbb::speculative_spin_mutex m_hash_lock;
 };
 
-/// @brief Helper class to manage subscriber callbacks for a given tracepoint
-/// @details This class provides a thread-safe way to register and unregister
+/// \brief Helper class to manage subscriber callbacks for a given tracepoint
+/// \details This class provides a thread-safe way to register and unregister
 /// callbacks for a given stream. This will be used by tool plugins.
 ///
 /// The class also provided a way to notify registered callbacks for a given

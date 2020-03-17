@@ -7,26 +7,28 @@
 #include "xpti_data_types.h"
 
 #include <atomic>
+#include <mutex>
+#include <unordered_map>
 
 #ifdef XPTI_STATISTICS
 #include <stdio.h>
 #endif
 
+#ifdef XPTI_USE_TBB
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/spin_mutex.h>
 
 namespace xpti {
-/// @brief A class for mapping one 64-bit value to another 64-bit value
-/// @details With each payload, a kernel/function name and the
-/// source file name may be passed and we need to ensure that the
-/// payload can be cached in a hash map that maps a unique value
-/// from the payload to a universal ID. We could use the payload
-/// hash for this purpose, but the numbers are non -monotonic and
-/// can be harder to debug.
-///
+/// \brief A class for mapping one 64-bit value to another 64-bit value
+/// \details With each payload, a kernel/function name and the source file name
+/// may be passed and we need to ensure that the payload can be cached in a hash
+/// map that maps a unique value from the payload to a universal ID. We could
+/// use the payload hash for this purpose, but the numbers are non-monotonic and
+/// can be harder to debug. This implementation of the hash table uses Threading
+/// Building Blocks concurrent containers for multi-threaded efficiency.
 class Hash64x64Table {
 public:
-  typedef tbb::concurrent_hash_map<int64_t, int64_t> ht_lut_t;
+  using ht_lut_t = tbb::concurrent_hash_map<int64_t, int64_t>;
 
   Hash64x64Table(int size = 1024)
       : m_forward(size), m_reverse(size), m_table_size(size) {
@@ -145,4 +147,134 @@ private:
       m_lookup;           ///< Thread-safe tracking of lookups
 #endif
 };
+
+#else
+namespace xpti {
+/// \brief A class for mapping one 64-bit value to another 64-bit value
+/// \details With each payload, a kernel/function name and the source file name
+/// may be passed and we need to ensure that the payload can be cached in a hash
+/// map that maps a unique value from the payload to a universal ID. We could
+/// use the payload hash for this purpose, but the numbers are non-monotonic and
+/// can be harder to debug. This implementation of the hash table uses std
+/// library containers.
+class Hash64x64Table {
+public:
+  using ht_lut_t = std::unordered_map<int64_t, int64_t>;
+
+  Hash64x64Table(int size = 1024)
+      : m_forward(size), m_reverse(size), m_table_size(size) {
+#ifdef XPTI_STATISTICS
+    m_insert = 0;
+    m_lookup = 0;
+#endif
+  }
+
+  ~Hash64x64Table() {
+    m_forward.clear();
+    m_reverse.clear();
+  }
+
+  //  Clear all the contents of this hash table and get it ready for re-use
+  void clear() {
+    m_forward.clear();
+    m_reverse.clear();
+#ifdef XPTI_STATISTICS
+    m_insert = 0;
+    m_lookup = 0;
+#endif
+  }
+
+  //  Check to see if a particular key is already present in the table;
+  //
+  //  On success, the value for the key will be returned. If not,
+  //  xpti::invalid_id will be returned.
+  int64_t find(int64_t key) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    //  Try to read it, if already present
+    auto key_loc = m_forward.find(key);
+    if (key_loc != m_forward.end()) {
+#ifdef XPTI_STATISTICS
+      m_lookup++;
+#endif
+      return key_loc->second; // We found it, so we return the value
+    } else
+      return xpti::invalid_id;
+  }
+
+  //  Add a <key, value> pair to the hash table. If the key already exists, this
+  //  call returns even if the value happens to be different this time.
+  //
+  //  If the key does not exists, then the key is inserted into the hash map and
+  //  the reverse lookup populated with the <value, key> pair.
+  void add(int64_t key, int64_t value) {
+    //  Try to read it, if already present
+    auto key_loc = m_forward.find(key);
+    if (key_loc != m_forward.end()) {
+#ifdef XPTI_STATISTICS
+      m_lookup++;
+#endif
+    } else { // Multiple threads could fall through here
+      {
+        // Employ a double-check pattern here
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto key_loc = m_forward.find(key);
+        if (key_loc == m_forward.end()) {
+          // The key does not exist, so we will add the key-value pair to the
+          // hash map
+          m_forward[key] = value;
+          key_loc = m_forward.find(key);
+#ifdef XPTI_STATISTICS
+          m_insert++;
+#endif
+          // When we insert a new entry into the table, we also need to build
+          // the reverse lookup;
+          {
+            auto val_loc = m_reverse.find(value);
+            if (val_loc == m_reverse.end()) {
+              // An entry does not exist, so we will add it to the reverse
+              // lookup.
+              m_reverse[value] = key;
+            } else {
+              m_forward.erase(key_loc);
+            }
+          }
+        }
+        // else, we do not add the key-value pair as the key already exists in
+        // the table!
+      }
+    }
+  }
+
+  //  The reverse query allows one to get the value from the key that may have
+  //  been cached somewhere.
+  int64_t reverseFind(int64_t value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto val_loc = m_reverse.find(value);
+    if (val_loc != m_reverse.end()) {
+#ifdef XPTI_STATISTICS
+      m_lookup++;
+#endif
+      return val_loc->second;
+    } else
+      return xpti::invalid_id;
+  }
+
+  void printStatistics() {
+#ifdef XPTI_STATISTICS
+    printf("Hash table inserts : [%llu]\n", m_insert.load());
+    printf("Hash table lookups : [%llu]\n", m_lookup.load());
+#endif
+  }
+
+private:
+  ht_lut_t m_forward;   ///< Forward lookup hash map
+  ht_lut_t m_reverse;   ///< Reverse lookup hash map
+  int32_t m_table_size; ///< Initial size of the hash map
+  std::mutex m_mutex;   ///< Mutex required to implement a double-check pattern
+#ifdef XPTI_STATISTICS
+  safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
+      m_lookup;           ///< Thread-safe tracking of lookups
+#endif
+};
+#endif
 } // namespace xpti

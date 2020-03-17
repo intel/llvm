@@ -2,7 +2,7 @@
 
 Implementation of the instrumentation framework library to support
 instrumentation of arbitrary regions of code. This implementation requires the
-specification header files used by the proxy library in ```xpti/```. This
+specification header files used by the proxy library in `xpti/`. This
 library is not necessary for building the SYCL runtime library and only required
 to build tools that extract the traces from instrumented code.
 

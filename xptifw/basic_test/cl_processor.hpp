@@ -6,6 +6,8 @@
 //
 //
 #pragma once
+#include "xpti_trace_framework.hpp"
+
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -18,8 +20,6 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
-
-#include "xpti_trace_framework.hpp"
 
 namespace test {
 namespace utils {
@@ -104,9 +104,7 @@ public:
 
   void parse(int argc, char **argv) {
     m_cl_options.resize(argc);
-    // Go through the command-line options
-    // list and build an internal
-    //
+    // Go through the command-line options list and build an internal
     m_app_name = argv[0];
     for (int i = 1; i < argc; ++i) {
       m_cl_options[i - 1] = argv[i];
@@ -160,10 +158,8 @@ private:
     std::cout << "Usage:- \n";
     std::cout << "      " << m_app_name << " ";
     // Print all required options first
-    //
     for (auto &op : m_option_help_lut) {
       if (op.second.required()) {
-        // Required!
         std::cout << op.first << " ";
         switch (op.second.type()) {
         case OptionType::Integer:
@@ -185,10 +181,8 @@ private:
       }
     }
     // Print the optional flags next.
-    //
     for (auto &op : m_option_help_lut) {
       if (!op.second.required()) {
-        // Not required!
         std::cout << "[" << op.first << " ";
         switch (op.second.type()) {
         case OptionType::Integer:
@@ -212,7 +206,6 @@ private:
     }
     std::cout << "\n      Options supported:\n";
     // Print help for all of the options
-    //
     for (auto &op : m_option_help_lut) {
       std::stringstream help(op.second.help());
       std::string help_line;
@@ -238,14 +231,11 @@ private:
     for (auto &op : m_cl_options) {
       std::size_t pos = op.find_first_of("-");
       if (std::string::npos != pos) {
-        //  We have an option provided; let's
-        //  check to see if it is verbose or
+        //  We have an option provided; let's check to see if it is verbose or
         //  abbreviated
-        //
         pos = op.find_first_of("-", pos + 1);
         if (std::string::npos != pos) {
           // We have a verbose option
-          //
           if (op == m_reserved_key) {
             print_help();
             exit(-1);
@@ -256,8 +246,7 @@ private:
           m_value_lut[op] = "true";
           prev_key = op;
         } else {
-          // We have abbreviated option
-          //
+          // We have an abbreviated option
           if (op == m_reserved_key_abbr) {
             print_help();
             exit(-1);
@@ -269,14 +258,11 @@ private:
           m_value_lut[prev_key] = "true";
         }
       } else {
-        // No idea why stringstream will decode the
-        // last \n as a "" string; this handles that
-        // case
-        //
+        // No idea why stringstream will decode the last \n as a "" string; this
+        // handles that case
         if (prev_key.empty() && op.empty())
           break;
         // We have an option value
-        //
         if (prev_key.empty()) {
           std::cout << "Value[" << op
                     << "] provided without specifying an option\n";
@@ -289,12 +275,9 @@ private:
     }
 
     for (auto &op : m_option_help_lut) {
-      // Check to see if an option is required;
-      // If so, check to see if there's a value
-      // associated with it.
-      //
+      // Check to see if an option is required; If so, check to see if there's a
+      // value associated with it.
       if (op.second.required()) {
-        // Required!
         if (!m_value_lut.count(op.first)) {
           std::cout << "Option[" << op.first
                     << "] is required and not provided.\n";
@@ -368,9 +351,7 @@ private:
 class range_decoder {
 public:
   range_decoder(std::string &range_str) : m_range(range_str) {
-    // Split by commas first
-    // followed by : for begin,end, step
-    //
+    // Split by commas first followed by : for begin,end, step
     std::stringstream elements(range_str);
     std::string element;
     while (std::getline(elements, element, ',')) {
@@ -381,12 +362,10 @@ public:
         std::vector<std::string> range_tokens;
         std::string e, b;
         // Now split by :
-        //
         while (std::getline(r, e, ':')) {
           range_tokens.push_back(e);
         }
-        // range_tokens should have three entries
-        // Second entry is the step
+        // range_tokens should have three entries; Second entry is the step
         std::cout << range_tokens[0] << ";" << range_tokens[1] << std::endl;
         long step = std::stol(range_tokens[2]);
         for (long i = std::stol(range_tokens[0]);
@@ -472,8 +451,8 @@ private:
 } // namespace semantic
 
 namespace performance {
-constexpr long MaxTracepoints = 100000;
-constexpr long MinTracepoints = 10;
+constexpr int MaxTracepoints = 100000;
+constexpr int MinTracepoints = 10;
 class test_performance {
 public:
   struct record {

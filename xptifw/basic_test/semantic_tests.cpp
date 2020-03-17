@@ -90,7 +90,7 @@ enum class NColumns { Threads, Notifications, PassRate };
 void test_correctness::run_string_table_test_threads(
     int run_no, int num_threads, test::utils::table_model &t) {
   xptiReset();
-  constexpr long num_strings = 1000;
+  constexpr int num_strings = 1000;
 
   if (!num_threads) {
     std::vector<char *> strings;
@@ -200,7 +200,7 @@ void test_correctness::run_string_table_tests() {
 void test_correctness::run_tracepoint_test_threads(
     int run_no, int num_threads, test::utils::table_model &t) {
   xptiReset();
-  constexpr long tracepoint_count = 1000;
+  constexpr int tracepoint_count = 1000;
 
   if (!num_threads) {
     std::vector<xpti::payload_t *> payloads;
@@ -362,7 +362,7 @@ void test_correctness::run_tracepoint_tests() {
 void test_correctness::run_notification_test_threads(
     int run_no, int num_threads, test::utils::table_model &t) {
   xptiReset();
-  constexpr long tp_count = 30, callback_count = tp_count * 30;
+   tp_count = 30, callback_count = tp_count * 30;
   std::vector<xpti::payload_t *> payloads;
   std::vector<int64_t> uids;
   std::vector<xpti::trace_event_data_t *> events;
