@@ -6,7 +6,7 @@
 // expected-no-diagnostics
 class Functor {
 public:
-  [[intel::reqd_work_group_size(4)]] [[intel::reqd_work_group_size(4)]] void operator()() {}
+  [[intel::reqd_work_group_size(4)]] void operator()() {}
 };
 
 template <typename name, typename Func>

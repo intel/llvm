@@ -1304,6 +1304,9 @@ createArgument(const Record &Arg, StringRef Attr,
   else if (ArgName == "DefaultIntArgument")
     Ptr = std::make_unique<DefaultSimpleArgument>(
         Arg, Attr, "int", Arg.getValueAsInt("Default"));
+  else if (ArgName == "DefaultUnsignedArgument")
+    Ptr = std::make_unique<DefaultSimpleArgument>(
+        Arg, Attr, "unsigned", Arg.getValueAsInt("Default"));
   else if (ArgName == "IntArgument")
     Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "int");
   else if (ArgName == "StringArgument")
