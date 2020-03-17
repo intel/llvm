@@ -31,8 +31,8 @@ template <> inline size_t get_local_linear_range<group<2>>(group<2> g) {
 template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
-template <> inline
-size_t get_local_linear_range<intel::sub_group>(intel::sub_group g) {
+template <>
+inline size_t get_local_linear_range<intel::sub_group>(intel::sub_group g) {
   return g.get_local_range()[0];
 }
 
