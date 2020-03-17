@@ -18,6 +18,9 @@
 #include <limits>
 #include <type_traits>
 
+#undef min
+#undef max
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

@@ -25,6 +25,8 @@
 #else
 #define __SYCL_CONSTEXPR_ON_DEVICE
 #endif
+#undef min
+#undef max
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -17,6 +17,8 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
+#undef min
+#undef max
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 #ifdef __SYCL_DEVICE_ONLY__
