@@ -32,8 +32,8 @@ can use to build performance analytical models. This document describes the
 different components of this framework and a testing methodology to determine
 the cost of using this framework in your applications.
 
-In order to provide efficient and performant thread-safe behavior, the
-framework relies on the concurrent containers in [Threading Building Blocks](github.com/intel/tbb).
+Current implementation uses std containers by default in the framework. There is
+also an implementation that relies on the concurrent containers in [Threading Building Blocks](github.com/intel/tbb) and this can be enabled by using the define `-DXPTI_USE_TBB` with `cmake`.
 
 > **NOTE:** This document is best viewed with [Markdown Reader](https://chrome.google.com/webstore/detail/markdown-reader/gpoigdifkoadgajcincpilkjmejcaanc)
 > plugin for Chrome or the [Markdown Preview Extension]() for Visual Studio Code.
