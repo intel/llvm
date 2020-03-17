@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 // expected-no-diagnostics

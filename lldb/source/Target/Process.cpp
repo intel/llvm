@@ -2799,9 +2799,9 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
           match_info.GetProcessInfo() = attach_info;
           match_info.SetNameMatchType(NameMatch::Equals);
           platform_sp->FindProcesses(match_info, process_infos);
-          const uint32_t num_matches = process_infos.GetSize();
+          const uint32_t num_matches = process_infos.size();
           if (num_matches == 1) {
-            attach_pid = process_infos.GetProcessIDAtIndex(0);
+            attach_pid = process_infos[0].GetProcessID();
             // Fall through and attach using the above process ID
           } else {
             match_info.GetProcessInfo().GetExecutableFile().GetPath(
@@ -2810,7 +2810,7 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
               StreamString s;
               ProcessInstanceInfo::DumpTableHeader(s, true, false);
               for (size_t i = 0; i < num_matches; i++) {
-                process_infos.GetProcessInfoAtIndex(i).DumpAsTableRow(
+                process_infos[i].DumpAsTableRow(
                     s, platform_sp->GetUserIDResolver(), true, false);
               }
               error.SetErrorStringWithFormat(
@@ -5778,12 +5778,11 @@ Process::AdvanceAddressToNextBranchInstruction(Address default_stop_addr,
   if (!default_stop_addr.IsValid())
     return retval;
 
-  ExecutionContext exe_ctx(this);
   const char *plugin_name = nullptr;
   const char *flavor = nullptr;
   const bool prefer_file_cache = true;
   disassembler_sp = Disassembler::DisassembleRange(
-      target.GetArchitecture(), plugin_name, flavor, exe_ctx, range_bounds,
+      target.GetArchitecture(), plugin_name, flavor, GetTarget(), range_bounds,
       prefer_file_cache);
   if (disassembler_sp)
     insn_list = &disassembler_sp->GetInstructionList();

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
 extern "C" float  sinf(float);
 extern "C" float  cosf(float);
 extern "C" float  logf(float);

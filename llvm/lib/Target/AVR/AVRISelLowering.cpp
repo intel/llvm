@@ -259,6 +259,8 @@ const char *AVRTargetLowering::getTargetNodeName(unsigned Opcode) const {
     NODE(ASR);
     NODE(LSLLOOP);
     NODE(LSRLOOP);
+    NODE(ROLLOOP);
+    NODE(RORLOOP);
     NODE(ASRLOOP);
     NODE(BRCOND);
     NODE(CMP);
@@ -1514,8 +1516,8 @@ MachineBasicBlock *AVRTargetLowering::insertShift(MachineInstr &MI,
   LoopBB->addSuccessor(RemBB);
   LoopBB->addSuccessor(LoopBB);
 
-  unsigned ShiftAmtReg = RI.createVirtualRegister(&AVR::LD8RegClass);
-  unsigned ShiftAmtReg2 = RI.createVirtualRegister(&AVR::LD8RegClass);
+  Register ShiftAmtReg = RI.createVirtualRegister(&AVR::LD8RegClass);
+  Register ShiftAmtReg2 = RI.createVirtualRegister(&AVR::LD8RegClass);
   Register ShiftReg = RI.createVirtualRegister(RC);
   Register ShiftReg2 = RI.createVirtualRegister(RC);
   Register ShiftAmtSrcReg = MI.getOperand(2).getReg();

@@ -38,6 +38,7 @@ namespace clangd {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Matcher;
 using ::testing::UnorderedElementsAreArray;
@@ -338,11 +339,22 @@ TEST(LocateSymbol, All) {
        #define ADDRESSOF(X) &X;
        int *j = ADDRESSOF(^i);
       )cpp",
-
+      R"cpp(// Macro argument appearing multiple times in expansion
+        #define VALIDATE_TYPE(x) (void)x;
+        #define ASSERT(expr)       \
+          do {                     \
+            VALIDATE_TYPE(expr);   \
+            if (!expr);            \
+          } while (false)
+        bool [[waldo]]() { return true; }
+        void foo() {
+          ASSERT(wa^ldo());
+        }
+      )cpp",
       R"cpp(// Symbol concatenated inside macro (not supported)
        int *pi;
        #define POINTER(X) p ## X;
-       int i = *POINTER(^i);
+       int x = *POINTER(^i);
       )cpp",
 
       R"cpp(// Forward class declaration
@@ -595,6 +607,81 @@ TEST(LocateSymbol, Warnings) {
   }
 }
 
+TEST(LocateSymbol, TextualSmoke) {
+  auto T = Annotations(
+      R"cpp(
+        struct [[MyClass]] {};
+        // Comment mentioning M^yClass
+      )cpp");
+
+  auto TU = TestTU::withCode(T.code());
+  auto AST = TU.build();
+  auto Index = TU.index();
+  EXPECT_THAT(locateSymbolAt(AST, T.point(), Index.get()),
+              ElementsAre(Sym("MyClass", T.range())));
+}
+
+TEST(LocateSymbol, Textual) {
+  const char *Tests[] = {
+      R"cpp(// Comment
+        struct [[MyClass]] {};
+        // Comment mentioning M^yClass
+      )cpp",
+      R"cpp(// String
+        struct [[MyClass]] {};
+        const char* s = "String literal mentioning M^yClass";
+      )cpp",
+      R"cpp(// Ifdef'ed out code
+        struct [[MyClass]] {};
+        #ifdef WALDO
+          M^yClass var;
+        #endif
+      )cpp",
+      R"cpp(// Macro definition
+        struct [[MyClass]] {};
+        #define DECLARE_MYCLASS_OBJ(name) M^yClass name;
+      )cpp",
+      R"cpp(// Invalid code
+        /*error-ok*/
+        int myFunction(int);
+        // Not triggered for token which survived preprocessing.
+        int var = m^yFunction();
+      )cpp",
+      R"cpp(// Dependent type
+        struct Foo {
+          void uniqueMethodName();
+        };
+        template <typename T>
+        void f(T t) {
+          // Not triggered for token which survived preprocessing.
+          t->u^niqueMethodName();
+        }
+      )cpp"};
+
+  for (const char *Test : Tests) {
+    Annotations T(Test);
+    llvm::Optional<Range> WantDecl;
+    if (!T.ranges().empty())
+      WantDecl = T.range();
+
+    auto TU = TestTU::withCode(T.code());
+
+    auto AST = TU.build();
+    auto Index = TU.index();
+    auto Results = locateSymbolNamedTextuallyAt(
+        AST, Index.get(),
+        cantFail(sourceLocationInMainFile(AST.getSourceManager(), T.point())),
+        testPath(TU.Filename));
+
+    if (!WantDecl) {
+      EXPECT_THAT(Results, IsEmpty()) << Test;
+    } else {
+      ASSERT_THAT(Results, ::testing::SizeIs(1)) << Test;
+      EXPECT_EQ(Results[0].PreferredDeclaration.range, *WantDecl) << Test;
+    }
+  }
+}
+
 TEST(LocateSymbol, Ambiguous) {
   auto T = Annotations(R"cpp(
     struct Foo {
@@ -667,6 +754,30 @@ TEST(LocateSymbol, Ambiguous) {
   EXPECT_THAT(locateSymbolAt(AST, T.point("13")),
               UnorderedElementsAre(Sym("baz", T.range("StaticOverload1")),
                                    Sym("baz", T.range("StaticOverload2"))));
+}
+
+TEST(LocateSymbol, TextualAmbiguous) {
+  auto T = Annotations(R"cpp(
+        struct Foo {
+          void $FooLoc[[uniqueMethodName]]();
+        };
+        struct Bar {
+          void $BarLoc[[uniqueMethodName]]();
+        };
+        // Will call u^niqueMethodName() on t.
+        template <typename T>
+        void f(T t);
+      )cpp");
+  auto TU = TestTU::withCode(T.code());
+  auto AST = TU.build();
+  auto Index = TU.index();
+  auto Results = locateSymbolNamedTextuallyAt(
+      AST, Index.get(),
+      cantFail(sourceLocationInMainFile(AST.getSourceManager(), T.point())),
+      testPath(TU.Filename));
+  EXPECT_THAT(Results,
+              UnorderedElementsAre(Sym("uniqueMethodName", T.range("FooLoc")),
+                                   Sym("uniqueMethodName", T.range("BarLoc"))));
 }
 
 TEST(LocateSymbol, TemplateTypedefs) {
@@ -838,7 +949,8 @@ TEST(LocateSymbol, WithPreamble) {
       ElementsAre(Sym("foo.h", FooHeader.range())));
 
   // Only preamble is built, and no AST is built in this request.
-  Server.addDocument(FooCpp, FooWithoutHeader.code(), WantDiagnostics::No);
+  Server.addDocument(FooCpp, FooWithoutHeader.code(), "null",
+                     WantDiagnostics::No);
   // We build AST here, and it should use the latest preamble rather than the
   // stale one.
   EXPECT_THAT(
@@ -848,7 +960,8 @@ TEST(LocateSymbol, WithPreamble) {
   // Reset test environment.
   runAddDocument(Server, FooCpp, FooWithHeader.code());
   // Both preamble and AST are built in this request.
-  Server.addDocument(FooCpp, FooWithoutHeader.code(), WantDiagnostics::Yes);
+  Server.addDocument(FooCpp, FooWithoutHeader.code(), "null",
+                     WantDiagnostics::Yes);
   // Use the AST being built in above request.
   EXPECT_THAT(
       cantFail(runLocateSymbolAt(Server, FooCpp, FooWithoutHeader.point())),

@@ -1045,6 +1045,8 @@ void DwarfUnit::constructTemplateTypeParameterDIE(
     addType(ParamDIE, TP->getType());
   if (!TP->getName().empty())
     addString(ParamDIE, dwarf::DW_AT_name, TP->getName());
+  if (TP->isDefault() && (DD->getDwarfVersion() >= 5))
+    addFlag(ParamDIE, dwarf::DW_AT_default_value);
 }
 
 void DwarfUnit::constructTemplateValueParameterDIE(
@@ -1057,6 +1059,8 @@ void DwarfUnit::constructTemplateValueParameterDIE(
     addType(ParamDIE, VP->getType());
   if (!VP->getName().empty())
     addString(ParamDIE, dwarf::DW_AT_name, VP->getName());
+  if (VP->isDefault() && (DD->getDwarfVersion() >= 5))
+    addFlag(ParamDIE, dwarf::DW_AT_default_value);
   if (Metadata *Val = VP->getValue()) {
     if (ConstantInt *CI = mdconst::dyn_extract<ConstantInt>(Val))
       addConstantValue(ParamDIE, CI, VP->getType());
@@ -1122,6 +1126,8 @@ DIE *DwarfUnit::getOrCreateModule(const DIModule *M) {
               M->getConfigurationMacros());
   if (!M->getIncludePath().empty())
     addString(MDie, dwarf::DW_AT_LLVM_include_path, M->getIncludePath());
+  if (!M->getAPINotesFile().empty())
+    addString(MDie, dwarf::DW_AT_LLVM_apinotes, M->getAPINotesFile());
 
   return &MDie;
 }

@@ -8,6 +8,7 @@
 
 #include "SIMachineFunctionInfo.h"
 #include "AMDGPUArgumentUsageInfo.h"
+#include "AMDGPUTargetMachine.h"
 #include "AMDGPUSubtarget.h"
 #include "SIRegisterInfo.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
@@ -54,6 +55,16 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
   Occupancy = ST.computeOccupancy(MF, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
+  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+
+  // FIXME: Should have analysis or something rather than attribute to detect
+  // calls.
+  const bool HasCalls = FrameInfo.hasCalls() || F.hasFnAttribute("amdgpu-calls");
+
+  // Enable all kernel inputs if we have the fixed ABI. Don't bother if we don't
+  // have any calls.
+  const bool UseFixedABI = AMDGPUTargetMachine::EnableFixedFunctionABI &&
+                           (!isEntryFunction() || HasCalls);
 
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL) {
     if (!F.arg_empty())
@@ -89,25 +100,34 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     }
   }
 
-  if (F.hasFnAttribute("amdgpu-work-group-id-x"))
+  if (UseFixedABI) {
     WorkGroupIDX = true;
-
-  if (F.hasFnAttribute("amdgpu-work-group-id-y"))
     WorkGroupIDY = true;
-
-  if (F.hasFnAttribute("amdgpu-work-group-id-z"))
     WorkGroupIDZ = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-x"))
     WorkItemIDX = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-y"))
     WorkItemIDY = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-z"))
     WorkItemIDZ = true;
+    ImplicitArgPtr = true;
+  } else {
+    if (F.hasFnAttribute("amdgpu-work-group-id-x"))
+      WorkGroupIDX = true;
 
-  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+    if (F.hasFnAttribute("amdgpu-work-group-id-y"))
+      WorkGroupIDY = true;
+
+    if (F.hasFnAttribute("amdgpu-work-group-id-z"))
+      WorkGroupIDZ = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-x"))
+      WorkItemIDX = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-y"))
+      WorkItemIDY = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-z"))
+      WorkItemIDZ = true;
+  }
+
   bool HasStackObjects = FrameInfo.hasStackObjects();
 
   if (isEntryFunction()) {
@@ -129,19 +149,27 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   if (isAmdHsaOrMesa) {
     PrivateSegmentBuffer = true;
 
-    if (F.hasFnAttribute("amdgpu-dispatch-ptr"))
+    if (UseFixedABI) {
       DispatchPtr = true;
-
-    if (F.hasFnAttribute("amdgpu-queue-ptr"))
       QueuePtr = true;
 
-    if (F.hasFnAttribute("amdgpu-dispatch-id"))
+      // FIXME: We don't need this?
       DispatchID = true;
+    } else {
+      if (F.hasFnAttribute("amdgpu-dispatch-ptr"))
+        DispatchPtr = true;
+
+      if (F.hasFnAttribute("amdgpu-queue-ptr"))
+        QueuePtr = true;
+
+      if (F.hasFnAttribute("amdgpu-dispatch-id"))
+        DispatchID = true;
+    }
   } else if (ST.isMesaGfxShader(F)) {
     ImplicitBufferPtr = true;
   }
 
-  if (F.hasFnAttribute("amdgpu-kernarg-segment-ptr"))
+  if (UseFixedABI || F.hasFnAttribute("amdgpu-kernarg-segment-ptr"))
     KernargSegmentPtr = true;
 
   if (ST.hasFlatAddressSpace() && isEntryFunction() && isAmdHsaOrMesa) {
@@ -158,7 +186,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     };
     // TODO: This could be refined a lot. The attribute is a poor way of
     // detecting calls that may require it before argument lowering.
-    if (hasNonSpillStackObjects() || F.hasFnAttribute("amdgpu-flat-scratch"))
+    if (HasCalls || hasNonSpillStackObjects())
       FlatScratchInit = true;
   }
 

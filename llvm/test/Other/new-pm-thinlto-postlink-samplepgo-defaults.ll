@@ -60,7 +60,6 @@
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}ProfileSummaryAnalysis
 ; CHECK-O-NEXT: Running pass: PGOIndirectCallPromotion
 ; CHECK-O-NEXT: Running pass: AttributorPass
-; CHECK-O-NEXT: Running pass: LowerTypeTestsPass
 ; CHECK-O-NEXT: Running pass: IPSCCPPass
 ; CHECK-O-NEXT: Running pass: CalledValuePropagationPass
 ; CHECK-O-NEXT: Running pass: GlobalOptPass
@@ -200,17 +199,15 @@
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run
 ; CHECK-O-NEXT: Running pass: LoopDistributePass
 ; CHECK-O-NEXT: Running pass: LoopVectorizePass
+; CHECK-O-NEXT: Running pass: VectorCombinePass
+; CHECK-O-NEXT: Running pass: EarlyCSEPass
 ; CHECK-O-NEXT: Running pass: LoopLoadEliminationPass
 ; CHECK-O-NEXT: Running analysis: LoopAccessAnalysis
-; CHECK-O-NEXT: Running pass: VectorCombinePass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O2-NEXT: Running pass: SLPVectorizerPass
 ; CHECK-O3-NEXT: Running pass: SLPVectorizerPass
 ; CHECK-Os-NEXT: Running pass: SLPVectorizerPass
-; CHECK-O2-NEXT: Running pass: VectorCombinePass
-; CHECK-O3-NEXT: Running pass: VectorCombinePass
-; CHECK-Os-NEXT: Running pass: VectorCombinePass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running pass: LoopUnrollPass
 ; CHECK-O-NEXT: Running pass: WarnMissedTransformationsPass

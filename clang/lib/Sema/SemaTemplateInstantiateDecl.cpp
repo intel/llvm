@@ -9,7 +9,6 @@
 //
 //===----------------------------------------------------------------------===/
 
-#include "clang/Sema/SemaInternal.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
@@ -22,8 +21,10 @@
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -2139,7 +2140,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // Look only into the namespace where the friend would be declared to
     // find a previous declaration. This is the innermost enclosing namespace,
     // as described in ActOnFriendFunctionDecl.
-    SemaRef.LookupQualifiedName(Previous, DC);
+    SemaRef.LookupQualifiedName(Previous, DC->getRedeclContext());
 
     // In C++, the previous declaration we find might be a tag type
     // (class or enum). In this case, the new declaration will hide the

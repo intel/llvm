@@ -47,6 +47,11 @@ module LLVM_Bitcode {
  module * { export * }
 }
 
+module LLVM_Bitstream {
+ requires cplusplus
+ umbrella "Bitstream"
+ module * { export * }
+}
 
 module LLVM_BinaryFormat {
     requires cplusplus
@@ -251,6 +256,7 @@ module LLVM_intrinsic_gen {
   module Analysis_PostDominators { header "Analysis/PostDominators.h" export * }
   module Analysis_DomTreeUpdater { header "Analysis/DomTreeUpdater.h" export * }
   module IR_IRBuilder { header "IR/IRBuilder.h" export * }
+  module IR_MatrixBuilder { header "IR/MatrixBuilder.h" export * }
   module IR_PassManager { header "IR/PassManager.h" export * }
   module IR_PassManagerImpl { header "IR/PassManagerImpl.h" export * }
   module IR_PredIteratorCache { header "IR/PredIteratorCache.h" export * }
@@ -267,6 +273,7 @@ module LLVM_intrinsic_gen {
   module IR_PatternMatch { header "IR/PatternMatch.h" export * }
   module IR_SafepointIRVerifier { header "IR/SafepointIRVerifier.h" export * }
   module IR_Statepoint { header "IR/Statepoint.h" export * }
+  module IR_KnowledgeRetention { header "IR/KnowledgeRetention.h" export * }
 
   export *
 }

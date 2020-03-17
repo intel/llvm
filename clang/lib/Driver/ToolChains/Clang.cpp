@@ -38,6 +38,7 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TargetParser.h"
@@ -1422,20 +1423,6 @@ static bool isSignedCharDefault(const llvm::Triple &Triple) {
   }
 }
 
-static bool isNoCommonDefault(const llvm::Triple &Triple) {
-  switch (Triple.getArch()) {
-  default:
-    if (Triple.isOSFuchsia())
-      return true;
-    return false;
-
-  case llvm::Triple::xcore:
-  case llvm::Triple::wasm32:
-  case llvm::Triple::wasm64:
-    return true;
-  }
-}
-
 static bool hasMultipleInvocations(const llvm::Triple &Triple,
                                    const ArgList &Args) {
   // Supported only on Darwin where we invoke the compiler multiple times
@@ -2562,8 +2549,13 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = false;
       SignedZeros = true;
       // -fno_fast_math restores default denormal and fpcontract handling
-      DenormalFPMath = DefaultDenormalFPMath;
       FPContract = "";
+      DenormalFPMath = llvm::DenormalMode::getIEEE();
+
+      // FIXME: The target may have picked a non-IEEE default mode here based on
+      // -cl-denorms-are-zero. Should the target consider -fp-model interaction?
+      DenormalFP32Math = llvm::DenormalMode::getIEEE();
+
       StringRef Val = A->getValue();
       if (OFastEnabled && !Val.equals("fast")) {
           // Only -ffp-model=fast is compatible with OFast, ignore.
@@ -2738,9 +2730,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       SignedZeros = true;
       TrappingMath = true;
       FPExceptionBehavior = "strict";
-      // -fno_unsafe_math_optimizations restores default denormal handling
-      DenormalFPMath = DefaultDenormalFPMath;
-      DenormalFP32Math = DefaultDenormalFP32Math;
+
+      // The target may have opted to flush by default, so force IEEE.
+      DenormalFPMath = llvm::DenormalMode::getIEEE();
+      DenormalFP32Math = llvm::DenormalMode::getIEEE();
       break;
 
     case options::OPT_Ofast:
@@ -2774,18 +2767,19 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       RoundingFPMath = false;
       // -fno_fast_math restores default denormal and fpcontract handling
       DenormalFPMath = DefaultDenormalFPMath;
-      DenormalFP32Math = DefaultDenormalFP32Math;
+      DenormalFP32Math = llvm::DenormalMode::getIEEE();
       FPContract = "";
       break;
     }
     if (StrictFPModel) {
       // If -ffp-model=strict has been specified on command line but
       // subsequent options conflict then emit warning diagnostic.
-      // TODO: How should this interact with DenormalFP32Math?
       if (HonorINFs && HonorNaNs &&
         !AssociativeMath && !ReciprocalMath &&
         SignedZeros && TrappingMath && RoundingFPMath &&
-        (FPContract.equals("off") || FPContract.empty()))
+        (FPContract.equals("off") || FPContract.empty()) &&
+        DenormalFPMath == llvm::DenormalMode::getIEEE() &&
+        DenormalFP32Math == llvm::DenormalMode::getIEEE())
         // OK: Current Arg doesn't conflict with -ffp-model=strict
         ;
       else {
@@ -2831,15 +2825,16 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   } else if (TrappingMathPresent)
     CmdArgs.push_back("-fno-trapping-math");
 
-  // TODO: Omit flag for the default IEEE instead
-  if (DenormalFPMath.isValid()) {
+  // The default is IEEE.
+  if (DenormalFPMath != llvm::DenormalMode::getIEEE()) {
     llvm::SmallString<64> DenormFlag;
     llvm::raw_svector_ostream ArgStr(DenormFlag);
     ArgStr << "-fdenormal-fp-math=" << DenormalFPMath;
     CmdArgs.push_back(Args.MakeArgString(ArgStr.str()));
   }
 
-  if (DenormalFP32Math.isValid()) {
+  // Add f32 specific denormal mode flag if it's different.
+  if (DenormalFP32Math != DenormalFPMath) {
     llvm::SmallString<64> DenormFlag;
     llvm::raw_svector_ostream ArgStr(DenormFlag);
     ArgStr << "-fdenormal-fp-math-f32=" << DenormalFP32Math;
@@ -4000,7 +3995,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  const llvm::Triple *AuxTriple = (IsSYCL || IsCuda) ? TC.getAuxTriple() : nullptr;
+  const llvm::Triple *AuxTriple =
+      (IsSYCL || IsCuda) ? TC.getAuxTriple() : nullptr;
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsIAMCU = RawTriple.isOSIAMCU();
   bool IsSYCLDevice = (RawTriple.getEnvironment() == llvm::Triple::SYCLDevice);
@@ -4084,6 +4080,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
+    CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -4118,17 +4115,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
-    A->render(Args, CmdArgs);
-    CmdArgs.push_back("-fsycl-std-layout-kernel-params");
-  } else if (IsSYCL) {
-    // Ensure the default version in SYCL mode is 1.2.1
-    CmdArgs.push_back("-sycl-std=1.2.1");
-    // The user had not pass SYCL version, thus we'll employ no-sycl-strict
-    // to allow address-space unqualified pointers in function params/return
-    // along with marking the same function with explicit SYCL_EXTERNAL
-    CmdArgs.push_back("-Wno-sycl-strict");
-  }
+    if (IsSYCL) {
+    if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
+      A->render(Args, CmdArgs);
+      CmdArgs.push_back("-fsycl-std-layout-kernel-params");
+    } else {
+      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
+      CmdArgs.push_back("-sycl-std=2017");
+      // The user had not pass SYCL version, thus we'll employ no-sycl-strict
+      // to allow address-space unqualified pointers in function params/return
+      // along with marking the same function with explicit SYCL_EXTERNAL
+      CmdArgs.push_back("-Wno-sycl-strict");
+    }
+    }
 
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
@@ -5770,11 +5769,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasFlag(options::OPT_Qy, options::OPT_Qn, true))
     CmdArgs.push_back("-Qn");
 
-  // -fcommon is the default unless compiling kernel code or the target says so
-  bool NoCommonDefault = KernelOrKext || isNoCommonDefault(RawTriple);
-  if (!Args.hasFlag(options::OPT_fcommon, options::OPT_fno_common,
-                    !NoCommonDefault))
-    CmdArgs.push_back("-fno-common");
+  // -fno-common is the default, set -fcommon only when that flag is set.
+  if (Args.hasFlag(options::OPT_fcommon, options::OPT_fno_common, false))
+    CmdArgs.push_back("-fcommon");
 
   // -fsigned-bitfields is default, and clang doesn't yet support
   // -funsigned-bitfields.
@@ -6057,6 +6054,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(IntHeaderPath);
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
+      CmdArgs.push_back("-fsycl");
       CmdArgs.push_back("-fsycl-is-host");
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
@@ -6552,6 +6550,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            codegenoptions::DebugInfoKind *DebugInfoKind,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
+  bool isNVPTX = getToolChain().getTriple().isNVPTX();
 
   if (Args.hasArg(options::OPT__SLASH_LDd))
     // The /LDd option implies /MTd. The dependent lib part can be overridden,
@@ -6619,8 +6618,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   // This controls whether or not we emit stack-protector instrumentation.
   // In MSVC, Buffer Security Check (/GS) is on by default.
-  if (Args.hasFlag(options::OPT__SLASH_GS, options::OPT__SLASH_GS_,
-                   /*Default=*/true)) {
+  if (!isNVPTX && Args.hasFlag(options::OPT__SLASH_GS, options::OPT__SLASH_GS_,
+                               /*Default=*/true)) {
     CmdArgs.push_back("-stack-protector");
     CmdArgs.push_back(Args.MakeArgString(Twine(LangOptions::SSPStrong)));
   }
@@ -6640,7 +6639,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   const Driver &D = getToolChain().getDriver();
   EHFlags EH = parseClangCLEHFlags(D, Args);
-  if (EH.Synch || EH.Asynch) {
+  if (!isNVPTX && (EH.Synch || EH.Asynch)) {
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
     CmdArgs.push_back("-fexceptions");
@@ -6709,7 +6708,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                           options::OPT__SLASH_Gregcall)) {
     unsigned DCCOptId = CCArg->getOption().getID();
     const char *DCCFlag = nullptr;
-    bool ArchSupported = true;
+    bool ArchSupported = !isNVPTX;
     llvm::Triple::ArchType Arch = getToolChain().getArch();
     switch (DCCOptId) {
     case options::OPT__SLASH_Gd:
