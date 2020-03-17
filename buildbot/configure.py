@@ -55,8 +55,6 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_XPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-        "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
-        "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR=ON",

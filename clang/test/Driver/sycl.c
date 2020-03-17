@@ -23,6 +23,7 @@
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
+// RUN: %clang -### -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL
 // RUN: %clang -### -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE
 // RUN: %clang -### -target spir64-unknown-linux-sycldevice -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET
@@ -39,6 +40,7 @@
 // NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all"
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES

@@ -4751,9 +4751,11 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_fsycl_device_only)) {
+      types::ID OutputType =
+          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
                        options::OPT_fno_sycl_use_bitcode, true))
-        return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
+        return C.MakeAction<BackendJobAction>(Input, OutputType);
       // Use of -fsycl-device-only creates a bitcode file, we need to translate
       // that to a SPIR-V file with -fno-sycl-use-bitcode
       auto *BackendAction =
