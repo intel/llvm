@@ -4441,7 +4441,6 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
           << AL << 1 /* function with a raw pointer parameter type */;
     }
 
-  S.addSyclDeviceDecl(D);
   handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
 }
 
@@ -4453,7 +4452,6 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
     return;
   }
 
-  S.addSyclDeviceDecl(D);
   D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context));
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }

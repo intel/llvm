@@ -3,14 +3,19 @@
 
 int bar(int b);
 
+int bar10(int a) { return a + 10; }
+int bar20(int a) { return a + 20; }
+
 class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv
-  __attribute__((sycl_device)) void foo() {}
+  // CHECK-DAG: define spir_func i32 @_Z5bar20i
+  __attribute__((sycl_device)) void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev
   __attribute__((sycl_device))
-  A() {}
+  A() { bar10(10); }
+  // CHECK-DAG: define spir_func i32 @_Z5bar10i
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev
   __attribute__((sycl_device)) ~A() {}
 
@@ -36,8 +41,39 @@ struct B<int> {
   int data;
   B(int _data) : data(_data) {}
 
-  // CHECK-DAG: _ZN1BIiE4BFooEi
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN1BIiE4BFooEi
   __attribute__((sycl_device)) void BFoo(int t) {}
+};
+
+struct Base {
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN4Base12BaseWithAttrEv
+  __attribute__((sycl_device)) virtual void BaseWithAttr() { int a = 10; }
+  virtual void BaseWithoutAttr() {int b = 20; }
+};
+
+struct Overrider : Base {
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Overrider12BaseWithAttrEv
+  __attribute__((sycl_device)) void BaseWithAttr() override { int a = 20; }
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Overrider15BaseWithoutAttrEv
+  __attribute__((sycl_device)) void BaseWithoutAttr() override { int b = 30; }
+};
+
+struct Overrider1 : Base {
+  // CHECK-NOT: define linkonce_odr spir_func void @_ZN10Overrider112BaseWithAttrEv
+  void BaseWithAttr() override { int a = 20; }
+};
+
+
+struct Finalizer : Base {
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Finalizer12BaseWithAttrEv
+  __attribute__((sycl_device)) void BaseWithAttr() final { int a = 20; }
+  // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Finalizer15BaseWithoutAttrEv
+  __attribute__((sycl_device)) void BaseWithoutAttr() final { int b = 30; }
+};
+
+struct Finalizer1 : Base {
+  // CHECK-NOT: define linkonce_odr spir_func void @_ZN10Finalizer112BaseWithAttrEv
+  void BaseWithAttr() final { int a = 20; }
 };
 
 // CHECK-DAG: define spir_func i32 @_Z3fooii

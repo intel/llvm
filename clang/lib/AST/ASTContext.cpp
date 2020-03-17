@@ -10156,6 +10156,10 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
   if (D->hasAttr<AliasAttr>() || D->hasAttr<UsedAttr>())
     return true;
 
+  if (LangOpts.SYCLIsDevice && !D->hasAttr<OpenCLKernelAttr>() &&
+      !D->hasAttr<SYCLDeviceAttr>())
+    return false;
+
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     // Forward declarations aren't required.
     if (!FD->doesThisDeclarationHaveABody())
@@ -10179,10 +10183,14 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
     }
 
     // Methods explcitly marked with 'sycl_device' attribute (via SYCL_EXTERNAL)
-    // must be emitted regardless of number of actual uses
-    if (LangOpts.SYCLIsDevice && isa<CXXMethodDecl>(D))
+    // or `indirectly_callable' attribute must be emitted regardless of number
+    // of actual uses
+    if (LangOpts.SYCLIsDevice && isa<CXXMethodDecl>(D)) {
+      if (auto *A = D->getAttr<SYCLDeviceIndirectlyCallableAttr>())
+        return !A->isImplicit();
       if (auto *A = D->getAttr<SYCLDeviceAttr>())
         return !A->isImplicit();
+    }
 
     GVALinkage Linkage = GetGVALinkageForFunction(FD);
 

@@ -45,7 +45,6 @@ void baz() {}
 #endif // NO_SYCL
 
 // CHECK: FunctionDecl {{.*}} helper
-// CHECK: SYCLDeviceAttr
 //
 // CHECK: FunctionDecl {{.*}} foo
 // CHECK: SYCLDeviceAttr
