@@ -732,12 +732,12 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
 }
 
 template <typename Group> bool leader(Group g) {
-  static_assert(detail::is_group<Group>::value,
-                "Group algorithms only support the sycl::group class.");
+  static_assert(detail::is_group<Group>::value ||
+                    detail::is_sub_group<Group>::value,
+                "Group algorithms only support the sycl::group and "
+                "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  nd_item<Group::dimensions> it =
-      cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
-  typename Group::linear_id_type linear_id = it.get_local_linear_id();
+  typename Group::linear_id_type linear_id = detail::get_local_linear_id(g);
   return (linear_id == 0);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
