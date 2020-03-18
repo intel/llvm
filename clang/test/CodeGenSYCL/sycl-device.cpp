@@ -48,7 +48,7 @@ struct B<int> {
 struct Base {
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN4Base12BaseWithAttrEv
   __attribute__((sycl_device)) virtual void BaseWithAttr() { int a = 10; }
-  virtual void BaseWithoutAttr() {int b = 20; }
+  virtual void BaseWithoutAttr() { int b = 20; }
 };
 
 struct Overrider : Base {
@@ -62,7 +62,6 @@ struct Overrider1 : Base {
   // CHECK-NOT: define linkonce_odr spir_func void @_ZN10Overrider112BaseWithAttrEv
   void BaseWithAttr() override { int a = 20; }
 };
-
 
 struct Finalizer : Base {
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Finalizer12BaseWithAttrEv
