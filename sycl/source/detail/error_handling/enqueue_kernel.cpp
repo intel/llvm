@@ -244,8 +244,7 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
     throw sycl::nd_range_error(
         "The kernel argument values have not been specified "
         " OR "
-        "a kernel argument declared to be a pointer to a type"
-        " does not point to a named address space",
+        "a kernel argument declared to be a pointer to a type.",
         PI_INVALID_KERNEL_ARGS);
 
   case PI_INVALID_WORK_ITEM_SIZE:
@@ -270,9 +269,15 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
   case PI_MEM_OBJECT_ALLOCATION_FAILURE:
     throw sycl::nd_range_error(
         "failure to allocate memory for data store associated with image"
-        " or "
-        "buffer objects specified as arguments to kernel",
+        " or buffer objects specified as arguments to kernel",
         PI_MEM_OBJECT_ALLOCATION_FAILURE);
+
+  case PI_INVALID_IMAGE_SIZE:
+    throw sycl::nd_range_error(
+        "image object is specified as an argument value and the image "
+        "dimensions (image width, height, specified or compute row and/or "
+        "slice pitch) are not supported by device associated with queue",
+        PI_INVALID_IMAGE_SIZE);
 
     // TODO: Handle other error codes
 
