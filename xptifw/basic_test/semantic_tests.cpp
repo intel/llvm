@@ -362,7 +362,7 @@ void test_correctness::run_tracepoint_tests() {
 void test_correctness::run_notification_test_threads(
     int run_no, int num_threads, test::utils::table_model &t) {
   xptiReset();
-   tp_count = 30, callback_count = tp_count * 30;
+  int tp_count = 30, callback_count = tp_count * 30;
   std::vector<xpti::payload_t *> payloads;
   std::vector<int64_t> uids;
   std::vector<xpti::trace_event_data_t *> events;

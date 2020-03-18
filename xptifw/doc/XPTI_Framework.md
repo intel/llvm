@@ -10,6 +10,8 @@
     - [**`xptiInitialize`**](#xptiinitialize)
     - [**`xptiFinalize`**](#xptifinalize)
     - [**APIs and Data Structures Exported by the Tracing Framework**](#apis-and-data-structures-exported-by-the-tracing-framework)
+  - [**Performance of the Framework**](#performance-of-the-framework)
+    - [**Modeling and Projection**](#modeling-and-projection)
 
 ## Overview
 
@@ -32,8 +34,19 @@ can use to build performance analytical models. This document describes the
 different components of this framework and a testing methodology to determine
 the cost of using this framework in your applications.
 
-Current implementation uses std containers by default in the framework. There is
-also an implementation that relies on the concurrent containers in [Threading Building Blocks](github.com/intel/tbb) and this can be enabled by using the define `-DXPTI_USE_TBB` with `cmake`.
+Current implementation of the framework uses std containers by default. There is
+also an implementation that relies on the concurrent containers in [Threading Building Blocks(TBB)](github.com/intel/tbb) and this can be enabled by using the
+define `-DXPTI_USE_TBB` with `cmake`. The std container based implementation is a
+thread-safe implementation, but has not been optimized for performance.
+Increasing the number of threads accessing the framework will increase the
+contention costs in the current implementation and may affect the performance of
+the framework.
+
+To enable the build to use TBB for the framework and tests, use the commands as
+shown below:
+
+    cd xptifw
+    cmake -DXPTI_ENABLE_TBB=ON -DXPTI_SOURCE_DIR=$SYCL_HOME/xpti ./
 
 > **NOTE:** This document is best viewed with [Markdown Reader](https://chrome.google.com/webstore/detail/markdown-reader/gpoigdifkoadgajcincpilkjmejcaanc)
 > plugin for Chrome or the [Markdown Preview Extension]() for Visual Studio Code.
@@ -595,12 +608,13 @@ significantly larger than **FW**<sub>***cost***</sub>.
 
 > **NOTE:** All measurements reported in this document were measured on an NUC
 form-factor machine with Intel&reg;  Core&trade; i7-8559U @ 2.7 GHz processor
-running Ubuntu 18.04.
+running Ubuntu 18.04. The tests were compiled to use Threading Building Blocks
+concurrent containers for these runs.
 
 
 | Operation | Statistic | Scenario |Count| Framework Cost(ns) |
 |-----------|-----------|----------|-----|------|
-| String table insertion| Cost/insertion| Create a large number of strings (>1000) and insert them into the table. Measure the average cost of multi-threaded insertion.|10000|~**250**ns|
+| String table insertion| Cost/insertion| Create a large number of strings (>1000) and insert them into the table. Measure the average cost of multi-threaded insertion.|10000|~**150-500**ns|
 |String table lookup| Cost/lookup| Look up the strings added in the insertion test in random order and measure the average cost of the lookup.|20000| ~**40**ns|
 |String table insert/lookup| Cost of insert/lookup | Strings that are added to the string table may be looked up multiple times. On an average, we assume that ever string added to the string table is looked up twice. If strings are looked up more often than the twice assumed in this test, then the average cost of insertion/lookup will be lower.|30000|~**130**ns|
 | Trace point creation | Cost/creation| Create unique trace points and measure the average cost for each creation. |10000|~**1100**ns|

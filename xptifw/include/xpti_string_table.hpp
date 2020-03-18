@@ -20,6 +20,7 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/spin_mutex.h>
 
+#pragma message("Using TBB concurrent containers...")
 namespace xpti {
 /// \brief A string table class to support the payload handling
 /// \details With each payload, a kernel/function name and the source file name
@@ -331,7 +332,7 @@ private:
   st_reverse_t m_id2str;  ///< Reverse lookup hash map
   int32_t m_table_size;   ///< Initial table size of the hash-map
   std::mutex m_mutex;     ///< Mutex required for double-check pattern
-  std::mutex m_accessor;  ///< Mutex required for accessing containers
+                          ///< Replace with reader-writer lock in C++14
   safe_int32_t m_strings; ///< The count of strings in the table
 #ifdef XPTI_STATISTICS
   safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
