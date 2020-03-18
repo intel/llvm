@@ -1462,6 +1462,41 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
+struct HostTaskContext {
+  CGHostTask *HostTask;
+
+  // TODO events dependencies
+  // TODO buffer dependencies, though a buffer dependency may be expressed via event
+
+  std::mutex RequirementsMutex;
+  std::condition_variable AnotherRequirementFulfilledCV;
+};
+
+bool CheckHostTaskRequirements(const std::shared_ptr<HostTaskContext> &Ctx) {
+  (void)Ctx;
+  // TODO check if all the requirements are fullfiled i.e:
+  //  - event: use clGetEventInfo
+  //  - buffer: ??? maybe use copy_acc_to_acc?
+  return true;
+}
+
+void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
+  {
+    std::unique_lock<std::mutex> Lock(Ctx->RequirementsMutex);
+
+    Ctx->AnotherRequirementFulfilledCV.wait(Lock, [Ctx] () {
+      return CheckHostTaskRequirements(Ctx);
+    });
+  }
+
+  const QueueImplPtr &Queue = Scheduler::getInstance().getDefaultHostQueue();
+  Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
+    Ctx->HostTask->MHostTask->call();
+  });
+
+  // Ctx will be deleted automatically by shared_ptr
+}
+
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -1749,6 +1784,38 @@ cl_int ExecCGCommand::enqueueImp() {
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0, nullptr, &Event);
     Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::HOST_TASK: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+    const QueueImplPtr &Queue = HostTask->MQueue;
+
+    std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
+
+    size_t ArgIdx = 0, ReqIdx = 0;
+    while (ArgIdx < HostTask->MArgs.size()) {
+      ArgDesc &Arg = HostTask->MArgs[ArgIdx];
+
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        detail::Requirement *TaskReq = HostTask->MRequirements[ReqIdx];
+        TaskReq->MData = AllocaCmd->getMemAllocation();
+        ++ReqIdx;
+        break;
+      }
+      default:
+        throw std::runtime_error("Yet unsupported arg type");
+      }
+
+      ++ArgIdx;
+    }
+
+    Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
+      DispatchHostTask(Ctx);
+    });
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

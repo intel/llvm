@@ -1,5 +1,10 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
+
+#include <atomic>
+#include <condition_variable>
+#include <thread>
+#include <mutex>
 
 #include <CL/sycl.hpp>
 
@@ -15,7 +20,7 @@ struct Context {
   std::condition_variable CV;
 };
 
-void thread1Fn(Context &Ctx) {
+void Thread1Fn(Context &Ctx) {
   // 0. initialize resulting buffer with apriori wrong result
   {
     S::accessor<int, 1, S::access::mode::write,
@@ -26,7 +31,7 @@ void thread1Fn(Context &Ctx) {
   }
 
   // 1. submit task writing to buffer 1
-  Queue.submit([&](S::handler &CGH) {
+  Ctx.Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::write,
                 S::access::target::global_buffer> GeneratorAcc(Ctx.Buf1, CGH);
 
@@ -39,7 +44,7 @@ void thread1Fn(Context &Ctx) {
   });
 
   // 2. submit host task writing from buf 1 to buf 2
-  Queue.submit([&](S::handler &CGH) {
+  Ctx.Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::read,
                 S::access::target::host_buffer> CopierSrcAcc(Ctx.Buf1, CGH);
     S::accessor<int, 1, S::access::mode::write,
@@ -64,7 +69,7 @@ void thread1Fn(Context &Ctx) {
   });
 }
 
-void thread2Fn(Context &Ctx) {
+void Thread2Fn(Context &Ctx) {
   std::unique_lock<std::mutex> Lock(Ctx.Mutex);
 
   // T2.1. Wait until flag F is set eq true.
@@ -103,7 +108,7 @@ void test() {
   // 3. check via host accessor that buf 2 contains valid data
   {
     S::accessor<int, 1, S::access::mode::read,
-                S::access::target::host_buffer> ResultAcc(Buf2);
+                S::access::target::host_buffer> ResultAcc(Ctx.Buf2);
 
     for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
       assert(ResultAcc[Idx] == Idx && "Invalid data in result buffer");

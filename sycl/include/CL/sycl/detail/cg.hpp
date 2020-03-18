@@ -28,6 +28,10 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+namespace detail {
+class queue_impl;
+}
+
 // Interoperability handler
 //
 class interop_handler {
@@ -180,6 +184,16 @@ public:
   InteropTask(function_class<void(cl::sycl::interop_handler)> Func)
       : MFunc(Func) {}
   void call(cl::sycl::interop_handler &h) { MFunc(h); }
+};
+
+class HostTask {
+  std::function<void()> MHostTask;
+
+public:
+  HostTask(std::function<void()> &&Func)
+    : MHostTask(Func) {}
+
+  void call() { MHostTask(); }
 };
 
 // Class which stores specific lambda object.
@@ -361,7 +375,8 @@ public:
     COPY_USM,
     FILL_USM,
     PREFETCH_USM,
-    INTEROP_TASK_CODEPLAY
+    INTEROP_TASK_CODEPLAY,
+    HOST_TASK
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -598,6 +613,29 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MInteropTask(std::move(InteropTask)) {}
+};
+
+class CGHostTask : public CG {
+public:
+  std::unique_ptr<HostTask> MHostTask;
+  shared_ptr_class<detail::queue_impl> MQueue;
+  vector_class<ArgDesc> MArgs;
+
+  CGHostTask(std::unique_ptr<HostTask> HostTask,
+             std::shared_ptr<detail::queue_impl> Queue,
+             vector_class<ArgDesc> Args,
+             std::vector<std::vector<char>> ArgsStorage,
+             std::vector<detail::AccessorImplPtr> AccStorage,
+             std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+             std::vector<Requirement *> Requirements,
+             std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+             detail::code_location loc = {})
+    : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+         std::move(SharedPtrStorage), std::move(Requirements),
+         std::move(Events), std::move(loc)),
+      MHostTask(std::move(HostTask)), MQueue(std::move(Queue)),
+      MArgs(std::move(Args))
+  {}
 };
 
 } // namespace detail
