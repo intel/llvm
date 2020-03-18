@@ -298,12 +298,6 @@ public:
       return true;
 
     CheckSYCLType(E->getType(), E->getSourceRange());
-    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
-        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-        SemaRef.addSyclDeviceDecl(VD);
-      }
-    }
     return true;
   }
 
