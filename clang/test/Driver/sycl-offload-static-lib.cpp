@@ -15,6 +15,14 @@
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo"
 // FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
 
+/// Use of -foffload-static-lib and -foffload-whole-static-lib are deprecated
+// RUN: touch dummy.a
+// RUN: %clangxx -fsycl -foffload-static-lib=dummy.a -foffload-whole-static-lib=dummy.a -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_DEPRECATED
+// RUN: %clang_cl -fsycl -foffload-static-lib=dummy.a -foffload-whole-static-lib=dummy.a -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_DEPRECATED
+// FOFFLOAD_STATIC_LIB_DEPRECATED: option '-foffload-whole-static-lib=dummy.a' is deprecated, use 'dummy.a' directly instead
+
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib=<lib> with multiple objects
