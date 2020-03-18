@@ -61,6 +61,7 @@ enum ActionType {
   GenClangCommentCommandInfo,
   GenClangCommentCommandList,
   GenClangOpenCLBuiltins,
+  GenClangSPIRVBuiltins,
   GenArmNeon,
   GenArmFP16,
   GenArmNeonSema,
@@ -179,6 +180,8 @@ cl::opt<ActionType> Action(
                    "documentation comments"),
         clEnumValN(GenClangOpenCLBuiltins, "gen-clang-opencl-builtins",
                    "Generate OpenCL builtin declaration handlers"),
+        clEnumValN(GenClangSPIRVBuiltins, "gen-clang-spirv-builtins",
+                   "Generate SPIR-V builtin declaration handlers"),
         clEnumValN(GenArmNeon, "gen-arm-neon", "Generate arm_neon.h for clang"),
         clEnumValN(GenArmFP16, "gen-arm-fp16", "Generate arm_fp16.h for clang"),
         clEnumValN(GenArmNeonSema, "gen-arm-neon-sema",
@@ -338,6 +341,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenClangOpenCLBuiltins:
     EmitClangOpenCLBuiltins(Records, OS);
+    break;
+  case GenClangSPIRVBuiltins:
+    EmitClangSPIRVBuiltins(Records, OS);
     break;
   case GenArmNeon:
     EmitNeon(Records, OS);

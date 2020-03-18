@@ -48,6 +48,7 @@
 #include <vector>
 
 #include "OpenCLBuiltins.inc"
+#include "SPIRVBuiltins.inc"
 
 using namespace clang;
 using namespace sema;
@@ -894,6 +895,21 @@ bool Sema::LookupBuiltin(LookupResult &R) {
                   NewOpenCLBuiltin.addAttr(
                       OverloadableAttr::CreateImplicit(Context));
                 AddOpenCLExtensions(*this, OpenCLBuiltin, &NewOpenCLBuiltin);
+              });
+          return true;
+        }
+      }
+
+      // Check if this is a SPIR-V Builtin, and if so, insert its overloads.
+      if (getLangOpts().DeclareSPIRVBuiltins) {
+        auto Index = SPIRVBuiltin::isBuiltin(II->getName());
+        if (Index.first) {
+          InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
+              *this, 0, R, II, Index.first - 1, Index.second,
+              [this](const SPIRVBuiltin::BuiltinStruct &,
+                     FunctionDecl &NewBuiltin) {
+                NewBuiltin.addAttr(
+                    SYCLDeviceAttr::CreateImplicit(this->Context));
               });
           return true;
         }
