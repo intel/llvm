@@ -19,7 +19,7 @@ bool is_about_FP(T x, T y) {
     T threshold = std::numeric_limits<T>::epsilon() * 100;
     if (x != 0 && y != 0) {
       T max_v = std::fmax(std::abs(x), std::abs(y));
-      ret = (std::abs(x - y) / max_v) < threshold;
+      return std::abs(x - y) < threshold*max_v;
     } else {
       if (x != 0)
         ret = std::abs(x) < threshold;
