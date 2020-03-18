@@ -38,6 +38,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SPIRVModule.h"
+#include "SPIRVAsm.h"
 #include "SPIRVDebug.h"
 #include "SPIRVEntry.h"
 #include "SPIRVExtInst.h"
@@ -297,6 +298,12 @@ public:
                                         SPIRVBasicBlock *) override;
   SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *, SPIRVFunction *,
                                                 SPIRVBasicBlock *) override;
+  SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) override;
+  SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
+                          const std::string &, const std::string &) override;
+  SPIRVInstruction *addAsmCallINTELInst(SPIRVAsmINTEL *,
+                                        const std::vector<SPIRVWord> &,
+                                        SPIRVBasicBlock *) override;
   SPIRVInstruction *addCmpInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addLoadInst(SPIRVValue *, const std::vector<SPIRVWord> &,
@@ -444,6 +451,8 @@ private:
   typedef std::vector<SPIRVMemberName *> SPIRVMemberNameVec;
   typedef std::vector<SPIRVDecorationGroup *> SPIRVDecGroupVec;
   typedef std::vector<SPIRVGroupDecorateGeneric *> SPIRVGroupDecVec;
+  typedef std::vector<SPIRVAsmTargetINTEL *> SPIRVAsmTargetVector;
+  typedef std::vector<SPIRVAsmINTEL *> SPIRVAsmVector;
   typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToInstructionSetMap;
   std::map<SPIRVExtInstSetKind, SPIRVId> ExtInstSetIds;
   typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToBuiltinSetMap;
@@ -469,6 +478,8 @@ private:
   SPIRVDecorateSet DecorateSet;
   SPIRVDecGroupVec DecGroupVec;
   SPIRVGroupDecVec GroupDecVec;
+  SPIRVAsmTargetVector AsmTargetVec;
+  SPIRVAsmVector AsmVec;
   SPIRVExecModelIdSetMap EntryPointSet;
   SPIRVExecModelIdVecMap EntryPointVec;
   SPIRVStringMap StrMap;
@@ -630,6 +641,14 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
         EI->getExtOp() != SPIRVDebug::NoScope) {
       DebugInstVec.push_back(EI);
     }
+    break;
+  }
+  case OpAsmTargetINTEL: {
+    addTo(AsmTargetVec, E);
+    break;
+  }
+  case OpAsmINTEL: {
+    addTo(AsmVec, E);
     break;
   }
   default:
@@ -1212,6 +1231,34 @@ SPIRVInstruction *SPIRVModuleImpl::addFunctionPointerINTELInst(
       new SPIRVFunctionPointerINTEL(getId(), TheType, TheFunction, BB), BB);
 }
 
+SPIRVEntry *
+SPIRVModuleImpl::getOrAddAsmTargetINTEL(const std::string &TheTarget) {
+  auto TargetIt = std::find_if(AsmTargetVec.begin(), AsmTargetVec.end(),
+                               [&TheTarget](const SPIRVAsmTargetINTEL *Target) {
+                                 return Target->getTarget() == TheTarget;
+                               });
+  if (TargetIt == AsmTargetVec.end())
+    return add(new SPIRVAsmTargetINTEL(this, getId(), TheTarget));
+  return *TargetIt;
+}
+
+SPIRVValue *SPIRVModuleImpl::addAsmINTEL(SPIRVTypeFunction *TheType,
+                                         SPIRVAsmTargetINTEL *TheTarget,
+                                         const std::string &TheInstructions,
+                                         const std::string &TheConstraints) {
+  auto Asm = new SPIRVAsmINTEL(this, TheType, getId(), TheTarget,
+                               TheInstructions, TheConstraints);
+  return add(Asm);
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addAsmCallINTELInst(SPIRVAsmINTEL *TheAsm,
+                                     const std::vector<SPIRVWord> &TheArguments,
+                                     SPIRVBasicBlock *BB) {
+  return addInstruction(
+      new SPIRVAsmCallINTEL(getId(), TheAsm, TheArguments, BB), BB);
+}
+
 SPIRVInstruction *SPIRVModuleImpl::addBinaryInst(Op TheOpCode, SPIRVType *Type,
                                                  SPIRVValue *Op1,
                                                  SPIRVValue *Op2,
@@ -1606,8 +1653,13 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
   O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec
     << MI.ForwardPointerVec
     << TopologicalSort(MI.TypeVec, MI.ConstVec, MI.VariableVec,
-                       MI.ForwardPointerVec)
-    << SPIRVNL() << MI.DebugInstVec << SPIRVNL() << MI.FuncVec;
+                       MI.ForwardPointerVec);
+
+  if (M.isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly)) {
+    O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;
+  }
+
+  O << SPIRVNL() << MI.DebugInstVec << SPIRVNL() << MI.FuncVec;
   return O;
 }
 
