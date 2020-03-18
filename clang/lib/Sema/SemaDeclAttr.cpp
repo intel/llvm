@@ -2931,9 +2931,10 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   for (unsigned i = 0; i < 3; ++i) {
-    if (i < AL.getNumArgs() && !checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
-                               /*StrictlyUnsigned=*/true))
-        return;
+    if (i < AL.getNumArgs() &&
+        !checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
+                             /*StrictlyUnsigned=*/true))
+      return;
     if (WGSize[i] == 0) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
           << AL << AL.getArgAsExpr(i)->getSourceRange();
