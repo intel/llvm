@@ -678,7 +678,7 @@ public:
     stream_cbs.insert(a, trace_type);
 #else
     auto a = stream_cbs.find(trace_type);
-    if(a == stream_cbs.end()) {
+    if (a == stream_cbs.end()) {
       auto b = stream_cbs[trace_type];
       a = stream_cbs.find(trace_type);
     }
