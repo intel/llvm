@@ -1,8 +1,4 @@
-// REQUIRES: cuda
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I%opencl_include_dir -I%cuda_toolkit_include -o %t.out -lcuda -lsycl
-// RUN: env SYCL_DEVICE_TYPE=GPU %t.out
-
-//==---------- interop_get_native.cpp - SYCL cuda get_native tests ---------==//
+//==------- test_interop_get_native.cpp - SYCL CUDA get_native tests -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -74,4 +70,28 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeQueue) {
 
   CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
   ASSERT_EQ(streamContext, cudaContext);
+}
+
+TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
+  buffer<int, 1> syclBuffer(range<1>{1});
+  syclQueue_.submit([&](cl::sycl::handler &cgh) {
+    auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
+    cgh.interop_task([=](sycl::interop_handler ih) {
+      CUdeviceptr cudaPtr = ih.get_mem<backend::cuda>(syclAccessor);
+      CUdeviceptr cudaPtrBase;
+      size_t cudaPtrSize = 0;
+      cuMemGetAddressRange(&cudaPtrBase, &cudaPtrSize, cudaPtr);
+      ASSERT_EQ(cudaPtrSize, sizeof(int));
+    });
+  });
+}
+
+TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetBufferMem) {
+  CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
+  syclQueue_.submit([&](cl::sycl::handler &cgh) {
+    cgh.interop_task([=](sycl::interop_handler ih) {
+      CUstream cudaInteropStream = ih.get_queue<backend::cuda>();
+      ASSERT_EQ(cudaInteropStream, cudaStream);
+    });
+  });
 }

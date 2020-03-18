@@ -1043,6 +1043,23 @@ static pi_result OCL(piextProgramSetSpecializationConstantImpl)(
   return cast<pi_result>(Res);
 }
 
+/// API to get the native handle of a PI object
+///
+/// \param handleType is an identifier representing the type of the handle
+/// \param piObject is the PI object to get the handle of
+/// \param nativeHandle is the native handle of piObject
+pi_result OCL(piGetNativeHandle)(pi_handle_type handleType, void *piObject,
+                                 pi_native_handle *nativeHandle) {
+  switch (handleType) {
+  case pi_handle_type::PI_NATIVE_HANDLE_MEM:
+  case pi_handle_type::PI_NATIVE_HANDLE_QUEUE:
+    *nativeHandle = reinterpret_cast<pi_native_handle>(piObject);
+    return PI_SUCCESS;
+  default:
+    return PI_INVALID_VALUE;
+  }
+}
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
@@ -1154,6 +1171,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, OCL(piextUSMEnqueuePrefetch))
   _PI_CL(piextUSMEnqueueMemAdvise, OCL(piextUSMEnqueueMemAdvise))
   _PI_CL(piextUSMGetMemAllocInfo, OCL(piextUSMGetMemAllocInfo))
+  // Native
+  _PI_CL(piGetNativeHandle, OCL(piGetNativeHandle))
 
   _PI_CL(piextKernelSetArgMemObj, OCL(piextKernelSetArgMemObj))
 
