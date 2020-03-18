@@ -53,7 +53,7 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-intel::sub_group::linear_id_type
+inline intel::sub_group::linear_id_type
 get_local_linear_id<intel::sub_group>(intel::sub_group g) {
   return g.get_local_id()[0];
 }
