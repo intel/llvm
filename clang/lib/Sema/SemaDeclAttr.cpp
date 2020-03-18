@@ -2931,8 +2931,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   for (unsigned i = 0; i < 3; ++i) {
-    if (i < AL.getNumArgs())
-      if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
+    if (i < AL.getNumArgs() && !checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                                /*StrictlyUnsigned=*/true))
         return;
     if (WGSize[i] == 0) {

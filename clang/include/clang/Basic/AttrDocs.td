@@ -1991,6 +1991,7 @@ Applies to a device function/lambda function. Indicates the dimensions
 of a work group. Values must be positive integers. Default arguments 
 equaling to one can be used for second and third dimensions if 
 intel::reqd_work_group_size spelling was applied. 
+This attribute is also valid for OpenCL C.
   }];
 }
 
