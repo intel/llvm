@@ -252,6 +252,13 @@
 // CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder=dummy.prj"
 // CHK-FPGA-REPORT-OPT2-NOT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder=[[OUTDIR]]{{.*}}"
 
+/// -fintelfpga output dep file using -Fo<dir>
+// RUN: mkdir -p %t_dir
+// RUN: %clang_cl -### -c -fsycl -fintelfpga -Fo%t_dir/ %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-DIR %s
+// CHK-FPGA-DEP-DIR: clang{{.*}} "-dependency-file" "[[DEPFILE:.+\.d]]"
+// CHK-FPGA-DEP-DIR: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,{{.*}}.obj,[[DEPFILE]]"
+
 /// -fintelfpga static lib (aoco)
 // RUN:  echo "Dummy AOCO image" > %t.aoco
 // RUN:  echo "void foo() {}" > %t.c
