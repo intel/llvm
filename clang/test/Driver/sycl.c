@@ -32,6 +32,7 @@
 // RUN: %clang_cl -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 
 // DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all"
 // DEFAULT-NOT: "-std=c++11"
