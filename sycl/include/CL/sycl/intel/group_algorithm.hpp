@@ -86,6 +86,11 @@ template <typename T> struct is_sub_group : std::false_type {};
 
 template <> struct is_sub_group<intel::sub_group> : std::true_type {};
 
+template <typename T>
+struct is_generic_group
+    : std::integral_constant<bool,
+                             is_group<T>::value || is_sub_group<T>::value> {};
+
 template <typename T, class BinaryOperation> struct identity {};
 
 template <typename T, typename V> struct identity<T, intel::plus<V>> {
@@ -132,8 +137,7 @@ using EnableIfIsPointer =
     cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
 template <typename Group> bool all_of(Group g, bool pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -146,8 +150,7 @@ template <typename Group> bool all_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool all_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return all_of(g, pred(x));
@@ -157,8 +160,7 @@ template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   bool partial = true;
@@ -173,8 +175,7 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
 }
 
 template <typename Group> bool any_of(Group g, bool pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -187,8 +188,7 @@ template <typename Group> bool any_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool any_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return any_of(g, pred(x));
@@ -198,8 +198,7 @@ template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   bool partial = false;
@@ -214,8 +213,7 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
 }
 
 template <typename Group> bool none_of(Group g, bool pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -228,8 +226,7 @@ template <typename Group> bool none_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool none_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return none_of(g, pred(x));
@@ -239,8 +236,7 @@ template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
                                      Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return not any_of(g, first, last, pred);
@@ -253,8 +249,7 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
 template <typename Group, typename T>
 EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
                                         typename Group::id_type local_id) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -268,8 +263,7 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
                                         typename Group::id_type local_id) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -287,8 +281,7 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
 template <typename Group, typename T>
 EnableIfIsScalarArithmetic<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -303,8 +296,7 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -321,8 +313,7 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 
 template <typename Group, typename T>
 EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -335,8 +326,7 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
 
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -353,8 +343,7 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
 
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -372,8 +361,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
 
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -390,8 +378,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
                                      BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -408,8 +395,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
                                      BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -431,8 +417,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
 template <typename Group, typename Ptr, class BinaryOperation>
 EnableIfIsPointer<Ptr, typename Ptr::element_type>
 reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -455,8 +440,7 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
                                  BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(
@@ -478,8 +462,7 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value,
@@ -497,8 +480,7 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(x[0], x[0])),
@@ -514,8 +496,7 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(init[0], x[0])),
@@ -531,8 +512,7 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value,
@@ -559,8 +539,7 @@ template <typename Group, typename InPtr, typename OutPtr, typename T,
 EnableIfIsPointer<InPtr, OutPtr>
 exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(*first, *first)), T>::value,
@@ -610,8 +589,7 @@ EnableIfIsPointer<InPtr, OutPtr> exclusive_scan(Group g, InPtr first,
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(x[0], x[0])),
@@ -627,8 +605,7 @@ EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value,
@@ -646,8 +623,7 @@ EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
 template <typename Group, typename V, class BinaryOperation, typename T>
 EnableIfIsScalarArithmetic<T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value,
@@ -666,8 +642,7 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
 template <typename Group, typename V, class BinaryOperation, typename T>
 EnableIfIsVectorArithmetic<T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(init[0], x[0])), T>::value,
@@ -684,8 +659,7 @@ template <typename Group, typename InPtr, typename OutPtr,
 EnableIfIsPointer<InPtr, OutPtr>
 inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                BinaryOperation binary_op, T init) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   static_assert(std::is_same<decltype(binary_op(init, *first)), T>::value,
@@ -732,8 +706,7 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
 }
 
 template <typename Group> bool leader(Group g) {
-  static_assert(detail::is_group<Group>::value ||
-                    detail::is_sub_group<Group>::value,
+  static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
