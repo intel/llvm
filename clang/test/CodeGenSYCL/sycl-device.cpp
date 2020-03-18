@@ -13,9 +13,9 @@ public:
   __attribute__((sycl_device)) void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev
+  // CHECK-DAG: define spir_func i32 @_Z5bar10i
   __attribute__((sycl_device))
   A() { bar10(10); }
-  // CHECK-DAG: define spir_func i32 @_Z5bar10i
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev
   __attribute__((sycl_device)) ~A() {}
 
@@ -26,6 +26,12 @@ public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A4AFooIiEEvT_
   template <>
   __attribute__((sycl_device)) void AFoo<int>(int t) {}
+
+  // CHECK-DAG: define linkonce_odr spir_func i32 @_ZN1A13non_annotatedEv
+  int non_annotated() { return 1; }
+
+  // CHECK-DAG: define linkonce_odr spir_func i32 @_ZN1A9annotatedEv
+  __attribute__((sycl_device)) int annotated() { return non_annotated() + 1; }
 };
 
 template <typename T>
