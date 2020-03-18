@@ -2476,6 +2476,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(diag::note_use_dashdash);
       }
     }
+    // TODO: remove when -foffload-static-lib support is dropped.
     else if (A->getOption().matches(options::OPT_offload_lib_Group)) {
       // Add the foffload-static-lib library to the command line to allow
       // processing when no source or object is supplied as well as proper
@@ -2497,7 +2498,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   }
 }
 
-static bool runBundler(const std::vector<StringRef> &BundlerArgs,
+static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
                        Compilation &C) {
   // Find bundler.
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
@@ -2536,8 +2537,8 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
-  std::vector<StringRef> BundlerArgs = {"clang-offload-bundler", "-type=ao",
-                                        Targets, Inputs, "-check-section"};
+  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
+                                           Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -2556,8 +2557,8 @@ static bool hasOffloadSections(Compilation &C, const StringRef &Archive,
   const char *Inputs = Args.MakeArgString(Twine("-inputs=") + Archive.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
-  std::vector<StringRef> BundlerArgs = {"clang-offload-bundler", "-type=ao",
-                                        Targets, Inputs, "-check-section"};
+  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
+                                           Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -2663,6 +2664,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
 
   // Right off the bat, assume the presense of -foffload-static-lib means
   // the need to perform linking steps for fat static archive offloading.
+  // TODO: remove when -foffload-static-lib support is dropped.
   if (Args.hasArg(options::OPT_offload_lib_Group))
     return true;
   SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args));
