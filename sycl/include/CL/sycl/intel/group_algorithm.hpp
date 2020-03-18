@@ -159,10 +159,10 @@ bool all_of(Group g, T x, Predicate pred) {
 template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
-#ifdef __SYCL_DEVICE_ONLY__
   static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
+#ifdef __SYCL_DEVICE_ONLY__
   bool partial = true;
   detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
     partial &= pred(x);
