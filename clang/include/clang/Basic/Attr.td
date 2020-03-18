@@ -1852,6 +1852,23 @@ def IntelFPGABankBits : Attr {
   }];
 }
 
+def IntelFPGAForcePow2Depth : Attr {
+  let Spellings = [CXX11<"intelfpga","force_pow2_depth">];
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1;
+    }
+  }];
+}
+
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
   let Subjects = SubjectList<[Function]>;
