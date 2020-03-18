@@ -31,98 +31,98 @@ public:
   using ht_lut_t = tbb::concurrent_hash_map<int64_t, int64_t>;
 
   Hash64x64Table(int size = 1024)
-      : m_forward(size), m_reverse(size), m_table_size(size) {
+      : MForward(size), MReverse(size), MTableSize(size) {
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
   ~Hash64x64Table() {
-    m_forward.clear();
-    m_reverse.clear();
+    MForward.clear();
+    MReverse.clear();
   }
 
   //  Clear all the contents of this hash table and get it ready for re-use
   void clear() {
-    m_forward.clear();
-    m_reverse.clear();
-    m_forward.rehash(m_table_size);
-    m_reverse.rehash(m_table_size);
+    MForward.clear();
+    MReverse.clear();
+    MForward.rehash(MTableSize);
+    MReverse.rehash(MTableSize);
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
-  //  Check to see if a particular key is already present in the table;
+  //  Check to see if a particular Key is already present in the table;
   //
-  //  On success, the value for the key will be returned. If not,
+  //  On success, the value for the Key will be returned. If not,
   //  xpti::invalid_id will be returned.
-  int64_t find(int64_t key) {
+  int64_t find(int64_t Key) {
     //  Try to read it, if already present
     ht_lut_t::const_accessor e;
-    if (m_forward.find(e, key)) {
+    if (MForward.find(e, Key)) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
       return e->second; // We found it, so we return the value
     } else
       return xpti::invalid_id;
   }
 
-  //  Add a <key, value> pair to the hash table. If the key already exists, this
+  //  Add a <Key, Value> pair to the hash table. If the Key already exists, this
   //  call returns even if the value happens to be different this time.
   //
-  //  If the key does not exists, then the key is inserted into the hash map and
-  //  the reverse lookup populated with the <value, key> pair.
-  void add(int64_t key, int64_t value) {
+  //  If the Key does not exist, then the Key is inserted into the hash map and
+  //  the reverse lookup populated with the <Value, Key> pair.
+  void add(int64_t Key, int64_t Value) {
     //  Try to read it, if already present
     ht_lut_t::const_accessor e;
-    if (m_forward.find(e, key)) {
+    if (MForward.find(e, Key)) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
     } else { // Multiple threads could fall through here
       // Release the reader lock held;
       e.release();
       {
         // Employ a double-check pattern here
-        tbb::spin_mutex::scoped_lock dc(m_mutex);
+        tbb::spin_mutex::scoped_lock dc(MMutex);
         ht_lut_t::accessor f;
-        if (m_forward.insert(f, key)) {
-          // The key does not exist, so we will add the key-value pair to the
+        if (MForward.insert(f, Key)) {
+          // The Key does not exist, so we will add the Key-Value pair to the
           // hash map
-          f->second = value;
+          f->second = Value;
 #ifdef XPTI_STATISTICS
-          m_insert++;
+          MInsertions++;
 #endif
           // When we insert a new entry into the table, we also need to build
           // the reverse lookup;
           {
             ht_lut_t::accessor r;
-            if (m_reverse.insert(r, value)) {
+            if (MReverse.insert(r, Value)) {
               // An entry does not exist, so we will add it to the reverse
               // lookup.
-              r->second = key;
+              r->second = Key;
               f.release();
               r.release();
             }
           }
         }
-        // else, we do not add the key-value pair as the key already exists in
+        // else, we do not add the Key-Value pair as the Key already exists in
         // the table!
       }
     }
   }
 
-  //  The reverse query allows one to get the value from the key that may have
+  //  The reverse query allows one to get the Value from the Key that may have
   //  been cached somewhere.
-  int64_t reverseFind(int64_t value) {
+  int64_t reverseFind(int64_t Value) {
     ht_lut_t::const_accessor e;
-    if (m_reverse.find(e, value)) {
+    if (MReverse.find(e, Value)) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
       return e->second;
     } else
@@ -131,20 +131,20 @@ public:
 
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("Hash table inserts : [%llu]\n", m_insert.load());
-    printf("Hash table lookups : [%llu]\n", m_lookup.load());
+    printf("Hash table inserts : [%llu]\n", MInsertions.load());
+    printf("Hash table lookups : [%llu]\n", MRetrievals.load());
 #endif
   }
 
 private:
-  ht_lut_t m_forward;   ///< Forward lookup hash map
-  ht_lut_t m_reverse;   ///< Reverse lookup hash map
-  int32_t m_table_size; ///< Initial size of the hash map
+  ht_lut_t MForward;  ///< Forward lookup hash map
+  ht_lut_t MReverse;  ///< Reverse lookup hash map
+  int32_t MTableSize; ///< Initial size of the hash map
   tbb::spin_mutex
-      m_mutex; ///< Mutex required to implement a double-check pattern
+      MMutex; ///< Mutex required to implement a double-check pattern
 #ifdef XPTI_STATISTICS
-  safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
-      m_lookup;           ///< Thread-safe tracking of lookups
+  safe_uint64_t MInsertions, ///< Thread-safe tracking of insertions
+      MRetrievals;           ///< Thread-safe tracking of lookups
 #endif
 };
 
@@ -162,118 +162,118 @@ public:
   using ht_lut_t = std::unordered_map<int64_t, int64_t>;
 
   Hash64x64Table(int size = 1024)
-      : m_forward(size), m_reverse(size), m_table_size(size) {
+      : MForward(size), MReverse(size), MTableSize(size) {
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
   ~Hash64x64Table() {
-    m_forward.clear();
-    m_reverse.clear();
+    MForward.clear();
+    MReverse.clear();
   }
 
   //  Clear all the contents of this hash table and get it ready for re-use
   void clear() {
-    m_forward.clear();
-    m_reverse.clear();
+    MForward.clear();
+    MReverse.clear();
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
-  //  Check to see if a particular key is already present in the table;
+  //  Check to see if a particular Key is already present in the table;
   //
-  //  On success, the value for the key will be returned. If not,
+  //  On success, the Value for the Key will be returned. If not,
   //  xpti::invalid_id will be returned.
-  int64_t find(int64_t key) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+  int64_t find(int64_t Key) {
+    std::lock_guard<std::mutex> Lock(MMutex);
     //  Try to read it, if already present
-    auto key_loc = m_forward.find(key);
-    if (key_loc != m_forward.end()) {
+    auto KeyLoc = MForward.find(Key);
+    if (KeyLoc != MForward.end()) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
-      return key_loc->second; // We found it, so we return the value
+      return KeyLoc->second; // We found it, so we return the Value
     } else
       return xpti::invalid_id;
   }
 
-  //  Add a <key, value> pair to the hash table. If the key already exists, this
-  //  call returns even if the value happens to be different this time.
+  //  Add a <Key, Value> pair to the hash table. If the Key already exists, this
+  //  call returns even if the Value happens to be different this time.
   //
-  //  If the key does not exists, then the key is inserted into the hash map and
-  //  the reverse lookup populated with the <value, key> pair.
-  void add(int64_t key, int64_t value) {
+  //  If the Key does not exist, then the Key is inserted into the hash map and
+  //  the reverse lookup populated with the <Value, Key> pair.
+  void add(int64_t Key, int64_t Value) {
     //  Try to read it, if already present
-    auto key_loc = m_forward.find(key);
-    if (key_loc != m_forward.end()) {
+    auto KeyLoc = MForward.find(Key);
+    if (KeyLoc != MForward.end()) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
     } else { // Multiple threads could fall through here
       {
         // Employ a double-check pattern here
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto key_loc = m_forward.find(key);
-        if (key_loc == m_forward.end()) {
-          // The key does not exist, so we will add the key-value pair to the
+        std::lock_guard<std::mutex> Lock(MMutex);
+        auto KeyLoc = MForward.find(Key);
+        if (KeyLoc == MForward.end()) {
+          // The Key does not exist, so we will add the Key-Value pair to the
           // hash map
-          m_forward[key] = value;
-          key_loc = m_forward.find(key);
+          MForward[Key] = Value;
+          KeyLoc = MForward.find(Key);
 #ifdef XPTI_STATISTICS
-          m_insert++;
+          MInsertions++;
 #endif
           // When we insert a new entry into the table, we also need to build
           // the reverse lookup;
           {
-            auto val_loc = m_reverse.find(value);
-            if (val_loc == m_reverse.end()) {
+            auto ValLoc = MReverse.find(Value);
+            if (ValLoc == MReverse.end()) {
               // An entry does not exist, so we will add it to the reverse
               // lookup.
-              m_reverse[value] = key;
+              MReverse[Value] = Key;
             } else {
-              m_forward.erase(key_loc);
+              MForward.erase(KeyLoc);
             }
           }
         }
-        // else, we do not add the key-value pair as the key already exists in
+        // else, we do not add the Key-Value pair as the Key already exists in
         // the table!
       }
     }
   }
 
-  //  The reverse query allows one to get the value from the key that may have
+  //  The reverse query allows one to get the Value from the Key that may have
   //  been cached somewhere.
-  int64_t reverseFind(int64_t value) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto val_loc = m_reverse.find(value);
-    if (val_loc != m_reverse.end()) {
+  int64_t reverseFind(int64_t Value) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    auto ValLoc = MReverse.find(Value);
+    if (ValLoc != MReverse.end()) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
-      return val_loc->second;
+      return ValLoc->second;
     } else
       return xpti::invalid_id;
   }
 
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("Hash table inserts : [%llu]\n", m_insert.load());
-    printf("Hash table lookups : [%llu]\n", m_lookup.load());
+    printf("Hash table inserts : [%llu]\n", MInsertions.load());
+    printf("Hash table lookups : [%llu]\n", MRetrievals.load());
 #endif
   }
 
 private:
-  ht_lut_t m_forward;   ///< Forward lookup hash map
-  ht_lut_t m_reverse;   ///< Reverse lookup hash map
-  int32_t m_table_size; ///< Initial size of the hash map
-  std::mutex m_mutex;   ///< Mutex required to implement a double-check pattern
+  ht_lut_t MForward;  ///< Forward lookup hash map
+  ht_lut_t MReverse;  ///< Reverse lookup hash map
+  int32_t MTableSize; ///< Initial size of the hash map
+  std::mutex MMutex;  ///< Mutex required to implement a double-check pattern
 #ifdef XPTI_STATISTICS
-  safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
-      m_lookup;           ///< Thread-safe tracking of lookups
+  safe_uint64_t MInsertions, ///< Thread-safe tracking of insertions
+      MRetrievals;           ///< Thread-safe tracking of lookups
 #endif
 };
 #endif

@@ -30,16 +30,17 @@ enum class OptionType { Boolean, Integer, Float, String, Range };
 typedef std::map<int, long double> table_row_t;
 typedef std::map<int, table_row_t> table_t;
 typedef std::vector<std::string> titles_t;
-class scoped_timer {
+
+class ScopedTimer {
 public:
   typedef std::chrono::time_point<std::chrono::high_resolution_clock>
       time_unit_t;
-  scoped_timer(uint64_t &ns, double &ratio, size_t count = 1)
+  ScopedTimer(uint64_t &ns, double &ratio, size_t count = 1)
       : m_duration{ns}, m_average{ratio}, m_instances{count} {
     m_before = std::chrono::high_resolution_clock::now();
   }
 
-  ~scoped_timer() {
+  ~ScopedTimer() {
     m_after = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
         m_after - m_before);
@@ -54,111 +55,112 @@ private:
   time_unit_t m_before, m_after;
 };
 
-class cl_option {
+class CommandLineOption {
 public:
-  cl_option()
-      : m_required(false), m_type(OptionType::String),
-        m_help("No help available.") {}
-  ~cl_option() {}
+  CommandLineOption()
+      : MRequired(false), MType(OptionType::String),
+        MHelp("No help available.") {}
+  ~CommandLineOption() {}
 
-  cl_option &set_required(bool yesOrNo) {
-    m_required = yesOrNo;
+  CommandLineOption &setRequired(bool yesOrNo) {
+    MRequired = yesOrNo;
     return *this;
   }
-  cl_option &set_type(OptionType type) {
-    m_type = type;
+  CommandLineOption &setType(OptionType type) {
+    MType = type;
     return *this;
   }
-  cl_option &set_help(std::string help) {
-    m_help = help;
+  CommandLineOption &setHelp(std::string help) {
+    MHelp = help;
     return *this;
   }
-  cl_option &set_abbreviation(std::string abbr) {
-    m_abbrev = abbr;
+  CommandLineOption &setAbbreviation(std::string abbr) {
+    MAbbrev = abbr;
     return *this;
   }
 
-  std::string &abbreviation() { return m_abbrev; }
-  std::string &help() { return m_help; }
-  OptionType type() { return m_type; }
-  bool required() { return m_required; }
+  std::string &abbreviation() { return MAbbrev; }
+  std::string &help() { return MHelp; }
+  OptionType type() { return MType; }
+  bool required() { return MRequired; }
 
 private:
-  bool m_required;
-  OptionType m_type;
-  std::string m_help;
-  std::string m_abbrev;
+  bool MRequired;
+  OptionType MType;
+  std::string MHelp;
+  std::string MAbbrev;
 };
 
-class cl_parser {
+class CommandLineParser {
 public:
-  typedef std::unordered_map<std::string, cl_option> cl_options_t;
+  typedef std::unordered_map<std::string, CommandLineOption>
+      CommandLineOptions_t;
   typedef std::unordered_map<std::string, std::string> key_value_t;
 
-  cl_parser() {
-    m_reserved_key = "--help";
-    m_reserved_key_abbr = "-h";
+  CommandLineParser() {
+    MReservedKey = "--help";
+    MReservedKeyAbbr = "-h";
   }
 
-  ~cl_parser() {}
+  ~CommandLineParser() {}
 
   void parse(int argc, char **argv) {
-    m_cl_options.resize(argc);
+    MCommandLineOptions.resize(argc);
     // Go through the command-line options list and build an internal
-    m_app_name = argv[0];
+    MAppName = argv[0];
     for (int i = 1; i < argc; ++i) {
-      m_cl_options[i - 1] = argv[i];
+      MCommandLineOptions[i - 1] = argv[i];
     }
 
-    build_abbreviation_table();
+    buildAbbreviationTable();
 
-    if (!check_options()) {
-      print_help();
+    if (!checkOptions()) {
+      printHelp();
       exit(-1);
     }
   }
 
-  cl_option &add_option(std::string key) {
-    if (key == m_reserved_key) {
+  CommandLineOption &addOption(std::string key) {
+    if (key == MReservedKey) {
       std::cout << "Option[" << key
-                << "] is a reserved option. Ignoring the add_option() call!\n";
+                << "] is a reserved option. Ignoring the addOption() call!\n";
       // throw an exception here;
     }
-    if (m_option_help_lut.count(key)) {
+    if (MOptionHelpLUT.count(key)) {
       std::cout << "Option " << key << " has already been registered!\n";
-      return m_option_help_lut[key];
+      return MOptionHelpLUT[key];
     }
 
-    return m_option_help_lut[key];
+    return MOptionHelpLUT[key];
   }
 
   std::string &query(const char *key) {
-    if (m_option_help_lut.count(key)) {
-      return m_value_lut[key];
-    } else if (m_abbreviated_option_lut.count(key)) {
-      std::string full_key = m_abbreviated_option_lut[key];
-      if (m_value_lut.count(full_key)) {
-        return m_value_lut[full_key];
+    if (MOptionHelpLUT.count(key)) {
+      return MValueLUT[key];
+    } else if (MAbbreviatedOptionLUT.count(key)) {
+      std::string full_key = MAbbreviatedOptionLUT[key];
+      if (MValueLUT.count(full_key)) {
+        return MValueLUT[full_key];
       }
-      return m_empty_string;
+      return MEmptyString;
     }
   }
 
 private:
-  void build_abbreviation_table() {
-    for (auto &o : m_option_help_lut) {
+  void buildAbbreviationTable() {
+    for (auto &o : MOptionHelpLUT) {
       std::string &abbr = o.second.abbreviation();
       if (!abbr.empty()) {
-        m_abbreviated_option_lut[abbr] = o.first;
+        MAbbreviatedOptionLUT[abbr] = o.first;
       }
     }
   }
 
-  void print_help() {
+  void printHelp() {
     std::cout << "Usage:- \n";
-    std::cout << "      " << m_app_name << " ";
+    std::cout << "      " << MAppName << " ";
     // Print all required options first
-    for (auto &op : m_option_help_lut) {
+    for (auto &op : MOptionHelpLUT) {
       if (op.second.required()) {
         std::cout << op.first << " ";
         switch (op.second.type()) {
@@ -175,13 +177,13 @@ private:
           std::cout << "<string> ";
           break;
         case OptionType::Range:
-          std::cout << "<val1,val2,begin:end:step> ";
+          std::cout << "<val1,val2,begin:end:Step> ";
           break;
         }
       }
     }
     // Print the optional flags next.
-    for (auto &op : m_option_help_lut) {
+    for (auto &op : MOptionHelpLUT) {
       if (!op.second.required()) {
         std::cout << "[" << op.first << " ";
         switch (op.second.type()) {
@@ -199,14 +201,14 @@ private:
           std::cout << "<string>] ";
           break;
         case OptionType::Range:
-          std::cout << "<val1,val2,begin:end:step>] ";
+          std::cout << "<val1,val2,begin:end:Step>] ";
           break;
         }
       }
     }
     std::cout << "\n      Options supported:\n";
     // Print help for all of the options
-    for (auto &op : m_option_help_lut) {
+    for (auto &op : MOptionHelpLUT) {
       std::stringstream help(op.second.help());
       std::string help_line;
       bool first = true;
@@ -225,10 +227,10 @@ private:
     }
   }
 
-  bool check_options() {
+  bool checkOptions() {
     bool pass = true;
-    std::string prev_key;
-    for (auto &op : m_cl_options) {
+    std::string PrevKey;
+    for (auto &op : MCommandLineOptions) {
       std::size_t pos = op.find_first_of("-");
       if (std::string::npos != pos) {
         //  We have an option provided; let's check to see if it is verbose or
@@ -236,49 +238,49 @@ private:
         pos = op.find_first_of("-", pos + 1);
         if (std::string::npos != pos) {
           // We have a verbose option
-          if (op == m_reserved_key) {
-            print_help();
+          if (op == MReservedKey) {
+            printHelp();
             exit(-1);
-          } else if (m_option_help_lut.count(op) == 0) {
+          } else if (MOptionHelpLUT.count(op) == 0) {
             std::cout << "Unknown option[" << op << "]!\n";
             pass = false;
           }
-          m_value_lut[op] = "true";
-          prev_key = op;
+          MValueLUT[op] = "true";
+          PrevKey = op;
         } else {
           // We have an abbreviated option
-          if (op == m_reserved_key_abbr) {
-            print_help();
+          if (op == MReservedKeyAbbr) {
+            printHelp();
             exit(-1);
-          } else if (m_abbreviated_option_lut.count(op) == 0) {
+          } else if (MAbbreviatedOptionLUT.count(op) == 0) {
             std::cout << "Unknown option[" << op << "] detected.\n";
             pass = false;
           }
-          prev_key = m_abbreviated_option_lut[op];
-          m_value_lut[prev_key] = "true";
+          PrevKey = MAbbreviatedOptionLUT[op];
+          MValueLUT[PrevKey] = "true";
         }
       } else {
         // No idea why stringstream will decode the last \n as a "" string; this
         // handles that case
-        if (prev_key.empty() && op.empty())
+        if (PrevKey.empty() && op.empty())
           break;
         // We have an option value
-        if (prev_key.empty()) {
+        if (PrevKey.empty()) {
           std::cout << "Value[" << op
                     << "] provided without specifying an option\n";
           pass = false;
         } else {
-          m_value_lut[prev_key] = op;
-          prev_key = m_empty_string;
+          MValueLUT[PrevKey] = op;
+          PrevKey = MEmptyString;
         }
       }
     }
 
-    for (auto &op : m_option_help_lut) {
+    for (auto &op : MOptionHelpLUT) {
       // Check to see if an option is required; If so, check to see if there's a
       // value associated with it.
       if (op.second.required()) {
-        if (!m_value_lut.count(op.first)) {
+        if (!MValueLUT.count(op.first)) {
           std::cout << "Option[" << op.first
                     << "] is required and not provided.\n";
           pass = false;
@@ -289,49 +291,49 @@ private:
     return pass;
   }
 
-  std::vector<std::string> m_cl_options;
-  cl_options_t m_option_help_lut;
-  key_value_t m_abbreviated_option_lut;
-  key_value_t m_value_lut;
-  std::string m_empty_string;
-  std::string m_reserved_key;
-  std::string m_reserved_key_abbr;
-  std::string m_app_name;
+  std::vector<std::string> MCommandLineOptions;
+  CommandLineOptions_t MOptionHelpLUT;
+  key_value_t MAbbreviatedOptionLUT;
+  key_value_t MValueLUT;
+  std::string MEmptyString;
+  std::string MReservedKey;
+  std::string MReservedKeyAbbr;
+  std::string MAppName;
 };
 
-class table_model {
+class TableModel {
 public:
   typedef std::map<int, std::string> row_titles_t;
-  table_model() {}
+  TableModel() {}
 
-  void set_headers(titles_t &titles) { m_column_titles = titles; }
+  void setHeaders(titles_t &titles) { MColumnTitles = titles; }
 
-  table_row_t &add_row(int row, std::string &row_name) {
-    if (m_row_titles.count(row)) {
+  table_row_t &addRow(int row, std::string &row_name) {
+    if (MRowTitles.count(row)) {
       std::cout << "Warning: Row title already specified!\n";
     }
-    m_row_titles[row] = row_name;
-    return m_table[row];
+    MRowTitles[row] = row_name;
+    return MTable[row];
   }
-  table_row_t &add_row(int row, const char *row_name) {
-    if (m_row_titles.count(row)) {
+  table_row_t &addRow(int row, const char *row_name) {
+    if (MRowTitles.count(row)) {
       std::cout << "Warning: Row title already specified!\n";
     }
-    m_row_titles[row] = row_name;
-    return m_table[row];
+    MRowTitles[row] = row_name;
+    return MTable[row];
   }
 
-  table_row_t &operator[](int row) { return m_table[row]; }
+  table_row_t &operator[](int row) { return MTable[row]; }
 
   void print() {
     std::cout << std::setw(14) << " ";
-    for (auto &title : m_column_titles) {
+    for (auto &title : MColumnTitles) {
       std::cout << std::setw(14) << title; // Column headers
     }
     std::cout << "\n";
 
-    for (auto &row : m_table) {
-      std::cout << std::setw(14) << m_row_titles[row.first];
+    for (auto &row : MTable) {
+      std::cout << std::setw(14) << MRowTitles[row.first];
       int prev_col = 0;
       for (auto &data : row.second) {
         std::cout << std::fixed << std::setw(14) << std::setprecision(0)
@@ -343,49 +345,49 @@ public:
   }
 
 private:
-  titles_t m_column_titles;
-  row_titles_t m_row_titles;
-  table_t m_table;
+  titles_t MColumnTitles;
+  row_titles_t MRowTitles;
+  table_t MTable;
 };
 
-class range_decoder {
+class RangeDecoder {
 public:
-  range_decoder(std::string &range_str) : m_range(range_str) {
-    // Split by commas first followed by : for begin,end, step
+  RangeDecoder(std::string &range_str) : MRange(range_str) {
+    // Split by commas first followed by : for begin,end, Step
     std::stringstream elements(range_str);
     std::string element;
     while (std::getline(elements, element, ',')) {
       if (element.find_first_of("-:") == std::string::npos) {
-        m_elements.insert(std::stol(element));
+        MElements.insert(std::stol(element));
       } else {
-        std::stringstream r(element);
-        std::vector<std::string> range_tokens;
-        std::string e, b;
+        std::stringstream R(element);
+        std::vector<std::string> RangeTokens;
+        std::string SubStr;
         // Now split by :
-        while (std::getline(r, e, ':')) {
-          range_tokens.push_back(e);
+        while (std::getline(R, SubStr, ':')) {
+          RangeTokens.push_back(SubStr);
         }
-        // range_tokens should have three entries; Second entry is the step
-        std::cout << range_tokens[0] << ";" << range_tokens[1] << std::endl;
-        long step = std::stol(range_tokens[2]);
-        for (long i = std::stol(range_tokens[0]);
-             i <= std::stol(range_tokens[1]); i += step) {
-          m_elements.insert(i);
+        // RangeTokens should have three entries; Second entry is the Step
+        std::cout << RangeTokens[0] << ";" << RangeTokens[1] << std::endl;
+        long Step = std::stol(RangeTokens[2]);
+        for (long i = std::stol(RangeTokens[0]); i <= std::stol(RangeTokens[1]);
+             i += Step) {
+          MElements.insert(i);
         }
       }
     }
   }
 
-  std::set<long> &decode() { return m_elements; }
+  std::set<long> &decode() { return MElements; }
 
 private:
-  std::string m_range;
-  std::set<long> m_elements;
+  std::string MRange;
+  std::set<long> MElements;
 };
 } // namespace utils
 
 namespace semantic {
-class test_correctness {
+class TestCorrectness {
 public:
   enum class SemanticTests {
     StringTableTest = 1,
@@ -393,67 +395,66 @@ public:
     NotificationTest
   };
 
-  test_correctness(test::utils::cl_parser &parser) : m_parser(parser) {
+  TestCorrectness(test::utils::CommandLineParser &parser) : MParser(parser) {
     xptiInitialize("xpti", 20, 0, "xptiTests");
   }
 
   void run() {
-    auto &v = m_parser.query("--type");
+    auto &v = MParser.query("--type");
     if (v != "semantic")
       return;
 
-    test::utils::range_decoder td(m_parser.query("--num-threads"));
-    m_threads = td.decode();
-    test::utils::range_decoder rd(m_parser.query("--test-id"));
-    m_tests = rd.decode();
+    test::utils::RangeDecoder td(MParser.query("--num-threads"));
+    MThreads = td.decode();
+    test::utils::RangeDecoder rd(MParser.query("--test-id"));
+    MTests = rd.decode();
 
-    run_tests();
+    runTests();
   }
 
-  void run_tests() {
-    for (auto test : m_tests) {
+  void runTests() {
+    for (auto test : MTests) {
       switch ((SemanticTests)test) {
       case SemanticTests::StringTableTest:
-        run_string_table_tests();
+        runStringTableTests();
         break;
       case SemanticTests::TracePointTest:
-        run_tracepoint_tests();
+        runTracepointTests();
         break;
       case SemanticTests::NotificationTest:
-        run_notification_tests();
+        runNotificationTests();
         break;
       default:
         std::cout << "Unknown test type [" << test << "]: use 1,2,3 or 1:3:1\n";
         break;
       }
     }
-    m_table.print();
+    MTable.print();
   }
 
 private:
-  void run_string_table_tests();
-  void run_string_table_test_threads(int run_no, int nt,
-                                     test::utils::table_model &t);
-  void run_tracepoint_tests();
-  void run_tracepoint_test_threads(int run_no, int nt,
-                                   test::utils::table_model &t);
-  void run_notification_tests();
-  void run_notification_test_threads(int run_no, int nt,
-                                     test::utils::table_model &t);
+  void runStringTableTests();
+  void runStringTableTestThreads(int run_no, int nt,
+                                 test::utils::TableModel &t);
+  void runTracepointTests();
+  void runTracepointTestThreads(int run_no, int nt, test::utils::TableModel &t);
+  void runNotificationTests();
+  void runNotificationTestThreads(int run_no, int nt,
+                                  test::utils::TableModel &t);
 
-  test::utils::cl_parser &m_parser;
-  test::utils::table_model m_table;
-  std::set<long> m_threads, m_tests;
-  long m_tracepoints;
-  const char *m_source = "foo.cpp";
-  uint64_t m_instance_id = 0;
+  test::utils::CommandLineParser &MParser;
+  test::utils::TableModel MTable;
+  std::set<long> MThreads, MTests;
+  long MTracepoints;
+  const char *MSource = "foo.cpp";
+  uint64_t MInstanceID = 0;
 };
 } // namespace semantic
 
 namespace performance {
 constexpr int MaxTracepoints = 100000;
 constexpr int MinTracepoints = 10;
-class test_performance {
+class TestPerformance {
 public:
   struct record {
     std::string fn;
@@ -461,49 +462,49 @@ public:
   };
   enum class PerformanceTests { DataStructureTest = 1, InstrumentationTest };
 
-  test_performance(test::utils::cl_parser &parser) : m_parser(parser) {
+  TestPerformance(test::utils::CommandLineParser &parser) : MParser(parser) {
     xptiInitialize("xpti", 20, 0, "xptiTests");
   }
 
-  std::string make_random_string(uint8_t length, std::mt19937_64 &gen) {
+  std::string makeRandomString(uint8_t length, std::mt19937_64 &gen) {
     if (length > 25) {
       length = 25;
     }
     // A=65, a=97
     std::string s(length, '\0');
     for (int i = 0; i < length; ++i) {
-      int ascii = m_case(gen);
-      int value = m_char(gen);
+      int ascii = MCaseU(gen);
+      int value = MCharU(gen);
       s[i] = (ascii ? value + 97 : value + 65);
     }
     return s;
   }
 
   void run() {
-    auto &v = m_parser.query("--type");
+    auto &v = MParser.query("--type");
     if (v != "performance")
       return;
 
-    test::utils::range_decoder td(m_parser.query("--num-threads"));
-    m_threads = td.decode();
-    m_tracepoints = std::stol(m_parser.query("--trace-points"));
-    if (m_tracepoints > MaxTracepoints) {
+    test::utils::RangeDecoder td(MParser.query("--num-threads"));
+    MThreads = td.decode();
+    MTracepoints = std::stol(MParser.query("--trace-points"));
+    if (MTracepoints > MaxTracepoints) {
       std::cout << "Reducing trace points to " << MaxTracepoints << "!\n";
-      m_tracepoints = MaxTracepoints;
+      MTracepoints = MaxTracepoints;
     }
-    if (m_tracepoints < 0) {
+    if (MTracepoints < 0) {
       std::cout << "Setting trace points to " << MinTracepoints << "!\n";
-      m_tracepoints = MinTracepoints;
+      MTracepoints = MinTracepoints;
     }
 
-    test::utils::range_decoder rd(m_parser.query("--test-id"));
-    m_tests = rd.decode();
+    test::utils::RangeDecoder rd(MParser.query("--test-id"));
+    MTests = rd.decode();
 
-    std::string dist = m_parser.query("--tp-frequency");
+    std::string dist = MParser.query("--tp-frequency");
     if (dist.empty()) {
       // By default, we assume that for every trace point that is created, we
       // will visit it NINE more times.
-      m_tp_instances = m_tracepoints * 10;
+      MTracepointInstances = MTracepoints * 10;
     } else {
       float value = std::stof(dist);
       if (value > 100) {
@@ -519,98 +520,101 @@ public:
       // trace point create will be creating a new trace point. If it is 2%,
       // then every 50th trace point will create call will result in a new
       // trace point.
-      m_tp_instances = (long)((1.0 / (std::stof(dist) / 100)) * m_tracepoints);
+      MTracepointInstances =
+          (long)((1.0 / (std::stof(dist) / 100)) * MTracepoints);
     }
     // Check to see if overheads to model are set; if not assume 1.0%
-    dist = m_parser.query("--overhead");
+    dist = MParser.query("--overhead");
     if (!dist.empty()) {
-      m_overhead = std::stof(dist);
-      if (m_overhead < 0.1) {
+      MOverhead = std::stof(dist);
+      if (MOverhead < 0.1) {
         std::cout << "Overheads to be modeled clamped to range - 0.1%!\n";
-        m_overhead = 0.1;
-      } else if (m_overhead > 15) {
+        MOverhead = 0.1;
+      } else if (MOverhead > 15) {
         std::cout << "Overheads to be modeled clamped to range - 15%!\n";
-        m_overhead = 15;
+        MOverhead = 15;
       }
     }
 
     // If the number of trace points(TP) required to run tests on is 1000, then
     // we will run our string table tests on the number of TPs we compute. For a
     // TP frequency of 10%, we will have TP instances be 1000x10
-    m_st_entries = m_tp_instances;
+    MStringTableEntries = MTracepointInstances;
     // Mersenne twister RNG engine that is uniform distribution
     std::random_device q_rd;
     std::mt19937_64 gen(q_rd());
     // Generate the pseudo-random numbers for trace points and string table
     // random lookup
-    m_tp = std::uniform_int_distribution<int32_t>(0, m_tracepoints - 1);
-    m_st = std::uniform_int_distribution<int32_t>(0, m_st_entries - 1);
-    m_char = std::uniform_int_distribution<int32_t>(0, 25);
-    m_case = std::uniform_int_distribution<int32_t>(0, 1);
+    MTracepointU = std::uniform_int_distribution<int32_t>(0, MTracepoints - 1);
+    MStringTableU =
+        std::uniform_int_distribution<int32_t>(0, MStringTableEntries - 1);
+    MCharU = std::uniform_int_distribution<int32_t>(0, 25);
+    MCaseU = std::uniform_int_distribution<int32_t>(0, 1);
 
-    m_rnd_st.resize(m_st_entries);
-    m_rnd_tp.resize(m_st_entries);
-    for (int i = 0; i < m_st_entries; ++i) {
-      m_rnd_st[i] = m_st(gen);
+    MRndmSTIndex.resize(MStringTableEntries);
+    MRndmTPIndex.resize(MStringTableEntries);
+    for (int i = 0; i < MStringTableEntries; ++i) {
+      MRndmSTIndex[i] = MStringTableU(gen);
     }
-    for (int i = 0; i < m_st_entries; ++i) {
-      m_rnd_tp[i] = m_tp(gen);
+    for (int i = 0; i < MStringTableEntries; ++i) {
+      MRndmTPIndex[i] = MTracepointU(gen);
     }
     // Generate the strings we will be registering with the string table and
     // also the random lookup table for trace points
-    for (int i = 0; i < m_tp_instances; ++i) {
+    for (int i = 0; i < MTracepointInstances; ++i) {
       record r;
-      r.lookup = m_rnd_tp[i]; // 0-999999999
-      std::string str = make_random_string(5, gen);
+      r.lookup = MRndmTPIndex[i]; // 0-999999999
+      std::string str = makeRandomString(5, gen);
       r.fn = str + std::to_string(r.lookup);
-      m_records.push_back(r);
-      str = make_random_string(8, gen) + std::to_string(i);
-      m_functions.push_back(str);
-      str = make_random_string(8, gen) + std::to_string(i);
-      m_functions2.push_back(str);
+      MRecords.push_back(r);
+      str = makeRandomString(8, gen) + std::to_string(i);
+      MFunctions.push_back(str);
+      str = makeRandomString(8, gen) + std::to_string(i);
+      MFunctions2.push_back(str);
     }
     // Done with the setup; now run the tests
-    run_tests();
+    runTests();
   }
 
-  void run_tests() {
-    for (auto test : m_tests) {
+  void runTests() {
+    for (auto test : MTests) {
       switch ((PerformanceTests)test) {
       case PerformanceTests::DataStructureTest:
-        run_data_structure_tests();
+        runDataStructureTests();
         break;
       case PerformanceTests::InstrumentationTest:
-        run_instrumentation_tests();
+        runInstrumentationTests();
         break;
       default:
         std::cout << "Unknown test type [" << test << "]: use 1,2 or 1:2:1\n";
         break;
       }
     }
-    m_table.print();
+    MTable.print();
   }
 
 private:
-  void run_data_structure_tests();
-  void run_data_structure_tests_threads(int run_no, int nt,
-                                        test::utils::table_model &t);
-  void run_instrumentation_tests();
-  void run_instrumentation_tests_threads(int run_no, int nt,
-                                         test::utils::table_model &t);
+  void runDataStructureTests();
+  void runDataStructureTestsThreads(int run_no, int nt,
+                                    test::utils::TableModel &t);
+  void runInstrumentationTests();
+  void runInstrumentationTestsThreads(int run_no, int nt,
+                                      test::utils::TableModel &t);
 
-  test::utils::cl_parser &m_parser;
-  test::utils::table_model m_table;
-  std::set<long> m_threads, m_tests;
-  long m_tracepoints;
-  long m_tp_instances;
-  long m_st_entries;
-  const char *m_source = "foo.cpp";
-  uint64_t m_instance_id = 0;
-  std::uniform_int_distribution<int32_t> m_tp, m_st, m_char, m_case;
-  std::vector<int> m_rnd_tp, m_rnd_st;
-  std::vector<record> m_records;
-  std::vector<std::string> m_functions, m_functions2;
-  double m_overhead = 1.0;
+  test::utils::CommandLineParser &MParser;
+  test::utils::TableModel MTable;
+  std::set<long> MThreads, MTests;
+  long MTracepoints;
+  long MTracepointInstances;
+  long MStringTableEntries;
+  const char *MSource = "foo.cpp";
+  uint64_t MInstanceID = 0;
+  std::uniform_int_distribution<int32_t> MTracepointU, MStringTableU, MCharU,
+      MCaseU;
+  std::vector<int> MRndmTPIndex, MRndmSTIndex;
+  std::vector<record> MRecords;
+  std::vector<std::string> MFunctions, MFunctions2;
+  double MOverhead = 1.0;
 };
 } // namespace performance
 } // namespace test

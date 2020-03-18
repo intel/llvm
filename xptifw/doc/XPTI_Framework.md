@@ -509,20 +509,34 @@ overhead at 1.5% and for every trace point created, it will be visited twice.
 A description of the command line arguments is provided in detail below:
 
 > **--type, -y [`required`]**
->  - This flag takes in the type of tests that need to be run. The allowed options are **[semantic, performance]**.
-> - **semantic**: Runs semantic tests that test the correctness of the framework operations and they are split into three separate tests.
+>  - This flag takes in the type of tests that need to be run. The allowed
+options are **[semantic, performance]**.
+> - **semantic**: Runs semantic tests that test the correctness of the
+framework operations and they are split into three separate tests.
 >   1. Performs string table tests on a 1000 strings
->   2. Performs tests on trace point events by checking to see if the same event is returned for the same payload and so on.
->   3.  Performs notification tests to see if trace events are notified correctly and record the instances of notifications per events.
-> - **performance**: Runs performance tests on the provided input configuration and these tests measure the cost of various operations used in the framework. These tests are split into two separate tests.
->   1. Data structure tests that capture the average cost of string table inserts, lookups, trace point event creation and lookup using the same payload or `unique_id` for the event and notification.
->   2. Runs instrumentation tests and projects the number of events that can be serviced per second using the configuration provided on the command line. These tests are where the **--overhead** and **--tp-frequency** arguments are used.
+>   2. Performs tests on trace point events by checking to see if the same
+event is returned for the same payload and so on.
+>   3. Performs notification tests to see if trace events are notified
+correctly and record the instances of notifications per events.
+> - **performance**: Runs performance tests on the provided input
+configuration and these tests measure the cost of various operations used in
+the framework. These tests are split into two separate tests.
+>   1. Data structure tests that capture the average cost of string table
+inserts, lookups, trace point event creation and lookup using the same
+payload or `unique_id` for the event and notification.
+>   2. Runs instrumentation tests and projects the number of events that can
+be serviced per second using the configuration provided on the command line.
+These tests are where the **--overhead** and **--tp-frequency** arguments are
+used.
 
 > **--trace-points, -t [`required`]**
-> - Number of trace point events to create and use for the test. The expected range is **[10-100000]**.
+> - Number of trace point events to create and use for the test. The expected
+range is **[10-100000]**.
 
 > **--test-id, -i [`required`]**
-> - Takes in a list of tests that are comma separated and runs the requested tests. This command line argument takes in a range as well and the format is described below:
+> - Takes in a list of tests that are comma separated and runs the requested
+tests. This command line argument takes in a range as well and the format is
+described below:
 >   1. Comma separated sequence: --test-id 1,2,3
 >   2. Range description: --test-id 1:3:1
 
@@ -532,25 +546,40 @@ A description of the command line arguments is provided in detail below:
 >   2. Range description: --num-threads 0:2:1,4:16:4
 
 > **--tp-frequency, --f**
->  - The trace point creation frequency basically allows the test to determine the total number of trace point visits to perform for every trace point event that is created. If the trace point creation frequency is 10%, then every trace point event that is created must be visited 10 times. Since we know how many trace point events were requested from the command line (**--trace-points N**), we multiply this value (N) by 100/f where f = trace point frequency in percent to get the total number of trace point visits.
-> - So, if number of trace points is 5000 and trace point frequency is 10%, the total number of trace point visits the test is going to perform is 5000 x 1/0.1 = 50000
+>  - The trace point creation frequency basically allows the test to
+determine the total number of trace point visits to perform for every trace
+point event that is created. If the trace point creation frequency is 10%,
+then every trace point event that is created must be visited 10 times. Since
+we know how many trace point events were requested from the command line
+(**--trace-points N**), we multiply this value (N) by 100/f where f = trace
+point frequency in percent to get the total number of trace point visits.
+> - So, if number of trace points is 5000 and trace point frequency is 10%,
+the total number of trace point visits the test is going to perform is 5000 x
+1/0.1 = 50000
 
 >**--overhead**
-> - The overhead input allows the test framework to use the measured performance of the trace point creation and notification to come up with an estimate of how many events can be serviced per second with the given configuration.
+> - The overhead input allows the test framework to use the measured
+performance of the trace point creation and notification to come up with an
+estimate of how many events can be serviced per second with the given
+configuration.
 > - The default overheads for which the events/sec are computed is **1%**
 > - If the overheads desired is 1%, then the following formula is used to compute the events/sec:
 >    <p><b>total cost</b> of instrumentation <b>(I)</b> = (cost of trace point creation + cost of notification)</p>
 >    <p>So, if --trace-points 5000 --tp-frequency 10, this will be:</p>
 >    <p><b>I = 5000xCost(TP Create) + 50000xCost(Notify)</b></p>
 >    <p><b>Average cost (A) = I/50000</b>,  for 50000 events notified</p>
->    <p> This cost A does not take into account the cost of the callback handler. In our projections, we use a handler cost of 10ns, 100ns and 500ns to get the events/sec that can be serviced. On an average, the handler costs for real-world cases will be somewhere between 80ns-400ns.
+>    <p> This cost A does not take into account the cost of the callback
+handler. In our projections, we use a handler cost of 10ns, 100ns and 500ns
+to get the events/sec that can be serviced. On an average, the handler costs
+for real-world cases will be somewhere between 80ns-400ns.
 >    <p>So, if the average cost is A and this is 1% overhead, the total run time must be <b>100xA</b> ns</p>
 >    <p><b>Events/second E = 1000,000,000 ns/(100xA)ns</b></p>
 >
 
 Using the metrics described above, we run the tests with varying overheads and
 trace point creation frequencies to determine the maximum number of events
-that can be serviced for that configuration. Some sample configurations are shown below:
+that can be serviced for that configuration. Some sample configurations are
+shown below:
 
 - Configuration where each trace point event created is only visited **once**
     ```bash
@@ -568,11 +597,17 @@ that can be serviced for that configuration. Some sample configurations are show
 ## Modeling and projection
 
 In order to determine the number of events that the framework can service in a
-second, the performance tests use the following approach. If the total instrumentation cost is 1&#181;s and for this cost to be under 1% total overhead, the amount of work that needs to be accomplished for every trace event would be 1&#181;s x 100 = 100&#181;s. In this case, the maximum number of events that can be notified/serviced would be:
+second, the performance tests use the following approach. If the total
+instrumentation cost is 1&#181;s and for this cost to be under 1% total
+overhead, the amount of work that needs to be accomplished for every trace
+event would be 1&#181;s x 100 = 100&#181;s. In this case, the maximum number
+of events that can be notified/serviced would be:
 
  1 sec/100&#181;s = 1000000&#181;s/100&#181;s = 10000 events/sec
 
-The total instrumentation cost would include *some of the time in the infrastructure in the framework* and the *cost of handling each notification through callbacks* in the subscriber.
+The total instrumentation cost would include *some of the time in the
+infrastructure in the framework* and the *cost of handling each notification
+through callbacks* in the subscriber.
 
 ### Computing the cost incurred in the framework
 
@@ -584,19 +619,30 @@ shown below.
     ```bash
     run_test --trace-points 10000 --type performance --num-threads 0,1,2,4   --test-id 1,2 --tp-frequency 10
 
-We take average cost of a trace point event creation and the cost of 10  notifications for each such event as it is visited 10 times to form the basis of the cost incurred within the framework. This information is reported by the performance test. The total instrumentation cost as discussed in the previous section comprises of a framework cost and a callback handler cost in the subscriber.
+We take average cost of a trace point event creation and the cost of 10
+notifications for each such event as it is visited 10 times to form the basis
+of the cost incurred within the framework. This information is reported by
+the performance test. The total instrumentation cost as discussed in the
+previous section comprises of a framework cost and a callback handler cost in
+the subscriber.
 
- Framework cost **FW**<sub>***cost***</sub> = Avg{TP<sub>*create*</sub> + 10 x TP<sub>*notify*</sub>}
+Framework cost **FW**<sub>***cost***</sub> = Avg{TP<sub>*create*</sub> + 10 x TP<sub>*notify*</sub>}
 
- Subscriber cost **Callback**<sub>***cost***</sub> = **C<sub>*t*</sub>** which could be anywhere in the range [10-10000]ns
+Subscriber cost **Callback**<sub>***cost***</sub> = **C<sub>*t*</sub>** which could be anywhere in the range [10-10000]ns
 
- Total cost **Cost**<sub>***total***</sub> = **FW**<sub>***cost***</sub> + **C<sub>*t*</sub>**
+Total cost **Cost**<sub>***total***</sub> = **FW**<sub>***cost***</sub> + **C<sub>*t*</sub>**
 
-Using the information from the report or one such instance captured in the table above, we know that:
+Using the information from the report or one such instance captured in the
+table above, we know that:
 
 **FW**<sub>***cost***</sub> = ~55ns
 
-Using different values for **C<sub>*t*</sub>** = [10, 100, 500, 1000]ns, we get the table that shows the events/sec that can be serviced for total instrumentation cost for the configuration. It can be noticed that as the callback handler costs increase, the events/sec is inversely proportional to the callback handler costs. The work unit cost for determining the number of events/sec is given by:
+Using different values for **C<sub>*t*</sub>** = [10, 100, 500, 1000]ns, we
+get the table that shows the events/sec that can be serviced for total
+instrumentation cost for the configuration. It can be noticed that as the
+callback handler costs increase, the events/sec is inversely proportional to
+the callback handler costs. The work unit cost for determining the number of
+events/sec is given by:
 
 **W**<sub>***cost***</sub> = **100** x [**FW**<sub>***cost***</sub> + **C<sub>*t*</sub>**] for the configuration that limits overheads to 1%.
 

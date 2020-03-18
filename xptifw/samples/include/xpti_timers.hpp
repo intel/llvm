@@ -13,14 +13,14 @@
 #include <unordered_map>
 
 namespace xpti {
-class thread_id {
+class ThreadID {
 public:
   typedef std::unordered_map<std::string, int> thread_lut_t;
 
-  thread_id() : m_tid(0) {}
-  ~thread_id() {}
+  ThreadID() : m_tid(0) {}
+  ~ThreadID() {}
 
-  inline uint32_t enum_id(std::thread::id &curr) {
+  inline uint32_t enumID(std::thread::id &curr) {
     std::stringstream s;
     s << curr;
     std::string str(s.str());
@@ -28,19 +28,19 @@ public:
     if (m_thread_lookup.count(str)) {
       return m_thread_lookup[str];
     } else {
-      uint32_t enum_id = m_tid++;
-      m_thread_lookup[str] = enum_id;
-      return enum_id;
+      uint32_t enumID = m_tid++;
+      m_thread_lookup[str] = enumID;
+      return enumID;
     }
   }
 
-  inline uint32_t enum_id(const std::string &curr) {
+  inline uint32_t enumID(const std::string &curr) {
     if (m_thread_lookup.count(curr)) {
       return m_thread_lookup[curr];
     } else {
-      uint32_t enum_id = m_tid++;
-      m_thread_lookup[curr] = enum_id;
-      return enum_id;
+      uint32_t enumID = m_tid++;
+      m_thread_lookup[curr] = enumID;
+      return enumID;
     }
   }
 
@@ -59,12 +59,12 @@ inline xpti::timer::tick_t rdtsc() {
   int rval = QueryPerformanceCounter(&qpcnt);
   return qpcnt.QuadPart;
 }
-inline uint64_t get_ts_frequency() {
+inline uint64_t getTSFrequency() {
   LARGE_INTEGER freq;
   QueryPerformanceFrequency(&freq);
   return freq.QuadPart * 1000;
 }
-inline uint64_t get_cpu() { return GetCurrentProcessorNumber(); }
+inline uint64_t getCPU() { return GetCurrentProcessorNumber(); }
 #else
 #include <sched.h>
 #include <time.h>
@@ -76,9 +76,9 @@ inline xpti::timer::tick_t rdtsc() {
           static_cast<tick_t>(ts.tv_nsec));
 }
 
-inline uint64_t get_ts_frequency() { return static_cast<uint64_t>(1E9); }
+inline uint64_t getTSFrequency() { return static_cast<uint64_t>(1E9); }
 
-inline uint64_t get_cpu() {
+inline uint64_t getCPU() {
 #ifdef __linux__
   return sched_getcpu();
 #else
@@ -89,7 +89,7 @@ inline uint64_t get_cpu() {
 #error Unsupported ISA
 #endif
 
-inline std::thread::id get_thread_id() { return std::this_thread::get_id(); }
+inline std::thread::id getThreadID() { return std::this_thread::get_id(); }
 #endif
 } // namespace timer
 } // namespace xpti

@@ -34,25 +34,25 @@ public:
   using st_reverse_t = tbb::concurrent_hash_map<int32_t, const char *>;
 
   StringTable(int size = 4096)
-      : m_str2id(size), m_id2str(size), m_table_size(size) {
-    m_ids = 1;
+      : MStringToID(size), MIDToString(size), MTableSize(size) {
+    MIds = 1;
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
   //  Clear all the contents of this string table and get it ready for re-use
   void clear() {
-    m_ids = {1};
-    m_id2str.clear();
-    m_str2id.clear();
+    MIds = {1};
+    MIDToString.clear();
+    MStringToID.clear();
 
-    m_id2str.rehash(m_table_size);
-    m_str2id.rehash(m_table_size);
+    MIDToString.rehash(MTableSize);
+    MStringToID.rehash(MTableSize);
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
@@ -67,8 +67,8 @@ public:
     if (!str)
       return xpti::invalid_id;
 
-    std::string local_str = str;
-    return add(local_str, ref_str);
+    std::string LocalStr = str;
+    return add(LocalStr, ref_str);
   }
 
   xpti::string_id_t add(std::string str, const char **ref_str = nullptr) {
@@ -77,9 +77,9 @@ public:
 
     // Try to see if the string is already present in the string table
     st_forward_t::const_accessor e;
-    if (m_str2id.find(e, str)) {
+    if (MStringToID.find(e, str)) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
       if (ref_str)
         *ref_str = e->first.c_str();
@@ -92,21 +92,21 @@ public:
       string_id_t id;
       {
         // Employ a double-check pattern here
-        tbb::spin_mutex::scoped_lock dc(m_mutex);
+        tbb::spin_mutex::scoped_lock dc(MMutex);
         st_forward_t::accessor f;
-        if (m_str2id.insert(f, str)) {
+        if (MStringToID.insert(f, str)) {
           // If the string does not exist, then insert() returns true. Here we
           // create an ID for it
-          id = m_ids++;
+          id = MIds++;
           f->second = id;
 #ifdef XPTI_STATISTICS
-          m_insert++;
+          MInsertions++;
 #endif
           //  When we insert a new entry into the table, we also need to build
           //  the reverse lookup;
           {
             st_reverse_t::accessor r;
-            if (m_id2str.insert(r, id)) {
+            if (MIDToString.insert(r, id)) {
               //  An entry does not exist, so we will add it to the reverse
               //  lookup.
               r->second = f->first.c_str();
@@ -115,12 +115,12 @@ public:
                 *ref_str = r->second;
               f.release();
               r.release();
-              m_strings++;
+              MStrings++;
               return id;
             } else {
               // We cannot have a case where a string is not present in the
               // forward lookup and present in the reverse lookup
-              m_str2id.erase(f);
+              MStringToID.erase(f);
               if (ref_str)
                 *ref_str = nullptr;
 
@@ -132,13 +132,13 @@ public:
           // The string has already been added, so we return the stored ID
           id = f->second;
 #ifdef XPTI_STATISTICS
-          m_lookup++;
+          MRetrievals++;
 #endif
           if (ref_str)
             *ref_str = f->first.c_str();
           return id;
         }
-        // Both the accessor and m_mutex will be released here!
+        // Both the accessor and MMutex will be released here!
       }
     }
     return xpti::invalid_id;
@@ -148,40 +148,41 @@ public:
   //  may have been cached somewhere.
   const char *query(xpti::string_id_t id) {
     st_reverse_t::const_accessor e;
-    if (m_id2str.find(e, id)) {
+    if (MIDToString.find(e, id)) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
       return e->second;
     } else
       return nullptr;
   }
 
-  int32_t count() { return (int32_t)m_strings; }
+  int32_t count() { return (int32_t)MStrings; }
 
-  const st_reverse_t &table() { return m_id2str; }
+  const st_reverse_t &table() { return MIDToString; }
 
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("String table inserts: [%llu]\n", m_insert.load());
-    printf("String table lookups: [%llu]\n", m_lookup.load());
+    printf("String table inserts: [%llu]\n", MInsertions.load());
+    printf("String table lookups: [%llu]\n", MRetrievals.load());
 #endif
   }
 
 private:
-  safe_int32_t m_ids;      ///< Thread-safe ID generator
-  st_forward_t m_str2id;   ///< Forward lookup hash map
-  st_reverse_t m_id2str;   ///< Reverse lookup hash map
-  int32_t m_table_size;    ///< Initial table size of the hash-map
-  tbb::spin_mutex m_mutex; ///< Mutex required for double-check pattern
-  safe_int32_t m_strings;  ///< The count of strings in the table
+  safe_int32_t MIds;        ///< Thread-safe ID generator
+  st_forward_t MStringToID; ///< Forward lookup hash map
+  st_reverse_t MIDToString; ///< Reverse lookup hash map
+  int32_t MTableSize;       ///< Initial table size of the hash-map
+  tbb::spin_mutex MMutex;   ///< Mutex required for double-check pattern
+  safe_int32_t MStrings;    ///< The count of strings in the table
 #ifdef XPTI_STATISTICS
-  safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
-      m_lookup;           ///< Thread-safe tracking of lookups
+  safe_uint64_t MInsertions, ///< Thread-safe tracking of insertions
+      MRetrievals;           ///< Thread-safe tracking of lookups
 #endif
 };
 } // namespace xpti
-#else
+#else // Non-TBB implementation follows
+
 namespace xpti {
 /// \brief A string table class to support the payload handling
 /// \details With each payload, a kernel/function name and the source file name
@@ -195,23 +196,23 @@ public:
   using st_reverse_t = std::unordered_map<int32_t, const char *>;
 
   StringTable(int size = 4096)
-      : m_str2id(size), m_id2str(size), m_table_size(size) {
-    m_ids = 1;
+      : MStringToID(size), MIDToString(size), MTableSize(size) {
+    MIds = 1;
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
   //  Clear all the contents of this string table and get it ready for re-use
   void clear() {
-    m_ids = {1};
-    m_id2str.clear();
-    m_str2id.clear();
+    MIds = {1};
+    MIDToString.clear();
+    MStringToID.clear();
 
 #ifdef XPTI_STATISTICS
-    m_insert = 0;
-    m_lookup = 0;
+    MInsertions = 0;
+    MRetrievals = 0;
 #endif
   }
 
@@ -226,8 +227,8 @@ public:
     if (!str)
       return xpti::invalid_id;
 
-    std::string local_str = str;
-    return add(local_str, ref_str);
+    std::string LocalStr = str;
+    return add(LocalStr, ref_str);
   }
 
   xpti::string_id_t add(std::string str, const char **ref_str = nullptr) {
@@ -235,49 +236,50 @@ public:
       return xpti::invalid_id;
 
     // Try to see if the string is already present in the string table
-    auto loc = m_str2id.find(str);
-    if (loc != m_str2id.end()) {
+    auto Loc = MStringToID.find(str);
+    if (Loc != MStringToID.end()) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
       if (ref_str)
-        *ref_str = loc->first.c_str();
+        *ref_str = Loc->first.c_str();
 
       // We found it, so we return the string ID
-      return loc->second;
+      return Loc->second;
     } else {
+      // String not in the table
       // Multiple threads could fall through here
-      string_id_t id;
+      string_id_t StrID;
       {
         // Employ a double-check pattern here
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto loc = m_str2id.find(str);
+        std::lock_guard<std::mutex> lock(MMutex);
+        auto Loc = MStringToID.find(str);
         // String not present in the table
-        if (loc == m_str2id.end()) {
+        if (Loc == MStringToID.end()) {
           // Add it
-          id = m_ids++;
-          m_str2id[str] = id;
-          loc = m_str2id.find(str);
+          StrID = MIds++;
+          MStringToID[str] = StrID;
+          Loc = MStringToID.find(str);
           if (ref_str)
-            *ref_str = loc->first.c_str();
+            *ref_str = Loc->first.c_str();
 #ifdef XPTI_STATISTICS
-          m_insert++;
+          MInsertions++;
 #endif
           //  When we insert a new entry into the table, we also need to build
           //  the reverse lookup;
           {
-            auto id_loc = m_id2str.find(id);
-            if (id_loc == m_id2str.end()) {
+            auto IDLoc = MIDToString.find(StrID);
+            if (IDLoc == MIDToString.end()) {
               //  An entry does not exist, so we will add it to the reverse
               //  lookup.
-              m_id2str[id] = loc->first.c_str();
+              MIDToString[StrID] = Loc->first.c_str();
               // Cache the saved string address and send it to the caller
-              m_strings++;
-              return id;
+              MStrings++;
+              return StrID;
             } else {
               // We cannot have a case where a string is not present in the
               // forward lookup and present in the reverse lookup
-              m_str2id.erase(loc);
+              MStringToID.erase(Loc);
               if (ref_str)
                 *ref_str = nullptr;
 
@@ -287,15 +289,15 @@ public:
 
         } else {
           // The string has already been added, so we return the stored ID
-          id = loc->second;
+          StrID = Loc->second;
 #ifdef XPTI_STATISTICS
-          m_lookup++;
+          MRetrievals++;
 #endif
           if (ref_str)
-            *ref_str = loc->first.c_str();
-          return id;
+            *ref_str = Loc->first.c_str();
+          return StrID;
         }
-        // The m_mutex will be released here!
+        // The MMutex will be released here!
       }
     }
     return xpti::invalid_id;
@@ -304,39 +306,39 @@ public:
   //  The reverse query allows one to get the string from the string_id_t that
   //  may have been cached somewhere.
   const char *query(xpti::string_id_t id) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto loc = m_id2str.find(id);
-    if (loc != m_id2str.end()) {
+    std::lock_guard<std::mutex> lock(MMutex);
+    auto Loc = MIDToString.find(id);
+    if (Loc != MIDToString.end()) {
 #ifdef XPTI_STATISTICS
-      m_lookup++;
+      MRetrievals++;
 #endif
-      return loc->second;
+      return Loc->second;
     } else
       return nullptr;
   }
 
-  int32_t count() { return (int32_t)m_strings; }
+  int32_t count() { return (int32_t)MStrings; }
 
-  const st_reverse_t &table() { return m_id2str; }
+  const st_reverse_t &table() { return MIDToString; }
 
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("String table inserts: [%llu]\n", m_insert.load());
-    printf("String table lookups: [%llu]\n", m_lookup.load());
+    printf("String table inserts: [%llu]\n", MInsertions.load());
+    printf("String table lookups: [%llu]\n", MRetrievals.load());
 #endif
   }
 
 private:
-  safe_int32_t m_ids;     ///< Thread-safe ID generator
-  st_forward_t m_str2id;  ///< Forward lookup hash map
-  st_reverse_t m_id2str;  ///< Reverse lookup hash map
-  int32_t m_table_size;   ///< Initial table size of the hash-map
-  std::mutex m_mutex;     ///< Mutex required for double-check pattern
-                          ///< Replace with reader-writer lock in C++14
-  safe_int32_t m_strings; ///< The count of strings in the table
+  safe_int32_t MIds;         ///< Thread-safe ID generator
+  st_forward_t MStringToID;  ///< Forward lookup hash map
+  st_reverse_t MIDToString;  ///< Reverse lookup hash map
+  int32_t MTableSize;        ///< Initial table size of the hash-map
+  std::mutex MMutex;         ///< Mutex required for double-check pattern
+                             ///< Replace with reader-writer lock in C++14
+  safe_int32_t MStrings;     ///< The count of strings in the table
 #ifdef XPTI_STATISTICS
-  safe_uint64_t m_insert, ///< Thread-safe tracking of insertions
-      m_lookup;           ///< Thread-safe tracking of lookups
+  safe_uint64_t MInsertions, ///< Thread-safe tracking of insertions
+      MRetrievals;           ///< Thread-safe tracking of lookups
 #endif
 };
 } // namespace xpti

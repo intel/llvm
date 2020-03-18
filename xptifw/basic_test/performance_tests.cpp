@@ -7,7 +7,7 @@
 //
 //----------------------- performance_tests.cpp -----------------------------
 // Tests the performance of the API and framework by running real world
-// scenarios and computing the average costs and maximum events/sec that can
+// scenarios and computing the average costs and maximum Events/sec that can
 // be serviced by the framework at a given max. overhead constraint.
 //---------------------------------------------------------------------------
 #include <atomic>
@@ -24,7 +24,7 @@
 #include "xpti_trace_framework.h"
 
 namespace test {
-void register_callbacks(uint8_t sid);
+void registerCallbacks(uint8_t sid);
 namespace performance {
 enum class DSColumns {
   Threads,          ///< Slot used to record the number of threads
@@ -52,20 +52,20 @@ enum class FWColumns {
   EPS2000  ///< Events/sec @ given overhead with CB handler cost of 2000ns
 };
 
-void test_performance::run_data_structure_tests_threads(
-    int run_no, int num_threads, test::utils::table_model &t) {
+void TestPerformance::runDataStructureTestsThreads(
+    int RunNo, int NumThreads, test::utils::TableModel &Model) {
   xptiReset();
-  uint64_t ns;
-  double ratio;
+  uint64_t TimeInNS;
+  double ElapsedTime;
 
   // If the num-threads specification includes 0, then a true serial version
   // outside of TBB is run
-  if (!num_threads) {
-    auto &row = t.add_row(run_no, "Serial");
-    row[(int)DSColumns::Threads] = num_threads;
-    // Hold the string ids for measuring lookup later
-    std::vector<xpti::string_id_t> ids;
-    ids.resize(m_tracepoints);
+  if (!NumThreads) {
+    auto &ModelRow = Model.addRow(RunNo, "Serial");
+    ModelRow[(int)DSColumns::Threads] = NumThreads;
+    // Hold the string IDs for measuring lookup later
+    std::vector<xpti::string_id_t> IDs;
+    IDs.resize(MTracepoints);
     // Columns 1, 2: Insert, 2 Lookups
     // Perform measurement tests to determine the cost of insertions into the
     // string table, the lookup costs and a composite measurement of insertion
@@ -76,360 +76,370 @@ void test_performance::run_data_structure_tests_threads(
       // will be faster, but we rely on TBB concurrent containers to ensure they
       // are thread safe
       {
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-        for (int i = 0; i < m_tracepoints; ++i) {
-          char *table_str = nullptr;
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+        for (int i = 0; i < MTracepoints; ++i) {
+          char *TableStrRef = nullptr;
           // Assume that the string has already been created as it is normally
           // provided to the Payload constructors
-          std::string &str = m_functions[i];
-          ids[i] = xptiRegisterString(str.c_str(), &table_str);
+          std::string &FuncName = MFunctions[i];
+          IDs[i] = xptiRegisterString(FuncName.c_str(), &TableStrRef);
         }
       }
-      row[(int)DSColumns::STInsert] = ratio;
+      ModelRow[(int)DSColumns::STInsert] = ElapsedTime;
 
-      { // lookup the created strings "m_tracepoints" randomly
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints * 2);
-        for (int i = 0; i < m_tracepoints * 2; ++i) {
-          int lookup = m_rnd_tp[i % m_st_entries];
-          const char *lut_string = xptiLookupString(ids[lookup]);
+      { // lookup the created strings "MTracepoints" randomly
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints * 2);
+        for (int i = 0; i < MTracepoints * 2; ++i) {
+          int LookupIndex = MRndmTPIndex[i % MStringTableEntries];
+          const char *LUTStrRef = xptiLookupString(IDs[LookupIndex]);
         }
       }
-      row[(int)DSColumns::STLookup] = ratio;
+      ModelRow[(int)DSColumns::STLookup] = ElapsedTime;
     }
 
     // Column 3: Insert+ 2 Lookups
     // Perform measurement tests to determine the cost of insertion and 2
     // lookups for strings added to the string table
     { // Create NEW "m_tracepoint" strings
-      std::vector<xpti::string_id_t> new_ids;
-      new_ids.resize(m_tracepoints);
-      long no_of_operations = m_tracepoints * 3;
-      test::utils::scoped_timer timer(ns, ratio, no_of_operations);
-      for (int i = 0; i < m_tracepoints; ++i) {
-        char *table_str = nullptr;
-        std::string &str = m_functions2[i];
-        new_ids.push_back(xptiRegisterString(str.c_str(), &table_str));
+      std::vector<xpti::string_id_t> NewIDs;
+      NewIDs.resize(MTracepoints);
+      long NoOfOperations = MTracepoints * 3;
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, NoOfOperations);
+      for (int i = 0; i < MTracepoints; ++i) {
+        char *TableStrRef = nullptr;
+        std::string &FuncName = MFunctions2[i];
+        NewIDs.push_back(xptiRegisterString(FuncName.c_str(), &TableStrRef));
       }
-      for (int i = 0; i < m_tracepoints * 2; ++i) {
-        int lookup = m_rnd_tp[i % m_st_entries]; // Generates a value between
-                                                 // 0-m_tracepoints-1
-        const char *lut_string = xptiLookupString(ids[lookup]);
+      for (int i = 0; i < MTracepoints * 2; ++i) {
+        int LookupIndex =
+            MRndmTPIndex[i % MStringTableEntries]; // Generates a value between
+                                                   // 0-MTracepoints-1
+        const char *LUTStrRef = xptiLookupString(IDs[LookupIndex]);
       }
     }
-    row[(int)DSColumns::STInsertLookup] = ratio;
+    ModelRow[(int)DSColumns::STInsertLookup] = ElapsedTime;
 
-    std::vector<int64_t> uids;
-    std::vector<xpti::trace_event_data_t *> events;
-    uids.resize(m_tracepoints);
-    events.resize(m_tracepoints);
+    std::vector<int64_t> UIds;
+    std::vector<xpti::trace_event_data_t *> Events;
+    UIds.resize(MTracepoints);
+    Events.resize(MTracepoints);
     // Column 4: Measure the cost of trace point creation and cache the returned
-    // event and event ids
+    // event and event IDs
     {
-      // Create "m_tracepoints" number of trace point events
-      test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-      for (int i = 0; i < m_tracepoints; ++i) {
-        record &r = m_records[i];
-        int lookup = r.lookup;
+      // Create "MTracepoints" number of trace point events
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+      for (int i = 0; i < MTracepoints; ++i) {
+        record &r = MRecords[i];
+        int LookupIndex = r.lookup;
         std::string &fn = r.fn;
-        xpti::payload_t p = xpti::payload_t(fn.c_str(), m_source, lookup,
-                                            lookup % 80, (void *)r.lookup);
-        xpti::trace_event_data_t *e = xptiMakeEvent(
-            fn.c_str(), &p, (uint16_t)xpti::trace_event_type_t::algorithm,
-            xpti::trace_activity_type_t::active, &m_instance_id);
-        if (e) {
-          uids[lookup] = e->unique_id;
-          events[lookup] = e;
+        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, LookupIndex,
+                                            LookupIndex % 80, (void *)r.lookup);
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
+        if (Ev) {
+          UIds[LookupIndex] = Ev->unique_id;
+          Events[LookupIndex] = Ev;
         }
       }
     }
-    row[(int)DSColumns::TPCreate] = ratio;
+    ModelRow[(int)DSColumns::TPCreate] = ElapsedTime;
 
     // Column 5: Measure the cost of trace point creation of previously created
     // trace points in an un-cached manner
-    { // Lookup "m_tracepoints" instances, uncached where we create the payload
+    { // Lookup "MTracepoints" instances, uncached where we create the payload
       // each time
-      test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-      for (int i = 0; i < m_tracepoints; ++i) {
-        record &r = m_records[i];
-        uint64_t lookup = r.lookup;
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+      for (int i = 0; i < MTracepoints; ++i) {
+        record &r = MRecords[i];
+        uint64_t LookupIndex = r.lookup;
         std::string &fn = r.fn;
-        xpti::payload_t p = xpti::payload_t(fn.c_str(), m_source, (int)lookup,
-                                            (int)lookup % 80, (void *)lookup);
-        xpti::trace_event_data_t *e = xptiMakeEvent(
-            fn.c_str(), &p, (uint16_t)xpti::trace_event_type_t::algorithm,
-            xpti::trace_activity_type_t::active, &m_instance_id);
+        xpti::payload_t P =
+            xpti::payload_t(fn.c_str(), MSource, (int)LookupIndex,
+                            (int)LookupIndex % 80, (void *)LookupIndex);
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
       }
     }
-    row[(int)DSColumns::TPUncachedLookup] = ratio;
+    ModelRow[(int)DSColumns::TPUncachedLookup] = ElapsedTime;
 
     // Column 6: Measure the cost of trace point creation of previously created
     // trace points in an framework-cached manner
-    { // Lookup "m_tracepoints" instances, framework-cached
-      test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-      for (int i = 0; i < m_tracepoints; ++i) {
-        record &r = m_records[i];
-        uint64_t lookup = r.lookup;
-        xpti::trace_event_data_t *e =
-            const_cast<xpti::trace_event_data_t *>(xptiFindEvent(uids[lookup]));
+    { // Lookup "MTracepoints" instances, framework-cached
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+      for (int i = 0; i < MTracepoints; ++i) {
+        record &r = MRecords[i];
+        uint64_t LookupIndex = r.lookup;
+        xpti::trace_event_data_t *Ev = const_cast<xpti::trace_event_data_t *>(
+            xptiFindEvent(UIds[LookupIndex]));
       }
     }
-    row[(int)DSColumns::TPFWCache] = ratio;
+    ModelRow[(int)DSColumns::TPFWCache] = ElapsedTime;
 
     // Column 7: Measure the cost of trace point creation of previously created
     // and cached trace points
-    { // Lookup "m_tracepoints" instances, locally-cached or locally visible
-      test::utils::scoped_timer timer(ns, ratio, m_tp_instances);
-      for (int i = 0; i < m_tp_instances; ++i) {
-        record &r = m_records[i % m_tracepoints];
-        uint64_t lookup = r.lookup; // get the random id to lookup
-        xpti::trace_event_data_t *e = events[lookup];
+    { // Lookup "MTracepoints" instances, locally-cached or locally visible
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                     MTracepointInstances);
+      for (int i = 0; i < MTracepointInstances; ++i) {
+        record &r = MRecords[i % MTracepoints];
+        uint64_t LookupIndex = r.lookup; // get the random id to lookup
+        xpti::trace_event_data_t *Ev = Events[LookupIndex];
       }
     }
-    row[(int)DSColumns::TPLocalCache] = ratio;
+    ModelRow[(int)DSColumns::TPLocalCache] = ElapsedTime;
 
-    { // Notify "m_tracepoints" number tps, locally cached
-      test::utils::scoped_timer timer(ns, ratio, m_tp_instances);
-      for (int i = 0; i < m_tp_instances; ++i) {
-        record &r = m_records[i % m_tracepoints];
-        uint64_t lookup = r.lookup;
-        xpti::trace_event_data_t *e = events[lookup];
+    { // Notify "MTracepoints" number tps, locally cached
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                     MTracepointInstances);
+      for (int i = 0; i < MTracepointInstances; ++i) {
+        record &r = MRecords[i % MTracepoints];
+        uint64_t LookupIndex = r.lookup;
+        xpti::trace_event_data_t *Ev = Events[LookupIndex];
         xpti::framework::scoped_notify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
-            e, m_instance_id, nullptr);
+            Ev, MInstanceID, nullptr);
       }
     }
-    row[(int)DSColumns::Notify] = ratio;
+    ModelRow[(int)DSColumns::Notify] = ElapsedTime;
 
   } else {
     // Now run the same performance tests in multi-threaded mode to accommodate
     // lock contention costs
 
-    std::string row_title = "Threads " + std::to_string(num_threads);
-    auto &row = t.add_row(run_no, row_title);
-    row[(int)DSColumns::Threads] = num_threads;
+    std::string RowTitle = "Threads " + std::to_string(NumThreads);
+    auto &ModelRow = Model.addRow(RunNo, RowTitle);
+    ModelRow[(int)DSColumns::Threads] = NumThreads;
 
     // Limit TBB to use the number of threads for this run
-    tbb::task_arena a(num_threads);
+    tbb::task_arena a(NumThreads);
     a.execute([&]() {
-      std::vector<xpti::string_id_t> ids;
-      ids.resize(m_tracepoints);
+      std::vector<xpti::string_id_t> IDs;
+      IDs.resize(MTracepoints);
       // Columns 1, 2: Insert, 2 Lookups
       // Perform measurement tests to determine the cost of insertions into the
       // string table, the lookup costs and a composite measurement of insertion
       // and 2 lookups for strings added to the string table
       {
-        { // Create "m_tracepoints" strings
-          test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-          tbb::parallel_for(tbb::blocked_range<int>(0, m_tracepoints),
+        { // Create "MTracepoints" strings
+          test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+          tbb::parallel_for(tbb::blocked_range<int>(0, MTracepoints),
                             [&](tbb::blocked_range<int> &r) {
                               for (int i = r.begin(); i != r.end(); ++i) {
-                                char *table_str = nullptr;
-                                std::string &str = m_functions[i];
-                                ids[i] =
-                                    xptiRegisterString(str.c_str(), &table_str);
+                                char *TableStrRef = nullptr;
+                                std::string &FuncName = MFunctions[i];
+                                IDs[i] = xptiRegisterString(FuncName.c_str(),
+                                                            &TableStrRef);
                               }
                             });
         }
-        row[(int)DSColumns::STInsert] = ratio;
+        ModelRow[(int)DSColumns::STInsert] = ElapsedTime;
 
-        { // lookup the created strings "m_tracepoints*2" linearly
-          test::utils::scoped_timer timer(ns, ratio, m_tracepoints * 2);
-          tbb::parallel_for(tbb::blocked_range<int>(0, m_tracepoints * 2),
+        { // lookup the created strings "MTracepoints*2" linearly
+          test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                         MTracepoints * 2);
+          tbb::parallel_for(tbb::blocked_range<int>(0, MTracepoints * 2),
                             [&](tbb::blocked_range<int> &r) {
                               for (int i = r.begin(); i != r.end(); ++i) {
-                                int lookup = m_rnd_tp[i % m_st_entries];
-                                const char *lut_string =
-                                    xptiLookupString(ids[lookup]);
+                                int LookupIndex =
+                                    MRndmTPIndex[i % MStringTableEntries];
+                                const char *LUTStrRef =
+                                    xptiLookupString(IDs[LookupIndex]);
                               }
                             });
         }
-        row[(int)DSColumns::STLookup] = ratio;
+        ModelRow[(int)DSColumns::STLookup] = ElapsedTime;
       }
       // Column 3: Insert+ 2 Lookups
       // Perform measurement tests to determine the cost of insertion and 2
       // lookups for strings added to the string table
-      { // insert and lookup at the same time "m_st_entries*10"
-        std::vector<xpti::string_id_t> new_ids;
-        new_ids.resize(m_tracepoints);
+      { // insert and lookup at the same time "MStringTableEntries*10"
+        std::vector<xpti::string_id_t> NewIDs;
+        NewIDs.resize(MTracepoints);
         tbb::task_group g;
-        // 2 lookups + 1 insert of m_tracepoints elements that occurs
+        // 2 lookups + 1 insert of MTracepoints elements that occurs
         // simultaneously
-        long no_of_operations = m_tracepoints * 3;
-        test::utils::scoped_timer timer(ns, ratio, no_of_operations);
+        long NoOfOperations = MTracepoints * 3;
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, NoOfOperations);
         g.run([&] {
           // Add new strings
-          tbb::parallel_for(tbb::blocked_range<int>(0, m_tracepoints),
+          tbb::parallel_for(tbb::blocked_range<int>(0, MTracepoints),
                             [&](tbb::blocked_range<int> &r) {
                               for (int i = r.begin(); i != r.end(); ++i) {
-                                char *table_str = nullptr;
-                                std::string &str = m_functions2[i];
-                                new_ids[i] =
-                                    xptiRegisterString(str.c_str(), &table_str);
+                                char *TableStrRef = nullptr;
+                                std::string &FuncName = MFunctions2[i];
+                                NewIDs[i] = xptiRegisterString(FuncName.c_str(),
+                                                               &TableStrRef);
                               }
                             });
         });
         g.run([&] {
           // And read previously added strings
           tbb::parallel_for(
-              tbb::blocked_range<int>(0, m_st_entries),
+              tbb::blocked_range<int>(0, MStringTableEntries),
               [&](tbb::blocked_range<int> &r) {
                 for (int i = r.begin(); i != r.end(); ++i) {
-                  int lookup =
-                      m_rnd_tp[i % m_st_entries]; // Generates a value between
-                                                  // 0-m_tracepoints-1
+                  int LookupIndex =
+                      MRndmTPIndex[i % MStringTableEntries]; // Generates a
+                                                             // value between
+                                                             // 0-MTracepoints-1
                   // Read from previously added strings by looking
-                  // up the old IDs stored in 'ids'
-                  const char *lut_string = xptiLookupString(ids[lookup]);
+                  // up the old IDs stored in 'IDs'
+                  const char *LUTStrRef = xptiLookupString(IDs[LookupIndex]);
                 }
               });
         });
         g.wait();
       }
-      row[(int)DSColumns::STInsertLookup] = ratio;
+      ModelRow[(int)DSColumns::STInsertLookup] = ElapsedTime;
 
-      std::vector<int64_t> uids;
-      std::vector<xpti::trace_event_data_t *> events;
-      uids.resize(m_tracepoints);
-      events.resize(m_tracepoints);
+      std::vector<int64_t> UIds;
+      std::vector<xpti::trace_event_data_t *> Events;
+      UIds.resize(MTracepoints);
+      Events.resize(MTracepoints);
       // Column 4: Measure the cost of trace point creation and cache the
-      // returned event and event ids
-      { // Create "m_tracepoints" number of trace point events
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
+      // returned event and event IDs
+      { // Create "MTracepoints" number of trace point Events
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
         tbb::parallel_for(
-            tbb::blocked_range<int>(0, m_tracepoints),
+            tbb::blocked_range<int>(0, MTracepoints),
             [&](tbb::blocked_range<int> &r) {
               for (int i = r.begin(); i != r.end(); ++i) {
-                record &r = m_records[i];
-                int lookup = r.lookup;
+                record &r = MRecords[i];
+                int LookupIndex = r.lookup;
                 std::string &fn = r.fn;
-                xpti::payload_t p =
-                    xpti::payload_t(fn.c_str(), m_source, lookup, lookup % 80,
-                                    (void *)r.lookup);
-                xpti::trace_event_data_t *e = xptiMakeEvent(
-                    fn.c_str(), &p,
+                xpti::payload_t P =
+                    xpti::payload_t(fn.c_str(), MSource, LookupIndex,
+                                    LookupIndex % 80, (void *)r.lookup);
+                xpti::trace_event_data_t *Ev = xptiMakeEvent(
+                    fn.c_str(), &P,
                     (uint16_t)xpti::trace_event_type_t::algorithm,
-                    xpti::trace_activity_type_t::active, &m_instance_id);
-                if (e) {
-                  uids[lookup] = e->unique_id;
-                  events[lookup] = e;
+                    xpti::trace_activity_type_t::active, &MInstanceID);
+                if (Ev) {
+                  UIds[LookupIndex] = Ev->unique_id;
+                  Events[LookupIndex] = Ev;
                 }
               }
             });
       }
-      row[(int)DSColumns::TPCreate] = ratio;
+      ModelRow[(int)DSColumns::TPCreate] = ElapsedTime;
 
       // Column 5: Measure the cost of trace point creation of previously
       // created trace points in an un-cached manner
-      { // Lookup "m_tracepoints" number of trace point events, uncached
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
+      { // Lookup "MTracepoints" number of trace point Events, uncached
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
         tbb::parallel_for(
-            tbb::blocked_range<int>(0, m_tracepoints),
+            tbb::blocked_range<int>(0, MTracepoints),
             [&](tbb::blocked_range<int> &r) {
               for (int i = r.begin(); i != r.end(); ++i) {
-                record &r = m_records[i];
-                int lookup = r.lookup;
+                record &r = MRecords[i];
+                int LookupIndex = r.lookup;
                 std::string &fn = r.fn;
-                xpti::payload_t p =
-                    xpti::payload_t(fn.c_str(), m_source, lookup, lookup % 80,
-                                    (void *)r.lookup);
-                xpti::trace_event_data_t *e = xptiMakeEvent(
-                    fn.c_str(), &p,
+                xpti::payload_t P =
+                    xpti::payload_t(fn.c_str(), MSource, LookupIndex,
+                                    LookupIndex % 80, (void *)r.lookup);
+                xpti::trace_event_data_t *Ev = xptiMakeEvent(
+                    fn.c_str(), &P,
                     (uint16_t)xpti::trace_event_type_t::algorithm,
-                    xpti::trace_activity_type_t::active, &m_instance_id);
+                    xpti::trace_activity_type_t::active, &MInstanceID);
               }
             });
       }
-      row[(int)DSColumns::TPUncachedLookup] = ratio;
+      ModelRow[(int)DSColumns::TPUncachedLookup] = ElapsedTime;
 
       // Column 6: Measure the cost of trace point creation of previously
       // created trace points in an framework-cached manner
-      { // Lookup "m_tp_instances" number of trace point events,
+      { // Lookup "MTracepointInstances" number of trace point Events,
         // framework-cached
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-        tbb::parallel_for(tbb::blocked_range<int>(0, m_tracepoints),
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+        tbb::parallel_for(tbb::blocked_range<int>(0, MTracepoints),
                           [&](tbb::blocked_range<int> &r) {
                             for (int i = r.begin(); i != r.end(); ++i) {
-                              record &r = m_records[i];
-                              uint64_t lookup = r.lookup;
-                              xpti::trace_event_data_t *e =
+                              record &r = MRecords[i];
+                              uint64_t LookupIndex = r.lookup;
+                              xpti::trace_event_data_t *Ev =
                                   const_cast<xpti::trace_event_data_t *>(
-                                      xptiFindEvent(uids[lookup]));
+                                      xptiFindEvent(UIds[LookupIndex]));
                             }
                           });
       }
-      row[(int)DSColumns::TPFWCache] = ratio;
+      ModelRow[(int)DSColumns::TPFWCache] = ElapsedTime;
 
       // Column 7: Measure the cost of trace point creation of previously
       // created and cached trace points
-      { // Lookup "m_tracepoints" number of trace point events, locally-cached
-        test::utils::scoped_timer timer(ns, ratio, m_tp_instances);
-        tbb::parallel_for(tbb::blocked_range<int>(0, m_tp_instances),
+      { // Lookup "MTracepoints" number of trace point Events, locally-cached
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                       MTracepointInstances);
+        tbb::parallel_for(tbb::blocked_range<int>(0, MTracepointInstances),
                           [&](tbb::blocked_range<int> &r) {
                             for (int i = r.begin(); i != r.end(); ++i) {
-                              record &r = m_records[i % m_tracepoints];
-                              uint64_t lookup =
+                              record &r = MRecords[i % MTracepoints];
+                              uint64_t LookupIndex =
                                   r.lookup; // get the random id to lookup
-                              xpti::trace_event_data_t *e = events[lookup];
+                              xpti::trace_event_data_t *Ev =
+                                  Events[LookupIndex];
                             }
                           });
       }
-      row[(int)DSColumns::TPLocalCache] = ratio;
+      ModelRow[(int)DSColumns::TPLocalCache] = ElapsedTime;
 
-      { // Notify "m_tracepoints" number tps, locally cached
-        test::utils::scoped_timer timer(ns, ratio, m_tp_instances);
+      { // Notify "MTracepoints" number tps, locally cached
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                       MTracepointInstances);
         tbb::parallel_for(
-            tbb::blocked_range<int>(0, m_tp_instances),
+            tbb::blocked_range<int>(0, MTracepointInstances),
             [&](tbb::blocked_range<int> &r) {
               for (int i = r.begin(); i != r.end(); ++i) {
-                record &r = m_records[i % m_tracepoints];
-                uint64_t lookup = r.lookup;
-                xpti::trace_event_data_t *e = events[lookup];
+                record &r = MRecords[i % MTracepoints];
+                uint64_t LookupIndex = r.lookup;
+                xpti::trace_event_data_t *Ev = Events[LookupIndex];
                 xpti::framework::scoped_notify ev(
                     "xpti", (uint16_t)xpti::trace_point_type_t::region_begin,
-                    nullptr, e, m_instance_id, nullptr);
+                    nullptr, Ev, MInstanceID, nullptr);
               }
             });
       }
-      row[(int)DSColumns::Notify] = ratio;
+      ModelRow[(int)DSColumns::Notify] = ElapsedTime;
     });
   }
 }
 
-void test_performance::run_data_structure_tests() {
-  test::utils::table_model table;
+void TestPerformance::runDataStructureTests() {
+  test::utils::TableModel Model;
 
-  test::utils::titles_t columns{"Threads",      "Str.Insert", "Str.Lookup",
+  test::utils::titles_t Columns{"Threads",      "Str.Insert", "Str.Lookup",
                                 "St.Ins/Lu",    "TP Create",  "TP Un-Cached",
                                 "TP FW-Cached", "TP Local",   "Notify"};
-  std::cout << std::setw(columns.size() * 15 / 2)
+  std::cout << std::setw(Columns.size() * 15 / 2)
             << "Data Structure Tests [FW=framework, Lu=lookup, "
-               "TP=Tracepoint, Time=ns\n";
-  table.set_headers(columns);
+               "TP=Tracepoint, Time=TimeInNS\n";
+  Model.setHeaders(Columns);
 
   uint8_t sid = xptiRegisterStream("xpti");
-  test::register_callbacks(sid);
+  test::registerCallbacks(sid);
 
-  if (m_threads.size()) {
-    int run_no = 0;
-    for (auto thread : m_threads) {
-      run_data_structure_tests_threads(run_no++, thread, table);
+  if (MThreads.size()) {
+    int RunNo = 0;
+    for (auto Thread : MThreads) {
+      runDataStructureTestsThreads(RunNo++, Thread, Model);
     }
   }
 
-  table.print();
+  Model.print();
 }
 
-void test_performance::run_instrumentation_tests_threads(
-    int run_no, int num_threads, test::utils::table_model &t) {
+void TestPerformance::runInstrumentationTestsThreads(
+    int RunNo, int NumThreads, test::utils::TableModel &Model) {
   xptiReset();
-  uint64_t ns;
-  double ratio;
+  uint64_t TimeInNS;
+  double ElapsedTime;
 
   std::vector<int64_t> tp_ids;
-  tp_ids.resize(m_tracepoints);
-  std::vector<xpti::trace_event_data_t *> events;
-  events.resize(m_tracepoints);
-  // Variables used to compute events/sec
+  tp_ids.resize(MTracepoints);
+  std::vector<xpti::trace_event_data_t *> Events;
+  Events.resize(MTracepoints);
+  // Variables used to compute Events/sec
   uint64_t events_per_sec, overhead_based_cost;
   std::vector<std::pair<FWColumns, int>> cb_handler_cost = {
       {FWColumns::EPS10, 10},
@@ -438,114 +448,121 @@ void test_performance::run_instrumentation_tests_threads(
       {FWColumns::EPS1000, 1000},
       {FWColumns::EPS2000, 2000}};
 
-  if (!num_threads) {
-    auto &row = t.add_row(run_no, "Serial");
-    row[(int)FWColumns::Threads] = num_threads;
+  if (!NumThreads) {
+    auto &ModelRow = Model.addRow(RunNo, "Serial");
+    ModelRow[(int)FWColumns::Threads] = NumThreads;
     {
-      test::utils::scoped_timer timer(ns, ratio, m_tp_instances * 2);
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                     MTracepointInstances * 2);
       {
-        test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
-        for (int i = 0; i < m_tracepoints; ++i) {
-          std::string &fn = m_functions[i];
-          xpti::payload_t p(fn.c_str(), m_source, i, i % 80, (void *)i);
-          xpti::trace_event_data_t *e = xptiMakeEvent(
-              fn.c_str(), &p, (uint16_t)xpti::trace_event_type_t::algorithm,
-              xpti::trace_activity_type_t::active, &m_instance_id);
-          if (e) {
-            tp_ids[i] = e->unique_id;
-            events[i] = e;
+        test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
+        for (int i = 0; i < MTracepoints; ++i) {
+          std::string &fn = MFunctions[i];
+          xpti::payload_t P(fn.c_str(), MSource, i, i % 80, (void *)i);
+          xpti::trace_event_data_t *Ev = xptiMakeEvent(
+              fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+              xpti::trace_activity_type_t::active, &MInstanceID);
+          if (Ev) {
+            tp_ids[i] = Ev->unique_id;
+            Events[i] = Ev;
           }
         }
       }
-      row[(int)FWColumns::TPCreate] = ratio;
-      for (int i = 0; i < m_tp_instances; ++i) {
-        int lookup = m_rnd_tp[i % m_st_entries];
-        xpti::trace_event_data_t *e = events[lookup];
+      ModelRow[(int)FWColumns::TPCreate] = ElapsedTime;
+      for (int i = 0; i < MTracepointInstances; ++i) {
+        int LookupIndex = MRndmTPIndex[i % MStringTableEntries];
+        xpti::trace_event_data_t *Ev = Events[LookupIndex];
         xpti::framework::scoped_notify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
-            e, m_instance_id, nullptr);
+            Ev, MInstanceID, nullptr);
       }
     }
-    row[(int)FWColumns::TPLookupAndNotify] = ratio;
+    ModelRow[(int)FWColumns::TPLookupAndNotify] = ElapsedTime;
     for (auto cost : cb_handler_cost) {
       // Amount of non-instrumentation based work that needs to be present for
       // it to meet the overhead constraints requested
-      overhead_based_cost = (ratio + cost.second) * (100.0 / m_overhead);
-      row[(int)cost.first] = 1000000000 / overhead_based_cost;
+      overhead_based_cost = (ElapsedTime + cost.second) * (100.0 / MOverhead);
+      ModelRow[(int)cost.first] = 1000000000 / overhead_based_cost;
     }
 
   } else {
-    tbb::task_arena a(num_threads);
+    tbb::task_arena a(NumThreads);
 
-    std::string row_title = "Threads " + std::to_string(num_threads);
-    auto &row = t.add_row(run_no, row_title);
-    row[(int)FWColumns::Threads] = num_threads;
+    std::string RowTitle = "Threads " + std::to_string(NumThreads);
+    auto &ModelRow = Model.addRow(RunNo, RowTitle);
+    ModelRow[(int)FWColumns::Threads] = NumThreads;
     {
-      test::utils::scoped_timer timer(ns, ratio, m_tp_instances * 2);
+      test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime,
+                                     MTracepointInstances * 2);
       a.execute([&]() {
         {
-          test::utils::scoped_timer timer(ns, ratio, m_tracepoints);
+          test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
           tbb::parallel_for(
-              tbb::blocked_range<int>(0, m_tracepoints),
+              tbb::blocked_range<int>(0, MTracepoints),
               [&](tbb::blocked_range<int> &r) {
                 for (int i = r.begin(); i != r.end(); ++i) {
-                  std::string &fn = m_functions[i];
-                  xpti::payload_t p(fn.c_str(), m_source, i, i % 80, (void *)i);
-                  xpti::trace_event_data_t *e = xptiMakeEvent(
-                      fn.c_str(), &p,
+                  std::string &fn = MFunctions[i];
+                  xpti::payload_t P(fn.c_str(), MSource, i, i % 80, (void *)i);
+                  xpti::trace_event_data_t *Ev = xptiMakeEvent(
+                      fn.c_str(), &P,
                       (uint16_t)xpti::trace_event_type_t::algorithm,
-                      xpti::trace_activity_type_t::active, &m_instance_id);
-                  if (e) {
-                    tp_ids[i] = e->unique_id;
-                    events[i] = e;
+                      xpti::trace_activity_type_t::active, &MInstanceID);
+                  if (Ev) {
+                    tp_ids[i] = Ev->unique_id;
+                    Events[i] = Ev;
                   }
                 }
               });
         }
-        row[(int)FWColumns::TPCreate] = ratio;
+        ModelRow[(int)FWColumns::TPCreate] = ElapsedTime;
         tbb::parallel_for(
-            tbb::blocked_range<int>(0, m_tp_instances),
+            tbb::blocked_range<int>(0, MTracepointInstances),
             [&](tbb::blocked_range<int> &r) {
               for (int i = r.begin(); i != r.end(); ++i) {
-                record &r = m_records[i % m_tracepoints];
-                uint64_t lookup = r.lookup;
-                xpti::trace_event_data_t *e = events[lookup];
+                record &r = MRecords[i % MTracepoints];
+                uint64_t LookupIndex = r.lookup;
+                xpti::trace_event_data_t *Ev = Events[LookupIndex];
                 xpti::framework::scoped_notify ev(
                     "xpti", (uint16_t)xpti::trace_point_type_t::region_begin,
-                    nullptr, e, m_instance_id, nullptr);
+                    nullptr, Ev, MInstanceID, nullptr);
               }
             });
       });
     }
-    row[(int)FWColumns::TPLookupAndNotify] = ratio;
+    ModelRow[(int)FWColumns::TPLookupAndNotify] = ElapsedTime;
     for (auto cost : cb_handler_cost) {
       // Amount of non-instrumentation based work that needs to be present for
       // it to meet the overhead constraints requested
-      overhead_based_cost = (ratio + cost.second) * (100.0 / m_overhead);
-      row[(int)cost.first] = 1000000000 / overhead_based_cost;
+      overhead_based_cost = (ElapsedTime + cost.second) * (100.0 / MOverhead);
+      ModelRow[(int)cost.first] = 1000000000 / overhead_based_cost;
     }
   }
 }
 
-void test_performance::run_instrumentation_tests() {
-  test::utils::table_model table;
+void TestPerformance::runInstrumentationTests() {
+  test::utils::TableModel Model;
 
-  test::utils::titles_t columns{
-      "Threads",     "TP LU+Notify(ns)", "TP Create(ns)", "Ev/s,cb=10",
-      "Ev/s,cb=100", "Ev/s,cb=500",      "Ev/s,cb=1000",  "Ev/s,cb=2000"};
-  std::cout << std::setw(columns.size() * 15 / 2) << "Framework Tests\n";
-  table.set_headers(columns);
+  test::utils::titles_t Columns{"Threads",
+                                "TP LU+Notify(TimeInNS)",
+                                "TP Create(TimeInNS)",
+                                "Ev/s,cb=10",
+                                "Ev/s,cb=100",
+                                "Ev/s,cb=500",
+                                "Ev/s,cb=1000",
+                                "Ev/s,cb=2000"};
+  std::cout << std::setw(Columns.size() * 15 / 2) << "Framework Tests\n";
+  Model.setHeaders(Columns);
   uint8_t sid = xptiRegisterStream("xpti");
-  test::register_callbacks(sid);
+  test::registerCallbacks(sid);
 
-  if (m_threads.size()) {
-    int run_no = 0;
-    for (auto thread : m_threads) {
-      run_instrumentation_tests_threads(run_no++, thread, table);
+  if (MThreads.size()) {
+    int RunNo = 0;
+    for (auto Thread : MThreads) {
+      runInstrumentationTestsThreads(RunNo++, Thread, Model);
     }
   }
 
-  table.print();
+  Model.print();
 }
 
 } // namespace performance
