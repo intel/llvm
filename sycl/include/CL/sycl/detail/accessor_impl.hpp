@@ -77,11 +77,11 @@ public:
                    bool IsSubBuffer = false);
 
 protected:
-  unsigned int getElemSize() const { return MCachedElemSize; }
+  CONST_ATTR unsigned int getElemSize() const;
 
-  const id<3> &getOffset() const { return MCachedOffset; }
-  const range<3> &getAccessRange() const { return MCachedAccessRange; }
-  const range<3> &getMemoryRange() const { return MCachedMemoryRange; }
+  CONST_ATTR const id<3> &getOffset() const;
+  CONST_ATTR const range<3> &getAccessRange() const;
+  CONST_ATTR const range<3> &getMemoryRange() const;
 
   CONST_ATTR void *getPtr() const;
 

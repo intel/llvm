@@ -51,6 +51,16 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
       ElemSize, OffsetInBytes, IsSubBuffer));
 }
 
+unsigned int AccessorBaseHost::getElemSize() const { return impl->MElemSize; }
+
+const id<3> &AccessorBaseHost::getOffset() const { return impl->MOffset; }
+const range<3> &AccessorBaseHost::getAccessRange() const {
+  return impl->MAccessRange;
+}
+const range<3> &AccessorBaseHost::getMemoryRange() const {
+  return impl->MMemoryRange;
+}
+
 void *AccessorBaseHost::getPtr() const { return impl->MData; }
 
 LocalAccessorImplHost::LocalAccessorImplHost(sycl::range<3> Size, int Dims,
