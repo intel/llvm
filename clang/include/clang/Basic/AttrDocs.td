@@ -1985,7 +1985,8 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
 
 def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "cl::reqd_work_group_size, intel::reqd_work_group_size";
+  let Heading = "GNU<reqd_work_group_size>, CXX11<cl::reqd_work_group_size, 
+                CXX11<intel::reqd_work_group_size>";
   let Content = [{
 This attribute is documented by both OpenCL and SYCL standards
 and allows to specify exact *local_work_size* which must be used as
