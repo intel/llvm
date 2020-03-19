@@ -4115,17 +4115,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
+
+  if ((Args.hasArg(options::OPT_fsycl_device_only) ||
+       Args.hasArg(options::OPT_fsycl) || IsSYCL) && !SYCLStdArg) {
+    // The user had not pass SYCL version, thus we'll employ no-sycl-strict
+    // to allow address-space unqualified pointers in function params/return
+    // along with marking the same function with explicit SYCL_EXTERNAL
+    CmdArgs.push_back("-Wno-sycl-strict");
+  }
+
     if (IsSYCL) {
-    if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
-      A->render(Args, CmdArgs);
+    if (SYCLStdArg) {
+      SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
       // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
       CmdArgs.push_back("-sycl-std=2017");
-      // The user had not pass SYCL version, thus we'll employ no-sycl-strict
-      // to allow address-space unqualified pointers in function params/return
-      // along with marking the same function with explicit SYCL_EXTERNAL
-      CmdArgs.push_back("-Wno-sycl-strict");
     }
     }
 
