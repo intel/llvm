@@ -18,6 +18,7 @@
 _PI_API(piPlatformsGet)
 _PI_API(piPlatformGetInfo)
 // Device
+_PI_API(piextDeviceConvert)
 _PI_API(piDevicesGet)
 _PI_API(piDeviceGetInfo)
 _PI_API(piDevicePartition)
@@ -45,6 +46,7 @@ _PI_API(piMemRetain)
 _PI_API(piMemRelease)
 _PI_API(piMemBufferPartition)
 // Program
+_PI_API(piextProgramConvert)
 _PI_API(piProgramCreate)
 _PI_API(piclProgramCreateWithSource)
 _PI_API(piclProgramCreateWithBinary)

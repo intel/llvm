@@ -27,11 +27,19 @@ namespace detail {
 class platform_impl;
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
+// TODO: SYCL BE generalization will change this to something better.
+// For now this saves us from unwanted implicit casts.
+struct _device_interop_handle_t;
+using device_interop_handle_t = _device_interop_handle_t *;
+
 // TODO: Make code thread-safe
 class device_impl {
 public:
   /// Constructs a SYCL device instance as a host device.
   device_impl();
+
+  /// Constructs a SYCL device instance using the provided raw device handle.
+  explicit device_impl(device_interop_handle_t, const plugin &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
@@ -196,7 +204,8 @@ public:
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
 private:
-  explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform,
+  explicit device_impl(device_interop_handle_t InteropDevice,
+                       RT::PiDevice Device, PlatformImplPtr Platform,
                        const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
