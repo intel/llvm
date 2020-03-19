@@ -43,9 +43,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    access::mode AccessMode,
                                    detail::SYCLMemObjI *SYCLMemObject, int Dims,
                                    int ElemSize, int OffsetInBytes,
-                                   bool IsSubBuffer)
-    : MCachedOffset(Offset), MCachedAccessRange(AccessRange),
-      MCachedMemoryRange(MemoryRange), MCachedElemSize(ElemSize) {
+                                   bool IsSubBuffer) {
   impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
       Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
       ElemSize, OffsetInBytes, IsSubBuffer));

@@ -89,13 +89,6 @@ protected:
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
   AccessorImplPtr impl;
-
-private:
-  id<3> MCachedOffset{};
-  range<3> MCachedAccessRange{0, 0, 0};
-  range<3> MCachedMemoryRange{0, 0, 0};
-  void *MCachedPtr{};
-  unsigned int MCachedElemSize{};
 };
 
 class LocalAccessorImplHost {

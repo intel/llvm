@@ -730,10 +730,6 @@ class accessor :
 
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  char padding[sizeof(detail::AccessorBaseHost) -
-               sizeof(detail::AccessorImplDevice<AdjustedDim>) -
-               sizeof(PtrType)];
-
 public:
   // Default constructor for objects later initialized with __init member.
   accessor()
@@ -745,6 +741,8 @@ public:
   using AccessorBaseHost::getMemoryRange;
   using AccessorBaseHost::getOffset;
 
+  char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
+               sizeof(PtrType) - sizeof(detail::AccessorBaseHost)];
 
   PtrType getQualifiedPtr() const {
     return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
