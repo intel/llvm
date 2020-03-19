@@ -1987,11 +1987,29 @@ def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "cl::reqd_work_group_size, intel::reqd_work_group_size";
   let Content = [{
-Applies to a device function/lambda function. Indicates the dimensions 
-of a work group. Values must be positive integers. Default arguments 
-equaling to one can be used for second and third dimensions if 
-intel::reqd_work_group_size spelling was applied. 
-This attribute is also valid for OpenCL C.
+This attribute is documented by both OpenCL and SYCL standards
+and allows to specify exact *local_work_size* which must be used as
+argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
+**parallel_for** in SYCL. This allows the compiler to optimize the
+generated code appropriately for this kernel.
+
+While semantic of this attribute is the same between OpenCL and SYCL,
+spelling is a bit different: 
+
+SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
+attribute is legal on device functions and their specification is propagated
+down to any caller of those device functions, such that the kernel attributes
+are the sum of all the kernel attributes of all device functions called.
+See section 6.7 Attributes for more details.
+
+As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
+which features optional arguments `Y` and `Z`, which simplifies its usage if
+only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
+defaults to ``1``.
+
+In OpenCL C, this attribute is available in GNU spelling
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see, for example, section
+6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification
   }];
 }
 

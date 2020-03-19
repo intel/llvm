@@ -38,7 +38,7 @@ class Functor33 {
 public:
   [[intel::reqd_work_group_size(32, -4)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
 };
-#endif
+#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
@@ -120,7 +120,7 @@ void bar() {
     f32x32x32();
   });
 
-#endif
+#endif // TRIGGER_ERROR
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1

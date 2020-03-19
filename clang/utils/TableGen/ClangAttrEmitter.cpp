@@ -1304,9 +1304,6 @@ createArgument(const Record &Arg, StringRef Attr,
   else if (ArgName == "DefaultIntArgument")
     Ptr = std::make_unique<DefaultSimpleArgument>(
         Arg, Attr, "int", Arg.getValueAsInt("Default"));
-  else if (ArgName == "DefaultUnsignedArgument")
-    Ptr = std::make_unique<DefaultSimpleArgument>(
-        Arg, Attr, "unsigned", Arg.getValueAsInt("Default"));
   else if (ArgName == "IntArgument")
     Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "int");
   else if (ArgName == "StringArgument")
@@ -1315,6 +1312,9 @@ createArgument(const Record &Arg, StringRef Attr,
     Ptr = std::make_unique<TypeArgument>(Arg, Attr);
   else if (ArgName == "UnsignedArgument")
     Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "unsigned");
+  else if (ArgName == "DefaultUnsignedArgument")
+    Ptr = std::make_unique<DefaultSimpleArgument>(Arg, Attr, "unsigned",
+                                                  Arg.getValueAsInt("Default"));
   else if (ArgName == "VariadicUnsignedArgument")
     Ptr = std::make_unique<VariadicArgument>(Arg, Attr, "unsigned");
   else if (ArgName == "VariadicStringArgument")
