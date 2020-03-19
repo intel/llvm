@@ -4366,6 +4366,12 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   else
     NumBytesForCalleeToPop = 0;  // Callee pops nothing.
 
+  if (CLI.DoesNotReturn && !getTargetMachine().Options.TrapUnreachable) {
+    // No need to reset the stack after the call if the call doesn't return. To
+    // make the MI verify, we'll pretend the callee does it for us.
+    NumBytesForCalleeToPop = NumBytes;
+  }
+
   // Returns a flag for retval copy to use.
   if (!IsSibcall) {
     Chain = DAG.getCALLSEQ_END(Chain,
@@ -41629,30 +41635,9 @@ static SDValue combineOrShiftToFunnelShift(SDNode *N, SelectionDAG &DAG,
                        DAG.getNode(ISD::TRUNCATE, DL, ShiftVT, Amt));
   };
 
-  // OR( SHL( X, C ), SRL( Y, 32 - C ) ) -> FSHL( X, Y, C )
-  // OR( SRL( X, C ), SHL( Y, 32 - C ) ) -> FSHR( Y, X, C )
   // OR( SHL( X, C ), SRL( SRL( Y, 1 ), XOR( C, 31 ) ) ) -> FSHL( X, Y, C )
   // OR( SRL( X, C ), SHL( SHL( Y, 1 ), XOR( C, 31 ) ) ) -> FSHR( Y, X, C )
-  // OR( SHL( X, AND( C, 31 ) ), SRL( Y, AND( 0 - C, 31 ) ) ) -> FSHL( X, Y, C )
-  // OR( SRL( X, AND( C, 31 ) ), SHL( Y, AND( 0 - C, 31 ) ) ) -> FSHR( Y, X, C )
-  if (ShAmt1.getOpcode() == ISD::SUB) {
-    SDValue Sum = ShAmt1.getOperand(0);
-    if (auto *SumC = dyn_cast<ConstantSDNode>(Sum)) {
-      SDValue ShAmt1Op1 = ShAmt1.getOperand(1);
-      if (ShAmt1Op1.getOpcode() == ISD::AND &&
-          isa<ConstantSDNode>(ShAmt1Op1.getOperand(1)) &&
-          ShAmt1Op1.getConstantOperandAPInt(1) == (Bits - 1)) {
-        ShMsk1 = ShAmt1Op1;
-        ShAmt1Op1 = ShAmt1Op1.getOperand(0);
-      }
-      if (ShAmt1Op1.getOpcode() == ISD::TRUNCATE)
-        ShAmt1Op1 = ShAmt1Op1.getOperand(0);
-      if ((SumC->getAPIntValue() == Bits ||
-           (SumC->getAPIntValue() == 0 && ShMsk1)) &&
-          ShAmt1Op1 == ShAmt0)
-        return GetFunnelShift(Op0, Op1, ShAmt0);
-    }
-  } else if (ShAmt1.getOpcode() == ISD::XOR) {
+  if (ShAmt1.getOpcode() == ISD::XOR) {
     SDValue Mask = ShAmt1.getOperand(1);
     if (auto *MaskC = dyn_cast<ConstantSDNode>(Mask)) {
       unsigned InnerShift = (ISD::FSHL == Opc ? ISD::SRL : ISD::SHL);

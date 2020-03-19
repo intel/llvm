@@ -48,6 +48,7 @@
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
+#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PatternMatch.h"
@@ -471,16 +472,28 @@ static Value *simplifyX86varShift(const IntrinsicInst &II,
   }
   assert((LogicalShift || !ShiftLeft) && "Only logical shifts can shift left");
 
-  // Simplify if all shift amounts are constant/undef.
-  auto *CShift = dyn_cast<Constant>(II.getArgOperand(1));
-  if (!CShift)
-    return nullptr;
-
   auto Vec = II.getArgOperand(0);
+  auto Amt = II.getArgOperand(1);
   auto VT = cast<VectorType>(II.getType());
   auto SVT = VT->getVectorElementType();
   int NumElts = VT->getNumElements();
   int BitWidth = SVT->getIntegerBitWidth();
+
+  // If the shift amount is guaranteed to be in-range we can replace it with a
+  // generic shift.
+  APInt UpperBits =
+      APInt::getHighBitsSet(BitWidth, BitWidth - Log2_32(BitWidth));
+  if (llvm::MaskedValueIsZero(Amt, UpperBits,
+                              II.getModule()->getDataLayout())) {
+    return (LogicalShift ? (ShiftLeft ? Builder.CreateShl(Vec, Amt)
+                                      : Builder.CreateLShr(Vec, Amt))
+                         : Builder.CreateAShr(Vec, Amt));
+  }
+
+  // Simplify if all shift amounts are constant/undef.
+  auto *CShift = dyn_cast<Constant>(Amt);
+  if (!CShift)
+    return nullptr;
 
   // Collect each element's shift amount.
   // We also collect special cases: UNDEF = -1, OUT-OF-RANGE = BitWidth.
@@ -4093,7 +4106,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // then this one is redundant, and should be removed.
     KnownBits Known(1);
     computeKnownBits(IIOperand, Known, 0, II);
-    if (Known.isAllOnes())
+    if (Known.isAllOnes() && isAssumeWithEmptyBundle(*II))
       return eraseInstFromFunction(*II);
 
     // Update the cache of affected values for this assumption (we might be
