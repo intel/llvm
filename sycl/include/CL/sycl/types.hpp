@@ -270,19 +270,17 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
     // Round to nearest even.
-  case rounding_mode::rte: {
-    R Result = __spirv_ConvertFToS_Rint_rte(Value); 
-    return Result;
-  }
+  case rounding_mode::rte: 
+    return __spirv_ConvertFToS_Rint_rte(Value); 
     // Round toward zero.
   case rounding_mode::rtz:
-    return std::trunc(Value);
+    return __spirv_ConvertFToS_Rint_rtz(Value); 
     // Round toward positive infinity.
   case rounding_mode::rtp:
-    return std::ceil(Value);
+    return __spirv_ConvertFToS_Rint_rtp(Value); 
     // Round toward negative infinity.
   case rounding_mode::rtn:
-    return std::floor(Value);
+    return __spirv_ConvertFToS_Rint_rtn(Value); 
   default:
     assert(!"Unsupported rounding mode!");
     return static_cast<R>(Value);
