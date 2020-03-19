@@ -9,6 +9,7 @@
     - [**Brief API Concepts**](#brief-api-concepts)
     - [**`xptiInitialize`**](#xptiinitialize)
     - [**`xptiFinalize`**](#xptifinalize)
+    - [**`xptiTraceEnabled`**](#xptitraceenabled)
     - [**APIs and Data Structures Exported by the Tracing Framework**](#apis-and-data-structures-exported-by-the-tracing-framework)
   - [**Performance of the Framework**](#performance-of-the-framework)
     - [**Modeling and Projection**](#modeling-and-projection)
@@ -18,7 +19,7 @@
 In order to understand different parts of an application or library, the
 ability to capture information about the application or library is needed.
 Using such information, one can create meaningful representations such as
-call-graphs, execution trace views etc. XPTI tracing framework is once such
+call-graphs, execution trace views etc. XPTI tracing framework is one such
 framework that allows developers to instrument their code with XPTI API and
 forward interesting or useful events during the application's execution, as
 determined by the developer.
@@ -34,13 +35,14 @@ can use to build performance analytical models. This document describes the
 different components of this framework and a testing methodology to determine
 the cost of using this framework in your applications.
 
-Current implementation of the framework uses std containers by default. There is
-also an implementation that relies on the concurrent containers in [Threading Building Blocks(TBB)](github.com/intel/tbb) and this can be enabled by using the
-define `-DXPTI_USE_TBB` with `cmake`. The std container based implementation is a
-thread-safe implementation, but has not been optimized for performance.
-Increasing the number of threads accessing the framework will increase the
-contention costs in the current implementation and may affect the performance of
-the framework.
+Current implementation of the framework uses std containers by default. There
+is also an implementation that relies on the concurrent containers in
+[Threading Building Blocks(TBB)](github.com/intel/tbb) and this can be enabled
+by using the define `-DXPTI_USE_TBB` with `cmake`. The std container based
+implementation is a thread-safe implementation, but has not been optimized for
+performance. Increasing the number of threads accessing the framework will
+increase the contention costs in the current implementation and may affect the
+performance of the framework.
 
 To enable the build to use TBB for the framework and tests, use the commands as
 shown below:
@@ -69,6 +71,8 @@ has been enabled and where to find the dynamic component. Both of these must be 
     `XPTI_TRACE_ENABLE=true` and to disable, the possible values are
     `XPTI_TRACE_ENABLE=0` or `XPTI_TRACE_ENABLE=false`.
 
+    Currently, if the variable is not defined, it is assumed to be `true`.
+
 2. The environment variable `XPTI_FRAMEWORK_DISPATCHER` points to the XPTI
    dispatcher or the dynamic component that allows the static library to load
    the shared object into memory and dispatch the event streams to subscribers
@@ -79,19 +83,20 @@ has been enabled and where to find the dynamic component. Both of these must be 
 
 ![XPTI Architecture](xpti_arch.png)
 
-In the above diagram, the interactions between a sample application and library
-that have been instrumented with XPTI API, the XPTI dispatcher and the
-subscriber loaded by the dispatcher. All API calls made by the application and
-the library go to the static library in this diagram and if `XPTI_TRACE_ENABLE`
-is not enabled or if the path to the dispatcher is not provided in the
-environment variable `XPTI_FRAMEWORK_DISPATCHER`, then the calls to the static
-library return immediately.
+The above diagram describes the dependencies and/or the interactions between a
+sample application or library that has been instrumented with XPTI API, the
+XPTI dispatcher and the subscriber loaded by the dispatcher. All API calls
+made by the application and the library go to the static library in this
+diagram and if `XPTI_TRACE_ENABLE` is not enabled or if the path to the
+dispatcher is not provided in the environment variable
+`XPTI_FRAMEWORK_DISPATCHER`, then the calls to the static library
+`xptiTraceEnabled()` return immediately.
 
 In the case both these variables are enabled, then the calls will be forwarded
 to the dynamic library which will attempt to load the subscribers pointed to by
 the environment variable `XPTI_SUBSCRIBERS`. The hypothetical trace data
 captured by the subscriber is shown as well under the `Resulting trace data`
-part of the diagram.
+part of the above diagram.
 
 ### The Dispatcher
 
@@ -112,14 +117,14 @@ the generated event streams and **must** follow the protocol or handshake
 defined for an event stream.
 
 There are three important things that a subscriber must implement to be
-functional: (1) `xptiTraceInit`, (2) `xptiTraceFinish` and (3) callback handlers.
-The `xptiTraceInit` and `xptiTraceFinish` API calls are used by the dispatcher
-loading the subscriber dynamically to determine if the subscriber is a valid
-subscriber. If these entry points are not present, then the subscriber is not
-loaded.
+functional: (1) `xptiTraceInit`, (2) `xptiTraceFinish` and (3) callback
+handlers. The `xptiTraceInit` and `xptiTraceFinish` API calls are used by the
+dispatcher loading the subscriber dynamically to determine if the subscriber
+is a valid subscriber. If these entry points are not present, then the
+subscriber is not loaded.
 
-The `xptiTraceInit` callback is called by the dispatcher when the generator of a
-new stream of data makes a call to `xptiInitialize` for the new stream. The
+The `xptiTraceInit` callback is called by the dispatcher when the generator of
+a new stream of data makes a call to `xptiInitialize` for the new stream. The
 implementation of the `xptiTraceInit` function is where the subscriber would
 follow the specification or protocol defined for the stream to subscribe to
 events from various trace  point types. The code snippet below shows an example
@@ -204,13 +209,13 @@ For example, the specification for a given event stream, the trace point type
 requires strict conformance to the specification for the stream.
 
 In addition to the `user_data`, the unique id that describes the event is
-available under `event->unique_id`. For most cases, this should be sufficient to
-resolve a given event. However, in many cases, a particular event may be
+available under `event->unique_id`. For most cases, this should be sufficient
+to resolve a given event. However, in many cases, a particular event may be
 exercised within a loop. Since a trace point event is based on the
-instrumentation at a specific location in the code, the `unique_id` of this will
-always remain the same. However, with each instance of this event, and instance
-ID may be emitted that keeps track of the instance of this event. The combined
-value of the `unique_id` and `instance_id` should always be unique.
+instrumentation at a specific location in the code, the `unique_id` of this
+will always remain the same. However, with each instance of this event, and
+instance ID may be emitted that keeps track of the instance of this event. The
+combined value of the `unique_id` and `instance_id` should always be unique.
 
 > **NOTE:** A subscriber **must** implement the `xptiTraceInit` and
 > `xptiTraceFinish` APIs for the dispatcher to successfully load the subscriber.
@@ -234,10 +239,10 @@ that have been considered so far. Since the primary goal is to gather execution
 traces of compute elements in an application, the APIs address this scope for
 now. Currently, they allow developers to capture relationship information as
 nodes and edges in a graph, where the nodes represent a compute element or an
-action with a latency associated with it. The edges represent the dependencies
-between the compute elements which be events or memory objects. In addition to
-such relationship events, the API allows to you trace arbitrary regions of code
-similar to conventional tracing.
+action with a latency associated with it and the edges represent the
+dependencies between the compute elements which may be events or memory
+objects. In addition to such relationship events, the API allows to you trace
+arbitrary regions of code similar to conventional tracing methods.
 
 For each interesting trace point in an application, a notification can be sent
 out by the framework. However, if there are no subscribers to consume this
@@ -245,9 +250,9 @@ notification event, the framework returns immediately. This allows developers
 that want to instrument applications or run-times to limit the overheads
 considerably.
 
-The API is documented in the file `xpti_trace_framework.h` that can be located
-under `xpti/doc`. Some of the API functions and concepts that warrant additional
-insight are discussed further.
+The API is documented in the file `xpti_trace_framework.h` that can be found
+under `xpti/doc`. Some of the API functions and concepts that warrant
+additional insight are discussed further.
 
 ### `xptiInitialize`
 
@@ -261,9 +266,9 @@ stream must be defined for a given stream as a contract or specification.
 This allows subscribers to rely on this specification to implement a tool that
 can consume this data and do something useful with it.
 
-The `xptiIntialize` function reports to all the subscribers that a new stream of
-data is about to be generated and the name of the stream along with some version
-information of the stream is sent to the subscriber.
+The `xptiIntialize` function reports to all the subscribers that a new stream
+of data is about to be generated and the name of the stream along with some
+version information of the stream is sent to the subscriber.
 
 The version information is primarily provided to ensure that subscribers to the
 event stream can choose not to handle an event stream if it is an unsupported
@@ -279,17 +284,33 @@ The application or library being instrumented to generate a stream of data must
 attempt to finalize the stream by making this call. This allows the dispatcher
 to notify all the subscribers that a stream is about to end.
 
+### `xptiTraceEnabled`
+
+To recap some of the discussion in the [Architecture](#architecture) section,
+this API call returns `true` in the following situations:
+
+1. When `XPTI_TRACE_ENABLE` is not set, but the `XPTI_FRAMEWORK_DISPATCHER`
+and `XPTI_SUBSCRIBERS` variables are set to valid libraries. This assumes that
+a tool has been created and pointed to by `XPTI_SUBSCRIBERS` and the tool has
+been linked against the dynamic component or dispatcher. In general, the
+dynamic component or the dispatcher and the tool component or the subscriber
+are owned by the tool attempting to listen to the instrumented stream of data.
+
+2. When using the static library for linking in the instrumented application
+or library, this call returns `true` only if `XPTI_FRAMEWORK_DISPATCHER` is
+set to a valid library and `XPTI_TRACE_ENABLE` is not set to `false`.
 
 ### APIs and Data Structures Exported by the Tracing Framework
 
 We will begin our discussion by detailing the various public APIs that are
 exported by the framework and when they are meant to be used. The framework API
-is what will be used by developers instrumenting their code. The primary goal of
-the API is to support the instrumentation of code that may or may not fall into
-function boundaries.
+is what will be used by developers instrumenting their code. The primary goal
+of the API is to support the instrumentation of code that may or may not fall
+into function boundaries.
 
 * First, the places in the code where instrumentation is warranted should be
-  identified. Each trace point is unique and will be associated with a `payload` data structure that encapsulates: (1) a unique name, such as a
+  identified. Each trace point is unique and will be associated with a
+  `payload` data structure that encapsulates: (1) a unique name, such as a
   function or kernel name or something meaningful if the trace point marks a
   section of code, (2) the source file it is located in, (3) the line number
   where this interesting event occurs and (4) the column number of the
@@ -312,8 +333,8 @@ The trace point event describes the event used to notify the subscriber and is
 usually associated with a payload that describes the event. Since application
 code is being instrumented with XPTI, the payload may consist of a `function`
 `name`, `source file name` and `line number`, which forms a unique combination
-of strings and numbers that is used to create the `unique_id` associated with an
-event. Using the `event` or the `unique_id`, one should be able to query the
+of strings and numbers that is used to create the `unique_id` associated with
+an event. Using the `event` or the `unique_id`, one should be able to query the
 `payload` information. When a notification occurs for a trace point, the trace
 point event and trace point type information is sent to the subscriber. A given
 event may be used to notify subscribers as multiple trace point types. For
@@ -334,16 +355,16 @@ xpti::payload_t p("function1", "main.cpp", 104, 5, function1);
 ```
 
 The payload data structure can be created with a set of unique descriptors for
-the region of code being instrumented, such as a function name, source file name
-and line number, for example. However, it can also take in a function name and
-pointer to the function or just a pointer to the function that uniquely
-describes the payload that will be used to create a trace point event. This
-information is used by the `xptiMakeEvent` function to create a `unique_id` for
-the trace point event.
+the region of code being instrumented, such as a function name, source file
+name and line number, for example. However, it can also take in a function
+name and pointer to the function or just a pointer to the function that
+uniquely describes the payload that will be used to create a trace point
+event. This information is used by the `xptiMakeEvent` function to create a
+`unique_id` for the trace point event.
 
 The next section looks at using the payload information to create a trace point
-event. Each trace point is unique, from a language or code section standpoint. A
-trace point maybe visited multiple times, but the payload and the event
+event. Each trace point is unique, from a language or code section standpoint.
+A trace point maybe visited multiple times, but the payload and the event
 describing the trace point will always be the same. The tracing framework must
 guarantee that when a trace point is visited, the same `unique_id` is
 retrieved for it. For frequent visits to the same trace point site, we must be
@@ -390,9 +411,9 @@ xptiNotifySubscribers(stream_id, tp1_start, parent, event, instance,
                       nullptr);
 ```
 
-If the callback handler for this stream needs to know if this is an extension or
-a predefined type, they can use the following macros to decipher the trace point
-type.
+If the callback handler for this stream needs to know if this is an extension
+or a predefined type, they can use the following macros to decipher the trace
+point type.
 
 ```cpp
 uint8_t tool_vendor_id = XPTI_TOOL_ID(tp1_start);
@@ -408,9 +429,9 @@ else {
 ```
 
 This mechanism allows different kinds of information to be captured and the
-trace point type describes the type of information expected by the notification.
-The trace point type is only used when notifying the subscribers of an event
-with the trace point type acting as a qualifier for the event.
+trace point type describes the type of information expected by the
+notification. The trace point type is only used when notifying the subscribers
+of an event with the trace point type acting as a qualifier for the event.
 
 In a similar manner, the `xpti::trace_event_type_t` can also be extended.
 The events that are predefined by the framework fall under `{graph, algorithm,`
@@ -420,8 +441,8 @@ framework provides APIs to extend this set to meet the need of the specific
 tracing activity using the `xptiRegisterUserDefinedEventType` API function.
 
 The code sample below shows a sample code snippet that creates such an trace
-point event using a payload and uses the created event to notify all subscribers
-of the event qualified by a trace point type.
+point event using a payload and uses the created event to notify all
+subscribers of the event qualified by a trace point type.
 
 ```cpp
 if ( xptiTraceEnabled() ) {
@@ -460,11 +481,13 @@ void function1() {
   xpt::trace_event_data_t event;
   if (xptiTraceEnabled()) {
     xpti::payload_t p("function1","main.cpp",104, 2,function1);
-    event = xptiMakeEvent("function1",&p, xpti::trace_event_type_t::algorithm,
+    event = xptiMakeEvent("function1",&p,
+            xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &instance_id);
   }
   xpti::framework::scoped_notify ev("myStream",
-            xpti::trace_point_type_t::region_begin, nullptr, &event,instance_id);
+            xpti::trace_point_type_t::region_begin, nullptr, &event,
+            instance_id);
   for(int i = 0; i < 5; ++i ) {
       function2();
   }
@@ -478,7 +501,8 @@ this section will outline a couple of scenarios. Some of the key operations
 that would result in overheads are listed below. For each of these operations,
 we will construct scenarios that will provide us with measurements to determine
 how many events/sec we can process before the overheads start to become a
-problem. We will use an overhead limit of 1% as this data will be used to build an analytical model in the future.
+problem. We will use an overhead limit of 1% as this data will be used to
+build an analytical model in the future.
 
 | Data structure | Operation     | Description |
 | -------------- | ------------- |------------ |
@@ -563,16 +587,19 @@ performance of the trace point creation and notification to come up with an
 estimate of how many events can be serviced per second with the given
 configuration.
 > - The default overheads for which the events/sec are computed is **1%**
-> - If the overheads desired is 1%, then the following formula is used to compute the events/sec:
->    <p><b>total cost</b> of instrumentation <b>(I)</b> = (cost of trace point creation + cost of notification)</p>
+> - If the overheads desired is 1%, then the following formula is used to
+>   compute the events/sec:
+>    <p><b>total cost</b> of instrumentation <b>(I)</b> = (cost of trace point
+>    creation + cost of notification)</p>
 >    <p>So, if --trace-points 5000 --tp-frequency 10, this will be:</p>
 >    <p><b>I = 5000xCost(TP Create) + 50000xCost(Notify)</b></p>
 >    <p><b>Average cost (A) = I/50000</b>,  for 50000 events notified</p>
 >    <p> This cost A does not take into account the cost of the callback
-handler. In our projections, we use a handler cost of 10ns, 100ns and 500ns
-to get the events/sec that can be serviced. On an average, the handler costs
-for real-world cases will be somewhere between 80ns-400ns.
->    <p>So, if the average cost is A and this is 1% overhead, the total run time must be <b>100xA</b> ns</p>
+>    handler. In our projections, we use a handler cost of 10ns, 100ns and
+>    500ns to get the events/sec that can be serviced. On an average, the
+>    handler costs for real-world cases will be somewhere between 80ns-400ns.
+>    <p>So, if the average cost is A and this is 1% overhead, the total run
+>    time must be <b>100xA</b> ns</p>
 >    <p><b>Events/second E = 1000,000,000 ns/(100xA)ns</b></p>
 >
 
@@ -626,11 +653,14 @@ the performance test. The total instrumentation cost as discussed in the
 previous section comprises of a framework cost and a callback handler cost in
 the subscriber.
 
-Framework cost **FW**<sub>***cost***</sub> = Avg{TP<sub>*create*</sub> + 10 x TP<sub>*notify*</sub>}
+Framework cost **FW**<sub>***cost***</sub> = Avg{TP<sub>*create*</sub> + 10 x
+TP<sub>*notify*</sub>}
 
-Subscriber cost **Callback**<sub>***cost***</sub> = **C<sub>*t*</sub>** which could be anywhere in the range [10-10000]ns
+Subscriber cost **Callback**<sub>***cost***</sub> = **C<sub>*t*</sub>** which
+could be anywhere in the range [10-10000]ns
 
-Total cost **Cost**<sub>***total***</sub> = **FW**<sub>***cost***</sub> + **C<sub>*t*</sub>**
+Total cost **Cost**<sub>***total***</sub> = **FW**<sub>***cost***</sub> +
+**C<sub>*t*</sub>**
 
 Using the information from the report or one such instance captured in the
 table above, we know that:
@@ -644,7 +674,8 @@ callback handler costs increase, the events/sec is inversely proportional to
 the callback handler costs. The work unit cost for determining the number of
 events/sec is given by:
 
-**W**<sub>***cost***</sub> = **100** x [**FW**<sub>***cost***</sub> + **C<sub>*t*</sub>**] for the configuration that limits overheads to 1%.
+**W**<sub>***cost***</sub> = **100** x [**FW**<sub>***cost***</sub> +
+**C<sub>*t*</sub>**] for the configuration that limits overheads to 1%.
 
 The more times a trace point event is visited, the more events per second can
 be serviced by the framework as the cost of a trace point event creation can
@@ -653,10 +684,9 @@ be amortized over all the visits to the same trace point. However,
 significantly larger than **FW**<sub>***cost***</sub>.
 
 > **NOTE:** All measurements reported in this document were measured on an NUC
-form-factor machine with Intel&reg;  Core&trade; i7-8559U @ 2.7 GHz processor
-running Ubuntu 18.04. The tests were compiled to use Threading Building Blocks
-concurrent containers for these runs.
-
+> form-factor machine with Intel&reg;  Core&trade; i7-8559U @ 2.7 GHz processor
+> running Ubuntu 18.04. The tests were compiled to use Threading Building
+> Blocks concurrent containers for these runs.
 
 | Operation | Statistic | Scenario |Count| Framework Cost(ns) |
 |-----------|-----------|----------|-----|------|
