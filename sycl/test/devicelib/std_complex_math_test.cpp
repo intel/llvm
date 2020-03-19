@@ -12,8 +12,8 @@ constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
 template <typename T>
-bool is_about_CMPLX(complex<T> x, complex<T> y) {
-  return is_about_FP(x.real(), y.real()) && is_about_FP(x.imag(), y.imag());
+bool approx_equal_cmplx(complex<T> x, complex<T> y) {
+  return approx_equal_fp(x.real(), y.real()) && approx_equal_fp(x.imag(), y.imag());
 }
 
 template <class T>
@@ -46,7 +46,7 @@ void device_complex_times(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -85,7 +85,7 @@ void device_complex_divides(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 8; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -113,7 +113,7 @@ void device_complex_sqrt(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -140,7 +140,7 @@ void device_complex_norm(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_FP(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_fp(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -168,7 +168,7 @@ void device_complex_abs(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_FP(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_fp(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -196,7 +196,7 @@ void device_complex_exp(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -224,7 +224,7 @@ void device_complex_log(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -249,7 +249,7 @@ void device_complex_log10(s::queue &deviceQueue) {
   });
   }
 
-  assert(is_about_CMPLX(buf_out, ref_result));
+  assert(approx_equal_cmplx(buf_out, ref_result));
 }
 
 template <class T>
@@ -274,7 +274,7 @@ void device_complex_sin(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 2; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -300,7 +300,7 @@ void device_complex_cos(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 2; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
@@ -327,7 +327,7 @@ void device_complex_polar(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_CMPLX(buf_out[idx], ref_results[idx]));
+    assert(approx_equal_cmplx(buf_out[idx], ref_results[idx]));
   }
 }
 
