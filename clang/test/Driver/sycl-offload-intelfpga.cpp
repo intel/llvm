@@ -3,6 +3,11 @@
 ///
 // REQUIRES: clang-driver
 
+/// Check SYCL headers path
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-HEADERS-INTELFPGA %s
+// CHK-HEADERS-INTELFPGA: clang{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+
 /// -fintelfpga implies -g and -MMD
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA %s
