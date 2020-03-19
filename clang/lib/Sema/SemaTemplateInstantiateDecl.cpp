@@ -556,6 +556,17 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
+static void instantiateIntelFPGAForcePow2DepthAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
 static void instantiateSYCLIntelPipeIOAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPipeIOAttr *Attr, Decl *New) {
@@ -699,6 +710,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
       instantiateIntelFPGABankBitsAttr(*this, TemplateArgs, IntelFPGABankBits,
                                        New);
+    }
+    if (const auto *IntelFPGAForcePow2Depth =
+            dyn_cast<IntelFPGAForcePow2DepthAttr>(TmplAttr)) {
+      instantiateIntelFPGAForcePow2DepthAttr(*this, TemplateArgs,
+                                             IntelFPGAForcePow2Depth, New);
     }
     if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
