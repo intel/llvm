@@ -89,11 +89,11 @@ void device_math_test(s::queue &deviceQueue) {
 
   // Compare result with reference
   for (int i = 0; i < TEST_NUM; ++i) {
-    assert(is_about_FP(result[i], ref[i]));
+    assert(approx_equal_fp(result[i], ref[i]));
   }
 
   // Test modf integral part
-  assert(is_about_FP(iptr, refIptr));
+  assert(approx_equal_fp(iptr, refIptr));
 
   // Test frexp exponent
   assert(exponent == 0);
