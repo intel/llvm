@@ -7,8 +7,7 @@
 // close to the reference and machine epsilon is used as threshold in this
 // function. T must be float-point type.
 template <typename T>
-bool is_about_FP(T x, T y) {
-  bool ret;
+bool approx_equal_fp(T x, T y) {
 
   // At least one input is nan
   if (std::isnan(x) || std::isnan(y))
@@ -16,7 +15,7 @@ bool is_about_FP(T x, T y) {
 
   // At least one input is inf
   if (std::isinf(x) || std::isinf(y))
-    ret = (x == y);
+    return (x == y);
 
   // two finite
   else {
@@ -26,12 +25,11 @@ bool is_about_FP(T x, T y) {
       return std::abs(x - y) < threshold * max_v;
     } else {
       if (x != 0)
-        ret = std::abs(x) < threshold;
+        return std::abs(x) < threshold;
       else
-        ret = std::abs(y) < threshold;
+        return std::abs(y) < threshold;
     }
   }
-  return ret;
 }
 
 #endif
