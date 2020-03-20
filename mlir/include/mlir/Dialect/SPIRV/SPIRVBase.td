@@ -22,7 +22,7 @@ include "mlir/Dialect/SPIRV/SPIRVAvailability.td"
 // SPIR-V dialect definitions
 //===----------------------------------------------------------------------===//
 
-def SPV_Dialect : Dialect {
+def SPIRV_Dialect : Dialect {
   let name = "spv";
 
   let summary = "The SPIR-V dialect in MLIR.";
@@ -46,6 +46,43 @@ def SPV_Dialect : Dialect {
   }];
 
   let cppNamespace = "spirv";
+  let hasConstantMaterializer = 1;
+  let extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // Type
+    //===------------------------------------------------------------------===//
+
+    /// Checks if the given `type` is valid in SPIR-V dialect.
+    static bool isValidType(Type type);
+
+    /// Checks if the given `scalar type` is valid in SPIR-V dialect.
+    static bool isValidScalarType(Type type);
+
+    //===------------------------------------------------------------------===//
+    // Attribute
+    //===------------------------------------------------------------------===//
+
+    /// Returns the attribute name to use when specifying decorations on results
+    /// of operations.
+    static std::string getAttributeName(Decoration decoration);
+
+    /// Provides a hook for verifying SPIR-V dialect attributes attached to the
+    /// given op.
+    LogicalResult verifyOperationAttribute(Operation *op,
+                                           NamedAttribute attribute) override;
+
+    /// Provides a hook for verifying SPIR-V dialect attributes attached to the
+    /// given op's region argument.
+    LogicalResult verifyRegionArgAttribute(Operation *op, unsigned regionIndex,
+                                           unsigned argIndex,
+                                           NamedAttribute attribute) override;
+
+    /// Provides a hook for verifying SPIR-V dialect attributes attached to the
+    /// given op's region result.
+    LogicalResult verifyRegionResultAttribute(
+        Operation *op, unsigned regionIndex, unsigned resultIndex,
+        NamedAttribute attribute) override;
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -63,7 +100,7 @@ class SPV_BitEnumAttr<string name, string description,
                       list<BitEnumAttrCase> cases> :
     BitEnumAttr<name, description, cases> {
   let predicate = And<[
-    IntegerAttrBase<I32, "">.predicate,
+    I32Attr.predicate,
     SPV_IsKnownEnumCaseFor<name>,
   ]>;
   let cppNamespace = "::mlir::spirv";
@@ -74,7 +111,7 @@ class SPV_I32EnumAttr<string name, string description,
                       list<I32EnumAttrCase> cases> :
     I32EnumAttr<name, description, cases> {
   let predicate = And<[
-    IntegerAttrBase<I32, "">.predicate,
+    I32Attr.predicate,
     SPV_IsKnownEnumCaseFor<name>,
   ]>;
   let cppNamespace = "::mlir::spirv";
@@ -96,12 +133,12 @@ class SPV_StrEnumAttr<string name, string description,
 // SPIR-V availability definitions
 //===----------------------------------------------------------------------===//
 
-def SPV_V_1_0 : I32EnumAttrCase<"V_1_0", 0>;
-def SPV_V_1_1 : I32EnumAttrCase<"V_1_1", 1>;
-def SPV_V_1_2 : I32EnumAttrCase<"V_1_2", 2>;
-def SPV_V_1_3 : I32EnumAttrCase<"V_1_3", 3>;
-def SPV_V_1_4 : I32EnumAttrCase<"V_1_4", 4>;
-def SPV_V_1_5 : I32EnumAttrCase<"V_1_5", 5>;
+def SPV_V_1_0 : I32EnumAttrCase<"V_1_0", 0, "v1.0">;
+def SPV_V_1_1 : I32EnumAttrCase<"V_1_1", 1, "v1.1">;
+def SPV_V_1_2 : I32EnumAttrCase<"V_1_2", 2, "v1.2">;
+def SPV_V_1_3 : I32EnumAttrCase<"V_1_3", 3, "v1.3">;
+def SPV_V_1_4 : I32EnumAttrCase<"V_1_4", 4, "v1.4">;
+def SPV_V_1_5 : I32EnumAttrCase<"V_1_5", 5, "v1.5">;
 
 def SPV_VersionAttr : SPV_I32EnumAttr<"Version", "valid SPIR-V version", [
     SPV_V_1_0, SPV_V_1_1, SPV_V_1_2, SPV_V_1_3, SPV_V_1_4, SPV_V_1_5]>;
@@ -148,23 +185,27 @@ class Extension<list<StrEnumAttrCase> extensions> : Availability {
     AND (`Extension::C`) AND (`Extension::D` OR `Extension::E`) is enabled.
   }];
 
-  // TODO(antiagainst): Using SmallVector<SmallVector<...>> is an anti-pattern.
+  // TODO(antiagainst): Returning SmallVector<ArrayRef<...>> is not recommended.
   // Find a better way for this.
-  let queryFnRetType = "::llvm::SmallVector<::llvm::SmallVector<"
-                          "::mlir::spirv::Extension, 1>, 1>";
+  let queryFnRetType = "::llvm::SmallVector<::llvm::ArrayRef<"
+                          "::mlir::spirv::Extension>, 1>";
   let queryFnName = "getExtensions";
 
   let mergeAction = !if(
       !empty(extensions), "", "$overall.emplace_back($instance)");
   let initializer = "{}";
-  let instanceType = "::llvm::SmallVector<::mlir::spirv::Extension, 1>";
+  let instanceType = "::llvm::ArrayRef<::mlir::spirv::Extension>";
 
-  // Compose all capabilities as an C++ initializer list
-  let instance = "std::initializer_list<::mlir::spirv::Extension>{" #
-                 StrJoin<!foreach(
-                   ext, extensions,
-                   "::mlir::spirv::Extension::" # ext.symbol)>.result #
-                 "}";
+  // Pack all extensions as a static array and get its reference.
+  let instancePreparation = !if(!empty(extensions), "",
+    "static const ::mlir::spirv::Extension exts[] = {" #
+    StrJoin<!foreach(ext, extensions,
+      "::mlir::spirv::Extension::" # ext.symbol)>.result #
+    "}; " #
+    // The following manual ArrayRef constructor call is to satisfy GCC 5.
+    "ArrayRef<::mlir::spirv::Extension> " #
+      "ref(exts, ::llvm::array_lengthof(exts));");
+  let instance = "ref";
 }
 
 class Capability<list<I32EnumAttrCase> capabilities> : Availability {
@@ -187,21 +228,25 @@ class Capability<list<I32EnumAttrCase> capabilities> : Availability {
     AND (`Capability::C`) AND (`Capability::D` OR `Capability::E`) is enabled.
   }];
 
-  let queryFnRetType = "::llvm::SmallVector<::llvm::SmallVector<"
-                          "::mlir::spirv::Capability, 1>, 1>";
+  let queryFnRetType = "::llvm::SmallVector<::llvm::ArrayRef<"
+                          "::mlir::spirv::Capability>, 1>";
   let queryFnName = "getCapabilities";
 
   let mergeAction = !if(
       !empty(capabilities), "", "$overall.emplace_back($instance)");
   let initializer = "{}";
-  let instanceType = "::llvm::SmallVector<::mlir::spirv::Capability, 1>";
+  let instanceType = "::llvm::ArrayRef<::mlir::spirv::Capability>";
 
-  // Compose all capabilities as an C++ initializer list
-  let instance = "std::initializer_list<::mlir::spirv::Capability>{" #
-                 StrJoin<!foreach(
-                   cap, capabilities,
-                   "::mlir::spirv::Capability::" # cap.symbol)>.result #
-                 "}";
+  // Pack all capabilities as a static array and get its reference.
+  let instancePreparation = !if(!empty(capabilities), "",
+    "static const ::mlir::spirv::Capability caps[] = {" #
+    StrJoin<!foreach(cap, capabilities,
+      "::mlir::spirv::Capability::" # cap.symbol)>.result #
+    "}; " #
+    // The following manual ArrayRef constructor call is to satisfy GCC 5.
+    "ArrayRef<::mlir::spirv::Capability> " #
+      "ref(caps, ::llvm::array_lengthof(caps));");
+  let instance = "ref";
 }
 
 // TODO(antiagainst): the following interfaces definitions are duplicating with
@@ -216,13 +261,13 @@ def QueryMaxVersionInterface : OpInterface<"QueryMaxVersionInterface"> {
 def QueryExtensionInterface : OpInterface<"QueryExtensionInterface"> {
   let methods = [InterfaceMethod<
     "",
-    "::llvm::SmallVector<::llvm::SmallVector<::mlir::spirv::Extension, 1>, 1>",
+    "::llvm::SmallVector<::llvm::ArrayRef<::mlir::spirv::Extension>, 1>",
     "getExtensions">];
 }
 def QueryCapabilityInterface : OpInterface<"QueryCapabilityInterface"> {
   let methods = [InterfaceMethod<
     "",
-    "::llvm::SmallVector<::llvm::SmallVector<::mlir::spirv::Capability, 1>, 1>",
+    "::llvm::SmallVector<::llvm::ArrayRef<::mlir::spirv::Capability>, 1>",
     "getCapabilities">];
 }
 
@@ -2942,8 +2987,32 @@ def SPV_SamplerUseAttr:
       [SPV_ISUI_SamplerUnknown, SPV_ISUI_NeedSampler, SPV_ISUI_NoSampler]>;
 
 //===----------------------------------------------------------------------===//
+// SPIR-V attribute definitions
+//===----------------------------------------------------------------------===//
+
+def SPV_VerCapExtAttr : DialectAttr<
+    SPIRV_Dialect,
+    CPred<"$_self.isa<::mlir::spirv::VerCapExtAttr>()">,
+    "version-capability-extension attribute"> {
+  let storageType = "::mlir::spirv::VerCapExtAttr";
+  let returnType = "::mlir::spirv::VerCapExtAttr";
+  let convertFromStorage = "$_self";
+}
+
+//===----------------------------------------------------------------------===//
 // SPIR-V type definitions
 //===----------------------------------------------------------------------===//
+
+class IOrUI<int width>
+    : Type<Or<[CPred<"$_self.isSignlessInteger(" # width # ")">,
+               CPred<"$_self.isUnsignedInteger(" # width # ")">]>,
+           width # "-bit signless/unsigned integer"> {
+  int bitwidth = width;
+}
+
+class SignlessOrUnsignedIntOfWidths<list<int> widths> :
+    AnyTypeOf<!foreach(w, widths, IOrUI<w>),
+              StrJoinInt<widths, "/">.result # "-bit signless/unsigned integer">;
 
 def SPV_IsPtrType : CPred<"$_self.isa<::mlir::spirv::PointerType>()">;
 def SPV_IsArrayType : CPred<"$_self.isa<::mlir::spirv::ArrayType>()">;
@@ -2953,29 +3022,35 @@ def SPV_IsStructType : CPred<"$_self.isa<::mlir::spirv::StructType>()">;
 // See https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_types
 // for the definition of the following types and type categories.
 
-def SPV_Void : TypeAlias<NoneType, "void type">;
-def SPV_Bool : I<1>;
-def SPV_Integer : IntOfWidths<[8, 16, 32, 64]>;
+def SPV_Void : TypeAlias<NoneType, "void">;
+def SPV_Bool : TypeAlias<I1, "bool">;
+def SPV_Integer : AnyIntOfWidths<[8, 16, 32, 64]>;
 def SPV_Float : FloatOfWidths<[16, 32, 64]>;
 def SPV_Float16or32 : FloatOfWidths<[16, 32]>;
 def SPV_Vector : VectorOfLengthAndType<[2, 3, 4],
                                        [SPV_Bool, SPV_Integer, SPV_Float]>;
 // Component type check is done in the type parser for the following SPIR-V
 // dialect-specific types so we use "Any" here.
-def SPV_AnyPtr : Type<SPV_IsPtrType, "any SPIR-V pointer type">;
-def SPV_AnyArray : Type<SPV_IsArrayType, "any SPIR-V array type">;
-def SPV_AnyRTArray : Type<SPV_IsRTArrayType, "any SPIR-V runtime array type">;
-def SPV_AnyStruct : Type<SPV_IsStructType, "any SPIR-V struct type">;
+def SPV_AnyPtr : DialectType<SPIRV_Dialect, SPV_IsPtrType,
+                             "any SPIR-V pointer type">;
+def SPV_AnyArray : DialectType<SPIRV_Dialect, SPV_IsArrayType,
+                               "any SPIR-V array type">;
+def SPV_AnyRTArray : DialectType<SPIRV_Dialect, SPV_IsRTArrayType,
+                                 "any SPIR-V runtime array type">;
+def SPV_AnyStruct : DialectType<SPIRV_Dialect, SPV_IsStructType,
+                                "any SPIR-V struct type">;
 
 def SPV_Numerical : AnyTypeOf<[SPV_Integer, SPV_Float]>;
 def SPV_Scalar : AnyTypeOf<[SPV_Numerical, SPV_Bool]>;
-def SPV_Aggregate : AnyTypeOf<[SPV_AnyArray, SPV_AnyStruct]>;
+def SPV_Aggregate : AnyTypeOf<[SPV_AnyArray, SPV_AnyRTArray, SPV_AnyStruct]>;
 def SPV_Composite :
     AnyTypeOf<[SPV_Vector, SPV_AnyArray, SPV_AnyRTArray, SPV_AnyStruct]>;
 def SPV_Type : AnyTypeOf<[
     SPV_Void, SPV_Bool, SPV_Integer, SPV_Float, SPV_Vector,
     SPV_AnyPtr, SPV_AnyArray, SPV_AnyRTArray, SPV_AnyStruct
   ]>;
+
+def SPV_SignlessOrUnsignedInt : SignlessOrUnsignedIntOfWidths<[8, 16, 32, 64]>;
 
 class SPV_ScalarOrVectorOf<Type type> :
     AnyTypeOf<[type, VectorOfLengthAndType<[2, 3, 4], [type]>]>;
@@ -2985,7 +3060,8 @@ def SPV_ScalarOrVectorOrPtr : AnyTypeOf<[SPV_ScalarOrVector, SPV_AnyPtr]>;
 
 class SPV_Vec4<Type type> : VectorOfLengthAndType<[4], [type]>;
 def SPV_IntVec4 : SPV_Vec4<SPV_Integer>;
-def SPV_I32Vec4 : SPV_Vec4<I32>;
+def SPV_IOrUIVec4 : SPV_Vec4<SPV_SignlessOrUnsignedInt>;
+def SPV_Int32Vec4 : SPV_Vec4<AnyI32>;
 
 // TODO(antiagainst): Use a more appropriate way to model optional operands
 class SPV_Optional<Type type> : Variadic<type>;
@@ -3230,7 +3306,7 @@ def SPV_OpcodeAttr :
 
 // Base class for all SPIR-V ops.
 class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<SPV_Dialect, mnemonic, !listconcat(traits, [
+    Op<SPIRV_Dialect, mnemonic, !listconcat(traits, [
          // TODO(antiagainst): We don't need all of the following traits for
          // every op; only the suitabble ones should be added automatically
          // after ODS supports dialect-specific contents.

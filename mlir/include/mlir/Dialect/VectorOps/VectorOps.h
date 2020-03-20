@@ -17,23 +17,12 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {
 class MLIRContext;
 class OwningRewritePatternList;
 namespace vector {
-
-/// Dialect for Ops on higher-dimensional vector types.
-class VectorOpsDialect : public Dialect {
-public:
-  VectorOpsDialect(MLIRContext *context);
-  static StringRef getDialectNamespace() { return "vector"; }
-
-  /// Materialize a single constant operation from a given attribute value with
-  /// the desired resultant type.
-  Operation *materializeConstant(OpBuilder &builder, Attribute value, Type type,
-                                 Location loc) override;
-};
 
 /// Collect a set of vector-to-vector canonicalization patterns.
 void populateVectorToVectorCanonicalizationPatterns(
@@ -54,9 +43,13 @@ void populateVectorToVectorTransformationPatterns(
 void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context);
 
-/// Collect a set of vector contraction transformation patterns
-/// that express all vector.contract ops in terms of more elementary
-/// extraction and reduction ops.
+/// Collect a set of transformation patterns that are related to contracting
+/// or expanding vector operations:
+///   ContractionOpLowering,
+///   ShapeCastOp2DDownCastRewritePattern, ShapeCastOp2DUpCastRewritePattern
+///   OuterproductOpLowering
+/// These transformation express higher level vector ops in terms of more
+/// elementary extraction, insertion, reduction, product, and broadcast ops.
 void populateVectorContractLoweringPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context);
 
@@ -69,6 +62,8 @@ ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/VectorOps/VectorOps.h.inc"
+
+#include "mlir/Dialect/VectorOps/VectorOpsDialect.h.inc"
 
 } // end namespace vector
 } // end namespace mlir

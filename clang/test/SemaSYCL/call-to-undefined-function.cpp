@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 void defined() {
 }

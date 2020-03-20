@@ -142,6 +142,9 @@ public:
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
+  static void AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
+                                 const llvm::opt::ArgList &DriverArgs,
+                                 llvm::opt::ArgStringList &CC1Args);
   void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangCXXStdlibIncludeArgs(

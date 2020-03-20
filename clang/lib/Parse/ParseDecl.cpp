@@ -5644,8 +5644,8 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
         return;
       }
 
-      SourceLocation Loc = ConsumeToken();
-      D.SetRangeEnd(Loc);
+      SourceLocation StarLoc = ConsumeToken();
+      D.SetRangeEnd(StarLoc);
       DeclSpec DS(AttrFactory);
       ParseTypeQualifierListOpt(DS);
       D.ExtendWithDeclSpec(DS);
@@ -5656,7 +5656,7 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
       // Sema will have to catch (syntactically invalid) pointers into global
       // scope. It has to catch pointers into namespace scope anyway.
       D.AddTypeInfo(DeclaratorChunk::getMemberPointer(
-                        SS, DS.getTypeQualifiers(), DS.getEndLoc()),
+                        SS, DS.getTypeQualifiers(), StarLoc, DS.getEndLoc()),
                     std::move(DS.getAttributes()),
                     /* Don't replace range end. */ SourceLocation());
       return;

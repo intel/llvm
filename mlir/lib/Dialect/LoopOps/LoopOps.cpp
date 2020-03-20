@@ -20,28 +20,9 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Support/STLExtras.h"
-#include "mlir/Transforms/SideEffectsInterface.h"
 
 using namespace mlir;
 using namespace mlir::loop;
-
-//===----------------------------------------------------------------------===//
-// LoopOpsDialect Interfaces
-//===----------------------------------------------------------------------===//
-namespace {
-
-struct LoopSideEffectsInterface : public SideEffectsDialectInterface {
-  using SideEffectsDialectInterface::SideEffectsDialectInterface;
-
-  SideEffecting isSideEffecting(Operation *op) const override {
-    if (isa<IfOp>(op) || isa<ForOp>(op)) {
-      return Recursive;
-    }
-    return SideEffectsDialectInterface::isSideEffecting(op);
-  };
-};
-
-} // namespace
 
 //===----------------------------------------------------------------------===//
 // LoopOpsDialect
@@ -53,7 +34,6 @@ LoopOpsDialect::LoopOpsDialect(MLIRContext *context)
 #define GET_OP_LIST
 #include "mlir/Dialect/LoopOps/LoopOps.cpp.inc"
       >();
-  addInterfaces<LoopSideEffectsInterface>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -61,11 +41,16 @@ LoopOpsDialect::LoopOpsDialect(MLIRContext *context)
 //===----------------------------------------------------------------------===//
 
 void ForOp::build(Builder *builder, OperationState &result, Value lb, Value ub,
-                  Value step) {
+                  Value step, ValueRange iterArgs) {
   result.addOperands({lb, ub, step});
+  result.addOperands(iterArgs);
+  for (Value v : iterArgs)
+    result.addTypes(v.getType());
   Region *bodyRegion = result.addRegion();
   ForOp::ensureTerminator(*bodyRegion, *builder, result.location);
   bodyRegion->front().addArgument(builder->getIndexType());
+  for (Value v : iterArgs)
+    bodyRegion->front().addArgument(v.getType());
 }
 
 static LogicalResult verify(ForOp op) {
@@ -304,21 +289,23 @@ static void print(OpAsmPrinter &p, IfOp op) {
 //===----------------------------------------------------------------------===//
 
 void ParallelOp::build(Builder *builder, OperationState &result, ValueRange lbs,
-                       ValueRange ubs, ValueRange steps) {
+                       ValueRange ubs, ValueRange steps, ValueRange initVals) {
   result.addOperands(lbs);
   result.addOperands(ubs);
   result.addOperands(steps);
+  result.addOperands(initVals);
+  result.addAttribute(
+      ParallelOp::getOperandSegmentSizeAttr(),
+      builder->getI32VectorAttr({static_cast<int32_t>(lbs.size()),
+                                 static_cast<int32_t>(ubs.size()),
+                                 static_cast<int32_t>(steps.size()),
+                                 static_cast<int32_t>(initVals.size())}));
   Region *bodyRegion = result.addRegion();
   ParallelOp::ensureTerminator(*bodyRegion, *builder, result.location);
   for (size_t i = 0, e = steps.size(); i < e; ++i)
     bodyRegion->front().addArgument(builder->getIndexType());
-}
-
-void ParallelOp::build(Builder *builder, OperationState &result, ValueRange lbs,
-                       ValueRange ubs, ValueRange steps,
-                       ArrayRef<Type> resultTypes) {
-  result.addTypes(resultTypes);
-  build(builder, result, lbs, ubs, steps);
+  for (Value init : initVals)
+    result.addTypes(init.getType());
 }
 
 static LogicalResult verify(ParallelOp op) {
@@ -340,9 +327,10 @@ static LogicalResult verify(ParallelOp op) {
   // number of tuple elements in step.
   Block *body = op.getBody();
   if (body->getNumArguments() != stepValues.size())
-    return op.emitOpError(
-        "expects the same number of induction variables as bound and step "
-        "values");
+    return op.emitOpError()
+           << "expects the same number of induction variables: "
+           << body->getNumArguments()
+           << " as bound and step values: " << stepValues.size();
   for (auto arg : body->getArguments())
     if (!arg.getType().isIndex())
       return op.emitOpError(
@@ -350,9 +338,17 @@ static LogicalResult verify(ParallelOp op) {
 
   // Check that the number of results is the same as the number of ReduceOps.
   SmallVector<ReduceOp, 4> reductions(body->getOps<ReduceOp>());
-  if (op.results().size() != reductions.size())
-    return op.emitOpError(
-        "expects number of results to be the same as number of reductions");
+  auto resultsSize = op.results().size();
+  auto reductionsSize = reductions.size();
+  auto initValsSize = op.initVals().size();
+  if (resultsSize != reductionsSize)
+    return op.emitOpError()
+           << "expects number of results: " << resultsSize
+           << " to be the same as number of reductions: " << reductionsSize;
+  if (resultsSize != initValsSize)
+    return op.emitOpError()
+           << "expects number of results: " << resultsSize
+           << " to be the same as number of initial values: " << initValsSize;
 
   // Check that the types of the results and reductions are the same.
   for (auto resultAndReduce : llvm::zip(op.results(), reductions)) {
@@ -361,8 +357,8 @@ static LogicalResult verify(ParallelOp op) {
     auto reduceType = reduceOp.operand().getType();
     if (resultType != reduceType)
       return reduceOp.emitOpError()
-             << "expects type of reduce to be the same as result type: "
-             << resultType;
+             << "expects type of reduce: " << reduceType
+             << " to be the same as result type: " << resultType;
   }
   return success();
 }
@@ -391,12 +387,24 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
       parser.resolveOperands(upper, builder.getIndexType(), result.operands))
     return failure();
 
-  // Parse step value.
+  // Parse step values.
   SmallVector<OpAsmParser::OperandType, 4> steps;
   if (parser.parseKeyword("step") ||
       parser.parseOperandList(steps, ivs.size(),
                               OpAsmParser::Delimiter::Paren) ||
       parser.resolveOperands(steps, builder.getIndexType(), result.operands))
+    return failure();
+
+  // Parse init values.
+  SmallVector<OpAsmParser::OperandType, 4> initVals;
+  if (succeeded(parser.parseOptionalKeyword("init"))) {
+    if (parser.parseOperandList(initVals, /*requiredOperandCount=*/-1,
+                                OpAsmParser::Delimiter::Paren))
+      return failure();
+  }
+
+  // Parse optional results in case there is a reduce.
+  if (parser.parseOptionalArrowTypeList(result.types))
     return failure();
 
   // Now parse the body.
@@ -405,11 +413,21 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
   if (parser.parseRegion(*body, ivs, types))
     return failure();
 
-  // Parse attributes and optional results (in case there is a reduce).
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseOptionalColonTypeList(result.types))
+  // Set `operand_segment_sizes` attribute.
+  result.addAttribute(
+      ParallelOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({static_cast<int32_t>(lower.size()),
+                                static_cast<int32_t>(upper.size()),
+                                static_cast<int32_t>(steps.size()),
+                                static_cast<int32_t>(initVals.size())}));
+
+  // Parse attributes.
+  if (parser.parseOptionalAttrDict(result.attributes))
     return failure();
 
+  if (!initVals.empty())
+    parser.resolveOperands(initVals, result.types, parser.getNameLoc(),
+                           result.operands);
   // Add a terminator if none was parsed.
   ForOp::ensureTerminator(*body, builder, result.location);
 
@@ -420,10 +438,12 @@ static void print(OpAsmPrinter &p, ParallelOp op) {
   p << op.getOperationName() << " (" << op.getBody()->getArguments() << ") = ("
     << op.lowerBound() << ") to (" << op.upperBound() << ") step (" << op.step()
     << ")";
+  if (!op.initVals().empty())
+    p << " init (" << op.initVals() << ")";
+  p.printOptionalArrowTypeList(op.getResultTypes());
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
-  p.printOptionalAttrDict(op.getAttrs());
-  if (!op.results().empty())
-    p << " : " << op.getResultTypes();
+  p.printOptionalAttrDict(
+      op.getAttrs(), /*elidedAttrs=*/ParallelOp::getOperandSegmentSizeAttr());
 }
 
 ParallelOp mlir::loop::getParallelForInductionVarOwner(Value val) {
@@ -477,15 +497,15 @@ static ParseResult parseReduceOp(OpAsmParser &parser, OperationState &result) {
       parser.parseRParen())
     return failure();
 
+  Type resultType;
+  // Parse the type of the operand (and also what reduce computes on).
+  if (parser.parseColonType(resultType) ||
+      parser.resolveOperand(operand, resultType, result.operands))
+    return failure();
+
   // Now parse the body.
   Region *body = result.addRegion();
   if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
-    return failure();
-
-  // And the type of the operand (and also what reduce computes on).
-  Type resultType;
-  if (parser.parseColonType(resultType) ||
-      parser.resolveOperand(operand, resultType, result.operands))
     return failure();
 
   return success();
@@ -493,8 +513,8 @@ static ParseResult parseReduceOp(OpAsmParser &parser, OperationState &result) {
 
 static void print(OpAsmPrinter &p, ReduceOp op) {
   p << op.getOperationName() << "(" << op.operand() << ") ";
-  p.printRegion(op.reductionOperator());
   p << " : " << op.operand().getType();
+  p.printRegion(op.reductionOperator());
 }
 
 //===----------------------------------------------------------------------===//

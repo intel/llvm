@@ -66,7 +66,7 @@ public:
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                  const string_class &KernelName);
-  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel,
+  RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);

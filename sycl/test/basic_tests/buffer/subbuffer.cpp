@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
+// XFAIL: cuda,windows
 // TODO: cuda fail due to unimplemented param_name 4121 in cuda_piDeviceGetInfo
 
 //==---------- subbuffer.cpp --- sub-buffer basic test ---------------------==//

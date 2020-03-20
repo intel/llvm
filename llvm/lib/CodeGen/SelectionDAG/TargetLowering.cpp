@@ -894,8 +894,8 @@ bool TargetLowering::SimplifyDemandedBits(
       return false; // Don't fall through, will infinitely loop.
     } else if (ISD::isZEXTLoad(Op.getNode()) && Op.getResNo() == 0) {
       // If this is a ZEXTLoad and we are looking at the loaded value.
-      EVT VT = LD->getMemoryVT();
-      unsigned MemBits = VT.getScalarSizeInBits();
+      EVT MemVT = LD->getMemoryVT();
+      unsigned MemBits = MemVT.getScalarSizeInBits();
       Known.Zero.setBitsFrom(MemBits);
       return false; // Don't fall through, will infinitely loop.
     }
@@ -2310,7 +2310,8 @@ bool TargetLowering::SimplifyDemandedVectorElts(
           }
 
         KnownBits Known;
-        if (SimplifyDemandedBits(Src, SrcDemandedBits, Known, TLO, Depth + 1))
+        if (SimplifyDemandedBits(Src, SrcDemandedBits, SrcDemandedElts, Known,
+                                 TLO, Depth + 1))
           return true;
       }
 
@@ -3864,33 +3865,18 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
       // the comparison operands is infinity or negative infinity, convert the
       // condition to a less-awkward <= or >=.
       if (CFP->getValueAPF().isInfinity()) {
-        if (CFP->getValueAPF().isNegative()) {
-          if (Cond == ISD::SETOEQ &&
-              isCondCodeLegal(ISD::SETOLE, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETOLE);
-          if (Cond == ISD::SETUEQ &&
-              isCondCodeLegal(ISD::SETOLE, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETULE);
-          if (Cond == ISD::SETUNE &&
-              isCondCodeLegal(ISD::SETUGT, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETUGT);
-          if (Cond == ISD::SETONE &&
-              isCondCodeLegal(ISD::SETUGT, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETOGT);
-        } else {
-          if (Cond == ISD::SETOEQ &&
-              isCondCodeLegal(ISD::SETOGE, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETOGE);
-          if (Cond == ISD::SETUEQ &&
-              isCondCodeLegal(ISD::SETOGE, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETUGE);
-          if (Cond == ISD::SETUNE &&
-              isCondCodeLegal(ISD::SETULT, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETULT);
-          if (Cond == ISD::SETONE &&
-              isCondCodeLegal(ISD::SETULT, N0.getSimpleValueType()))
-            return DAG.getSetCC(dl, VT, N0, N1, ISD::SETOLT);
+        bool IsNegInf = CFP->getValueAPF().isNegative();
+        ISD::CondCode NewCond = ISD::SETCC_INVALID;
+        switch (Cond) {
+        case ISD::SETOEQ: NewCond = IsNegInf ? ISD::SETOLE : ISD::SETOGE; break;
+        case ISD::SETUEQ: NewCond = IsNegInf ? ISD::SETULE : ISD::SETUGE; break;
+        case ISD::SETUNE: NewCond = IsNegInf ? ISD::SETUGT : ISD::SETULT; break;
+        case ISD::SETONE: NewCond = IsNegInf ? ISD::SETOGT : ISD::SETOLT; break;
+        default: break;
         }
+        if (NewCond != ISD::SETCC_INVALID &&
+            isCondCodeLegal(NewCond, N0.getSimpleValueType()))
+          return DAG.getSetCC(dl, VT, N0, N1, NewCond);
       }
     }
   }
@@ -5567,9 +5553,20 @@ TargetLowering::getNegatibleCost(SDValue Op, SelectionDAG &DAG,
   EVT VT = Op.getValueType();
   const SDNodeFlags Flags = Op->getFlags();
   const TargetOptions &Options = DAG.getTarget().Options;
-  if (!Op.hasOneUse() && !(Op.getOpcode() == ISD::FP_EXTEND &&
-                           isFPExtFree(VT, Op.getOperand(0).getValueType())))
-    return NegatibleCost::Expensive;
+  if (!Op.hasOneUse()) {
+    bool IsFreeExtend = Op.getOpcode() == ISD::FP_EXTEND &&
+                        isFPExtFree(VT, Op.getOperand(0).getValueType());
+
+    // If we already have the use of the negated floating constant, it is free
+    // to negate it even it has multiple uses.
+    bool IsFreeConstant =
+        Op.getOpcode() == ISD::ConstantFP &&
+        !getNegatedExpression(Op, DAG, LegalOperations, ForCodeSize)
+             .use_empty();
+
+    if (!IsFreeExtend && !IsFreeConstant)
+      return NegatibleCost::Expensive;
+  }
 
   // Don't recurse exponentially.
   if (Depth > SelectionDAG::MaxRecursionDepth)
@@ -5775,14 +5772,7 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
                                         ForCodeSize, Depth + 1);
     NegatibleCost V1 = getNegatibleCost(Op.getOperand(1), DAG, LegalOperations,
                                         ForCodeSize, Depth + 1);
-    // TODO: This is a hack. It is possible that costs have changed between now
-    //       and the initial calls to getNegatibleCost(). That is because we
-    //       are rewriting the expression, and that may change the number of
-    //       uses (and therefore the cost) of values. If the negation costs are
-    //       equal, only negate this value if it is a constant. Otherwise, try
-    //       operand 1. A better fix would eliminate uses as a cost factor or
-    //       track the change in uses as we rewrite the expression.
-    if (V0 > V1 || (V0 == V1 && isa<ConstantFPSDNode>(Op.getOperand(0)))) {
+    if (V0 > V1) {
       // fold (fneg (fma X, Y, Z)) -> (fma (fneg X), Y, (fneg Z))
       SDValue Neg0 = getNegatedExpression(
           Op.getOperand(0), DAG, LegalOperations, ForCodeSize, Depth + 1);

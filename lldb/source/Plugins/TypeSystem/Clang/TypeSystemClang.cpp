@@ -84,12 +84,14 @@ using llvm::StringSwitch;
 LLDB_PLUGIN_DEFINE(TypeSystemClang)
 
 namespace {
-#ifdef LLDB_CONFIGURATION_DEBUG
 static void VerifyDecl(clang::Decl *decl) {
   assert(decl && "VerifyDecl called with nullptr?");
+#ifndef NDEBUG
+  // We don't care about the actual access value here but only want to trigger
+  // that Clang calls its internal Decl::AccessDeclContextSanity check.
   decl->getAccess();
-}
 #endif
+}
 
 static inline bool
 TypeSystemClangSupportsLanguage(lldb::LanguageType language) {
@@ -1410,14 +1412,9 @@ ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
       class_template_decl->setAccess(
           ConvertAccessTypeToAccessSpecifier(access_type));
 
-    // if (TagDecl *ctx_tag_decl = dyn_cast<TagDecl>(decl_ctx))
-    //    CompleteTagDeclarationDefinition(GetTypeForDecl(ctx_tag_decl));
-
     decl_ctx->addDecl(class_template_decl);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
     VerifyDecl(class_template_decl);
-#endif
   }
 
   return class_template_decl;
@@ -1687,9 +1684,7 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
       }
     }
   }
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(namespace_decl);
-#endif
   return namespace_decl;
 }
 
@@ -1892,9 +1887,7 @@ FunctionDecl *TypeSystemClang::CreateFunctionDeclaration(
   if (func_decl)
     decl_ctx->addDecl(func_decl);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(func_decl);
-#endif
 
   return func_decl;
 }
@@ -2043,15 +2036,12 @@ TypeSystemClang::CreateEnumerationType(const char *name, DeclContext *decl_ctx,
   // like maybe filling in the SourceLocation with it...
   ASTContext &ast = getASTContext();
 
-  // TODO: ask about these...
-  //    const bool IsFixed = false;
-
   EnumDecl *enum_decl = EnumDecl::Create(
       ast, decl_ctx, SourceLocation(), SourceLocation(),
       name && name[0] ? &ast.Idents.get(name) : nullptr, nullptr,
       is_scoped, // IsScoped
       is_scoped, // IsScopedUsingClassTag
-      false);    // IsFixed
+      false);    // TODO: IsFixed
 
   if (enum_decl) {
     if (decl_ctx)
@@ -2541,6 +2531,12 @@ ConvertAccessTypeToObjCIvarAccessControl(AccessType access) {
 }
 
 // Tests
+
+#ifndef NDEBUG
+bool TypeSystemClang::Verify(lldb::opaque_compiler_type_t type) {
+  return !type || llvm::isa<clang::Type>(GetQualType(type).getTypePtr());
+}
+#endif
 
 bool TypeSystemClang::IsAggregateType(lldb::opaque_compiler_type_t type) {
   clang::QualType qual_type(RemoveWrappingTypes(GetCanonicalQualType(type)));
@@ -4778,7 +4774,6 @@ lldb::Format TypeSystemClang::GetFormat(lldb::opaque_compiler_type_t type) {
 
   case clang::Type::Builtin:
     switch (llvm::cast<clang::BuiltinType>(qual_type)->getKind()) {
-    // default: assert(0 && "Unknown builtin type!");
     case clang::BuiltinType::UnknownAny:
     case clang::BuiltinType::Void:
     case clang::BuiltinType::BoundMember:
@@ -6190,11 +6185,6 @@ static uint32_t GetIndexForRecordBase(const clang::RecordDecl *record_decl,
   const clang::CXXRecordDecl *cxx_record_decl =
       llvm::dyn_cast<clang::CXXRecordDecl>(record_decl);
 
-  //    const char *super_name = record_decl->getNameAsCString();
-  //    const char *base_name =
-  //    base_spec->getType()->getAs<clang::RecordType>()->getDecl()->getNameAsCString();
-  //    printf ("GetIndexForRecordChild (%s, %s)\n", super_name, base_name);
-  //
   if (cxx_record_decl) {
     clang::CXXRecordDecl::base_class_const_iterator base_class, base_class_end;
     for (base_class = cxx_record_decl->bases_begin(),
@@ -6205,12 +6195,6 @@ static uint32_t GetIndexForRecordBase(const clang::RecordDecl *record_decl,
           continue;
       }
 
-      //            printf ("GetIndexForRecordChild (%s, %s) base[%u] = %s\n",
-      //            super_name, base_name,
-      //                    child_idx,
-      //                    base_class->getType()->getAs<clang::RecordType>()->getDecl()->getNameAsCString());
-      //
-      //
       if (base_class == base_spec)
         return child_idx;
       ++child_idx;
@@ -6316,9 +6300,6 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
         if (cxx_record_decl) {
           const clang::RecordDecl *parent_record_decl = cxx_record_decl;
 
-          // printf ("parent = %s\n", parent_record_decl->getNameAsCString());
-
-          // const Decl *root_cdecl = cxx_record_decl->getCanonicalDecl();
           // Didn't find things easily, lets let clang do its thang...
           clang::IdentifierInfo &ident_ref =
               getASTContext().Idents.get(name_sref);
@@ -6937,9 +6918,7 @@ clang::FieldDecl *TypeSystemClang::AddFieldToRecordType(
 
       record_decl->addDecl(field);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
       VerifyDecl(field);
-#endif
     }
   } else {
     clang::ObjCInterfaceDecl *class_interface_decl =
@@ -6962,9 +6941,7 @@ clang::FieldDecl *TypeSystemClang::AddFieldToRecordType(
       if (field) {
         class_interface_decl->addDecl(field);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
         VerifyDecl(field);
-#endif
       }
     }
   }
@@ -7128,9 +7105,7 @@ clang::VarDecl *TypeSystemClang::AddVariableToRecordType(
       TypeSystemClang::ConvertAccessTypeToAccessSpecifier(access));
   record_decl->addDecl(var_decl);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(var_decl);
-#endif
 
   return var_decl;
 }
@@ -7310,9 +7285,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
     }
   }
 
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(cxx_method_decl);
-#endif
 
   return cxx_method_decl;
 }
@@ -7608,7 +7581,6 @@ clang::ObjCMethodDecl *TypeSystemClang::AddMethodToObjCObjectType(
 
   size_t len = 0;
   const char *start;
-  // printf ("name = '%s'\n", name);
 
   unsigned num_selectors_with_args = 0;
   for (start = selector_start; start && *start != '\0' && *start != ']';
@@ -7704,9 +7676,7 @@ clang::ObjCMethodDecl *TypeSystemClang::AddMethodToObjCObjectType(
 
   class_interface_decl->addDecl(objc_method_decl);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(objc_method_decl);
-#endif
 
   return objc_method_decl;
 }
@@ -7904,10 +7874,7 @@ clang::EnumConstantDecl *TypeSystemClang::AddEnumerationValueToEnumerationType(
 
   enutype->getDecl()->addDecl(enumerator_decl);
 
-#ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(enumerator_decl);
-#endif
-
   return enumerator_decl;
 }
 
@@ -8882,11 +8849,15 @@ ConstString TypeSystemClang::DeclGetMangledName(void *opaque_decl) {
         llvm::SmallVector<char, 1024> buf;
         llvm::raw_svector_ostream llvm_ostrm(buf);
         if (llvm::isa<clang::CXXConstructorDecl>(nd)) {
-          mc->mangleCXXCtor(llvm::dyn_cast<clang::CXXConstructorDecl>(nd),
-                            Ctor_Complete, llvm_ostrm);
+          mc->mangleName(
+              clang::GlobalDecl(llvm::dyn_cast<clang::CXXConstructorDecl>(nd),
+                                Ctor_Complete),
+              llvm_ostrm);
         } else if (llvm::isa<clang::CXXDestructorDecl>(nd)) {
-          mc->mangleCXXDtor(llvm::dyn_cast<clang::CXXDestructorDecl>(nd),
-                            Dtor_Complete, llvm_ostrm);
+          mc->mangleName(
+              clang::GlobalDecl(llvm::dyn_cast<clang::CXXDestructorDecl>(nd),
+                                Dtor_Complete),
+              llvm_ostrm);
         } else {
           mc->mangleName(nd, llvm_ostrm);
         }

@@ -22,6 +22,7 @@
 #include "Symbols.h"
 #include "Target.h"
 #include "Writer.h"
+#include "lld/Common/DWARF.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
@@ -2686,15 +2687,11 @@ readAddressAreas(DWARFContext &dwarf, InputSection *sec) {
     for (DWARFAddressRange &r : *ranges) {
       if (r.SectionIndex == -1ULL)
         continue;
-      InputSectionBase *s = sections[r.SectionIndex];
-      if (!s || s == &InputSection::discarded || !s->isLive())
-        continue;
       // Range list with zero size has no effect.
-      if (r.LowPC == r.HighPC)
-        continue;
-      auto *isec = cast<InputSection>(s);
-      uint64_t offset = isec->getOffsetInFile();
-      ret.push_back({isec, r.LowPC - offset, r.HighPC - offset, cuIdx});
+      InputSectionBase *s = sections[r.SectionIndex];
+      if (s && s != &InputSection::discarded && s->isLive())
+        if (r.LowPC != r.HighPC)
+          ret.push_back({cast<InputSection>(s), r.LowPC, r.HighPC, cuIdx});
     }
     ++cuIdx;
   }
@@ -2825,6 +2822,8 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
   std::vector<std::vector<NameAttrEntry>> nameAttrs(sections.size());
 
   parallelForEachN(0, sections.size(), [&](size_t i) {
+    // To keep memory usage low, we don't want to keep cached DWARFContext, so
+    // avoid getDwarf() here.
     ObjFile<ELFT> *file = sections[i]->getFile<ELFT>();
     DWARFContext dwarf(std::make_unique<LLDDwarfObj<ELFT>>(file));
 

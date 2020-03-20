@@ -29,7 +29,13 @@ uint32_t GsymCreator::insertFile(StringRef Path,
                                  llvm::sys::path::Style Style) {
   llvm::StringRef directory = llvm::sys::path::parent_path(Path, Style);
   llvm::StringRef filename = llvm::sys::path::filename(Path, Style);
-  FileEntry FE(insertString(directory), insertString(filename));
+  // We must insert the strings first, then call the FileEntry constructor.
+  // If we inline the insertString() function call into the constructor, the
+  // call order is undefined due to parameter lists not having any ordering
+  // requirements.
+  const uint32_t Dir = insertString(directory);
+  const uint32_t Base = insertString(filename);
+  FileEntry FE(Dir, Base);
 
   std::lock_guard<std::recursive_mutex> Guard(Mutex);
   const auto NextIndex = Files.size();
@@ -74,7 +80,7 @@ llvm::Error GsymCreator::encode(FileWriter &O) const {
   Hdr.BaseAddress = MinAddr;
   Hdr.NumAddresses = static_cast<uint32_t>(Funcs.size());
   Hdr.StrtabOffset = 0; // We will fix this up later.
-  Hdr.StrtabOffset = 0; // We will fix this up later.
+  Hdr.StrtabSize = 0; // We will fix this up later.
   memset(Hdr.UUID, 0, sizeof(Hdr.UUID));
   if (UUID.size() > sizeof(Hdr.UUID))
     return createStringError(std::errc::invalid_argument,

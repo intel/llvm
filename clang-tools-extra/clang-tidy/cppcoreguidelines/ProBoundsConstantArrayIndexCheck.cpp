@@ -32,18 +32,12 @@ void ProBoundsConstantArrayIndexCheck::storeOptions(
 
 void ProBoundsConstantArrayIndexCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
                                                        IncludeStyle);
   PP->addPPCallbacks(Inserter->CreatePPCallbacks());
 }
 
 void ProBoundsConstantArrayIndexCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // Note: if a struct contains an array member, the compiler-generated
   // constructor has an arraySubscriptExpr.
   Finder->addMatcher(
@@ -92,13 +86,10 @@ void ProBoundsConstantArrayIndexCheck::check(
                   SourceRange(BaseRange.getEnd().getLocWithOffset(1),
                               IndexRange.getBegin().getLocWithOffset(-1)),
                   ", ")
-           << FixItHint::CreateReplacement(Matched->getEndLoc(), ")");
-
-      Optional<FixItHint> Insertion = Inserter->CreateIncludeInsertion(
-          Result.SourceManager->getMainFileID(), GslHeader,
-          /*IsAngled=*/false);
-      if (Insertion)
-        Diag << Insertion.getValue();
+           << FixItHint::CreateReplacement(Matched->getEndLoc(), ")")
+           << Inserter->CreateIncludeInsertion(
+                  Result.SourceManager->getMainFileID(), GslHeader,
+                  /*IsAngled=*/false);
     }
     return;
   }

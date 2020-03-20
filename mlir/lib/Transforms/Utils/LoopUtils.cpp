@@ -121,20 +121,20 @@ LogicalResult mlir::promoteIfSingleIteration(AffineForOp forOp) {
   Operation *op = forOp.getOperation();
   if (!iv.use_empty()) {
     if (forOp.hasConstantLowerBound()) {
-      OpBuilder topBuilder(op->getParentOfType<FuncOp>().getBody());
+      OpBuilder topBuilder(forOp.getParentOfType<FuncOp>().getBody());
       auto constOp = topBuilder.create<ConstantIndexOp>(
           forOp.getLoc(), forOp.getConstantLowerBound());
       iv.replaceAllUsesWith(constOp);
     } else {
-      AffineBound lb = forOp.getLowerBound();
-      SmallVector<Value, 4> lbOperands(lb.operand_begin(), lb.operand_end());
+      auto lbOperands = forOp.getLowerBoundOperands();
+      auto lbMap = forOp.getLowerBoundMap();
       OpBuilder builder(op->getBlock(), Block::iterator(op));
-      if (lb.getMap() == builder.getDimIdentityMap()) {
+      if (lbMap == builder.getDimIdentityMap()) {
         // No need of generating an affine.apply.
         iv.replaceAllUsesWith(lbOperands[0]);
       } else {
-        auto affineApplyOp = builder.create<AffineApplyOp>(
-            op->getLoc(), lb.getMap(), lbOperands);
+        auto affineApplyOp =
+            builder.create<AffineApplyOp>(forOp.getLoc(), lbMap, lbOperands);
         iv.replaceAllUsesWith(affineApplyOp);
       }
     }
@@ -168,8 +168,8 @@ generateLoop(AffineMap lbMap, AffineMap ubMap,
              const std::vector<std::pair<uint64_t, ArrayRef<Operation *>>>
                  &instGroupQueue,
              unsigned offset, AffineForOp srcForInst, OpBuilder b) {
-  SmallVector<Value, 4> lbOperands(srcForInst.getLowerBoundOperands());
-  SmallVector<Value, 4> ubOperands(srcForInst.getUpperBoundOperands());
+  auto lbOperands = srcForInst.getLowerBoundOperands();
+  auto ubOperands = srcForInst.getUpperBoundOperands();
 
   assert(lbMap.getNumInputs() == lbOperands.size());
   assert(ubMap.getNumInputs() == ubOperands.size());
@@ -393,8 +393,8 @@ LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
   return failure();
 }
 
-/// Unrolls and jams this loop by the specified factor or by the trip count (if
-/// constant) whichever is lower.
+/// Unrolls this loop by the specified factor or by the trip count (if constant)
+/// whichever is lower.
 LogicalResult mlir::loopUnrollUpToFactor(AffineForOp forOp,
                                          uint64_t unrollFactor) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
@@ -868,7 +868,7 @@ static LogicalResult hoistOpsBetween(loop::ForOp outer, loop::ForOp inner) {
   });
   LogicalResult status = success();
   SmallVector<Operation *, 8> toHoist;
-  for (auto &op : outer.getBody()->getOperations()) {
+  for (auto &op : outer.getBody()->without_terminator()) {
     // Stop when encountering the inner loop.
     if (&op == inner.getOperation())
       break;
@@ -887,7 +887,7 @@ static LogicalResult hoistOpsBetween(loop::ForOp outer, loop::ForOp inner) {
     }
     // Skip if op has side effects.
     // TODO(ntv): loads to immutable memory regions are ok.
-    if (!op.hasNoSideEffect()) {
+    if (!MemoryEffectOpInterface::hasNoEffect(&op)) {
       status = failure();
       continue;
     }
@@ -1411,22 +1411,24 @@ static LogicalResult generateCopy(
   auto numElementsSSA =
       top.create<ConstantIndexOp>(loc, numElements.getValue());
 
-  SmallVector<StrideInfo, 4> strideInfos;
-  getMultiLevelStrides(region, fastBufferShape, &strideInfos);
+  Value dmaStride = nullptr;
+  Value numEltPerDmaStride = nullptr;
+  if (copyOptions.generateDma) {
+    SmallVector<StrideInfo, 4> dmaStrideInfos;
+    getMultiLevelStrides(region, fastBufferShape, &dmaStrideInfos);
 
-  // TODO(bondhugula): use all stride levels once DmaStartOp is extended for
-  // multi-level strides.
-  if (strideInfos.size() > 1) {
-    LLVM_DEBUG(llvm::dbgs() << "Only up to one level of stride supported\n");
-    return failure();
-  }
+    // TODO(bondhugula): use all stride levels once DmaStartOp is extended for
+    // multi-level strides.
+    if (dmaStrideInfos.size() > 1) {
+      LLVM_DEBUG(llvm::dbgs() << "Only up to one level of stride supported\n");
+      return failure();
+    }
 
-  Value stride = nullptr;
-  Value numEltPerStride = nullptr;
-  if (!strideInfos.empty()) {
-    stride = top.create<ConstantIndexOp>(loc, strideInfos[0].stride);
-    numEltPerStride =
-        top.create<ConstantIndexOp>(loc, strideInfos[0].numEltPerStride);
+    if (!dmaStrideInfos.empty()) {
+      dmaStride = top.create<ConstantIndexOp>(loc, dmaStrideInfos[0].stride);
+      numEltPerDmaStride =
+          top.create<ConstantIndexOp>(loc, dmaStrideInfos[0].numEltPerStride);
+    }
   }
 
   // Record the last operation where we want the memref replacement to end. We
@@ -1469,13 +1471,13 @@ static LogicalResult generateCopy(
       b.create<AffineDmaStartOp>(loc, memref, memAffineMap, memIndices,
                                  fastMemRef, bufAffineMap, bufIndices,
                                  tagMemRef, tagAffineMap, tagIndices,
-                                 numElementsSSA, stride, numEltPerStride);
+                                 numElementsSSA, dmaStride, numEltPerDmaStride);
     } else {
       // DMA non-blocking write from fast buffer to the original memref.
       auto op = b.create<AffineDmaStartOp>(
           loc, fastMemRef, bufAffineMap, bufIndices, memref, memAffineMap,
           memIndices, tagMemRef, tagAffineMap, tagIndices, numElementsSSA,
-          stride, numEltPerStride);
+          dmaStride, numEltPerDmaStride);
       // Since new ops may be appended at 'end' (for outgoing DMAs), adjust the
       // end to mark end of block range being processed.
       if (isCopyOutAtEndOfBlock)
@@ -1782,6 +1784,39 @@ uint64_t mlir::affineDataCopyGenerate(Block::iterator begin,
   }
 
   return totalCopyBuffersSizeInBytes;
+}
+
+// A convenience version of affineDataCopyGenerate for all ops in the body of
+// an AffineForOp.
+uint64_t mlir::affineDataCopyGenerate(AffineForOp forOp,
+                                      const AffineCopyOptions &copyOptions,
+                                      Optional<Value> filterMemRef,
+                                      DenseSet<Operation *> &copyNests) {
+  return affineDataCopyGenerate(forOp.getBody()->begin(),
+                                std::prev(forOp.getBody()->end()), copyOptions,
+                                filterMemRef, copyNests);
+}
+
+LogicalResult mlir::generateCopyForMemRegion(
+    const MemRefRegion &memrefRegion, Operation *analyzedOp,
+    const AffineCopyOptions &copyOptions, CopyGenerateResult &result) {
+  Block *block = analyzedOp->getBlock();
+  auto begin = analyzedOp->getIterator();
+  auto end = std::next(begin);
+  DenseMap<Value, Value> fastBufferMap;
+  DenseSet<Operation *> copyNests;
+
+  auto err = generateCopy(memrefRegion, block, begin, end, block, begin, end,
+                          copyOptions, fastBufferMap, copyNests,
+                          &result.sizeInBytes, &begin, &end);
+  if (failed(err))
+    return err;
+
+  result.alloc =
+      fastBufferMap.find(memrefRegion.memref)->second.getDefiningOp();
+  assert(copyNests.size() <= 1 && "At most one copy nest is expected.");
+  result.copyNest = copyNests.empty() ? nullptr : *copyNests.begin();
+  return success();
 }
 
 /// Gathers all AffineForOps in 'block' at 'currLoopDepth' in 'depthToLoops'.

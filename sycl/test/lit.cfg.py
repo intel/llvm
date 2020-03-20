@@ -100,24 +100,26 @@ def getDeviceCount(device_type):
         stdout=subprocess.PIPE)
     (output, err) = process.communicate()
     exit_code = process.wait()
-    if exit_code == 0:
-        result = output.decode().replace('\n', '').split(':', 1)
-        try:
-            value = int(result[0])
-        except ValueError:
-            value = 0
-            print("getDeviceCount {TYPE}:Cannot get value from output.".format(
-                TYPE=device_type))
-        if len(result) > 1 and len(result[1]):
-            print("getDeviceCount {TYPE}:{MSG}".format(
-                TYPE=device_type, MSG=result[1]))
-            if re.match(r".*cuda", result[1]):
-                is_cuda = True;
-        if err:
-            print("getDeviceCount {TYPE}:{ERR}".format(
-                TYPE=device_type, ERR=err))
-        return [value,is_cuda]
-    return 0
+    if exit_code != 0:
+        print("getDeviceCount {TYPE}:Non-zero exit code {CODE}".format(
+            TYPE=device_type, CODE=exit_code))
+        return [0,False]
+    result = output.decode().replace('\n', '').split(':', 1)
+    try:
+        value = int(result[0])
+    except ValueError:
+        value = 0
+        print("getDeviceCount {TYPE}:Cannot get value from output.".format(
+            TYPE=device_type))
+    if len(result) > 1 and len(result[1]):
+        print("getDeviceCount {TYPE}:{MSG}".format(
+            TYPE=device_type, MSG=result[1]))
+        if re.match(r".*cuda", result[1]):
+            is_cuda = True;
+    if err:
+        print("getDeviceCount {TYPE}:{ERR}".format(
+            TYPE=device_type, ERR=err))
+    return [value,is_cuda]
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')

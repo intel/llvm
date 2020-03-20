@@ -405,6 +405,7 @@ enum Decoration {
     DecorationSimpleDualPortINTEL = 5833,
     DecorationMergeINTEL = 5834,
     DecorationBankBitsINTEL = 5835,
+    DecorationIOPipeStorageINTEL = 5944,
     DecorationMax = 0x7fffffff,
 };
 
@@ -690,6 +691,7 @@ enum Capability {
   CapabilityFPGARegINTEL = 5948,
   CapabilityKernelAttributesINTEL= 5892,
   CapabilityFPGAKernelAttributesINTEL= 5897,
+  CapabilityIOPipeINTEL = 5943,
   CapabilityMax = 0x7fffffff,
 };
 

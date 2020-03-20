@@ -145,6 +145,7 @@ private:
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
+  mutable std::unique_ptr<Tool> PartialLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
 
   Tool *getClang() const;
@@ -158,6 +159,7 @@ private:
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
+  Tool *getPartialLink() const;
   Tool *getBackendCompiler() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;
@@ -634,8 +636,7 @@ public:
       const llvm::opt::ArgList &DriverArgs,
       Action::OffloadKind DeviceOffloadKind,
       const llvm::fltSemantics *FPType = nullptr) const {
-    // FIXME: This should be IEEE when default handling is fixed.
-    return llvm::DenormalMode::getInvalid();
+    return llvm::DenormalMode::getIEEE();
   }
 };
 

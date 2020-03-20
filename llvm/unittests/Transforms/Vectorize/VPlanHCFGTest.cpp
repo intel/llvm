@@ -50,6 +50,7 @@ TEST_F(VPlanHCFGTest, testBuildHCFGInnerLoop) {
   EXPECT_EQ(7u, VecBB->size());
   EXPECT_EQ(2u, VecBB->getNumPredecessors());
   EXPECT_EQ(2u, VecBB->getNumSuccessors());
+  EXPECT_EQ(&*Plan, VecBB->getPlan());
 
   auto Iter = VecBB->begin();
   VPInstruction *Phi = dyn_cast<VPInstruction>(&*Iter++);
@@ -90,7 +91,7 @@ TEST_F(VPlanHCFGTest, testBuildHCFGInnerLoop) {
   LoopVectorizationLegality::InductionList Inductions;
   SmallPtrSet<Instruction *, 1> DeadInstructions;
   VPlanTransforms::VPInstructionsToVPRecipes(LI->getLoopFor(LoopHeader), Plan,
-                                             &Inductions, DeadInstructions);
+                                             Inductions, DeadInstructions);
 }
 
 TEST_F(VPlanHCFGTest, testVPInstructionToVPRecipesInner) {
@@ -120,7 +121,7 @@ TEST_F(VPlanHCFGTest, testVPInstructionToVPRecipesInner) {
   LoopVectorizationLegality::InductionList Inductions;
   SmallPtrSet<Instruction *, 1> DeadInstructions;
   VPlanTransforms::VPInstructionsToVPRecipes(LI->getLoopFor(LoopHeader), Plan,
-                                             &Inductions, DeadInstructions);
+                                             Inductions, DeadInstructions);
 
   VPBlockBase *Entry = Plan->getEntry()->getEntryBasicBlock();
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());

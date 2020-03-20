@@ -707,9 +707,8 @@ static Constant *stripAndComputeConstantOffsets(const DataLayout &DL, Value *&V,
   Offset = Offset.sextOrTrunc(IntIdxTy->getIntegerBitWidth());
 
   Constant *OffsetIntPtr = ConstantInt::get(IntIdxTy, Offset);
-  if (V->getType()->isVectorTy())
-    return ConstantVector::getSplat(V->getType()->getVectorNumElements(),
-                                    OffsetIntPtr);
+  if (VectorType *VecTy = dyn_cast<VectorType>(V->getType()))
+    return ConstantVector::getSplat(VecTy->getElementCount(), OffsetIntPtr);
   return OffsetIntPtr;
 }
 
@@ -3481,7 +3480,8 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
         SmallVector<Value *, 4> IndicesRHS(GRHS->idx_begin(), GRHS->idx_end());
         Constant *NewRHS = ConstantExpr::getGetElementPtr(
             GLHS->getSourceElementType(), Null, IndicesRHS);
-        return ConstantExpr::getICmp(Pred, NewLHS, NewRHS);
+        Constant *NewICmp = ConstantExpr::getICmp(Pred, NewLHS, NewRHS);
+        return ConstantFoldConstant(NewICmp, Q.DL);
       }
     }
   }
@@ -3616,9 +3616,9 @@ static Value *SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
     // Check comparison of [minnum/maxnum with constant] with other constant.
     const APFloat *C2;
     if ((match(LHS, m_Intrinsic<Intrinsic::minnum>(m_Value(), m_APFloat(C2))) &&
-         C2->compare(*C) == APFloat::cmpLessThan) ||
+         *C2 < *C) ||
         (match(LHS, m_Intrinsic<Intrinsic::maxnum>(m_Value(), m_APFloat(C2))) &&
-         C2->compare(*C) == APFloat::cmpGreaterThan)) {
+         *C2 > *C)) {
       bool IsMaxNum =
           cast<IntrinsicInst>(LHS)->getIntrinsicID() == Intrinsic::maxnum;
       // The ordered relationship and minnum/maxnum guarantee that we do not
@@ -4167,9 +4167,7 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
 
   auto *CE = ConstantExpr::getGetElementPtr(SrcTy, cast<Constant>(Ops[0]),
                                             Ops.slice(1));
-  if (auto *CEFolded = ConstantFoldConstant(CE, Q.DL))
-    return CEFolded;
-  return CE;
+  return ConstantFoldConstant(CE, Q.DL);
 }
 
 Value *llvm::SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
@@ -4221,10 +4219,10 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   if (VecC && ValC && IdxC)
     return ConstantFoldInsertElementInstruction(VecC, ValC, IdxC);
 
-  // Fold into undef if index is out of bounds.
+  // For fixed-length vector, fold into undef if index is out of bounds.
   if (auto *CI = dyn_cast<ConstantInt>(Idx)) {
-    uint64_t NumElements = cast<VectorType>(Vec->getType())->getNumElements();
-    if (CI->uge(NumElements))
+    if (!Vec->getType()->getVectorIsScalable() &&
+        CI->uge(Vec->getType()->getVectorNumElements()))
       return UndefValue::get(Vec->getType());
   }
 
@@ -4295,8 +4293,9 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx, const SimplifyQ
   // If extracting a specified index from the vector, see if we can recursively
   // find a previously computed scalar that was inserted into the vector.
   if (auto *IdxC = dyn_cast<ConstantInt>(Idx)) {
-    if (IdxC->getValue().uge(Vec->getType()->getVectorNumElements()))
-      // definitely out of bounds, thus undefined result
+    // For fixed-length vector, fold into undef if index is out of bounds.
+    if (!Vec->getType()->getVectorIsScalable() &&
+        IdxC->getValue().uge(Vec->getType()->getVectorNumElements()))
       return UndefValue::get(Vec->getType()->getVectorElementType());
     if (Value *Elt = findScalarElement(Vec, IdxC->getZExtValue()))
       return Elt;
@@ -4603,14 +4602,24 @@ static Constant *propagateNaN(Constant *In) {
 /// Perform folds that are common to any floating-point operation. This implies
 /// transforms based on undef/NaN because the operation itself makes no
 /// difference to the result.
-static Constant *simplifyFPOp(ArrayRef<Value *> Ops) {
-  if (any_of(Ops, [](Value *V) { return isa<UndefValue>(V); }))
-    return ConstantFP::getNaN(Ops[0]->getType());
+static Constant *simplifyFPOp(ArrayRef<Value *> Ops,
+                              FastMathFlags FMF = FastMathFlags()) {
+  for (Value *V : Ops) {
+    bool IsNan = match(V, m_NaN());
+    bool IsInf = match(V, m_Inf());
+    bool IsUndef = match(V, m_Undef());
 
-  for (Value *V : Ops)
-    if (match(V, m_NaN()))
+    // If this operation has 'nnan' or 'ninf' and at least 1 disallowed operand
+    // (an undef operand can be chosen to be Nan/Inf), then the result of
+    // this operation is poison. That result can be relaxed to undef.
+    if (FMF.noNaNs() && (IsNan || IsUndef))
+      return UndefValue::get(V->getType());
+    if (FMF.noInfs() && (IsInf || IsUndef))
+      return UndefValue::get(V->getType());
+
+    if (IsUndef || IsNan)
       return propagateNaN(cast<Constant>(V));
-
+  }
   return nullptr;
 }
 
@@ -4621,7 +4630,7 @@ static Value *SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = foldOrCommuteConstant(Instruction::FAdd, Op0, Op1, Q))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}))
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF))
     return C;
 
   // fadd X, -0 ==> X
@@ -4668,7 +4677,7 @@ static Value *SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = foldOrCommuteConstant(Instruction::FSub, Op0, Op1, Q))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}))
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF))
     return C;
 
   // fsub X, +0 ==> X
@@ -4710,7 +4719,7 @@ static Value *SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
 
 static Value *SimplifyFMAFMul(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const SimplifyQuery &Q, unsigned MaxRecurse) {
-  if (Constant *C = simplifyFPOp({Op0, Op1}))
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF))
     return C;
 
   // fmul X, 1.0 ==> X
@@ -4777,7 +4786,7 @@ static Value *SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = foldOrCommuteConstant(Instruction::FDiv, Op0, Op1, Q))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}))
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF))
     return C;
 
   // X / 1.0 -> X
@@ -4822,7 +4831,7 @@ static Value *SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = foldOrCommuteConstant(Instruction::FRem, Op0, Op1, Q))
     return C;
 
-  if (Constant *C = simplifyFPOp({Op0, Op1}))
+  if (Constant *C = simplifyFPOp({Op0, Op1}, FMF))
     return C;
 
   // Unlike fdiv, the result of frem always matches the sign of the dividend.
@@ -5331,6 +5340,11 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
 Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
   Value *Callee = Call->getCalledValue();
 
+  // musttail calls can only be simplified if they are also DCEd.
+  // As we can't guarantee this here, don't simplify them.
+  if (Call->isMustTailCall())
+    return nullptr;
+
   // call undef -> undef
   // call null -> undef
   if (isa<UndefValue>(Callee) || isa<ConstantPointerNull>(Callee))
@@ -5343,6 +5357,9 @@ Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
   if (F->isIntrinsic())
     if (Value *Ret = simplifyIntrinsic(Call, Q))
       return Ret;
+
+  if (Value *ReturnedArg = Call->getReturnedArgOperand())
+    return ReturnedArg;
 
   if (!canConstantFoldCallTo(Call, F))
     return nullptr;
@@ -5361,16 +5378,16 @@ Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
 }
 
 /// Given operands for a Freeze, see if we can fold the result.
-static Value *SimplifyFreezeInst(Value *Op0) {
+static Value *SimplifyFreezeInst(Value *Op0, const SimplifyQuery &Q) {
   // Use a utility function defined in ValueTracking.
-  if (llvm::isGuaranteedNotToBeUndefOrPoison(Op0))
+  if (llvm::isGuaranteedNotToBeUndefOrPoison(Op0, Q.CxtI, Q.DT))
     return Op0;
   // We have room for improvement.
   return nullptr;
 }
 
 Value *llvm::SimplifyFreezeInst(Value *Op0, const SimplifyQuery &Q) {
-  return ::SimplifyFreezeInst(Op0);
+  return ::SimplifyFreezeInst(Op0, Q);
 }
 
 /// See if we can compute a simplified version of this instruction.
@@ -5513,6 +5530,9 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
     break;
   case Instruction::Call: {
     Result = SimplifyCall(cast<CallInst>(I), Q);
+    // Don't perform known bits simplification below for musttail calls.
+    if (cast<CallInst>(I)->isMustTailCall())
+      return Result;
     break;
   }
   case Instruction::Freeze:

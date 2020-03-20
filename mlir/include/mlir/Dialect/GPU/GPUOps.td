@@ -13,8 +13,8 @@
 #ifndef GPU_OPS
 #define GPU_OPS
 
-include "mlir/IR/OpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 // Type constraint accepting standard integers, indices and wrapped LLVM integer
 // types.
@@ -28,6 +28,39 @@ def IntLikeOrLLVMInt : TypeConstraint<
 
 def GPU_Dialect : Dialect {
   let name = "gpu";
+  let extraClassDeclaration = [{
+    /// Get the name of the attribute used to annotate the modules that contain
+    /// kernel modules.
+    static StringRef getContainerModuleAttrName() {
+      return "gpu.container_module";
+    }
+    /// Get the name of the attribute used to annotate external kernel
+    /// functions.
+    static StringRef getKernelFuncAttrName() { return "gpu.kernel"; }
+
+    /// Get the name of the attribute used to annotate kernel modules.
+    static StringRef getKernelModuleAttrName() { return "gpu.kernel_module"; }
+
+    /// Returns whether the given function is a kernel function, i.e., has the
+    /// 'gpu.kernel' attribute.
+    static bool isKernel(Operation *op);
+
+    /// Returns the number of workgroup (thread, block) dimensions supported in
+    /// the GPU dialect.
+    // TODO(zinenko,herhut): consider generalizing this.
+    static unsigned getNumWorkgroupDimensions() { return 3; }
+
+    /// Returns the numeric value used to identify the workgroup memory address
+    /// space.
+    static unsigned getWorkgroupAddressSpace() { return 3; }
+
+    /// Returns the numeric value used to identify the private memory address
+    /// space.
+    static unsigned getPrivateAddressSpace() { return 5; }
+
+    LogicalResult verifyOperationAttribute(Operation *op,
+                                           NamedAttribute attr) override;
+  }];
 }
 
 class GPU_Op<string mnemonic, list<OpTrait> traits = []> :
@@ -439,7 +472,8 @@ def GPU_LaunchOp : GPU_Op<"launch">,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, Terminator]>,
+def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
+                                     Terminator]>,
     Arguments<(ins Variadic<AnyType>:$operands)>, Results<(outs)> {
   let summary = "Terminator for GPU functions.";
   let description = [{
@@ -455,7 +489,8 @@ def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, Terminator]>,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">, Terminator]>,
+def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
+                                             NoSideEffect, Terminator]>,
     Arguments<(ins)>, Results<(outs)> {
   let summary = "Terminator for GPU launch regions.";
   let description = [{
@@ -468,7 +503,7 @@ def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">, Terminator]>
   let printer = [{ p << getOperationName(); }];
 }
 
-def GPU_YieldOp : GPU_Op<"yield", [Terminator]>,
+def GPU_YieldOp : GPU_Op<"yield", [NoSideEffect, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "GPU yield operation";
   let description = [{
@@ -482,15 +517,25 @@ def GPU_YieldOp : GPU_Op<"yield", [Terminator]>,
   }];
 }
 
-// These mirror the XLA ComparisonDirection enum.
+// add, mul mirror the XLA ComparisonDirection enum.
 def GPU_AllReduceOpAdd : StrEnumAttrCase<"add">;
+def GPU_AllReduceOpAnd : StrEnumAttrCase<"and">;
+def GPU_AllReduceOpMax : StrEnumAttrCase<"max">;
+def GPU_AllReduceOpMin : StrEnumAttrCase<"min">;
 def GPU_AllReduceOpMul : StrEnumAttrCase<"mul">;
+def GPU_AllReduceOpOr : StrEnumAttrCase<"or">;
+def GPU_AllReduceOpXor : StrEnumAttrCase<"xor">;
 
 def GPU_AllReduceOperationAttr : StrEnumAttr<"AllReduceOperationAttr",
     "built-in reduction operations supported by gpu.allreduce.",
     [
       GPU_AllReduceOpAdd,
+      GPU_AllReduceOpAnd,
+      GPU_AllReduceOpMax,
+      GPU_AllReduceOpMin,
       GPU_AllReduceOpMul,
+      GPU_AllReduceOpOr,
+      GPU_AllReduceOpXor
     ]>;
 
 def GPU_AllReduceOp : GPU_Op<"all_reduce",
@@ -514,8 +559,8 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
     ```
     compute the sum of each work item's %0 value. The first version specifies
     the accumulation as operation, whereas the second version specifies the
-    accumulation as code region. The accumulation operation must either be
-    `add` or `mul`.
+    accumulation as code region. The accumulation operation must be one of:
+    `add`, `and`, `max`, `min`, `mul`, `or`, `xor`.
 
     Either none or all work items of a workgroup need to execute this op
     in convergence.

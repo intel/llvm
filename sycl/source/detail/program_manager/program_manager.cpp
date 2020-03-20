@@ -433,7 +433,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
 }
 
 RT::PiProgram
-ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel,
+ProgramManager::getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context) {
   RT::PiProgram Program;
   const detail::plugin &Plugin = Context->getPlugin();

@@ -156,6 +156,8 @@ public:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
     case DecorationReferencedIndirectlyINTEL:
       return getSet(ExtensionID::SPV_INTEL_function_pointers);
+    case DecorationIOPipeStorageINTEL:
+      return getSet(ExtensionID::SPV_INTEL_io_pipes);
     default:
       return SPIRVExtSet();
     }
@@ -251,6 +253,8 @@ public:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+    case DecorationIOPipeStorageINTEL:
+      return getSet(ExtensionID::SPV_INTEL_io_pipes);
     default:
       return SPIRVExtSet();
     }
