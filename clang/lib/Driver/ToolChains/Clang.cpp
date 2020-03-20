@@ -4117,14 +4117,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
-  if ((Args.hasArg(options::OPT_fsycl_device_only) ||
-       Args.hasArg(options::OPT_fsycl) || IsSYCL) && !SYCLStdArg) {
-    // The user had not pass SYCL version, thus we'll employ no-sycl-strict
-    // to allow address-space unqualified pointers in function params/return
-    // along with marking the same function with explicit SYCL_EXTERNAL
-    CmdArgs.push_back("-Wno-sycl-strict");
-  }
-
     if (IsSYCL) {
     if (SYCLStdArg) {
       SYCLStdArg->render(Args, CmdArgs);
@@ -4134,6 +4126,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-std=2017");
     }
     }
+
+  if ((Args.hasArg(options::OPT_fsycl_device_only) ||
+       Args.hasArg(options::OPT_fsycl) || IsSYCL) && !SYCLStdArg) {
+    // The user had not pass SYCL version, thus we'll employ no-sycl-strict
+    // to allow address-space unqualified pointers in function params/return
+    // along with marking the same function with explicit SYCL_EXTERNAL
+    CmdArgs.push_back("-Wno-sycl-strict");
+  }
 
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
