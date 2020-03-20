@@ -680,6 +680,11 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   return {};
 }
 
+pi_result cuda_piextDeviceConvert(pi_device *device, void **handle) {
+  cl::sycl::detail::pi::die("cuda_piextDeviceConvert not implemented");
+  return {};
+}
+
 pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
                             pi_uint32 num_entries, pi_device *devices,
                             pi_uint32 *num_devices) {
@@ -2138,6 +2143,15 @@ pi_result cuda_piMemRetain(pi_mem mem) {
 //
 // Program
 //
+pi_result cuda_piextProgramConvert(
+    pi_context context,  ///< [in] the PI context of the program
+    pi_program *program, ///< [in,out] the pointer to PI program
+    void **handle)       ///< [in,out] the pointer to the raw program handle
+{
+  cl::sycl::detail::pi::die("cuda_piextProgramConvert not implemented");
+  return {};
+}
+
 pi_result cuda_piProgramCreate(pi_context context, const void *il,
                                size_t length, pi_program *res_program) {
   cl::sycl::detail::pi::die("cuda_piProgramCreate not implemented");
@@ -3480,6 +3494,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPlatformsGet, cuda_piPlatformsGet)
   _PI_CL(piPlatformGetInfo, cuda_piPlatformGetInfo)
   // Device
+  _PI_CL(piextDeviceConvert, cuda_piextDeviceConvert)
   _PI_CL(piDevicesGet, cuda_piDevicesGet)
   _PI_CL(piDeviceGetInfo, cuda_piDeviceGetInfo)
   _PI_CL(piDevicePartition, cuda_piDevicePartition)
@@ -3507,6 +3522,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRelease, cuda_piMemRelease)
   _PI_CL(piMemBufferPartition, cuda_piMemBufferPartition)
   // Program
+  _PI_CL(piextProgramConvert, cuda_piextProgramConvert)
   _PI_CL(piProgramCreate, cuda_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, cuda_piclProgramCreateWithSource)
   _PI_CL(piclProgramCreateWithBinary, cuda_piclProgramCreateWithBinary)

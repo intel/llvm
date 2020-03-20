@@ -1216,6 +1216,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
 
+  if (Args.hasArg(options::OPT_fsycl_device_only)) {
+    toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
+  }
+
   // If we are offloading to a target via OpenMP we need to include the
   // openmp_wrappers folder which contains alternative system headers.
   if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
@@ -7186,55 +7190,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
+  bool IsArchiveUnbundle =
+      (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
+       (types::isArchive(InputType) || InputType == types::TY_Object));
 
-  // For Linux, we have initial support for fat archives (archives which
-  // contain bundled objects). We will perform partial linking against the
-  // specific offload target archives which will be sent to the unbundler to
-  // produce a list of target objects.
-  // FIXME: This should be a separate job in the toolchain.
-  if (!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group) &&
-      (types::isArchive(InputType) || InputType == types::TY_Object)) {
+  if (IsArchiveUnbundle)
     TypeArg = "oo";
-    ArgStringList LinkArgs;
-    LinkArgs.push_back("-r");
-    LinkArgs.push_back("-o");
-    std::string TmpName =
-      C.getDriver().GetTemporaryPath(
-          llvm::sys::path::stem(Input.getFilename()).str() + "-prelink", "o");
-    InputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
-    LinkArgs.push_back(InputFileName);
-    const ToolChain *HTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    // Add crt objects
-    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crt1.o")));
-    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crti.o")));
-    // Add -L<dir> search directories.
-    TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
-
-    // TODO - We can potentially go through the args and add the known linker
-    // pass through args of --whole-archive and --no-whole-archive.  This
-    // would allow to support user commands like: -Wl,--whole-archive
-    // -foffload-static-lib=<lib> -Wl,--no-whole-archive
-    // Input files consist of fat libraries and the object(s) to be unbundled.
-    bool IsWholeArchive = false;
-    for (const auto &I : Inputs) {
-      if (I.getType() == types::TY_WholeArchive && !IsWholeArchive) {
-        LinkArgs.push_back("--whole-archive");
-        IsWholeArchive = true;
-      } else if (I.getType() == types::TY_Archive && IsWholeArchive) {
-        LinkArgs.push_back("--no-whole-archive");
-        IsWholeArchive = false;
-      }
-      LinkArgs.push_back(I.getFilename());
-    }
-    // Disable whole archive if it was enabled for the previous inputs.
-    if (IsWholeArchive)
-      LinkArgs.push_back("--no-whole-archive");
-    // Add crt objects
-    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
-    const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
-    C.addCommand(std::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
-  } else if (InputType == types::TY_FPGA_AOCX ||
-             InputType == types::TY_FPGA_AOCR) {
+  else if (InputType == types::TY_FPGA_AOCX ||
+           InputType == types::TY_FPGA_AOCR) {
     // Override type with archive object
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
@@ -7279,10 +7242,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (types::isArchive(InputType) || (InputType == types::TY_Object &&
-               ((!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group)) ||
-                (TCArgs.hasArg(options::OPT_fintelfpga) &&
-                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))))) {
+    } else if (InputType == types::TY_Archive || IsArchiveUnbundle ||
+               (TCArgs.hasArg(options::OPT_fintelfpga) &&
+                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
       // host link command just as normal libraries.  Do not extract the host
@@ -7707,3 +7669,52 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, None));
 }
 
+// For Linux, we have initial support for fat archives (archives which
+// contain bundled objects). We will perform partial linking against the
+// specific offload target archives which will be sent to the unbundler to
+// produce a list of target objects.
+void PartialLink::ConstructJob(Compilation &C, const JobAction &JA,
+                               const InputInfo &Output,
+                               const InputInfoList &Inputs,
+                               const llvm::opt::ArgList &TCArgs,
+                               const char *LinkingOutput) const {
+  // Construct simple partial link command.
+  assert(isa<PartialLinkJobAction>(JA) && "Expecting Partial Link job!");
+
+  // The partial linking command resembles this:
+  // ld -r -o <output> <inputs>
+  ArgStringList LinkArgs;
+  LinkArgs.push_back("-r");
+  LinkArgs.push_back("-o");
+  LinkArgs.push_back(Output.getFilename());
+
+  const ToolChain *HTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  // Add crt objects
+  LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crt1.o")));
+  LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crti.o")));
+  // Add -L<dir> search directories.
+  TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
+  HTC->AddFilePathLibArgs(TCArgs, LinkArgs);
+
+  // Input files consist of fat libraries and the object(s) to be unbundled.
+  // We add the needed --whole-archive/--no-whole-archive when appropriate.
+  bool IsWholeArchive = false;
+  for (const auto &I : Inputs) {
+    if (I.getType() == types::TY_WholeArchive && !IsWholeArchive) {
+      LinkArgs.push_back("--whole-archive");
+      IsWholeArchive = true;
+    } else if (I.getType() == types::TY_Archive && IsWholeArchive) {
+      LinkArgs.push_back("--no-whole-archive");
+      IsWholeArchive = false;
+    }
+    LinkArgs.push_back(I.getFilename());
+  }
+  // Disable whole archive if it was enabled for the previous inputs.
+  if (IsWholeArchive)
+    LinkArgs.push_back("--no-whole-archive");
+
+  // Add crt objects
+  LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
+  const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
+  C.addCommand(std::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
+}
