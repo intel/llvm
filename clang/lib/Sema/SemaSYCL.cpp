@@ -1504,12 +1504,18 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
         if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
-          Diag.Report(KernelLocation,
-                      diag::err_sycl_kernel_name_class_not_top_level);
-          if (!TD->getName().empty())
+          const bool KernelNameIsMissing = TD->getName().empty();
+          if (KernelNameIsMissing) {
+            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name is missing */ 0;
             // Don't emit note if kernel name was completely omitted
+          } else {
+            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name is not globally-visible */ 1;
             Diag.Report(D->getSourceRange().getBegin(),
-                        diag::note_previous_decl) << TD->getName();
+                        diag::note_previous_decl)
+                << TD->getName();
+          }
         }
       }
       break;

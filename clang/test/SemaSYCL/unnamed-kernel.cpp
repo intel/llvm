@@ -82,7 +82,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error@+2 {{kernel needs to have a globally-visible name}}
+  // expected-error@+2 {{kernel name is missing}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
 
