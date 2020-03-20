@@ -177,7 +177,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Req->MBlockedCmd->MCanEnqueue = true;
+  Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {

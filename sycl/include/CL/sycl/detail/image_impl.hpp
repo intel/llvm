@@ -216,7 +216,12 @@ public:
 
   size_t getSlicePitch() const { return MSlicePitch; }
 
-  ~image_impl() { BaseT::updateHostMemory(); }
+  ~image_impl() {
+    try {
+      BaseT::updateHostMemory();
+    } catch (...) {
+    }
+  }
 
 private:
   vector_class<device> getDevices(const ContextImplPtr Context);

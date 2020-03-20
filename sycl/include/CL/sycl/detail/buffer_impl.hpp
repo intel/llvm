@@ -108,7 +108,12 @@ public:
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
-  ~buffer_impl() { BaseT::updateHostMemory(); }
+  ~buffer_impl() {
+    try {
+      BaseT::updateHostMemory();
+    } catch (...) {
+    }
+  }
 };
 
 } // namespace detail
