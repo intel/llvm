@@ -1,9 +1,20 @@
 ; RUN: llvm-as < %s > %t.bc
-; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEGATIVE
+
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
+; CHECK-SPIRV-NEGATIVE-NOT: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV-NEGATIVE-NOT: 9 Extension "SPV_INTEL_fpga_loop_controls"
 
 ; ModuleID = 'FPGALoopAttr.cl'
 source_filename = "FPGALoopAttr.cl"
@@ -25,6 +36,8 @@ entry:
 ; Per SPIR-V spec, LoopControlDependencyInfiniteMask = 0x00000004
 ; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
+; CHECK-SPIRV-NEGATIVE-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond:                                         ; preds = %for.inc, %entry
   %0 = load i32, i32* %i, align 4
   %cmp = icmp ne i32 %0, 10
@@ -50,6 +63,8 @@ for.end:                                          ; preds = %for.cond
 ; Per SPIR-V spec, LoopControlDependencyLengthMask = 0x00000008
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 8 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 8 2
+; CHECK-SPIRV-NEGATIVE-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond2:                                        ; preds = %for.inc7, %for.end
   %3 = load i32, i32* %i1, align 4
   %cmp3 = icmp ne i32 %3, 10
@@ -73,9 +88,10 @@ for.end9:                                         ; preds = %for.cond2
   br label %for.cond11
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 for.cond11:                                       ; preds = %for.inc16, %for.end9
   %6 = load i32, i32* %i10, align 4
   %cmp12 = icmp ne i32 %6, 10
@@ -99,9 +115,10 @@ for.end18:                                        ; preds = %for.cond11
   br label %for.cond20
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; MaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 2
 for.cond20:                                       ; preds = %for.inc25, %for.end18
   %9 = load i32, i32* %i19, align 4
   %cmp21 = icmp ne i32 %9, 10
@@ -125,9 +142,10 @@ for.end27:                                        ; preds = %for.cond20
   br label %for.cond29
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL & MaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
+; LoopControlInitiationIntervalINTEL & LoopControlMaxConcurrencyINTEL = 0x10000 & 0x20000 = 0x30000 (196608)
 ; CHECK-SPIRV: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 ; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE-NOT: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 for.cond29:                                       ; preds = %for.inc34, %for.end27
   %12 = load i32, i32* %i28, align 4
   %cmp30 = icmp ne i32 %12, 10
@@ -175,6 +193,12 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
 
+; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_A:[0-9]+]]
+; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
+; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_C:[0-9]+]]
+; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
+; CHECK-LLVM-NEGATIVE-NOT: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
+
 ; CHECK-LLVM: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
 ; CHECK-LLVM: ![[MD_B]] = distinct !{![[MD_B]], ![[MD_ivdep:[0-9]+]]}
@@ -184,3 +208,13 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 ; CHECK-LLVM: ![[MD_D]] = distinct !{![[MD_D]], ![[MD_max_concurrency:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 2}
 ; CHECK-LLVM: ![[MD_E]] = distinct !{![[MD_E]], ![[MD_ii:[0-9]+]], ![[MD_max_concurrency:[0-9]+]]}
+
+; CHECK-LLVM-NEGATIVE: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
+; CHECK-LLVM-NEGATIVE: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
+; CHECK-LLVM-NEGATIVE: ![[MD_B]] = distinct !{![[MD_B]], ![[MD_ivdep:[0-9]+]]}
+; CHECK-LLVM-NEGATIVE: ![[MD_ivdep]] = !{!"llvm.loop.ivdep.safelen", i32 2}
+; CHECK-LLVM-NEGATIVE-NOT: ![[MD_C]] = distinct !{![[MD_C]], ![[MD_ii:[0-9]+]]}
+; CHECK-LLVM-NEGATIVE-NOT: ![[MD_ii]] = !{!"llvm.loop.ii.count", i32 2}
+; CHECK-LLVM-NEGATIVE-NOT: ![[MD_D]] = distinct !{![[MD_D]], ![[MD_max_concurrency:[0-9]+]]}
+; CHECK-LLVM-NEGATIVE-NOT: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 2}
+; CHECK-LLVM-NEGATIVE-NOT: ![[MD_E]] = distinct !{![[MD_E]], ![[MD_ii:[0-9]+]], ![[MD_max_concurrency:[0-9]+]]}

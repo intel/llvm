@@ -177,8 +177,6 @@ public:
   /// to force the thread to run (e.g. the "thread continue" command, or are
   /// resetting the state
   /// (e.g. in SBThread::Resume()), then pass true to override_suspend.
-  /// \return
-  ///    The User resume state for this thread.
   void SetResumeState(lldb::StateType state, bool override_suspend = false) {
     if (m_resume_state == lldb::eStateSuspended && !override_suspend)
       return;
@@ -1157,7 +1155,7 @@ public:
   /// Some Thread subclasses may maintain a token to help with providing
   /// an extended backtrace.  The SystemRuntime plugin will set/request this.
   ///
-  /// \param [in] token
+  /// \param [in] token The extended backtrace token.
   virtual void SetExtendedBacktraceToken(uint64_t token) {}
 
   /// Gets the extended backtrace token for this thread
@@ -1197,7 +1195,7 @@ protected:
 
   typedef std::vector<lldb::ThreadPlanSP> plan_stack;
 
-  virtual lldb_private::Unwind *GetUnwinder();
+  virtual Unwind &GetUnwinder();
 
   // Check to see whether the thread is still at the last breakpoint hit that
   // stopped it.

@@ -23,6 +23,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -38,6 +39,10 @@
 
 class DWARFASTParserClang;
 class PDBASTParser;
+
+namespace clang {
+class FileManager;
+}
 
 namespace lldb_private {
 
@@ -494,6 +499,10 @@ public:
 
   // Tests
 
+#ifndef NDEBUG
+  bool Verify(lldb::opaque_compiler_type_t type) override;
+#endif
+  
   bool IsArrayType(lldb::opaque_compiler_type_t type,
                    CompilerType *element_type, uint64_t *size,
                    bool *is_incomplete) override;

@@ -9,6 +9,7 @@
 #include "SIMDIntrinsicsCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Regex.h"
@@ -92,8 +93,6 @@ void SIMDIntrinsicsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void SIMDIntrinsicsCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
   // If Std is not specified, infer it from the language options.
   // libcxx implementation backports it to C++11 std::experimental::simd.
   if (Std.empty())

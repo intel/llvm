@@ -67,6 +67,9 @@ elif platform.system() == "Darwin":
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
+if 'SYCL_DEVICE_WHITE_LIST' in os.environ:
+    config.environment['SYCL_DEVICE_WHITE_LIST'] = os.environ['SYCL_DEVICE_WHITE_LIST']
+
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
@@ -169,7 +172,7 @@ else:
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-if getDeviceCount("accelerator")[0]:
+if getDeviceCount("accelerator")[0] and platform.system() == "Linux":
     print("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
     acc_check_substitute = "| FileCheck %s"

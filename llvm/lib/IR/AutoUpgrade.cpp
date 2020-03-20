@@ -204,6 +204,8 @@ static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
       Name.startswith("avx512.mask.cvtqq2pd.") || // Added in 7.0 updated 9.0
       Name.startswith("avx512.mask.cvtuqq2pd.") || // Added in 7.0 updated 9.0
       Name.startswith("avx512.mask.cvtdq2ps.") || // Added in 7.0 updated 9.0
+      Name == "avx512.mask.vcvtph2ps.128" || // Added in 11.0
+      Name == "avx512.mask.vcvtph2ps.256" || // Added in 11.0
       Name == "avx512.mask.cvtqq2ps.256" || // Added in 9.0
       Name == "avx512.mask.cvtqq2ps.512" || // Added in 9.0
       Name == "avx512.mask.cvtuqq2ps.256" || // Added in 9.0
@@ -316,6 +318,7 @@ static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
       Name == "avx.cvtdq2.pd.256" || // Added in 3.9
       Name == "avx.cvtdq2.ps.256" || // Added in 7.0
       Name == "avx.cvt.ps2.pd.256" || // Added in 3.9
+      Name.startswith("vcvtph2ps.") || // Added in 11.0
       Name.startswith("avx.vinsertf128.") || // Added in 3.7
       Name == "avx2.vinserti128" || // Added in 3.7
       Name.startswith("avx512.mask.insert") || // Added in 4.0
@@ -2132,6 +2135,23 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                          : Builder.CreateSIToFP(Rep, DstTy, "cvt");
       }
 
+      if (CI->getNumArgOperands() >= 3)
+        Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
+                            CI->getArgOperand(1));
+    } else if (IsX86 && (Name.startswith("avx512.mask.vcvtph2ps.") ||
+                         Name.startswith("vcvtph2ps."))) {
+      Type *DstTy = CI->getType();
+      Rep = CI->getArgOperand(0);
+      Type *SrcTy = Rep->getType();
+      unsigned NumDstElts = DstTy->getVectorNumElements();
+      if (NumDstElts != SrcTy->getVectorNumElements()) {
+        assert(NumDstElts == 4 && "Unexpected vector size");
+        uint32_t ShuffleMask[4] = {0, 1, 2, 3};
+        Rep = Builder.CreateShuffleVector(Rep, Rep, ShuffleMask);
+      }
+      Rep = Builder.CreateBitCast(
+          Rep, VectorType::get(Type::getHalfTy(C), NumDstElts));
+      Rep = Builder.CreateFPExt(Rep, DstTy, "cvtph2ps");
       if (CI->getNumArgOperands() >= 3)
         Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
                             CI->getArgOperand(1));
@@ -4002,6 +4022,12 @@ bool llvm::UpgradeModuleFlags(Module &M) {
     return false;
 
   bool HasObjCFlag = false, HasClassProperties = false, Changed = false;
+  bool HasSwiftVersionFlag = false;
+  uint8_t SwiftMajorVersion, SwiftMinorVersion;
+  uint32_t SwiftABIVersion;
+  auto Int8Ty = Type::getInt8Ty(M.getContext());
+  auto Int32Ty = Type::getInt32Ty(M.getContext());
+
   for (unsigned I = 0, E = ModFlags->getNumOperands(); I != E; ++I) {
     MDNode *Op = ModFlags->getOperand(I);
     if (Op->getNumOperands() != 3)
@@ -4047,6 +4073,31 @@ bool llvm::UpgradeModuleFlags(Module &M) {
         }
       }
     }
+
+    // IRUpgrader turns a i32 type "Objective-C Garbage Collection" into i8 value.
+    // If the higher bits are set, it adds new module flag for swift info.
+    if (ID->getString() == "Objective-C Garbage Collection") {
+      auto Md = dyn_cast<ConstantAsMetadata>(Op->getOperand(2));
+      if (Md) {
+        assert(Md->getValue() && "Expected non-empty metadata");
+        auto Type = Md->getValue()->getType();
+        if (Type == Int8Ty)
+          continue;
+        unsigned Val = Md->getValue()->getUniqueInteger().getZExtValue();
+        if ((Val & 0xff) != Val) {
+          HasSwiftVersionFlag = true;
+          SwiftABIVersion = (Val & 0xff00) >> 8;
+          SwiftMajorVersion = (Val & 0xff000000) >> 24;
+          SwiftMinorVersion = (Val & 0xff0000) >> 16;
+        }
+        Metadata *Ops[3] = {
+          ConstantAsMetadata::get(ConstantInt::get(Int32Ty,Module::Error)),
+          Op->getOperand(1),
+          ConstantAsMetadata::get(ConstantInt::get(Int8Ty,Val & 0xff))};
+        ModFlags->setOperand(I, MDNode::get(M.getContext(), Ops));
+        Changed = true;
+      }
+    }
   }
 
   // "Objective-C Class Properties" is recently added for Objective-C. We
@@ -4057,6 +4108,16 @@ bool llvm::UpgradeModuleFlags(Module &M) {
   if (HasObjCFlag && !HasClassProperties) {
     M.addModuleFlag(llvm::Module::Override, "Objective-C Class Properties",
                     (uint32_t)0);
+    Changed = true;
+  }
+
+  if (HasSwiftVersionFlag) {
+    M.addModuleFlag(Module::Error, "Swift ABI Version",
+                    SwiftABIVersion);
+    M.addModuleFlag(Module::Error, "Swift Major Version",
+                    ConstantInt::get(Int8Ty, SwiftMajorVersion));
+    M.addModuleFlag(Module::Error, "Swift Minor Version",
+                    ConstantInt::get(Int8Ty, SwiftMinorVersion));
     Changed = true;
   }
 

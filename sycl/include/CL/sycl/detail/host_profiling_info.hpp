@@ -22,11 +22,11 @@ class HostProfilingInfo {
 public:
   /// Returns event's start time.
   ///
-  /// @return event's start time in nanoseconds.
+  /// \return event's start time in nanoseconds.
   cl_ulong getStartTime() const { return StartTime; }
   /// Returns event's end time.
   ///
-  /// @return event's end time in nanoseconds.
+  /// \return event's end time in nanoseconds.
   cl_ulong getEndTime() const { return EndTime; }
 
   /// Measures event's start time.

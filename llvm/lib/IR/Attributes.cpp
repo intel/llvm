@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
@@ -205,6 +206,14 @@ bool Attribute::doesAttrKindHaveArgument(Attribute::AttrKind AttrKind) {
          AttrKind == Attribute::Dereferenceable ||
          AttrKind == Attribute::AllocSize ||
          AttrKind == Attribute::DereferenceableOrNull;
+}
+
+bool Attribute::isExistingAttribute(StringRef Name) {
+  return StringSwitch<bool>(Name)
+#define GET_ATTR_NAMES
+#define ATTRIBUTE_ALL(ENUM_NAME, DISPLAY_NAME) .Case(#DISPLAY_NAME, true)
+#include "llvm/IR/Attributes.inc"
+      .Default(false);
 }
 
 //===----------------------------------------------------------------------===//

@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/LoopOps/LoopOps.h"
 #include "mlir/Dialect/LoopOps/Passes.h"
+#include "mlir/Dialect/LoopOps/Transforms.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -20,7 +21,7 @@
 #include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
-using loop::ParallelOp;
+using namespace mlir::loop;
 
 /// Verify there are no nested ParallelOps.
 static bool hasNestedParallelOp(ParallelOp ploop) {
@@ -43,13 +44,6 @@ static bool equalIterationSpaces(ParallelOp firstPloop,
   return matchOperands(firstPloop.lowerBound(), secondPloop.lowerBound()) &&
          matchOperands(firstPloop.upperBound(), secondPloop.upperBound()) &&
          matchOperands(firstPloop.step(), secondPloop.step());
-}
-
-/// Returns true if the defining operation for the memref is inside the body
-/// of parallel loop.
-bool isDefinedInPloopBody(Value memref, ParallelOp ploop) {
-  auto *memrefDef = memref.getDefiningOp();
-  return memrefDef && ploop.getOperation()->isAncestor(memrefDef);
 }
 
 /// Checks if the parallel loops have mixed access to the same buffers. Returns
@@ -135,32 +129,32 @@ static void fuseIfLegal(ParallelOp firstPloop, ParallelOp secondPloop,
   firstPloop.erase();
 }
 
-static void naivelyFuseParallelOps(Operation *op) {
-  OpBuilder b(op);
+void mlir::loop::naivelyFuseParallelOps(Region &region) {
+  OpBuilder b(region);
   // Consider every single block and attempt to fuse adjacent loops.
-  for (auto &region : op->getRegions()) {
-    for (auto &block : region.getBlocks()) {
-      SmallVector<SmallVector<ParallelOp, 8>, 1> ploop_chains{{}};
-      // Not using `walk()` to traverse only top-level parallel loops and also
-      // make sure that there are no side-effecting ops between the parallel
-      // loops.
-      bool noSideEffects = true;
-      for (auto &op : block.getOperations()) {
-        if (auto ploop = dyn_cast<ParallelOp>(op)) {
-          if (noSideEffects) {
-            ploop_chains.back().push_back(ploop);
-          } else {
-            ploop_chains.push_back({ploop});
-            noSideEffects = true;
-          }
-          continue;
+  for (auto &block : region) {
+    SmallVector<SmallVector<ParallelOp, 8>, 1> ploopChains{{}};
+    // Not using `walk()` to traverse only top-level parallel loops and also
+    // make sure that there are no side-effecting ops between the parallel
+    // loops.
+    bool noSideEffects = true;
+    for (auto &op : block) {
+      if (auto ploop = dyn_cast<ParallelOp>(op)) {
+        if (noSideEffects) {
+          ploopChains.back().push_back(ploop);
+        } else {
+          ploopChains.push_back({ploop});
+          noSideEffects = true;
         }
-        noSideEffects &= op.hasNoSideEffect();
+        continue;
       }
-      for (ArrayRef<ParallelOp> ploops : ploop_chains) {
-        for (int i = 0, e = ploops.size(); i + 1 < e; ++i)
-          fuseIfLegal(ploops[i], ploops[i + 1], b);
-      }
+      // TODO: Handle region side effects properly.
+      noSideEffects &=
+          MemoryEffectOpInterface::hasNoEffect(&op) && op.getNumRegions() == 0;
+    }
+    for (ArrayRef<ParallelOp> ploops : ploopChains) {
+      for (int i = 0, e = ploops.size(); i + 1 < e; ++i)
+        fuseIfLegal(ploops[i], ploops[i + 1], b);
     }
   }
 }
@@ -168,7 +162,10 @@ static void naivelyFuseParallelOps(Operation *op) {
 namespace {
 
 struct ParallelLoopFusion : public OperationPass<ParallelLoopFusion> {
-  void runOnOperation() override { naivelyFuseParallelOps(getOperation()); }
+  void runOnOperation() override {
+    for (Region &region : getOperation()->getRegions())
+      naivelyFuseParallelOps(region);
+  }
 };
 
 } // namespace

@@ -611,9 +611,15 @@ void CGDebugInfo::CreateCompileUnit() {
       remapDIPath(MainFileName), remapDIPath(getCurrentDirname()), CSInfo,
       getSource(SM, SM.getMainFileID()));
 
-  StringRef Sysroot;
-  if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::LLDB)
+  StringRef Sysroot, SDK;
+  if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::LLDB) {
     Sysroot = CGM.getHeaderSearchOpts().Sysroot;
+    auto B = llvm::sys::path::rbegin(Sysroot);
+    auto E = llvm::sys::path::rend(Sysroot);
+    auto It = std::find_if(B, E, [](auto SDK) { return SDK.endswith(".sdk"); });
+    if (It != E)
+      SDK = *It;
+  }
 
   // Create new compile unit.
   TheCU = DBuilder.createCompileUnit(
@@ -625,7 +631,7 @@ void CGDebugInfo::CreateCompileUnit() {
           ? llvm::DICompileUnit::DebugNameTableKind::None
           : static_cast<llvm::DICompileUnit::DebugNameTableKind>(
                 CGOpts.DebugNameTable),
-      CGOpts.DebugRangesBaseAddress, Sysroot);
+      CGOpts.DebugRangesBaseAddress, Sysroot, SDK);
 }
 
 llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
@@ -1787,18 +1793,36 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
   for (unsigned i = 0, e = TAList.size(); i != e; ++i) {
     const TemplateArgument &TA = TAList[i];
     StringRef Name;
+    bool defaultParameter = false;
     if (TPList)
       Name = TPList->getParam(i)->getName();
     switch (TA.getKind()) {
     case TemplateArgument::Type: {
       llvm::DIType *TTy = getOrCreateType(TA.getAsType(), Unit);
-      TemplateParams.push_back(
-          DBuilder.createTemplateTypeParameter(TheCU, Name, TTy));
+
+      if (TPList)
+        if (auto *templateType =
+                dyn_cast_or_null<TemplateTypeParmDecl>(TPList->getParam(i)))
+          if (templateType->hasDefaultArgument())
+            defaultParameter =
+                templateType->getDefaultArgument() == TA.getAsType();
+
+      TemplateParams.push_back(DBuilder.createTemplateTypeParameter(
+          TheCU, Name, TTy, defaultParameter));
+
     } break;
     case TemplateArgument::Integral: {
       llvm::DIType *TTy = getOrCreateType(TA.getIntegralType(), Unit);
+      if (TPList && CGM.getCodeGenOpts().DwarfVersion >= 5)
+        if (auto *templateType =
+                dyn_cast_or_null<NonTypeTemplateParmDecl>(TPList->getParam(i)))
+          if (templateType->hasDefaultArgument())
+            defaultParameter =
+                templateType->getDefaultArgument()->EvaluateKnownConstInt(
+                    CGM.getContext()) == TA.getAsIntegral();
+
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
-          TheCU, Name, TTy,
+          TheCU, Name, TTy, defaultParameter,
           llvm::ConstantInt::get(CGM.getLLVMContext(), TA.getAsIntegral())));
     } break;
     case TemplateArgument::Declaration: {
@@ -1837,7 +1861,7 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
         V = V->stripPointerCasts();
       }
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
-          TheCU, Name, TTy, cast_or_null<llvm::Constant>(V)));
+          TheCU, Name, TTy, defaultParameter, cast_or_null<llvm::Constant>(V)));
     } break;
     case TemplateArgument::NullPtr: {
       QualType T = TA.getNullPtrType();
@@ -1855,8 +1879,8 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
           V = CGM.getCXXABI().EmitNullMemberPointer(MPT);
       if (!V)
         V = llvm::ConstantInt::get(CGM.Int8Ty, 0);
-      TemplateParams.push_back(
-          DBuilder.createTemplateValueParameter(TheCU, Name, TTy, V));
+      TemplateParams.push_back(DBuilder.createTemplateValueParameter(
+          TheCU, Name, TTy, defaultParameter, V));
     } break;
     case TemplateArgument::Template:
       TemplateParams.push_back(DBuilder.createTemplateTemplateParameter(
@@ -1877,7 +1901,7 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
       assert(V && "Expression in template argument isn't constant");
       llvm::DIType *TTy = getOrCreateType(T, Unit);
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
-          TheCU, Name, TTy, V->stripPointerCasts()));
+          TheCU, Name, TTy, defaultParameter, V->stripPointerCasts()));
     } break;
     // And the following should never occur:
     case TemplateArgument::TemplateExpansion:
@@ -2413,9 +2437,8 @@ llvm::DIType *CGDebugInfo::CreateType(const ObjCInterfaceType *Ty,
   return CreateTypeDefinition(Ty, Unit);
 }
 
-llvm::DIModule *
-CGDebugInfo::getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
-                                  bool CreateSkeletonCU) {
+llvm::DIModule *CGDebugInfo::getOrCreateModuleRef(ASTSourceDescriptor Mod,
+                                                  bool CreateSkeletonCU) {
   // Use the Module pointer as the key into the cache. This is a
   // nullptr if the "Module" is a PCH, which is safe because we don't
   // support chained PCH debug info, so there can only be a single PCH.
@@ -2480,9 +2503,8 @@ CGDebugInfo::getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
 
   llvm::DIModule *Parent =
       IsRootModule ? nullptr
-                   : getOrCreateModuleRef(
-                         ExternalASTSource::ASTSourceDescriptor(*M->Parent),
-                         CreateSkeletonCU);
+                   : getOrCreateModuleRef(ASTSourceDescriptor(*M->Parent),
+                                          CreateSkeletonCU);
   llvm::DIModule *DIMod =
       DBuilder.createModule(Parent, Mod.getModuleName(), ConfigMacros,
                             Mod.getPath());
@@ -3039,7 +3061,7 @@ llvm::DIModule *CGDebugInfo::getParentModuleOrNull(const Decl *D) {
     // option.
     if (Module *M = D->getOwningModule()) {
       // This is a (sub-)module.
-      auto Info = ExternalASTSource::ASTSourceDescriptor(*M);
+      auto Info = ASTSourceDescriptor(*M);
       return getOrCreateModuleRef(Info, /*SkeletonCU=*/false);
     } else {
       // This the precompiled header being built.
@@ -4697,7 +4719,7 @@ void CGDebugInfo::EmitImportDecl(const ImportDecl &ID) {
   if (CGM.getCodeGenOpts().getDebuggerTuning() != llvm::DebuggerKind::LLDB)
     return;
   if (Module *M = ID.getImportedModule()) {
-    auto Info = ExternalASTSource::ASTSourceDescriptor(*M);
+    auto Info = ASTSourceDescriptor(*M);
     auto Loc = ID.getLocation();
     DBuilder.createImportedDeclaration(
         getCurrentContextDescriptor(cast<Decl>(ID.getDeclContext())),

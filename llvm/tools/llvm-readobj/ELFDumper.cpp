@@ -873,8 +873,9 @@ private:
   void printHashedSymbol(const ELFO *Obj, const Elf_Sym *FirstSym, uint32_t Sym,
                          StringRef StrTable, uint32_t Bucket);
   void printRelocHeader(unsigned SType);
-  void printRelocation(const ELFO *Obj, const Elf_Shdr *SymTab,
-                       const Elf_Rela &R, bool IsRela);
+  void printRelocation(const ELFO *Obj, unsigned SecIndex,
+                       const Elf_Shdr *SymTab, const Elf_Rela &R,
+                       unsigned RelIndex, bool IsRela);
   void printRelocation(const ELFO *Obj, const Elf_Sym *Sym,
                        StringRef SymbolName, const Elf_Rela &R, bool IsRela);
   void printSymbol(const ELFO *Obj, const Elf_Sym *Symbol, const Elf_Sym *First,
@@ -939,7 +940,8 @@ public:
   void printMipsABIFlags(const ELFObjectFile<ELFT> *Obj) override;
 
 private:
-  void printRelocation(const ELFO *Obj, Elf_Rela Rel, const Elf_Shdr *SymTab);
+  void printRelocation(const ELFO *Obj, unsigned SecIndex, Elf_Rela Rel,
+                       unsigned RelIndex, const Elf_Shdr *SymTab);
   void printDynamicRelocation(const ELFO *Obj, Elf_Rela Rel);
   void printSymbols(const ELFO *Obj);
   void printDynamicSymbols(const ELFO *Obj);
@@ -2688,7 +2690,9 @@ template <> void ELFDumper<ELF32LE>::printAttributes() {
     if (Contents.size() == 1)
       continue;
 
-    ARMAttributeParser(&W).parse(Contents, support::little);
+    // TODO: Print error and delete the redundant FormatVersion check above.
+    if (Error E = ARMAttributeParser(&W).parse(Contents, support::little))
+      consumeError(std::move(E));
   }
 }
 
@@ -3327,13 +3331,18 @@ template <class ELFT> void GNUStyle<ELFT>::printGroupSections(const ELFO *Obj) {
 }
 
 template <class ELFT>
-void GNUStyle<ELFT>::printRelocation(const ELFO *Obj, const Elf_Shdr *SymTab,
-                                     const Elf_Rela &R, bool IsRela) {
-  const typename ELFT::Sym *Sym;
-  std::string Name;
-  std::tie(Sym, Name) = unwrapOrError(
-      this->FileName, this->dumper()->getRelocationTarget(SymTab, R));
-  printRelocation(Obj, Sym, Name, R, IsRela);
+void GNUStyle<ELFT>::printRelocation(const ELFO *Obj, unsigned SecIndex,
+                                     const Elf_Shdr *SymTab, const Elf_Rela &R,
+                                     unsigned RelIndex, bool IsRela) {
+  Expected<std::pair<const typename ELFT::Sym *, std::string>> Target =
+      this->dumper()->getRelocationTarget(SymTab, R);
+  if (!Target)
+    this->reportUniqueWarning(createError(
+        "unable to print relocation " + Twine(RelIndex) + " in section " +
+        Twine(SecIndex) + ": " + toString(Target.takeError())));
+  else
+    printRelocation(Obj, /*Sym=*/Target->first, /*Name=*/Target->second, R,
+                    IsRela);
 }
 
 template <class ELFT>
@@ -3431,6 +3440,9 @@ template <class ELFT> void GNUStyle<ELFT>::printRelocations(const ELFO *Obj) {
     printRelocHeader(Sec.sh_type);
     const Elf_Shdr *SymTab =
         unwrapOrError(this->FileName, Obj->getSection(Sec.sh_link));
+    unsigned SecNdx = &Sec - &cantFail(Obj->sections()).front();
+    unsigned RelNdx = 0;
+
     switch (Sec.sh_type) {
     case ELF::SHT_REL:
       for (const auto &R : unwrapOrError(this->FileName, Obj->rels(&Sec))) {
@@ -3438,12 +3450,12 @@ template <class ELFT> void GNUStyle<ELFT>::printRelocations(const ELFO *Obj) {
         Rela.r_offset = R.r_offset;
         Rela.r_info = R.r_info;
         Rela.r_addend = 0;
-        printRelocation(Obj, SymTab, Rela, false);
+        printRelocation(Obj, SecNdx, SymTab, Rela, ++RelNdx, false);
       }
       break;
     case ELF::SHT_RELA:
       for (const auto &R : unwrapOrError(this->FileName, Obj->relas(&Sec)))
-        printRelocation(Obj, SymTab, R, true);
+        printRelocation(Obj, SecNdx, SymTab, R, ++RelNdx, true);
       break;
     case ELF::SHT_RELR:
     case ELF::SHT_ANDROID_RELR:
@@ -3453,12 +3465,13 @@ template <class ELFT> void GNUStyle<ELFT>::printRelocations(const ELFO *Obj) {
              << "\n";
       else
         for (const auto &R : RelrRelas)
-          printRelocation(Obj, SymTab, R, false);
+          printRelocation(Obj, SecNdx, SymTab, R, ++RelNdx, false);
       break;
     case ELF::SHT_ANDROID_REL:
     case ELF::SHT_ANDROID_RELA:
       for (const auto &R : AndroidRelas)
-        printRelocation(Obj, SymTab, R, Sec.sh_type == ELF::SHT_ANDROID_RELA);
+        printRelocation(Obj, SecNdx, SymTab, R, ++RelNdx,
+                        Sec.sh_type == ELF::SHT_ANDROID_RELA);
       break;
     }
   }
@@ -5031,11 +5044,18 @@ static void printCoreNote(raw_ostream &OS, const CoreNote &Note) {
 
 template <class ELFT>
 void GNUStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
-  auto PrintHeader = [&](const typename ELFT::Off Offset,
+  auto PrintHeader = [&](Optional<StringRef> SecName,
+                         const typename ELFT::Off Offset,
                          const typename ELFT::Addr Size) {
-    OS << "Displaying notes found at file offset " << format_hex(Offset, 10)
-       << " with length " << format_hex(Size, 10) << ":\n"
-       << "  Owner                Data size \tDescription\n";
+    OS << "Displaying notes found ";
+
+    if (SecName)
+      OS << "in: " << *SecName << "\n";
+    else
+      OS << "at file offset " << format_hex(Offset, 10) << " with length "
+         << format_hex(Size, 10) << ":\n";
+
+    OS << "  Owner                Data size \tDescription\n";
   };
 
   auto ProcessNote = [&](const Elf_Note &Note) {
@@ -5100,7 +5120,8 @@ void GNUStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
     for (const auto &S : Sections) {
       if (S.sh_type != SHT_NOTE)
         continue;
-      PrintHeader(S.sh_offset, S.sh_size);
+      PrintHeader(expectedToOptional(Obj->getSectionName(&S)), S.sh_offset,
+                  S.sh_size);
       Error Err = Error::success();
       for (auto Note : Obj->notes(S, Err))
         ProcessNote(Note);
@@ -5112,7 +5133,7 @@ void GNUStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
          unwrapOrError(this->FileName, Obj->program_headers())) {
       if (P.p_type != PT_NOTE)
         continue;
-      PrintHeader(P.p_offset, P.p_filesz);
+      PrintHeader(/*SecName=*/None, P.p_offset, P.p_filesz);
       Error Err = Error::success();
       for (auto Note : Obj->notes(P, Err))
         ProcessNote(Note);
@@ -5705,6 +5726,8 @@ template <class ELFT>
 void LLVMStyle<ELFT>::printRelocations(const Elf_Shdr *Sec, const ELFO *Obj) {
   const Elf_Shdr *SymTab =
       unwrapOrError(this->FileName, Obj->getSection(Sec->sh_link));
+  unsigned SecNdx = Sec - &cantFail(Obj->sections()).front();
+  unsigned RelNdx = 0;
 
   switch (Sec->sh_type) {
   case ELF::SHT_REL:
@@ -5713,12 +5736,12 @@ void LLVMStyle<ELFT>::printRelocations(const Elf_Shdr *Sec, const ELFO *Obj) {
       Rela.r_offset = R.r_offset;
       Rela.r_info = R.r_info;
       Rela.r_addend = 0;
-      printRelocation(Obj, Rela, SymTab);
+      printRelocation(Obj, SecNdx, Rela, ++RelNdx, SymTab);
     }
     break;
   case ELF::SHT_RELA:
     for (const Elf_Rela &R : unwrapOrError(this->FileName, Obj->relas(Sec)))
-      printRelocation(Obj, R, SymTab);
+      printRelocation(Obj, SecNdx, R, ++RelNdx, SymTab);
     break;
   case ELF::SHT_RELR:
   case ELF::SHT_ANDROID_RELR: {
@@ -5730,7 +5753,7 @@ void LLVMStyle<ELFT>::printRelocations(const Elf_Shdr *Sec, const ELFO *Obj) {
       std::vector<Elf_Rela> RelrRelas =
           unwrapOrError(this->FileName, Obj->decode_relrs(Relrs));
       for (const Elf_Rela &R : RelrRelas)
-        printRelocation(Obj, R, SymTab);
+        printRelocation(Obj, SecNdx, R, ++RelNdx, SymTab);
     }
     break;
   }
@@ -5738,19 +5761,25 @@ void LLVMStyle<ELFT>::printRelocations(const Elf_Shdr *Sec, const ELFO *Obj) {
   case ELF::SHT_ANDROID_RELA:
     for (const Elf_Rela &R :
          unwrapOrError(this->FileName, Obj->android_relas(Sec)))
-      printRelocation(Obj, R, SymTab);
+      printRelocation(Obj, SecNdx, R, ++RelNdx, SymTab);
     break;
   }
 }
 
 template <class ELFT>
-void LLVMStyle<ELFT>::printRelocation(const ELFO *Obj, Elf_Rela Rel,
+void LLVMStyle<ELFT>::printRelocation(const ELFO *Obj, unsigned SecIndex,
+                                      Elf_Rela Rel, unsigned RelIndex,
                                       const Elf_Shdr *SymTab) {
-  std::string TargetName =
-      unwrapOrError(this->FileName,
-                    this->dumper()->getRelocationTarget(SymTab, Rel))
-          .second;
+  Expected<std::pair<const typename ELFT::Sym *, std::string>> Target =
+      this->dumper()->getRelocationTarget(SymTab, Rel);
+  if (!Target) {
+    this->reportUniqueWarning(createError(
+        "unable to print relocation " + Twine(RelIndex) + " in section " +
+        Twine(SecIndex) + ": " + toString(Target.takeError())));
+    return;
+  }
 
+  std::string TargetName = Target->second;
   SmallString<32> RelocName;
   Obj->getRelocationTypeName(Rel.getType(Obj->isMips64EL()), RelocName);
 
@@ -6244,8 +6273,10 @@ template <class ELFT>
 void LLVMStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
   ListScope L(W, "Notes");
 
-  auto PrintHeader = [&](const typename ELFT::Off Offset,
+  auto PrintHeader = [&](Optional<StringRef> SecName,
+                         const typename ELFT::Off Offset,
                          const typename ELFT::Addr Size) {
+    W.printString("Name", SecName ? *SecName : "<?>");
     W.printHex("Offset", Offset);
     W.printHex("Size", Size);
   };
@@ -6312,7 +6343,8 @@ void LLVMStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
       if (S.sh_type != SHT_NOTE)
         continue;
       DictScope D(W, "NoteSection");
-      PrintHeader(S.sh_offset, S.sh_size);
+      PrintHeader(expectedToOptional(Obj->getSectionName(&S)), S.sh_offset,
+                  S.sh_size);
       Error Err = Error::success();
       for (auto Note : Obj->notes(S, Err))
         ProcessNote(Note);
@@ -6325,7 +6357,7 @@ void LLVMStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
       if (P.p_type != PT_NOTE)
         continue;
       DictScope D(W, "NoteSection");
-      PrintHeader(P.p_offset, P.p_filesz);
+      PrintHeader(/*SecName=*/None, P.p_offset, P.p_filesz);
       Error Err = Error::success();
       for (auto Note : Obj->notes(P, Err))
         ProcessNote(Note);

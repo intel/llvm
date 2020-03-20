@@ -405,6 +405,7 @@ enum Decoration {
     DecorationSimpleDualPortINTEL = 5833,
     DecorationMergeINTEL = 5834,
     DecorationBankBitsINTEL = 5835,
+    DecorationIOPipeStorageINTEL = 5944,
     DecorationMax = 0x7fffffff,
 };
 
@@ -499,9 +500,9 @@ enum LoopControlMask {
     LoopControlIterationMultipleMask = 0x00000040,
     LoopControlPeelCountMask = 0x00000080,
     LoopControlPartialCountMask = 0x00000100,
-    InitiationIntervalINTEL = 0x10000,
-    MaxConcurrencyINTEL = 0x20000,
-    DependencyArrayINTEL = 0x40000,
+    LoopControlInitiationIntervalINTEL = 0x10000,
+    LoopControlMaxConcurrencyINTEL = 0x20000,
+    LoopControlDependencyArrayINTEL = 0x40000,
 };
 
 enum FunctionControlShift {
@@ -690,6 +691,7 @@ enum Capability {
   CapabilityFPGARegINTEL = 5948,
   CapabilityKernelAttributesINTEL= 5892,
   CapabilityFPGAKernelAttributesINTEL= 5897,
+  CapabilityIOPipeINTEL = 5943,
   CapabilityMax = 0x7fffffff,
 };
 

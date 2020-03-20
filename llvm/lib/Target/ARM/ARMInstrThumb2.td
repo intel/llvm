@@ -270,7 +270,8 @@ def t2am_imm8_offset : MemOperand,
 
 // t2addrmode_imm8s4  := reg +/- (imm8 << 2)
 def MemImm8s4OffsetAsmOperand : AsmOperandClass {let Name = "MemImm8s4Offset";}
-class T2AddrMode_Imm8s4 : MemOperand {
+class T2AddrMode_Imm8s4 : MemOperand,
+                          ComplexPattern<i32, 2, "SelectT2AddrModeImm8<2>", []> {
   let EncoderMethod = "getT2AddrModeImm8s4OpValue";
   let DecoderMethod = "DecodeT2AddrModeImm8s4";
   let ParserMatchClass = MemImm8s4OffsetAsmOperand;
@@ -1448,7 +1449,8 @@ let mayLoad = 1, hasSideEffects = 0, hasExtraDefRegAllocReq = 1 in {
 // Load doubleword
 def t2LDRDi8  : T2Ii8s4<1, 0, 1, (outs rGPR:$Rt, rGPR:$Rt2),
                         (ins t2addrmode_imm8s4:$addr),
-                        IIC_iLoad_d_i, "ldrd", "\t$Rt, $Rt2, $addr", "", []>,
+                        IIC_iLoad_d_i, "ldrd", "\t$Rt, $Rt2, $addr", "",
+                        [(set rGPR:$Rt, rGPR:$Rt2, (ARMldrd t2addrmode_imm8s4:$addr))]>,
                  Sched<[WriteLd]>;
 } // mayLoad = 1, hasSideEffects = 0, hasExtraDefRegAllocReq = 1
 
@@ -1629,7 +1631,8 @@ defm t2STRH:T2I_st<0b01,"strh", IIC_iStore_bh_i, IIC_iStore_bh_si,
 let mayStore = 1, hasSideEffects = 0, hasExtraSrcRegAllocReq = 1 in
 def t2STRDi8 : T2Ii8s4<1, 0, 0, (outs),
                        (ins rGPR:$Rt, rGPR:$Rt2, t2addrmode_imm8s4:$addr),
-               IIC_iStore_d_r, "strd", "\t$Rt, $Rt2, $addr", "", []>,
+               IIC_iStore_d_r, "strd", "\t$Rt, $Rt2, $addr", "",
+               [(ARMstrd rGPR:$Rt, rGPR:$Rt2, t2addrmode_imm8s4:$addr)]>,
                Sched<[WriteST]>;
 
 // Indexed stores
@@ -1871,6 +1874,34 @@ defm t2PLD    : T2Ipl<0, 0, "pld">,  Requires<[IsThumb2]>;
 defm t2PLDW   : T2Ipl<1, 0, "pldw">, Requires<[IsThumb2,HasV7,HasMP]>;
 defm t2PLI    : T2Ipl<0, 1, "pli">,  Requires<[IsThumb2,HasV7]>;
 
+// PLD/PLDW/PLI aliases w/ the optional .w suffix
+def : t2InstAlias<"pld${p}.w\t$addr",
+                 (t2PLDi12  t2addrmode_imm12:$addr, pred:$p)>;
+def : t2InstAlias<"pld${p}.w\t$addr",
+                 (t2PLDi8   t2addrmode_negimm8:$addr, pred:$p)>;
+def : t2InstAlias<"pld${p}.w\t$addr",
+                 (t2PLDs    t2addrmode_so_reg:$addr, pred:$p)>;
+
+def : InstAlias<"pldw${p}.w\t$addr",
+                 (t2PLDWi12  t2addrmode_imm12:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7,HasMP]>;
+def : InstAlias<"pldw${p}.w\t$addr",
+                 (t2PLDWi8   t2addrmode_negimm8:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7,HasMP]>;
+def : InstAlias<"pldw${p}.w\t$addr",
+                 (t2PLDWs    t2addrmode_so_reg:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7,HasMP]>;
+
+def : InstAlias<"pli${p}.w\t$addr",
+                 (t2PLIi12  t2addrmode_imm12:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
+def : InstAlias<"pli${p}.w\t$addr",
+                 (t2PLIi8   t2addrmode_negimm8:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
+def : InstAlias<"pli${p}.w\t$addr",
+                 (t2PLIs    t2addrmode_so_reg:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
+
 // pci variant is very similar to i12, but supports negative offsets
 // from the PC. Only PLD and PLI have pci variants (not PLDW)
 class T2Iplpci<bits<1> inst, string opc> : T2Iso<(outs), (ins t2ldrlabel:$addr),
@@ -1892,6 +1923,24 @@ class T2Iplpci<bits<1> inst, string opc> : T2Iso<(outs), (ins t2ldrlabel:$addr),
 
 def t2PLDpci : T2Iplpci<0, "pld">,  Requires<[IsThumb2]>;
 def t2PLIpci : T2Iplpci<1, "pli">,  Requires<[IsThumb2,HasV7]>;
+
+def : t2InstAlias<"pld${p}.w $addr",
+                  (t2PLDpci t2ldrlabel:$addr, pred:$p)>;
+def : InstAlias<"pli${p}.w $addr",
+                 (t2PLIpci  t2ldrlabel:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
+
+// PLD/PLI with alternate literal form.
+def : t2InstAlias<"pld${p} $addr",
+                  (t2PLDpci t2ldr_pcrel_imm12:$addr, pred:$p)>;
+def : InstAlias<"pli${p} $addr",
+                 (t2PLIpci  t2ldr_pcrel_imm12:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
+def : t2InstAlias<"pld${p}.w $addr",
+                  (t2PLDpci t2ldr_pcrel_imm12:$addr, pred:$p)>;
+def : InstAlias<"pli${p}.w $addr",
+                 (t2PLIpci  t2ldr_pcrel_imm12:$addr, pred:$p), 0>,
+      Requires<[IsThumb2,HasV7]>;
 
 //===----------------------------------------------------------------------===//
 //  Load / store multiple Instructions.
@@ -4848,9 +4897,15 @@ def : t2InstAlias<"tst${p} $Rn, $Rm",
                   (t2TSTrr rGPR:$Rn, rGPR:$Rm, pred:$p)>;
 
 // Memory barriers
+def : InstAlias<"dmb${p}.w\t$opt", (t2DMB memb_opt:$opt, pred:$p), 0>, Requires<[HasDB]>;
 def : InstAlias<"dmb${p}", (t2DMB 0xf, pred:$p), 0>, Requires<[HasDB]>;
+def : InstAlias<"dmb${p}.w", (t2DMB 0xf, pred:$p), 0>, Requires<[HasDB]>;
+def : InstAlias<"dsb${p}.w\t$opt", (t2DSB memb_opt:$opt, pred:$p), 0>, Requires<[HasDB]>;
 def : InstAlias<"dsb${p}", (t2DSB 0xf, pred:$p), 0>, Requires<[HasDB]>;
+def : InstAlias<"dsb${p}.w", (t2DSB 0xf, pred:$p), 0>, Requires<[HasDB]>;
+def : InstAlias<"isb${p}.w\t$opt", (t2ISB memb_opt:$opt, pred:$p), 0>, Requires<[HasDB]>;
 def : InstAlias<"isb${p}", (t2ISB 0xf, pred:$p), 0>, Requires<[HasDB]>;
+def : InstAlias<"isb${p}.w", (t2ISB 0xf, pred:$p), 0>, Requires<[HasDB]>;
 
 // Non-predicable aliases of a predicable DSB: the predicate is (14, 0) where
 // 14 = AL (always execute) and 0 = "instruction doesn't read the CPSR".
@@ -5183,14 +5238,6 @@ def t2LDRConstPool
 def : t2InstAlias<"ldr${p}.w $Rt, $immediate",
                   (t2LDRConstPool GPRnopc:$Rt,
                   const_pool_asm_imm:$immediate, pred:$p)>;
-
-// PLD/PLDW/PLI with alternate literal form.
-def : t2InstAlias<"pld${p} $addr",
-                  (t2PLDpci t2ldr_pcrel_imm12:$addr, pred:$p)>;
-def : InstAlias<"pli${p} $addr",
-                 (t2PLIpci  t2ldr_pcrel_imm12:$addr, pred:$p), 0>,
-      Requires<[IsThumb2,HasV7]>;
-
 
 //===----------------------------------------------------------------------===//
 // ARMv8.1m instructions

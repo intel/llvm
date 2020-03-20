@@ -324,6 +324,8 @@ def warn_drv_treating_input_as_cxx : Warning<
   InGroup<Deprecated>;
 def warn_drv_pch_not_first_include : Warning<
   "precompiled header '%0' was ignored because '%1' is not first '-include'">;
+def warn_drv_existing_archive_append: Warning<
+  "appending to an existing archive '%0'">, InGroup<DiagGroup<"archive-append">>;
 def warn_missing_sysroot : Warning<"no such sysroot directory: '%0'">,
   InGroup<DiagGroup<"missing-sysroot">>;
 def warn_incompatible_sysroot : Warning<"using sysroot for '%0' but targeting '%1'">,
@@ -338,6 +340,8 @@ def warn_drv_object_size_disabled_O0 : Warning<
   InGroup<InvalidCommandLineArgument>, DefaultWarnNoWerror;
 def err_invalid_branch_protection: Error <
   "invalid branch protection option '%0' in '%1'">;
+def warn_drv_deprecated_option : Warning<
+  "option '%0' is deprecated, use '%1' directly instead">, InGroup<Deprecated>;
 
 def note_drv_command_failed_diag_msg : Note<
   "diagnostic msg: %0">;

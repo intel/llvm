@@ -2162,23 +2162,17 @@ void AsmPrinter::emitModuleCommandLines(Module &M) {
 
 /// Emit a byte directive and value.
 ///
-void AsmPrinter::emitInt8(int Value) const {
-  OutStreamer->emitIntValue(Value, 1);
-}
+void AsmPrinter::emitInt8(int Value) const { OutStreamer->emitInt8(Value); }
 
 /// Emit a short directive and value.
-void AsmPrinter::emitInt16(int Value) const {
-  OutStreamer->emitIntValue(Value, 2);
-}
+void AsmPrinter::emitInt16(int Value) const { OutStreamer->emitInt16(Value); }
 
 /// Emit a long directive and value.
-void AsmPrinter::emitInt32(int Value) const {
-  OutStreamer->emitIntValue(Value, 4);
-}
+void AsmPrinter::emitInt32(int Value) const { OutStreamer->emitInt32(Value); }
 
 /// Emit a long long directive and value.
 void AsmPrinter::emitInt64(uint64_t Value) const {
-  OutStreamer->emitIntValue(Value, 8);
+  OutStreamer->emitInt64(Value);
 }
 
 /// Emit something like ".long Hi-Lo" where the size in bytes of the directive
@@ -2255,23 +2249,22 @@ const MCExpr *AsmPrinter::lowerConstant(const Constant *CV) {
   }
 
   switch (CE->getOpcode()) {
-  default:
+  default: {
     // If the code isn't optimized, there may be outstanding folding
     // opportunities. Attempt to fold the expression using DataLayout as a
     // last resort before giving up.
-    if (Constant *C = ConstantFoldConstant(CE, getDataLayout()))
-      if (C != CE)
-        return lowerConstant(C);
+    Constant *C = ConstantFoldConstant(CE, getDataLayout());
+    if (C != CE)
+      return lowerConstant(C);
 
     // Otherwise report the problem to the user.
-    {
-      std::string S;
-      raw_string_ostream OS(S);
-      OS << "Unsupported expression in static initializer: ";
-      CE->printAsOperand(OS, /*PrintType=*/false,
-                     !MF ? nullptr : MF->getFunction().getParent());
-      report_fatal_error(OS.str());
-    }
+    std::string S;
+    raw_string_ostream OS(S);
+    OS << "Unsupported expression in static initializer: ";
+    CE->printAsOperand(OS, /*PrintType=*/false,
+                   !MF ? nullptr : MF->getFunction().getParent());
+    report_fatal_error(OS.str());
+  }
   case Instruction::GetElementPtr: {
     // Generate a symbolic expression for the byte address
     APInt OffsetAI(getDataLayout().getPointerTypeSizeInBits(CE->getType()), 0);
@@ -2796,7 +2789,7 @@ static void emitGlobalConstantImpl(const DataLayout &DL, const Constant *CV,
       // to emit the value in chunks. Try to constant fold the value and emit it
       // that way.
       Constant *New = ConstantFoldConstant(CE, DL);
-      if (New && New != CE)
+      if (New != CE)
         return emitGlobalConstantImpl(DL, New, AP);
     }
   }

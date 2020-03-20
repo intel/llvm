@@ -685,7 +685,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & InitiationIntervalINTEL) {
+  if (LC & LoopControlInitiationIntervalINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.ii.count", LoopControlParameters[NumParam])));
@@ -693,7 +693,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & MaxConcurrencyINTEL) {
+  if (LC & LoopControlMaxConcurrencyINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_concurrency.count",
@@ -702,7 +702,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & DependencyArrayINTEL) {
+  if (LC & LoopControlDependencyArrayINTEL) {
     // Collect array variable <-> safelen information
     std::map<Value *, unsigned> ArraySflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
@@ -1235,19 +1235,19 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
     return mutateCallInstOCL(
         M, CI,
         [=](CallInst *, std::vector<Value *> &Args) {
-          unsigned VecSize =
-              CI->getOperand(1)->getType()->getVectorNumElements();
+          auto VecElemCount =
+              CI->getOperand(1)->getType()->getVectorElementCount();
           Value *NewVec = nullptr;
           if (auto CA = dyn_cast<Constant>(Args[0]))
-            NewVec = ConstantVector::getSplat(VecSize, CA);
+            NewVec = ConstantVector::getSplat(VecElemCount, CA);
           else {
             NewVec = ConstantVector::getSplat(
-                VecSize, Constant::getNullValue(Args[0]->getType()));
+                VecElemCount, Constant::getNullValue(Args[0]->getType()));
             NewVec = InsertElementInst::Create(NewVec, Args[0], getInt32(M, 0),
                                                "", CI);
             NewVec = new ShuffleVectorInst(
                 NewVec, NewVec,
-                ConstantVector::getSplat(VecSize, getInt32(M, 0)), "", CI);
+                ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
           }
           NewVec->takeName(Args[0]);
           Args[0] = NewVec;
@@ -2194,8 +2194,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                          BV->getName(), BB);
+    auto Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
+                                         BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }
@@ -3046,8 +3046,17 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     SmallString<256> AnnotStr;
     generateIntelFPGAAnnotation(BV, AnnotStr);
 
-    if (AnnotStr.empty())
+    if (AnnotStr.empty()) {
+      // Check if IO pipe decoration is applied to the global
+      SPIRVWord ID;
+      if (BV->hasDecorate(DecorationIOPipeStorageINTEL, 0, &ID)) {
+        auto Literals = BV->getDecorationLiterals(DecorationIOPipeStorageINTEL);
+        assert(Literals.size() == 1 &&
+               "IO PipeStorage decoration shall have 1 extra operand");
+        GV->setMetadata("io_pipe_id", getMDNodeStringIntVec(Context, Literals));
+      }
       return;
+    }
 
     Constant *StrConstant =
         ConstantDataArray::getString(*Context, StringRef(AnnotStr));

@@ -10,42 +10,38 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-size_t __spirv_GlobalInvocationId_x();
-size_t __spirv_GlobalInvocationId_y();
-size_t __spirv_GlobalInvocationId_z();
+SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
+SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_y();
+SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_z();
 
-size_t __spirv_GlobalSize_x();
-size_t __spirv_GlobalSize_y();
-size_t __spirv_GlobalSize_z();
+SYCL_EXTERNAL size_t __spirv_GlobalSize_x();
+SYCL_EXTERNAL size_t __spirv_GlobalSize_y();
+SYCL_EXTERNAL size_t __spirv_GlobalSize_z();
 
-size_t __spirv_GlobalInvocationId_x();
-size_t __spirv_GlobalInvocationId_y();
-size_t __spirv_GlobalInvocationId_z();
+SYCL_EXTERNAL size_t __spirv_GlobalOffset_x();
+SYCL_EXTERNAL size_t __spirv_GlobalOffset_y();
+SYCL_EXTERNAL size_t __spirv_GlobalOffset_z();
 
-size_t __spirv_GlobalOffset_x();
-size_t __spirv_GlobalOffset_y();
-size_t __spirv_GlobalOffset_z();
+SYCL_EXTERNAL size_t __spirv_NumWorkgroups_x();
+SYCL_EXTERNAL size_t __spirv_NumWorkgroups_y();
+SYCL_EXTERNAL size_t __spirv_NumWorkgroups_z();
 
-size_t __spirv_NumWorkgroups_x();
-size_t __spirv_NumWorkgroups_y();
-size_t __spirv_NumWorkgroups_z();
+SYCL_EXTERNAL size_t __spirv_WorkgroupSize_x();
+SYCL_EXTERNAL size_t __spirv_WorkgroupSize_y();
+SYCL_EXTERNAL size_t __spirv_WorkgroupSize_z();
 
-size_t __spirv_WorkgroupSize_x();
-size_t __spirv_WorkgroupSize_y();
-size_t __spirv_WorkgroupSize_z();
+SYCL_EXTERNAL size_t __spirv_WorkgroupId_x();
+SYCL_EXTERNAL size_t __spirv_WorkgroupId_y();
+SYCL_EXTERNAL size_t __spirv_WorkgroupId_z();
 
-size_t __spirv_WorkgroupId_x();
-size_t __spirv_WorkgroupId_y();
-size_t __spirv_WorkgroupId_z();
+SYCL_EXTERNAL size_t __spirv_LocalInvocationId_x();
+SYCL_EXTERNAL size_t __spirv_LocalInvocationId_y();
+SYCL_EXTERNAL size_t __spirv_LocalInvocationId_z();
 
-size_t __spirv_LocalInvocationId_x();
-size_t __spirv_LocalInvocationId_y();
-size_t __spirv_LocalInvocationId_z();
-
-#define DEFINE_FUNC_ID_TO_XYZ_CONVERTER(POSTFIX)                                 \
-  template <int ID> static inline size_t get##POSTFIX();                         \
-  template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }       \
-  template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }       \
+#define DEFINE_FUNC_ID_TO_XYZ_CONVERTER(POSTFIX)                               \
+  template <int ID> static inline size_t get##POSTFIX();                       \
+  template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }     \
+  template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }     \
   template <> size_t get##POSTFIX<2>() { return __spirv_##POSTFIX##_z(); }
 
 namespace __spirv {

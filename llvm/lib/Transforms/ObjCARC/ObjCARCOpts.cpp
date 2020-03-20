@@ -1569,6 +1569,15 @@ ObjCARCOpt::VisitTopDown(BasicBlock *BB,
     }
   }
 
+  // Check that BB and MyStates have the same number of predecessors. This
+  // prevents retain calls that live outside a loop from being moved into the
+  // loop.
+  if (!BB->hasNPredecessors(MyStates.pred_end() - MyStates.pred_begin()))
+    for (auto I = MyStates.top_down_ptr_begin(),
+              E = MyStates.top_down_ptr_end();
+         I != E; ++I)
+      I->second.SetCFGHazardAfflicted(true);
+
   LLVM_DEBUG(dbgs() << "Before:\n"
                     << BBStates[BB] << "\n"
                     << "Performing Dataflow:\n");
@@ -2335,6 +2344,14 @@ void ObjCARCOpt::OptimizeReturns(Function &F) {
     bool HasSafePathToCall = HasSafePathToPredecessorCall(Arg, Retain,
                                                           DependingInstructions,
                                                           Visited, PA);
+
+    // Don't remove retainRV/autoreleaseRV pairs if the call isn't a tail call.
+    if (HasSafePathToCall &&
+        GetBasicARCInstKind(Retain) == ARCInstKind::RetainRV &&
+        GetBasicARCInstKind(Autorelease) == ARCInstKind::AutoreleaseRV &&
+        !cast<CallInst>(*DependingInstructions.begin())->isTailCall())
+      continue;
+
     DependingInstructions.clear();
     Visited.clear();
 

@@ -16,21 +16,25 @@ add_toy_chapter(toyc-ch5
   mlir/LowerToAffineLoops.cpp
   mlir/ShapeInferencePass.cpp
   mlir/ToyCombine.cpp
+
+  DEPENDS
+  ToyCh5ShapeInferenceInterfaceIncGen
+  ToyCh5OpsIncGen
+  ToyCh5CombineIncGen
   )
 
-add_dependencies(toyc-ch5 ToyCh5ShapeInferenceInterfaceIncGen)
-add_dependencies(toyc-ch5 ToyCh5OpsIncGen)
-add_dependencies(toyc-ch5 ToyCh5CombineIncGen)
-add_dependencies(toyc-ch5 MLIRCallOpInterfacesIncGen)
 include_directories(include/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 target_link_libraries(toyc-ch5
   PRIVATE
-    MLIRAllDialects
+    ${dialect_libs}
     MLIRAnalysis
+    MLIRCallInterfaces
     MLIRIR
     MLIRParser
     MLIRPass
+    MLIRSideEffects
+    MLIRSupport
     MLIRTransforms)
-

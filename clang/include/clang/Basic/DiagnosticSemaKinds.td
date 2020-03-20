@@ -670,6 +670,8 @@ def warn_redecl_library_builtin : Warning<
 def err_builtin_definition : Error<"definition of builtin function %0">;
 def err_builtin_redeclare : Error<"cannot redeclare builtin function %0">;
 def err_arm_invalid_specialreg : Error<"invalid special register for builtin">;
+def err_arm_invalid_coproc : Error<"coprocessor %0 must be configured as "
+  "%select{GCP|CDE}1">;
 def err_invalid_cpu_supports : Error<"invalid cpu feature string for builtin">;
 def err_invalid_cpu_is : Error<"invalid cpu name for builtin">;
 def err_invalid_cpu_specific_dispatch_value : Error<
@@ -1505,8 +1507,8 @@ def err_throw_abstract_type : Error<
 def err_array_of_abstract_type : Error<"array of abstract class type %0">;
 def err_capture_of_abstract_type : Error<
   "by-copy capture of value of abstract type %0">;
-def err_capture_of_incomplete_type : Error<
-  "by-copy capture of variable %0 with incomplete type %1">;
+def err_capture_of_incomplete_or_sizeless_type : Error<
+  "by-copy capture of variable %0 with %select{incomplete|sizeless}1 type %2">;
 def err_capture_default_non_local : Error<
   "non-local lambda expression cannot have a capture-default">;
 
@@ -1538,9 +1540,12 @@ def err_deleted_decl_not_first : Error<
 
 def err_deleted_override : Error<
   "deleted function %0 cannot override a non-deleted function">;
-
 def err_non_deleted_override : Error<
   "non-deleted function %0 cannot override a deleted function">;
+def err_consteval_override : Error<
+  "consteval function %0 cannot override a non-consteval function">;
+def err_non_consteval_override : Error<
+  "non-consteval function %0 cannot override a consteval function">;
 
 def warn_weak_vtable : Warning<
   "%0 has no out-of-line virtual method definitions; its vtable will be "
@@ -1811,6 +1816,11 @@ def note_due_to_dllexported_class : Note<
 def err_illegal_union_or_anon_struct_member : Error<
   "%select{anonymous struct|union}0 member %1 has a non-trivial "
   "%sub{select_special_member_kind}2">;
+
+def warn_frame_address : Warning<
+  "calling '%0' with a nonzero argument is unsafe">,
+  InGroup<FrameAddress>, DefaultIgnore;
+
 def warn_cxx98_compat_nontrivial_union_or_anon_struct_member : Warning<
   "%select{anonymous struct|union}0 member %1 with a non-trivial "
   "%sub{select_special_member_kind}2 is incompatible with C++98">,
@@ -1972,6 +1982,9 @@ def ext_dtor_name_missing_template_arguments : Extension<
 def ext_qualified_dtor_named_in_lexical_scope : ExtWarn<
   "qualified destructor name only found in lexical scope; omit the qualifier "
   "to find this type name by unqualified lookup">, InGroup<DtorName>;
+def ext_dtor_name_ambiguous : Extension<
+  "ISO C++ considers this destructor name lookup to be ambiguous">,
+  InGroup<DtorName>;
 
 def err_destroy_attr_on_non_static_var : Error<
   "%select{no_destroy|always_destroy}0 attribute can only be applied to a"
@@ -2452,20 +2465,19 @@ def note_for_range_invalid_iterator : Note <
   "in implicit call to 'operator%select{!=|*|++}0' for iterator of type %1">;
 def note_for_range_begin_end : Note<
   "selected '%select{begin|end}0' %select{function|template }1%2 with iterator type %3">;
-def warn_for_range_const_reference_copy : Warning<
+def warn_for_range_const_ref_binds_temp_built_from_ref : Warning<
   "loop variable %0 "
-  "%diff{has type $ but is initialized with type $"
-  "|is initialized with a value of a different type}1,2 resulting in a copy">,
+  "%diff{of type $ binds to a temporary constructed from type $"
+  "|binds to a temporary constructed from a different type}1,2">,
   InGroup<RangeLoopConstruct>, DefaultIgnore;
 def note_use_type_or_non_reference : Note<
-  "use non-reference type %0 to keep the copy or type %1 to prevent copying">;
-def warn_for_range_variable_always_copy : Warning<
-  "loop variable %0 is always a copy because the range of type %1 does not "
-  "return a reference">,
+  "use non-reference type %0 to make construction explicit or type %1 to prevent copying">;
+def warn_for_range_ref_binds_ret_temp : Warning<
+  "loop variable %0 binds to a temporary value produced by a range of type %1">,
   InGroup<RangeLoopBindReference>, DefaultIgnore;
 def note_use_non_reference_type : Note<"use non-reference type %0">;
 def warn_for_range_copy : Warning<
-  "loop variable %0 of type %1 creates a copy from type %2">,
+  "loop variable %0 creates a copy from type %1">,
   InGroup<RangeLoopConstruct>, DefaultIgnore;
 def note_use_reference_type : Note<"use reference type %0 to prevent copying">;
 def err_objc_for_range_init_stmt : Error<
@@ -2839,6 +2851,8 @@ def err_alignas_mismatch : Error<
   "redeclaration has different alignment requirement (%1 vs %0)">;
 def err_alignas_underaligned : Error<
   "requested alignment is less than minimum alignment of %1 for type %0">;
+def err_attribute_sizeless_type : Error<
+  "%0 attribute cannot be applied to sizeless type %1">;
 def err_attribute_argument_n_type : Error<
   "%0 attribute requires parameter %1 to be %select{int or bool|an integer "
   "constant|a string|an identifier}2">;
@@ -3488,7 +3502,7 @@ def warn_use_of_temp_in_invalid_state : Warning<
   "invalid invocation of method '%0' on a temporary object while it is in the "
   "'%1' state">, InGroup<Consumed>, DefaultIgnore;
 def warn_attr_on_unconsumable_class : Warning<
-  "consumed analysis attribute is attached to member of class '%0' which isn't "
+  "consumed analysis attribute is attached to member of class %0 which isn't "
   "marked as consumable">, InGroup<Consumed>, DefaultIgnore;
 def warn_return_typestate_for_unconsumable_type : Warning<
   "return state set for an unconsumable type '%0'">, InGroup<Consumed>,
@@ -3707,12 +3721,15 @@ def warn_int_to_void_pointer_cast : Warning<
 def warn_pointer_to_int_cast : Warning<
   "cast to smaller integer type %1 from %0">,
   InGroup<PointerToIntCast>;
+def warn_pointer_to_enum_cast : Warning<
+  warn_pointer_to_int_cast.Text>,
+  InGroup<PointerToEnumCast>;
 def warn_void_pointer_to_int_cast : Warning<
   "cast to smaller integer type %1 from %0">,
   InGroup<VoidPointerToIntCast>;
-def ext_ms_pointer_to_int_cast : ExtWarn<
-  "cast to smaller integer type %1 from %0 is a Microsoft extension">,
-InGroup<MicrosoftCast>;
+def warn_void_pointer_to_enum_cast : Warning<
+  warn_void_pointer_to_int_cast.Text>,
+  InGroup<VoidPointerToEnumCast>;
 
 def warn_attribute_ignored_for_field_of_type : Warning<
   "%0 attribute ignored for field of type %1">,
@@ -4314,7 +4331,7 @@ def err_ovl_no_viable_literal_operator : Error<
 def err_template_param_shadow : Error<
   "declaration of %0 shadows template parameter">;
 def ext_template_param_shadow : ExtWarn<
-  err_template_param_shadow.Text>, InGroup<MicrosoftTemplate>;
+  err_template_param_shadow.Text>, InGroup<MicrosoftTemplateShadow>;
 def note_template_param_here : Note<"template parameter is declared here">;
 def warn_template_export_unsupported : Warning<
   "exported templates are unsupported">;
@@ -5572,6 +5589,8 @@ def note_enters_block_captures_weak : Note<
 def note_enters_block_captures_non_trivial_c_struct : Note<
   "jump enters lifetime of block which captures a C struct that is non-trivial "
   "to destroy">;
+def note_enters_compound_literal_scope : Note<
+  "jump enters lifetime of a compound literal that is non-trivial to destruct">;
 
 def note_exits_cleanup : Note<
   "jump exits scope of variable with __attribute__((cleanup))">;
@@ -5615,6 +5634,8 @@ def note_exits_block_captures_weak : Note<
 def note_exits_block_captures_non_trivial_c_struct : Note<
   "jump exits lifetime of block which captures a C struct that is non-trivial "
   "to destroy">;
+def note_exits_compound_literal_scope : Note<
+  "jump exits lifetime of a compound literal that is non-trivial to destruct">;
 
 def err_func_returning_qualified_void : ExtWarn<
   "function cannot return qualified void type %0">,
@@ -5622,7 +5643,8 @@ def err_func_returning_qualified_void : ExtWarn<
 def err_func_returning_array_function : Error<
   "function cannot return %select{array|function}0 type %1">;
 def err_field_declared_as_function : Error<"field %0 declared as a function">;
-def err_field_incomplete : Error<"field has incomplete type %0">;
+def err_field_incomplete_or_sizeless : Error<
+  "field has %select{incomplete|sizeless}0 type %1">;
 def ext_variable_sized_type_in_struct : ExtWarn<
   "field %0 with variable sized type %1 not at the end of a struct or class is"
   " a GNU extension">, InGroup<GNUVariableSizedTypeNotAtEnd>;
@@ -5914,8 +5936,8 @@ def err_flexible_array_init_needs_braces : Error<
   "flexible array requires brace-enclosed initializer">;
 def err_illegal_decl_array_of_functions : Error<
   "'%0' declared as array of functions of type %1">;
-def err_illegal_decl_array_incomplete_type : Error<
-  "array has incomplete element type %0">;
+def err_array_incomplete_or_sizeless_type : Error<
+  "array has %select{incomplete|sizeless}0 element type %1">;
 def err_illegal_message_expr_incomplete_type : Error<
   "Objective-C message has incomplete result type %0">;
 def err_illegal_decl_array_of_references : Error<
@@ -5948,7 +5970,7 @@ def err_func_def_incomplete_result : Error<
   "incomplete result type %0 in function definition">;
 def err_atomic_specifier_bad_type : Error<
   "_Atomic cannot be applied to "
-  "%select{incomplete |array |function |reference |atomic |qualified |}0type "
+  "%select{incomplete |array |function |reference |atomic |qualified |sizeless |}0type "
   "%1 %select{||||||which is not trivially copyable}0">;
 
 // Expressions.
@@ -5964,9 +5986,9 @@ def ext_sizeof_alignof_void_type : Extension<
 def err_opencl_sizeof_alignof_type : Error<
   "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
   "to a void type">;
-def err_sizeof_alignof_incomplete_type : Error<
+def err_sizeof_alignof_incomplete_or_sizeless_type : Error<
   "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to an incomplete type %1">;
+  "to %select{an incomplete|sizeless}1 type %2">;
 def err_sizeof_alignof_function_type : Error<
   "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
   "to a function type">;
@@ -6753,8 +6775,8 @@ def warn_objc_unsafe_perform_selector : Warning<
   InGroup<DiagGroup<"objc-unsafe-perform-selector">>;
 def note_objc_unsafe_perform_selector_method_declared_here :  Note<
   "method %0 that returns %1 declared here">;
-def err_attribute_arm_mve_alias : Error<
-  "'__clang_arm_mve_alias' attribute can only be applied to an ARM MVE builtin">;
+def err_attribute_arm_builtin_alias : Error<
+  "'__clang_arm_builtin_alias' attribute can only be applied to an ARM builtin">;
 def err_attribute_arm_mve_polymorphism : Error<
   "'__clang_arm_mve_strict_polymorphism' attribute can only be applied to an MVE/NEON vector type">;
 
@@ -9168,6 +9190,8 @@ def err_block_on_nonlocal : Error<
   "__block attribute not allowed, only allowed on local variables">;
 def err_block_on_vm : Error<
   "__block attribute not allowed on declaration with a variably modified type">;
+def err_sizeless_nonlocal : Error<
+  "non-local variable with sizeless type %0">;
 
 def err_vec_builtin_non_vector : Error<
  "first two arguments to %0 must be vectors">;
@@ -9672,7 +9696,7 @@ def err_omp_expected_var_name_member_expr : Error<
 def err_omp_expected_var_name_member_expr_or_array_item : Error<
   "expected variable name%select{|, data member of current class}0, array element or array section">;
 def err_omp_expected_addressable_lvalue_or_array_item : Error<
-  "expected addressable lvalue expression, array element or array section">;
+  "expected addressable lvalue expression, array element or array section%select{| of non 'omp_depend_t' type}0">;
 def err_omp_expected_named_var_member_or_array_expression: Error<
   "expected expression containing only member accesses and/or array sections based on named variables">;
 def err_omp_bit_fields_forbidden_in_clause : Error<
@@ -10069,8 +10093,14 @@ def note_omp_invalid_subscript_on_this_ptr_map : Note <
   "expected 'this' subscript expression on map clause to be 'this[0]'">;
 def err_omp_invalid_map_this_expr : Error <
   "invalid 'this' expression on 'map' clause">;
-def err_implied_omp_allocator_handle_t_not_found : Error<
-  "omp_allocator_handle_t type not found; include <omp.h>">;
+def err_omp_implied_type_not_found : Error<
+  "'%0' type not found; include <omp.h>">;
+def err_omp_expected_omp_depend_t_lvalue : Error<
+  "expected lvalue expression%select{ of 'omp_depend_t' type, not %1|}0">;
+def err_omp_depobj_expected : Error<
+  "expected depobj expression">;
+def err_omp_depobj_single_clause_expected : Error<
+  "exactly one of 'depend', 'destroy', or 'update' clauses is expected">;
 def err_omp_expected_predefined_allocator : Error<
   "expected one of the predefined allocators for the variables with the static "
   "storage: 'omp_default_mem_alloc', 'omp_large_cap_mem_alloc', "
@@ -10151,6 +10181,9 @@ def err_omp_flush_order_clause_and_list : Error<
   "'flush' directive with memory order clause '%0' cannot have the list">;
 def note_omp_flush_order_clause_here : Note<
   "memory order clause '%0' is specified here">;
+def err_omp_non_lvalue_in_map_or_motion_clauses: Error<
+  "expected addressable lvalue in '%0' clause"
+  >;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {
@@ -10636,7 +10669,9 @@ def err_sycl_restrict : Error<
   "|allocate storage"
   "|use inline assembly"
   "|call a dllimport function"
-  "|call a variadic function}0">;
+  "|call a variadic function"
+  "|call an undefined function without SYCL_EXTERNAL attribute"
+  "}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_used_here : Note<"used here">;

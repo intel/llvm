@@ -663,8 +663,7 @@ Value *FAddCombine::createFSub(Value *Opnd0, Value *Opnd1) {
 }
 
 Value *FAddCombine::createFNeg(Value *V) {
-  Value *Zero = cast<Value>(ConstantFP::getZeroValueForNegation(V->getType()));
-  Value *NewV = createFSub(Zero, V);
+  Value *NewV = Builder.CreateFNeg(V);
   if (Instruction *I = dyn_cast<Instruction>(NewV))
     createInstPostProc(I, true); // fneg's don't receive instruction numbers.
   return NewV;
@@ -724,8 +723,6 @@ unsigned FAddCombine::calcInstrNumber(const AddendVect &Opnds) {
     if (!CE.isMinusOne() && !CE.isOne())
       InstrNeeded++;
   }
-  if (NegOpndNum == OpndNum)
-    InstrNeeded++;
   return InstrNeeded;
 }
 
@@ -1044,8 +1041,7 @@ Value *InstCombiner::SimplifyAddWithRemainder(BinaryOperator &I) {
       // Match RemOpV = X / C0
       if (MatchDiv(RemOpV, DivOpV, DivOpC, IsSigned) && X == DivOpV &&
           C0 == DivOpC && !MulWillOverflow(C0, C1, IsSigned)) {
-        Value *NewDivisor =
-            ConstantInt::get(X->getType()->getContext(), C0 * C1);
+        Value *NewDivisor = ConstantInt::get(X->getType(), C0 * C1);
         return IsSigned ? Builder.CreateSRem(X, NewDivisor, "srem")
                         : Builder.CreateURem(X, NewDivisor, "urem");
       }
@@ -1917,6 +1913,12 @@ Instruction *InstCombiner::visitSub(BinaryOperator &I) {
       return NewSel;
   }
 
+  // (X - (X & Y))   -->   (X & ~Y)
+  if (match(Op1, m_c_And(m_Specific(Op0), m_Value(Y))) &&
+      (Op1->hasOneUse() || isa<Constant>(Y)))
+    return BinaryOperator::CreateAnd(
+        Op0, Builder.CreateNot(Y, Y->getName() + ".not"));
+
   if (Op1->hasOneUse()) {
     Value *Y = nullptr, *Z = nullptr;
     Constant *C = nullptr;
@@ -1925,11 +1927,6 @@ Instruction *InstCombiner::visitSub(BinaryOperator &I) {
     if (match(Op1, m_Sub(m_Value(Y), m_Value(Z))))
       return BinaryOperator::CreateAdd(Op0,
                                       Builder.CreateSub(Z, Y, Op1->getName()));
-
-    // (X - (X & Y))   -->   (X & ~Y)
-    if (match(Op1, m_c_And(m_Value(Y), m_Specific(Op0))))
-      return BinaryOperator::CreateAnd(Op0,
-                                  Builder.CreateNot(Y, Y->getName() + ".not"));
 
     // Subtracting -1/0 is the same as adding 1/0:
     // sub [nsw] Op0, sext(bool Y) -> add [nsw] Op0, zext(bool Y)
@@ -2133,10 +2130,15 @@ Instruction *InstCombiner::visitFSub(BinaryOperator &I) {
     return X;
 
   // Subtraction from -0.0 is the canonical form of fneg.
-  // fsub nsz 0, X ==> fsub nsz -0.0, X
-  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
-  if (I.hasNoSignedZeros() && match(Op0, m_PosZeroFP()))
-    return BinaryOperator::CreateFNegFMF(Op1, &I);
+  // fsub -0.0, X ==> fneg X
+  // fsub nsz 0.0, X ==> fneg nsz X
+  //
+  // FIXME This matcher does not respect FTZ or DAZ yet:
+  // fsub -0.0, Denorm ==> +-0
+  // fneg Denorm ==> -Denorm
+  Value *Op;
+  if (match(&I, m_FNeg(m_Value(Op))))
+    return UnaryOperator::CreateFNegFMF(Op, &I);
 
   if (Instruction *X = foldFNegIntoConstant(I))
     return X;
@@ -2147,6 +2149,7 @@ Instruction *InstCombiner::visitFSub(BinaryOperator &I) {
   Value *X, *Y;
   Constant *C;
 
+  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
   // If Op0 is not -0.0 or we can ignore -0.0: Z - (X - Y) --> Z + (Y - X)
   // Canonicalize to fadd to make analysis easier.
   // This can also help codegen because fadd is commutative.
@@ -2214,12 +2217,12 @@ Instruction *InstCombiner::visitFSub(BinaryOperator &I) {
   if (I.hasAllowReassoc() && I.hasNoSignedZeros()) {
     // (Y - X) - Y --> -X
     if (match(Op0, m_FSub(m_Specific(Op1), m_Value(X))))
-      return BinaryOperator::CreateFNegFMF(X, &I);
+      return UnaryOperator::CreateFNegFMF(X, &I);
 
     // Y - (X + Y) --> -X
     // Y - (Y + X) --> -X
     if (match(Op1, m_c_FAdd(m_Specific(Op0), m_Value(X))))
-      return BinaryOperator::CreateFNegFMF(X, &I);
+      return UnaryOperator::CreateFNegFMF(X, &I);
 
     // (X * C) - X --> X * (C - 1.0)
     if (match(Op0, m_FMul(m_Specific(Op1), m_Constant(C)))) {

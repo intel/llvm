@@ -779,9 +779,9 @@ private:
 /// Go through the operands !llvm.loop metadata attached to the branch
 /// instruction, fill the Loop Control mask and possible parameters for its
 /// fields.
-static spv::LoopControlMask
-getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
-               LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap) {
+spv::LoopControlMask
+LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
+                            std::vector<SPIRVWord> &Parameters) {
   if (!Branch)
     return spv::LoopControlMaskNone;
   MDNode *LoopMD = Branch->getMetadata("llvm.loop");
@@ -821,26 +821,34 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
-      } else if (S == "llvm.loop.ii.count") {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::InitiationIntervalINTEL;
-      } else if (S == "llvm.loop.max_concurrency.count") {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::MaxConcurrencyINTEL;
-      } else if (S == "llvm.loop.parallel_access_indices") {
-        // Intel FPGA IVDep loop attribute
-        LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
-        IVDep.initialize();
-        // Store IVDep-specific parameters into an intermediate
-        // container to address the case when there're multiple
-        // IVDep metadata nodes and this condition gets entered multiple
-        // times. The update of the main parameters vector & the loop control
-        // mask will be done later, in the main scope of the function
-        unsigned SafeLen = IVDep.getSafeLen();
-        for (auto &ArrayId : IVDep.getArrayVariables())
-          DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+      } else if (BM->isAllowedToUseExtension(
+                     ExtensionID::SPV_INTEL_fpga_loop_controls)) {
+        // Add Intel specific Loop Control masks
+        if (S == "llvm.loop.ii.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlInitiationIntervalINTEL;
+        } else if (S == "llvm.loop.max_concurrency.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlMaxConcurrencyINTEL;
+        } else if (S == "llvm.loop.parallel_access_indices") {
+          // Intel FPGA IVDep loop attribute
+          LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
+          IVDep.initialize();
+          // Store IVDep-specific parameters into an intermediate
+          // container to address the case when there're multiple
+          // IVDep metadata nodes and this condition gets entered multiple
+          // times. The update of the main parameters vector & the loop control
+          // mask will be done later, in the main scope of the function
+          unsigned SafeLen = IVDep.getSafeLen();
+          for (auto &ArrayId : IVDep.getArrayVariables())
+            DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+        }
       }
     }
   }
@@ -855,7 +863,9 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
       Parameters.push_back(ArraySflnPair.first);
       Parameters.push_back(ArraySflnPair.second);
     }
-    LoopControl |= spv::DependencyArrayINTEL;
+    BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+    BM->addCapability(CapabilityFPGALoopControlsINTEL);
+    LoopControl |= spv::LoopControlDependencyArrayINTEL;
   }
 
   return static_cast<spv::LoopControlMask>(LoopControl);
@@ -1066,8 +1076,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     /// with true edge going to the header and the false edge going out of
     /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
     std::vector<SPIRVWord> Parameters;
-    spv::LoopControlMask LoopControl =
-        getLoopControl(Branch, Parameters, IndexGroupArrayMap);
+    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
     if (Branch->isUnconditional()) {
       // For "for" and "while" loops llvm.loop metadata is attached to
@@ -1902,10 +1911,23 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
   }
 }
 
+void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
+  SPIRVDBG(dbgs() << "[transGlobalIOPipeStorage] " << *V << '\n');
+  SPIRVValue *SV = transValue(V, nullptr);
+  assert(SV && "Failed to process OCL PipeStorage object");
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
+    BM->addCapability(CapabilityIOPipeINTEL);
+    unsigned ID = getMDOperandAsInt(IO, 0);
+    SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
+  }
+}
+
 bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
+    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+      transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
   }

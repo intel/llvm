@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -fsycl-is-device %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 extern __thread void* __once_callable;  // expected-no-error
 extern __thread void (*__once_call)();  // expected-no-error
@@ -15,10 +15,12 @@ void usage() {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+  //expected-note@+1{{called by}}
   kernelFunc();
 }
 
 int main() {
+  //expected-note@+1{{called by}}
   kernel_single_task<class fake_kernel>([]() { usage(); });
   return 0;
 }

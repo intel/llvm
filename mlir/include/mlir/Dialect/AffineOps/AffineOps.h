@@ -19,9 +19,11 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Transforms/LoopLikeInterface.h"
+#include "mlir/Interfaces/LoopLikeInterface.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {
+class AffineApplyOp;
 class AffineBound;
 class AffineDimExpr;
 class AffineValueMap;
@@ -33,68 +35,6 @@ class OpBuilder;
 /// function. A value of index type defined at the top level is always a valid
 /// symbol.
 bool isTopLevelValue(Value value);
-
-class AffineOpsDialect : public Dialect {
-public:
-  AffineOpsDialect(MLIRContext *context);
-  static StringRef getDialectNamespace() { return "affine"; }
-
-  /// Materialize a single constant operation from a given attribute value with
-  /// the desired resultant type.
-  Operation *materializeConstant(OpBuilder &builder, Attribute value, Type type,
-                                 Location loc) override;
-};
-
-/// The "affine.apply" operation applies an affine map to a list of operands,
-/// yielding a single result. The operand list must be the same size as the
-/// number of arguments to the affine mapping.  All operands and the result are
-/// of type 'Index'. This operation requires a single affine map attribute named
-/// "map".  For example:
-///
-///   %y = "affine.apply" (%x) { map: (d0) -> (d0 + 1) } :
-///          (index) -> (index)
-///
-/// equivalently:
-///
-///   #map42 = (d0)->(d0+1)
-///   %y = affine.apply #map42(%x)
-///
-class AffineApplyOp : public Op<AffineApplyOp, OpTrait::VariadicOperands,
-                                OpTrait::OneResult, OpTrait::HasNoSideEffect> {
-public:
-  using Op::Op;
-
-  /// Builds an affine apply op with the specified map and operands.
-  static void build(Builder *builder, OperationState &result, AffineMap map,
-                    ValueRange operands);
-
-  /// Returns the affine map to be applied by this operation.
-  AffineMap getAffineMap() {
-    return getAttrOfType<AffineMapAttr>("map").getValue();
-  }
-
-  /// Returns the affine value map computed from this operation.
-  AffineValueMap getAffineValueMap();
-
-  /// Returns true if the result of this operation can be used as dimension id.
-  bool isValidDim();
-
-  /// Returns true if the result of this operation is a symbol.
-  bool isValidSymbol();
-
-  static StringRef getOperationName() { return "affine.apply"; }
-
-  operand_range getMapOperands() { return getOperands(); }
-
-  // Hooks to customize behavior of this op.
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-  LogicalResult verify();
-  OpFoldResult fold(ArrayRef<Attribute> operands);
-
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context);
-};
 
 /// AffineDmaStartOp starts a non-blocking DMA operation that transfers data
 /// from a source memref to a destination memref. The source and destination
@@ -553,6 +493,8 @@ AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineMap map,
 void fullyComposeAffineMapAndOperands(AffineMap *map,
                                       SmallVectorImpl<Value> *operands);
 
+#include "mlir/Dialect/AffineOps/AffineOpsDialect.h.inc"
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/AffineOps/AffineOps.h.inc"
 
@@ -654,6 +596,10 @@ private:
   SmallVector<Value, 8> reorderedDims;
   SmallVector<Value, 8> concatenatedSymbols;
 
+  /// The number of symbols in concatenated symbols that belong to the original
+  /// map as opposed to those concatendated during map composition.
+  unsigned numProperSymbols;
+
   AffineMap affineMap;
 
   /// Used with RAII to control the depth at which AffineApply are composed
@@ -667,7 +613,7 @@ private:
   }
   static constexpr unsigned kMaxAffineApplyDepth = 1;
 
-  AffineApplyNormalizer() { affineApplyDepth()++; }
+  AffineApplyNormalizer() : numProperSymbols(0) { affineApplyDepth()++; }
 
 public:
   ~AffineApplyNormalizer() { affineApplyDepth()--; }

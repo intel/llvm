@@ -131,7 +131,7 @@ private:
       }
       if (CurrentToken->isOneOf(tok::r_paren, tok::r_square, tok::r_brace) ||
           (CurrentToken->isOneOf(tok::colon, tok::question) && InExprContext &&
-           Style.Language != FormatStyle::LK_Proto &&
+           !Style.isCSharp() && Style.Language != FormatStyle::LK_Proto &&
            Style.Language != FormatStyle::LK_TextProto))
         return false;
       // If a && or || is found and interpreted as a binary operator, this set
@@ -369,6 +369,17 @@ private:
     if (!Style.isCSharp())
       return false;
 
+    // `identifier[i]` is not an attribute.
+    if (Tok.Previous && Tok.Previous->is(tok::identifier))
+      return false;
+
+    // Chains of [] in `identifier[i][j][k]` are not attributes.
+    if (Tok.Previous && Tok.Previous->is(tok::r_square)) {
+      auto *MatchingParen = Tok.Previous->MatchingParen;
+      if (!MatchingParen || MatchingParen->is(TT_ArraySubscriptLSquare))
+        return false;
+    }
+
     const FormatToken *AttrTok = Tok.Next;
     if (!AttrTok)
       return false;
@@ -384,11 +395,11 @@ private:
 
     if (!AttrTok)
       return false;
-
-    // Move past the end of ']'.
+    
+    // Allow an attribute to be the only content of a file.
     AttrTok = AttrTok->Next;
     if (!AttrTok)
-      return false;
+      return true;
 
     // Limit this to being an access modifier that follows.
     if (AttrTok->isOneOf(tok::kw_public, tok::kw_private, tok::kw_protected,
@@ -460,7 +471,7 @@ private:
                                      Contexts.back().InCpp11AttributeSpecifier;
 
     // Treat C# Attributes [STAThread] much like C++ attributes [[...]].
-    bool IsCSharp11AttributeSpecifier =
+    bool IsCSharpAttributeSpecifier =
         isCSharpAttributeSpecifier(*Left) ||
         Contexts.back().InCSharpAttributeSpecifier;
 
@@ -469,7 +480,8 @@ private:
     bool StartsObjCMethodExpr =
         !IsCppStructuredBinding && !InsideInlineASM && !CppArrayTemplates &&
         Style.isCpp() && !IsCpp11AttributeSpecifier &&
-        Contexts.back().CanBeExpression && Left->isNot(TT_LambdaLSquare) &&
+        !IsCSharpAttributeSpecifier && Contexts.back().CanBeExpression &&
+        Left->isNot(TT_LambdaLSquare) &&
         !CurrentToken->isOneOf(tok::l_brace, tok::r_square) &&
         (!Parent ||
          Parent->isOneOf(tok::colon, tok::l_square, tok::l_paren,
@@ -487,6 +499,8 @@ private:
     } else if (Left->is(TT_Unknown)) {
       if (StartsObjCMethodExpr) {
         Left->Type = TT_ObjCMethodExpr;
+      } else if (InsideInlineASM) {
+        Left->Type = TT_InlineASMSymbolicNameLSquare;
       } else if (IsCpp11AttributeSpecifier) {
         Left->Type = TT_AttributeSquare;
       } else if (Style.Language == FormatStyle::LK_JavaScript && Parent &&
@@ -496,7 +510,7 @@ private:
       } else if (Style.isCpp() && Contexts.back().ContextKind == tok::l_brace &&
                  Parent && Parent->isOneOf(tok::l_brace, tok::comma)) {
         Left->Type = TT_DesignatedInitializerLSquare;
-      } else if (IsCSharp11AttributeSpecifier) {
+      } else if (IsCSharpAttributeSpecifier) {
         Left->Type = TT_AttributeSquare;
       } else if (CurrentToken->is(tok::r_square) && Parent &&
                  Parent->is(TT_TemplateCloser)) {
@@ -559,13 +573,13 @@ private:
 
     Contexts.back().ColonIsObjCMethodExpr = StartsObjCMethodExpr;
     Contexts.back().InCpp11AttributeSpecifier = IsCpp11AttributeSpecifier;
-    Contexts.back().InCSharpAttributeSpecifier = IsCSharp11AttributeSpecifier;
+    Contexts.back().InCSharpAttributeSpecifier = IsCSharpAttributeSpecifier;
 
     while (CurrentToken) {
       if (CurrentToken->is(tok::r_square)) {
         if (IsCpp11AttributeSpecifier)
           CurrentToken->Type = TT_AttributeSquare;
-        if (IsCSharp11AttributeSpecifier)
+        if (IsCSharpAttributeSpecifier)
           CurrentToken->Type = TT_AttributeSquare;
         else if (((CurrentToken->Next &&
                    CurrentToken->Next->is(tok::l_paren)) ||
@@ -776,6 +790,15 @@ private:
           Tok->Type = TT_JsTypeColon;
           break;
         }
+      } else if (Style.isCSharp()) {
+        if (Contexts.back().InCSharpAttributeSpecifier) {
+          Tok->Type = TT_AttributeColon;
+          break;
+        }
+        if (Contexts.back().ContextKind == tok::l_paren) {
+          Tok->Type = TT_CSharpNamedArgumentColon;
+          break;
+        }
       }
       if (Contexts.back().ColonIsDictLiteral ||
           Style.Language == FormatStyle::LK_Proto ||
@@ -967,6 +990,13 @@ private:
       }
       break;
     case tok::question:
+      if (Tok->is(TT_CSharpNullConditionalLSquare)) {
+        if (!parseSquare())
+          return false;
+        break;
+      }
+      if (Tok->isOneOf(TT_CSharpNullConditional, TT_CSharpNullCoalescing))
+        break;
       if (Style.Language == FormatStyle::LK_JavaScript && Tok->Next &&
           Tok->Next->isOneOf(tok::semi, tok::comma, tok::colon, tok::r_paren,
                              tok::r_brace)) {
@@ -982,6 +1012,18 @@ private:
       if (Line.MustBeDeclaration && !Contexts.back().IsExpression &&
           Style.Language == FormatStyle::LK_JavaScript)
         break;
+      if (Style.isCSharp()) {
+        // `Type?)`, `Type?>`, `Type? name;` and `Type? name =` can only be
+        // nullable types.
+        // Line.MustBeDeclaration will be true for `Type? name;`.
+        if ((!Contexts.back().IsExpression && Line.MustBeDeclaration) ||
+            (Tok->Next && Tok->Next->isOneOf(tok::r_paren, tok::greater)) ||
+            (Tok->Next && Tok->Next->is(tok::identifier) && Tok->Next->Next &&
+             Tok->Next->Next->is(tok::equal))) {
+          Tok->Type = TT_CSharpNullable;
+          break;
+        }
+      }
       parseConditional();
       break;
     case tok::kw_template:
@@ -1427,6 +1469,21 @@ private:
     if (!Current.is(TT_Unknown))
       // The token type is already known.
       return;
+
+    if (Style.isCSharp() && CurrentToken->is(tok::question)) {
+      if (CurrentToken->TokenText == "??") {
+        Current.Type = TT_CSharpNullCoalescing;
+        return;
+      }
+      if (CurrentToken->TokenText == "?.") {
+        Current.Type = TT_CSharpNullConditional;
+        return;
+      }
+      if (CurrentToken->TokenText == "?[") {
+        Current.Type = TT_CSharpNullConditionalLSquare;
+        return;
+      }
+    }
 
     if (Style.Language == FormatStyle::LK_JavaScript) {
       if (Current.is(tok::exclaim)) {
@@ -2870,21 +2927,74 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     if (Left.is(tok::numeric_constant) && Right.is(tok::percent))
       return Right.WhitespaceRange.getEnd() != Right.WhitespaceRange.getBegin();
   } else if (Style.isCSharp()) {
+    // Require spaces around '{' and  before '}' unless they appear in
+    // interpolated strings. Interpolated strings are merged into a single token
+    // so cannot have spaces inserted by this function.
+
+    // No space between 'this' and '['
+    if (Left.is(tok::kw_this) && Right.is(tok::l_square))
+      return false;
+
+    // No space between 'new' and '('
+    if (Left.is(tok::kw_new) && Right.is(tok::l_paren))
+      return false;
+
+    // Space before { (including space within '{ {').
+    if (Right.is(tok::l_brace))
+      return true;
+
+    // Spaces inside braces.
+    if (Left.is(tok::l_brace) && Right.isNot(tok::r_brace))
+      return true;
+
+    if (Left.isNot(tok::l_brace) && Right.is(tok::r_brace))
+      return true;
+
+    // Spaces around '=>'.
+    if (Left.is(TT_JsFatArrow) || Right.is(TT_JsFatArrow))
+      return true;
+
+    // No spaces around attribute target colons
+    if (Left.is(TT_AttributeColon) || Right.is(TT_AttributeColon))
+      return false;
+
     // space between type and variable e.g. Dictionary<string,string> foo;
     if (Left.is(TT_TemplateCloser) && Right.is(TT_StartOfName))
       return true;
+
+    // spaces inside square brackets.
+    if (Left.is(tok::l_square) || Right.is(tok::r_square))
+      return Style.SpacesInSquareBrackets;
+
+    // No space before ? in nullable types.
+    if (Right.is(TT_CSharpNullable))
+      return false;
+
+    // Require space after ? in nullable types except in generics and casts.
+    if (Left.is(TT_CSharpNullable))
+      return !Right.isOneOf(TT_TemplateCloser, tok::r_paren);
+
+    // No space before or after '?.'.
+    if (Left.is(TT_CSharpNullConditional) || Right.is(TT_CSharpNullConditional))
+      return false;
+
+    // Space before and after '??'.
+    if (Left.is(TT_CSharpNullCoalescing) || Right.is(TT_CSharpNullCoalescing))
+      return true;
+
+    // No space before '?['.
+    if (Right.is(TT_CSharpNullConditionalLSquare))
+      return false;
+
+    // Possible space inside `?[ 0 ]`.
+    if (Left.is(TT_CSharpNullConditionalLSquare))
+      return Style.SpacesInSquareBrackets;
+
     // space between keywords and paren e.g. "using ("
     if (Right.is(tok::l_paren))
-      if (Left.is(tok::kw_using))
+      if (Left.isOneOf(tok::kw_using, Keywords.kw_async, Keywords.kw_when))
         return Style.SpaceBeforeParens == FormatStyle::SBPO_ControlStatements ||
                spaceRequiredBeforeParens(Right);
-    // space between ']' and '{'
-    if (Left.is(tok::r_square) && Right.is(tok::l_brace))
-      return true;
-    // space before '{' in "new MyType {"
-    if (Right.is(tok::l_brace) && Left.Previous &&
-        Left.Previous->is(tok::kw_new))
-      return true;
   } else if (Style.Language == FormatStyle::LK_JavaScript) {
     if (Left.is(TT_JsFatArrow))
       return true;
@@ -3035,6 +3145,8 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
       return Style.SpacesInContainerLiterals;
     if (Right.is(TT_AttributeColon))
       return false;
+    if (Right.is(TT_CSharpNamedArgumentColon))
+      return false;
     return true;
   }
   if (Left.is(TT_UnaryOperator)) {
@@ -3183,7 +3295,11 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
   if (Right.NewlinesBefore > 1 && Style.MaxEmptyLinesToKeep > 0)
     return true;
 
-  if (Style.Language == FormatStyle::LK_JavaScript) {
+  if (Style.isCSharp()) {
+    if (Right.is(TT_CSharpNamedArgumentColon) ||
+        Left.is(TT_CSharpNamedArgumentColon))
+      return false;
+  } else if (Style.Language == FormatStyle::LK_JavaScript) {
     // FIXME: This might apply to other languages and token kinds.
     if (Right.is(tok::string_literal) && Left.is(tok::plus) && Left.Previous &&
         Left.Previous->is(tok::string_literal))
@@ -3468,9 +3584,12 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
 bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
                                     const FormatToken &Right) {
   const FormatToken &Left = *Right.Previous;
-
   // Language-specific stuff.
-  if (Style.Language == FormatStyle::LK_Java) {
+  if (Style.isCSharp()) {
+    if (Left.isOneOf(TT_CSharpNamedArgumentColon, TT_AttributeColon) ||
+        Right.isOneOf(TT_CSharpNamedArgumentColon, TT_AttributeColon))
+      return false;
+  } else if (Style.Language == FormatStyle::LK_Java) {
     if (Left.isOneOf(Keywords.kw_throws, Keywords.kw_extends,
                      Keywords.kw_implements))
       return false;

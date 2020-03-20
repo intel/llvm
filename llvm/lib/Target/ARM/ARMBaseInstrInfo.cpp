@@ -1027,6 +1027,36 @@ ARMBaseInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
 }
 
+Optional<ParamLoadedValue>
+ARMBaseInstrInfo::describeLoadedValue(const MachineInstr &MI,
+                                      Register Reg) const {
+  if (auto DstSrcPair = isCopyInstrImpl(MI)) {
+    Register DstReg = DstSrcPair->Destination->getReg();
+
+    // TODO: We don't handle cases where the forwarding reg is narrower/wider
+    // than the copy registers. Consider for example:
+    //
+    //   s16 = VMOVS s0
+    //   s17 = VMOVS s1
+    //   call @callee(d0)
+    //
+    // We'd like to describe the call site value of d0 as d8, but this requires
+    // gathering and merging the descriptions for the two VMOVS instructions.
+    //
+    // We also don't handle the reverse situation, where the forwarding reg is
+    // narrower than the copy destination:
+    //
+    //   d8 = VMOVD d0
+    //   call @callee(s1)
+    //
+    // We need to produce a fragment description (the call site value of s1 is
+    // /not/ just d8).
+    if (DstReg != Reg)
+      return None;
+  }
+  return TargetInstrInfo::describeLoadedValue(MI, Reg);
+}
+
 const MachineInstrBuilder &
 ARMBaseInstrInfo::AddDReg(MachineInstrBuilder &MIB, unsigned Reg,
                           unsigned SubIdx, unsigned State,
@@ -5371,7 +5401,8 @@ Optional<RegImmPair> ARMBaseInstrInfo::isAddImmediate(const MachineInstr &MI,
 
   // TODO: Handle cases where Reg is a super- or sub-register of the
   // destination register.
-  if (Reg != MI.getOperand(0).getReg())
+  const MachineOperand &Op0 = MI.getOperand(0);
+  if (!Op0.isReg() || Reg != Op0.getReg())
     return None;
 
   // We describe SUBri or ADDri instructions.
@@ -5383,8 +5414,7 @@ Optional<RegImmPair> ARMBaseInstrInfo::isAddImmediate(const MachineInstr &MI,
   // TODO: Third operand can be global address (usually some string). Since
   //       strings can be relocated we cannot calculate their offsets for
   //       now.
-  if (!MI.getOperand(0).isReg() || !MI.getOperand(1).isReg() ||
-      !MI.getOperand(2).isImm())
+  if (!MI.getOperand(1).isReg() || !MI.getOperand(2).isImm())
     return None;
 
   Offset = MI.getOperand(2).getImm() * Sign;

@@ -101,16 +101,18 @@ set(ENTRYPOINT_OBJ_TARGET_TYPE "ENTRYPOINT_OBJ")
 #     add_entrypoint_object(
 #       <target_name>
 #       [REDIRECTED] # Specified if the entrypoint is redirected.
+#       [NAME] <the C name of the entrypoint if different from target_name>
 #       SRCS <list of .cpp files>
 #       HDRS <list of .h files>
 #       DEPENDS <list of dependencies>
+#       COMPILE_OPTIONS <list of special compile options for this target>
 #     )
 function(add_entrypoint_object target_name)
   cmake_parse_arguments(
     "ADD_ENTRYPOINT_OBJ"
     "REDIRECTED" # Optional argument
-    "" # No single value arguments
-    "SRCS;HDRS;DEPENDS"  # Multi value arguments
+    "NAME" # Single value arguments
+    "SRCS;HDRS;DEPENDS;COMPILE_OPTIONS"  # Multi value arguments
     ${ARGN}
   )
   if(NOT ADD_ENTRYPOINT_OBJ_SRCS)
@@ -118,6 +120,11 @@ function(add_entrypoint_object target_name)
   endif()
   if(NOT ADD_ENTRYPOINT_OBJ_HDRS)
     message(FATAL_ERROR "`add_entrypoint_object` rule requires HDRS to be specified.")
+  endif()
+
+  set(entrypoint_name ${target_name})
+  if(ADD_ENTRYPOINT_OBJ_NAME)
+    set(entrypoint_name ${ADD_ENTRYPOINT_OBJ_NAME})
   endif()
 
   add_library(
@@ -149,6 +156,12 @@ function(add_entrypoint_object target_name)
       ${ADD_ENTRYPOINT_OBJ_DEPENDS}
     )
   endif()
+  if(ADD_ENTRYPOINT_OBJ_COMPILE_OPTIONS)
+    target_compile_options(
+      ${target_name}_objects
+      PRIVATE ${ADD_ENTRYPOINT_OBJ_COMPILE_OPTIONS}
+    )
+  endif()
 
   set(object_file_raw "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_raw.o")
   set(object_file "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.o")
@@ -168,7 +181,7 @@ function(add_entrypoint_object target_name)
     OUTPUT ${object_file}
     # We llvm-objcopy here as GNU-binutils objcopy does not support the 'hidden' flag.
     DEPENDS ${object_file_raw} ${llvm-objcopy}
-    COMMAND $<TARGET_FILE:llvm-objcopy> --add-symbol "${target_name}=.llvm.libc.entrypoint.${target_name}:${alias_attributes}" ${object_file_raw} ${object_file}
+    COMMAND $<TARGET_FILE:llvm-objcopy> --add-symbol "${entrypoint_name}=.llvm.libc.entrypoint.${entrypoint_name}:${alias_attributes}" ${object_file_raw} ${object_file}
   )
 
   add_custom_target(

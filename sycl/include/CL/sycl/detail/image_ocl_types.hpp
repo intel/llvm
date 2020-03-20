@@ -31,13 +31,14 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 
+#include <CL/__spirv/spirv_ops.hpp>
+
 #define INVOKE_SPIRV_CALL_ARG1(call)                                           \
-  template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {     \
+  template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
-    extern Ret __spirv_##call(T1);                                             \
-    T1 Arg1 = ParT1;                                                          \
-    Ret RetVar = __spirv_##call(Arg1);                                        \
-    return cl::sycl::detail::convertDataToType<Ret, R>(RetVar);               \
+    T1 Arg1 = ParT1;                                                           \
+    Ret RetVar = __spirv_##call<Ret, T1>(Arg1);                                \
+    return cl::sycl::detail::convertDataToType<Ret, R>(RetVar);                \
   }
 
 // The macro defines the function __invoke_ImageXXXX,

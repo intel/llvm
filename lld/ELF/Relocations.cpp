@@ -946,8 +946,12 @@ static bool maybeReportUndefined(Symbol &sym, InputSectionBase &sec,
   // .toc and the .rela.toc are incorrectly not placed in the comdat. The ELF
   // spec says references from outside the group to a STB_LOCAL symbol are not
   // allowed. Work around the bug.
-  if (config->emachine == EM_PPC64 &&
-      cast<Undefined>(sym).discardedSecIdx != 0 && sec.name == ".toc")
+  //
+  // PPC32 .got2 is similar but cannot be fixed. Multiple .got2 is infeasible
+  // because .LC0-.LTOC is not representable if the two labels are in different
+  // .got2
+  if (cast<Undefined>(sym).discardedSecIdx != 0 &&
+      (sec.name == ".got2" || sec.name == ".toc"))
     return false;
 
   bool isWarning =
@@ -1226,6 +1230,7 @@ static void processRelocAux(InputSectionBase &sec, RelExpr expr, RelType type,
           // PPC32 canonical PLT entries are at the beginning of .glink
           cast<Defined>(sym).value = in.plt->headerSize;
           in.plt->headerSize += 16;
+          cast<PPC32GlinkSection>(in.plt)->canonical_plts.push_back(&sym);
         }
       }
       sym.needsPltAddr = true;
@@ -1973,6 +1978,44 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
   mergeThunks(outputSections);
   ++pass;
   return addressesChanged;
+}
+
+// The following aid in the conversion of call x@GDPLT to call __tls_get_addr
+// hexagonNeedsTLSSymbol scans for relocations would require a call to
+// __tls_get_addr.
+// hexagonTLSSymbolUpdate rebinds the relocation to __tls_get_addr.
+bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
+  bool needTlsSymbol = false;
+  forEachInputSectionDescription(
+      outputSections, [&](OutputSection *os, InputSectionDescription *isd) {
+        for (InputSection *isec : isd->sections)
+          for (Relocation &rel : isec->relocations)
+            if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC) {
+              needTlsSymbol = true;
+              return;
+            }
+      });
+  return needTlsSymbol;
+}
+
+void hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections) {
+  Symbol *sym = symtab->find("__tls_get_addr");
+  if (!sym)
+    return;
+  bool needEntry = true;
+  forEachInputSectionDescription(
+      outputSections, [&](OutputSection *os, InputSectionDescription *isd) {
+        for (InputSection *isec : isd->sections)
+          for (Relocation &rel : isec->relocations)
+            if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC) {
+              if (needEntry) {
+                addPltEntry(in.plt, in.gotPlt, in.relaPlt, target->pltRel,
+                            *sym);
+                needEntry = false;
+              }
+              rel.sym = sym;
+            }
+      });
 }
 
 template void scanRelocations<ELF32LE>(InputSectionBase &);

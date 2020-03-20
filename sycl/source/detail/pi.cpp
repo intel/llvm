@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+/// \file pi.cpp
+/// Implementation of C++ wrappers for PI interface.
+///
+/// \ingroup sycl_pi
+
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -18,10 +24,34 @@
 #include <string>
 #include <sstream>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Include the headers necessary for emitting
+// traces using the trace framework
+#include "xpti_trace_framework.h"
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Stream name being used for traces generated from the SYCL runtime
+constexpr const char *PICALL_STREAM_NAME = "sycl.pi";
+// Global (to the SYCL runtime) graph handle that all command groups are a
+// child of
+///< Event to be used by graph related activities
+xpti_td *GSYCLGraphEvent = nullptr;
+///< Event to be used by PI layer related activities
+xpti_td *GPICallEvent = nullptr;
+///< Constansts being used as placeholder until one is able to reliably get the
+///< version of the SYCL runtime
+constexpr uint32_t GMajVer = 1;
+constexpr uint32_t GMinVer = 0;
+constexpr const char *GVerStr = "sycl 1.0";
+#endif
+
 namespace pi {
+
+bool XPTIInitDone = false;
 
 std::string platformInfoToString(pi_platform_info info) {
   switch (info) {
@@ -208,6 +238,49 @@ vector_class<plugin> initialize() {
     }
     Plugins.push_back(plugin(PluginInformation));
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!(xptiTraceEnabled() && !XPTIInitDone))
+    return Plugins;
+  // Not sure this is the best place to initialize the framework; SYCL runtime
+  // team needs to advise on the right place, until then we piggy-back on the
+  // initialization of the PI layer.
+
+  // Initialize the global events just once, in the case pi::initialize() is
+  // called multiple times
+  XPTIInitDone = true;
+  // Registers a new stream for 'sycl' and any plugin that wants to listen to
+  // this stream will register itself using this string or stream ID for this
+  // string.
+  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  //  Let all tool plugins know that a stream by the name of 'sycl' has been
+  //  initialized and will be generating the trace stream.
+  //
+  //                                           +--- Minor version #
+  //            Major version # ------+        |   Version string
+  //                                  |        |       |
+  //                                  v        v       v
+  xptiInitialize(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  // Create a tracepoint to indicate the graph creation
+  xpti::payload_t GraphPayload("application_graph");
+  uint64_t GraphInstanceNo;
+  GSYCLGraphEvent =
+      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
+                    xpti_at::active, &GraphInstanceNo);
+  if (GSYCLGraphEvent) {
+    // The graph event is a global event and will be used as the parent for
+    // all nodes (command groups)
+    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
+                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
+  }
+
+  xpti::payload_t PIPayload("Plugin Interface Layer");
+  uint64_t PiInstanceNo;
+  GPICallEvent =
+      xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
+                    xpti_at::active, &PiInstanceNo);
+#endif
+
   return Plugins;
 }
 

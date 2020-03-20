@@ -33,8 +33,8 @@ public:
   ///
   /// The SyclContext must match the OpenCL context associated with the ClEvent.
   ///
-  /// @param ClEvent is a valid instance of OpenCL cl_event.
-  /// @param SyclContext is an instance of SYCL context.
+  /// \param ClEvent is a valid instance of OpenCL cl_event.
+  /// \param SyclContext is an instance of SYCL context.
   event(cl_event ClEvent, const context &SyclContext);
 
   event(const event &rhs) = default;
@@ -51,12 +51,12 @@ public:
 
   /// Returns a valid OpenCL event interoperability handle.
   ///
-  /// @return a valid instance of OpenCL cl_event.
+  /// \return a valid instance of OpenCL cl_event.
   cl_event get();
 
   /// Checks if this event is a SYCL host event.
   ///
-  /// @return true if this event is a SYCL host event.
+  /// \return true if this event is a SYCL host event.
   bool is_host() const;
 
   /// Return the list of events that this event waits for.
@@ -64,7 +64,7 @@ public:
   /// Only direct dependencies are returned. Already completed events are not
   /// included in the returned vector.
   ///
-  /// @return a vector of SYCL events.
+  /// \return a vector of SYCL events.
   vector_class<event> get_wait_list();
 
   /// Wait for the event.
@@ -72,7 +72,7 @@ public:
 
   /// Synchronously wait on a list of events.
   ///
-  /// @param EventList is a vector of SYCL events.
+  /// \param EventList is a vector of SYCL events.
   static void wait(const vector_class<event> &EventList);
 
   /// Wait for the event.
@@ -88,12 +88,12 @@ public:
   /// events are waiting on executions from, then call those contexts'
   /// asynchronous error handlers with those errors.
   ///
-  /// @param EventList is a vector of SYCL events.
+  /// \param EventList is a vector of SYCL events.
   static void wait_and_throw(const vector_class<event> &EventList);
 
   /// Queries this SYCL event for information.
   ///
-  /// @return depends on the information being requested.
+  /// \return depends on the information being requested.
   template <info::event param>
   typename info::param_traits<info::event, param>::return_type get_info() const;
 
@@ -107,7 +107,7 @@ public:
   /// property::queue::enable_profiling property, an invalid_object_error SYCL
   /// exception is thrown.
   ///
-  /// @return depends on template parameter.
+  /// \return depends on template parameter.
   template <info::event_profiling param>
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;

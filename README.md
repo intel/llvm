@@ -1,24 +1,28 @@
-# Intel Project for LLVM* technology
+# Intel Project for LLVM\* technology
 
 ## Introduction
 
 Intel staging area for llvm.org contribution.
 Home for Intel LLVM-based projects:
- - SYCL* Compiler and Runtimes - compiler and runtime libraries for SYCL ([https://www.khronos.org/sycl/](https://www.khronos.org/sycl/)). See **sycl** branch.
+ - oneAPI Data Parallel C++ compiler - see **sycl** branch. More information on
+   oneAPI and DPC++ is available at
+([https://www.oneapi.com/](https://www.oneapi.com/))
 
 ## License
 See [LICENSE.txt](sycl/LICENSE.TXT) for details.
-
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Sub-projects Documentation
- - SYCL Compiler and Runtimes - See [GetStartedWithSYCLCompiler.md](sycl/doc/GetStartedWithSYCLCompiler.md)
+ - oneAPI Data Parallel C++ compiler - See
+   [GetStartedGuide.md](sycl/doc/GetStartedGuide.md)
 
-*Other names and brands may be claimed as the property of others.
+## DPC++ extensions
 
-## SYCL Extension Proposal Documents
+DPC++ is an open, cross-architecture language built upon the ISO C++ and Khronos
+SYCL\* standards. DPC++ extends these standards with a number of extensions,
+which can be found in [sycl/doc/extensions](sycl/doc/extensions) directory.
 
-See [sycl/doc/extensions](sycl/doc/extensions)
+\*Other names and brands may be claimed as the property of others.
 

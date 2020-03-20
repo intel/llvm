@@ -50,9 +50,9 @@ public:
   ///
   /// Note: AllocKind == alloc::device is not allowed.
   ///
-  /// @param Ptr is a pointer to memory that will be used to construct the
+  /// \param Ptr is a pointer to memory that will be used to construct the
   /// object.
-  /// @param Val is a value to initialize the newly constructed object.
+  /// \param Val is a value to initialize the newly constructed object.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -73,7 +73,7 @@ public:
   ///
   /// Note:: AllocKind == alloc::device is not allowed
   ///
-  /// @param Ptr is a pointer to memory where the object resides.
+  /// \param Ptr is a pointer to memory where the object resides.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -91,8 +91,8 @@ public:
 
   /// Note:: AllocKind == alloc::device is not allowed.
   ///
-  /// @param Val is a reference to object.
-  /// @return an address of the object referenced by Val.
+  /// \param Val is a reference to object.
+  /// \return an address of the object referenced by Val.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -125,7 +125,7 @@ public:
 
   /// Allocates memory.
   ///
-  /// @param NumberOfElements is a count of elements to allocate memory for.
+  /// \param NumberOfElements is a count of elements to allocate memory for.
   pointer allocate(size_t NumberOfElements) {
 
     auto Result = reinterpret_cast<pointer>(
@@ -139,8 +139,8 @@ public:
 
   /// Deallocates memory.
   ///
-  /// @param Ptr is a pointer to memory being deallocated.
-  /// @param Size is a number of elements previously passed to allocate.
+  /// \param Ptr is a pointer to memory being deallocated.
+  /// \param Size is a number of elements previously passed to allocate.
   void deallocate(pointer Ptr, size_t Size) {
     if (Ptr) {
       free(Ptr, MContext);

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 struct SpaceWaster {
   int i, j;
@@ -10,7 +10,7 @@ struct HasX {
 
 struct Y : SpaceWaster, HasX {};
 
-void bar(HasX &hx);
+SYCL_EXTERNAL void bar(HasX &hx);
 
 void baz(Y &y) {
   bar(y);

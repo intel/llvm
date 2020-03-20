@@ -2,7 +2,6 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// XFAIL: cuda
 
 //==-- allocator_vector_fail.cpp - Device Memory Allocator fail test -------==//
 //

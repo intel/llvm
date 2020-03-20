@@ -323,7 +323,11 @@ bool AMDGPUInstructionSelector::selectG_ADD_SUB(MachineInstr &I) const {
   MachineFunction *MF = BB->getParent();
   Register DstReg = I.getOperand(0).getReg();
   const DebugLoc &DL = I.getDebugLoc();
-  unsigned Size = RBI.getSizeInBits(DstReg, *MRI, TRI);
+  LLT Ty = MRI->getType(DstReg);
+  if (Ty.isVector())
+    return false;
+
+  unsigned Size = Ty.getSizeInBits();
   const RegisterBank *DstRB = RBI.getRegBank(DstReg, *MRI, TRI);
   const bool IsSALU = DstRB->getID() == AMDGPU::SGPRRegBankID;
   const bool Sub = I.getOpcode() == TargetOpcode::G_SUB;
@@ -2522,16 +2526,6 @@ AMDGPUInstructionSelector::selectVOP3Mods_nnan(MachineOperand &Root) const {
   return {{
       [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }  // src_mods
-  }};
-}
-
-InstructionSelector::ComplexRendererFns
-AMDGPUInstructionSelector::selectVOP3OpSelMods0(MachineOperand &Root) const {
-  // FIXME: Handle clamp and op_sel
-  return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Root.getReg()); },
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }, // src_mods
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }  // clamp
   }};
 }
 

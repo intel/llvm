@@ -697,8 +697,8 @@ void MachineInstr::eraseFromBundle() {
   getParent()->erase_instr(this);
 }
 
-bool MachineInstr::isCandidateForCallSiteEntry() const {
-  if (!isCall(MachineInstr::IgnoreBundle))
+bool MachineInstr::isCandidateForCallSiteEntry(QueryType Type) const {
+  if (!isCall(Type))
     return false;
   switch (getOpcode()) {
   case TargetOpcode::PATCHABLE_EVENT_CALL:
@@ -709,6 +709,12 @@ bool MachineInstr::isCandidateForCallSiteEntry() const {
     return false;
   }
   return true;
+}
+
+bool MachineInstr::shouldUpdateCallSiteInfo() const {
+  if (isBundle())
+    return isCandidateForCallSiteEntry(MachineInstr::AnyInBundle);
+  return isCandidateForCallSiteEntry();
 }
 
 unsigned MachineInstr::getNumExplicitOperands() const {
@@ -1519,7 +1525,6 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
                          bool IsStandalone, bool SkipOpers, bool SkipDebugLoc,
                          bool AddNewLine, const TargetInstrInfo *TII) const {
   // We can be a bit tidier if we know the MachineFunction.
-  const MachineFunction *MF = nullptr;
   const TargetRegisterInfo *TRI = nullptr;
   const MachineRegisterInfo *MRI = nullptr;
   const TargetIntrinsicInfo *IntrinsicInfo = nullptr;
@@ -1811,14 +1816,6 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     }
     auto *DV = cast<DILocalVariable>(getOperand(e - 2).getMetadata());
     OS << " line no:" <<  DV->getLine();
-    if (auto *InlinedAt = debugLoc->getInlinedAt()) {
-      DebugLoc InlinedAtDL(InlinedAt);
-      if (InlinedAtDL && MF) {
-        OS << " inlined @[ ";
-        InlinedAtDL.print(OS);
-        OS << " ]";
-      }
-    }
     if (isIndirectDebugValue())
       OS << " indirect";
   }
@@ -2191,7 +2188,7 @@ void MachineInstr::changeDebugValuesDefReg(Register Reg) {
 
 using MMOList = SmallVector<const MachineMemOperand *, 2>;
 
-static unsigned getSpillSlotSize(MMOList &Accesses,
+static unsigned getSpillSlotSize(const MMOList &Accesses,
                                  const MachineFrameInfo &MFI) {
   unsigned Size = 0;
   for (auto A : Accesses)

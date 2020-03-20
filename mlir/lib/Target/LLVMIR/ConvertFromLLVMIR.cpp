@@ -426,6 +426,12 @@ Value Importer::processConstant(llvm::Constant *c) {
     i->deleteValue();
     return instMap[c] = instMap[i];
   }
+  if (auto *ue = dyn_cast<llvm::UndefValue>(c)) {
+    LLVMType type = processType(ue->getType());
+    if (!type)
+      return nullptr;
+    return instMap[c] = bEntry.create<UndefOp>(UnknownLoc::get(context), type);
+  }
   emitError(unknownLoc) << "unhandled constant: " << diag(*c);
   return nullptr;
 }
@@ -493,7 +499,7 @@ static const DenseMap<unsigned, StringRef> opcMap = {
     // ICmp is handled specially.
     // FIXME: fcmp
     // PHI is handled specially.
-    INST(Call, Call),
+    INST(Freeze, Freeze), INST(Call, Call),
     // FIXME: select
     // FIXME: vaarg
     // FIXME: extractelement
@@ -591,6 +597,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
   case llvm::Instruction::PtrToInt:
   case llvm::Instruction::IntToPtr:
   case llvm::Instruction::AddrSpaceCast:
+  case llvm::Instruction::Freeze:
   case llvm::Instruction::BitCast: {
     OperationState state(loc, opcMap.lookup(inst->getOpcode()));
     SmallVector<Value, 4> ops;
@@ -627,21 +634,29 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     auto *brInst = cast<llvm::BranchInst>(inst);
     OperationState state(loc,
                          brInst->isConditional() ? "llvm.cond_br" : "llvm.br");
-    SmallVector<Value, 4> ops;
     if (brInst->isConditional()) {
       Value condition = processValue(brInst->getCondition());
       if (!condition)
         return failure();
-      ops.push_back(condition);
+      state.addOperands(condition);
     }
-    state.addOperands(ops);
-    SmallVector<Block *, 4> succs;
-    for (auto *succ : llvm::reverse(brInst->successors())) {
+
+    std::array<int32_t, 3> operandSegmentSizes = {1, 0, 0};
+    for (int i : llvm::seq<int>(0, brInst->getNumSuccessors())) {
+      auto *succ = brInst->getSuccessor(i);
       SmallVector<Value, 4> blockArguments;
       if (failed(processBranchArgs(brInst, succ, blockArguments)))
         return failure();
-      state.addSuccessor(blocks[succ], blockArguments);
+      state.addSuccessors(blocks[succ]);
+      state.addOperands(blockArguments);
+      operandSegmentSizes[i + 1] = blockArguments.size();
     }
+
+    if (brInst->isConditional()) {
+      state.addAttribute(LLVM::CondBrOp::getOperandSegmentSizeAttr(),
+                         b.getI32VectorAttr(operandSegmentSizes));
+    }
+
     b.createOperation(state);
     return success();
   }

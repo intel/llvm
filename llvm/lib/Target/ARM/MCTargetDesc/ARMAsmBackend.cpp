@@ -55,28 +55,29 @@ Optional<MCFixupKind> ARMAsmBackend::getFixupKind(StringRef Name) const {
 }
 
 const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+  unsigned IsPCRelConstant =
+      MCFixupKindInfo::FKF_IsPCRel | MCFixupKindInfo::FKF_Constant;
   const static MCFixupKindInfo InfosLE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.
       //
       // Name                      Offset (bits) Size (bits)     Flags
-      {"fixup_arm_ldst_pcrel_12", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_ldst_pcrel_12", 0, 32, IsPCRelConstant},
       {"fixup_t2_ldst_pcrel_12", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
-      {"fixup_arm_pcrel_10_unscaled", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_arm_pcrel_10", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_pcrel_10_unscaled", 0, 32, IsPCRelConstant},
+      {"fixup_arm_pcrel_10", 0, 32, IsPCRelConstant},
       {"fixup_t2_pcrel_10", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_arm_pcrel_9", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_pcrel_9", 0, 32,
-       MCFixupKindInfo::FKF_IsPCRel |
-           MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
+       IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_thumb_adr_pcrel_10", 0, 8,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
-      {"fixup_arm_adr_pcrel_12", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_adr_pcrel_12", 0, 32, IsPCRelConstant},
       {"fixup_t2_adr_pcrel_12", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
@@ -111,8 +112,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_bfc_target", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_bfcsel_else_target", 0, 32, 0},
       {"fixup_wls", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}
-  };
+      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}};
   const static MCFixupKindInfo InfosBE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.

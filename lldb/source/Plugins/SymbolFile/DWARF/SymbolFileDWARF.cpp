@@ -324,10 +324,8 @@ void SymbolFileDWARF::GetTypes(const DWARFDIE &die, dw_offset_t min_die_offset,
       if (add_type) {
         const bool assert_not_being_parsed = true;
         Type *type = ResolveTypeUID(die, assert_not_being_parsed);
-        if (type) {
-          if (type_set.find(type) == type_set.end())
-            type_set.insert(type);
-        }
+        if (type)
+          type_set.insert(type);
       }
     }
 
@@ -3869,7 +3867,7 @@ SymbolFileDWARFDebugMap *SymbolFileDWARF::GetDebugMapSymfile() {
     lldb::ModuleSP module_sp(m_debug_map_module_wp.lock());
     if (module_sp) {
       m_debug_map_symfile =
-          (SymbolFileDWARFDebugMap *)module_sp->GetSymbolFile();
+          static_cast<SymbolFileDWARFDebugMap *>(module_sp->GetSymbolFile());
     }
   }
   return m_debug_map_symfile;

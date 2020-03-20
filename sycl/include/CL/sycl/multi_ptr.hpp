@@ -11,6 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <cassert>
 #include <cstddef>
 
@@ -52,6 +53,10 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <typename = typename detail::const_if_const_AS<Space, ElementType>>
+  multi_ptr(const ElementType *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -79,8 +84,8 @@ public:
     return *this;
   }
 
-  using ReturnPtr = ElementType *;
-  using ReturnRef = ElementType &;
+  using ReturnPtr = detail::const_if_const_AS<Space, ElementType> *;
+  using ReturnRef = detail::const_if_const_AS<Space, ElementType> &;
   using ReturnConstRef = const ElementType &;
 
   ReturnRef operator*() const {
@@ -301,6 +306,10 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <typename = typename detail::const_if_const_AS<Space, void>>
+  multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -367,11 +376,12 @@ public:
           Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
+  using ReturnPtr = detail::const_if_const_AS<Space, void> *;
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
 
   // Implicit conversion to the underlying pointer type
-  operator void*() const { return reinterpret_cast<void *>(m_Pointer); };
+  operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); };
 
   // Explicit conversion to a multi_ptr<ElementType>
   template <typename ElementType>
@@ -417,6 +427,10 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <typename = typename detail::const_if_const_AS<Space, void>>
+  multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -543,7 +557,14 @@ template <typename ElementType, access::address_space Space>
 multi_ptr<ElementType, Space> make_ptr(ElementType *pointer) {
   return multi_ptr<ElementType, Space>(pointer);
 }
-#endif
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+template <typename ElementType, access::address_space Space,
+          typename = typename detail::const_if_const_AS<Space, ElementType>>
+multi_ptr<ElementType, Space> make_ptr(const ElementType *pointer) {
+  return multi_ptr<ElementType, Space>(pointer);
+}
+#endif // RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR
+#endif // // __SYCL_DEVICE_ONLY__
 
 template <typename ElementType, access::address_space Space>
 bool operator==(const multi_ptr<ElementType, Space> &lhs,

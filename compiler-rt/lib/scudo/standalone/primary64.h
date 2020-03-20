@@ -69,14 +69,16 @@ public:
         map(nullptr, PrimarySize, "scudo:primary", MAP_NOACCESS, &Data));
 
     u32 Seed;
+    const u64 Time = getMonotonicTime();
     if (UNLIKELY(!getRandom(reinterpret_cast<void *>(&Seed), sizeof(Seed))))
-      Seed = static_cast<u32>(getMonotonicTime() ^ (PrimaryBase >> 12));
+      Seed = static_cast<u32>(Time ^ (PrimaryBase >> 12));
     const uptr PageSize = getPageSizeCached();
     for (uptr I = 0; I < NumClasses; I++) {
       RegionInfo *Region = getRegionInfo(I);
       // The actual start of a region is offseted by a random number of pages.
       Region->RegionBeg =
           getRegionBaseByClassId(I) + (getRandomModN(&Seed, 16) + 1) * PageSize;
+      Region->RandState = getRandomU32(&Seed);
       // Releasing smaller size classes doesn't necessarily yield to a
       // meaningful RSS impact: there are more blocks per page, they are
       // randomized around, and thus pages are less likely to be entirely empty.
@@ -86,7 +88,8 @@ public:
       // TODO(kostyak): make the lower limit a runtime option
       Region->CanRelease = (I != SizeClassMap::BatchClassId) &&
                            (getSizeByClassId(I) >= (PageSize / 32));
-      Region->RandState = getRandomU32(&Seed);
+      if (Region->CanRelease)
+        Region->ReleaseInfo.LastReleaseAtNs = Time;
     }
     setReleaseToOsIntervalMs(ReleaseToOsInterval);
 
@@ -214,7 +217,7 @@ private:
   // Call map for user memory with at least this size.
   static const uptr MapSizeIncrement = 1UL << 18;
   // Fill at most this number of batches from the newly map'd memory.
-  static const u32 MaxNumBatches = 8U;
+  static const u32 MaxNumBatches = SCUDO_ANDROID ? 4U : 8U;
 
   struct RegionStats {
     uptr PoppedBlocks;
@@ -357,8 +360,6 @@ private:
     C->getStats().add(StatFree, AllocatedUser);
     Region->AllocatedUser += AllocatedUser;
     Region->Exhausted = false;
-    if (Region->CanRelease)
-      Region->ReleaseInfo.LastReleaseAtNs = getMonotonicTime();
 
     return B;
   }
@@ -395,12 +396,11 @@ private:
         (Region->Stats.PoppedBlocks - Region->Stats.PushedBlocks) * BlockSize;
     if (BytesInFreeList < PageSize)
       return 0; // No chance to release anything.
-    if ((Region->Stats.PushedBlocks -
-         Region->ReleaseInfo.PushedBlocksAtLastRelease) *
-            BlockSize <
-        PageSize) {
+    const uptr BytesPushed = (Region->Stats.PushedBlocks -
+                              Region->ReleaseInfo.PushedBlocksAtLastRelease) *
+                             BlockSize;
+    if (BytesPushed < PageSize)
       return 0; // Nothing new to release.
-    }
 
     if (!Force) {
       const s32 IntervalMs = getReleaseToOsIntervalMs();
@@ -415,8 +415,7 @@ private:
 
     ReleaseRecorder Recorder(Region->RegionBeg, &Region->Data);
     releaseFreeMemoryToOS(Region->FreeList, Region->RegionBeg,
-                          roundUpTo(Region->AllocatedUser, PageSize) / PageSize,
-                          BlockSize, &Recorder);
+                          Region->AllocatedUser, BlockSize, &Recorder);
 
     if (Recorder.getReleasedRangesCount() > 0) {
       Region->ReleaseInfo.PushedBlocksAtLastRelease =

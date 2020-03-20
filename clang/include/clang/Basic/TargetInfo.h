@@ -159,6 +159,18 @@ protected:
   unsigned ZeroLengthBitfieldBoundary;
 };
 
+/// OpenCL type kinds.
+enum OpenCLTypeKind : uint8_t {
+  OCLTK_Default,
+  OCLTK_ClkEvent,
+  OCLTK_Event,
+  OCLTK_Image,
+  OCLTK_Pipe,
+  OCLTK_Queue,
+  OCLTK_ReserveID,
+  OCLTK_Sampler,
+};
+
 /// Exposes information about the current target.
 ///
 class TargetInfo : public virtual TransferrableTargetInfo,
@@ -197,6 +209,8 @@ protected:
   unsigned IsRenderScriptTarget : 1;
 
   unsigned HasAArch64SVETypes : 1;
+
+  unsigned ARMCDECoprocMask : 8;
 
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
@@ -796,6 +810,10 @@ public:
   /// available on this target.
   bool hasAArch64SVETypes() const { return HasAArch64SVETypes; }
 
+  /// For ARM targets returns a mask defining which coprocessors are configured
+  /// as Custom Datapath.
+  uint32_t getARMCDECoprocMask() const { return ARMCDECoprocMask; }
+
   /// Returns whether the passed in string is a valid clobber in an
   /// inline asm statement.
   ///
@@ -1346,17 +1364,6 @@ public:
   const OpenCLOptions &getSupportedOpenCLOpts() const {
       return getTargetOpts().SupportedOpenCLOptions;
   }
-
-  enum OpenCLTypeKind {
-    OCLTK_Default,
-    OCLTK_ClkEvent,
-    OCLTK_Event,
-    OCLTK_Image,
-    OCLTK_Pipe,
-    OCLTK_Queue,
-    OCLTK_ReserveID,
-    OCLTK_Sampler,
-  };
 
   /// Get address space for OpenCL type.
   virtual LangAS getOpenCLTypeAddrSpace(OpenCLTypeKind TK) const;

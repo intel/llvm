@@ -8,7 +8,7 @@
 //  This file implements C++ template instantiation for declarations.
 //
 //===----------------------------------------------------------------------===/
-#include "clang/Sema/SemaInternal.h"
+
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
@@ -20,8 +20,11 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -553,6 +556,17 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
+static void instantiateIntelFPGAForcePow2DepthAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
+
 static void instantiateSYCLIntelPipeIOAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPipeIOAttr *Attr, Decl *New) {
@@ -696,6 +710,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
       instantiateIntelFPGABankBitsAttr(*this, TemplateArgs, IntelFPGABankBits,
                                        New);
+    }
+    if (const auto *IntelFPGAForcePow2Depth =
+            dyn_cast<IntelFPGAForcePow2DepthAttr>(TmplAttr)) {
+      instantiateIntelFPGAForcePow2DepthAttr(*this, TemplateArgs,
+                                             IntelFPGAForcePow2Depth, New);
     }
     if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
@@ -2137,7 +2156,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // Look only into the namespace where the friend would be declared to
     // find a previous declaration. This is the innermost enclosing namespace,
     // as described in ActOnFriendFunctionDecl.
-    SemaRef.LookupQualifiedName(Previous, DC);
+    SemaRef.LookupQualifiedName(Previous, DC->getRedeclContext());
 
     // In C++, the previous declaration we find might be a tag type
     // (class or enum). In this case, the new declaration will hide the

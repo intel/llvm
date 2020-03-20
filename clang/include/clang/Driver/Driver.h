@@ -621,6 +621,15 @@ private:
           &CachedResults,
       Action::OffloadKind TargetDeviceOffloadKind) const;
 
+  /// Static offload library seen.
+  bool OffloadStaticLibSeen = false;
+
+  void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
+
+  /// Returns true if an offload static library is found.
+  bool checkForOffloadStaticLib(Compilation &C,
+                                llvm::opt::DerivedArgList &Args) const;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -642,6 +651,8 @@ public:
                                 MutableArrayRef<unsigned> Digits);
   /// Compute the default -fmodule-cache-path.
   static void getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
+
+  bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
 };
 
 /// \return True if the last defined optimization level is -Ofast.
@@ -650,6 +661,9 @@ bool isOptimizationLevelFast(const llvm::opt::ArgList &Args);
 
 /// \return True if the filename has a valid object file extension.
 bool isObjectFile(std::string FileName);
+
+/// \return True if the filename has a static archive/lib extension.
+bool isStaticArchiveFile(const StringRef &FileName);
 
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);

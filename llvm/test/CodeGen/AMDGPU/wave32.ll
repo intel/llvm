@@ -336,8 +336,8 @@ bb:
 ; GFX1032: v_add_co_u32_e64 v{{[0-9]+}}, vcc_lo, v{{[0-9]+}}, v{{[0-9]+}}
 ; GFX1032: v_add_co_ci_u32_e32 v{{[0-9]+}}, vcc_lo, 0, v{{[0-9]+}}, vcc_lo
 ; GFX1032: v_sub_co_u32_e64 v{{[0-9]+}}, vcc_lo, s{{[0-9]+}}, v{{[0-9]+}}
-; GFX1032: v_sub_co_ci_u32_e64 v{{[0-9]+}}, s{{[0-9]+}}, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc_lo
-; GFX1032: v_subrev_co_ci_u32_e32 v{{[0-9]+}}, vcc_lo, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc_lo
+; GFX1032: v_subrev_co_ci_u32_e64 v{{[0-9]+}}, s{{[0-9]+}}, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc_lo
+; GFX1032: v_sub_co_ci_u32_e32 v{{[0-9]+}}, vcc_lo, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc_lo
 ; GFX1064: v_add_co_u32_e64 v{{[0-9]+}}, [[SDST:s\[[0-9:]+\]]], v{{[0-9]+}}, v{{[0-9]+}}
 ; GFX1064: v_add_co_ci_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc{{$}}
 ; GFX1064: v_add_co_ci_u32_e64 v{{[0-9]+}}, vcc, v{{[0-9]+}}, v{{[0-9]+}}, [[SDST]]
@@ -346,8 +346,8 @@ bb:
 ; GFX1064: v_add_co_u32_e64 v{{[0-9]+}}, vcc, v{{[0-9]+}}, v{{[0-9]+}}
 ; GFX1064: v_add_co_ci_u32_e32 v{{[0-9]+}}, vcc, 0, v{{[0-9]+}}, vcc{{$}}
 ; GFX1064: v_sub_co_u32_e64 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}
-; GFX1064: v_sub_co_ci_u32_e64 v{{[0-9]+}}, s[{{[0-9:]+}}], {{[vs][0-9]+}}, v{{[0-9]+}}, vcc{{$}}
-; GFX1064: v_subrev_co_ci_u32_e32 v{{[0-9]+}}, vcc, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc{{$}}
+; GFX1064: v_subrev_co_ci_u32_e64 v{{[0-9]+}}, s[{{[0-9:]+}}], {{[vs][0-9]+}}, v{{[0-9]+}}, vcc{{$}}
+; GFX1064: v_sub_co_ci_u32_e32 v{{[0-9]+}}, vcc, {{[vs][0-9]+}}, v{{[0-9]+}}, vcc{{$}}
 define amdgpu_kernel void @test_udiv64(i64 addrspace(1)* %arg) #0 {
 bb:
   %tmp = getelementptr inbounds i64, i64 addrspace(1)* %arg, i64 1
@@ -476,8 +476,8 @@ exit:
 }
 
 ; GCN-LABEL: {{^}}fdiv_f32:
-; GFC1032: v_div_scale_f32 v{{[0-9]+}}, vcc_lo, s{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}}
-; GFC1064: v_div_scale_f32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}}
+; GFX1032: v_div_scale_f32 v{{[0-9]+}}, vcc_lo, s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GFX1064: v_div_scale_f32 v{{[0-9]+}}, vcc, s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
 ; GCN: v_rcp_f32_e32 v{{[0-9]+}}, v{{[0-9]+}}
 ; GCN-NOT: vcc
 ; GCN: v_div_fmas_f32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}

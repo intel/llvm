@@ -8,12 +8,10 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_ops.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define CONSTANT_AS __attribute__((opencl_constant))
-// Note: __format string is declared in constant address space to be compatible
-// with OpenCL C
-extern int __spirv_ocl_printf(const CONSTANT_AS char *__format, ...);
 #else
 #define CONSTANT_AS
 #endif

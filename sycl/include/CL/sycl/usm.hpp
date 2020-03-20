@@ -148,15 +148,15 @@ T *aligned_alloc(size_t Alignment, size_t Count, const queue &Q,
 // Pointer queries
 /// Query the allocation type from a USM pointer
 ///
-/// @param ptr is the USM pointer to query
-/// @param ctxt is the sycl context the ptr was allocated in
+/// \param ptr is the USM pointer to query
+/// \param ctxt is the sycl context the ptr was allocated in
 usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 
 /// Queries the device against which the pointer was allocated
 /// Throws an invalid_object_error if ptr is a host allocation.
 ///
-/// @param ptr is the USM pointer to query
-/// @param ctxt is the sycl context the ptr was allocated in
+/// \param ptr is the USM pointer to query
+/// \param ctxt is the sycl context the ptr was allocated in
 device get_pointer_device(const void *ptr, const context &ctxt);
 
 } // namespace sycl

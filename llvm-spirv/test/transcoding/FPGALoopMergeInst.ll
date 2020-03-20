@@ -59,6 +59,9 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
+
 ; CHECK-SPIRV: 6 Name [[FOR:[0-9]+]] "while.body20"
 
 ; ModuleID = 'FPGALoopMergeInst.cpp'
@@ -134,7 +137,7 @@ if.end:                                           ; preds = %while.body
 while.end:                                        ; preds = %while.cond
   br label %while.cond1
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
@@ -161,7 +164,7 @@ if.end8:                                          ; preds = %while.body3
 while.end9:                                       ; preds = %while.cond1
   br label %while.cond10
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; MaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond10:                                     ; preds = %if.end17, %if.then15, %while.end9

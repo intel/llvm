@@ -55,6 +55,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Linkage.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Basic/SourceLocation.h"
@@ -296,6 +297,12 @@ RawComment *ASTContext::getRawCommentForDeclNoCache(const Decl *D) const {
   return getRawCommentForDeclNoCacheImpl(D, DeclLoc, *CommentsInThisFile);
 }
 
+void ASTContext::addComment(const RawComment &RC) {
+  assert(LangOpts.RetainCommentsFromSystemHeaders ||
+         !SourceMgr.isInSystemHeader(RC.getSourceRange().getBegin()));
+  Comments.addComment(RC, LangOpts.CommentOpts, BumpAlloc);
+}
+
 /// If we have a 'templated' declaration for a template, adjust 'D' to
 /// refer to the actual template.
 /// If we have an implicit instantiation, adjust 'D' to refer to template.
@@ -468,10 +475,20 @@ void ASTContext::attachCommentsToJustParsedDecls(ArrayRef<Decl *> Decls,
   if (Comments.empty() || Decls.empty())
     return;
 
-  // See if there are any new comments that are not attached to a decl.
-  // The location doesn't have to be precise - we care only about the file.
-  const FileID File =
-      SourceMgr.getDecomposedLoc((*Decls.begin())->getLocation()).first;
+  FileID File;
+  for (Decl *D : Decls) {
+    SourceLocation Loc = D->getLocation();
+    if (Loc.isValid()) {
+      // See if there are any new comments that are not attached to a decl.
+      // The location doesn't have to be precise - we care only about the file.
+      File = SourceMgr.getDecomposedLoc(Loc).first;
+      break;
+    }
+  }
+
+  if (File.isInvalid())
+    return;
+
   auto CommentsInThisFile = Comments.getCommentsInFile(File);
   if (!CommentsInThisFile || CommentsInThisFile->empty() ||
       CommentsInThisFile->rbegin()->second->isAttached())
@@ -1092,6 +1109,15 @@ void ASTContext::deduplicateMergedDefinitonsFor(NamedDecl *ND) {
   Merged.erase(std::remove(Merged.begin(), Merged.end(), nullptr), Merged.end());
 }
 
+ArrayRef<Module *>
+ASTContext::getModulesWithMergedDefinition(const NamedDecl *Def) {
+  auto MergedIt =
+      MergedDefModules.find(cast<NamedDecl>(Def->getCanonicalDecl()));
+  if (MergedIt == MergedDefModules.end())
+    return None;
+  return MergedIt->second;
+}
+
 void ASTContext::PerModuleInitializers::resolve(ASTContext &Ctx) {
   if (LazyInitializers.empty())
     return;
@@ -1595,7 +1621,8 @@ void ASTContext::getOverriddenMethods(
 }
 
 void ASTContext::addedLocalImportDecl(ImportDecl *Import) {
-  assert(!Import->NextLocalImport && "Import declaration already in the chain");
+  assert(!Import->getNextLocalImport() &&
+         "Import declaration already in the chain");
   assert(!Import->isFromASTFile() && "Non-local import declaration");
   if (!FirstLocalImport) {
     FirstLocalImport = Import;
@@ -1603,7 +1630,7 @@ void ASTContext::addedLocalImportDecl(ImportDecl *Import) {
     return;
   }
 
-  LastLocalImport->NextLocalImport = Import;
+  LastLocalImport->setNextLocalImport(Import);
   LastLocalImport = Import;
 }
 
@@ -1727,6 +1754,10 @@ CharUnits ASTContext::getDeclAlign(const Decl *D, bool ForAlignof) const {
   }
 
   return toCharUnitsFromBits(Align);
+}
+
+CharUnits ASTContext::getExnObjectAlignment() const {
+  return toCharUnitsFromBits(Target->getExnObjectAlignment());
 }
 
 // getTypeInfoDataSizeInChars - Return the size of a type, in
@@ -6225,39 +6256,39 @@ QualType ASTContext::getBlockDescriptorExtendedType() const {
   return getTagDeclType(BlockDescriptorExtendedType);
 }
 
-TargetInfo::OpenCLTypeKind ASTContext::getOpenCLTypeKind(const Type *T) const {
+OpenCLTypeKind ASTContext::getOpenCLTypeKind(const Type *T) const {
   const auto *BT = dyn_cast<BuiltinType>(T);
 
   if (!BT) {
     if (isa<PipeType>(T))
-      return TargetInfo::OCLTK_Pipe;
+      return OCLTK_Pipe;
 
-    return TargetInfo::OCLTK_Default;
+    return OCLTK_Default;
   }
 
   switch (BT->getKind()) {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   case BuiltinType::Id:                                                        \
-    return TargetInfo::OCLTK_Image;
+    return OCLTK_Image;
 #include "clang/Basic/OpenCLImageTypes.def"
 
   case BuiltinType::OCLClkEvent:
-    return TargetInfo::OCLTK_ClkEvent;
+    return OCLTK_ClkEvent;
 
   case BuiltinType::OCLEvent:
-    return TargetInfo::OCLTK_Event;
+    return OCLTK_Event;
 
   case BuiltinType::OCLQueue:
-    return TargetInfo::OCLTK_Queue;
+    return OCLTK_Queue;
 
   case BuiltinType::OCLReserveID:
-    return TargetInfo::OCLTK_ReserveID;
+    return OCLTK_ReserveID;
 
   case BuiltinType::OCLSampler:
-    return TargetInfo::OCLTK_Sampler;
+    return OCLTK_Sampler;
 
   default:
-    return TargetInfo::OCLTK_Default;
+    return OCLTK_Default;
   }
 }
 
@@ -6328,6 +6359,24 @@ bool ASTContext::getByrefLifetime(QualType Ty,
     LifeTime = Qualifiers::OCL_None;
   }
   return true;
+}
+
+CanQualType ASTContext::getNSUIntegerType() const {
+  assert(Target && "Expected target to be initialized");
+  const llvm::Triple &T = Target->getTriple();
+  // Windows is LLP64 rather than LP64
+  if (T.isOSWindows() && T.isArch64Bit())
+    return UnsignedLongLongTy;
+  return UnsignedLongTy;
+}
+
+CanQualType ASTContext::getNSIntegerType() const {
+  assert(Target && "Expected target to be initialized");
+  const llvm::Triple &T = Target->getTriple();
+  // Windows is LLP64 rather than LP64
+  if (T.isOSWindows() && T.isArch64Bit())
+    return LongLongTy;
+  return LongTy;
 }
 
 TypedefDecl *ASTContext::getObjCInstanceTypeDecl() {
@@ -8654,8 +8703,8 @@ bool ASTContext::areComparableObjCPointerTypes(QualType LHS, QualType RHS) {
 
 bool ASTContext::canBindObjCObjectType(QualType To, QualType From) {
   return canAssignObjCInterfaces(
-                getObjCObjectPointerType(To)->getAs<ObjCObjectPointerType>(),
-                getObjCObjectPointerType(From)->getAs<ObjCObjectPointerType>());
+      getObjCObjectPointerType(To)->castAs<ObjCObjectPointerType>(),
+      getObjCObjectPointerType(From)->castAs<ObjCObjectPointerType>());
 }
 
 /// typesAreCompatible - C99 6.7.3p9: For two qualified types to be compatible,

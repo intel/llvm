@@ -272,17 +272,22 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   } else {
     // Output directory is based off of the first object name
     for (Arg * Cur : Args) {
-      SmallString<128> AN = Cur->getSpelling();
-      StringRef Ext(llvm::sys::path::extension(AN));
-      if (!Ext.empty()) {
-        types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
-        if (Ty == types::TY_INVALID)
-          continue;
-        if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-          llvm::sys::path::replace_extension(AN, "prj");
-          ReportOptArg += Args.MakeArgString(AN);
-          break;
-        }
+      if (Cur->getOption().getKind() != Option::InputClass)
+        continue;
+      SmallString<128> ArgName = Cur->getSpelling();
+      StringRef Ext(llvm::sys::path::extension(ArgName));
+      if (Ext.empty())
+        continue;
+      types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
+      if (Ty == types::TY_INVALID)
+        continue;
+      if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
+        // Project report should be saved into CWD, so strip off any
+        // directory information if provided with the input file.
+        ArgName = llvm::sys::path::filename(ArgName);
+        llvm::sys::path::replace_extension(ArgName, "prj");
+        ReportOptArg += Args.MakeArgString(ArgName);
+        break;
       }
     }
   }
@@ -365,6 +370,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
@@ -525,8 +531,20 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
 }
 
+void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
+                                       const ArgList &DriverArgs,
+                                       ArgStringList &CC1Args) {
+  SmallString<128> P(Driver.getInstalledDir());
+  llvm::sys::path::append(P, "..");
+  llvm::sys::path::append(P, "include");
+  llvm::sys::path::append(P, "sycl");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(P));
+}
+
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
+  AddSYCLIncludeArgs(getDriver(), DriverArgs, CC1Args);
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 }
 

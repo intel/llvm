@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DNOT_STRICT -Wno-error=sycl-strict -Wno-sycl-strict %s
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DWARN_STRICT -Wno-error=sycl-strict %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DNOT_STRICT -Wno-error=sycl-strict -Wno-sycl-strict %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DWARN_STRICT -Wno-error=sycl-strict %s
 
 #ifndef NO_SYCL
 

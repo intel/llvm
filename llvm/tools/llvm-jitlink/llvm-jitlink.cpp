@@ -40,7 +40,7 @@
 #include <list>
 #include <string>
 
-#define DEBUG_TYPE "llvm-jitlink"
+#define DEBUG_TYPE "llvm_jitlink"
 
 using namespace llvm;
 using namespace llvm::jitlink;
@@ -86,6 +86,11 @@ static cl::list<std::string> AbsoluteDefs(
     cl::desc("Inject absolute symbol definitions (syntax: <name>=<addr>)"),
     cl::ZeroOrMore);
 
+static cl::opt<bool> ShowInitialExecutionSessionState(
+    "show-init-es",
+    cl::desc("Print ExecutionSession state before resolving entry point"),
+    cl::init(false));
+
 static cl::opt<bool> ShowAddrs(
     "show-addrs",
     cl::desc("Print registered symbol, section, got and stub addresses"),
@@ -111,6 +116,11 @@ static cl::opt<std::string> SlabAllocateSizeString(
              "(allowable suffixes: Kb, Mb, Gb. default = "
              "Kb)"),
     cl::init(""));
+
+static cl::opt<uint64_t> SlabAddress(
+    "slab-address",
+    cl::desc("Set slab target address (requires -slab-allocate and -noexec)"),
+    cl::init(~0ULL));
 
 static cl::opt<bool> ShowRelocatedSectionContents(
     "show-relocated-section-contents",
@@ -250,7 +260,8 @@ public:
     // Local class for allocation.
     class IPMMAlloc : public Allocation {
     public:
-      IPMMAlloc(AllocationMap SegBlocks) : SegBlocks(std::move(SegBlocks)) {}
+      IPMMAlloc(JITLinkSlabAllocator &Parent, AllocationMap SegBlocks)
+          : Parent(Parent), SegBlocks(std::move(SegBlocks)) {}
       MutableArrayRef<char> getWorkingMemory(ProtectionFlags Seg) override {
         assert(SegBlocks.count(Seg) && "No allocation for segment");
         return {static_cast<char *>(SegBlocks[Seg].base()),
@@ -258,7 +269,8 @@ public:
       }
       JITTargetAddress getTargetMemory(ProtectionFlags Seg) override {
         assert(SegBlocks.count(Seg) && "No allocation for segment");
-        return reinterpret_cast<JITTargetAddress>(SegBlocks[Seg].base());
+        return pointerToJITTargetAddress(SegBlocks[Seg].base()) +
+               Parent.TargetDelta;
       }
       void finalizeAsync(FinalizeContinuation OnFinalize) override {
         OnFinalize(applyProtections());
@@ -284,6 +296,7 @@ public:
         return Error::success();
       }
 
+      JITLinkSlabAllocator &Parent;
       AllocationMap SegBlocks;
     };
 
@@ -329,7 +342,7 @@ public:
       Blocks[KV.first] = std::move(SegMem);
     }
     return std::unique_ptr<InProcessMemoryManager::Allocation>(
-        new IPMMAlloc(std::move(Blocks)));
+        new IPMMAlloc(*this, std::move(Blocks)));
   }
 
 private:
@@ -359,10 +372,17 @@ private:
       Err = errorCodeToError(EC);
       return;
     }
+
+    // Calculate the target address delta to link as-if slab were at
+    // SlabAddress.
+    if (SlabAddress != ~0ULL)
+      TargetDelta =
+          SlabAddress - pointerToJITTargetAddress(SlabRemaining.base());
   }
 
   sys::MemoryBlock SlabRemaining;
   uint64_t PageSize = 0;
+  int64_t TargetDelta = 0;
 };
 
 Expected<uint64_t> getSlabAllocSize(StringRef SizeString) {
@@ -565,6 +585,14 @@ Error sanitizeArguments(const Session &S) {
 
   if (NoExec && !InputArgv.empty())
     outs() << "Warning: --args passed to -noexec run will be ignored.\n";
+
+  // If -slab-address is passed, require -slab-allocate and -noexec
+  if (SlabAddress != ~0ULL) {
+    if (SlabAllocateSizeString == "" || !NoExec)
+      return make_error<StringError>(
+          "-slab-address requires -slab-allocate and -noexec",
+          inconvertibleErrorCode());
+  }
 
   return Error::success();
 }
@@ -818,11 +846,13 @@ int main(int argc, char *argv[]) {
     ExitOnErr(loadProcessSymbols(*S));
   ExitOnErr(loadDylibs());
 
-
   {
     TimeRegion TR(Timers ? &Timers->LoadObjectsTimer : nullptr);
     ExitOnErr(loadObjects(*S));
   }
+
+  if (ShowInitialExecutionSessionState)
+    S->ES.dump(outs());
 
   JITEvaluatedSymbol EntryPoint = 0;
   {

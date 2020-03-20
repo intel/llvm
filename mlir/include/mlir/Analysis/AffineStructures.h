@@ -26,68 +26,8 @@ class AffineValueMap;
 class IntegerSet;
 class MLIRContext;
 class Value;
-class HyperRectangularSet;
 class MemRefType;
 struct MutableAffineMap;
-
-/// A mutable integer set. Its affine expressions are however unique.
-struct MutableIntegerSet {
-public:
-  MutableIntegerSet(IntegerSet set, MLIRContext *context);
-
-  /// Create a universal set (no constraints).
-  MutableIntegerSet(unsigned numDims, unsigned numSymbols,
-                    MLIRContext *context);
-
-  unsigned getNumDims() const { return numDims; }
-  unsigned getNumSymbols() const { return numSymbols; }
-  unsigned getNumConstraints() const { return constraints.size(); }
-
-  void clear() {
-    constraints.clear();
-    eqFlags.clear();
-  }
-
-private:
-  unsigned numDims;
-  unsigned numSymbols;
-
-  SmallVector<AffineExpr, 8> constraints;
-  SmallVector<bool, 8> eqFlags;
-};
-
-/// An IntegerValueSet is an integer set plus its operands.
-// Both, the integer set being pointed to and the operands can change during
-// analysis, simplification, and transformation.
-class IntegerValueSet {
-  /// Constructs an integer value set from an affine value map.
-  // This will lead to a single equality in 'set'.
-  explicit IntegerValueSet(const AffineValueMap &avm);
-
-  /// Returns true if this integer set is determined to be empty. Emptiness is
-  /// checked by by eliminating identifiers successively (through either
-  /// Gaussian or Fourier-Motzkin) while using the GCD test and a trivial
-  /// invalid constraint check. Returns 'true' if the constraint system is found
-  /// to be empty; false otherwise. This method is exact for rational spaces but
-  /// not integer spaces - thus, if it returns true, the set is provably integer
-  /// empty as well, but if it returns false, it doesn't necessarily mean an
-  /// integer point exists in it. This method also returns false where an
-  /// explosion of constraints is detected - due to the super-exponential
-  /// worse-case complexity of Fourier-Motzkin elimination (rare for realistic
-  /// problem cases but possible for artificial adversarial or improperly
-  // constructed ones), this method returns false conservatively.
-  bool isEmpty() const;
-
-  bool getNumDims() const { return set.getNumDims(); }
-  bool getNumSymbols() const { return set.getNumSymbols(); }
-
-private:
-  // The set pointed to may itself change unlike in IR structures like
-  // 'AffineCondition'.
-  MutableIntegerSet set;
-  /// The SSA operands binding to the dim's and symbols of 'set'.
-  SmallVector<Value, 4> operands;
-};
 
 /// A flat list of affine equalities and inequalities in the form.
 /// Inequality: c_0*x_0 + c_1*x_1 + .... + c_{n-1}*x_{n-1} >= 0
@@ -156,8 +96,6 @@ public:
       ids.append(idArgs.begin(), idArgs.end());
   }
 
-  explicit FlatAffineConstraints(const HyperRectangularSet &set);
-
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
   // TODO(bondhugula)
@@ -166,10 +104,6 @@ public:
 
   /// Creates an affine constraint system from an IntegerSet.
   explicit FlatAffineConstraints(IntegerSet set);
-
-  /// Create an affine constraint system from an IntegerValueSet.
-  // TODO(bondhugula)
-  explicit FlatAffineConstraints(const IntegerValueSet &set);
 
   FlatAffineConstraints(const FlatAffineConstraints &other);
 
@@ -256,8 +190,6 @@ public:
                              getNumCols());
   }
 
-  AffineExpr toAffineExpr(unsigned idx, MLIRContext *context);
-
   /// Adds constraints (lower and upper bounds) for the specified 'affine.for'
   /// operation's Value using IR information stored in its bound maps. The
   /// right identifier is first looked up using forOp's Value. Asserts if the
@@ -275,7 +207,7 @@ public:
   /// operands. If `eq` is true, add a single equality equal to the bound map's
   /// first result expr.
   LogicalResult addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
-                                     ArrayRef<Value> operands, bool eq,
+                                     ValueRange operands, bool eq,
                                      bool lower = true);
 
   /// Computes the lower and upper bounds of the first 'num' dimensional
@@ -382,10 +314,8 @@ public:
   /// Projects out the identifier that is associate with Value .
   void projectOut(Value id);
 
-  void removeId(IdKind idKind, unsigned pos);
+  /// Removes the specified identifier from the system.
   void removeId(unsigned pos);
-
-  void removeDim(unsigned pos);
 
   void removeEquality(unsigned pos);
   void removeInequality(unsigned pos);
@@ -616,7 +546,7 @@ private:
   /// Normalized each constraints by the GCD of its coefficients.
   void normalizeConstraintsByGCD();
 
-  /// Removes identifiers in column range [idStart, idLimit), and copies any
+  /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes
   /// arrays as needed.
   void removeIdRange(unsigned idStart, unsigned idLimit);
@@ -659,13 +589,6 @@ private:
   // constraints. This is conservatively set low and can be raised if needed.
   constexpr static unsigned kExplosionFactor = 32;
 };
-
-/// Simplify an affine expression by flattening and some amount of
-/// simple analysis. This has complexity linear in the number of nodes in
-/// 'expr'. Returns the simplified expression, which is the same as the input
-///  expression if it can't be simplified.
-AffineExpr simplifyAffineExpr(AffineExpr expr, unsigned numDims,
-                              unsigned numSymbols);
 
 /// Flattens 'expr' into 'flattenedExpr', which contains the coefficients of the
 /// dimensions, symbols, and additional variables that represent floor divisions

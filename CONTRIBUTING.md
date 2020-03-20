@@ -1,7 +1,7 @@
 # Contributing
 
 ## License
-Intel Project for LLVM* technology is licensed under the terms of the
+Intel Project for LLVM\* technology is licensed under the terms of the
 Apache-2.0 with LLVM-exception license ([LICENSE.txt](llvm/LICENSE.TXT))
 to ensure our ability to contribute this project to the LLVM project
 under the same license.
@@ -70,11 +70,11 @@ commit automatically with `git commit -s`.
 ### Development
 
 - Create a personal fork of the project on GitHub
-- Use **sycl** branch as baseline for your changes
+  - For the DPC++ Compiler project, use **sycl** branch as baseline for your
+    changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
 - Prepare your patch (follow
   [LLVM coding standards](https://llvm.org/docs/CodingStandards.html))
-- Build the project and run all tests (see
-[GetStartedWithSYCLCompiler.md](sycl/doc/GetStartedWithSYCLCompiler.md))
+- Build the project and run all tests
 
 ### Review and acceptance testing
 
@@ -95,3 +95,7 @@ Project maintainers merge pull requests using one of the following options:
   - Squashing is done to make sure that the project is buildable on any commit
 - [Create a merge commit] Used for LLVM pull-down PRs to preserve hashes of the
 commits pulled from the LLVM community repository
+
+
+*Other names and brands may be claimed as the property of others.
+

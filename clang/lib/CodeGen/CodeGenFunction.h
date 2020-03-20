@@ -2704,7 +2704,8 @@ public:
   Address EmitCXXUuidofExpr(const CXXUuidofExpr *E);
 
   /// Situations in which we might emit a check for the suitability of a
-  ///        pointer or glvalue.
+  /// pointer or glvalue. Needs to be kept in sync with ubsan_handlers.cpp in
+  /// compiler-rt.
   enum TypeCheckKind {
     /// Checking the operand of a load. Must be suitably sized and aligned.
     TCK_Load,
@@ -3261,6 +3262,7 @@ public:
   void EmitOMPTaskwaitDirective(const OMPTaskwaitDirective &S);
   void EmitOMPTaskgroupDirective(const OMPTaskgroupDirective &S);
   void EmitOMPFlushDirective(const OMPFlushDirective &S);
+  void EmitOMPDepobjDirective(const OMPDepobjDirective &S);
   void EmitOMPOrderedDirective(const OMPOrderedDirective &S);
   void EmitOMPAtomicDirective(const OMPAtomicDirective &S);
   void EmitOMPTargetDirective(const OMPTargetDirective &S);
@@ -3869,6 +3871,9 @@ public:
                                   ReturnValueSlot ReturnValue,
                                   llvm::Triple::ArchType Arch);
   llvm::Value *EmitARMMVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
+                                     ReturnValueSlot ReturnValue,
+                                     llvm::Triple::ArchType Arch);
+  llvm::Value *EmitARMCDEBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                      ReturnValueSlot ReturnValue,
                                      llvm::Triple::ArchType Arch);
 

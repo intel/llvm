@@ -1803,6 +1803,33 @@ static bool isMergedGEPInBounds(GEPOperator &GEP1, GEPOperator &GEP2) {
          (GEP2.isInBounds() || GEP2.hasAllZeroIndices());
 }
 
+/// Thread a GEP operation with constant indices through the constant true/false
+/// arms of a select.
+static Instruction *foldSelectGEP(GetElementPtrInst &GEP,
+                                  InstCombiner::BuilderTy &Builder) {
+  if (!GEP.hasAllConstantIndices())
+    return nullptr;
+
+  Instruction *Sel;
+  Value *Cond;
+  Constant *TrueC, *FalseC;
+  if (!match(GEP.getPointerOperand(), m_Instruction(Sel)) ||
+      !match(Sel,
+             m_Select(m_Value(Cond), m_Constant(TrueC), m_Constant(FalseC))))
+    return nullptr;
+
+  // gep (select Cond, TrueC, FalseC), IndexC --> select Cond, TrueC', FalseC'
+  // Propagate 'inbounds' and metadata from existing instructions.
+  // Note: using IRBuilder to create the constants for efficiency.
+  SmallVector<Value *, 4> IndexC(GEP.idx_begin(), GEP.idx_end());
+  bool IsInBounds = GEP.isInBounds();
+  Value *NewTrueC = IsInBounds ? Builder.CreateInBoundsGEP(TrueC, IndexC)
+                               : Builder.CreateGEP(TrueC, IndexC);
+  Value *NewFalseC = IsInBounds ? Builder.CreateInBoundsGEP(FalseC, IndexC)
+                                : Builder.CreateGEP(FalseC, IndexC);
+  return SelectInst::Create(Cond, NewTrueC, NewFalseC, "", nullptr, Sel);
+}
+
 Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
   Type *GEPType = GEP.getType();
@@ -2445,6 +2472,9 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
       }
     }
   }
+
+  if (Instruction *R = foldSelectGEP(GEP, Builder))
+    return R;
 
   return nullptr;
 }
@@ -3406,15 +3436,29 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
 
 bool InstCombiner::run() {
   while (!Worklist.isEmpty()) {
+    // Walk deferred instructions in reverse order, and push them to the
+    // worklist, which means they'll end up popped from the worklist in-order.
+    while (Instruction *I = Worklist.popDeferred()) {
+      // Check to see if we can DCE the instruction. We do this already here to
+      // reduce the number of uses and thus allow other folds to trigger.
+      // Note that eraseInstFromFunction() may push additional instructions on
+      // the deferred worklist, so this will DCE whole instruction chains.
+      if (isInstructionTriviallyDead(I, &TLI)) {
+        eraseInstFromFunction(*I);
+        ++NumDeadInst;
+        continue;
+      }
+
+      Worklist.push(I);
+    }
+
     Instruction *I = Worklist.removeOne();
     if (I == nullptr) continue;  // skip null values.
 
     // Check to see if we can DCE the instruction.
     if (isInstructionTriviallyDead(I, &TLI)) {
-      LLVM_DEBUG(dbgs() << "IC: DCE: " << *I << '\n');
       eraseInstFromFunction(*I);
       ++NumDeadInst;
-      MadeIRChange = true;
       continue;
     }
 
@@ -3554,7 +3598,6 @@ bool InstCombiner::run() {
       }
       MadeIRChange = true;
     }
-    Worklist.addDeferredInstructions();
   }
 
   Worklist.zap();
@@ -3590,16 +3633,6 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
     for (BasicBlock::iterator BBI = BB->begin(), E = BB->end(); BBI != E; ) {
       Instruction *Inst = &*BBI++;
 
-      // DCE instruction if trivially dead.
-      if (isInstructionTriviallyDead(Inst, TLI)) {
-        ++NumDeadInst;
-        LLVM_DEBUG(dbgs() << "IC: DCE: " << *Inst << '\n');
-        salvageDebugInfoOrMarkUndef(*Inst);
-        Inst->eraseFromParent();
-        MadeIRChange = true;
-        continue;
-      }
-
       // ConstantProp instruction if trivially constant.
       if (!Inst->use_empty() &&
           (Inst->getNumOperands() == 0 || isa<Constant>(Inst->getOperand(0))))
@@ -3623,8 +3656,6 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
         Constant *&FoldRes = FoldedConstants[C];
         if (!FoldRes)
           FoldRes = ConstantFoldConstant(C, DL, TLI);
-        if (!FoldRes)
-          FoldRes = C;
 
         if (FoldRes != C) {
           LLVM_DEBUG(dbgs() << "IC: ConstFold operand of: " << *Inst
@@ -3667,7 +3698,21 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
   // of the function down.  This jives well with the way that it adds all uses
   // of instructions to the worklist after doing a transformation, thus avoiding
   // some N^2 behavior in pathological cases.
-  ICWorklist.addInitialGroup(InstrsForInstCombineWorklist);
+  ICWorklist.reserve(InstrsForInstCombineWorklist.size());
+  for (Instruction *Inst : reverse(InstrsForInstCombineWorklist)) {
+    // DCE instruction if trivially dead. As we iterate in reverse program
+    // order here, we will clean up whole chains of dead instructions.
+    if (isInstructionTriviallyDead(Inst, TLI)) {
+      ++NumDeadInst;
+      LLVM_DEBUG(dbgs() << "IC: DCE: " << *Inst << '\n');
+      salvageDebugInfoOrMarkUndef(*Inst);
+      Inst->eraseFromParent();
+      MadeIRChange = true;
+      continue;
+    }
+
+    ICWorklist.push(Inst);
+  }
 
   return MadeIRChange;
 }
