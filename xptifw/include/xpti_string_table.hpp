@@ -258,10 +258,9 @@ public:
         if (Loc == MStringToID.end()) {
           // Add it
           StrID = MIds++;
-          MStringToID[str] = StrID;
-          Loc = MStringToID.find(str);
+          auto Entry = MStringToID.insert(st_forward_t::value_type(str, StrID));
           if (ref_str)
-            *ref_str = Loc->first.c_str();
+            *ref_str = Entry.first->first.c_str();
 #ifdef XPTI_STATISTICS
           MInsertions++;
 #endif
@@ -272,7 +271,7 @@ public:
             if (IDLoc == MIDToString.end()) {
               //  An entry does not exist, so we will add it to the reverse
               //  lookup.
-              MIDToString[StrID] = Loc->first.c_str();
+              MIDToString[StrID] = Entry.first->first.c_str();
               // Cache the saved string address and send it to the caller
               MStrings++;
               return StrID;

@@ -747,8 +747,8 @@ void function1() {
 | | Serial | 2% | ~360K | ~137K | ~37K|~19K|
 | | 4 | 2% | ~345K | ~135K | ~37K|~19K|
 
-The above data from the table is only provided to provide a guideline on what
-to expect with the instrumentation. The events/second can be quite high if the
+The above data from the table is only provided as a guideline on what to
+expect with the instrumentation. The events/second can be quite high if the
 callback handlers are written efficiently. So the range of events that can be
 serviced can be ~300,000 to 10000 per second depending on the cost of handling
 the callbacks.
