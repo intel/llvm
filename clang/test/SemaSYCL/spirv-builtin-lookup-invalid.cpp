@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fdeclare-spirv-builtins -fsyntax-only -verify -std=c++11 %s
+// RUN: %clang_cc1 -fdeclare-spirv-builtins -fsyntax-only -verify %s
 
 // Verify that invalid call to __spirv_ocl_acos (no viable overloads) get diagnosed
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fdeclare-spirv-builtins -fsyntax-only -verify -std=c++11 %s
+// RUN: %clang_cc1 -fdeclare-spirv-builtins -fsyntax-only -verify %s
 // expected-no-diagnostics
 
 // Verify that __spirv_ocl_acos is recognized as a builtin

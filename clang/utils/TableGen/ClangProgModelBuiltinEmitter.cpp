@@ -106,7 +106,7 @@ private:
   // Family for which the builtin are for.
   llvm::StringRef Family;
 
-  // Family for which the builtin are for.
+  // Class for which the builtin are for.
   std::string ClassName;
 
   // Helper function for BuiltinNameEmitter::EmitDeclarations.  Generate enum
