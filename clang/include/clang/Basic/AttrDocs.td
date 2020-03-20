@@ -1985,22 +1985,22 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
 
 def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "GNU<reqd_work_group_size>, CXX11<cl::reqd_work_group_size, 
-                CXX11<intel::reqd_work_group_size>";
+  let Heading = "__attribute__((reqd_work_group_size)), [[cl::reqd_work_group_size]], 
+                [[intel::reqd_work_group_size]]";
   let Content = [{
 This attribute is documented by both OpenCL and SYCL standards
 and allows to specify exact *local_work_size* which must be used as
 argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
 **parallel_for** in SYCL. This allows the compiler to optimize the
-generated code appropriately for this kernel.
+generated code appropriately for the kernel to which attribute is applied.
 
 While semantic of this attribute is the same between OpenCL and SYCL,
 spelling is a bit different: 
 
 SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
-attribute is legal on device functions and their specification is propagated
-down to any caller of those device functions, such that the kernel attributes
-are the sum of all the kernel attributes of all device functions called.
+attribute is legal on device functions and is propagated down to any caller of 
+those device functions, such that the kernel attributes are the sum of all 
+attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
 As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
