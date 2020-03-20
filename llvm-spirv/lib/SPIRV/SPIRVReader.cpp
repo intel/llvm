@@ -2818,14 +2818,12 @@ std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
     default:
       return OCLSPIRVBuiltinMap::rmap(OC);
     }
-    if (DataTy) {
-      if (DataTy->getBitWidth() == 16)
-        Name << "_us";
-      if (DataTy->isTypeVector()) {
-        if (unsigned ComponentCount = DataTy->getVectorComponentCount())
-          Name << ComponentCount;
-      }
-    }
+    assert(DataTy && "Intel subgroup block builtins should have data type");
+    unsigned VectorNumElements = 1;
+    if (DataTy->isTypeVector())
+      VectorNumElements = DataTy->getVectorComponentCount();
+    unsigned ElementBitSize = DataTy->getBitWidth();
+    Name << getIntelSubgroupBlockDataPostfix(ElementBitSize, VectorNumElements);
     return Name.str();
   }
   if (isSubgroupAvcINTELInstructionOpCode(OC))

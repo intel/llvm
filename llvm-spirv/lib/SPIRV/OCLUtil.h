@@ -437,6 +437,12 @@ template <typename T> std::string toString(const T *Object) {
   RSOS.flush();
   return S;
 }
+
+// Get data and vector size postfix for sugroup_block_{read|write} builtins
+// as specified by cl_intel_subgroups* extensions.
+// Scalar data assumed to be represented as vector of one element.
+std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
+                                             unsigned VectorNumElements);
 } // namespace OCLUtil
 
 ///////////////////////////////////////////////////////////////////////////////
