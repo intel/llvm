@@ -7,7 +7,8 @@
 #endif
 
 namespace namespace1 {
-  template <typename T> class KernelName;
+template <typename T>
+class KernelName;
 }
 
 struct MyWrapper {
