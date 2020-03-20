@@ -58,7 +58,6 @@ class SettingsCommandTestCase(TestBase):
                              '[3]: "b"',
                              '[4]: "c"'])
 
-    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr44430")
     def test_replace_target_run_args(self):
         """Test that 'replace target.run-args' works."""
         # Set the run-args and then replace the index-0 element.
@@ -358,7 +357,6 @@ class SettingsCommandTestCase(TestBase):
                     'thread-format (format-string) = "abc def   "')
         self.runCmd('settings clear thread-format')
 
-    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr44430")
     def test_settings_with_trailing_whitespace(self):
 
         # boolean
@@ -521,6 +519,32 @@ class SettingsCommandTestCase(TestBase):
     def test_settings_remove_empty_arg(self):
         self.expect("settings remove ''", error=True,
                     substrs=["'settings remove' command requires a valid variable name"])
+
+    def test_settings_clear_all(self):
+        # Change a dictionary.
+        self.runCmd("settings set target.env-vars a=1 b=2 c=3")
+        # Change an array.
+        self.runCmd("settings set target.run-args a1 b2 c3")
+        # Change a single boolean value.
+        self.runCmd("settings set auto-confirm true")
+        # Change a single integer value.
+        self.runCmd("settings set tab-size 2")
+
+        # Clear everything.
+        self.runCmd("settings clear --all")
+
+        # Check that settings have their default values after clearing.
+        self.expect("settings show target.env-vars", patterns=['^target.env-vars \(dictionary of strings\) =\s*$'])
+        self.expect("settings show target.run-args", patterns=['^target.run-args \(arguments\) =\s*$'])
+        self.expect("settings show auto-confirm", substrs=["false"])
+        self.expect("settings show tab-size", substrs=["4"])
+
+        # Check that the command fails if we combine '--all' option with any arguments.
+        self.expect(
+            "settings clear --all auto-confirm",
+            COMMAND_FAILED_AS_EXPECTED,
+            error=True,
+            substrs=["'settings clear --all' doesn't take any arguments"])
 
     def test_all_settings_exist(self):
         self.expect("settings show",

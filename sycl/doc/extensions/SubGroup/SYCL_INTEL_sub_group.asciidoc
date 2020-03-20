@@ -1,0 +1,259 @@
+= SYCL_INTEL_sub_group
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension which introduces a new +sub_group+ class representing an implementation-defined grouping of work-items in a work-group.
+
+== Name Strings
+
++SYCL_INTEL_sub_group+
+
+== Notice
+
+Copyright (c) 2019-2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 1.2.1 specification, Revision 6.
+
+== Overview
+
+A sub-group represents an implementation-defined grouping of work-items in a work-group. The work-items within a sub-group can communicate and synchronize independently of work-items in other sub-groups, and sub-groups are therefore commonly mapped to SIMD hardware where it exists.
+
+The first version of this document is focused on exposing sub-group functionality to the NDRange form of SYCL +parallel_for+, and does not address hierarchical parallelism.
+
+=== Towards a Generic Group Abstraction
+
+Providing a generic group abstraction encapsulating the shared functionality of all synchronizable SYCL groups (i.e. work-groups and sub-groups) in a single interface would enable users to write more general code and simplify the introduction of additional SYCL groups in the future (e.g. device-wide synchronization groups).  Some names in this proposal are chosen to demonstrate how this may look:
+
+- The common interface members of +sub_group+ do not reference sub-groups by name, opting instead for generic names like +get_group_range()+.
+- +sub_group+ defines a number of types and static members to simplify writing generic code.
+
+=== Attributes
+
+The +[[intel::reqd_sub_group_size(n)]]+ attribute indicates that the kernel must be compiled and executed with a sub-group of size _n_.  The value of _n_ must be set to a sub-group size that is both supported by the device and compatible with all language features used by the kernel, or device compilation will fail.  The set of valid sub-group sizes can be queried as described below.
+
+In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
+
+[source, c++]
+----
+class Functor
+{
+  void operator()(item<1> item) [[intel::reqd_sub_group_size(16)]]
+  {
+    /* kernel code */
+  }
+}
+----
+
+It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.  The +reqd_sub_group_size+ attribute is not propagated from a device function to callers of the function, and must be specified explicitly when a kernel is defined.
+
+=== Sub-group Queries
+
+Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
+
+Each sub-group in a work-group is one-dimensional.  If the total number of work-items in a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  If the total number of work-items in a work-group is not evenly divisible by the sub-group size, the number of work-items in the final sub-group is equal to the remainder of the total work-group size divided by the sub-group size.
+
+To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, nor that two sub-groups within a work-group will make independent forward progress with respect to one another.
+
+The device descriptors below are added to the +info::device+ enumeration class:
+
+|===
+|Device Descriptors|Return Type|Description
+
+|+info::device::max_num_sub_groups+
+|+uint32_t+
+|Returns the maximum number of sub-groups in a work-group for any kernel executed on the device.  The minimum value is 1.
+
+|+info::device::sub_group_independent_forward_progress+
+|+bool+
+|Returns +true+ if the device supports independent forward progress of sub-groups with respect to other sub-groups in the same work-group.
+
+|+info::device::sub_group_sizes+
+|+vector_class<size_t>+
+|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
+|===
+
+An additional query for sub-group information is added to the +kernel+ class:
+
+|===
+|Member Functions|Description
+
+|+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev) const+
+|Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device.
+|===
+
+The kernel descriptors below are added as part of a new +info::kernel_sub_group+ enumeration class:
+
+|===
+|Kernel Descriptors|Return Type|Description
+
+|+info::kernel_sub_group::max_num_sub_groups+
+|+uint32_t+
+|Returns the maximum number of sub-groups for this kernel.
+
+|+info::kernel_sub_group::compile_num_sub_groups+
+|+uint32_t+
+|Returns the number of sub-groups specified by the kernel, or 0 (if not specified).
+
+|+info::kernel_sub_group::max_sub_group_size+
+|+uint32_t+
+|Returns the maximum sub-group size for this kernel.
+
+|+info::kernel_sub_group::compile_sub_group_size+
+|+uint32_t+
+|Returns the required sub-group size specified by the kernel, or 0 (if not specified).
+|===
+
+=== The sub_group Class
+
+The +sub_group+ class encapsulates all functionality required to represent a particular sub-group within a parallel execution.  It has common by-value semantics and is not default or user-constructible, and can only be accessed in ND-range kernels.
+
+To provide access to the +sub_group+ class, a new member function is added to the +nd_item+ class:
+
+|===
+|Member Functions|Description
+
+|+sub_group get_sub_group() const+
+|Return the sub-group to which the work-item belongs.
+|===
+
+The member functions of the sub-group class provide a mechanism for a developer to query properties of a sub-group and a work-item's position in it.
+
+|===
+|Member Functions|Description
+
+|+id<1> get_local_id() const+
+|Return an +id+ representing the index of the work-item within the sub-group.
+
+|+uint32_t get_linear_local_id() const+
+|Return a +uint32_t+ representing the index of the work-item within the sub-group.
+
+|+range<1> get_local_range() const+
+|Return a SYCL +range+ representing the number of work-items in the sub-group.
+
+|+range<1> get_max_local_range() const+
+|Return a SYCL +range+ representing the maximum number of work-items in any sub-group within the nd-range.
+
+|+id<1> get_group_id() const+
+|Return an +id+ representing the index of the sub-group within the work-group.
+
+|+uint32_t get_linear_group_id() const+
+|Return a +uint32_t+ representing the index of the sub-group within the work-group.
+
+|+range<1> get_group_range() const+
+|Return a SYCL +range+ representing the number of sub-groups within the work-group.
+
+|+range<1> get_max_group_range() const+
+|Return a SYCL +range+ representing the maximum number of sub-groups per work-group within the nd-range.
+|===
+
+An example usage of the +sub_group+ class is given below:
+
+[source, c++]
+----
+parallel_for<class kernel>(..., [&](nd_item item)
+{
+  sub_group sg = item.get_sub_group();
+  for (int v = sg.get_local_id(); v < N; v += sg.get_local_range())
+  {
+    ...
+  }
+});
+----
+
+==== Sample Header
+
+[source, c++]
+----
+namespace cl {
+namespace sycl {
+namespace intel {
+struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = uint32_t;
+  static constexpr int32_t dimensions = 1;
+
+  id_type get_local_id() const;
+  linear_id_type get_local_linear_id() const;
+  range_type get_local_range() const;
+  range_type get_max_local_range() const;
+
+  id_type get_group_id() const;
+  linear_id_type get_group_linear_id() const;
+  range_type get_group_range() const;
+
+};
+} // intel
+} // sycl
+} // cl
+----
+
+== Issues
+
+None.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2019-04-19|John Pennycook|*Initial public working draft*
+|2|2020-03-16|John Pennycook|*Separate class definition from algorithms*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

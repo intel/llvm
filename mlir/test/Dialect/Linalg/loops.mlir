@@ -7,6 +7,7 @@
 // CHECK-DAG: #[[strided2D:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
 // CHECK-DAG: #[[strided3D:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>
 // CHECK-DAG: #[[strided4D:.*]] = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3)>
+// CHECK-DAG: #[[clampMinMap:.*]] = affine_map<(d0) -> (d0, 0)>
 
 // CHECK-DAG: #[[Stride2Dilation1:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1)>
 // CHECK-DAG: #[[Stride2Dilation4:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1 * 4)>
@@ -212,6 +213,44 @@ func @conv_view4(%arg0: memref<?x?x?x?xf32, offset: ?, strides: [?, ?, ?, 1]>, %
 //       CHECK:                 %{{.*}} = addf %{{.*}}, %{{.*}} : f32
 //       CHECK:                 store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?x?xf32, #[[strided4D]]>
 
+func @conv_padding(%arg0: memref<?x?x?x?xf32>,
+                   %arg1: memref<?x?x?x?xf32>,
+                   %arg2: memref<?x?x?x?xf32>) {
+  linalg.conv(%arg0, %arg1, %arg2) {dilations = [1, 1],
+                                    padding = dense<[[0, 1], [1, 1]]> : tensor<2x2xi64>,
+                                    strides = [1, 1]} :
+    memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>
+  return
+}
+// CHECK-LABEL: func @conv_padding
+//       CHECK: %{{.*}}: memref<?x?x?x?xf32>, %{{.*}}: memref<?x?x?x?xf32>, %{{.*}}: memref<?x?x?x?xf32>) {
+//       CHECK:   %[[ZERO:.*]] = constant 0.000000e+00 : f32
+//       CHECK:   %[[Z0:.*]] = dim %arg0, 0 : memref<?x?x?x?xf32>
+//       CHECK:   %[[Z1:.*]] = dim %arg0, 1 : memref<?x?x?x?xf32>
+//       CHECK:   %[[Q:.*]] =  dim %arg0, 2 : memref<?x?x?x?xf32>
+//       CHECK:   %[[K:.*]] =  dim %arg0, 3 : memref<?x?x?x?xf32>
+//       CHECK:   %[[B:.*]] =  dim %arg1, 0 : memref<?x?x?x?xf32>
+//       CHECK:   %[[X0:.*]] = dim %arg2, 1 : memref<?x?x?x?xf32>
+//       CHECK:   %[[X1:.*]] = dim %arg2, 2 : memref<?x?x?x?xf32>
+//       CHECK:   loop.for %{{.*}} = %{{.*}} to %[[B]] step %{{.*}} {
+//       CHECK:     loop.for %{{.*}} = %{{.*}} to %[[X0]] step %{{.*}} {
+//       CHECK:       loop.for %{{.*}} = %{{.*}} to %[[X1]] step %{{.*}} {
+//       CHECK:         loop.for %{{.*}} = %{{.*}} to %[[K]] step %{{.*}} {
+//       CHECK:           loop.for %{{.*}} = %{{.*}} to %[[Q]] step %{{.*}} {
+//       CHECK:             loop.for %{{.*}} = %{{.*}} to %[[Z0]] step %{{.*}} {
+//       CHECK:               loop.for %{{.*}} = %{{.*}} to %[[Z1]] step %{{.*}} {
+//       CHECK:                 %[[SUM0:.*]] = affine.apply #{{.*}}(%{{.*}}, %{{.*}})
+//       CHECK:                 %[[SUM1:.*]] = affine.apply #{{.*}}(%{{.*}}, %{{.*}})
+//       CHECK:                 %[[IDX:.*]] = affine.max #[[clampMinMap]](%[[SUM0]])
+//       CHECK:                 %[[IDY:.*]] = affine.max #[[clampMinMap]](%[[SUM1]])
+//       CHECK:                 %{{.*}} = load %{{.*}}[%{{.*}}, %[[IDX]], %[[IDY]], %{{.*}}] : memref<?x?x?x?xf32>
+//       CHECK:                 %{{.*}} = select %{{.*}}, %{{.*}}, %{{.*}} : f32
+//       CHECK:                 %{{.*}} = load %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?x?xf32>
+//       CHECK:                 %{{.*}} = mulf %{{.*}}, %{{.*}} : f32
+//       CHECK:                 %{{.*}} = load %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?x?xf32>
+//       CHECK:                 %{{.*}} = addf %{{.*}}, %{{.*}} : f32
+//       CHECK:                 store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?x?xf32>
+
 func @foo(%0: f32, %1: f32, %2: f32) -> (f32, f32) {
   %f0 = constant 0.0 : f32
   return %f0, %f0 : f32, f32
@@ -360,7 +399,7 @@ func @indexed_generic_region(
 // -----
 
 #broadcast_access = [
-  affine_map<(i, j) -> (0)>,
+  affine_map<(i, j) -> ()>,
   affine_map<(i, j) -> (i, j)>
 ]
 
@@ -411,3 +450,75 @@ func @indexed_generic_op_zero_rank(%arg0: memref<i32>, %arg1: memref<3x4xi32>)
 // CHECK:     %[[ij_int:.*]] = index_cast %[[ij]] : index to i32
 // CHECK:     %[[result:.*]] = addi %[[a]], %[[ij_int]] : i32
 // CHECK:     store %[[result]], %[[ARG1]][%[[i]], %[[j]]]
+
+#reduce_1D_access = [
+  affine_map<(i) -> (i)>,
+  affine_map<(i) -> ()>
+]
+
+#trait_reduce_1D = {
+  args_in = 1,
+  args_out = 1,
+  indexing_maps = #reduce_1D_access,
+  iterator_types = ["reduction"],
+  library_call = "some_reduce_external_fn"
+}
+
+func @generic_op_1D_reduce(%arg0: memref<?xf32>, %arg1: memref<f32>)
+{
+  linalg.generic #trait_reduce_1D %arg0, %arg1 {
+    ^bb(%a: f32, %b: f32) :
+      %0 = addf %a, %b : f32
+      linalg.yield %0 : f32
+  } : memref<?xf32>, memref<f32>
+  return
+}
+// CHECK-LABEL: @generic_op_1D_reduce
+// CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?xf32>
+// CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<f32>
+// CHECK: loop.for %[[i:.*]] = {{.*}}
+// CHECK:   %[[a:.*]] = load %[[ARG0]][%[[i]]]
+// CHECK:   %[[b:.*]] = load %[[ARG1]][]
+// CHECK:   %[[c:.*]] = addf %[[a]], %[[b]] : f32
+// CHECK:   store %[[c]], %[[ARG1]][]
+
+
+#reduce_init_1D_access = [
+  affine_map<(i) -> (i)>,
+  affine_map<(i) -> ()>,
+  affine_map<(i) -> ()>
+]
+
+#trait_reduce_init_1D = {
+  args_in = 2,
+  args_out = 1,
+  indexing_maps = #reduce_init_1D_access,
+  iterator_types = ["reduction"],
+  library_call = "some_reduce_external_fn"
+}
+
+func @indexed_generic_op_1D_reduce(%arg0: memref<?xf32>,
+                                   %arg1: memref<f32>,
+                                   %arg2: memref<f32>)
+{
+  linalg.indexed_generic #trait_reduce_init_1D %arg0, %arg1, %arg2 {
+    ^bb(%i : index, %a: f32, %b: f32, %c: f32) :
+      %0 = constant 0 : index
+      %1 = cmpi "eq", %0, %i : index
+      %2 = select %1, %b, %c : f32
+      %3 = addf %a, %2 : f32
+      linalg.yield %3 : f32
+  } : memref<?xf32>, memref<f32>, memref<f32>
+  return
+}
+// CHECK-LABEL: @indexed_generic_op_1D_reduce
+// CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?xf32>
+// CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<f32>
+// CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<f32>
+// CHECK: loop.for %[[i:.*]] = {{.*}}
+// CHECK:   %[[a:.*]] = load %[[ARG0]][%[[i]]]
+// CHECK:   %[[b:.*]] = load %[[ARG1]][]
+// CHECK:   %[[c:.*]] = load %[[ARG2]][]
+// CHECK:   %[[d:.*]] = select %{{.*}}, %[[b]], %[[c]]
+// CHECK:   %[[e:.*]] = addf %[[a]], %[[d]]
+// CHECK:   store %[[e]], %[[ARG2]][]

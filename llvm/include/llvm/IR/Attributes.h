@@ -73,7 +73,9 @@ public:
     #define GET_ATTR_NAMES
     #define ATTRIBUTE_ENUM(ENUM_NAME, OTHER) ENUM_NAME,
     #include "llvm/IR/Attributes.inc"
-    EndAttrKinds           ///< Sentinal value useful for loops
+    EndAttrKinds,          ///< Sentinal value useful for loops
+    EmptyKey,              ///< Use as Empty key for DenseMap of AttrKind
+    TombstoneKey,          ///< Use as Tombstone key for DenseMap of AttrKind
   };
 
 private:
@@ -113,6 +115,10 @@ public:
 
   /// Return true if and only if the attribute has an Argument.
   static bool doesAttrKindHaveArgument(Attribute::AttrKind AttrKind);
+
+  /// Return true if the provided string matches the IR name of an attribute.
+  /// example: "noalias" return true but not "NoAlias"
+  static bool isExistingAttribute(StringRef Name);
 
   //===--------------------------------------------------------------------===//
   // Attribute Accessors

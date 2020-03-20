@@ -9,7 +9,7 @@
 #include "CGLoopInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
-#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -871,8 +871,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // legacy GNU attributes and pragma styles.
   //
   // For attribute ivdep:
-  // 0 - 'llvm.loop.ivdep.enable' metadata will be emitted
-  // n - 'llvm.loop.ivdep.safelen, i32 n' metadata will be emitted
+  // Metadata 'llvm.loop.parallel_access_indices' & index group metadata
+  // will be emitted, depending on the conditions described at the
+  // helpers' site
   // For attribute ii:
   // n - 'llvm.loop.ii.count, i32 n' metadata will be emitted
   // For attribute max_concurrency:

@@ -15,6 +15,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+/// The plugin class provides a unified interface to the underlying low-level
+/// runtimes for the device-agnostic SYCL runtime.
+///
+/// \ingroup sycl_pi
 class plugin {
 public:
   plugin() = delete;
@@ -25,21 +29,24 @@ public:
 
   ~plugin() = default;
 
-  // Utility function to check return from PI calls.
-  // Throws if pi_result is not a PI_SUCCESS.
-  // Exception - The type of exception to throw if PiResult of a call is not
-  // PI_SUCCESS. Default value is cl::sycl::runtime_error.
+  /// Checks return value from PI calls.
+  ///
+  /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
-  // Call the PiApi, trace the call and return the result.
-  // To check the result use checkPiResult.
-  // Usage:
-  // PiResult Err = plugin.call<PiApiKind::pi>(Args);
-  // Plugin.checkPiResult(Err); <- Checks Result and throws a runtime_error
-  // exception.
+  /// Calls the PiApi, traces the call, and returns the result.
+  ///
+  /// Usage:
+  /// \code{cpp}
+  /// PiResult Err = plugin.call<PiApiKind::pi>(Args);
+  /// Plugin.checkPiResult(Err); // Checks Result and throws a runtime_error
+  /// // exception.
+  /// \endcode
+  ///
+  /// \sa plugin::checkPiResult
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;
@@ -56,8 +63,9 @@ public:
     return R;
   }
 
-  // Call the API, trace the call, check the result and throw
-  // a runtime_error Exception
+  /// Calls the API, traces the call, checks the result
+  ///
+  /// \throw cl::sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);

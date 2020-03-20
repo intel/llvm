@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -Wno-return-type -fsycl-is-device -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 //CHECK: FunctionDecl{{.*}}check_ast
 void check_ast()
@@ -113,6 +113,20 @@ void check_ast()
   [[intelfpga::simple_dual_port]]
   unsigned int dual_port[64];
 
+  //CHECK: VarDecl{{.*}}arr_force_p2d_0
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: ConstantExpr
+  //CHECK: IntegerLiteral{{.*}}0{{$}}
+  [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
+
+  //CHECK: VarDecl{{.*}}arr_force_p2d_1
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: ConstantExpr
+  //CHECK: IntegerLiteral{{.*}}1{{$}}
+  [[intelfpga::force_pow2_depth(1)]] unsigned int arr_force_p2d_1[64];
+
   [[intelfpga::register]] int var_reg;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::singlepump]] int var_singlepump;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::doublepump]] int var_doublepump;
@@ -120,6 +134,8 @@ void check_ast()
   [[intelfpga::bank_bits(2,3), intelfpga::bankwidth(16)]] int var_bank_bits_width;
   [[intelfpga::max_replicates(2)]] int var_max_repl;
   [[intelfpga::simple_dual_port]] int var_dual_port;
+  [[intelfpga::force_pow2_depth(1)]] int var_force_p2d;
+  [[intelfpga::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
 }
 
 //CHECK: FunctionDecl{{.*}}diagnostics
@@ -201,7 +217,6 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_private_copies[64];
 
-
   //expected-error@+2{{attributes are not compatible}}
   [[intelfpga::register]]
   [[intelfpga::numbanks(8)]]
@@ -223,6 +238,16 @@ void diagnostics()
   [[intelfpga::register]]
   //expected-note@-1 {{conflicting attribute is here}}
   [[intelfpga::simple_dual_port]] unsigned int reg_dualport[64];
+
+  //expected-error@+3{{'force_pow2_depth' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::force_pow2_depth(0)]] unsigned int reg_force_p2d[64];
+
+  //expected-error@+3{{'register' and 'force_pow2_depth' attributes are not compatible}}
+  [[intelfpga::force_pow2_depth(1)]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::register]] unsigned int force_p2d_reg[64];
 
   // **memory
   //expected-error@+2{{attributes are not compatible}}
@@ -447,6 +472,28 @@ void diagnostics()
   //expected-error@+1{{requires integer constant between 0 and 1048576}}
   [[intelfpga::bank_bits(-1)]]
   unsigned int bb_negative_arg[4];
+
+  // force_pow2_depth
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  [[intelfpga::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  [[intelfpga::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];
+
+  //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
+  [[intelfpga::force_pow2_depth]] unsigned int force_p2d_no_args[64];
+  //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
+  [[intelfpga::force_pow2_depth(0, 1)]] unsigned int force_p2d_2_args[64];
+
+  //CHECK: VarDecl{{.*}}force_p2d_dup
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  [[intelfpga::force_pow2_depth(1), intelfpga::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
 //CHECK: FunctionDecl{{.*}}check_gnu_style
@@ -484,6 +531,9 @@ void check_gnu_style() {
 
   //expected-warning@+1{{unknown attribute 'bank_bits' ignored}}
   int __attribute__((bank_bits(4))) bankbits;
+
+  //expected-warning@+1{{unknown attribute 'force_pow2_depth' ignored}}
+  int __attribute__((force_pow2_depth(0))) force_p2d;
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
@@ -498,6 +548,13 @@ void attr_on_const_error()
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
 void attr_on_func_arg([[intelfpga::private_copies(8)]] int pc) {}
+
+//expected-error@+1{{attribute only applies to constant variables, local variables, static variables, slave memory arguments, and non-static data members}}
+[[intelfpga::force_pow2_depth(0)]]
+__attribute__((opencl_constant)) unsigned int ocl_const_force_p2d[64] = {1, 2, 3};
+
+//expected-no-error@+1
+void force_p2d_attr_on_func_arg([[intelfpga::force_pow2_depth(0)]] int pc) {}
 
 struct foo {
   //CHECK: FieldDecl{{.*}}doublepump
@@ -571,10 +628,17 @@ struct foo {
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
   [[intelfpga::bank_bits(2,3)]] unsigned int bankbits[64];
+
+  //CHECK: FieldDecl{{.*}}force_p2d_field
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  [[intelfpga::force_pow2_depth(1)]] unsigned int force_p2d_field[64];
 };
 
 //CHECK: FunctionDecl{{.*}}used check_template_parameters
-template<int A, int B, int C, int D>
+template <int A, int B, int C, int D, int E>
 void check_template_parameters() {
   //CHECK: VarDecl{{.*}}numbanks
   //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -617,6 +681,8 @@ void check_template_parameters() {
   [[intelfpga::max_replicates(A)]]
   unsigned int max_replicates;
 
+  [[intelfpga::force_pow2_depth(E)]] const int const_force_p2d_templ[64] = {0, 1};
+
   //expected-error@+1{{'numbanks' attribute takes one argument}}
   [[intelfpga::numbanks(A,B)]]
   int numbanks_negative;
@@ -632,7 +698,41 @@ void check_template_parameters() {
   //expected-note@-1 {{conflicting attribute is here}}
   [[intelfpga::max_replicates(C)]]
   unsigned int maxrepl_reg;
+
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  [[intelfpga::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];
+
+  //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
+  [[intelfpga::force_pow2_depth(E, E)]] unsigned int force_p2d_2_args[64];
+
+  //expected-error@+3{{'force_pow2_depth' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1{{conflicting attribute is here}}
+  [[intelfpga::force_pow2_depth(E)]] unsigned int reg_force_p2d[64];
+
+  //CHECK: VarDecl{{.*}}force_p2d_dup
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: ConstantExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  [[intelfpga::force_pow2_depth(E), intelfpga::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
+
+template <int A>
+struct templ_st {
+  //CHECK: FieldDecl{{.*}}templ_force_p2d_field
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: ConstantExpr
+  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
+  [[intelfpga::force_pow2_depth(A)]] unsigned int templ_force_p2d_field[64];
+};
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
@@ -644,8 +744,9 @@ int main() {
     check_ast();
     diagnostics();
     check_gnu_style();
-    check_template_parameters<2, 4, 8, -1>();
-    //expected-note@-1 +{{in instantiation of function template specialization}}
+    //expected-note@+1{{in instantiation of function template specialization}}
+    check_template_parameters<2, 4, 8, -1, 1>();
+    struct templ_st<0> ts {};
   });
   return 0;
 }

@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// C++ wrapper of extern "C" PI interfaces
-//
+/// \file pi.hpp
+/// C++ wrapper of extern "C" PI interfaces
+///
+/// \ingroup sycl_pi
+
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
@@ -114,7 +117,7 @@ std::string platformInfoToString(pi_platform_info info);
 template <class To, class From> To cast(From value);
 
 // Holds the PluginInformation for the plugin that is bound.
-// Currently a global varaible is used to store OpenCL plugin information to be
+// Currently a global variable is used to store OpenCL plugin information to be
 // used with SYCL Interoperability Constructors.
 extern std::shared_ptr<plugin> GlobalPlugin;
 
@@ -168,10 +171,21 @@ namespace RT = cl::sycl::detail::pi;
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.
-template <class To, class From> To pi::cast(From value) {
+template <class To, class From> To inline pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
   RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
   return (To)(value);
+}
+
+// These conversions should use PI interop API.
+template <> pi::PiProgram inline pi::cast(cl_program interop) {
+  RT::assertion(false, "pi::cast -> use piextProgramConvert");
+  return {};
+}
+
+template <> pi::PiDevice inline pi::cast(cl_device_id interop) {
+  RT::assertion(false, "pi::cast -> use piextDeviceConvert");
+  return {};
 }
 
 } // namespace detail

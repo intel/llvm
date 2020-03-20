@@ -2867,10 +2867,10 @@ void SelectionDAGBuilder::visitCallBr(const CallBrInst &I) {
   Return->setInlineAsmBrDefaultTarget();
 
   // Update successor info.
-  addSuccessorWithProb(CallBrMBB, Return);
+  addSuccessorWithProb(CallBrMBB, Return, BranchProbability::getOne());
   for (unsigned i = 0, e = I.getNumIndirectDests(); i < e; ++i) {
     MachineBasicBlock *Target = FuncInfo.MBBMap[I.getIndirectDest(i)];
-    addSuccessorWithProb(CallBrMBB, Target);
+    addSuccessorWithProb(CallBrMBB, Target, BranchProbability::getZero());
     CallBrMBB->addInlineAsmBrIndirectTarget(Target);
   }
   CallBrMBB->normalizeSuccProbs();
@@ -4424,16 +4424,9 @@ static bool getUniformBase(const Value *&Ptr, SDValue &Base, SDValue &Index,
 
   if (STy) {
     const StructLayout *SL = DL.getStructLayout(STy);
-    if (isa<VectorType>(C->getType())) {
-      C = C->getSplatValue();
-      // FIXME: If getSplatValue may return nullptr for a structure?
-      // If not, the following check can be removed.
-      if (!C)
-        return false;
-    }
-    auto *CI = cast<ConstantInt>(C);
+    unsigned Field = cast<Constant>(IndexVal)->getUniqueInteger().getZExtValue();
     Scale = DAG.getTargetConstant(1, SDB->getCurSDLoc(), TLI.getPointerTy(DL));
-    Index = DAG.getConstant(SL->getElementOffset(CI->getZExtValue()),
+    Index = DAG.getConstant(SL->getElementOffset(Field),
                             SDB->getCurSDLoc(), TLI.getPointerTy(DL));
   } else {
     Scale = DAG.getTargetConstant(

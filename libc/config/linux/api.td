@@ -18,6 +18,35 @@ def OffT : TypeDecl<"off_t"> {
   }];
 }
 
+def AssertMacro : MacroDef<"assert"> {
+  let Defn = [{
+    #undef assert
+
+    #ifdef NDEBUG
+    #define assert(e) (void)0
+    #else
+
+    #ifdef __cplusplus
+    extern "C"
+    #endif
+    _Noreturn void __assert_fail(const char *, const char *, unsigned, const char *);
+
+    #define assert(e)  \
+      ((e) ? (void)0 : __assert_fail(#e, __FILE__, __LINE__, __PRETTY_FUNCTION__))
+
+    #endif
+  }];
+}
+
+def StaticAssertMacro : MacroDef<"static_assert"> {
+  let Defn = [{
+    #ifndef __cplusplus
+    #undef static_assert
+    #define static_assert _Static_assert
+    #endif
+  }];
+}
+
 def NullMacro : MacroDef<"NULL"> {
   let Defn = [{
     #define __need_NULL
@@ -27,9 +56,19 @@ def NullMacro : MacroDef<"NULL"> {
 
 def ErrnoMacro : MacroDef<"errno"> {
   let Defn = [{
+    #ifdef __cplusplus
+    extern "C"
+    #endif
     int *__errno_location();
     #define errno (*__errno_location())
   }];
+}
+
+def AssertAPI : PublicAPI<"assert.h"> {
+  let Macros = [
+    AssertMacro,
+    StaticAssertMacro,
+  ];
 }
 
 def MathAPI : PublicAPI<"math.h"> {
@@ -81,6 +120,13 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
 
   let Functions = [
     "snprintf",
+  ];
+}
+
+def StdlibAPI : PublicAPI<"stdlib.h"> {
+  let Functions = [
+    "_Exit",
+    "abort",
   ];
 }
 
@@ -143,7 +189,25 @@ def SignalAPI : PublicAPI<"signal.h"> {
   ];
 }
 
+def MtxT : TypeDecl<"mtx_t"> {
+  let Decl = [{
+    typedef struct {
+      unsigned char __internal_data[4];
+      int __mtx_type;
+    } mtx_t;
+  }];
+}
+
+def ThreadStartT : TypeDecl<"thrd_start_t"> {
+  let Decl = "typedef int (*thrd_start_t)(void *);";
+}
+
 def ThreadsAPI : PublicAPI<"threads.h"> {
+  let TypeDeclarations = [
+    MtxT,
+    ThreadStartT,
+  ];
+
   let Enumerations = [
     "mtx_plain",
     "mtx_recursive",
@@ -153,5 +217,13 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     "thrd_busy",
     "thrd_error",
     "thrd_nomem",
+  ];
+
+  let Functions = [
+    "mtx_init",
+    "mtx_lock",
+    "mtx_unlock",
+    "thrd_create",
+    "thrd_join",
   ];
 }

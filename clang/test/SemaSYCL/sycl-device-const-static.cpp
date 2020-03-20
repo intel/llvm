@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -fsycl-is-device %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 void usage() {
   // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}

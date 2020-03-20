@@ -40,8 +40,8 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 
   size_t CompileWGSize[3] = {0};
   Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, Device, PI_KERNEL_COMPILE_GROUP_INFO_SIZE, sizeof(size_t) * 3,
-      CompileWGSize, nullptr);
+      Kernel, Device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileWGSize, nullptr);
 
   if (CompileWGSize[0] != 0) {
     // OpenCL 1.x && 2.0:
@@ -90,10 +90,11 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
-    // than the value specified by PI_KERNEL_GROUP_INFO_SIZE in table 5.21.
+    // than the value specified by PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
+    // table 5.21.
     size_t KernelWGSize = 0;
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, PI_KERNEL_GROUP_INFO_SIZE, sizeof(size_t),
+        Kernel, Device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
         &KernelWGSize, nullptr);
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];

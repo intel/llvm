@@ -23,6 +23,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 
@@ -82,7 +83,7 @@ static cl::TokenizerCallback getQuotingStyle(opt::InputArgList &args) {
       return cl::TokenizeWindowsCommandLine;
     return cl::TokenizeGNUCommandLine;
   }
-  if (Triple(sys::getProcessTriple()).getOS() == Triple::Win32)
+  if (Triple(sys::getProcessTriple()).isOSWindows())
     return cl::TokenizeWindowsCommandLine;
   return cl::TokenizeGNUCommandLine;
 }

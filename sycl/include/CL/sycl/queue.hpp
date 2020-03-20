@@ -70,7 +70,7 @@ public:
   ///
   /// \param SyclDevice is an instance of SYCL device.
   /// \param PropList is a list of properties for queue construction.
-  queue(const device &SyclDevice, const property_list &PropList = {})
+  explicit queue(const device &SyclDevice, const property_list &PropList = {})
       : queue(SyclDevice, async_handler{}, PropList) {}
 
   /// Constructs a SYCL queue instance with an async_handler using the device
@@ -79,8 +79,8 @@ public:
   /// \param SyclDevice is an instance of SYCL device.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  queue(const device &SyclDevice, const async_handler &AsyncHandler,
-        const property_list &PropList = {});
+  explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
+                 const property_list &PropList = {});
 
   /// Constructs a SYCL queue instance that is associated with the context
   /// provided, using the device returned by the device selector.
@@ -290,7 +290,7 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, int Advice);
+  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it

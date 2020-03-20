@@ -1099,7 +1099,7 @@ static void handleNoBuiltinAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         AddBuiltinName(BuiltinName);
       else
         S.Diag(LiteralLoc, diag::warn_attribute_no_builtin_invalid_builtin_name)
-            << BuiltinName << AL.getAttrName()->getName();
+            << BuiltinName << AL;
     }
 
   // Repeating the same attribute is fine.
@@ -1110,7 +1110,7 @@ static void handleNoBuiltinAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (HasWildcard && Names.size() > 1)
     S.Diag(D->getLocation(),
            diag::err_attribute_no_builtin_wildcard_or_builtin_name)
-        << AL.getAttrName()->getName();
+        << AL;
 
   if (D->hasAttr<NoBuiltinAttr>())
     D->dropAttr<NoBuiltinAttr>();
@@ -1176,8 +1176,7 @@ static bool checkForConsumableClass(Sema &S, const CXXMethodDecl *MD,
 
   if (const CXXRecordDecl *RD = ThisType->getAsCXXRecordDecl()) {
     if (!RD->hasAttr<ConsumableAttr>()) {
-      S.Diag(AL.getLoc(), diag::warn_attr_on_unconsumable_class) <<
-        RD->getNameAsString();
+      S.Diag(AL.getLoc(), diag::warn_attr_on_unconsumable_class) << RD;
 
       return false;
     }
@@ -3802,7 +3801,7 @@ void Sema::AddAlignValueAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E) {
   if (!T->isDependentType() && !T->isAnyPointerType() &&
       !T->isReferenceType() && !T->isMemberPointerType()) {
     Diag(AttrLoc, diag::warn_attribute_pointer_or_reference_only)
-      << &TmpAttr /*TmpAttr.getName()*/ << T << D->getSourceRange();
+      << &TmpAttr << T << D->getSourceRange();
     return;
   }
 
@@ -4012,6 +4011,7 @@ void Sema::CheckAlignasUnderalignment(Decl *D) {
   //   not specify an alignment that is less strict than the alignment that
   //   would otherwise be required for the entity being declared.
   AlignedAttr *AlignasAttr = nullptr;
+  AlignedAttr *LastAlignedAttr = nullptr;
   unsigned Align = 0;
   for (auto *I : D->specific_attrs<AlignedAttr>()) {
     if (I->isAlignmentDependent())
@@ -4019,9 +4019,13 @@ void Sema::CheckAlignasUnderalignment(Decl *D) {
     if (I->isAlignas())
       AlignasAttr = I;
     Align = std::max(Align, I->getAlignment(Context));
+    LastAlignedAttr = I;
   }
 
-  if (AlignasAttr && Align) {
+  if (Align && DiagTy->isSizelessType()) {
+    Diag(LastAlignedAttr->getLocation(), diag::err_attribute_sizeless_type)
+        << LastAlignedAttr << DiagTy;
+  } else if (AlignasAttr && Align) {
     CharUnits RequestedAlign = Context.toCharUnitsFromBits(Align);
     CharUnits NaturalAlign = Context.getTypeAlignInChars(UnderlyingTy);
     if (NaturalAlign > RequestedAlign)
@@ -4054,8 +4058,7 @@ bool Sema::checkMSInheritanceAttrOnDefinition(
 
   Diag(Range.getBegin(), diag::err_mismatched_ms_inheritance)
       << 0 /*definition*/;
-  Diag(RD->getDefinition()->getLocation(), diag::note_defined_here)
-      << RD->getNameAsString();
+  Diag(RD->getDefinition()->getLocation(), diag::note_defined_here) << RD;
   return true;
 }
 
@@ -5218,6 +5221,8 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     InCompat = true;
   if (checkAttrMutualExclusion<IntelFPGABankBitsAttr>(S, D, Attr))
     InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGAForcePow2DepthAttr>(S, D, Attr))
+    InCompat = true;
 
   return InCompat;
 }
@@ -5422,6 +5427,24 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
       D, Attr, Attr.getArgAsExpr(0));
 }
 
+static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
+  checkForDuplicateAttribute<IntelFPGAForcePow2DepthAttr>(S, D, Attr);
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        S.Context, IntelFPGAMemoryAttr::Default));
+
+  S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(D, Attr,
+                                                         Attr.getArgAsExpr(0));
+}
+
 static void handleXRayLogArgsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   ParamIdx ArgCount;
 
@@ -5495,13 +5518,47 @@ static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
   S.addSYCLIntelPipeIOAttr(D, Attr, E);
 }
 
-static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
+namespace {
+struct IntrinToName {
+  uint32_t Id;
+  int32_t FullName;
+  int32_t ShortName;
+};
+} // unnamed namespace
+
+static bool ArmBuiltinAliasValid(unsigned BuiltinID, StringRef AliasName,
+                                 ArrayRef<IntrinToName> Map,
+                                 const char *IntrinNames) {
   if (AliasName.startswith("__arm_"))
     AliasName = AliasName.substr(6);
-#include "clang/Basic/arm_mve_builtin_aliases.inc"
+  const IntrinToName *It = std::lower_bound(
+      Map.begin(), Map.end(), BuiltinID,
+      [](const IntrinToName &L, unsigned Id) { return L.Id < Id; });
+  if (It == Map.end() || It->Id != BuiltinID)
+    return false;
+  StringRef FullName(&IntrinNames[It->FullName]);
+  if (AliasName == FullName)
+    return true;
+  if (It->ShortName == -1)
+    return false;
+  StringRef ShortName(&IntrinNames[It->ShortName]);
+  return AliasName == ShortName;
 }
 
-static void handleArmMveAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
+#include "clang/Basic/arm_mve_builtin_aliases.inc"
+  // The included file defines:
+  // - ArrayRef<IntrinToName> Map
+  // - const char IntrinNames[]
+  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
+}
+
+static bool ArmCdeAliasValid(unsigned BuiltinID, StringRef AliasName) {
+#include "clang/Basic/arm_cde_builtin_aliases.inc"
+  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
+}
+
+static void handleArmBuiltinAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.isArgIdent(0)) {
     S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
         << AL << 1 << AANT_ArgumentIdentifier;
@@ -5510,14 +5567,15 @@ static void handleArmMveAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   IdentifierInfo *Ident = AL.getArgAsIdent(0)->Ident;
   unsigned BuiltinID = Ident->getBuiltinID();
+  StringRef AliasName = cast<FunctionDecl>(D)->getIdentifier()->getName();
 
-  if (!ArmMveAliasValid(BuiltinID,
-                        cast<FunctionDecl>(D)->getIdentifier()->getName())) {
-    S.Diag(AL.getLoc(), diag::err_attribute_arm_mve_alias);
+  if (!ArmMveAliasValid(BuiltinID, AliasName) &&
+      !ArmCdeAliasValid(BuiltinID, AliasName)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_arm_builtin_alias);
     return;
   }
 
-  D->addAttr(::new (S.Context) ArmMveAliasAttr(S.Context, AL, Ident));
+  D->addAttr(::new (S.Context) ArmBuiltinAliasAttr(S.Context, AL, Ident));
 }
 
 //===----------------------------------------------------------------------===//
@@ -8021,6 +8079,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_IntelFPGABankBits:
     handleIntelFPGABankBitsAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_IntelFPGAForcePow2Depth:
+    handleIntelFPGAForcePow2DepthAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLIntelPipeIO:
     handleSYCLIntelPipeIOAttr(S, D, AL);
     break;
@@ -8072,8 +8133,8 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleMSAllocatorAttr(S, D, AL);
     break;
 
-  case ParsedAttr::AT_ArmMveAlias:
-    handleArmMveAliasAttr(S, D, AL);
+  case ParsedAttr::AT_ArmBuiltinAlias:
+    handleArmBuiltinAliasAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AcquireHandle:
