@@ -109,6 +109,7 @@ void EmitClangOptDocs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangOpenCLBuiltins(llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);
+void EmitClangSPIRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDataCollectors(llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);

@@ -48,6 +48,7 @@
 #include <vector>
 
 #include "OpenCLBuiltins.inc"
+#include "SPIRVBuiltins.inc"
 
 using namespace clang;
 using namespace sema;
@@ -677,10 +678,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
     D->dump();
 }
 
-/// Get the QualType instances of the return type and arguments for an OpenCL
+/// Get the QualType instances of the return type and arguments for a ProgModel
 /// builtin function signature.
 /// \param Context (in) The Context instance.
-/// \param OpenCLBuiltin (in) The signature currently handled.
+/// \param Builtin (in) The signature currently handled.
 /// \param GenTypeMaxCnt (out) Maximum number of types contained in a generic
 ///        type used as return type or as argument.
 ///        Only meaningful for generic types, otherwise equals 1.
@@ -688,27 +689,31 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
 /// \param ArgTypes (out) List of the possible argument types.  For each
 ///        argument, ArgTypes contains QualTypes for the Cartesian product
 ///        of (vector sizes) x (types) .
-static void GetQualTypesForOpenCLBuiltin(
-    ASTContext &Context, const OpenCLBuiltinStruct &OpenCLBuiltin,
+template <typename ProgModel>
+static void GetQualTypesForProgModelBuiltin(
+    ASTContext &Context, const typename ProgModel::BuiltinStruct &Builtin,
     unsigned &GenTypeMaxCnt, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   // Get the QualType instances of the return types.
-  unsigned Sig = SignatureTable[OpenCLBuiltin.SigTableIndex];
-  OCL2Qual(Context, TypeTable[Sig], RetTypes);
+  unsigned Sig = ProgModel::SignatureTable[Builtin.SigTableIndex];
+  ProgModel::Bultin2Qual(Context, ProgModel::TypeTable[Sig], RetTypes);
   GenTypeMaxCnt = RetTypes.size();
 
   // Get the QualType instances of the arguments.
   // First type is the return type, skip it.
-  for (unsigned Index = 1; Index < OpenCLBuiltin.NumTypes; Index++) {
+  for (unsigned Index = 1; Index < Builtin.NumTypes; Index++) {
     SmallVector<QualType, 1> Ty;
-    OCL2Qual(Context,
-        TypeTable[SignatureTable[OpenCLBuiltin.SigTableIndex + Index]], Ty);
+    ProgModel::Bultin2Qual(
+        Context,
+        ProgModel::TypeTable[ProgModel::SignatureTable[Builtin.SigTableIndex +
+                                                       Index]],
+        Ty);
     GenTypeMaxCnt = (Ty.size() > GenTypeMaxCnt) ? Ty.size() : GenTypeMaxCnt;
     ArgTypes.push_back(std::move(Ty));
   }
 }
 
-/// Create a list of the candidate function overloads for an OpenCL builtin
+/// Create a list of the candidate function overloads for a ProgModel builtin
 /// function.
 /// \param Context (in) The ASTContext instance.
 /// \param GenTypeMaxCnt (in) Maximum number of types contained in a generic
@@ -717,12 +722,12 @@ static void GetQualTypesForOpenCLBuiltin(
 /// \param FunctionList (out) List of FunctionTypes.
 /// \param RetTypes (in) List of the possible return types.
 /// \param ArgTypes (in) List of the possible types for the arguments.
-static void GetOpenCLBuiltinFctOverloads(
+static void GetProgModelBuiltinFctOverloads(
     ASTContext &Context, unsigned GenTypeMaxCnt,
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
-    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
+    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI;
-  PI.Variadic = false;
+  PI.Variadic = IsVariadic;
 
   // Create FunctionTypes for each (gen)type.
   for (unsigned IGenType = 0; IGenType < GenTypeMaxCnt; IGenType++) {
@@ -747,16 +752,17 @@ static void GetOpenCLBuiltinFctOverloads(
 /// \param S (in/out) The Sema instance.
 /// \param BIDecl (in) Description of the builtin.
 /// \param FDecl (in/out) FunctionDecl instance.
-static void AddOpenCLExtensions(Sema &S, const OpenCLBuiltinStruct &BIDecl,
+static void AddOpenCLExtensions(Sema &S,
+                                const OpenCLBuiltin::BuiltinStruct &BIDecl,
                                 FunctionDecl *FDecl) {
   // Fetch extension associated with a function prototype.
-  StringRef E = FunctionExtensionTable[BIDecl.Extension];
+  StringRef E = OpenCLBuiltin::FunctionExtensionTable[BIDecl.Extension];
   if (E != "")
     S.setOpenCLExtensionForDecl(FDecl, E);
 }
 
-/// When trying to resolve a function name, if isOpenCLBuiltin() returns a
-/// non-null <Index, Len> pair, then the name is referencing an OpenCL
+/// When trying to resolve a function name, if ProgModel::isBuiltin() returns a
+/// non-null <Index, Len> pair, then the name is referencing a
 /// builtin function.  Add all candidate signatures to the LookUpResult.
 ///
 /// \param S (in) The Sema instance.
@@ -764,10 +770,13 @@ static void AddOpenCLExtensions(Sema &S, const OpenCLBuiltinStruct &BIDecl,
 /// \param II (in) The identifier being resolved.
 /// \param FctIndex (in) Starting index in the BuiltinTable.
 /// \param Len (in) The signature list has Len elements.
-static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
-                                                  IdentifierInfo *II,
-                                                  const unsigned FctIndex,
-                                                  const unsigned Len) {
+template <typename ProgModel>
+static void InsertBuiltinDeclarationsFromTable(
+    Sema &S, unsigned BuiltinSetVersion, LookupResult &LR, IdentifierInfo *II,
+    const unsigned FctIndex, const unsigned Len,
+    std::function<void(const typename ProgModel::BuiltinStruct &,
+                       FunctionDecl &)>
+        ProgModelFinalizer) {
   // The builtin function declaration uses generic types (gentype).
   bool HasGenType = false;
 
@@ -776,45 +785,44 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
   unsigned GenTypeMaxCnt;
 
   for (unsigned SignatureIndex = 0; SignatureIndex < Len; SignatureIndex++) {
-    const OpenCLBuiltinStruct &OpenCLBuiltin =
-        BuiltinTable[FctIndex + SignatureIndex];
+    const typename ProgModel::BuiltinStruct &Builtin =
+        ProgModel::BuiltinTable[FctIndex + SignatureIndex];
     ASTContext &Context = S.Context;
 
     // Ignore this BIF if its version does not match the language options.
-    unsigned OpenCLVersion = Context.getLangOpts().OpenCLVersion;
-    if (Context.getLangOpts().OpenCLCPlusPlus)
-      OpenCLVersion = 200;
-    if (OpenCLVersion < OpenCLBuiltin.MinVersion)
-      continue;
-    if ((OpenCLBuiltin.MaxVersion != 0) &&
-        (OpenCLVersion >= OpenCLBuiltin.MaxVersion))
-      continue;
+    if (BuiltinSetVersion) {
+      if (BuiltinSetVersion < Builtin.MinVersion)
+        continue;
+      if ((Builtin.MaxVersion != 0) &&
+          (BuiltinSetVersion >= Builtin.MaxVersion))
+        continue;
+    }
 
     SmallVector<QualType, 1> RetTypes;
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
     // Obtain QualType lists for the function signature.
-    GetQualTypesForOpenCLBuiltin(Context, OpenCLBuiltin, GenTypeMaxCnt,
-                                 RetTypes, ArgTypes);
+    GetQualTypesForProgModelBuiltin<ProgModel>(Context, Builtin, GenTypeMaxCnt,
+                                               RetTypes, ArgTypes);
     if (GenTypeMaxCnt > 1) {
       HasGenType = true;
     }
 
     // Create function overload for each type combination.
     std::vector<QualType> FunctionList;
-    GetOpenCLBuiltinFctOverloads(Context, GenTypeMaxCnt, FunctionList, RetTypes,
-                                 ArgTypes);
+    GetProgModelBuiltinFctOverloads(Context, GenTypeMaxCnt, FunctionList,
+                                    RetTypes, ArgTypes, Builtin.IsVariadic);
 
     SourceLocation Loc = LR.getNameLoc();
     DeclContext *Parent = Context.getTranslationUnitDecl();
-    FunctionDecl *NewOpenCLBuiltin;
+    FunctionDecl *NewBuiltin;
 
     for (unsigned Index = 0; Index < GenTypeMaxCnt; Index++) {
-      NewOpenCLBuiltin = FunctionDecl::Create(
+      NewBuiltin = FunctionDecl::Create(
           Context, Parent, Loc, Loc, II, FunctionList[Index],
           /*TInfo=*/nullptr, SC_Extern, false,
           FunctionList[Index]->isFunctionProtoType());
-      NewOpenCLBuiltin->setImplicit();
+      NewBuiltin->setImplicit();
 
       // Create Decl objects for each parameter, adding them to the
       // FunctionDecl.
@@ -823,29 +831,25 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
         SmallVector<ParmVarDecl *, 16> ParmList;
         for (unsigned IParm = 0, e = FP->getNumParams(); IParm != e; ++IParm) {
           ParmVarDecl *Parm = ParmVarDecl::Create(
-              Context, NewOpenCLBuiltin, SourceLocation(), SourceLocation(),
-              nullptr, FP->getParamType(IParm),
+              Context, NewBuiltin, SourceLocation(), SourceLocation(), nullptr,
+              FP->getParamType(IParm),
               /*TInfo=*/nullptr, SC_None, nullptr);
           Parm->setScopeInfo(0, IParm);
           ParmList.push_back(Parm);
         }
-        NewOpenCLBuiltin->setParams(ParmList);
+        NewBuiltin->setParams(ParmList);
       }
 
       // Add function attributes.
-      if (OpenCLBuiltin.IsPure)
-        NewOpenCLBuiltin->addAttr(PureAttr::CreateImplicit(Context));
-      if (OpenCLBuiltin.IsConst)
-        NewOpenCLBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
-      if (OpenCLBuiltin.IsConv)
-        NewOpenCLBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
+      if (Builtin.IsPure)
+        NewBuiltin->addAttr(PureAttr::CreateImplicit(Context));
+      if (Builtin.IsConst)
+        NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
+      if (Builtin.IsConv)
+        NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
 
-      if (!S.getLangOpts().OpenCLCPlusPlus)
-        NewOpenCLBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
-
-      AddOpenCLExtensions(S, OpenCLBuiltin, NewOpenCLBuiltin);
-
-      LR.addDecl(NewOpenCLBuiltin);
+      ProgModelFinalizer(Builtin, *NewBuiltin);
+      LR.addDecl(NewBuiltin);
     }
   }
 
@@ -878,10 +882,35 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // Check if this is an OpenCL Builtin, and if so, insert its overloads.
       if (getLangOpts().OpenCL && getLangOpts().DeclareOpenCLBuiltins) {
-        auto Index = isOpenCLBuiltin(II->getName());
+        auto Index = OpenCLBuiltin::isBuiltin(II->getName());
         if (Index.first) {
-          InsertOCLBuiltinDeclarationsFromTable(*this, R, II, Index.first - 1,
-                                                Index.second);
+          unsigned OpenCLVersion = Context.getLangOpts().OpenCLVersion;
+          if (Context.getLangOpts().OpenCLCPlusPlus)
+            OpenCLVersion = 200;
+          InsertBuiltinDeclarationsFromTable<OpenCLBuiltin>(
+              *this, OpenCLVersion, R, II, Index.first - 1, Index.second,
+              [this](const OpenCLBuiltin::BuiltinStruct &OpenCLBuiltin,
+                     FunctionDecl &NewOpenCLBuiltin) {
+                if (!this->getLangOpts().OpenCLCPlusPlus)
+                  NewOpenCLBuiltin.addAttr(
+                      OverloadableAttr::CreateImplicit(Context));
+                AddOpenCLExtensions(*this, OpenCLBuiltin, &NewOpenCLBuiltin);
+              });
+          return true;
+        }
+      }
+
+      // Check if this is a SPIR-V Builtin, and if so, insert its overloads.
+      if (getLangOpts().DeclareSPIRVBuiltins) {
+        auto Index = SPIRVBuiltin::isBuiltin(II->getName());
+        if (Index.first) {
+          InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
+              *this, 0, R, II, Index.first - 1, Index.second,
+              [this](const SPIRVBuiltin::BuiltinStruct &,
+                     FunctionDecl &NewBuiltin) {
+                NewBuiltin.addAttr(
+                    SYCLDeviceAttr::CreateImplicit(this->Context));
+              });
           return true;
         }
       }
