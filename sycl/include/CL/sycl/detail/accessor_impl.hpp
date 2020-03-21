@@ -14,10 +14,10 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-#if __has_attribute(const)
-#define CONST_ATTR __attribute__((const))
+#if __has_attribute(pure)
+#define PURE_ATTR __attribute__((pure))
 #else
-#define CONST_ATTR
+#define PURE_ATTR
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -77,13 +77,13 @@ public:
                    bool IsSubBuffer = false);
 
 protected:
-  CONST_ATTR unsigned int getElemSize() const;
+  PURE_ATTR unsigned int getElemSize() const;
 
-  CONST_ATTR const id<3> &getOffset() const;
-  CONST_ATTR const range<3> &getAccessRange() const;
-  CONST_ATTR const range<3> &getMemoryRange() const;
+  PURE_ATTR const id<3> &getOffset() const;
+  PURE_ATTR const range<3> &getAccessRange() const;
+  PURE_ATTR const range<3> &getMemoryRange() const;
 
-  CONST_ATTR void *getPtr() const;
+  PURE_ATTR void *getPtr() const;
 
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
@@ -137,4 +137,4 @@ void addHostAccessorAndWait(Requirement *Req);
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef CONST_ATTR
+#undef PURE_ATTR
