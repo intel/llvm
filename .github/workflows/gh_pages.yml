@@ -23,6 +23,7 @@ jobs:
         python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
         -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
         cmake --build . --target doxygen-sycl
+        cmake --build . --target docs-sycl-html
     - name: Deploy
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
