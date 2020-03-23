@@ -630,6 +630,12 @@ template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("ballot_bit_count", GroupOperationReduce);
   add("ballot_inclusive_scan", GroupOperationInclusiveScan);
   add("ballot_exclusive_scan", GroupOperationExclusiveScan);
+  add("non_uniform_reduce", GroupOperationReduce);
+  add("non_uniform_scan_inclusive", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive", GroupOperationExclusiveScan);
+  add("non_uniform_reduce_logical", GroupOperationReduce);
+  add("non_uniform_scan_inclusive_logical", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive_logical", GroupOperationExclusiveScan);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVFPRoundingModeKind>::init() {
@@ -863,6 +869,23 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(group_ballot_bit_count_iadd, GroupNonUniformBallotBitCount)
   _SPIRV_OP(group_ballot_find_lsb, GroupNonUniformBallotFindLSB)
   _SPIRV_OP(group_ballot_find_msb, GroupNonUniformBallotFindMSB)
+  // cl_khr_subgroup_non_uniform_arithmetic
+  _SPIRV_OP(group_non_uniform_iadd, GroupNonUniformIAdd)
+  _SPIRV_OP(group_non_uniform_fadd, GroupNonUniformFAdd)
+  _SPIRV_OP(group_non_uniform_imul, GroupNonUniformIMul)
+  _SPIRV_OP(group_non_uniform_fmul, GroupNonUniformFMul)
+  _SPIRV_OP(group_non_uniform_smin, GroupNonUniformSMin)
+  _SPIRV_OP(group_non_uniform_umin, GroupNonUniformUMin)
+  _SPIRV_OP(group_non_uniform_fmin, GroupNonUniformFMin)
+  _SPIRV_OP(group_non_uniform_smax, GroupNonUniformSMax)
+  _SPIRV_OP(group_non_uniform_umax, GroupNonUniformUMax)
+  _SPIRV_OP(group_non_uniform_fmax, GroupNonUniformFMax)
+  _SPIRV_OP(group_non_uniform_iand, GroupNonUniformBitwiseAnd)
+  _SPIRV_OP(group_non_uniform_ior, GroupNonUniformBitwiseOr)
+  _SPIRV_OP(group_non_uniform_ixor, GroupNonUniformBitwiseXor)
+  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalAnd)
+  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalOr)
+  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalXor)
 #undef _SPIRV_OP
 }
 

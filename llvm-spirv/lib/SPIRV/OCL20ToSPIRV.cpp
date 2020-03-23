@@ -940,7 +940,7 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           PreOps.push_back(G);
           StringRef Op = StringSwitch<StringRef>(FuncName)
               .StartsWith("ballot", "group_ballot_bit_count_")
-              .StartsWith("non_uniform_group", kSPIRVName::GroupNonUniformPrefix)
+              .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
               .Default(kSPIRVName::GroupPrefix);
           StringRef GroupOp = StringSwitch<StringRef>(FuncName)
               .Case("ballot_bit_count", "add")
