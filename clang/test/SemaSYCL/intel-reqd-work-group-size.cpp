@@ -23,10 +23,10 @@ void bar() {
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(16)]] void f16x1x1() {} // expected-note {{conflicting attribute is here}}
+[[intel::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {} // expected-note {{conflicting attribute is here}}
+[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 #ifdef TRIGGER_ERROR
