@@ -36,7 +36,6 @@ Throughout this document `DPCPP_HOME` denotes the path to the local directory
 created as DPC++ workspace. It might be useful to create an environment variable
 with the same name.
 
-
 **Linux**
 
 ```bash
@@ -72,7 +71,7 @@ cd %DPCPP_HOME%\build
 The easiest way to get started is to use the buildbot [configure](../../buildbot/configure.py)
 and [compile](../../buildbot/configure.py) scripts.
 
-In case you want to configure Cmake manually the up-to-date reference for variables is in these files.
+In case you want to configure CMake manually the up-to-date reference for variables is in these files.
 
 **Linux**
 
