@@ -54,23 +54,6 @@ private:
   unsigned short representation;
 };
 
-/// Pattern state is used by patterns that want to maintain state between their
-/// match and rewrite phases.  Patterns can define a pattern-specific subclass
-/// of this.
-class PatternState {
-public:
-  virtual ~PatternState() {}
-
-protected:
-  // Must be subclassed.
-  PatternState() {}
-};
-
-/// This is the type returned by a pattern match.  A match failure returns a
-/// None value.  A match success returns a Some value with any state the pattern
-/// may need to maintain (but may also be null).
-using PatternMatchResult = Optional<std::unique_ptr<PatternState>>;
-
 //===----------------------------------------------------------------------===//
 // Pattern class
 //===----------------------------------------------------------------------===//
@@ -97,25 +80,10 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Attempt to match against code rooted at the specified operation,
-  /// which is the same operation code as getRootKind().  On failure, this
-  /// returns a None value.  On success it returns a (possibly null)
-  /// pattern-specific state wrapped in an Optional.
-  virtual PatternMatchResult match(Operation *op) const = 0;
+  /// which is the same operation code as getRootKind().
+  virtual LogicalResult match(Operation *op) const = 0;
 
   virtual ~Pattern() {}
-
-  //===--------------------------------------------------------------------===//
-  // Helper methods to simplify pattern implementations
-  //===--------------------------------------------------------------------===//
-
-  /// This method indicates that no match was found.
-  static PatternMatchResult matchFailure() { return None; }
-
-  /// This method indicates that a match was found and has the specified cost.
-  PatternMatchResult
-  matchSuccess(std::unique_ptr<PatternState> state = {}) const {
-    return PatternMatchResult(std::move(state));
-  }
 
 protected:
   /// Patterns must specify the root operation name they match against, and can
@@ -136,19 +104,10 @@ private:
 ///       separate the concerns of matching and rewriting.
 ///   * Single-step RewritePattern with "matchAndRewrite"
 ///     - By overloading the "matchAndRewrite" function, the user can perform
-///       the rewrite in the same call as the match. This removes the need for
-///       any PatternState.
+///       the rewrite in the same call as the match.
 ///
 class RewritePattern : public Pattern {
 public:
-  /// Rewrite the IR rooted at the specified operation with the result of
-  /// this pattern, generating any new operations with the specified
-  /// rewriter.  If an unexpected error is encountered (an internal
-  /// compiler error), it is emitted through the normal MLIR diagnostic
-  /// hooks and the IR is left in a valid state.
-  virtual void rewrite(Operation *op, std::unique_ptr<PatternState> state,
-                       PatternRewriter &rewriter) const;
-
   /// Rewrite the IR rooted at the specified operation with the result of
   /// this pattern, generating any new operations with the specified
   /// builder.  If an unexpected error is encountered (an internal
@@ -157,22 +116,19 @@ public:
   virtual void rewrite(Operation *op, PatternRewriter &rewriter) const;
 
   /// Attempt to match against code rooted at the specified operation,
-  /// which is the same operation code as getRootKind().  On failure, this
-  /// returns a None value.  On success, it returns a (possibly null)
-  /// pattern-specific state wrapped in an Optional.  This state is passed back
-  /// into the rewrite function if this match is selected.
-  PatternMatchResult match(Operation *op) const override;
+  /// which is the same operation code as getRootKind().
+  LogicalResult match(Operation *op) const override;
 
   /// Attempt to match against code rooted at the specified operation,
   /// which is the same operation code as getRootKind(). If successful, this
   /// function will automatically perform the rewrite.
-  virtual PatternMatchResult matchAndRewrite(Operation *op,
-                                             PatternRewriter &rewriter) const {
-    if (auto matchResult = match(op)) {
-      rewrite(op, std::move(*matchResult), rewriter);
-      return matchSuccess();
+  virtual LogicalResult matchAndRewrite(Operation *op,
+                                        PatternRewriter &rewriter) const {
+    if (succeeded(match(op))) {
+      rewrite(op, rewriter);
+      return success();
     }
-    return matchFailure();
+    return failure();
   }
 
   /// Return a list of operations that may be generated when rewriting an
@@ -206,40 +162,32 @@ template <typename SourceOp> struct OpRewritePattern : public RewritePattern {
       : RewritePattern(SourceOp::getOperationName(), benefit, context) {}
 
   /// Wrappers around the RewritePattern methods that pass the derived op type.
-  void rewrite(Operation *op, std::unique_ptr<PatternState> state,
-               PatternRewriter &rewriter) const final {
-    rewrite(cast<SourceOp>(op), std::move(state), rewriter);
-  }
   void rewrite(Operation *op, PatternRewriter &rewriter) const final {
     rewrite(cast<SourceOp>(op), rewriter);
   }
-  PatternMatchResult match(Operation *op) const final {
+  LogicalResult match(Operation *op) const final {
     return match(cast<SourceOp>(op));
   }
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const final {
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final {
     return matchAndRewrite(cast<SourceOp>(op), rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be
   /// overridden by the derived pattern class.
-  virtual void rewrite(SourceOp op, std::unique_ptr<PatternState> state,
-                       PatternRewriter &rewriter) const {
-    rewrite(op, rewriter);
-  }
   virtual void rewrite(SourceOp op, PatternRewriter &rewriter) const {
-    llvm_unreachable("must override matchAndRewrite or a rewrite method");
+    llvm_unreachable("must override rewrite or matchAndRewrite");
   }
-  virtual PatternMatchResult match(SourceOp op) const {
+  virtual LogicalResult match(SourceOp op) const {
     llvm_unreachable("must override match or matchAndRewrite");
   }
-  virtual PatternMatchResult matchAndRewrite(SourceOp op,
-                                             PatternRewriter &rewriter) const {
-    if (auto matchResult = match(op)) {
-      rewrite(op, std::move(*matchResult), rewriter);
-      return matchSuccess();
+  virtual LogicalResult matchAndRewrite(SourceOp op,
+                                        PatternRewriter &rewriter) const {
+    if (succeeded(match(op))) {
+      rewrite(op, rewriter);
+      return success();
     }
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -369,6 +317,28 @@ public:
     finalizeRootUpdate(root);
   }
 
+  /// Notify the pattern rewriter that the pattern is failing to match the given
+  /// operation, and provide a callback to populate a diagnostic with the reason
+  /// why the failure occurred. This method allows for derived rewriters to
+  /// optionally hook into the reason why a pattern failed, and display it to
+  /// users.
+  template <typename CallbackT>
+  std::enable_if_t<!std::is_convertible<CallbackT, Twine>::value, LogicalResult>
+  notifyMatchFailure(Operation *op, CallbackT &&reasonCallback) {
+#ifndef NDEBUG
+    return notifyMatchFailure(op,
+                              function_ref<void(Diagnostic &)>(reasonCallback));
+#else
+    return failure();
+#endif
+  }
+  LogicalResult notifyMatchFailure(Operation *op, const Twine &msg) {
+    return notifyMatchFailure(op, [&](Diagnostic &diag) { diag << msg; });
+  }
+  LogicalResult notifyMatchFailure(Operation *op, const char *msg) {
+    return notifyMatchFailure(op, Twine(msg));
+  }
+
 protected:
   explicit PatternRewriter(MLIRContext *ctx) : OpBuilder(ctx) {}
   virtual ~PatternRewriter();
@@ -385,6 +355,17 @@ protected:
   /// before the operation is deleted.  At this point, the operation has zero
   /// uses.
   virtual void notifyOperationRemoved(Operation *op) {}
+
+  /// Notify the pattern rewriter that the pattern is failing to match the given
+  /// operation, and provide a callback to populate a diagnostic with the reason
+  /// why the failure occurred. This method allows for derived rewriters to
+  /// optionally hook into the reason why a pattern failed, and display it to
+  /// users.
+  virtual LogicalResult
+  notifyMatchFailure(Operation *op,
+                     function_ref<void(Diagnostic &)> reasonCallback) {
+    return failure();
+  }
 
 private:
   /// 'op' and 'newOp' are known to have the same number of results, replace the
