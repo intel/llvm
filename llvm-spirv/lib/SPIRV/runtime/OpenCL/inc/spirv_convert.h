@@ -1096,7 +1096,7 @@ __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_sat_rtp(half);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_sat_rtn(half);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint(float);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_rtz(float);
-__attribute__((overloadable)) int __spirv_ConvertFToS_Rint_rte(float);
+SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rte(float);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_rtp(float);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_rtn(float);
 __attribute__((overloadable)) int __spirv_ConvertFToS_Rint_sat(float);

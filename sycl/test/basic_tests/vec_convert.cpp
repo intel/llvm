@@ -30,7 +30,10 @@ template <> struct helper<0> {
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-    assert(xs == ys);
+    if (xs != ys) {
+      std::cerr << "sometihng failed";
+      exit(1);
+    }
   }
 };
 
@@ -41,7 +44,10 @@ template <int N> struct helper {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-    assert(xs == ys);
+    if (xs != ys) {
+      std::cerr << "sometihng failed";
+      exit(1);
+    }
   }
 };
 

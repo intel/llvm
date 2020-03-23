@@ -266,25 +266,9 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   };
 #else
   // TODO implement device side conversion.
-  switch (roundingMode) {
-    // Round to nearest even is default rounding mode for floating-point types
-  case rounding_mode::automatic:
-    // Round to nearest even.
-  case rounding_mode::rte: 
-    return __spirv_ConvertFToS_Rint_rte(Value); 
-    // Round toward zero.
-  case rounding_mode::rtz:
-    return __spirv_ConvertFToS_Rint_rtz(Value); 
-    // Round toward positive infinity.
-  case rounding_mode::rtp:
-    return __spirv_ConvertFToS_Rint_rtp(Value); 
-    // Round toward negative infinity.
-  case rounding_mode::rtn:
-    return __spirv_ConvertFToS_Rint_rtn(Value); 
-  default:
-    assert(!"Unsupported rounding mode!");
-    return static_cast<R>(Value);
-  };
+#include "/localdisk2/icl/fadeeval/sycl_workspace/llvm/llvm-spirv/lib/SPIRV/runtime/OpenCL/inc/spirv_convert.h"
+  R Result = __spirv_ConvertFToS_Rint_rte(Value);
+  return 1;
 #endif
 }
 
