@@ -780,12 +780,6 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
   class AdvSIMD_1Vec_PredLoad_Intrinsic
     : Intrinsic<[llvm_anyvector_ty],
                 [LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
-                 LLVMPointerTo<0>],
-                [IntrReadMem, IntrArgMemOnly]>;
-
-  class AdvSIMD_1Vec_PredFaultingLoad_Intrinsic
-    : Intrinsic<[llvm_anyvector_ty],
-                [LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                  LLVMPointerToElt<0>],
                 [IntrReadMem, IntrArgMemOnly]>;
 
@@ -793,7 +787,7 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
     : Intrinsic<[],
                 [llvm_anyvector_ty,
                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
-                 LLVMPointerTo<0>],
+                 LLVMPointerToElt<0>],
                 [IntrArgMemOnly, NoCapture<2>]>;
 
   class AdvSIMD_SVE_Index_Intrinsic
@@ -1263,14 +1257,34 @@ class AdvSIMD_ScatterStore_VS_Intrinsic
                ],
                [IntrWriteMem, IntrArgMemOnly]>;
 
+
+class SVE_gather_prf_scalar_base_vector_offset_scaled
+    : Intrinsic<[],
+                [
+                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, // Predicate
+                  llvm_ptr_ty, // Base address
+                  llvm_anyvector_ty, // Offsets
+                  llvm_i32_ty // Prfop
+                ],
+                [IntrInaccessibleMemOrArgMemOnly, NoCapture<1>, ImmArg<3>]>;
+
+class SVE_gather_prf_vector_base_scalar_offset
+    : Intrinsic<[],
+                [
+                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, // Predicate
+                  llvm_anyvector_ty, // Base addresses
+                  llvm_i64_ty, // Scalar offset
+                  llvm_i32_ty // Prfop
+                ],
+                [IntrInaccessibleMemOrArgMemOnly, ImmArg<3>]>;
+
 //
 // Loads
 //
 
 def int_aarch64_sve_ldnt1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
-
-def int_aarch64_sve_ldnf1 : AdvSIMD_1Vec_PredFaultingLoad_Intrinsic;
-def int_aarch64_sve_ldff1 : AdvSIMD_1Vec_PredFaultingLoad_Intrinsic;
+def int_aarch64_sve_ldnf1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
+def int_aarch64_sve_ldff1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
 
 //
 // Stores
@@ -1279,12 +1293,38 @@ def int_aarch64_sve_ldff1 : AdvSIMD_1Vec_PredFaultingLoad_Intrinsic;
 def int_aarch64_sve_stnt1 : AdvSIMD_1Vec_PredStore_Intrinsic;
 
 //
-// Prefetch
+// Prefetches
 //
 
 def int_aarch64_sve_prf
   : Intrinsic<[], [llvm_anyvector_ty, llvm_ptr_ty, llvm_i32_ty],
                   [IntrArgMemOnly, ImmArg<2>]>;
+
+// Scalar + 32-bit scaled offset vector, zero extend, packed and
+// unpacked.
+def int_aarch64_sve_gather_prfb_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfh_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfw_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfd_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+
+// Scalar + 32-bit scaled offset vector, sign extend, packed and
+// unpacked.
+def int_aarch64_sve_gather_prfb_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfw_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfh_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfd_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+
+// Scalar + 64-bit scaled offset vector.
+def int_aarch64_sve_gather_prfb_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfh_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfw_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_gather_prfd_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+
+// Vector + scalar.
+def int_aarch64_sve_gather_prfb : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_gather_prfh : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_gather_prfw : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_gather_prfd : SVE_gather_prf_vector_base_scalar_offset;
 
 //
 // Scalar to vector operations
