@@ -93,6 +93,11 @@ namespace SPIRV {
 cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                             cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
+cl::opt<bool> SPIRVAllowUnknownIntrinsics(
+    "spirv-allow-unknown-intrinsics", cl::init(false),
+    cl::desc("Unknown LLVM intrinsics will be translated as external function "
+             "calls in SPIR-V"));
+
 static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(const std::string &Str, SPIRVFunctionParameter *BA)>
@@ -478,7 +483,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (auto BF = getTranslatedValue(F))
     return static_cast<SPIRVFunction *>(BF);
 
-  if (F->isIntrinsic()) {
+  if (F->isIntrinsic() && !SPIRVAllowUnknownIntrinsics) {
     // We should not translate LLVM intrinsics as a function
     assert(none_of(F->user_begin(), F->user_end(),
                    [this](User *U) { return getTranslatedValue(U); }) &&
@@ -1791,11 +1796,18 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::dbg_label:
     return nullptr;
   default:
-    // Other LLVM intrinsics shouldn't get to SPIRV, because they
-    // can't be represented in SPIRV or not implemented yet.
-    BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                 II->getCalledValue()->getName().str(), "",
-                                 __FILE__, __LINE__);
+    if (SPIRVAllowUnknownIntrinsics)
+      return BM->addCallInst(
+          transFunctionDecl(II->getCalledFunction()),
+          transArguments(II, BB,
+                         SPIRVEntry::createUnique(OpFunctionCall).get()),
+          BB);
+    else
+      // Other LLVM intrinsics shouldn't get to SPIRV, because they
+      // can't be represented in SPIRV or aren't implemented yet.
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
+                                   II->getCalledValue()->getName().str(), "",
+                                   __FILE__, __LINE__);
   }
   return nullptr;
 }
