@@ -228,6 +228,13 @@ if (SYCL_ENABLE_XPTI_TRACING)
   endif()
 endif()
 
+# Enable new IN_LIST operator.
+cmake_policy(SET CMP0057 NEW)
+
+if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain libsycldevice)
+endif()
+
 if (NOT DEFINED LLVM_INCLUDE_TESTS)
   set(LLVM_INCLUDE_TESTS ON)
 endif()
@@ -270,6 +277,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      pi_opencl
+     libsycldevice
 )
 
 

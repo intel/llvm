@@ -1,30 +1,26 @@
-//==----- fallback-complex.cpp - complex math functions for SYCL device ----==//
+//==----- fallback-complex.cpp - complex math functions for SPIR-V device --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#ifdef __SYCL_DEVICE_ONLY__
-#include "device_math.h"
-#include "device_complex.h"
-#include <cmath>
-extern "C" {
-SYCL_EXTERNAL
-double __devicelib_creal(double __complex__ z) {
-  return __real__(z);
-}
 
-SYCL_EXTERNAL
-double __devicelib_cimag(double __complex__ z) {
-  return __imag__(z);
-}
+#include "device_complex.h"
+#include "device_math.h"
+#include <cmath>
+
+DEVICE_EXTERN_C
+double __devicelib_creal(double __complex__ z) { return __real__(z); }
+
+DEVICE_EXTERN_C
+double __devicelib_cimag(double __complex__ z) { return __imag__(z); }
 
 // __muldc3
 // Returns: the product of a + ib and c + id
-SYCL_EXTERNAL
-double __complex__ __devicelib___muldc3(double __a, double __b,
-                                      double __c, double __d) {
+DEVICE_EXTERN_C
+double __complex__ __devicelib___muldc3(double __a, double __b, double __c,
+                                        double __d) {
   double __ac = __a * __c;
   double __bd = __b * __d;
   double __ad = __a * __d;
@@ -74,12 +70,12 @@ double __complex__ __devicelib___muldc3(double __a, double __b,
 
 // __divdc3
 // Returns: the quotient of (a + ib) / (c + id)
-SYCL_EXTERNAL
-double __complex__ __devicelib___divdc3(double __a, double __b,
-                                      double __c, double __d) {
+DEVICE_EXTERN_C
+double __complex__ __devicelib___divdc3(double __a, double __b, double __c,
+                                        double __d) {
   int __ilogbw = 0;
-  double __logbw = __spirv_ocl_logb(__spirv_ocl_fmax(__spirv_ocl_fabs(__c),
-                                                     __spirv_ocl_fabs(__d)));
+  double __logbw = __spirv_ocl_logb(
+      __spirv_ocl_fmax(__spirv_ocl_fabs(__c), __spirv_ocl_fabs(__d)));
   if (__spirv_IsFinite(__logbw)) {
     __ilogbw = (int)__logbw;
     __c = __spirv_ocl_ldexp(__c, -__ilogbw);
@@ -87,8 +83,10 @@ double __complex__ __devicelib___divdc3(double __a, double __b,
   }
   double __denom = __c * __c + __d * __d;
   double __complex__ z;
-  double z_real = __spirv_ocl_ldexp((__a*__c+__b*__d) / __denom, -__ilogbw);
-  double z_imag = __spirv_ocl_ldexp((__b*__c-__a*__d) / __denom, -__ilogbw);
+  double z_real =
+      __spirv_ocl_ldexp((__a * __c + __b * __d) / __denom, -__ilogbw);
+  double z_imag =
+      __spirv_ocl_ldexp((__b * __c - __a * __d) / __denom, -__ilogbw);
   z = CMPLX(z_real, z_imag);
   if (__spirv_IsNan(z_real) && __spirv_IsNan(z_imag)) {
     if ((__denom == 0.0) && (!__spirv_IsNan(__a) || !__spirv_IsNan(__b))) {
@@ -96,16 +94,14 @@ double __complex__ __devicelib___divdc3(double __a, double __b,
       z_imag = __spirv_ocl_copysign((double)INFINITY, __c) * __b;
       z = CMPLX(z_real, z_imag);
     } else if ((__spirv_IsInf(__a) || __spirv_IsInf(__b)) &&
-               __spirv_IsFinite(__c) &&
-               __spirv_IsFinite(__d)) {
+               __spirv_IsFinite(__c) && __spirv_IsFinite(__d)) {
       __a = __spirv_ocl_copysign(__spirv_IsInf(__a) ? 1.0 : 0.0, __a);
       __b = __spirv_ocl_copysign(__spirv_IsInf(__b) ? 1.0 : 0.0, __b);
       z_real = INFINITY * (__a * __c + __b * __d);
       z_imag = INFINITY * (__b * __c - __a * __d);
       z = CMPLX(z_real, z_imag);
-    } else if (__spirv_IsInf(__logbw) &&
-               __logbw > 0.0 && __spirv_IsFinite(__a) &&
-               __spirv_IsFinite(__b)) {
+    } else if (__spirv_IsInf(__logbw) && __logbw > 0.0 &&
+               __spirv_IsFinite(__a) && __spirv_IsFinite(__b)) {
       __c = __spirv_ocl_copysign(__spirv_IsInf(__c) ? 1.0 : 0.0, __c);
       __d = __spirv_ocl_copysign(__spirv_IsInf(__d) ? 1.0 : 0.0, __d);
       z_real = 0.0 * (__a * __c + __b * __d);
@@ -116,19 +112,17 @@ double __complex__ __devicelib___divdc3(double __a, double __b,
   return z;
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __devicelib_cabs(double __complex__ z) {
-  return __spirv_ocl_hypot(__devicelib_creal(z),
-                           __devicelib_cimag(z));
+  return __spirv_ocl_hypot(__devicelib_creal(z), __devicelib_cimag(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __devicelib_carg(double __complex__ z) {
-  return __spirv_ocl_atan2(__devicelib_cimag(z),
-                           __devicelib_creal(z));
+  return __spirv_ocl_atan2(__devicelib_cimag(z), __devicelib_creal(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cproj(double __complex__ z) {
   double __complex__ r = z;
   if (__spirv_IsInf(__devicelib_creal(z)) ||
@@ -137,7 +131,7 @@ double __complex__ __devicelib_cproj(double __complex__ z) {
   return r;
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cexp(double __complex__ z) {
   double z_imag = __devicelib_cimag(z);
   double z_real = __devicelib_creal(z);
@@ -158,24 +152,22 @@ double __complex__ __devicelib_cexp(double __complex__ z) {
                (__e * __spirv_ocl_sin(z_imag)));
 }
 
-
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_clog(double __complex__ z) {
   return CMPLX(__spirv_ocl_log(__devicelib_cabs(z)), __devicelib_carg(z));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cpow(double __complex__ x,
                                     double __complex__ y) {
   double __complex__ t = __devicelib_clog(x);
-  double __complex__ w = __devicelib___muldc3(__devicelib_creal(y),
-                                            __devicelib_cimag(y),
-                                            __devicelib_creal(t),
-                                            __devicelib_cimag(t));
+  double __complex__ w =
+      __devicelib___muldc3(__devicelib_creal(y), __devicelib_cimag(y),
+                           __devicelib_creal(t), __devicelib_cimag(t));
   return __devicelib_cexp(w);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cpolar(double rho, double theta) {
   if (__spirv_IsNan(rho) || __spirv_SignBitSet(rho))
     return CMPLX(NAN, NAN);
@@ -198,18 +190,17 @@ double __complex__ __devicelib_cpolar(double rho, double theta) {
   return CMPLX(x, y);
 }
 
-SYCL_EXTERNAL
-double __complex__ __devicelib_csqrt(double __complex__ z)
-{
+DEVICE_EXTERN_C
+double __complex__ __devicelib_csqrt(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
   if (__spirv_IsInf(z_imag))
     return CMPLX(INFINITY, z_imag);
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0)
-      return CMPLX(z_real,
-                   __spirv_IsNan(z_imag) ? z_imag
-                                      : __spirv_ocl_copysign(0.0, z_imag));
+      return CMPLX(z_real, __spirv_IsNan(z_imag)
+                               ? z_imag
+                               : __spirv_ocl_copysign(0.0, z_imag));
     return CMPLX(__spirv_IsNan(z_imag) ? z_imag : 0.0,
                  __spirv_ocl_copysign(z_real, z_imag));
   }
@@ -217,7 +208,7 @@ double __complex__ __devicelib_csqrt(double __complex__ z)
                             __devicelib_carg(z) / 2.0);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_csinh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -231,7 +222,7 @@ double __complex__ __devicelib_csinh(double __complex__ z) {
                __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_ccosh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -247,7 +238,7 @@ double __complex__ __devicelib_ccosh(double __complex__ z) {
                __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_ctanh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -263,40 +254,37 @@ double __complex__ __devicelib_ctanh(double __complex__ z) {
   double __d(__spirv_ocl_cosh(__2r) + __spirv_ocl_cos(__2i));
   double __2rsh(__spirv_ocl_sinh(__2r));
   if (__spirv_IsInf(__2rsh) && __spirv_IsInf(__d))
-    return CMPLX(((__2rsh > 0.0) ? 1.0 : -1.0),
-                 ((__2i > 0.0) ? 0.0 : -0.0));
-  return CMPLX(__2rsh/__d, __spirv_ocl_sin(__2i)/__d);
+    return CMPLX(((__2rsh > 0.0) ? 1.0 : -1.0), ((__2i > 0.0) ? 0.0 : -0.0));
+  return CMPLX(__2rsh / __d, __spirv_ocl_sin(__2i) / __d);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_csin(double __complex__ z) {
-  double __complex__ w = __devicelib_csinh(CMPLX(-__devicelib_cimag(z),
-                                                 __devicelib_creal(z)));
+  double __complex__ w =
+      __devicelib_csinh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_ccos(double __complex__ z) {
-  return __devicelib_ccosh(CMPLX(-__devicelib_cimag(z),
-                                 __devicelib_creal(z)));
+  return __devicelib_ccosh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_ctan(double __complex__ z) {
-  double __complex__ w = __devicelib_ctanh(CMPLX(-__devicelib_cimag(z),
-                                                 __devicelib_creal(z)));
+  double __complex__ w =
+      __devicelib_ctanh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __sqr(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
-  return CMPLX((z_real + z_imag) * (z_real - z_imag),
-               2.0 * z_real * z_imag);
+  return CMPLX((z_real + z_imag) * (z_real - z_imag), 2.0 * z_real * z_imag);
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cacos(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -319,11 +307,11 @@ double __complex__ __devicelib_cacos(double __complex__ z) {
     return CMPLX(z_real, z_real);
   }
   if (__spirv_IsInf(z_real))
-    return CMPLX(__pi/2.0, -z_real);
+    return CMPLX(__pi / 2.0, -z_real);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
-    return CMPLX(__pi/2.0, -z_imag);
-  double __complex__ w = __devicelib_clog(z +
-                         __devicelib_csqrt(__sqr(z) - 1.0));
+    return CMPLX(__pi / 2.0, -z_imag);
+  double __complex__ w =
+      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
   if (__spirv_SignBitSet(z_imag))
     return CMPLX(__spirv_ocl_fabs(__devicelib_cimagf(w)),
                  __spirv_ocl_fabs(__devicelib_creal(w)));
@@ -331,7 +319,7 @@ double __complex__ __devicelib_cacos(double __complex__ z) {
                -__spirv_ocl_fabs(__devicelib_creal(w)));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_casinh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -352,20 +340,21 @@ double __complex__ __devicelib_casinh(double __complex__ z) {
   }
   if (__spirv_IsInf(z_imag))
     return CMPLX(__spirv_ocl_copysign(z_imag, z_real),
-                 __spirv_ocl_copysign(__pi/2.0, z_imag));
-  double __complex__ w = __devicelib_clog(z + __devicelib_csqrt(__sqr(z)+1.0));
+                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  double __complex__ w =
+      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) + 1.0));
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), z_real),
                __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_casin(double __complex__ z) {
-  double __complex__ w = __devicelib_casinh(CMPLX(-__devicelib_cimag(z),
-                                                  __devicelib_creal(z)));
+  double __complex__ w =
+      __devicelib_casinh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_cacosh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
@@ -389,20 +378,22 @@ double __complex__ __devicelib_cacosh(double __complex__ z) {
     return CMPLX(z_real, z_real);
   }
   if (__spirv_IsInf(z_imag))
-    return CMPLX(__spirv_ocl_fabs(z_imag), __spirv_ocl_copysign(__pi/2.0, z_imag));
-  double __complex__ w = __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
+    return CMPLX(__spirv_ocl_fabs(z_imag),
+                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  double __complex__ w =
+      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), 0.0),
                __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_catanh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
   const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
   if (__spirv_IsInf(z_imag))
     return CMPLX(__spirv_ocl_copysign(0.0, z_real),
-                 __spirv_ocl_copysign(__pi/2.0, z_imag));
+                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
   if (__spirv_IsNan(z_imag)) {
     if (__spirv_IsInf(z_real) || z_real == 0)
       return CMPLX(__spirv_ocl_copysign(0.0, z_real), z_imag);
@@ -412,27 +403,23 @@ double __complex__ __devicelib_catanh(double __complex__ z) {
     return CMPLX(z_real, z_real);
   if (__spirv_IsInf(z_real))
     return CMPLX(__spirv_ocl_copysign(0.0, z_real),
-                 __spirv_ocl_copysign(__pi/2.0, z_imag));
+                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0 && z_imag == 0.0)
     return CMPLX(__spirv_ocl_copysign(static_cast<double>(INFINITY), z_real),
                  __spirv_ocl_copysign(0.0, z_imag));
   double __complex__ t1 = 1.0 + z;
   double __complex__ t2 = 1.0 - z;
-  double __complex__ t3 = __devicelib___divdc3(__devicelib_creal(t1),
-                                             __devicelib_cimag(t1),
-                                             __devicelib_creal(t2),
-                                             __devicelib_cimag(t2));
+  double __complex__ t3 =
+      __devicelib___divdc3(__devicelib_creal(t1), __devicelib_cimag(t1),
+                           __devicelib_creal(t2), __devicelib_cimag(t2));
   double __complex__ w = __devicelib_clog(t3) / 2.0;
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), z_real),
                __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
 }
 
-SYCL_EXTERNAL
+DEVICE_EXTERN_C
 double __complex__ __devicelib_catan(double __complex__ z) {
-  double __complex__ w = __devicelib_catanh(CMPLX(-__devicelib_cimag(z),
-                                                  __devicelib_creal(z)));
+  double __complex__ w =
+      __devicelib_catanh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
-
-} // extern "C"
-#endif

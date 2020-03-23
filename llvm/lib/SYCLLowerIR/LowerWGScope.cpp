@@ -39,7 +39,7 @@
 // For a kind 3 variable (alloca w/o metadata) this pass creates a WG-shared
 // local "shadow" variable. Before each PFWI invocation leader WI stores its
 // private copy of the variable into the shadow (under "is leader" guard), then
-// all WIs (ouside of "is leader" guard) load the shadow value into their
+// all WIs (outside of "is leader" guard) load the shadow value into their
 // private copies ("materialize" the private copy). This works because these
 // variables are uniform - i.e. have the same value in all WIs and are not
 // changed within PFWI. The only exceptions are captures of private_memory
@@ -67,7 +67,7 @@
 //
 // TODO The approach employed by this pass generates lots of barriers and data
 // copying between private and local memory, which might not be efficient. There
-// are optimization opportunities listed below. Also other aproaches can be
+// are optimization opportunities listed below. Also other approaches can be
 // considered like
 // "Efficient Fork-Join on GPUs through Warp Specialization" by Arpith C. Jacob
 // et. al.
@@ -148,10 +148,10 @@ static IntegerType *getSizeTTy(Module &M) {
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
-// Encaplulates SPIRV-dependent code generation.
+// Encapsulates SPIR-V-dependent code generation.
 // TODO this should be factored out into a separate project in clang
 namespace spirv {
-// There is no TargetMachine for SPIRV, so define those inline here
+// There is no TargetMachine for SPIR-V, so define those inline here
 enum class AddrSpace : unsigned {
   Private = 0,
   Global = 1,
@@ -302,7 +302,7 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
   auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
-  // 4) Finally, replace usages of I ouside the scope
+  // 4) Finally, replace usages of I outside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
 }
@@ -530,7 +530,7 @@ static bool localMustBeMaterialized(const AllocaInst *L, const BasicBlock &BB) {
 //   that BB to current.
 // - Avoid unnecessary '*p = *@Shadow_p' reloads and redirect p uses them to the
 //   @Shadow_p in case it can be proved it is safe (see note above). Might not
-//   have any noticible effect, though, as reading from Shadow always goes to a
+//   have any noticeable effect, though, as reading from Shadow always goes to a
 //   register file anyway.
 //
 void materializeLocalsInWIScopeBlocks(SmallPtrSetImpl<AllocaInst *> &Locals,
@@ -658,7 +658,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
       continue;
     PrivMemCaptures.push_back(CaptureDesc{AI, GEP});
   }
-  // now rewrite the captured addresss of a private_memory variables within the
+  // now rewrite the captured address of a private_memory variables within the
   // PFWI lambda object:
   for (auto &C : PrivMemCaptures) {
     GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
@@ -854,11 +854,11 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
   return G;
 }
 
-// Functions below expose SPIRV translator-specific intrinsics to the use
+// Functions below expose SPIR-V translator-specific intrinsics to the use
 // in LLVM IR. Those calls and global references will be translated to
-// corresponding SPIRV operations and builtin variables.
+// corresponding SPIR-V operations and builtin variables.
 //
-// TODO generalize to support all SPIRV intrinsic operations and builtin
+// TODO generalize to support all SPIR-V intrinsic operations and builtin
 //      variables
 
 // extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;

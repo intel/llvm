@@ -228,12 +228,6 @@ public:
 
       CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
-      if (FunctionDecl *Def = Callee->getDefinition()) {
-        if (!Def->hasAttr<SYCLDeviceAttr>()) {
-          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.addSyclDeviceDecl(Def);
-        }
-      }
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
         // that function with attribute can not be called from sycl kernel.  The
@@ -265,23 +259,6 @@ public:
   bool VisitCXXConstructExpr(CXXConstructExpr *E) {
     for (const auto &Arg : E->arguments())
       CheckSYCLType(Arg->getType(), Arg->getSourceRange());
-
-    CXXConstructorDecl *Ctor = E->getConstructor();
-
-    if (FunctionDecl *Def = Ctor->getDefinition()) {
-      Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-      SemaRef.addSyclDeviceDecl(Def);
-    }
-
-    const auto *ConstructedType = Ctor->getParent();
-    if (ConstructedType->hasUserDeclaredDestructor()) {
-      CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
-
-      if (FunctionDecl *Def = Dtor->getDefinition()) {
-        Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-        SemaRef.addSyclDeviceDecl(Def);
-      }
-    }
     return true;
   }
 
@@ -321,31 +298,6 @@ public:
       return true;
 
     CheckSYCLType(E->getType(), E->getSourceRange());
-    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
-        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-        SemaRef.addSyclDeviceDecl(VD);
-      }
-    }
-    return true;
-  }
-
-  bool VisitCXXNewExpr(CXXNewExpr *E) {
-    // Memory storage allocation is not allowed in kernels.
-    // All memory allocation for the device is done on
-    // the host using accessor classes. Consequently, the default
-    // allocation operator new overloads that allocate
-    // storage are disallowed in a SYCL kernel. The placement
-    // new operator and any user-defined overloads that
-    // do not allocate storage are permitted.
-    if (FunctionDecl *FD = E->getOperatorNew()) {
-      if (FunctionDecl *Def = FD->getDefinition()) {
-        if (!Def->hasAttr<SYCLDeviceAttr>()) {
-          Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.addSyclDeviceDecl(Def);
-        }
-      }
-    }
     return true;
   }
 
@@ -1389,13 +1341,8 @@ void Sema::MarkDevice(void) {
     }
   }
   for (const auto &elt : Marker.KernelSet) {
-    if (FunctionDecl *Def = elt->getDefinition()) {
-      if (!Def->hasAttr<SYCLDeviceAttr>()) {
-        Def->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
-        addSyclDeviceDecl(Def);
-      }
+    if (FunctionDecl *Def = elt->getDefinition())
       Marker.TraverseStmt(Def->getBody());
-    }
   }
 }
 
@@ -1465,10 +1412,6 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
-    return;
-
-  // Don't emit diagnostic for functions not called from device code
-  if (!Caller->hasAttr<SYCLDeviceAttr>() && !Caller->hasAttr<SYCLKernelAttr>())
     return;
 
   bool RedeclHasAttr = false;

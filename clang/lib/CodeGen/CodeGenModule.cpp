@@ -2516,11 +2516,6 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (Global->hasAttr<IFuncAttr>())
     return emitIFuncDefinition(GD);
 
-  if (LangOpts.SYCLIsDevice) {
-    if (!Global->hasAttr<SYCLDeviceAttr>())
-      return;
-  }
-
   // If this is a cpu_dispatch multiversion function, emit the resolver.
   if (Global->hasAttr<CPUDispatchAttr>())
     return emitCPUDispatchDefinition(GD);
@@ -2563,6 +2558,11 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         EmitOMPDeclareMapper(DMD);
       return;
     }
+  }
+
+  if (LangOpts.SYCLIsDevice && MustBeEmitted(Global)) {
+    addDeferredDeclToEmit(GD);
+    return;
   }
 
   // Ignore declarations, they will be emitted on their first use.
