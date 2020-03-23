@@ -1,0 +1,89 @@
+//==--------- PiMock.cpp --- A test for mock helper API's ------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
+
+#include <detail/queue_impl.hpp>
+
+class PiMockTest : public ::testing::Test {};
+
+using namespace cl::sycl;
+
+pi_result
+piProgramBuildRedefine(pi_program program, pi_uint32 num_devices,
+                       const pi_device *device_list, const char *options,
+                       void (*pfn_notify)(pi_program program, void *user_data),
+                       void *user_data) {
+  return PI_INVALID_BINARY;
+}
+
+pi_result piKernelCreateRedefine(pi_program program, const char *kernel_name,
+                                 pi_kernel *ret_kernel) {
+  return PI_INVALID_DEVICE;
+}
+
+TEST(PiMockTest, ConstructFromQueue) {
+  queue NormalQ;
+  queue MockQ;
+  unittest::PiMock Mock(MockQ);
+
+  const auto &NormalPiPlugin =
+      detail::getSyclObjImpl(NormalQ)->getPlugin().getPiPlugin();
+  const auto &MockedQueuePiPlugin =
+      detail::getSyclObjImpl(MockQ)->getPlugin().getPiPlugin();
+  const auto &PiMockPlugin =
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+  EXPECT_EQ(&MockedQueuePiPlugin, &PiMockPlugin)
+      << "The mocked object and the PiMock instance must share the same plugin";
+  ASSERT_FALSE(&NormalPiPlugin == &MockedQueuePiPlugin)
+      << "Normal and mock platforms must not share the same plugin";
+}
+
+TEST(PiMockTest, ConstructFromPlatform) {
+  platform NormalPlatform(cpu_selector{});
+  platform MockPlatform(cpu_selector{});
+  unittest::PiMock Mock(MockPlatform);
+
+  const auto &NormalPiPlugin =
+      detail::getSyclObjImpl(NormalPlatform)->getPlugin().getPiPlugin();
+  const auto &MockedPlatformPiPlugin =
+      detail::getSyclObjImpl(MockPlatform)->getPlugin().getPiPlugin();
+  const auto &PiMockPlugin =
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+  EXPECT_EQ(&MockedPlatformPiPlugin, &PiMockPlugin)
+      << "The mocked object and the PiMock instance must share the same plugin";
+  ASSERT_FALSE(&NormalPiPlugin == &MockedPlatformPiPlugin)
+      << "Normal and mock platforms must not share the same plugin";
+}
+
+TEST(PiMockTest, RedefineAPI) {
+  unittest::PiMock Mock(cl::sycl::cpu_selector{});
+  const auto &MockPiPlugin =
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+  const auto &Table = MockPiPlugin.PiFunctionTable;
+
+  // Pass a function pointer
+  Mock.redefine<detail::PiApiKind::piProgramBuild>(piProgramBuildRedefine);
+  EXPECT_EQ(Table.piProgramBuild, &piProgramBuildRedefine)
+      << "Function redefinition didn't propagate to the mock plugin";
+
+  // Pass a std::function
+  Mock.redefine<detail::PiApiKind::piKernelCreate>({piKernelCreateRedefine});
+  EXPECT_EQ(Table.piKernelCreate, &piKernelCreateRedefine)
+      << "Function redefinition didn't propagate to the mock plugin";
+
+  // Pass a captureless lambda
+  auto *OldFuncPtr = Table.piProgramRetain;
+  Mock.redefine<detail::PiApiKind::piProgramRetain>(
+      [](pi_program program) -> pi_result { return PI_SUCCESS; });
+  EXPECT_FALSE(Table.piProgramRetain == OldFuncPtr)
+      << "Passing a lambda didn't change the function table entry";
+  ASSERT_FALSE(Table.piProgramRetain == nullptr)
+      << "Passing a lambda set the table entry to a null pointer";
+}
