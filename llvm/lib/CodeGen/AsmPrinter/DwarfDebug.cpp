@@ -95,6 +95,10 @@ static cl::opt<bool> UseDwarfRangesBaseAddressSpecifier(
     "use-dwarf-ranges-base-address-specifier", cl::Hidden,
     cl::desc("Use base address specifiers in debug_ranges"), cl::init(false));
 
+static cl::opt<bool> EmitDwarfDebugEntryValues(
+    "emit-debug-entry-values", cl::Hidden,
+    cl::desc("Emit the debug entry values"), cl::init(false));
+
 static cl::opt<bool> GenerateARangeSection("generate-arange-section",
                                            cl::Hidden,
                                            cl::desc("Generate dwarf aranges"),
@@ -419,6 +423,12 @@ DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
   // a monolithic string offsets table without any header.
   UseSegmentedStringOffsetsTable = DwarfVersion >= 5;
 
+  // Emit call-site-param debug info for GDB and LLDB, if the target supports
+  // the debug entry values feature. It can also be enabled explicitly.
+  EmitDebugEntryValues = (Asm->TM.Options.ShouldEmitDebugEntryValues() &&
+                          (tuneForGDB() || tuneForLLDB())) ||
+                         EmitDwarfDebugEntryValues;
+
   Asm->OutStreamer->getContext().setDwarfVersion(DwarfVersion);
 }
 
@@ -562,6 +572,18 @@ struct FwdRegParamInfo {
 /// Register worklist for finding call site values.
 using FwdRegWorklist = MapVector<unsigned, SmallVector<FwdRegParamInfo, 2>>;
 
+/// Append the expression \p Addition to \p Original and return the result.
+static const DIExpression *combineDIExpressions(const DIExpression *Original,
+                                                const DIExpression *Addition) {
+  std::vector<uint64_t> Elts = Addition->getElements().vec();
+  // Avoid multiple DW_OP_stack_values.
+  if (Original->isImplicit() && Addition->isImplicit())
+    erase_if(Elts, [](uint64_t Op) { return Op == dwarf::DW_OP_stack_value; });
+  const DIExpression *CombinedExpr =
+      (Elts.size() > 0) ? DIExpression::append(Original, Elts) : Original;
+  return CombinedExpr;
+}
+
 /// Emit call site parameter entries that are described by the given value and
 /// debug expression.
 template <typename ValT>
@@ -581,9 +603,8 @@ static void finishCallSiteParams(ValT Val, const DIExpression *Expr,
     // parameter when walking through the instructions. Append that to the
     // base expression.
     const DIExpression *CombinedExpr =
-        ShouldCombineExpressions
-            ? DIExpression::append(Expr, Param.Expr->getElements())
-            : Expr;
+        ShouldCombineExpressions ? combineDIExpressions(Expr, Param.Expr)
+                                 : Expr;
     assert((!CombinedExpr || CombinedExpr->isValid()) &&
            "Combined debug expression is invalid");
 
@@ -613,15 +634,7 @@ static void addToFwdRegWorklist(FwdRegWorklist &Worklist, unsigned Reg,
     // instructions we may have already created an expression for the
     // parameter when walking through the instructions. Append that to the
     // new expression.
-    std::vector<uint64_t> ParamElts = Param.Expr->getElements().vec();
-    // Avoid multiple DW_OP_stack_values.
-    if (Expr->isImplicit() && Param.Expr->isImplicit())
-      erase_if(ParamElts,
-               [](uint64_t Op) { return Op == dwarf::DW_OP_stack_value; });
-    const DIExpression *CombinedExpr =
-        (Param.Expr->getNumElements() > 0)
-            ? DIExpression::append(Expr, ParamElts)
-            : Expr;
+    const DIExpression *CombinedExpr = combineDIExpressions(Expr, Param.Expr);
     ParamsForFwdReg.push_back({Param.ParamReg, CombinedExpr});
   }
 }
@@ -886,9 +899,8 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
       DIE &CallSiteDIE = CU.constructCallSiteEntryDIE(ScopeDIE, CalleeDIE,
                                                       IsTail, PCAddr, CallReg);
 
-      // GDB and LLDB support call site parameter debug info.
-      if (Asm->TM.Options.EnableDebugEntryValues &&
-          (tuneForGDB() || tuneForLLDB())) {
+      // Optionally emit call-site-param debug info.
+      if (emitDebugEntryValues()) {
         ParamSet Params;
         // Try to interpret values of call site parameters.
         collectCallSiteParameters(&MI, Params);

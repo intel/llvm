@@ -6322,7 +6322,6 @@ static bool canPassInRegisters(Sema &S, CXXRecordDecl *D,
 ///
 /// \param DiagID the primary error to report.
 /// \param MD the overriding method.
-/// \param OEK which overrides to include as notes.
 static bool
 ReportOverrides(Sema &S, unsigned DiagID, const CXXMethodDecl *MD,
                 llvm::function_ref<bool(const CXXMethodDecl *)> Report) {
@@ -14765,12 +14764,14 @@ Sema::BuildCXXConstructExpr(SourceLocation ConstructLoc, QualType DeclInitType,
       !checkSYCLDeviceFunction(ConstructLoc, Constructor))
     return ExprError();
 
-  return CXXConstructExpr::Create(
-      Context, DeclInitType, ConstructLoc, Constructor, Elidable,
-      ExprArgs, HadMultipleCandidates, IsListInitialization,
-      IsStdInitListInitialization, RequiresZeroInit,
-      static_cast<CXXConstructExpr::ConstructionKind>(ConstructKind),
-      ParenRange);
+  return CheckForImmediateInvocation(
+      CXXConstructExpr::Create(
+          Context, DeclInitType, ConstructLoc, Constructor, Elidable, ExprArgs,
+          HadMultipleCandidates, IsListInitialization,
+          IsStdInitListInitialization, RequiresZeroInit,
+          static_cast<CXXConstructExpr::ConstructionKind>(ConstructKind),
+          ParenRange),
+      Constructor);
 }
 
 ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {

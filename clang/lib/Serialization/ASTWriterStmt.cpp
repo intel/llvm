@@ -540,6 +540,7 @@ void ASTStmtWriter::VisitExpr(Expr *E) {
   Record.push_back(E->isValueDependent());
   Record.push_back(E->isInstantiationDependent());
   Record.push_back(E->containsUnexpandedParameterPack());
+  Record.push_back(E->containsErrors());
   Record.push_back(E->getValueKind());
   Record.push_back(E->getObjectKind());
 }
@@ -2327,6 +2328,13 @@ void ASTStmtWriter::VisitOMPDepobjDirective(OMPDepobjDirective *D) {
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
   Code = serialization::STMT_OMP_DEPOBJ_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPScanDirective(OMPScanDirective *D) {
+  VisitStmt(D);
+  Record.push_back(D->getNumClauses());
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_SCAN_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPOrderedDirective(OMPOrderedDirective *D) {

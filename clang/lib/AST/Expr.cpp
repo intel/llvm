@@ -357,6 +357,8 @@ llvm::APSInt ConstantExpr::getResultAsAPSInt() const {
 }
 
 APValue ConstantExpr::getAPValueResult() const {
+  assert(hasAPValueResult());
+
   switch (ConstantExprBits.ResultKind) {
   case ConstantExpr::RSK_APValue:
     return APValueResult();
@@ -1569,28 +1571,15 @@ MemberExpr *MemberExpr::Create(
   MemberExpr *E = new (Mem) MemberExpr(Base, IsArrow, OperatorLoc, MemberDecl,
                                        NameInfo, T, VK, OK, NOUR);
 
-  if (isa<FieldDecl>(MemberDecl)) {
-    DeclContext *DC = MemberDecl->getDeclContext();
-    // dyn_cast_or_null is used to handle objC variables which do not
-    // have a declaration context.
-    CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(DC);
-    if (RD && RD->isDependentContext() && RD->isCurrentInstantiation(DC)) {
-      if (E->isTypeDependent() && !T->isDependentType())
-        E->removeDependence(ExprDependence::Type);
-    }
-    // Bitfield with value-dependent width is type-dependent.
-    FieldDecl *FD = dyn_cast<FieldDecl>(MemberDecl);
-    if (FD && FD->isBitField() && FD->getBitWidth()->isValueDependent())
-      E->addDependence(ExprDependence::Type);
-  }
-
+  // FIXME: remove remaining dependence computation to computeDependence().
+  auto Deps = E->getDependence();
   if (HasQualOrFound) {
     // FIXME: Wrong. We should be looking at the member declaration we found.
     if (QualifierLoc && QualifierLoc.getNestedNameSpecifier()->isDependent())
-      E->addDependence(ExprDependence::TypeValueInstantiation);
+      Deps |= ExprDependence::TypeValueInstantiation;
     else if (QualifierLoc &&
              QualifierLoc.getNestedNameSpecifier()->isInstantiationDependent())
-      E->addDependence(ExprDependence::Instantiation);
+      Deps |= ExprDependence::Instantiation;
 
     E->MemberExprBits.HasQualifierOrFoundDecl = true;
 
@@ -1604,16 +1593,17 @@ MemberExpr *MemberExpr::Create(
       TemplateArgs || TemplateKWLoc.isValid();
 
   if (TemplateArgs) {
-    auto Deps = TemplateArgumentDependence::None;
+    auto TemplateArgDeps = TemplateArgumentDependence::None;
     E->getTrailingObjects<ASTTemplateKWAndArgsInfo>()->initializeFrom(
         TemplateKWLoc, *TemplateArgs,
-        E->getTrailingObjects<TemplateArgumentLoc>(), Deps);
-    if (Deps & TemplateArgumentDependence::Instantiation)
-      E->addDependence(ExprDependence::Instantiation);
+        E->getTrailingObjects<TemplateArgumentLoc>(), TemplateArgDeps);
+    if (TemplateArgDeps & TemplateArgumentDependence::Instantiation)
+      Deps |= ExprDependence::Instantiation;
   } else if (TemplateKWLoc.isValid()) {
     E->getTrailingObjects<ASTTemplateKWAndArgsInfo>()->initializeFrom(
         TemplateKWLoc);
   }
+  E->setDependence(Deps);
 
   return E;
 }
@@ -2806,9 +2796,6 @@ static Expr *IgnoreParensSingleStep(Expr *E) {
       return CE->getChosenSubExpr();
   }
 
-  else if (auto *CE = dyn_cast<ConstantExpr>(E))
-    return CE->getSubExpr();
-
   return E;
 }
 
@@ -3094,6 +3081,9 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
 
   switch (getStmtClass()) {
   default: break;
+  case Stmt::ExprWithCleanupsClass:
+    return cast<ExprWithCleanups>(this)->getSubExpr()->isConstantInitializer(
+        Ctx, IsForRef, Culprit);
   case StringLiteralClass:
   case ObjCEncodeExprClass:
     return true;
@@ -4303,6 +4293,7 @@ DesignatedInitUpdateExpr::DesignatedInitUpdateExpr(const ASTContext &C,
   ILE->setType(baseExpr->getType());
   BaseAndUpdaterExprs[1] = ILE;
 
+  // FIXME: this is wrong, set it correctly.
   setDependence(ExprDependence::None);
 }
 

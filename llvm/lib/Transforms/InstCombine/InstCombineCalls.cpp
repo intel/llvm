@@ -296,105 +296,153 @@ static Value *simplifyX86immShift(const IntrinsicInst &II,
                                   InstCombiner::BuilderTy &Builder) {
   bool LogicalShift = false;
   bool ShiftLeft = false;
+  bool IsImm = false;
 
   switch (II.getIntrinsicID()) {
   default: llvm_unreachable("Unexpected intrinsic!");
-  case Intrinsic::x86_sse2_psra_d:
-  case Intrinsic::x86_sse2_psra_w:
   case Intrinsic::x86_sse2_psrai_d:
   case Intrinsic::x86_sse2_psrai_w:
-  case Intrinsic::x86_avx2_psra_d:
-  case Intrinsic::x86_avx2_psra_w:
   case Intrinsic::x86_avx2_psrai_d:
   case Intrinsic::x86_avx2_psrai_w:
-  case Intrinsic::x86_avx512_psra_q_128:
   case Intrinsic::x86_avx512_psrai_q_128:
-  case Intrinsic::x86_avx512_psra_q_256:
   case Intrinsic::x86_avx512_psrai_q_256:
-  case Intrinsic::x86_avx512_psra_d_512:
-  case Intrinsic::x86_avx512_psra_q_512:
-  case Intrinsic::x86_avx512_psra_w_512:
   case Intrinsic::x86_avx512_psrai_d_512:
   case Intrinsic::x86_avx512_psrai_q_512:
   case Intrinsic::x86_avx512_psrai_w_512:
-    LogicalShift = false; ShiftLeft = false;
+    IsImm = true;
+    LLVM_FALLTHROUGH;
+  case Intrinsic::x86_sse2_psra_d:
+  case Intrinsic::x86_sse2_psra_w:
+  case Intrinsic::x86_avx2_psra_d:
+  case Intrinsic::x86_avx2_psra_w:
+  case Intrinsic::x86_avx512_psra_q_128:
+  case Intrinsic::x86_avx512_psra_q_256:
+  case Intrinsic::x86_avx512_psra_d_512:
+  case Intrinsic::x86_avx512_psra_q_512:
+  case Intrinsic::x86_avx512_psra_w_512:
+    LogicalShift = false;
+    ShiftLeft = false;
     break;
-  case Intrinsic::x86_sse2_psrl_d:
-  case Intrinsic::x86_sse2_psrl_q:
-  case Intrinsic::x86_sse2_psrl_w:
   case Intrinsic::x86_sse2_psrli_d:
   case Intrinsic::x86_sse2_psrli_q:
   case Intrinsic::x86_sse2_psrli_w:
-  case Intrinsic::x86_avx2_psrl_d:
-  case Intrinsic::x86_avx2_psrl_q:
-  case Intrinsic::x86_avx2_psrl_w:
   case Intrinsic::x86_avx2_psrli_d:
   case Intrinsic::x86_avx2_psrli_q:
   case Intrinsic::x86_avx2_psrli_w:
-  case Intrinsic::x86_avx512_psrl_d_512:
-  case Intrinsic::x86_avx512_psrl_q_512:
-  case Intrinsic::x86_avx512_psrl_w_512:
   case Intrinsic::x86_avx512_psrli_d_512:
   case Intrinsic::x86_avx512_psrli_q_512:
   case Intrinsic::x86_avx512_psrli_w_512:
-    LogicalShift = true; ShiftLeft = false;
+    IsImm = true;
+    LLVM_FALLTHROUGH;
+  case Intrinsic::x86_sse2_psrl_d:
+  case Intrinsic::x86_sse2_psrl_q:
+  case Intrinsic::x86_sse2_psrl_w:
+  case Intrinsic::x86_avx2_psrl_d:
+  case Intrinsic::x86_avx2_psrl_q:
+  case Intrinsic::x86_avx2_psrl_w:
+  case Intrinsic::x86_avx512_psrl_d_512:
+  case Intrinsic::x86_avx512_psrl_q_512:
+  case Intrinsic::x86_avx512_psrl_w_512:
+    LogicalShift = true;
+    ShiftLeft = false;
     break;
-  case Intrinsic::x86_sse2_psll_d:
-  case Intrinsic::x86_sse2_psll_q:
-  case Intrinsic::x86_sse2_psll_w:
   case Intrinsic::x86_sse2_pslli_d:
   case Intrinsic::x86_sse2_pslli_q:
   case Intrinsic::x86_sse2_pslli_w:
-  case Intrinsic::x86_avx2_psll_d:
-  case Intrinsic::x86_avx2_psll_q:
-  case Intrinsic::x86_avx2_psll_w:
   case Intrinsic::x86_avx2_pslli_d:
   case Intrinsic::x86_avx2_pslli_q:
   case Intrinsic::x86_avx2_pslli_w:
-  case Intrinsic::x86_avx512_psll_d_512:
-  case Intrinsic::x86_avx512_psll_q_512:
-  case Intrinsic::x86_avx512_psll_w_512:
   case Intrinsic::x86_avx512_pslli_d_512:
   case Intrinsic::x86_avx512_pslli_q_512:
   case Intrinsic::x86_avx512_pslli_w_512:
-    LogicalShift = true; ShiftLeft = true;
+    IsImm = true;
+    LLVM_FALLTHROUGH;
+  case Intrinsic::x86_sse2_psll_d:
+  case Intrinsic::x86_sse2_psll_q:
+  case Intrinsic::x86_sse2_psll_w:
+  case Intrinsic::x86_avx2_psll_d:
+  case Intrinsic::x86_avx2_psll_q:
+  case Intrinsic::x86_avx2_psll_w:
+  case Intrinsic::x86_avx512_psll_d_512:
+  case Intrinsic::x86_avx512_psll_q_512:
+  case Intrinsic::x86_avx512_psll_w_512:
+    LogicalShift = true;
+    ShiftLeft = true;
     break;
   }
   assert((LogicalShift || !ShiftLeft) && "Only logical shifts can shift left");
 
-  // Simplify if count is constant.
-  auto Arg1 = II.getArgOperand(1);
-  auto CAZ = dyn_cast<ConstantAggregateZero>(Arg1);
-  auto CDV = dyn_cast<ConstantDataVector>(Arg1);
-  auto CInt = dyn_cast<ConstantInt>(Arg1);
-  if (!CAZ && !CDV && !CInt)
-    return nullptr;
-
-  APInt Count(64, 0);
-  if (CDV) {
-    // SSE2/AVX2 uses all the first 64-bits of the 128-bit vector
-    // operand to compute the shift amount.
-    auto VT = cast<VectorType>(CDV->getType());
-    unsigned BitWidth = VT->getElementType()->getPrimitiveSizeInBits();
-    assert((64 % BitWidth) == 0 && "Unexpected packed shift size");
-    unsigned NumSubElts = 64 / BitWidth;
-
-    // Concatenate the sub-elements to create the 64-bit value.
-    for (unsigned i = 0; i != NumSubElts; ++i) {
-      unsigned SubEltIdx = (NumSubElts - 1) - i;
-      auto SubElt = cast<ConstantInt>(CDV->getElementAsConstant(SubEltIdx));
-      Count <<= BitWidth;
-      Count |= SubElt->getValue().zextOrTrunc(64);
-    }
-  }
-  else if (CInt)
-    Count = CInt->getValue();
-
   auto Vec = II.getArgOperand(0);
+  auto Amt = II.getArgOperand(1);
   auto VT = cast<VectorType>(Vec->getType());
   auto SVT = VT->getElementType();
+  auto AmtVT = Amt->getType();
   unsigned VWidth = VT->getNumElements();
   unsigned BitWidth = SVT->getPrimitiveSizeInBits();
+
+  // If the shift amount is guaranteed to be in-range we can replace it with a
+  // generic shift. If its guaranteed to be out of range, logical shifts combine to
+  // zero and arithmetic shifts are clamped to (BitWidth - 1).
+  if (IsImm) {
+    assert(AmtVT ->isIntegerTy(32) &&
+           "Unexpected shift-by-immediate type");
+    KnownBits KnownAmtBits =
+        llvm::computeKnownBits(Amt, II.getModule()->getDataLayout());
+    if (KnownAmtBits.getMaxValue().ult(BitWidth)) {
+      Amt = Builder.CreateZExtOrTrunc(Amt, SVT);
+      Amt = Builder.CreateVectorSplat(VWidth, Amt);
+      return (LogicalShift ? (ShiftLeft ? Builder.CreateShl(Vec, Amt)
+                                        : Builder.CreateLShr(Vec, Amt))
+                           : Builder.CreateAShr(Vec, Amt));
+    }
+    if (KnownAmtBits.getMinValue().uge(BitWidth)) {
+      if (LogicalShift)
+        return ConstantAggregateZero::get(VT);
+      Amt = ConstantInt::get(SVT, BitWidth - 1);
+      return Builder.CreateAShr(Vec, Builder.CreateVectorSplat(VWidth, Amt));
+    }
+  } else {
+    // Ensure the first element has an in-range value and the rest of the
+    // elements in the bottom 64 bits are zero.
+    assert(AmtVT->isVectorTy() && AmtVT->getPrimitiveSizeInBits() == 128 &&
+           cast<VectorType>(AmtVT)->getElementType() == SVT &&
+           "Unexpected shift-by-scalar type");
+    unsigned NumAmtElts = cast<VectorType>(AmtVT)->getNumElements();
+    APInt DemandedLower = APInt::getOneBitSet(NumAmtElts, 0);
+    APInt DemandedUpper = APInt::getBitsSet(NumAmtElts, 1, NumAmtElts / 2);
+    KnownBits KnownLowerBits = llvm::computeKnownBits(
+        Amt, DemandedLower, II.getModule()->getDataLayout());
+    KnownBits KnownUpperBits = llvm::computeKnownBits(
+        Amt, DemandedUpper, II.getModule()->getDataLayout());
+    if (KnownLowerBits.getMaxValue().ult(BitWidth) &&
+        (DemandedUpper.isNullValue() || KnownUpperBits.isZero())) {
+      SmallVector<uint32_t, 16> ZeroSplat(VWidth, 0);
+      Amt = Builder.CreateShuffleVector(Amt, Amt, ZeroSplat);
+      return (LogicalShift ? (ShiftLeft ? Builder.CreateShl(Vec, Amt)
+                                        : Builder.CreateLShr(Vec, Amt))
+                           : Builder.CreateAShr(Vec, Amt));
+    }
+  }
+
+  // Simplify if count is constant vector.
+  auto CDV = dyn_cast<ConstantDataVector>(Amt);
+  if (!CDV)
+    return nullptr;
+
+  // SSE2/AVX2 uses all the first 64-bits of the 128-bit vector
+  // operand to compute the shift amount.
+  assert(AmtVT->isVectorTy() && AmtVT->getPrimitiveSizeInBits() == 128 &&
+         cast<VectorType>(AmtVT)->getElementType() == SVT &&
+         "Unexpected shift-by-scalar type");
+
+  // Concatenate the sub-elements to create the 64-bit value.
+  APInt Count(64, 0);
+  for (unsigned i = 0, NumSubElts = 64 / BitWidth; i != NumSubElts; ++i) {
+    unsigned SubEltIdx = (NumSubElts - 1) - i;
+    auto SubElt = cast<ConstantInt>(CDV->getElementAsConstant(SubEltIdx));
+    Count <<= BitWidth;
+    Count |= SubElt->getValue().zextOrTrunc(64);
+  }
 
   // If shift-by-zero then just return the original value.
   if (Count.isNullValue())
@@ -1274,19 +1322,38 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombiner &IC) {
 static Instruction *foldCtpop(IntrinsicInst &II, InstCombiner &IC) {
   assert(II.getIntrinsicID() == Intrinsic::ctpop &&
          "Expected ctpop intrinsic");
+  Type *Ty = II.getType();
+  unsigned BitWidth = Ty->getScalarSizeInBits();
   Value *Op0 = II.getArgOperand(0);
   Value *X;
+
   // ctpop(bitreverse(x)) -> ctpop(x)
   // ctpop(bswap(x)) -> ctpop(x)
   if (match(Op0, m_BitReverse(m_Value(X))) || match(Op0, m_BSwap(m_Value(X))))
     return IC.replaceOperand(II, 0, X);
 
+  // ctpop(x | -x) -> bitwidth - cttz(x, false)
+  if (match(Op0, m_c_Or(m_Value(X), m_Neg(m_Deferred(X))))) {
+    Function *F =
+        Intrinsic::getDeclaration(II.getModule(), Intrinsic::cttz, Ty);
+    auto *Cttz = IC.Builder.CreateCall(F, {X, IC.Builder.getFalse()});
+    auto *Bw = ConstantInt::get(Ty, APInt(BitWidth, BitWidth));
+    return IC.replaceInstUsesWith(II, IC.Builder.CreateSub(Bw, Cttz));
+  }
+
+  // ctpop(~x & (x - 1)) -> cttz(x, false)
+  if (match(Op0,
+            m_c_And(m_Not(m_Value(X)), m_Add(m_Deferred(X), m_AllOnes())))) {
+    Function *F =
+        Intrinsic::getDeclaration(II.getModule(), Intrinsic::cttz, Ty);
+    return CallInst::Create(F, {X, IC.Builder.getFalse()});
+  }
+
   // FIXME: Try to simplify vectors of integers.
-  auto *IT = dyn_cast<IntegerType>(Op0->getType());
+  auto *IT = dyn_cast<IntegerType>(Ty);
   if (!IT)
     return nullptr;
 
-  unsigned BitWidth = IT->getBitWidth();
   KnownBits Known(BitWidth);
   IC.computeKnownBits(Op0, Known, 0, &II);
 
@@ -4535,6 +4602,10 @@ Instruction *InstCombiner::visitCallBase(CallBase &Call) {
     // the fallthrough check.
     if (I) return eraseInstFromFunction(*I);
   }
+
+  if (!Call.use_empty() && !Call.isMustTailCall())
+    if (Value *ReturnedArg = Call.getReturnedArgOperand())
+      return replaceInstUsesWith(Call, ReturnedArg);
 
   if (isAllocLikeFn(&Call, &TLI))
     return visitAllocSite(Call);

@@ -101,7 +101,6 @@ def VCC_HI : SIReg<"vcc_hi", 107>;
 def PRIVATE_RSRC_REG : SIReg<"private_rsrc", 0>;
 def FP_REG : SIReg<"fp", 0>;
 def SP_REG : SIReg<"sp", 0>;
-def SCRATCH_WAVE_OFFSET_REG : SIReg<"scratch_wave_offset", 0>;
 
 // Pseudo-register to represent the program-counter DWARF register.
 def PC_REG : SIReg<"pc", 0>, DwarfRegNum<[16]> {
@@ -217,10 +216,15 @@ foreach Index = 0-105 in {
 
 // VGPR registers
 foreach Index = 0-255 in {
+  // Set a cost value for vgprs other than the argument registers (v0-v31).
+  // The ratio of index/allocation_granularity is taken as the cost value.
+  // Considered the allocation granularity as 4 here.
+  let CostPerUse=!if(!gt(Index, 31), !srl(Index, 2), 0) in {
   def VGPR#Index :
       SIReg <"v"#Index, Index>,
       DwarfRegNum<[!add(Index, 2560)]> {
     let HWEncoding{8} = 1;
+  }
   }
 }
 
@@ -435,7 +439,7 @@ def AGPR_1024 : SIRegisterTuples<getSubRegs<32>.ret, AGPR_32, 255, 1, 32, "a">;
 //===----------------------------------------------------------------------===//
 
 def Pseudo_SReg_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
-  (add FP_REG, SP_REG, SCRATCH_WAVE_OFFSET_REG)> {
+  (add FP_REG, SP_REG)> {
   let isAllocatable = 0;
   let CopyCost = -1;
 }

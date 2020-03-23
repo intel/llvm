@@ -4616,6 +4616,7 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
   case OMPC_order:
   case OMPC_destroy:
   case OMPC_detach:
+  case OMPC_inclusive:
     llvm_unreachable("Clause is not allowed in 'omp atomic'.");
   }
 }
@@ -4724,12 +4725,10 @@ static void emitCommonOMPTargetDirective(CodeGenFunction &CGF,
   }
 
   // Check if we have any device clause associated with the directive.
-  const Expr *Device = nullptr;
-  if (auto *C = S.getSingleClause<OMPDeviceClause>()) {
-    if (C->getModifier() == OMPC_DEVICE_unknown ||
-        C->getModifier() == OMPC_DEVICE_device_num)
-      Device = C->getDevice();
-  }
+  llvm::PointerIntPair<const Expr *, 2, OpenMPDeviceClauseModifier> Device(
+      nullptr, OMPC_DEVICE_unknown);
+  if (auto *C = S.getSingleClause<OMPDeviceClause>())
+    Device.setPointerAndInt(C->getDevice(), C->getModifier());
 
   // Check if we have an if clause whose conditional always evaluates to false
   // or if we do not have any targets specified. If so the target region is not
