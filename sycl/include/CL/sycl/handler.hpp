@@ -604,7 +604,7 @@ public:
     MNDRDesc.set(range<1>(1));
     MArgs = std::move(MAssociatedAccesors);
 
-    MHostTask.reset(new detail::HostTask(Func, MQueue));
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
 
     MCGType = detail::CG::HOST_TASK;
   }

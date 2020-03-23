@@ -146,7 +146,7 @@ public:
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
   void when_complete(std::shared_ptr<cl::sycl::detail::event_impl> Self,
-                     std::function<void()> Func);
+                     std::function<void()> &&Func);
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
