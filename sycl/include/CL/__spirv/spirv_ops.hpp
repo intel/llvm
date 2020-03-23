@@ -56,44 +56,56 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicLoad(                                \
-      AS const Type *P, __spv::Scope S, __spv::MemorySemanticsMask O);
+      AS const Type *P, __spv::Scope::Flag S,                                  \
+      __spv::MemorySemanticsMask::Flag O);
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
   extern SYCL_EXTERNAL void __spirv_AtomicStore(                               \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
   extern SYCL_EXTERNAL Type __spirv_AtomicExchange(                            \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
   extern SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(                     \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask E,                \
-      __spv::MemorySemanticsMask U, Type V, Type C);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag E,    \
+      __spv::MemorySemanticsMask::Flag U, Type V, Type C);
 #define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicIAdd(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicISub(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicSMin(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicUMin(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicSMax(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicUMax(                                \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
   extern SYCL_EXTERNAL Type __spirv_AtomicAnd(                                 \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_OR(AS, Type)                                            \
   extern SYCL_EXTERNAL Type __spirv_AtomicOr(                                  \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
   extern SYCL_EXTERNAL Type __spirv_AtomicXor(                                 \
-      AS Type *P, __spv::Scope S, __spv::MemorySemanticsMask O, Type V);
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
   __SPIRV_ATOMIC_LOAD(AS, Type)                                                \
@@ -124,14 +136,16 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
   typename std::enable_if<std::is_signed<T>::value, T>::type                   \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope Memory,                       \
-                         __spv::MemorySemanticsMask Semantics, T Value) {      \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if<!std::is_signed<T>::value, T>::type                  \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope Memory,                       \
-                         __spv::MemorySemanticsMask Semantics, T Value) {      \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }
 
