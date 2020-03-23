@@ -260,11 +260,13 @@
 // RUN: touch %t_dir/dummy1.o
 // RUN: touch %t_dir/dummy2.o
 // RUN: %clangxx -### -fsycl -fintelfpga %t_dir/dummy2.o %t_dir/dummy1.cpp  2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
 // RUN: %clangxx -### -fsycl -fintelfpga %t_dir/dummy2.cpp %t_dir/dummy1.o  2>&1 \
-// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-NAME %s
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy2.o %t_dir/dummy1.cpp 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy2.cpp %t_dir/dummy1.o 2>&1 \
-// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-NAME %s
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
 // CHK-FPGA-REPORT-NAME: aoc{{.*}} "-sycl"{{.*}} "-output-report-folder=dummy2.prj"
 
 /// -fintelfpga static lib (aoco)
