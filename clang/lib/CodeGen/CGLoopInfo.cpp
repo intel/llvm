@@ -476,6 +476,23 @@ EmitIVDepLoopMetadata(LLVMContext &Ctx,
   LoopProperties.push_back(MDNode::get(Ctx, MD));
 }
 
+/// Setting the legacy LLVM IR representation of the ivdep attribute
+static void EmitLegacyIVDepLoopMetadata(
+    LLVMContext &Ctx, llvm::SmallVectorImpl<llvm::Metadata *> &LoopProperties,
+    const LoopAttributes::SYCLIVDepInfo &I) {
+  // Emit "enable" metadata upon the infinite safelen specification
+  if (I.SafeLen == 0) {
+    Metadata *EnableMDs[] = {MDString::get(Ctx, "llvm.loop.ivdep.enable")};
+    LoopProperties.push_back(MDNode::get(Ctx, EnableMDs));
+    return;
+  }
+
+  Metadata *SafelenMDs[] = {MDString::get(Ctx, "llvm.loop.ivdep.safelen"),
+                            ConstantAsMetadata::get(ConstantInt::get(
+                                llvm::Type::getInt32Ty(Ctx), I.SafeLen))};
+  LoopProperties.push_back(MDNode::get(Ctx, SafelenMDs));
+}
+
 MDNode *LoopInfo::createMetadata(
     const LoopAttributes &Attrs,
     llvm::ArrayRef<llvm::Metadata *> AdditionalLoopProperties,
@@ -500,8 +517,15 @@ MDNode *LoopInfo::createMetadata(
   }
 
   LLVMContext &Ctx = Header->getContext();
-  if (Attrs.GlobalSYCLIVDepInfo.hasValue())
+  if (Attrs.GlobalSYCLIVDepInfo.hasValue()) {
     EmitIVDepLoopMetadata(Ctx, LoopProperties, *Attrs.GlobalSYCLIVDepInfo);
+    // The legacy metadata also needs to be emitted to provide backwards
+    // compatibility with any conformant backend. This is done exclusively
+    // for the "global" ivdep specification so as not to impose unnecessarily
+    // tight safe length constraints on the array-specific cases.
+    EmitLegacyIVDepLoopMetadata(Ctx, LoopProperties,
+                                *Attrs.GlobalSYCLIVDepInfo);
+  }
   for (const auto &I : Attrs.ArraySYCLIVDepInfo)
     EmitIVDepLoopMetadata(Ctx, LoopProperties, I);
 
