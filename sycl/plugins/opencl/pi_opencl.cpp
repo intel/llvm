@@ -834,7 +834,7 @@ pi_result OCL(piextUSMEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
 /// \param event is the event that represents this operation
 pi_result OCL(piextUSMEnqueueMemcpy)(pi_queue queue, pi_bool blocking,
                                      void *dst_ptr, const void *src_ptr,
-                                     pi_int32 size,
+                                     size_t size,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
                                      pi_event *event) {

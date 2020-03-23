@@ -19,11 +19,15 @@ namespace {
 }
 
 class A {
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
-  A() {}
+  [[intel::device_indirectly_callable]] A() {}
 
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
-  int func3() {}
+  [[intel::device_indirectly_callable]] int func3() {}
+};
+
+class B {
+  [[intel::device_indirectly_callable]] virtual int foo() {}
+
+  [[intel::device_indirectly_callable]] virtual int bar() = 0;
 };
 
 void helper() {}
@@ -41,7 +45,6 @@ void baz() {}
 #endif // NO_SYCL
 
 // CHECK: FunctionDecl {{.*}} helper
-// CHECK: SYCLDeviceAttr
 //
 // CHECK: FunctionDecl {{.*}} foo
 // CHECK: SYCLDeviceAttr

@@ -782,9 +782,9 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
 }
 
 pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
-                                       pi_device_binary *binaries,
-                                       pi_uint32 num_binaries,
-                                       pi_device_binary *selected_binary) {
+                                             pi_program program,
+                                             const char *function_name,
+                                             pi_uint64 *function_pointer_ret) {
   cl::sycl::detail::pi::die("cuda_piextGetDeviceFunctionPointer not implemented");
   return {};
 }
