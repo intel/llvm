@@ -321,7 +321,7 @@ private:
 class MapMemObject : public Command {
 public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               QueueImplPtr Queue);
+               QueueImplPtr Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -333,6 +333,7 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
   void **MDstPtr = nullptr;
+  access::mode MMapMode;
 };
 
 class UnMapMemObject : public Command {

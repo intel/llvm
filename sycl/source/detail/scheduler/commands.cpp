@@ -828,9 +828,11 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
-                           void **DstPtr, QueueImplPtr Queue)
+                           void **DstPtr, QueueImplPtr Queue,
+                           access::mode MapMode)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
-      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr) {
+      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
+      MMapMode(MapMode) {
   emitInstrumentationDataProxy();
 }
 
@@ -861,9 +863,8 @@ cl_int MapMemObject::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
-      MSrcReq.MAccessMode, MSrcReq.MDims, MSrcReq.MMemoryRange,
-      MSrcReq.MAccessRange, MSrcReq.MOffset, MSrcReq.MElemSize,
-      std::move(RawEvents), Event);
+      MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
   return CL_SUCCESS;
 }
 
