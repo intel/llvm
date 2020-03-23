@@ -6792,12 +6792,12 @@ const char *Clang::getDependencyFileName(const ArgList &Args,
 
   if (Arg *OutputOpt =
           Args.getLastArg(options::OPT_o, options::OPT__SLASH_Fo)) {
-    SmallString<128> OutputFilename(OutputOpt->getValue());
-    if (llvm::sys::path::is_separator(OutputFilename.back()))
+    SmallString<128> OutputArgument(OutputOpt->getValue());
+    if (llvm::sys::path::is_separator(OutputArgument.back()))
       // If the argument is a directory, output to BaseName in that dir.
-      llvm::sys::path::append(OutputFilename, getBaseInputStem(Args, Inputs));
-    llvm::sys::path::replace_extension(OutputFilename, llvm::Twine('d'));
-    return Args.MakeArgString(OutputFilename);
+      llvm::sys::path::append(OutputArgument, getBaseInputStem(Args, Inputs));
+    llvm::sys::path::replace_extension(OutputArgument, llvm::Twine('d'));
+    return Args.MakeArgString(OutputArgument);
   }
 
   return Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
