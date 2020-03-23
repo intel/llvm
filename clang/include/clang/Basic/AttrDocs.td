@@ -2003,13 +2003,13 @@ attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
 As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
-which features optional arguments `Y` and `Z`, which simplifies its usage if
+which features optional arguments `Y` and `Z`, those simplifies its usage if
 only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
 defaults to ``1``.
 
 In OpenCL C, this attribute is available in GNU spelling
-(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see, for example, section
-6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
+6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
   }];
 }
 
