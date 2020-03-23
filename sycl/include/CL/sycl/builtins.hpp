@@ -530,7 +530,7 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> abs(T x) __NOEXC {
 
 // genfloat max (genfloat x, genfloat y)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> (max)(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T>(max)(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmax_common<T>(x, y);
 }
 
@@ -766,7 +766,8 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> mad_sat(T a, T b,
 
 // igeninteger max (igeninteger x, igeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_igeninteger<T>::value, T> (max)(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_igeninteger<T>::value, T>(max)(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_s_max<T>(x, y);
 }
 
