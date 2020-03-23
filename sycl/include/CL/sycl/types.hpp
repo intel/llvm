@@ -268,7 +268,7 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   // TODO implement device side conversion.
 #include "/localdisk2/icl/fadeeval/sycl_workspace/llvm/llvm-spirv/lib/SPIRV/runtime/OpenCL/inc/spirv_convert.h"
   R Result = __spirv_ConvertFToS_Rint_rte(Value);
-  return 1;
+  return Result;
 #endif
 }
 
