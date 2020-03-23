@@ -459,6 +459,11 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInNumEnqueuedSubgroups:
   case BuiltInSubgroupId:
   case BuiltInSubgroupLocalInvocationId:
+  case BuiltInSubgroupEqMask:
+  case BuiltInSubgroupGeMask:
+  case BuiltInSubgroupGtMask:
+  case BuiltInSubgroupLeMask:
+  case BuiltInSubgroupLtMask:
   case BuiltInVertexIndex:
   case BuiltInInstanceIndex:
     return true;
@@ -563,6 +568,14 @@ inline bool isValid(spv::Capability V) {
   case CapabilitySubgroupDispatch:
   case CapabilityNamedBarrier:
   case CapabilityPipeStorage:
+  case CapabilityGroupNonUniform:
+  case CapabilityGroupNonUniformVote:
+  case CapabilityGroupNonUniformArithmetic:
+  case CapabilityGroupNonUniformBallot:
+  case CapabilityGroupNonUniformShuffle:
+  case CapabilityGroupNonUniformShuffleRelative:
+  case CapabilityGroupNonUniformClustered:
+  case CapabilityGroupNonUniformQuad:
   case CapabilityFPGAMemoryAttributesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:

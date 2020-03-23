@@ -407,6 +407,11 @@ template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
   ADD_VEC_INIT(BuiltInNumEnqueuedSubgroups, {CapabilityKernel});
   ADD_VEC_INIT(BuiltInSubgroupId, {CapabilityKernel});
   ADD_VEC_INIT(BuiltInSubgroupLocalInvocationId, {CapabilityKernel});
+  ADD_VEC_INIT(BuiltInSubgroupEqMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupGeMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupGtMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupLeMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupLtMask, {CapabilityGroupNonUniformBallot});
   ADD_VEC_INIT(BuiltInVertexIndex, {CapabilityShader});
   ADD_VEC_INIT(BuiltInInstanceIndex, {CapabilityShader});
 }

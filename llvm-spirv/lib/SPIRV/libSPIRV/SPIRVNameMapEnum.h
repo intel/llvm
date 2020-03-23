@@ -394,6 +394,11 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInNumEnqueuedSubgroups, "BuiltInNumEnqueuedSubgroups");
   add(BuiltInSubgroupId, "BuiltInSubgroupId");
   add(BuiltInSubgroupLocalInvocationId, "BuiltInSubgroupLocalInvocationId");
+  add(BuiltInSubgroupEqMask, "BuiltInSubgroupEqMask");
+  add(BuiltInSubgroupGeMask, "BuiltInSubgroupGeMask");
+  add(BuiltInSubgroupGtMask, "BuiltInSubgroupGtMask");
+  add(BuiltInSubgroupLeMask, "BuiltInSubgroupLeMask");
+  add(BuiltInSubgroupLtMask, "BuiltInSubgroupLtMask");
   add(BuiltInVertexIndex, "BuiltInVertexIndex");
   add(BuiltInInstanceIndex, "BuiltInInstanceIndex");
 }

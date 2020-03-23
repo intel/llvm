@@ -931,17 +931,25 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
     return;
 
   if (DemangledName != kOCLBuiltinName::WaitGroupEvent) {
-    StringRef GroupOp = DemangledName;
-    GroupOp = GroupOp.drop_front(strlen(kSPIRVName::GroupPrefix));
+    StringRef FuncName = DemangledName;
+    FuncName = FuncName.drop_front(strlen(kSPIRVName::GroupPrefix));
     SPIRSPIRVGroupOperationMap::foreachConditional(
         [&](const std::string &S, SPIRVGroupOperationKind G) {
-          if (!GroupOp.startswith(S))
+          if (!FuncName.startswith(S))
             return true; // continue
           PreOps.push_back(G);
-          StringRef Op = GroupOp.drop_front(S.size() + 1);
-          assert(!Op.empty() && "Invalid OpenCL group builtin function");
+          StringRef Op = StringSwitch<StringRef>(FuncName)
+              .StartsWith("ballot", "group_ballot_bit_count_")
+              .StartsWith("non_uniform_group", kSPIRVName::GroupNonUniformPrefix)
+              .Default(kSPIRVName::GroupPrefix);
+          StringRef GroupOp = StringSwitch<StringRef>(FuncName)
+              .Case("ballot_bit_count", "add")
+              .Case("ballot_inclusive_scan", "add")
+              .Case("ballot_exclusive_scan", "add")
+              .Default(FuncName.take_back(3));   // assumes op is three characters
+          assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
-          auto NeedSign = Op == "max" || Op == "min";
+          auto NeedSign = GroupOp == "max" || GroupOp == "min";
           auto OpTy = F->getReturnType();
           if (OpTy->isFloatingPointTy())
             OpTyC = 'f';
@@ -957,8 +965,7 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           } else
             llvm_unreachable("Invalid OpenCL group builtin argument type");
 
-          DemangledName =
-              std::string(kSPIRVName::GroupPrefix) + OpTyC + Op.str();
+          DemangledName = Op.str() + OpTyC + GroupOp.str();
           return false; // break out of loop
         });
   }
@@ -966,6 +973,8 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
   bool IsGroupAllAny = (DemangledName.find("_all") != std::string::npos ||
                         DemangledName.find("_any") != std::string::npos);
   bool IsGroupAllEqual = DemangledName.find("_all_equal") != std::string::npos;
+
+  // TODO: Need to convert arg to sub_group_ballot to i1!
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;

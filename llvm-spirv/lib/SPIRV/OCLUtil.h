@@ -627,6 +627,9 @@ template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);
   add("scan_exclusive", GroupOperationExclusiveScan);
+  add("ballot_bit_count", GroupOperationReduce);
+  add("ballot_inclusive_scan", GroupOperationInclusiveScan);
+  add("ballot_exclusive_scan", GroupOperationExclusiveScan);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVFPRoundingModeKind>::init() {
@@ -690,12 +693,19 @@ inline void SPIRVMap<std::string, SPIRVBuiltinVariableKind>::init() {
   add("get_group_id", BuiltInWorkgroupId);
   add("get_global_linear_id", BuiltInGlobalLinearId);
   add("get_local_linear_id", BuiltInLocalInvocationIndex);
+  // cl_khr_subgroups
   add("get_sub_group_size", BuiltInSubgroupSize);
   add("get_max_sub_group_size", BuiltInSubgroupMaxSize);
   add("get_num_sub_groups", BuiltInNumSubgroups);
   add("get_enqueued_num_sub_groups", BuiltInNumEnqueuedSubgroups);
   add("get_sub_group_id", BuiltInSubgroupId);
   add("get_sub_group_local_id", BuiltInSubgroupLocalInvocationId);
+  // cl_khr_subgroup_ballot
+  add("get_sub_group_eq_mask", BuiltInSubgroupEqMask);
+  add("get_sub_group_ge_mask", BuiltInSubgroupGeMask);
+  add("get_sub_group_gt_mask", BuiltInSubgroupGtMask);
+  add("get_sub_group_le_mask", BuiltInSubgroupLeMask);
+  add("get_sub_group_lt_mask", BuiltInSubgroupLtMask);
 }
 
 // Maps uniqued OCL builtin function name to SPIR-V op code.
@@ -839,6 +849,20 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
   _SPIRV_OP(intel_sub_group_media_block_write,
             SubgroupImageMediaBlockWriteINTEL)
+  // cl_khr_subgroup_non_uniform_vote
+  _SPIRV_OP(group_elect, GroupNonUniformElect)
+  _SPIRV_OP(group_non_uniform_all, GroupNonUniformAll)
+  _SPIRV_OP(group_non_uniform_any, GroupNonUniformAny)
+  _SPIRV_OP(group_non_uniform_all_equal, GroupNonUniformAllEqual)
+  // cl_khr_subgroup_ballot
+  _SPIRV_OP(group_non_uniform_broadcast, GroupNonUniformBroadcast)
+  _SPIRV_OP(group_broadcast_first, GroupNonUniformBroadcastFirst)
+  _SPIRV_OP(group_ballot, GroupNonUniformBallot)
+  _SPIRV_OP(group_inverse_ballot, GroupNonUniformInverseBallot)
+  _SPIRV_OP(group_ballot_bit_extract, GroupNonUniformBallotBitExtract)
+  _SPIRV_OP(group_ballot_bit_count_iadd, GroupNonUniformBallotBitCount)
+  _SPIRV_OP(group_ballot_find_lsb, GroupNonUniformBallotFindLSB)
+  _SPIRV_OP(group_ballot_find_msb, GroupNonUniformBallotFindMSB)
 #undef _SPIRV_OP
 }
 
