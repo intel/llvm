@@ -790,8 +790,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.intel.pipelining.enable",
-                                        LoopControlParameters[NumParam])));
-    ++NumParam;
+                                        LoopControlParameters[NumParam++])));
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
@@ -800,8 +799,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       Metadata.push_back(llvm::MDNode::get(
           *Context,
           getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
-                                          LoopControlParameters[NumParam])));
-      ++NumParam;
+                                          LoopControlParameters[NumParam++])));
     } else { // If LoopCoalesce has no parameters
       Metadata.push_back(llvm::MDNode::get(
           *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
@@ -813,8 +811,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_interleaving.count",
-                                        LoopControlParameters[NumParam])));
-    ++NumParam;
+                                        LoopControlParameters[NumParam++])));
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
@@ -822,8 +819,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.intel.speculated.iterations.count",
-                      LoopControlParameters[NumParam])));
-    ++NumParam;
+                      LoopControlParameters[NumParam++])));
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
