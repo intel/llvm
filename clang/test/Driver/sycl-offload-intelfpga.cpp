@@ -171,7 +171,7 @@
 // CHK-FPGA-AOCX-OBJ: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[BUNDLEOUT]]"
 // CHK-FPGA-AOCX-OBJ: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.(o|obj)]]" "[[WRAPOUT]]"
 // CHK-FPGA-AOCX-OBJ: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-outputs=[[HOSTOBJ:.+\.(o|obj)]],[[DEVICEOBJ:.+\.(o|obj)]]" "-unbundle"
- // CHK-FPGA-AOCX-OBJ: llvm-no-spir-kernel{{.*}} "[[DEVICEOBJ]]" "-o" "[[CHECKOUT:.+\.(o|obj)]]"
+// CHK-FPGA-AOCX-OBJ: llvm-no-spir-kernel{{.*}} "[[DEVICEOBJ]]" "-o" "[[CHECKOUT:.+\.(o|obj)]]"
 // CHK-FPGA-AOCX-OBJ: llvm-link{{.*}} "[[CHECKOUT]]" "-o" "[[LLVMLINKOUT:.+\.bc]]" "--suppress-warnings"
 // CHK-FPGA-AOCX-OBJ: llvm-spirv{{.*}} "-o" "[[LLVMSPVOUT:.+\.spv]]" {{.*}} "[[LLVMLINKOUT]]"
 // CHK-FPGA-AOCX-OBJ: clang-offload-wrapper{{.*}} "-o=[[WRAPOUTSRC:.+.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[LLVMSPVOUT]]"
