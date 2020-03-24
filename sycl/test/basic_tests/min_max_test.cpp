@@ -1,3 +1,6 @@
+// REQUIRES: windows
+// RUN: %clangxx -fsycl %s -o %t.out
+
 #include "windows.h"
 #include "CL/sycl.hpp"
 
