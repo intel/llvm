@@ -163,7 +163,7 @@ template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
   std::cout << "       ";
   print(arg0);
-  printArgs(std::forward<Args>(args)...);
+  pi::printArgs(std::forward<Args>(args)...);
 }
 } // namespace pi
 
