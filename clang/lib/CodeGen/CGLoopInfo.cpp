@@ -535,6 +535,8 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
+  // disable_loop_pipelining attribute corresponds to
+  // 'llvm.loop.intel.pipelining.enable, i32 0' metadata
   if (Attrs.SYCLLoopPipeliningDisable) {
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
                         ConstantAsMetadata::get(

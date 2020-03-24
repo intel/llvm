@@ -261,7 +261,7 @@ void zoo() {
 }
 
 // Test for Intel FPGA loop attributes compatibility
-void woo() {
+void loop_attrs_compatibility() {
   int a[10];
   // no diagnostics are expected
   [[intelfpga::disable_loop_pipelining]]
@@ -364,7 +364,7 @@ int main() {
     boo();
     goo();
     zoo();
-    woo();
+    loop_attrs_compatibility();
     ivdep_dependent<4, 2, 1>();
     //expected-note@-1 +{{in instantiation of function template specialization}}
     ivdep_dependent<2, 4, -1>();
