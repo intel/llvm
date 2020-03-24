@@ -236,6 +236,10 @@ class DefaultIntArgument<string name, int default> : IntArgument<name, 1> {
   int Default = default;
 }
 
+class DefaultUnsignedArgument<string name, int default> : UnsignedArgument<name, 1> {
+  int Default = default;
+}
+
 // This argument is more complex, it includes the enumerator type name,
 // a list of strings to accept, and a list of enumerators to map them to.
 class EnumArgument<string name, string type, list<string> values,
@@ -2430,13 +2434,16 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
+// Default arguments in ReqWorkGroupSize can be used only with
+// intel::reqd_work_group_size spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"cl","reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+                   CXX11<"intel","reqd_work_group_size">, 
+                   CXX11<"cl","reqd_work_group_size">]; 
+  let Args = [UnsignedArgument<"XDim">, DefaultUnsignedArgument<"YDim", 1>,
+              DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [ReqdWorkGroupSizeAttrDocs];
 }
 
 def WorkGroupSizeHint :  InheritableAttr {
