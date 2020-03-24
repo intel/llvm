@@ -48,7 +48,7 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 2
 
 == Contact
 Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
@@ -59,7 +59,7 @@ This extension is written against the SYCL 1.2.1 specification, Revision 6.
 
 == Overview
 
-SYCL 1.2.1 required data stored into a buffer or passed as a kernel argument to be standard layout.  This is in addition to the data also being trivially copyable.  This extension relaxes the standard layout requirement while leaving the trivially copyable requirement intact.
+SYCL 1.2.1 requires data stored into a buffer or passed as a kernel argument to be standard layout.  This is in addition to the data also being trivially copyable.  This extension relaxes the standard layout requirement while leaving the trivially copyable requirement intact.
 
 Standard layout does not guarantee ABI compatibility across devices or between a device and the host, but can help.  To avoid introducing incompatible data layouts, this extension also requires device compilers to validate that their layout of data is compatible with that used by the host.  There are multiple implementation approaches that can achieve this, although they are beyond the scope of this extension which describes the behavior only.
 
@@ -73,7 +73,7 @@ Sharing data structures between host and device code imposes certain restriction
 
 ==== To:
 
-Sharing data structures between host and device code imposes certain restrictions, such as use of only user defined classes that are {cpp}11 trivially copyable classes for the data structures, classes that are {cpp}11 trivially copyable classes for the data structures, and in general, no pointers initialized for the host can be used on the device.
+Sharing data structures between host and device code imposes certain restrictions, such as use of only user defined classes that are {cpp}11 trivially copyable classes for the data structures, and in general, no pointers initialized for the host can be used on the device.
 
 === Modify Sentence in Section 4.8.5 (SYCL function for invoking kernels, +set_arg+ description)
 
@@ -148,6 +148,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-03-17|Michael Kinsner|*Initial public working draft*
+|2|2020-03-24|Michael Kinsner|Remove repeated sentence and fix typo
 |========================================
 
 //************************************************************************
