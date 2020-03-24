@@ -267,23 +267,23 @@ void woo() {
   [[intelfpga::disable_loop_pipelining]]
   [[intelfpga::loop_coalesce]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'max_interleaving' attributes are not compatible}}
+  // expected-error@+1 {{disable_loop_pipelining and max_interleaving attributes are not compatible}}
   [[intelfpga::disable_loop_pipelining]]
   [[intelfpga::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
+  // expected-error@+1 {{disable_loop_pipelining and speculated_iterations attributes are not compatible}}
   [[intelfpga::speculated_iterations(0)]]
   [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+  // expected-error@+1 {{disable_loop_pipelining and max_concurrency attributes are not compatible}}
   [[intelfpga::disable_loop_pipelining]]
   [[intelfpga::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'ii' attributes are not compatible}}
+  // expected-error@+1 {{disable_loop_pipelining and ii attributes are not compatible}}
   [[intelfpga::ii(10)]]
   [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'ivdep' attributes are not compatible}}
+  // expected-error@+1 {{disable_loop_pipelining and ivdep attributes are not compatible}}
   [[intelfpga::disable_loop_pipelining]]
   [[intelfpga::ivdep]] for (int i = 0; i != 10; ++i)
       a[i] = 0;

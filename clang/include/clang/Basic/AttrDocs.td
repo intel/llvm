@@ -2096,7 +2096,7 @@ def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
   let Content = [{
 This attribute applies to a loop. Indicates that the loop nest should be
 coalesced into a single loop without affecting functionality. Parameter N is
-optional. If specified, it must be a positive integer, and indicates how many
+optional. If specified, it shall be a positive integer, and indicates how many
 of the nested loop levels should be coalesced.
   }];
 }
@@ -2120,7 +2120,7 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and may either b 0, or a positive integer. Cannot be
+Parameter N is mandatory, and shall be non-negative integer. Cannot be
 used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
@@ -2130,8 +2130,8 @@ def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
   let Heading = "speculated_iterations";
   let Content = [{
 This attribute applies to a loop. Specifies the number of concurrent speculated
-iterations that will be in flight (iterations that are in flight where the exit
-condition for that iteration has not yet been evaluated) for a loop invocation.
+iterations that will be in flight for a loop invocation (i.e. the exit
+condition for these iterations will not have been evaluated yet).
 Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
 used on the same loop in conjunction with disable_loop_pipelining.
   }];

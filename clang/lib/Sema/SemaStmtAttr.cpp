@@ -559,8 +559,7 @@ static void CheckMutualExclusionSYCLLoopAttribute(
       LoopAttr2 = cast<LoopAttrT2>(I);
     if (LoopAttr && LoopAttr2) {
       S.Diag(Range.getBegin(), diag::err_attributes_are_not_compatible)
-          << "'" + std::string(LoopAttr->getName()) + "'"
-          << "'" + std::string(LoopAttr2->getName()) + "'";
+          << LoopAttr->getSpelling() << LoopAttr2->getSpelling();
     }
   }
 }

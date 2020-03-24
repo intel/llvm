@@ -507,7 +507,6 @@ MDNode *LoopInfo::createMetadata(
 
   // Setting ii attribute with an initiation interval
   if (Attrs.SYCLIInterval > 0) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.ii.count"),
                         ConstantAsMetadata::get(ConstantInt::get(
                             llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIInterval))};
@@ -516,7 +515,6 @@ MDNode *LoopInfo::createMetadata(
 
   // Setting max_concurrency attribute with number of threads
   if (Attrs.SYCLMaxConcurrencyEnable) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
                         ConstantAsMetadata::get(ConstantInt::get(
                             llvm::Type::getInt32Ty(Ctx),
@@ -525,13 +523,11 @@ MDNode *LoopInfo::createMetadata(
   }
 
   if (Attrs.SYCLLoopCoalesceEnable) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.coalesce.enable")};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
   if (Attrs.SYCLLoopCoalesceNLevels > 0) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.coalesce.count"),
         ConstantAsMetadata::get(ConstantInt::get(
@@ -540,7 +536,6 @@ MDNode *LoopInfo::createMetadata(
   }
 
   if (Attrs.SYCLLoopPipeliningDisable) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
                         ConstantAsMetadata::get(
                             ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 0))};
@@ -548,7 +543,6 @@ MDNode *LoopInfo::createMetadata(
   }
 
   if (Attrs.SYCLMaxInterleavingEnable) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_interleaving.count"),
                         ConstantAsMetadata::get(ConstantInt::get(
                             llvm::Type::getInt32Ty(Ctx),
@@ -557,7 +551,6 @@ MDNode *LoopInfo::createMetadata(
   }
 
   if (Attrs.SYCLSpeculatedIterationsEnable) {
-    LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.speculated.iterations.count"),
         ConstantAsMetadata::get(
