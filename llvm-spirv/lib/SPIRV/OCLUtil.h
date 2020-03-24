@@ -889,6 +889,9 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle
   _SPIRV_OP(group_shuffle, GroupNonUniformShuffle)
   _SPIRV_OP(group_shuffle_xor, GroupNonUniformShuffleXor)
+  // cl_khr_subgroup_shuffle_relative
+  _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
+  _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
 #undef _SPIRV_OP
 }
 
