@@ -883,9 +883,9 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(group_non_uniform_iand, GroupNonUniformBitwiseAnd)
   _SPIRV_OP(group_non_uniform_ior, GroupNonUniformBitwiseOr)
   _SPIRV_OP(group_non_uniform_ixor, GroupNonUniformBitwiseXor)
-  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalAnd)
-  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalOr)
-  //_SPIRV_OP(group_non_uniform_xxx, GroupNonUniformLogicalXor)
+  _SPIRV_OP(group_non_uniform_logical_iand, GroupNonUniformLogicalAnd)
+  _SPIRV_OP(group_non_uniform_logical_ior, GroupNonUniformLogicalOr)
+  _SPIRV_OP(group_non_uniform_logical_ixor, GroupNonUniformLogicalXor)
 #undef _SPIRV_OP
 }
 
