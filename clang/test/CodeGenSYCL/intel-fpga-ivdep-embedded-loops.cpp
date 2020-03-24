@@ -164,7 +164,7 @@ int main() {
   return 0;
 }
 
-// Find the single instance of a legacy "IVDep enable" MD node
+// Find the single instance of a legacy "IVDep enable" MD node.
 // CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
 
 /// Accesses from the inner loop only, various global safelens for the outer and the inner loops.

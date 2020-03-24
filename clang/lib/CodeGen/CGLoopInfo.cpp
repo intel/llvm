@@ -476,11 +476,12 @@ EmitIVDepLoopMetadata(LLVMContext &Ctx,
   LoopProperties.push_back(MDNode::get(Ctx, MD));
 }
 
-/// Setting the legacy LLVM IR representation of the ivdep attribute
+/// Setting the legacy LLVM IR representation of the ivdep attribute.
 static void EmitLegacyIVDepLoopMetadata(
     LLVMContext &Ctx, llvm::SmallVectorImpl<llvm::Metadata *> &LoopProperties,
     const LoopAttributes::SYCLIVDepInfo &I) {
-  // Emit "enable" metadata upon the infinite safelen specification
+  // Only emit the "enable" metadata if the safelen is set to 0, implying
+  // infinite safe length.
   if (I.SafeLen == 0) {
     Metadata *EnableMDs[] = {MDString::get(Ctx, "llvm.loop.ivdep.enable")};
     LoopProperties.push_back(MDNode::get(Ctx, EnableMDs));

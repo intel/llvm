@@ -94,7 +94,7 @@ int main() {
   return 0;
 }
 
-// Find recurring instances of legacy "IVDep enable/safelen" MD nodes
+// Find recurring instances of legacy "IVDep enable/safelen" MD nodes.
 // CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
 // CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
 
