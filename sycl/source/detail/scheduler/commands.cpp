@@ -1643,10 +1643,10 @@ cl_int ExecCGCommand::enqueueImp() {
         if (!RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
           Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
                                                           &MemArg);
-          break;
+        } else {
+          Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+                                                 sizeof(RT::PiMem), &MemArg);
         }
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(RT::PiMem), &MemArg);
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {
