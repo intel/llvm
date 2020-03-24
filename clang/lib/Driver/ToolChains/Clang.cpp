@@ -4121,7 +4121,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
-    if (IsSYCL) {
+  if (IsSYCL) {
     if (SYCLStdArg) {
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
@@ -4129,7 +4129,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
       CmdArgs.push_back("-sycl-std=2017");
     }
-    }
+  }
 
   if ((Args.hasArg(options::OPT_fsycl_device_only) ||
        Args.hasArg(options::OPT_fsycl) || IsSYCL) && !SYCLStdArg) {
