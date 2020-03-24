@@ -1056,7 +1056,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
   const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(KernelObjTy);
   const std::string StableName = PredefinedExpr::ComputeName(
       Ctx, PredefinedExpr::UniqueStableNameExpr, NameType);
-  H.startKernel(Name, NameType, StableName);
+  H.startKernel(Name, NameType, StableName, KernelObjTy->getLocation());
 
   auto populateHeaderForAccessor = [&](const QualType &ArgTy, uint64_t Offset) {
     // The parameter is a SYCL accessor object.
@@ -1485,7 +1485,8 @@ static std::string eraseAnonNamespace(std::string S) {
 }
 
 // Emits a forward declaration
-void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
+void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
+                                        SourceLocation KernelLocation) {
   // wrap the declaration into namespaces if needed
   unsigned NamespaceCnt = 0;
   std::string NSStr = "";
@@ -1503,8 +1504,18 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
         if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
-          Diag.Report(D->getSourceRange().getBegin(),
-                      diag::err_sycl_kernel_name_class_not_top_level);
+          const bool KernelNameIsMissing = TD->getName().empty();
+          if (KernelNameIsMissing) {
+            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name is missing */ 0;
+            // Don't emit note if kernel name was completely omitted
+          } else {
+            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name is not globally-visible */ 1;
+            Diag.Report(D->getSourceRange().getBegin(),
+                        diag::note_previous_decl)
+                << TD->getName();
+          }
         }
       }
       break;
@@ -1571,7 +1582,8 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
 //   template <typename T1, unsigned int N, typename ...T2> class SimpleVadd;
 //
 void SYCLIntegrationHeader::emitForwardClassDecls(
-    raw_ostream &O, QualType T, llvm::SmallPtrSetImpl<const void *> &Printed) {
+    raw_ostream &O, QualType T, SourceLocation KernelLocation,
+    llvm::SmallPtrSetImpl<const void *> &Printed) {
 
   // peel off the pointer types and get the class/struct type:
   for (; T->isPointerType(); T = T->getPointeeType())
@@ -1593,14 +1605,14 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
 
       switch (Arg.getKind()) {
       case TemplateArgument::ArgKind::Type:
-        emitForwardClassDecls(O, Arg.getAsType(), Printed);
+        emitForwardClassDecls(O, Arg.getAsType(), KernelLocation, Printed);
         break;
       case TemplateArgument::ArgKind::Pack: {
         ArrayRef<TemplateArgument> Pack = Arg.getPackAsArray();
 
         for (const auto &T : Pack) {
           if (T.getKind() == TemplateArgument::ArgKind::Type) {
-            emitForwardClassDecls(O, T.getAsType(), Printed);
+            emitForwardClassDecls(O, T.getAsType(), KernelLocation, Printed);
           }
         }
         break;
@@ -1623,7 +1635,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         // class template <template <typename> class> class T as it should.
         TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
         if (Printed.insert(TD).second) {
-          emitFwdDecl(O, TD);
+          emitFwdDecl(O, TD, KernelLocation);
         }
         break;
       }
@@ -1637,12 +1649,12 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
     assert(CTD && "template declaration must be available");
 
     if (Printed.insert(CTD).second) {
-      emitFwdDecl(O, CTD);
+      emitFwdDecl(O, CTD, KernelLocation);
     }
   } else if (Printed.insert(RD).second) {
     // emit forward declarations for "leaf" classes in the template parameter
     // tree;
-    emitFwdDecl(O, RD);
+    emitFwdDecl(O, RD, KernelLocation);
   }
 }
 
@@ -1659,7 +1671,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     llvm::SmallPtrSet<const void *, 4> Printed;
     for (const KernelDesc &K : KernelDescs) {
-      emitForwardClassDecls(O, K.NameType, Printed);
+      emitForwardClassDecls(O, K.NameType, K.KernelLocation, Printed);
     }
   }
   O << "\n";
@@ -1779,11 +1791,13 @@ bool SYCLIntegrationHeader::emit(const StringRef &IntHeaderName) {
 
 void SYCLIntegrationHeader::startKernel(StringRef KernelName,
                                         QualType KernelNameType,
-                                        StringRef KernelStableName) {
+                                        StringRef KernelStableName,
+                                        SourceLocation KernelLocation) {
   KernelDescs.resize(KernelDescs.size() + 1);
   KernelDescs.back().Name = std::string(KernelName);
   KernelDescs.back().NameType = KernelNameType;
   KernelDescs.back().StableName = std::string(KernelStableName);
+  KernelDescs.back().KernelLocation = KernelLocation;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
