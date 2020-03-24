@@ -1688,10 +1688,11 @@ static ArgDescriptor allocateSGPR64Input(CCState &CCInfo) {
   return allocateSGPR32InputImpl(CCInfo, &AMDGPU::SGPR_64RegClass, 16);
 }
 
-void SITargetLowering::allocateSpecialInputVGPRs(CCState &CCInfo,
-                                                 MachineFunction &MF,
-                                                 const SIRegisterInfo &TRI,
-                                                 SIMachineFunctionInfo &Info) const {
+/// Allocate implicit function VGPR arguments at the end of allocated user
+/// arguments.
+void SITargetLowering::allocateSpecialInputVGPRs(
+  CCState &CCInfo, MachineFunction &MF,
+  const SIRegisterInfo &TRI, SIMachineFunctionInfo &Info) const {
   const unsigned Mask = 0x3ff;
   ArgDescriptor Arg;
 
@@ -1709,6 +1710,20 @@ void SITargetLowering::allocateSpecialInputVGPRs(CCState &CCInfo,
     Info.setWorkItemIDZ(allocateVGPR32Input(CCInfo, Mask << 20, Arg));
 }
 
+/// Allocate implicit function VGPR arguments in fixed registers.
+void SITargetLowering::allocateSpecialInputVGPRsFixed(
+  CCState &CCInfo, MachineFunction &MF,
+  const SIRegisterInfo &TRI, SIMachineFunctionInfo &Info) const {
+  Register Reg = CCInfo.AllocateReg(AMDGPU::VGPR31);
+  if (!Reg)
+    report_fatal_error("failed to allocated VGPR for implicit arguments");
+
+  const unsigned Mask = 0x3ff;
+  Info.setWorkItemIDX(ArgDescriptor::createRegister(Reg, Mask));
+  Info.setWorkItemIDY(ArgDescriptor::createRegister(Reg, Mask << 10));
+  Info.setWorkItemIDZ(ArgDescriptor::createRegister(Reg, Mask << 20));
+}
+
 void SITargetLowering::allocateSpecialInputSGPRs(
   CCState &CCInfo,
   MachineFunction &MF,
@@ -1724,8 +1739,10 @@ void SITargetLowering::allocateSpecialInputSGPRs(
   if (Info.hasQueuePtr())
     ArgInfo.QueuePtr = allocateSGPR64Input(CCInfo);
 
-  if (Info.hasKernargSegmentPtr())
-    ArgInfo.KernargSegmentPtr = allocateSGPR64Input(CCInfo);
+  // Implicit arg ptr takes the place of the kernarg segment pointer. This is a
+  // constant offset from the kernarg segment.
+  if (Info.hasImplicitArgPtr())
+    ArgInfo.ImplicitArgPtr = allocateSGPR64Input(CCInfo);
 
   if (Info.hasDispatchID())
     ArgInfo.DispatchID = allocateSGPR64Input(CCInfo);
@@ -1740,9 +1757,6 @@ void SITargetLowering::allocateSpecialInputSGPRs(
 
   if (Info.hasWorkGroupIDZ())
     ArgInfo.WorkGroupIDZ = allocateSGPR32Input(CCInfo);
-
-  if (Info.hasImplicitArgPtr())
-    ArgInfo.ImplicitArgPtr = allocateSGPR64Input(CCInfo);
 }
 
 // Allocate special inputs passed in user SGPRs.
@@ -2092,6 +2106,10 @@ SDValue SITargetLowering::LowerFormalArguments(
   if (IsEntryFunc) {
     allocateSpecialEntryInputVGPRs(CCInfo, MF, *TRI, *Info);
     allocateHSAUserSGPRs(CCInfo, MF, *TRI, *Info);
+  } else {
+    // For the fixed ABI, pass workitem IDs in the last argument register.
+    if (AMDGPUTargetMachine::EnableFixedFunctionABI)
+      allocateSpecialInputVGPRsFixed(CCInfo, MF, *TRI, *Info);
   }
 
   if (IsKernel) {
@@ -2203,7 +2221,7 @@ SDValue SITargetLowering::LowerFormalArguments(
     InVals.push_back(Val);
   }
 
-  if (!IsEntryFunc) {
+  if (!IsEntryFunc && !AMDGPUTargetMachine::EnableFixedFunctionABI) {
     // Special inputs come after user arguments.
     allocateSpecialInputVGPRs(CCInfo, MF, *TRI, *Info);
   }
@@ -2427,20 +2445,19 @@ void SITargetLowering::passSpecialInputs(
   if (!CLI.CS)
     return;
 
-  const Function *CalleeFunc = CLI.CS.getCalledFunction();
-  assert(CalleeFunc);
-
   SelectionDAG &DAG = CLI.DAG;
   const SDLoc &DL = CLI.DL;
 
   const SIRegisterInfo *TRI = Subtarget->getRegisterInfo();
-
-  auto &ArgUsageInfo =
-    DAG.getPass()->getAnalysis<AMDGPUArgumentUsageInfo>();
-  const AMDGPUFunctionArgInfo &CalleeArgInfo
-    = ArgUsageInfo.lookupFuncArgInfo(*CalleeFunc);
-
   const AMDGPUFunctionArgInfo &CallerArgInfo = Info.getArgInfo();
+
+  const AMDGPUFunctionArgInfo *CalleeArgInfo
+    = &AMDGPUArgumentUsageInfo::FixedABIFunctionInfo;
+  if (const Function *CalleeFunc = CLI.CS.getCalledFunction()) {
+    auto &ArgUsageInfo =
+      DAG.getPass()->getAnalysis<AMDGPUArgumentUsageInfo>();
+    CalleeArgInfo = &ArgUsageInfo.lookupFuncArgInfo(*CalleeFunc);
+  }
 
   // TODO: Unify with private memory register handling. This is complicated by
   // the fact that at least in kernels, the input argument is not necessarily
@@ -2448,19 +2465,18 @@ void SITargetLowering::passSpecialInputs(
   AMDGPUFunctionArgInfo::PreloadedValue InputRegs[] = {
     AMDGPUFunctionArgInfo::DISPATCH_PTR,
     AMDGPUFunctionArgInfo::QUEUE_PTR,
-    AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR,
+    AMDGPUFunctionArgInfo::IMPLICIT_ARG_PTR,
     AMDGPUFunctionArgInfo::DISPATCH_ID,
     AMDGPUFunctionArgInfo::WORKGROUP_ID_X,
     AMDGPUFunctionArgInfo::WORKGROUP_ID_Y,
-    AMDGPUFunctionArgInfo::WORKGROUP_ID_Z,
-    AMDGPUFunctionArgInfo::IMPLICIT_ARG_PTR
+    AMDGPUFunctionArgInfo::WORKGROUP_ID_Z
   };
 
   for (auto InputID : InputRegs) {
     const ArgDescriptor *OutgoingArg;
     const TargetRegisterClass *ArgRC;
 
-    std::tie(OutgoingArg, ArgRC) = CalleeArgInfo.getPreloadedValue(InputID);
+    std::tie(OutgoingArg, ArgRC) = CalleeArgInfo->getPreloadedValue(InputID);
     if (!OutgoingArg)
       continue;
 
@@ -2485,6 +2501,8 @@ void SITargetLowering::passSpecialInputs(
 
     if (OutgoingArg->isRegister()) {
       RegsToPass.emplace_back(OutgoingArg->getRegister(), InputReg);
+      if (!CCInfo.AllocateReg(OutgoingArg->getRegister()))
+        report_fatal_error("failed to allocate implicit input argument");
     } else {
       unsigned SpecialArgOffset = CCInfo.AllocateStack(ArgVT.getStoreSize(), 4);
       SDValue ArgStore = storeStackInputValue(DAG, DL, Chain, InputReg,
@@ -2499,13 +2517,13 @@ void SITargetLowering::passSpecialInputs(
   const TargetRegisterClass *ArgRC;
 
   std::tie(OutgoingArg, ArgRC) =
-    CalleeArgInfo.getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_X);
+    CalleeArgInfo->getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_X);
   if (!OutgoingArg)
     std::tie(OutgoingArg, ArgRC) =
-      CalleeArgInfo.getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_Y);
+      CalleeArgInfo->getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_Y);
   if (!OutgoingArg)
     std::tie(OutgoingArg, ArgRC) =
-      CalleeArgInfo.getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_Z);
+      CalleeArgInfo->getPreloadedValue(AMDGPUFunctionArgInfo::WORKITEM_ID_Z);
   if (!OutgoingArg)
     return;
 
@@ -2520,10 +2538,10 @@ void SITargetLowering::passSpecialInputs(
   SDLoc SL;
 
   // If incoming ids are not packed we need to pack them.
-  if (IncomingArgX && !IncomingArgX->isMasked() && CalleeArgInfo.WorkItemIDX)
+  if (IncomingArgX && !IncomingArgX->isMasked() && CalleeArgInfo->WorkItemIDX)
     InputReg = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgX);
 
-  if (IncomingArgY && !IncomingArgY->isMasked() && CalleeArgInfo.WorkItemIDY) {
+  if (IncomingArgY && !IncomingArgY->isMasked() && CalleeArgInfo->WorkItemIDY) {
     SDValue Y = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgY);
     Y = DAG.getNode(ISD::SHL, SL, MVT::i32, Y,
                     DAG.getShiftAmountConstant(10, MVT::i32, SL));
@@ -2531,7 +2549,7 @@ void SITargetLowering::passSpecialInputs(
                  DAG.getNode(ISD::OR, SL, MVT::i32, InputReg, Y) : Y;
   }
 
-  if (IncomingArgZ && !IncomingArgZ->isMasked() && CalleeArgInfo.WorkItemIDZ) {
+  if (IncomingArgZ && !IncomingArgZ->isMasked() && CalleeArgInfo->WorkItemIDZ) {
     SDValue Z = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgZ);
     Z = DAG.getNode(ISD::SHL, SL, MVT::i32, Z,
                     DAG.getShiftAmountConstant(20, MVT::i32, SL));
@@ -2551,6 +2569,7 @@ void SITargetLowering::passSpecialInputs(
 
   if (OutgoingArg->isRegister()) {
     RegsToPass.emplace_back(OutgoingArg->getRegister(), InputReg);
+    CCInfo.AllocateReg(OutgoingArg->getRegister());
   } else {
     unsigned SpecialArgOffset = CCInfo.AllocateStack(4, 4);
     SDValue ArgStore = storeStackInputValue(DAG, DL, Chain, InputReg,
@@ -2688,7 +2707,7 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   if (!CLI.CS.getInstruction())
     report_fatal_error("unsupported libcall legalization");
 
-  if (!CLI.CS.getCalledFunction()) {
+  if (!AMDGPUTargetMachine::EnableFixedFunctionABI && !CLI.CS.getCalledFunction()) {
     return lowerUnhandledCall(CLI, InVals,
                               "unsupported indirect call to function ");
   }
@@ -2725,11 +2744,18 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   }
 
   const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+  SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
+  SmallVector<SDValue, 8> MemOpChains;
 
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCAssignFn *AssignFn = CCAssignFnForCall(CallConv, IsVarArg);
+
+  if (AMDGPUTargetMachine::EnableFixedFunctionABI) {
+    // With a fixed ABI, allocate fixed registers before user arguments.
+    passSpecialInputs(CLI, CCInfo, *Info, RegsToPass, MemOpChains, Chain);
+  }
 
   CCInfo.AnalyzeCallOperands(Outs, AssignFn);
 
@@ -2749,7 +2775,6 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   // arguments to begin at SP+0. Completely unused for non-tail calls.
   int32_t FPDiff = 0;
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
 
   // Adjust the stack pointer for the new arguments...
   // These operations are automatically eliminated by the prolog/epilog pass
@@ -2766,7 +2791,6 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
     Chain = DAG.getTokenFactor(DL, CopyFromChains);
   }
 
-  SmallVector<SDValue, 8> MemOpChains;
   MVT PtrVT = MVT::i32;
 
   // Walk the register/memloc assignments, inserting copies/loads.
@@ -2862,8 +2886,10 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
     }
   }
 
-  // Copy special input registers after user input arguments.
-  passSpecialInputs(CLI, CCInfo, *Info, RegsToPass, MemOpChains, Chain);
+  if (!AMDGPUTargetMachine::EnableFixedFunctionABI) {
+    // Copy special input registers after user input arguments.
+    passSpecialInputs(CLI, CCInfo, *Info, RegsToPass, MemOpChains, Chain);
+  }
 
   if (!MemOpChains.empty())
     Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
@@ -2910,9 +2936,12 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   Ops.push_back(Callee);
   // Add a redundant copy of the callee global which will not be legalized, as
   // we need direct access to the callee later.
-  GlobalAddressSDNode *GSD = cast<GlobalAddressSDNode>(Callee);
-  const GlobalValue *GV = GSD->getGlobal();
-  Ops.push_back(DAG.getTargetGlobalAddress(GV, DL, MVT::i64));
+  if (GlobalAddressSDNode *GSD = dyn_cast<GlobalAddressSDNode>(Callee)) {
+    const GlobalValue *GV = GSD->getGlobal();
+    Ops.push_back(DAG.getTargetGlobalAddress(GV, DL, MVT::i64));
+  } else {
+    Ops.push_back(DAG.getTargetConstant(0, DL, MVT::i64));
+  }
 
   if (IsTailCall) {
     // Each tail call may have to adjust the stack by a different amount, so
@@ -3293,9 +3322,15 @@ static MachineBasicBlock::iterator loadM0FromVGPR(const SIInstrInfo *TII,
   auto InsPt = emitLoadM0FromVGPRLoop(TII, MRI, MBB, *LoopBB, DL, *Idx,
                                       InitResultReg, DstReg, PhiReg, TmpExec,
                                       Offset, UseGPRIdxMode, IsIndirectSrc);
-
-  MachineBasicBlock::iterator First = RemainderBB->begin();
-  BuildMI(*RemainderBB, First, DL, TII->get(MovExecOpc), Exec)
+  MachineBasicBlock* LandingPad = MF->CreateMachineBasicBlock();
+  MachineFunction::iterator MBBI(LoopBB);
+  ++MBBI;
+  MF->insert(MBBI, LandingPad);
+  LoopBB->removeSuccessor(RemainderBB);
+  LandingPad->addSuccessor(RemainderBB);
+  LoopBB->addSuccessor(LandingPad);
+  MachineBasicBlock::iterator First = LandingPad->begin();
+  BuildMI(*LandingPad, First, DL, TII->get(MovExecOpc), Exec)
     .addReg(SaveExec);
 
   return InsPt;
@@ -5729,6 +5764,11 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                              AMDGPUFunctionArgInfo::IMPLICIT_ARG_PTR);
   }
   case Intrinsic::amdgcn_kernarg_segment_ptr: {
+    if (!AMDGPU::isKernel(MF.getFunction().getCallingConv())) {
+      // This only makes sense to call in a kernel, so just lower to null.
+      return DAG.getConstant(0, DL, VT);
+    }
+
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR);
   }
@@ -8979,8 +9019,7 @@ SDValue SITargetLowering::performFPMed3ImmCombine(SelectionDAG &DAG,
     return SDValue();
 
   // Ordered >= (although NaN inputs should have folded away by now).
-  APFloat::cmpResult Cmp = K0->getValueAPF().compare(K1->getValueAPF());
-  if (Cmp == APFloat::cmpGreaterThan)
+  if (K0->getValueAPF() > K1->getValueAPF())
     return SDValue();
 
   const MachineFunction &MF = DAG.getMachineFunction();
@@ -9827,8 +9866,13 @@ SDValue SITargetLowering::performCvtF32UByteNCombine(SDNode *N,
 
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   APInt DemandedBits = APInt::getBitsSet(32, 8 * Offset, 8 * Offset + 8);
-  if (TLI.SimplifyDemandedBits(Src, DemandedBits, DCI))
+  if (TLI.SimplifyDemandedBits(Src, DemandedBits, DCI)) {
+    // We simplified Src. If this node is not dead, visit it again so it is
+    // folded properly.
+    if (N->getOpcode() != ISD::DELETED_NODE)
+      DCI.AddToWorklist(N);
     return SDValue(N, 0);
+  }
 
   // Handle (or x, (srl y, 8)) pattern when known bits are zero.
   if (SDValue DemandedSrc =
@@ -9847,16 +9891,13 @@ SDValue SITargetLowering::performClampCombine(SDNode *N,
   const MachineFunction &MF = DCI.DAG.getMachineFunction();
   const APFloat &F = CSrc->getValueAPF();
   APFloat Zero = APFloat::getZero(F.getSemantics());
-  APFloat::cmpResult Cmp0 = F.compare(Zero);
-  if (Cmp0 == APFloat::cmpLessThan ||
-      (Cmp0 == APFloat::cmpUnordered &&
-       MF.getInfo<SIMachineFunctionInfo>()->getMode().DX10Clamp)) {
+  if (F < Zero ||
+      (F.isNaN() && MF.getInfo<SIMachineFunctionInfo>()->getMode().DX10Clamp)) {
     return DCI.DAG.getConstantFP(Zero, SDLoc(N), N->getValueType(0));
   }
 
   APFloat One(F.getSemantics(), "1.0");
-  APFloat::cmpResult Cmp1 = F.compare(One);
-  if (Cmp1 == APFloat::cmpGreaterThan)
+  if (F > One)
     return DCI.DAG.getConstantFP(One, SDLoc(N), N->getValueType(0));
 
   return SDValue(CSrc, 0);

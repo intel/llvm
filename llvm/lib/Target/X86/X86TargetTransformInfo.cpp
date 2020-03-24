@@ -1297,6 +1297,8 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v32i1, 2 },
     { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v32i1, 2 },
     { ISD::ZERO_EXTEND, MVT::v64i8,  MVT::v64i1, 2 },
+
+    { ISD::TRUNCATE,    MVT::v32i8,  MVT::v32i16, 1 },
   };
 
   static const TypeConversionCostTblEntry AVX512DQConversionTbl[] = {
@@ -1887,7 +1889,8 @@ unsigned X86TTIImpl::getAtomicMemIntrinsicMaxElementSize() const { return 16; }
 
 int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
                                       ArrayRef<Type *> Tys, FastMathFlags FMF,
-                                      unsigned ScalarizationCostPassed) {
+                                      unsigned ScalarizationCostPassed,
+                                      const Instruction *I) {
   // Costs should match the codegen from:
   // BITREVERSE: llvm\test\CodeGen\X86\vector-bitreverse.ll
   // BSWAP: llvm\test\CodeGen\X86\bswap-vector.ll
@@ -1951,6 +1954,14 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
     { ISD::UADDSAT,    MVT::v2i64,   3 }, // not + pminuq + paddq
     { ISD::UADDSAT,    MVT::v4i64,   3 }, // not + pminuq + paddq
     { ISD::UADDSAT,    MVT::v8i64,   3 }, // not + pminuq + paddq
+    { ISD::FMAXNUM,    MVT::f32,     2 },
+    { ISD::FMAXNUM,    MVT::v4f32,   2 },
+    { ISD::FMAXNUM,    MVT::v8f32,   2 },
+    { ISD::FMAXNUM,    MVT::v16f32,  2 },
+    { ISD::FMAXNUM,    MVT::f64,     2 },
+    { ISD::FMAXNUM,    MVT::v2f64,   2 },
+    { ISD::FMAXNUM,    MVT::v4f64,   2 },
+    { ISD::FMAXNUM,    MVT::v8f64,   2 },
   };
   static const CostTblEntry XOPCostTbl[] = {
     { ISD::BITREVERSE, MVT::v4i64,   4 },
@@ -2033,6 +2044,12 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
     { ISD::USUBSAT,    MVT::v16i16,  4 }, // 2 x 128-bit Op + extract/insert
     { ISD::USUBSAT,    MVT::v32i8,   4 }, // 2 x 128-bit Op + extract/insert
     { ISD::USUBSAT,    MVT::v8i32,   6 }, // 2 x 128-bit Op + extract/insert
+    { ISD::FMAXNUM,    MVT::f32,     3 },
+    { ISD::FMAXNUM,    MVT::v4f32,   3 },
+    { ISD::FMAXNUM,    MVT::v8f32,   5 },
+    { ISD::FMAXNUM,    MVT::f64,     3 },
+    { ISD::FMAXNUM,    MVT::v2f64,   3 },
+    { ISD::FMAXNUM,    MVT::v4f64,   5 },
     { ISD::FSQRT,      MVT::f32,    14 }, // SNB from http://www.agner.org/
     { ISD::FSQRT,      MVT::v4f32,  14 }, // SNB from http://www.agner.org/
     { ISD::FSQRT,      MVT::v8f32,  28 }, // SNB from http://www.agner.org/
@@ -2107,12 +2124,24 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
     { ISD::UADDSAT,    MVT::v16i8,   1 },
     { ISD::USUBSAT,    MVT::v8i16,   1 },
     { ISD::USUBSAT,    MVT::v16i8,   1 },
+    { ISD::FMAXNUM,    MVT::f64,     4 },
+    { ISD::FMAXNUM,    MVT::v2f64,   4 },
     { ISD::FSQRT,      MVT::f64,    32 }, // Nehalem from http://www.agner.org/
     { ISD::FSQRT,      MVT::v2f64,  32 }, // Nehalem from http://www.agner.org/
   };
   static const CostTblEntry SSE1CostTbl[] = {
+    { ISD::FMAXNUM,    MVT::f32,     4 },
+    { ISD::FMAXNUM,    MVT::v4f32,   4 },
     { ISD::FSQRT,      MVT::f32,    28 }, // Pentium III from http://www.agner.org/
     { ISD::FSQRT,      MVT::v4f32,  56 }, // Pentium III from http://www.agner.org/
+  };
+  static const CostTblEntry BMI64CostTbl[] = { // 64-bit targets
+    { ISD::CTTZ,       MVT::i64,     1 },
+  };
+  static const CostTblEntry BMI32CostTbl[] = { // 32 or 64-bit targets
+    { ISD::CTTZ,       MVT::i32,     1 },
+    { ISD::CTTZ,       MVT::i16,     1 },
+    { ISD::CTTZ,       MVT::i8,      1 },
   };
   static const CostTblEntry LZCNT64CostTbl[] = { // 64-bit targets
     { ISD::CTLZ,       MVT::i64,     1 },
@@ -2133,6 +2162,7 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
   static const CostTblEntry X64CostTbl[] = { // 64-bit targets
     { ISD::BITREVERSE, MVT::i64,    14 },
     { ISD::CTLZ,       MVT::i64,     4 }, // BSR+XOR or BSR+XOR+CMOV
+    { ISD::CTTZ,       MVT::i64,     3 }, // TEST+BSF+CMOV/BRANCH
     { ISD::CTPOP,      MVT::i64,    10 },
     { ISD::SADDO,      MVT::i64,     1 },
     { ISD::UADDO,      MVT::i64,     1 },
@@ -2144,6 +2174,9 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
     { ISD::CTLZ,       MVT::i32,     4 }, // BSR+XOR or BSR+XOR+CMOV
     { ISD::CTLZ,       MVT::i16,     4 }, // BSR+XOR or BSR+XOR+CMOV
     { ISD::CTLZ,       MVT::i8,      4 }, // BSR+XOR or BSR+XOR+CMOV
+    { ISD::CTTZ,       MVT::i32,     3 }, // TEST+BSF+CMOV/BRANCH
+    { ISD::CTTZ,       MVT::i16,     3 }, // TEST+BSF+CMOV/BRANCH
+    { ISD::CTTZ,       MVT::i8,      3 }, // TEST+BSF+CMOV/BRANCH
     { ISD::CTPOP,      MVT::i32,     8 },
     { ISD::CTPOP,      MVT::i16,     9 },
     { ISD::CTPOP,      MVT::i8,      7 },
@@ -2174,6 +2207,11 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
     break;
   case Intrinsic::cttz:
     ISD = ISD::CTTZ;
+    break;
+  case Intrinsic::maxnum:
+  case Intrinsic::minnum:
+    // FMINNUM has same costs so don't duplicate.
+    ISD = ISD::FMAXNUM;
     break;
   case Intrinsic::sadd_sat:
     ISD = ISD::SADDSAT;
@@ -2258,6 +2296,15 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
       if (const auto *Entry = CostTableLookup(SSE1CostTbl, ISD, MTy))
         return LT.first * Entry->Cost;
 
+    if (ST->hasBMI()) {
+      if (ST->is64Bit())
+        if (const auto *Entry = CostTableLookup(BMI64CostTbl, ISD, MTy))
+          return LT.first * Entry->Cost;
+
+      if (const auto *Entry = CostTableLookup(BMI32CostTbl, ISD, MTy))
+        return LT.first * Entry->Cost;
+    }
+
     if (ST->hasLZCNT()) {
       if (ST->is64Bit())
         if (const auto *Entry = CostTableLookup(LZCNT64CostTbl, ISD, MTy))
@@ -2286,12 +2333,13 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
       return LT.first * Entry->Cost;
   }
 
-  return BaseT::getIntrinsicInstrCost(IID, RetTy, Tys, FMF, ScalarizationCostPassed);
+  return BaseT::getIntrinsicInstrCost(IID, RetTy, Tys, FMF,
+                                      ScalarizationCostPassed, I);
 }
 
 int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
                                       ArrayRef<Value *> Args, FastMathFlags FMF,
-                                      unsigned VF) {
+                                      unsigned VF, const Instruction *I) {
   static const CostTblEntry AVX512CostTbl[] = {
     { ISD::ROTL,       MVT::v8i64,   1 },
     { ISD::ROTL,       MVT::v4i64,   1 },
@@ -2381,7 +2429,7 @@ int X86TTIImpl::getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
       return LT.first * Entry->Cost;
   }
 
-  return BaseT::getIntrinsicInstrCost(IID, RetTy, Args, FMF, VF);
+  return BaseT::getIntrinsicInstrCost(IID, RetTy, Args, FMF, VF, I);
 }
 
 int X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index) {
@@ -3331,7 +3379,8 @@ int X86TTIImpl::getGSScalarCost(unsigned Opcode, Type *SrcVTy,
 /// Calculate the cost of Gather / Scatter operation
 int X86TTIImpl::getGatherScatterOpCost(unsigned Opcode, Type *SrcVTy,
                                        Value *Ptr, bool VariableMask,
-                                       unsigned Alignment) {
+                                       unsigned Alignment,
+                                       const Instruction *I = nullptr) {
   assert(SrcVTy->isVectorTy() && "Unexpected data type for Gather/Scatter");
   unsigned VF = SrcVTy->getVectorNumElements();
   PointerType *PtrTy = dyn_cast<PointerType>(Ptr->getType());

@@ -7,21 +7,21 @@
 ; RUN: echo 'attributes #0 = { nounwind }' >> %t.tgtattr
 ; RUN: llc -mtriple=riscv32 -target-abi ilp32d -mattr=+c,+f,+d -filetype=obj \
 ; RUN:   -disable-block-placement < %t.tgtattr \
-; RUN:   | llvm-objdump -d -triple=riscv32 -mattr=+c,+f,+d -M no-aliases - \
+; RUN:   | llvm-objdump -d --triple=riscv32 --mattr=+c,+f,+d -M no-aliases - \
 ; RUN:   | FileCheck -check-prefix=RV32IFDC %s
 ;
 ; RUN: cat %s > %t.fnattr
 ; RUN: echo 'attributes #0 = { nounwind "target-features"="+c,+f,+d" }' >> %t.fnattr
 ; RUN: llc -mtriple=riscv32 -target-abi ilp32d -filetype=obj \
 ; RUN:   -disable-block-placement < %t.fnattr \
-; RUN:   | llvm-objdump -d -triple=riscv32 -mattr=+c,+f,+d -M no-aliases - \
+; RUN:   | llvm-objdump -d --triple=riscv32 --mattr=+c,+f,+d -M no-aliases - \
 ; RUN:   | FileCheck -check-prefix=RV32IFDC %s
 ;
 ; RUN: cat %s > %t.mixedattr
 ; RUN: echo 'attributes #0 = { nounwind "target-features"="+f,+d" }' >> %t.mixedattr
 ; RUN: llc -mtriple=riscv32 -target-abi ilp32d -mattr=+c -filetype=obj \
 ; RUN:   -disable-block-placement < %t.mixedattr \
-; RUN:   | llvm-objdump -d -triple=riscv32 -mattr=+c,+f,+d -M no-aliases - \
+; RUN:   | llvm-objdump -d --triple=riscv32 --mattr=+c,+f,+d -M no-aliases - \
 ; RUN:   | FileCheck -check-prefix=RV32IFDC %s
 
 ; This acts as a sanity check for the codegen instruction compression path,
@@ -32,7 +32,7 @@
 ; instructions which also require one of the floating point extensions.
 
 define float @float_load(float *%a) #0 {
-; RV32IFDC-LABEL: float_load:
+; RV32IFDC-LABEL: <float_load>:
 ; RV32IFDC:         c.flw fa0, 0(a0)
 ; RV32IFDC-NEXT:    c.jr ra
   %1 = load volatile float, float* %a
@@ -40,7 +40,7 @@ define float @float_load(float *%a) #0 {
 }
 
 define double @double_load(double *%a) #0 {
-; RV32IFDC-LABEL: double_load:
+; RV32IFDC-LABEL: <double_load>:
 ; RV32IFDC:         c.fld fa0, 0(a0)
 ; RV32IFDC-NEXT:    c.jr ra
   %1 = load volatile double, double* %a

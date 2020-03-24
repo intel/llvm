@@ -22,7 +22,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
-#include "llvm/CodeGen/CommandFlags.inc"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/DataLayout.h"
@@ -61,6 +61,8 @@
 #include <memory>
 using namespace llvm;
 using namespace opt_tool;
+
+static codegen::RegisterCodeGenFlags CFG;
 
 // The OptimizationList is automatically populated with registered Passes by the
 // PassNameParser.
@@ -257,6 +259,20 @@ static cl::opt<bool> Coroutines(
   "enable-coroutines",
   cl::desc("Enable coroutine passes."),
   cl::init(false), cl::Hidden);
+
+static cl::opt<bool> TimeTrace(
+    "time-trace",
+    cl::desc("Record time trace"));
+
+static cl::opt<unsigned> TimeTraceGranularity(
+    "time-trace-granularity",
+    cl::desc("Minimum time granularity (in microseconds) traced by time profiler"),
+    cl::init(500), cl::Hidden);
+
+static cl::opt<std::string>
+    TimeTraceFile("time-trace-file",
+                    cl::desc("Specify time trace file destination"),
+                    cl::value_desc("filename"));
 
 static cl::opt<bool> RemarksWithHotness(
     "pass-remarks-with-hotness",
@@ -471,16 +487,17 @@ static TargetMachine* GetTargetMachine(Triple TheTriple, StringRef CPUStr,
                                        StringRef FeaturesStr,
                                        const TargetOptions &Options) {
   std::string Error;
-  const Target *TheTarget = TargetRegistry::lookupTarget(MArch, TheTriple,
-                                                         Error);
+  const Target *TheTarget =
+      TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
   // Some modules don't specify a triple, and this is okay.
   if (!TheTarget) {
     return nullptr;
   }
 
-  return TheTarget->createTargetMachine(TheTriple.getTriple(), CPUStr,
-                                        FeaturesStr, Options, getRelocModel(),
-                                        getCodeModel(), GetCodeGenOptLevel());
+  return TheTarget->createTargetMachine(
+      TheTriple.getTriple(), codegen::getCPUStr(), codegen::getFeaturesStr(),
+      Options, codegen::getExplicitRelocModel(),
+      codegen::getExplicitCodeModel(), GetCodeGenOptLevel());
 }
 
 #ifdef BUILD_EXAMPLES
@@ -508,6 +525,24 @@ void exportDebugifyStats(llvm::StringRef Path, const DebugifyStatsMap &Map) {
        << Stats.getEmptyLocationRatio() << '\n';
   }
 }
+
+struct TimeTracerRAII {
+  TimeTracerRAII(StringRef ProgramName) {
+    if (TimeTrace)
+      timeTraceProfilerInitialize(TimeTraceGranularity, ProgramName);
+  }
+  ~TimeTracerRAII() {
+    if (TimeTrace) {
+      if (auto E = timeTraceProfilerWrite(TimeTraceFile, OutputFilename)) {
+        handleAllErrors(std::move(E), [&](const StringError &SE) {
+          errs() << SE.getMessage() << "\n";
+        });
+        return;
+      }
+      timeTraceProfilerCleanup();
+    }
+  }
+};
 
 //===----------------------------------------------------------------------===//
 // main for opt
@@ -576,6 +611,8 @@ int main(int argc, char **argv) {
     errs() << argv[0] << ": analyze mode conflicts with no-output mode.\n";
     return 1;
   }
+
+  TimeTracerRAII TimeTracer(argv[0]);
 
   SMDiagnostic Err;
 
@@ -668,11 +705,11 @@ int main(int argc, char **argv) {
   Triple ModuleTriple(M->getTargetTriple());
   std::string CPUStr, FeaturesStr;
   TargetMachine *Machine = nullptr;
-  const TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
+  const TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
 
   if (ModuleTriple.getArch()) {
-    CPUStr = getCPUStr();
-    FeaturesStr = getFeaturesStr();
+    CPUStr = codegen::getCPUStr();
+    FeaturesStr = codegen::getFeaturesStr();
     Machine = GetTargetMachine(ModuleTriple, CPUStr, FeaturesStr, Options);
   } else if (ModuleTriple.getArchName() != "unknown" &&
              ModuleTriple.getArchName() != "") {
@@ -685,7 +722,7 @@ int main(int argc, char **argv) {
 
   // Override function attributes based on CPUStr, FeaturesStr, and command line
   // flags.
-  setFunctionAttributes(CPUStr, FeaturesStr, *M);
+  codegen::setFunctionAttributes(CPUStr, FeaturesStr, *M);
 
   // If the output is set to be emitted to standard out, and standard out is a
   // console, print out a warning message and refuse to do it.  We don't

@@ -711,6 +711,16 @@ pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info param_name,
 //
 // Device
 //
+///
+/// Create PI device from the given raw device handle (if the "device"
+/// points to null), or, vice versa, extract the raw device handle into
+/// the "handle" (if it was pointing to a null) from the given PI device.
+/// NOTE: The instance of the PI device created is retained.
+///
+pi_result piextDeviceConvert(
+    pi_device *device, ///< [in,out] the pointer to PI device
+    void **handle);    ///< [in,out] the pointer to the raw device handle
+
 pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
                        pi_uint32 num_entries, pi_device *devices,
                        pi_uint32 *num_devices);
@@ -811,6 +821,17 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 //
 // Program
 //
+///
+/// Create PI program from the given raw program handle (if the "program"
+/// points to null), or, vice versa, extract the raw program handle into
+/// the "handle" (if it was pointing to a null) from the given PI program.
+/// NOTE: The instance of the PI program created is retained.
+///
+pi_result piextProgramConvert(
+    pi_context context,  ///< [in] the PI context of the program
+    pi_program *program, ///< [in,out] the pointer to PI program
+    void **handle);      ///< [in,out] the pointer to the raw program handle
+
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program);
 

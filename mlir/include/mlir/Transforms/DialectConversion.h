@@ -227,57 +227,26 @@ public:
   /// Hook for derived classes to implement rewriting. `op` is the (first)
   /// operation matched by the pattern, `operands` is a list of rewritten values
   /// that are passed to this operation, `rewriter` can be used to emit the new
-  /// operations. This function must be reimplemented if the
-  /// ConversionPattern ever needs to replace an operation that does not
-  /// have successors. This function should not fail. If some specific cases of
+  /// operations. This function should not fail. If some specific cases of
   /// the operation are not supported, these cases should not be matched.
   virtual void rewrite(Operation *op, ArrayRef<Value> operands,
                        ConversionPatternRewriter &rewriter) const {
     llvm_unreachable("unimplemented rewrite");
   }
 
-  /// Hook for derived classes to implement rewriting. `op` is the (first)
-  /// operation matched by the pattern, `properOperands` is a list of rewritten
-  /// values that are passed to the operation itself, `destinations` is a list
-  /// of (potentially rewritten) successor blocks, `operands` is a list of lists
-  /// of rewritten values passed to each of the successors, co-indexed with
-  /// `destinations`, `rewriter` can be used to emit the new operations. It must
-  /// be reimplemented if the ConversionPattern ever needs to replace a
-  /// terminator operation that has successors. This function should not fail
-  /// the pass. If some specific cases of the operation are not supported,
-  /// these cases should not be matched.
-  virtual void rewrite(Operation *op, ArrayRef<Value> properOperands,
-                       ArrayRef<Block *> destinations,
-                       ArrayRef<ArrayRef<Value>> operands,
-                       ConversionPatternRewriter &rewriter) const {
-    llvm_unreachable("unimplemented rewrite for terminators");
-  }
-
   /// Hook for derived classes to implement combined matching and rewriting.
-  virtual PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> properOperands,
-                  ArrayRef<Block *> destinations,
-                  ArrayRef<ArrayRef<Value>> operands,
-                  ConversionPatternRewriter &rewriter) const {
-    if (!match(op))
-      return matchFailure();
-    rewrite(op, properOperands, destinations, operands, rewriter);
-    return matchSuccess();
-  }
-
-  /// Hook for derived classes to implement combined matching and rewriting.
-  virtual PatternMatchResult
+  virtual LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const {
-    if (!match(op))
-      return matchFailure();
+    if (failed(match(op)))
+      return failure();
     rewrite(op, operands, rewriter);
-    return matchSuccess();
+    return success();
   }
 
   /// Attempt to match and rewrite the IR root at the specified operation.
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const final;
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final;
 
 private:
   using RewritePattern::rewrite;
@@ -297,22 +266,7 @@ struct OpConversionPattern : public ConversionPattern {
                ConversionPatternRewriter &rewriter) const final {
     rewrite(cast<SourceOp>(op), operands, rewriter);
   }
-  void rewrite(Operation *op, ArrayRef<Value> properOperands,
-               ArrayRef<Block *> destinations,
-               ArrayRef<ArrayRef<Value>> operands,
-               ConversionPatternRewriter &rewriter) const final {
-    rewrite(cast<SourceOp>(op), properOperands, destinations, operands,
-            rewriter);
-  }
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> properOperands,
-                  ArrayRef<Block *> destinations,
-                  ArrayRef<ArrayRef<Value>> operands,
-                  ConversionPatternRewriter &rewriter) const final {
-    return matchAndRewrite(cast<SourceOp>(op), properOperands, destinations,
-                           operands, rewriter);
-  }
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     return matchAndRewrite(cast<SourceOp>(op), operands, rewriter);
@@ -328,31 +282,13 @@ struct OpConversionPattern : public ConversionPattern {
     llvm_unreachable("must override matchAndRewrite or a rewrite method");
   }
 
-  virtual void rewrite(SourceOp op, ArrayRef<Value> properOperands,
-                       ArrayRef<Block *> destinations,
-                       ArrayRef<ArrayRef<Value>> operands,
-                       ConversionPatternRewriter &rewriter) const {
-    llvm_unreachable("unimplemented rewrite for terminators");
-  }
-
-  virtual PatternMatchResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> properOperands,
-                  ArrayRef<Block *> destinations,
-                  ArrayRef<ArrayRef<Value>> operands,
-                  ConversionPatternRewriter &rewriter) const {
-    if (!match(op))
-      return matchFailure();
-    rewrite(op, properOperands, destinations, operands, rewriter);
-    return matchSuccess();
-  }
-
-  virtual PatternMatchResult
+  virtual LogicalResult
   matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const {
-    if (!match(op))
-      return matchFailure();
+    if (failed(match(op)))
+      return failure();
     rewrite(op, operands, rewriter);
-    return matchSuccess();
+    return success();
   }
 
 private:
@@ -442,6 +378,12 @@ public:
 
   /// PatternRewriter hook for updating the root operation in-place.
   void cancelRootUpdate(Operation *op) override;
+
+  /// PatternRewriter hook for notifying match failure reasons.
+  LogicalResult
+  notifyMatchFailure(Operation *op,
+                     function_ref<void(Diagnostic &)> reasonCallback) override;
+  using PatternRewriter::notifyMatchFailure;
 
   /// Return a reference to the internal implementation.
   detail::ConversionPatternRewriterImpl &getImpl();

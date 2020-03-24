@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 void defined() {
 }
@@ -92,6 +92,9 @@ void forwardDeclFn() {
 }
 
 int main() {
+  // No problems in host code
+  undefined();
+
   kernel_single_task<class CallToUndefinedFnTester>([]() {
     // expected-note@-1 {{called by 'operator()'}}
     // expected-note@-2 {{called by 'operator()'}}

@@ -2,7 +2,7 @@
 // RUN: llvm-mc %s -o %t.o -filetype=obj -triple=armv7a-linux-gnueabi
 // RUN: ld.lld %t.o -o %t.so -shared
 // RUN: llvm-readobj -S --dyn-relocations %t.so | FileCheck --check-prefix=SEC %s
-// RUN: llvm-objdump -d -triple=armv7a-linux-gnueabi %t.so | FileCheck %s
+// RUN: llvm-objdump -d --triple=armv7a-linux-gnueabi %t.so | FileCheck %s
 
 // Test the handling of the global-dynamic TLS model. Dynamic Loader finds
 // module index R_ARM_TLS_DTPMOD32 and the offset within the module
@@ -91,7 +91,7 @@ x:
 // SEC-NEXT: 0x2270 R_ARM_TLS_DTPOFF32 y
 
 
-// CHECK-LABEL: 000011f8 func:
+// CHECK-LABEL: 000011f8 <func>:
 // CHECK-NEXT:    11f8:      00 f0 20 e3     nop
 // CHECK-NEXT:    11fc:      00 f0 20 e3     nop
 // CHECK-NEXT:    1200:      00 f0 20 e3     nop

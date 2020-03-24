@@ -1840,7 +1840,7 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
   Type *ResultTy;
   if (VectorType *VT = dyn_cast<VectorType>(C1->getType()))
     ResultTy = VectorType::get(Type::getInt1Ty(C1->getContext()),
-                               VT->getNumElements());
+                               VT->getElementCount());
   else
     ResultTy = Type::getInt1Ty(C1->getContext());
 
@@ -1971,6 +1971,11 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
                                         R==APFloat::cmpEqual);
     }
   } else if (C1->getType()->isVectorTy()) {
+    // Do not iterate on scalable vector. The number of elements is unknown at
+    // compile-time.
+    if (C1->getType()->getVectorIsScalable())
+      return nullptr;
+
     // If we can constant fold the comparison of each element, constant fold
     // the whole vector comparison.
     SmallVector<Constant*, 4> ResElts;
@@ -2229,8 +2234,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
   Constant *Idx0 = cast<Constant>(Idxs[0]);
   if (Idxs.size() == 1 && (Idx0->isNullValue() || isa<UndefValue>(Idx0)))
     return GEPTy->isVectorTy() && !C->getType()->isVectorTy()
-               ? ConstantVector::getSplat(
-                     cast<VectorType>(GEPTy)->getNumElements(), C)
+               ? ConstantVector::getSplat(GEPTy->getVectorElementCount(), C)
                : C;
 
   if (C->isNullValue()) {
@@ -2385,10 +2389,11 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
   SmallVector<Constant *, 8> NewIdxs;
   Type *Ty = PointeeTy;
   Type *Prev = C->getType();
+  auto GEPIter = gep_type_begin(PointeeTy, Idxs);
   bool Unknown =
       !isa<ConstantInt>(Idxs[0]) && !isa<ConstantDataVector>(Idxs[0]);
   for (unsigned i = 1, e = Idxs.size(); i != e;
-       Prev = Ty, Ty = cast<CompositeType>(Ty)->getTypeAtIndex(Idxs[i]), ++i) {
+       Prev = Ty, Ty = (++GEPIter).getIndexedType(), ++i) {
     if (!isa<ConstantInt>(Idxs[i]) && !isa<ConstantDataVector>(Idxs[i])) {
       // We don't know if it's in range or not.
       Unknown = true;

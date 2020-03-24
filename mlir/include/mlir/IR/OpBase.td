@@ -253,6 +253,23 @@ class Dialect {
   // the generated files are included into the dialect, you may want to specify
   // a full namespace path or a partial one.
   string cppNamespace = name;
+
+  // An optional code block containing extra declarations to place in the
+  // dialect declaration.
+  code extraClassDeclaration = "";
+
+  // If this dialect overrides the hook for materializing constants.
+  bit hasConstantMaterializer = 0;
+
+  // If this dialect overrides the hook for verifying operation attributes.
+  bit hasOperationAttrVerify = 0;
+
+  // If this dialect overrides the hook for verifying region argument
+  // attributes.
+  bit hasRegionArgAttrVerify = 0;
+
+  // If this dialect overrides the hook for verifying region result attributes.
+  bit hasRegionResultAttrVerify = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -313,31 +330,97 @@ class AnyTypeOf<list<Type> allowedTypes, string description = ""> : Type<
         description)>;
 
 // Integer types.
-// Any integer type irrespective of its width.
+
+// Any integer type irrespective of its width and signedness semantics.
+def AnyInteger : Type<CPred<"$_self.isa<IntegerType>()">, "integer">;
+
+// Any integer type (regardless of signedness semantics) of a specific width.
+class AnyI<int width>
+    : Type<CPred<"$_self.isInteger(" # width # ")">, width # "-bit integer"> {
+  int bitwidth = width;
+}
+
+class AnyIntOfWidths<list<int> widths> :
+    AnyTypeOf<!foreach(w, widths, AnyI<w>),
+              StrJoinInt<widths, "/">.result # "-bit integer">;
+
+def AnyI1  : AnyI<1>;
+def AnyI8  : AnyI<8>;
+def AnyI16 : AnyI<16>;
+def AnyI32 : AnyI<32>;
+def AnyI64 : AnyI<64>;
+
+// Any signless integer type irrespective of its width.
 def AnySignlessInteger : Type<
-  CPred<"$_self.isSignlessInteger()">, "integer">;
+  CPred<"$_self.isSignlessInteger()">, "signless integer">;
 
-// Index type.
-def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">,
-            BuildableType<"$_builder.getIndexType()">;
-
-// Integer type of a specific width.
+// Signless integer type of a specific width.
 class I<int width>
     : Type<CPred<"$_self.isSignlessInteger(" # width # ")">,
-                  width # "-bit integer">,
+                  width # "-bit signless integer">,
       BuildableType<"$_builder.getIntegerType(" # width # ")"> {
   int bitwidth = width;
 }
 
-class IntOfWidths<list<int> widths> :
+class SignlessIntOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, I<w>),
-              StrJoinInt<widths, "/">.result # "-bit integer">;
+              StrJoinInt<widths, "/">.result # "-bit signless integer">;
 
 def I1  : I<1>;
 def I8  : I<8>;
 def I16 : I<16>;
 def I32 : I<32>;
 def I64 : I<64>;
+
+// Any signed integer type irrespective of its width.
+def AnySignedInteger : Type<
+  CPred<"$_self.isSignedInteger()">, "signed integer">;
+
+// Signed integer type of a specific width.
+class SI<int width>
+    : Type<CPred<"$_self.isSignedInteger(" # width # ")">,
+                  width # "-bit signed integer">,
+      BuildableType<
+        "$_builder.getIntegerType(" # width # ", /*isSigned=*/true)"> {
+  int bitwidth = width;
+}
+
+class SignedIntOfWidths<list<int> widths> :
+    AnyTypeOf<!foreach(w, widths, SI<w>),
+              StrJoinInt<widths, "/">.result # "-bit signed integer">;
+
+def SI1  : SI<1>;
+def SI8  : SI<8>;
+def SI16 : SI<16>;
+def SI32 : SI<32>;
+def SI64 : SI<64>;
+
+// Any unsigned integer type irrespective of its width.
+def AnyUnsignedInteger : Type<
+  CPred<"$_self.isUnsignedInteger()">, "unsigned integer">;
+
+// Unsigned integer type of a specific width.
+class UI<int width>
+    : Type<CPred<"$_self.isUnsignedInteger(" # width # ")">,
+                  width # "-bit unsigned integer">,
+      BuildableType<
+        "$_builder.getIntegerType(" # width # ", /*isSigned=*/false)"> {
+  int bitwidth = width;
+}
+
+class UnsignedIntOfWidths<list<int> widths> :
+    AnyTypeOf<!foreach(w, widths, UI<w>),
+              StrJoinInt<widths, "/">.result # "-bit unsigned integer">;
+
+def UI1  : UI<1>;
+def UI8  : UI<8>;
+def UI16 : UI<16>;
+def UI32 : UI<32>;
+def UI64 : UI<64>;
+
+// Index type.
+def Index : Type<CPred<"$_self.isa<IndexType>()">, "index">,
+            BuildableType<"$_builder.getIndexType()">;
 
 // Floating point types.
 
@@ -418,6 +501,29 @@ class HasAnyRankOfPred<list<int> ranks> : And<[
 
 class VectorOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsVectorTypePred, "vector">;
+
+// Whether the number of elements of a vector is from the given
+// `allowedRanks` list
+class IsVectorOfRankPred<list<int> allowedRanks> :
+  And<[IsVectorTypePred,
+       Or<!foreach(allowedlength, allowedRanks,
+                   CPred<[{$_self.cast<VectorType>().getRank()
+                           == }]
+                         # allowedlength>)>]>;
+
+// Any vector where the rank is from the given `allowedRanks` list
+class VectorOfRank<list<int> allowedRanks> : Type<
+  IsVectorOfRankPred<allowedRanks>,
+  " of ranks " # StrJoinInt<allowedRanks, "/">.result>;
+
+// Any vector where the rank is from the given `allowedRanks` list and the type
+// is from the given `allowedTypes` list
+class VectorOfRankAndType<list<int> allowedRanks,
+                          list<Type> allowedTypes> : Type<
+  And<[VectorOf<allowedTypes>.predicate,
+       VectorOfRank<allowedRanks>.predicate]>,
+  VectorOf<allowedTypes>.description #
+  VectorOfRank<allowedRanks>.description>;
 
 // Whether the number of elements of a vector is from the given
 // `allowedLengths` list
@@ -589,23 +695,23 @@ def BoolLike : TypeConstraint<Or<[I1.predicate, VectorOf<[I1]>.predicate,
                                   TensorOf<[I1]>.predicate]>,
     "bool-like">;
 
-// Type constraint for integer-like types: integers, indices, vectors of
-// integers, tensors of integers.
+// Type constraint for signless-integer-like types: signless integers, indices,
+// vectors of signless integers, tensors of signless integers.
 def SignlessIntegerLike : TypeConstraint<Or<[
         AnySignlessInteger.predicate, Index.predicate,
         VectorOf<[AnySignlessInteger]>.predicate,
         TensorOf<[AnySignlessInteger]>.predicate]>,
-    "integer-like">;
+    "signless-integer-like">;
 
 // Type constraint for float-like types: floats, vectors or tensors thereof.
 def FloatLike : TypeConstraint<Or<[AnyFloat.predicate,
         VectorOf<[AnyFloat]>.predicate, TensorOf<[AnyFloat]>.predicate]>,
     "floating-point-like">;
 
-// Type constraint for integer-like or float-like types.
+// Type constraint for signless-integer-like or float-like types.
 def SignlessIntegerOrFloatLike : TypeConstraint<Or<[
     SignlessIntegerLike.predicate, FloatLike.predicate]>,
-    "integer-like or floating-point-like">;
+    "signless-integer-like or floating-point-like">;
 
 
 //===----------------------------------------------------------------------===//
@@ -662,6 +768,12 @@ class Attr<Pred condition, string descr = ""> :
   // instantiation.
   // TOOD(b/132458159): deduplicate the fields in attribute wrapper classes.
   Attr baseAttr = ?;
+}
+
+// An attribute of a specific dialect.
+class DialectAttr<Dialect d, Pred condition, string descr = ""> :
+    Attr<condition, descr> {
+  Dialect dialect = d;
 }
 
 //===----------------------------------------------------------------------===//
@@ -726,8 +838,33 @@ def BoolAttr : Attr<CPred<"$_self.isa<BoolAttr>()">, "bool attribute"> {
   let constBuilderCall = "$_builder.getBoolAttr($0)";
 }
 
-// Base class for integer attributes of fixed width.
-class IntegerAttrBase<I attrValType, string descr> :
+// Base class for any integer (regardless of signedness semantics) attributes
+// of fixed width.
+class AnyIntegerAttrBase<AnyI attrValType, string descr> :
+    TypedAttrBase<
+      attrValType, "IntegerAttr",
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType()."
+                 "isInteger(" # attrValType.bitwidth # ")">]>,
+      descr> {
+  let returnType = [{ APInt }];
+  let constBuilderCall = ?;
+}
+
+def AnyI1Attr  : AnyIntegerAttrBase<AnyI1,  "1-bit integer attribute">;
+def AnyI8Attr  : AnyIntegerAttrBase<AnyI8,  "8-bit integer attribute">;
+def AnyI16Attr : AnyIntegerAttrBase<AnyI16, "16-bit integer attribute">;
+def AnyI32Attr : AnyIntegerAttrBase<AnyI32, "32-bit integer attribute">;
+def AnyI64Attr : AnyIntegerAttrBase<AnyI64, "64-bit integer attribute">;
+
+def APIntAttr : Attr<CPred<"$_self.isa<IntegerAttr>()">,
+                     "arbitrary integer attribute"> {
+  let storageType = [{ IntegerAttr }];
+  let returnType = [{ APInt }];
+}
+
+// Base class for signless integer attributes of fixed width.
+class SignlessIntegerAttrBase<I attrValType, string descr> :
     TypedAttrBase<
       attrValType, "IntegerAttr",
       And<[CPred<"$_self.isa<IntegerAttr>()">,
@@ -737,46 +874,55 @@ class IntegerAttrBase<I attrValType, string descr> :
   let returnType = [{ APInt }];
 }
 
-def APIntAttr : Attr<CPred<"$_self.isa<IntegerAttr>()">,
-                     "arbitrary integer attribute"> {
-  let storageType = [{ IntegerAttr }];
-  let returnType = [{ APInt }];
-}
+def I1Attr  : SignlessIntegerAttrBase<I1,  "1-bit signless integer attribute">;
+def I8Attr  : SignlessIntegerAttrBase<I8,  "8-bit signless integer attribute">;
+def I16Attr : SignlessIntegerAttrBase<I16, "16-bit signless integer attribute">;
+def I32Attr : SignlessIntegerAttrBase<I32, "32-bit signless integer attribute">;
+def I64Attr : SignlessIntegerAttrBase<I64, "64-bit signless integer attribute">;
 
-def I1Attr  : IntegerAttrBase<I1,  "1-bit integer attribute">;
-def I8Attr  : IntegerAttrBase<I8,  "8-bit integer attribute">;
-def I16Attr : IntegerAttrBase<I16, "16-bit integer attribute">;
-def I32Attr : IntegerAttrBase<I32, "32-bit integer attribute">;
-def I64Attr : IntegerAttrBase<I64, "64-bit integer attribute">;
-
-class NonNegativeIntAttrBase<I attrValType, string descr> :
+// Base class for signed integer attributes of fixed width.
+class SignedIntegerAttrBase<SI attrValType, string descr> :
     TypedAttrBase<
       attrValType, "IntegerAttr",
-      And<[IntegerAttrBase<attrValType, "">.predicate,
-           CPred<"!$_self.cast<IntegerAttr>().getValue().isNegative()">]>,
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType()."
+                 "isSignedInteger(" # attrValType.bitwidth # ")">]>,
       descr> {
   let returnType = [{ APInt }];
 }
 
-def NonNegativeI32Attr : NonNegativeIntAttrBase<
-    I32, "non-negative 32-bit integer attribute">;
-def NonNegativeI64Attr : NonNegativeIntAttrBase<
-    I64, "non-negative 64-bit integer attribute">;
+def SI1Attr  : SignedIntegerAttrBase<
+    SI1,  "1-bit signed integer attribute">;
+def SI8Attr  : SignedIntegerAttrBase<
+    SI8,  "8-bit signed integer attribute">;
+def SI16Attr : SignedIntegerAttrBase<
+    SI16, "16-bit signed integer attribute">;
+def SI32Attr : SignedIntegerAttrBase<
+    SI32, "32-bit signed integer attribute">;
+def SI64Attr : SignedIntegerAttrBase<
+    SI64, "64-bit signed integer attribute">;
 
-class PositiveIntAttrBase<I attrValType, string descr> :
+// Base class for unsigned integer attributes of fixed width.
+class UnsignedIntegerAttrBase<UI attrValType, string descr> :
     TypedAttrBase<
       attrValType, "IntegerAttr",
-      And<[IntegerAttrBase<attrValType, "">.predicate,
-           CPred<"$_self.cast<IntegerAttr>().getValue()"
-                 ".isStrictlyPositive()">]>,
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType()."
+                 "isUnsignedInteger(" # attrValType.bitwidth # ")">]>,
       descr> {
   let returnType = [{ APInt }];
 }
 
-def PositiveI32Attr : PositiveIntAttrBase<
-    I32, "positive 32-bit integer attribute">;
-def PositiveI64Attr : PositiveIntAttrBase<
-    I64, "positive 64-bit integer attribute">;
+def UI1Attr  : UnsignedIntegerAttrBase<
+    UI1,  "1-bit unsigned integer attribute">;
+def UI8Attr  : UnsignedIntegerAttrBase<
+    UI8,  "8-bit unsigned integer attribute">;
+def UI16Attr : UnsignedIntegerAttrBase<
+    UI16, "16-bit unsigned integer attribute">;
+def UI32Attr : UnsignedIntegerAttrBase<
+    UI32, "32-bit unsigned integer attribute">;
+def UI64Attr : UnsignedIntegerAttrBase<
+    UI64, "64-bit unsigned integer attribute">;
 
 // Base class for float attributes of fixed width.
 class FloatAttrBase<F attrValType, string descr> :
@@ -855,7 +1001,7 @@ class StrEnumAttrCase<string sym, int val = -1> :
 // its representation as a string and a C++ symbol name which may be different.
 class IntEnumAttrCaseBase<I intType, string sym, string strVal, int intVal> :
     EnumAttrCaseInfo<sym, intVal, strVal>,
-    IntegerAttrBase<intType, "case " # strVal> {
+    SignlessIntegerAttrBase<intType, "case " # strVal> {
   let predicate =
     CPred<"$_self.cast<IntegerAttr>().getInt() == " # intVal>;
 }
@@ -872,7 +1018,7 @@ class I64EnumAttrCase<string sym, int val, string str = sym>
 // one bit set.
 class BitEnumAttrCase<string sym, int val> :
     EnumAttrCaseInfo<sym, val, sym>,
-    IntegerAttrBase<I32, "case " # sym> {
+    SignlessIntegerAttrBase<I32, "case " # sym> {
   let predicate = CPred<
     "$_self.cast<IntegerAttr>().getValue().getZExtValue() & " # val # "u">;
 }
@@ -958,11 +1104,11 @@ class StrEnumAttr<string name, string description,
 class IntEnumAttr<I intType, string name, string description,
                   list<IntEnumAttrCaseBase> cases> :
     EnumAttrInfo<name, cases>,
-    IntegerAttrBase<intType,
+    SignlessIntegerAttrBase<intType,
       !if(!empty(description), "allowed " # intType.description # " cases: " #
           StrJoinInt<!foreach(case, cases, case.value)>.result, description)> {
   let predicate = And<[
-    IntegerAttrBase<intType, "">.predicate,
+    SignlessIntegerAttrBase<intType, "">.predicate,
     Or<!foreach(case, cases, case.predicate)>]>;
 }
 
@@ -991,9 +1137,9 @@ class I64EnumAttr<string name, string description,
 // delimiter to a symbol and vice versa.
 class BitEnumAttr<string name, string description,
                   list<BitEnumAttrCase> cases> :
-    EnumAttrInfo<name, cases>, IntegerAttrBase<I32, description> {
+    EnumAttrInfo<name, cases>, SignlessIntegerAttrBase<I32, description> {
   let predicate = And<[
-    IntegerAttrBase<I32, "">.predicate,
+    I32Attr.predicate,
     // Make sure we don't have unknown bit set.
     CPred<"!($_self.cast<IntegerAttr>().getValue().getZExtValue() & (~(" #
           StrJoin<!foreach(case, cases, case.value # "u"), "|">.result #
@@ -1033,37 +1179,51 @@ class ElementsAttrBase<Pred condition, string description> :
 }
 
 def ElementsAttr : ElementsAttrBase<CPred<"$_self.isa<ElementsAttr>()">,
-                                   "constant vector/tensor attribute">;
+                                    "constant vector/tensor attribute">;
 
-class IntElementsAttr<int width> : ElementsAttrBase<
-  CPred<"$_self.isa<DenseIntElementsAttr>() &&"
-      "$_self.cast<DenseIntElementsAttr>().getType()."
-      "getElementType().isSignlessInteger(" # width # ")">,
-  width # "-bit integer elements attribute"> {
-
+class IntElementsAttrBase<Pred condition, string description> :
+    ElementsAttrBase<And<[CPred<"$_self.isa<DenseIntElementsAttr>()">,
+                          condition]>,
+                     description> {
   let storageType = [{ DenseIntElementsAttr }];
   let returnType = [{ DenseIntElementsAttr }];
+
+  let convertFromStorage = "$_self";
+}
+
+class AnyIntElementsAttr<int width> : IntElementsAttrBase<
+  CPred<"$_self.cast<DenseIntElementsAttr>().getType()."
+        "getElementType().isInteger(" # width # ")">,
+  width # "-bit integer elements attribute">;
+
+def AnyI32ElementsAttr : AnyIntElementsAttr<32>;
+def AnyI64ElementsAttr : AnyIntElementsAttr<64>;
+
+class SignlessIntElementsAttr<int width> : IntElementsAttrBase<
+  CPred<"$_self.cast<DenseIntElementsAttr>().getType()."
+        "getElementType().isSignlessInteger(" # width # ")">,
+  width # "-bit signless integer elements attribute"> {
 
   // Note that this is only constructing scalar elements attribute.
   let constBuilderCall = "DenseElementsAttr::get("
     "RankedTensorType::get({}, $_builder.getIntegerType(" # width # ")), "
     "llvm::makeArrayRef($0)).cast<DenseIntElementsAttr>()";
-  let convertFromStorage = "$_self";
 }
 
-def I32ElementsAttr : IntElementsAttr<32>;
-def I64ElementsAttr : IntElementsAttr<64>;
+def I32ElementsAttr : SignlessIntElementsAttr<32>;
+def I64ElementsAttr : SignlessIntElementsAttr<64>;
 
-// A `width`-bit integer elements attribute. The attribute should be ranked and
-// has a shape as specified in `dims`.
-class RankedIntElementsAttr<int width, list<int> dims> : IntElementsAttr<width> {
+// A `width`-bit signless integer elements attribute. The attribute should be
+// ranked and has a shape as specified in `dims`.
+class RankedSignlessIntElementsAttr<int width, list<int> dims> :
+    SignlessIntElementsAttr<width> {
   // Check that this has the specified shape.
   let predicate = And<[
-    IntElementsAttr<width>.predicate,
+    SignlessIntElementsAttr<width>.predicate,
     CPred<"$_self.cast<DenseIntElementsAttr>().getType().getShape() == "
         "ArrayRef<int64_t>({" # StrJoinInt<dims>.result # "})">]>;
 
-  let description = width # "-bit int elements attribute of shape [" #
+  let description = width # "-bit signless int elements attribute of shape [" #
                     StrJoinInt<dims>.result # "]";
 
   let constBuilderCall = "DenseIntElementsAttr::get("
@@ -1071,8 +1231,10 @@ class RankedIntElementsAttr<int width, list<int> dims> : IntElementsAttr<width> 
     "}, $_builder.getIntegerType(" # width # ")), makeArrayRef($0))";
 }
 
-class RankedI32ElementsAttr<list<int> dims> : RankedIntElementsAttr<32, dims>;
-class RankedI64ElementsAttr<list<int> dims> : RankedIntElementsAttr<64, dims>;
+class RankedI32ElementsAttr<list<int> dims> :
+    RankedSignlessIntElementsAttr<32, dims>;
+class RankedI64ElementsAttr<list<int> dims> :
+    RankedSignlessIntElementsAttr<64, dims>;
 
 class FloatElementsAttr<int width> : ElementsAttrBase<
   CPred<"$_self.isa<DenseFPElementsAttr>() &&"
@@ -1293,6 +1455,14 @@ class IntMaxValue<int n> : AttrConstraint<
     CPred<"$_self.cast<IntegerAttr>().getInt() <= " # n>,
     "whose maximum value is " # n>;
 
+def IntNonNegative : AttrConstraint<
+    CPred<"!$_self.cast<IntegerAttr>().getValue().isNegative()">,
+    "whose value is non-negative">;
+
+def IntPositive : AttrConstraint<
+    CPred<"$_self.cast<IntegerAttr>().getValue().isStrictlyPositive()">,
+    "whose value is positive">;
+
 class ArrayMinCount<int n> : AttrConstraint<
     CPred<"$_self.cast<ArrayAttr>().size() >= " # n>,
     "with at least " # n # " elements">;
@@ -1402,14 +1572,14 @@ def ResultsBroadcastableShape :
 def Broadcastable : NativeOpTrait<"ResultsBroadcastableShape">;
 // X op Y == Y op X
 def Commutative  : NativeOpTrait<"IsCommutative">;
+// Op behaves like a constant.
+def ConstantLike : NativeOpTrait<"ConstantLike">;
 // Op behaves like a function.
 def FunctionLike : NativeOpTrait<"FunctionLike">;
 // Op is isolated from above.
 def IsolatedFromAbove : NativeOpTrait<"IsIsolatedFromAbove">;
 // Op results are float or vectors/tensors thereof.
 def ResultsAreFloatLike : NativeOpTrait<"ResultsAreFloatLike">;
-// Op has no side effect.
-def NoSideEffect : NativeOpTrait<"HasNoSideEffect">;
 // Op has the same operand type.
 def SameTypeOperands : NativeOpTrait<"SameTypeOperands">;
 // Op has same shape for all operands.
@@ -1585,6 +1755,29 @@ class OpBuilder<string p, code b = ""> {
   string params = p;
   code body = b;
 }
+
+// A base decorator class that may optionally be added to OpVariables.
+class OpVariableDecorator;
+
+// Class for providing additional information on the variables, i.e. arguments
+// and results, of an operation.
+class OpVariable<Constraint varConstraint, string desc = "",
+                 list<OpVariableDecorator> varDecorators = []> {
+  // The constraint, either attribute or type, of the argument.
+  Constraint constraint = varConstraint;
+
+  // A description for the argument.
+  string description = desc;
+
+  // The list of decorators for this variable, e.g. side effects.
+  list<OpVariableDecorator> decorators = varDecorators;
+}
+class Arg<Constraint constraint, string desc = "",
+          list<OpVariableDecorator> decorators = []>
+  : OpVariable<constraint, desc, decorators>;
+class Res<Constraint constraint, string desc = "",
+          list<OpVariableDecorator> decorators = []>
+  : OpVariable<constraint, desc, decorators>;
 
 // Base class for all ops.
 class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {

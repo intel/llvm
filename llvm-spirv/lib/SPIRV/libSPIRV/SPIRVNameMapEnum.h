@@ -335,6 +335,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMaxByteOffset, "MaxByteOffset");
   add(DecorationNoSignedWrap, "NoSignedWrap");
   add(DecorationNoUnsignedWrap, "NoUnsignedWrap");
+  add(DecorationSideEffectsINTEL, "SideEffectsINTEL");
   add(DecorationUserSemantic, "UserSemantic");
   add(DecorationRegisterINTEL, "RegisterINTEL");
   add(DecorationMemoryINTEL, "MemoryINTEL");
@@ -348,6 +349,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMergeINTEL, "MergeINTEL");
   add(DecorationBankBitsINTEL, "BankBitsINTEL");
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
+  add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 
@@ -487,6 +489,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupImageBlockIOINTEL, "SubgroupImageBlockIOINTEL");
   add(CapabilitySubgroupImageMediaBlockIOINTEL,
       "SubgroupImageMediaBlockIOINTEL");
+  add(CapabilityAsmINTEL, "AsmINTEL");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,
@@ -502,6 +505,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityIndirectReferencesINTEL, "IndirectReferencesINTEL");
   add(CapabilityKernelAttributesINTEL, "KernelAttributesINTEL");
   add(CapabilityFPGAKernelAttributesINTEL, "FPGAKernelAttributesINTEL");
+  add(CapabilityIOPipeINTEL, "IOPipeINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

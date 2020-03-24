@@ -39,7 +39,7 @@ This is an example workflow and configuration to get and build the LLVM source:
    * Or, on windows, ``git clone --config core.autocrlf=false
      https://github.com/llvm/llvm-project.git``
 
-#. Configure and build LLVM and Clang:.
+#. Configure and build LLVM and Clang:
 
    * ``cd llvm-project``
    * ``mkdir build``
@@ -404,10 +404,7 @@ The files are as follows, with *x.y* marking the version number:
 Checkout LLVM from Git
 ----------------------
 
-You can also checkout the source code for LLVM from Git. While the LLVM
-project's official source-code repository is Subversion, we are in the process
-of migrating to git. We currently recommend that all developers use Git for
-day-to-day development.
+You can also checkout the source code for LLVM from Git.
 
 .. note::
 

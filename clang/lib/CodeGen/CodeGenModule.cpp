@@ -39,6 +39,7 @@
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
@@ -1058,23 +1059,19 @@ static std::string getMangledNameImpl(const CodeGenModule &CGM, GlobalDecl GD,
   SmallString<256> Buffer;
   llvm::raw_svector_ostream Out(Buffer);
   MangleContext &MC = CGM.getCXXABI().getMangleContext();
-  if (MC.shouldMangleDeclName(ND)) {
-    llvm::raw_svector_ostream Out(Buffer);
-    if (const auto *D = dyn_cast<CXXConstructorDecl>(ND))
-      MC.mangleCXXCtor(D, GD.getCtorType(), Out);
-    else if (const auto *D = dyn_cast<CXXDestructorDecl>(ND))
-      MC.mangleCXXDtor(D, GD.getDtorType(), Out);
-    else
-      MC.mangleName(ND, Out);
-  } else {
+  if (MC.shouldMangleDeclName(ND))
+    MC.mangleName(GD.getWithDecl(ND), Out);
+  else {
     IdentifierInfo *II = ND->getIdentifier();
     assert(II && "Attempt to mangle unnamed decl.");
     const auto *FD = dyn_cast<FunctionDecl>(ND);
 
     if (FD &&
         FD->getType()->castAs<FunctionType>()->getCallConv() == CC_X86RegCall) {
-      llvm::raw_svector_ostream Out(Buffer);
       Out << "__regcall3__" << II->getName();
+    } else if (FD && FD->hasAttr<CUDAGlobalAttr>() &&
+               GD.getKernelReferenceKind() == KernelReferenceKind::Stub) {
+      Out << "__device_stub__" << II->getName();
     } else {
       Out << II->getName();
     }
@@ -1162,11 +1159,25 @@ StringRef CodeGenModule::getMangledName(GlobalDecl GD) {
   const auto *ND = cast<NamedDecl>(GD.getDecl());
   std::string MangledName = getMangledNameImpl(*this, GD, ND);
 
-  // Adjust kernel stub mangling as we may need to be able to differentiate
-  // them from the kernel itself (e.g., for HIP).
-  if (auto *FD = dyn_cast<FunctionDecl>(GD.getDecl()))
-    if (!getLangOpts().CUDAIsDevice && FD->hasAttr<CUDAGlobalAttr>())
-      MangledName = getCUDARuntime().getDeviceStubName(MangledName);
+  // Ensure either we have different ABIs between host and device compilations,
+  // says host compilation following MSVC ABI but device compilation follows
+  // Itanium C++ ABI or, if they follow the same ABI, kernel names after
+  // mangling should be the same after name stubbing. The later checking is
+  // very important as the device kernel name being mangled in host-compilation
+  // is used to resolve the device binaries to be executed. Inconsistent naming
+  // result in undefined behavior. Even though we cannot check that naming
+  // directly between host- and device-compilations, the host- and
+  // device-mangling in host compilation could help catching certain ones.
+  assert(!isa<FunctionDecl>(ND) || !ND->hasAttr<CUDAGlobalAttr>() ||
+         getLangOpts().CUDAIsDevice ||
+         (getContext().getAuxTargetInfo() &&
+          (getContext().getAuxTargetInfo()->getCXXABI() !=
+           getContext().getTargetInfo().getCXXABI())) ||
+         getCUDARuntime().getDeviceSideName(ND) ==
+             getMangledNameImpl(
+                 *this,
+                 GD.getWithKernelReferenceKind(KernelReferenceKind::Kernel),
+                 ND));
 
   auto Result = Manglings.insert(std::make_pair(MangledName, GD));
   return MangledDeclNames[CanonicalGD] = Result.first->first();
@@ -1951,9 +1962,9 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
   }
 }
 
-void CodeGenModule::addUsedGlobal(llvm::GlobalValue *GV) {
-  assert(!GV->isDeclaration() &&
-         "Only globals with definition can force usage.");
+void CodeGenModule::addUsedGlobal(llvm::GlobalValue *GV, bool SkipCheck) {
+  assert(SkipCheck || (!GV->isDeclaration() &&
+                       "Only globals with definition can force usage."));
   LLVMUsed.emplace_back(GV);
 }
 
@@ -2505,11 +2516,6 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (Global->hasAttr<IFuncAttr>())
     return emitIFuncDefinition(GD);
 
-  if (LangOpts.SYCLIsDevice) {
-    if (!Global->hasAttr<SYCLDeviceAttr>())
-      return;
-  }
-
   // If this is a cpu_dispatch multiversion function, emit the resolver.
   if (Global->hasAttr<CPUDispatchAttr>())
     return emitCPUDispatchDefinition(GD);
@@ -2552,6 +2558,11 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         EmitOMPDeclareMapper(DMD);
       return;
     }
+  }
+
+  if (LangOpts.SYCLIsDevice && MustBeEmitted(Global)) {
+    addDeferredDeclToEmit(GD);
+    return;
   }
 
   // Ignore declarations, they will be emitted on their first use.
@@ -3188,8 +3199,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
       (void)OpenMPRuntime->emitDeclareVariant(GD, /*IsForDefinition=*/true);
 
     if (FD->isMultiVersion()) {
-      const auto *TA = FD->getAttr<TargetAttr>();
-      if (TA && TA->isDefaultVersion())
+      if (FD->hasAttr<TargetAttr>())
         UpdateMultiVersionNames(GD, FD);
       if (!IsForDefinition)
         return GetOrCreateMultiVersionResolver(GD, Ty, FD);
@@ -4062,6 +4072,11 @@ void CodeGenModule::generateIntelFPGAAnnotation(
   }
   if (D->hasAttr<IntelFPGASimpleDualPortAttr>())
     Out << "{simple_dual_port:1}";
+  if (const auto *FP2D = D->getAttr<IntelFPGAForcePow2DepthAttr>()) {
+    llvm::APSInt FP2DInt =
+        FP2D->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << FP2D->getSpelling() << ':' << FP2DInt << '}';
+  }
 }
 
 void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
@@ -4130,6 +4145,8 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       getLangOpts().CUDAIsDevice && D->hasAttr<HIPPinnedShadowAttr>();
   if (getLangOpts().CUDA &&
       (IsCUDASharedVar || IsCUDAShadowVar || IsHIPPinnedShadowVar))
+    Init = llvm::UndefValue::get(getTypes().ConvertType(ASTTy));
+  else if (D->hasAttr<LoaderUninitializedAttr>())
     Init = llvm::UndefValue::get(getTypes().ConvertType(ASTTy));
   else if (!InitExpr) {
     // This is a tentative definition; tentative definitions are
@@ -4275,9 +4292,17 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     }
   }
 
-  if (!IsHIPPinnedShadowVar)
+  // HIPPinnedShadowVar should remain in the final code object irrespective of
+  // whether it is used or not within the code. Add it to used list, so that
+  // it will not get eliminated when it is unused. Also, it is an extern var
+  // within device code, and it should *not* get initialized within device code.
+  if (IsHIPPinnedShadowVar)
+    addUsedGlobal(GV, /*SkipCheck=*/true);
+  else
     GV->setInitializer(Init);
-  if (emitter) emitter->finalize(GV);
+
+  if (emitter)
+    emitter->finalize(GV);
 
   // If it is safe to mark the global 'constant', do so now.
   GV->setConstant(!NeedsGlobalCtor && !NeedsGlobalDtor &&
@@ -4684,7 +4709,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
 
   maybeSetTrivialComdat(*D, *Fn);
 
-  CodeGenFunction(*this).GenerateCode(D, Fn, FI);
+  CodeGenFunction(*this).GenerateCode(GD, Fn, FI);
 
   setNonAliasAttributes(GD, Fn);
   SetLLVMFunctionAttributesForDefinition(D, Fn);

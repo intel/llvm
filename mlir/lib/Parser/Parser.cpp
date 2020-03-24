@@ -1102,7 +1102,7 @@ Type Parser::parseMemRefType() {
     return nullptr;
 
   // Check that memref is formed from allowed types.
-  if (!elementType.isSignlessIntOrFloat() && !elementType.isa<VectorType>() &&
+  if (!elementType.isIntOrFloat() && !elementType.isa<VectorType>() &&
       !elementType.isa<ComplexType>())
     return emitError(typeLoc, "invalid memref element type"), nullptr;
 
@@ -1642,7 +1642,7 @@ Attribute Parser::parseAttribute(Type type) {
 ///
 ///   attribute-dict ::= `{` `}`
 ///                    | `{` attribute-entry (`,` attribute-entry)* `}`
-///   attribute-entry ::= bare-id `=` attribute-value
+///   attribute-entry ::= (bare-id | string-literal) `=` attribute-value
 ///
 ParseResult
 Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
@@ -1650,17 +1650,21 @@ Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
     return failure();
 
   auto parseElt = [&]() -> ParseResult {
-    // We allow keywords as attribute names.
-    if (getToken().isNot(Token::bare_identifier, Token::inttype) &&
-        !getToken().isKeyword())
+    // The name of an attribute can either be a bare identifier, or a string.
+    Optional<Identifier> nameId;
+    if (getToken().is(Token::string))
+      nameId = builder.getIdentifier(getToken().getStringValue());
+    else if (getToken().isAny(Token::bare_identifier, Token::inttype) ||
+             getToken().isKeyword())
+      nameId = builder.getIdentifier(getTokenSpelling());
+    else
       return emitError("expected attribute name");
-    Identifier nameId = builder.getIdentifier(getTokenSpelling());
     consumeToken();
 
     // Try to parse the '=' for the attribute value.
     if (!consumeIf(Token::equal)) {
       // If there is no '=', we treat this as a unit attribute.
-      attributes.push_back({nameId, builder.getUnitAttr()});
+      attributes.push_back({*nameId, builder.getUnitAttr()});
       return success();
     }
 
@@ -1668,7 +1672,7 @@ Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
     if (!attr)
       return failure();
 
-    attributes.push_back({nameId, attr});
+    attributes.push_back({*nameId, attr});
     return success();
   };
 
@@ -3068,14 +3072,16 @@ AffineParser::parseAffineMapOfSSAIds(AffineMap &map,
   };
 
   // Parse a multi-dimensional affine expression (a comma-separated list of
-  // 1-d affine expressions); the list cannot be empty. Grammar:
-  // multi-dim-affine-expr ::= `(` affine-expr (`,` affine-expr)* `)
+  // 1-d affine expressions); the list can be empty. Grammar:
+  // multi-dim-affine-expr ::= `(` `)`
+  //                         | `(` affine-expr (`,` affine-expr)* `)`
   if (parseCommaSeparatedListUntil(rightToken, parseElt,
                                    /*allowEmptyList=*/true))
     return failure();
   // Parsed a valid affine map.
   if (exprs.empty())
-    map = AffineMap::get(getContext());
+    map = AffineMap::get(numDimOperands, dimsAndSymbols.size() - numDimOperands,
+                         getContext());
   else
     map = AffineMap::get(numDimOperands, dimsAndSymbols.size() - numDimOperands,
                          exprs);
@@ -3101,13 +3107,14 @@ AffineMap AffineParser::parseAffineMapRange(unsigned numDims,
   };
 
   // Parse a multi-dimensional affine expression (a comma-separated list of
-  // 1-d affine expressions); the list cannot be empty. Grammar:
-  // multi-dim-affine-expr ::= `(` affine-expr (`,` affine-expr)* `)
+  // 1-d affine expressions). Grammar:
+  // multi-dim-affine-expr ::= `(` `)`
+  //                         | `(` affine-expr (`,` affine-expr)* `)`
   if (parseCommaSeparatedListUntil(Token::r_paren, parseElt, true))
     return AffineMap();
 
   if (exprs.empty())
-    return AffineMap::get(getContext());
+    return AffineMap::get(numDims, numSymbols, getContext());
 
   // Parsed a valid affine map.
   return AffineMap::get(numDims, numSymbols, exprs);
@@ -3301,13 +3308,11 @@ public:
   /// Parse an operation instance.
   ParseResult parseOperation();
 
-  /// Parse a single operation successor and its operand list.
-  ParseResult parseSuccessorAndUseList(Block *&dest,
-                                       SmallVectorImpl<Value> &operands);
+  /// Parse a single operation successor.
+  ParseResult parseSuccessor(Block *&dest);
 
   /// Parse a comma-separated list of operation successors in brackets.
-  ParseResult parseSuccessors(SmallVectorImpl<Block *> &destinations,
-                              SmallVectorImpl<SmallVector<Value, 4>> &operands);
+  ParseResult parseSuccessors(SmallVectorImpl<Block *> &destinations);
 
   /// Parse an operation instance that is in the generic form.
   Operation *parseGenericOperation();
@@ -3797,27 +3802,16 @@ ParseResult OperationParser::parseOperation() {
   return success();
 }
 
-/// Parse a single operation successor and its operand list.
+/// Parse a single operation successor.
 ///
-///   successor ::= block-id branch-use-list?
-///   branch-use-list ::= `(` ssa-use-list ':' type-list-no-parens `)`
+///   successor ::= block-id
 ///
-ParseResult
-OperationParser::parseSuccessorAndUseList(Block *&dest,
-                                          SmallVectorImpl<Value> &operands) {
+ParseResult OperationParser::parseSuccessor(Block *&dest) {
   // Verify branch is identifier and get the matching block.
   if (!getToken().is(Token::caret_identifier))
     return emitError("expected block name");
   dest = getBlockNamed(getTokenSpelling(), getToken().getLoc());
   consumeToken();
-
-  // Handle optional arguments.
-  if (consumeIf(Token::l_paren) &&
-      (parseOptionalSSAUseAndTypeList(operands) ||
-       parseToken(Token::r_paren, "expected ')' to close argument list"))) {
-    return failure();
-  }
-
   return success();
 }
 
@@ -3825,18 +3819,15 @@ OperationParser::parseSuccessorAndUseList(Block *&dest,
 ///
 ///   successor-list ::= `[` successor (`,` successor )* `]`
 ///
-ParseResult OperationParser::parseSuccessors(
-    SmallVectorImpl<Block *> &destinations,
-    SmallVectorImpl<SmallVector<Value, 4>> &operands) {
+ParseResult
+OperationParser::parseSuccessors(SmallVectorImpl<Block *> &destinations) {
   if (parseToken(Token::l_square, "expected '['"))
     return failure();
 
-  auto parseElt = [this, &destinations, &operands]() {
+  auto parseElt = [this, &destinations] {
     Block *dest;
-    SmallVector<Value, 4> destOperands;
-    auto res = parseSuccessorAndUseList(dest, destOperands);
+    ParseResult res = parseSuccessor(dest);
     destinations.push_back(dest);
-    operands.push_back(destOperands);
     return res;
   };
   return parseCommaSeparatedListUntil(Token::r_square, parseElt,
@@ -3880,24 +3871,23 @@ Operation *OperationParser::parseGenericOperation() {
 
   // Parse the operand list.
   SmallVector<SSAUseInfo, 8> operandInfos;
-
   if (parseToken(Token::l_paren, "expected '(' to start operand list") ||
       parseOptionalSSAUseList(operandInfos) ||
       parseToken(Token::r_paren, "expected ')' to end operand list")) {
     return nullptr;
   }
 
-  // Parse the successor list but don't add successors to the result yet to
-  // avoid messing up with the argument order.
-  SmallVector<Block *, 2> successors;
-  SmallVector<SmallVector<Value, 4>, 2> successorOperands;
+  // Parse the successor list.
   if (getToken().is(Token::l_square)) {
     // Check if the operation is a known terminator.
     const AbstractOperation *abstractOp = result.name.getAbstractOperation();
     if (abstractOp && !abstractOp->hasProperty(OperationProperty::Terminator))
       return emitError("successors in non-terminator"), nullptr;
-    if (parseSuccessors(successors, successorOperands))
+
+    SmallVector<Block *, 2> successors;
+    if (parseSuccessors(successors))
       return nullptr;
+    result.addSuccessors(successors);
   }
 
   // Parse the region list.
@@ -3946,13 +3936,6 @@ Operation *OperationParser::parseGenericOperation() {
     result.operands.push_back(resolveSSAUse(operandInfos[i], operandTypes[i]));
     if (!result.operands.back())
       return nullptr;
-  }
-
-  // Add the successors, and their operands after the proper operands.
-  for (auto succ : llvm::zip(successors, successorOperands)) {
-    Block *successor = std::get<0>(succ);
-    const SmallVector<Value, 4> &operands = std::get<1>(succ);
-    result.addSuccessor(successor, operands);
   }
 
   // Parse a location if one is present.
@@ -4421,20 +4404,31 @@ public:
   // Successor Parsing
   //===--------------------------------------------------------------------===//
 
+  /// Parse a single operation successor.
+  ParseResult parseSuccessor(Block *&dest) override {
+    return parser.parseSuccessor(dest);
+  }
+
+  /// Parse an optional operation successor and its operand list.
+  OptionalParseResult parseOptionalSuccessor(Block *&dest) override {
+    if (parser.getToken().isNot(Token::caret_identifier))
+      return llvm::None;
+    return parseSuccessor(dest);
+  }
+
   /// Parse a single operation successor and its operand list.
   ParseResult
   parseSuccessorAndUseList(Block *&dest,
                            SmallVectorImpl<Value> &operands) override {
-    return parser.parseSuccessorAndUseList(dest, operands);
-  }
+    if (parseSuccessor(dest))
+      return failure();
 
-  /// Parse an optional operation successor and its operand list.
-  OptionalParseResult
-  parseOptionalSuccessorAndUseList(Block *&dest,
-                                   SmallVectorImpl<Value> &operands) override {
-    if (parser.getToken().isNot(Token::caret_identifier))
-      return llvm::None;
-    return parseSuccessorAndUseList(dest, operands);
+    // Handle optional arguments.
+    if (succeeded(parseOptionalLParen()) &&
+        (parser.parseOptionalSSAUseAndTypeList(operands) || parseRParen())) {
+      return failure();
+    }
+    return success();
   }
 
   //===--------------------------------------------------------------------===//

@@ -3254,6 +3254,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           goto DoneWithDeclSpec;
         if (isTypeConstraintAnnotation())
           continue;
+        if (NextToken().is(tok::annot_template_id))
+          // Might have been annotated by TryAnnotateTypeConstraint.
+          continue;
         // Eat the scope spec so the identifier is current.
         ConsumeAnnotationToken();
         ParsedAttributesWithRange Attrs(AttrFactory);
@@ -3405,7 +3408,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       if (!TypeRep) {
         if (TryAnnotateTypeConstraint())
           goto DoneWithDeclSpec;
-        if (isTypeConstraintAnnotation())
+        if (Tok.isNot(tok::identifier))
+          continue;
+        if (Tok.is(tok::annot_template_id))
+          // Might have been annotated by TryAnnotateTypeConstraint.
           continue;
         ParsedAttributesWithRange Attrs(AttrFactory);
         if (ParseImplicitInt(DS, nullptr, TemplateInfo, AS, DSContext, Attrs)) {
@@ -5644,8 +5650,8 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
         return;
       }
 
-      SourceLocation Loc = ConsumeToken();
-      D.SetRangeEnd(Loc);
+      SourceLocation StarLoc = ConsumeToken();
+      D.SetRangeEnd(StarLoc);
       DeclSpec DS(AttrFactory);
       ParseTypeQualifierListOpt(DS);
       D.ExtendWithDeclSpec(DS);
@@ -5656,7 +5662,7 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
       // Sema will have to catch (syntactically invalid) pointers into global
       // scope. It has to catch pointers into namespace scope anyway.
       D.AddTypeInfo(DeclaratorChunk::getMemberPointer(
-                        SS, DS.getTypeQualifiers(), DS.getEndLoc()),
+                        SS, DS.getTypeQualifiers(), StarLoc, DS.getEndLoc()),
                     std::move(DS.getAttributes()),
                     /* Don't replace range end. */ SourceLocation());
       return;

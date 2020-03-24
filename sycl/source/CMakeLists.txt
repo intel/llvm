@@ -181,8 +181,14 @@ if (MSVC)
 
 endif()
 
+# Enable new IN_LIST operator.
+cmake_policy(SET CMP0057 NEW)
+
+if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl libsycldevice)
+endif()
+
 install(TARGETS ${SYCL_RT_LIBS}
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
     RUNTIME DESTINATION "bin" COMPONENT sycl)
-add_subdirectory(detail/devicelib)

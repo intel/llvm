@@ -442,9 +442,9 @@ public:
 
   bool shouldFormOverflowOp(unsigned Opcode, EVT VT,
                             bool MathUsed) const override {
-    // Using overflow ops for overflow checks only should beneficial on
-    // SystemZ.
-    return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
+    // Form add and sub with overflow intrinsics regardless of any extra
+    // users of the math result.
+    return VT == MVT::i32 || VT == MVT::i64;
   }
 
   const char *getTargetNodeName(unsigned Opcode) const override;
@@ -642,6 +642,7 @@ private:
   SDValue combineJOIN_DWORDS(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineFP_ROUND(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineFP_EXTEND(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineINT_TO_FP(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineBSWAP(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineBR_CCMASK(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineSELECT_CCMASK(SDNode *N, DAGCombinerInfo &DCI) const;

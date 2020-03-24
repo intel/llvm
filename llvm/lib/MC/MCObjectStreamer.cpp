@@ -215,15 +215,6 @@ MCObjectStreamer::getOrCreateDataFragment(const MCSubtargetInfo *STI) {
   return F;
 }
 
-MCBoundaryAlignFragment *MCObjectStreamer::getOrCreateBoundaryAlignFragment() {
-  auto *F = dyn_cast_or_null<MCBoundaryAlignFragment>(getCurrentFragment());
-  if (!F || F->canEmitNops()) {
-    F = new MCBoundaryAlignFragment();
-    insert(F);
-  }
-  return F;
-}
-
 void MCObjectStreamer::visitUsedSymbol(const MCSymbol &Sym) {
   Assembler->registerSymbol(Sym);
 }
@@ -376,9 +367,9 @@ bool MCObjectStreamer::mayHaveInstructions(MCSection &Sec) const {
 
 void MCObjectStreamer::emitInstruction(const MCInst &Inst,
                                        const MCSubtargetInfo &STI) {
-  getAssembler().getBackend().alignBranchesBegin(*this, Inst);
+  getAssembler().getBackend().emitInstructionBegin(*this, Inst);
   emitInstructionImpl(Inst, STI);
-  getAssembler().getBackend().alignBranchesEnd(*this, Inst);
+  getAssembler().getBackend().emitInstructionEnd(*this, Inst);
 }
 
 void MCObjectStreamer::emitInstructionImpl(const MCInst &Inst,

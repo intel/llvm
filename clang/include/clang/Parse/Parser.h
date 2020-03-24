@@ -3038,11 +3038,13 @@ private:
   /// Parses clause with a single expression and an additional argument
   /// of a kind \a Kind.
   ///
+  /// \param DKind Directive kind.
   /// \param Kind Kind of current clause.
   /// \param ParseOnly true to skip the clause's semantic actions and return
   /// nullptr.
   ///
-  OMPClause *ParseOpenMPSingleExprWithArgClause(OpenMPClauseKind Kind,
+  OMPClause *ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
+                                                OpenMPClauseKind Kind,
                                                 bool ParseOnly);
   /// Parses clause without any additional arguments.
   ///
@@ -3210,6 +3212,27 @@ private:
                                  unsigned ArgumentIndex) override;
   void CodeCompleteIncludedFile(llvm::StringRef Dir, bool IsAngled) override;
   void CodeCompleteNaturalLanguage() override;
+
+  class GNUAsmQualifiers {
+    unsigned Qualifiers = AQ_unspecified;
+
+  public:
+    enum AQ {
+      AQ_unspecified = 0,
+      AQ_volatile    = 1,
+      AQ_inline      = 2,
+      AQ_goto        = 4,
+    };
+    static const char *getQualifierName(AQ Qualifier);
+    bool setAsmQualifier(AQ Qualifier);
+    inline bool isVolatile() const { return Qualifiers & AQ_volatile; };
+    inline bool isInline() const { return Qualifiers & AQ_inline; };
+    inline bool isGoto() const { return Qualifiers & AQ_goto; }
+  };
+  bool isGCCAsmStatement(const Token &TokAfterAsm) const;
+  bool isGNUAsmQualifier(const Token &TokAfterAsm) const;
+  GNUAsmQualifiers::AQ getGNUAsmQualifier(const Token &Tok) const;
+  bool parseGNUAsmQualifierListOpt(GNUAsmQualifiers &AQ);
 };
 
 }  // end namespace clang

@@ -39,6 +39,11 @@ let Command = "settings read" in {
     Desc<"The file from which to read the settings.">;
 }
 
+let Command = "settings clear" in {
+  def setclear_all : Option<"all", "a">,
+    Desc<"Clear all settings.">;
+}
+
 let Command = "breakpoint list" in {
   // FIXME: We need to add an "internal" command, and then add this sort of
   // thing to it. But I need to see it for now, and don't want to wait.
@@ -384,7 +389,8 @@ let Command = "frame recognizer add" in {
     "to.">;
   def frame_recognizer_function : Option<"function", "n">, Arg<"Name">,
     Completion<"Symbol">,
-    Desc<"Name of the function that this recognizer applies to.">;
+    Desc<"Name of the function that this recognizer applies to. "
+         "Can be specified more than once except if -x|--regex is provided.">;
   def frame_recognizer_python_class : Option<"python-class", "l">, Group<2>,
     Arg<"PythonClass">,
     Desc<"Give the name of a Python class to use for this frame recognizer.">;

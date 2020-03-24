@@ -15,7 +15,6 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "mlir/Transforms/SideEffectsInterface.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Support/Debug.h"
@@ -62,19 +61,6 @@ struct AffineInlinerInterface : public DialectInlinerInterface {
   /// Affine regions should be analyzed recursively.
   bool shouldAnalyzeRecursively(Operation *op) const final { return true; }
 };
-
-// TODO(mlir): Extend for other ops in this dialect.
-struct AffineSideEffectsInterface : public SideEffectsDialectInterface {
-  using SideEffectsDialectInterface::SideEffectsDialectInterface;
-
-  SideEffecting isSideEffecting(Operation *op) const override {
-    if (isa<AffineIfOp>(op)) {
-      return Recursive;
-    }
-    return SideEffectsDialectInterface::isSideEffecting(op);
-  };
-};
-
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
@@ -83,12 +69,11 @@ struct AffineSideEffectsInterface : public SideEffectsDialectInterface {
 
 AffineOpsDialect::AffineOpsDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
-  addOperations<AffineApplyOp, AffineDmaStartOp, AffineDmaWaitOp, AffineLoadOp,
-                AffineStoreOp,
+  addOperations<AffineDmaStartOp, AffineDmaWaitOp, AffineLoadOp, AffineStoreOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/AffineOps/AffineOps.cpp.inc"
                 >();
-  addInterfaces<AffineInlinerInterface, AffineSideEffectsInterface>();
+  addInterfaces<AffineInlinerInterface>();
 }
 
 /// Materialize a single constant operation from a given attribute value with
@@ -231,18 +216,12 @@ verifyDimAndSymbolIdentifiers(OpTy &op, Operation::operand_range operands,
 // AffineApplyOp
 //===----------------------------------------------------------------------===//
 
-void AffineApplyOp::build(Builder *builder, OperationState &result,
-                          AffineMap map, ValueRange operands) {
-  result.addOperands(operands);
-  result.types.append(map.getNumResults(), builder->getIndexType());
-  result.addAttribute("map", AffineMapAttr::get(map));
-}
-
 AffineValueMap AffineApplyOp::getAffineValueMap() {
   return AffineValueMap(getAffineMap(), getOperands(), getResult());
 }
 
-ParseResult AffineApplyOp::parse(OpAsmParser &parser, OperationState &result) {
+static ParseResult parseAffineApplyOp(OpAsmParser &parser,
+                                      OperationState &result) {
   auto &builder = parser.getBuilder();
   auto indexTy = builder.getIndexType();
 
@@ -264,39 +243,25 @@ ParseResult AffineApplyOp::parse(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-void AffineApplyOp::print(OpAsmPrinter &p) {
-  p << "affine.apply " << getAttr("map");
-  printDimAndSymbolList(operand_begin(), operand_end(),
-                        getAffineMap().getNumDims(), p);
-  p.printOptionalAttrDict(getAttrs(), /*elidedAttrs=*/{"map"});
+static void print(OpAsmPrinter &p, AffineApplyOp op) {
+  p << AffineApplyOp::getOperationName() << " " << op.mapAttr();
+  printDimAndSymbolList(op.operand_begin(), op.operand_end(),
+                        op.getAffineMap().getNumDims(), p);
+  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
 }
 
-LogicalResult AffineApplyOp::verify() {
-  // Check that affine map attribute was specified.
-  auto affineMapAttr = getAttrOfType<AffineMapAttr>("map");
-  if (!affineMapAttr)
-    return emitOpError("requires an affine map");
-
+static LogicalResult verify(AffineApplyOp op) {
   // Check input and output dimensions match.
-  auto map = affineMapAttr.getValue();
+  auto map = op.map();
 
   // Verify that operand count matches affine map dimension and symbol count.
-  if (getNumOperands() != map.getNumDims() + map.getNumSymbols())
-    return emitOpError(
+  if (op.getNumOperands() != map.getNumDims() + map.getNumSymbols())
+    return op.emitOpError(
         "operand count and affine map dimension and symbol count must match");
-
-  // Verify that all operands are of `index` type.
-  for (Type t : getOperandTypes()) {
-    if (!t.isIndex())
-      return emitOpError("operands must be of type 'index'");
-  }
-
-  if (!getResult().getType().isIndex())
-    return emitOpError("result must be of type 'index'");
 
   // Verify that the map only produces one result.
   if (map.getNumResults() != 1)
-    return emitOpError("mapping must produce one value");
+    return op.emitOpError("mapping must produce one value");
 
   return success();
 }
@@ -762,8 +727,8 @@ struct SimplifyAffineOp : public OpRewritePattern<AffineOpTy> {
   void replaceAffineOp(PatternRewriter &rewriter, AffineOpTy affineOp,
                        AffineMap map, ArrayRef<Value> mapOperands) const;
 
-  PatternMatchResult matchAndRewrite(AffineOpTy affineOp,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(AffineOpTy affineOp,
+                                PatternRewriter &rewriter) const override {
     static_assert(std::is_same<AffineOpTy, AffineLoadOp>::value ||
                       std::is_same<AffineOpTy, AffinePrefetchOp>::value ||
                       std::is_same<AffineOpTy, AffineStoreOp>::value ||
@@ -778,10 +743,10 @@ struct SimplifyAffineOp : public OpRewritePattern<AffineOpTy> {
     composeAffineMapAndOperands(&map, &resultOperands);
     if (map == oldMap && std::equal(oldOperands.begin(), oldOperands.end(),
                                     resultOperands.begin()))
-      return this->matchFailure();
+      return failure();
 
     replaceAffineOp(rewriter, affineOp, map, resultOperands);
-    return this->matchSuccess();
+    return success();
   }
 };
 
@@ -1220,14 +1185,14 @@ static ParseResult parseBound(bool isLower, OperationState &result,
     if (map.getNumDims() != numDims)
       return p.emitError(
           p.getNameLoc(),
-          "dim operand count and integer set dim count must match");
+          "dim operand count and affine map dim count must match");
 
     unsigned numDimAndSymbolOperands =
         result.operands.size() - currentNumOperands;
     if (numDims + map.getNumSymbols() != numDimAndSymbolOperands)
       return p.emitError(
           p.getNameLoc(),
-          "symbol operand count and integer set symbol count must match");
+          "symbol operand count and affine map symbol count must match");
 
     // If the map has multiple results, make sure that we parsed the min/max
     // prefix.
@@ -1440,13 +1405,13 @@ namespace {
 struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
   using OpRewritePattern<AffineForOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(AffineForOp forOp,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(AffineForOp forOp,
+                                PatternRewriter &rewriter) const override {
     // Check that the body only contains a terminator.
     if (!has_single_element(*forOp.getBody()))
-      return matchFailure();
+      return failure();
     rewriter.eraseOp(forOp);
-    return matchSuccess();
+    return success();
   }
 };
 } // end anonymous namespace
@@ -1621,9 +1586,8 @@ static LogicalResult verify(AffineIfOp op) {
         "symbol count must match");
 
   // Verify that the operands are valid dimension/symbols.
-  if (failed(verifyDimAndSymbolIdentifiers(
-          op, op.getOperation()->getNonSuccessorOperands(),
-          condition.getNumDims())))
+  if (failed(verifyDimAndSymbolIdentifiers(op, op.getOperands(),
+                                           condition.getNumDims())))
     return failure();
 
   // Verify that the entry of each child region does not have arguments.

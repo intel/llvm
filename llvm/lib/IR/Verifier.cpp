@@ -1034,6 +1034,9 @@ void Verifier::visitDIFile(const DIFile &N) {
     case DIFile::CSK_SHA1:
       Size = 40;
       break;
+    case DIFile::CSK_SHA256:
+      Size = 64;
+      break;
     }
     AssertDI(Checksum->Value.size() == Size, "invalid checksum length", &N);
     AssertDI(Checksum->Value.find_if_not(llvm::isHexDigit) == StringRef::npos,
@@ -2364,8 +2367,7 @@ void Verifier::visitFunction(const Function &F) {
   if (!HasDebugInfo)
     return;
 
-  // Check that all !dbg attachments lead to back to N (or, at least, another
-  // subprogram that describes the same function).
+  // Check that all !dbg attachments lead to back to N.
   //
   // FIXME: Check this incrementally while visiting !dbg attachments.
   // FIXME: Only check when N is the canonical subprogram for F.
@@ -2383,22 +2385,23 @@ void Verifier::visitFunction(const Function &F) {
     AssertDI(Parent && isa<DILocalScope>(Parent),
              "DILocation's scope must be a DILocalScope", N, &F, &I, DL,
              Parent);
+
     DILocalScope *Scope = DL->getInlinedAtScope();
-    if (Scope && !Seen.insert(Scope).second)
+    Assert(Scope, "Failed to find DILocalScope", DL);
+
+    if (!Seen.insert(Scope).second)
       return;
 
-    DISubprogram *SP = Scope ? Scope->getSubprogram() : nullptr;
+    DISubprogram *SP = Scope->getSubprogram();
 
     // Scope and SP could be the same MDNode and we don't want to skip
     // validation in that case
     if (SP && ((Scope != SP) && !Seen.insert(SP).second))
       return;
 
-    // FIXME: Once N is canonical, check "SP == &N".
     AssertDI(SP->describes(&F),
              "!dbg attachment points at wrong subprogram for function", N, &F,
              &I, DL, Scope, SP);
-    visitMDNode(*SP);
   };
   for (auto &BB : F)
     for (auto &I : BB) {
@@ -4323,6 +4326,30 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   switch (ID) {
   default:
     break;
+  case Intrinsic::assume: {
+    for (auto &Elem : Call.bundle_op_infos()) {
+      Assert(Elem.Tag->getKey() == "ignore" ||
+                 Attribute::isExistingAttribute(Elem.Tag->getKey()),
+             "tags must be valid attribute names");
+      Assert(Elem.End - Elem.Begin <= 2, "to many arguments");
+      Attribute::AttrKind Kind =
+          Attribute::getAttrKindFromName(Elem.Tag->getKey());
+      if (Kind == Attribute::None)
+        break;
+      if (Attribute::doesAttrKindHaveArgument(Kind)) {
+        Assert(Elem.End - Elem.Begin == 2,
+               "this attribute should have 2 arguments");
+        Assert(isa<ConstantInt>(Call.getOperand(Elem.Begin + 1)),
+               "the second argument should be a constant integral value");
+      } else if (isFuncOnlyAttr(Kind)) {
+        Assert((Elem.End - Elem.Begin) == 0, "this attribute has no argument");
+      } else if (!isFuncOrArgAttr(Kind)) {
+        Assert((Elem.End - Elem.Begin) == 1,
+               "this attribute should have one argument");
+      }
+    }
+    break;
+  }
   case Intrinsic::coro_id: {
     auto *InfoArg = Call.getArgOperand(3)->stripPointerCasts();
     if (isa<ConstantPointerNull>(InfoArg))
@@ -4387,15 +4414,6 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            "element size of the element-wise atomic memory intrinsic "
            "must be a power of 2",
            Call);
-
-    if (auto *LengthCI = dyn_cast<ConstantInt>(AMI->getLength())) {
-      uint64_t Length = LengthCI->getZExtValue();
-      uint64_t ElementSize = AMI->getElementSizeInBytes();
-      Assert((Length % ElementSize) == 0,
-             "constant length must be a multiple of the element size in the "
-             "element-wise atomic memory intrinsic",
-             Call);
-    }
 
     auto IsValidAlignment = [&](uint64_t Alignment) {
       return isPowerOf2_64(Alignment) && ElementSizeVal.ule(Alignment);

@@ -41,6 +41,11 @@ class raw_ostream;
 class SMLoc;
 class SourceMgr;
 
+namespace mcdwarf {
+// Emit the common part of the DWARF 5 range/locations list tables header.
+MCSymbol *emitListsTableHeaderStart(MCStreamer &S);
+} // namespace mcdwarf
+
 /// Instances of this class represent the name of the dwarf .file directive and
 /// its associated dwarf file number in the MC file. MCDwarfFile's are created
 /// and uniqued by the MCContext class. In Dwarf 4 file numbers start from 1;

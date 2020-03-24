@@ -1,7 +1,6 @@
 // REQUIRES: arm
 // RUN: llvm-mc -g --triple=armv7a-linux-gnueabihf -arm-add-build-attributes -filetype=obj -o %t.o %s
-// RUN: ld.lld %t.o --no-threads -o %t 2>&1
-// RUN: ld.lld %t.o --no-threads -o %t 2>&1 | FileCheck %s --check-prefix=WARN
+// RUN: ld.lld %t.o -o %t 2>&1 | FileCheck %s --check-prefix=WARN
 // RUN: llvm-objdump --no-show-raw-insn -d %t | FileCheck %s
 
 .syntax unified
@@ -95,7 +94,7 @@ thumb_caller:
  blx thumb_func_with_notype
  blx thumb_func_with_explicit_notype
 
-// CHECK: 00012008 _start:
+// CHECK: 00012008 <_start>:
 // CHECK-NEXT: 12008: b       #-16
 // CHECK-NEXT: 1200c: b       #-20
 // CHECK-NEXT: 12010: b       #-24
@@ -115,7 +114,7 @@ thumb_caller:
 // CHECK-NEXT: 12048: blx     #-76
 // CHECK-NEXT: 1204c: blx     #-80
 
-// CHECK: 00012050 thumb_caller:
+// CHECK: 00012050 <thumb_caller>:
 // CHECK-NEXT: 12050: b.w     #-84
 // CHECK-NEXT: 12054: b.w     #-88
 // CHECK-NEXT: 12058: b.w     #-92

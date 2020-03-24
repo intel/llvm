@@ -329,6 +329,11 @@ def FeatureFastLZCNT
     : SubtargetFeature<
           "fast-lzcnt", "HasFastLZCNT", "true",
           "LZCNT instructions are as fast as most simple integer ops">;
+// If the target can efficiently decode NOPs upto 7-bytes in length.
+def FeatureFast7ByteNOP
+    : SubtargetFeature<
+          "fast-7bytenop", "HasFast7ByteNOP", "true",
+          "Target can quickly decode up to 7 byte NOPs">;
 // If the target can efficiently decode NOPs upto 11-bytes in length.
 def FeatureFast11ByteNOP
     : SubtargetFeature<
@@ -546,7 +551,8 @@ def ProcessorFeatures {
                                                   FeatureSlow3OpsLEA,
                                                   FeatureFastScalarFSQRT,
                                                   FeatureFastSHLDRotate,
-                                                  FeatureMergeToThreeWayBranch];
+                                                  FeatureMergeToThreeWayBranch,
+                                                  FeatureFast15ByteNOP];
   list<SubtargetFeature> SNBSpecificFeatures = [FeatureSlowUAMem32,
                                                 FeaturePOPCNTFalseDeps];
   list<SubtargetFeature> SNBInheritableFeatures =
@@ -728,6 +734,7 @@ def ProcessorFeatures {
   list<SubtargetFeature> SLMSpecificFeatures = [ProcIntelSLM,
                                                 FeatureSlowDivide64,
                                                 FeatureSlowPMULLD,
+                                                FeatureFast7ByteNOP,
                                                 FeaturePOPCNTFalseDeps];
   list<SubtargetFeature> SLMInheritableFeatures =
     !listconcat(AtomInheritableFeatures, SLMAdditionalFeatures);

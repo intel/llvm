@@ -1,8 +1,8 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj --arm-add-build-attributes -triple=armv7a-none-linux-gnueabi %s -o %t
 // RUN: ld.lld %t -o %t2
-// RUN: llvm-objdump -d -triple=armv7a-none-linux-gnueabi --no-show-raw-insn %t2 | FileCheck %s
-// RUN: llvm-objdump -s -triple=armv7a-none-linux-gnueabi %t2 | FileCheck -check-prefix=CHECK-EXIDX %s
+// RUN: llvm-objdump -d --triple=armv7a-none-linux-gnueabi --no-show-raw-insn %t2 | FileCheck %s
+// RUN: llvm-objdump -s --triple=armv7a-none-linux-gnueabi %t2 | FileCheck --check-prefix=CHECK-EXIDX %s
 // RUN: llvm-readobj --program-headers --sections %t2 | FileCheck -check-prefix=CHECK-PT %s
 
 // Test that inline unwinding table entries and references to .ARM.extab
@@ -54,17 +54,17 @@ _start:
 
 // CHECK: Disassembly of section .text:
 // CHECK-EMPTY:
-// CHECK-NEXT: _start:
+// CHECK-NEXT: <_start>:
 // CHECK-NEXT:    11108:       bl      #4 <func1>
 // CHECK-NEXT:                 bl      #4 <func2>
 // CHECK-NEXT:                 bx      lr
-// CHECK:      func1:
+// CHECK:      <func1>:
 // CHECK-NEXT:    11114:       bx      lr
-// CHECK:      func2:
+// CHECK:      <func2>:
 // CHECK-NEXT:    11118:       bx      lr
-// CHECK:      __gxx_personality_v0:
+// CHECK:      <__gxx_personality_v0>:
 // CHECK-NEXT:    1111c:       bx      lr
-// CHECK:      __aeabi_unwind_cpp_pr0:
+// CHECK:      <__aeabi_unwind_cpp_pr0>:
 // CHECK-NEXT:    11120:       bx      lr
 
 // 100d4 + 0x1034 = 0x11108 = main (linker generated cantunwind)

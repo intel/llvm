@@ -30,7 +30,7 @@ program::program(vector_class<program> programList, string_class linkOptions) {
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context),
-          detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+          detail::pi::cast<detail::program_interop_handle_t>(clProgram))) {}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }

@@ -85,6 +85,9 @@ public:
 
   SPIRVValue *getTranslatedValue(const Value *) const;
 
+  spv::LoopControlMask getLoopControl(const BranchInst *Branch,
+                                      std::vector<SPIRVWord> &Parameters);
+
   // Translation functions
   bool transAddressingMode();
   bool transAlign(Value *V, SPIRVValue *BV);
@@ -97,6 +100,8 @@ public:
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transIndirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
+  SPIRVValue *transAsmINTEL(InlineAsm *Asm);
+  SPIRVValue *transAsmCallINTEL(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
@@ -113,6 +118,7 @@ public:
   void transGlobalAnnotation(GlobalVariable *V);
   SPIRVValue *transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                           bool CreateForward = true);
+  void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;

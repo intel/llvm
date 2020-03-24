@@ -33,6 +33,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -71,6 +72,7 @@
 #include <cstdint>
 #include <iterator>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -284,15 +286,7 @@ DenormalMode MachineFunction::getDenormalMode(const fltSemantics &FPType) const 
   // TODO: Should probably avoid the connection to the IR and store directly
   // in the MachineFunction.
   Attribute Attr = F.getFnAttribute("denormal-fp-math");
-
-  // FIXME: This should assume IEEE behavior on an unspecified
-  // attribute. However, the one current user incorrectly assumes a non-IEEE
-  // target by default.
-  StringRef Val = Attr.getValueAsString();
-  if (Val.empty())
-    return DenormalMode::getInvalid();
-
-  return parseDenormalFPAttribute(Val);
+  return parseDenormalFPAttribute(Attr.getValueAsString());
 }
 
 /// Should we be emitting segmented stack stuff for the function
@@ -345,6 +339,59 @@ void MachineFunction::RenumberBlocks(MachineBasicBlock *MBB) {
   // numbering, shrink MBBNumbering now.
   assert(BlockNo <= MBBNumbering.size() && "Mismatch!");
   MBBNumbering.resize(BlockNo);
+}
+
+/// This sets the section ranges of cold or exception section with basic block
+/// sections.
+void MachineFunction::setSectionRange() {
+  // Compute the Section Range of cold and exception basic blocks.  Find the
+  // first and last block of each range.
+  auto SectionRange =
+      ([&](llvm::MachineBasicBlockSection S) -> std::pair<int, int> {
+        auto MBBP =
+            std::find_if(begin(), end(), [&](MachineBasicBlock &MBB) -> bool {
+              return MBB.getSectionType() == S;
+            });
+        if (MBBP == end())
+          return std::make_pair(-1, -1);
+
+        auto MBBQ =
+            std::find_if(rbegin(), rend(), [&](MachineBasicBlock &MBB) -> bool {
+              return MBB.getSectionType() == S;
+            });
+        assert(MBBQ != rend() && "Section end not found!");
+        return std::make_pair(MBBP->getNumber(), MBBQ->getNumber());
+      });
+
+  ExceptionSectionRange = SectionRange(MBBS_Exception);
+  ColdSectionRange = SectionRange(llvm::MBBS_Cold);
+}
+
+/// This is used with -fbasicblock-sections or -fbasicblock-labels option.
+/// A unary encoding of basic block labels is done to keep ".strtab" sizes
+/// small.
+void MachineFunction::createBBLabels() {
+  const TargetInstrInfo *TII = getSubtarget().getInstrInfo();
+  this->BBSectionsSymbolPrefix.resize(getNumBlockIDs(), 'a');
+  for (auto MBBI = begin(), E = end(); MBBI != E; ++MBBI) {
+    assert(
+        (MBBI->getNumber() >= 0 && MBBI->getNumber() < (int)getNumBlockIDs()) &&
+        "BasicBlock number was out of range!");
+    // 'a' - Normal block.
+    // 'r' - Return block.
+    // 'l' - Landing Pad.
+    // 'L' - Return and landing pad.
+    bool isEHPad = MBBI->isEHPad();
+    bool isRetBlock = MBBI->isReturnBlock() && !TII->isTailCall(MBBI->back());
+    char type = 'a';
+    if (isEHPad && isRetBlock)
+      type = 'L';
+    else if (isEHPad)
+      type = 'l';
+    else if (isRetBlock)
+      type = 'r';
+    BBSectionsSymbolPrefix[MBBI->getNumber()] = type;
+  }
 }
 
 /// Allocate a new MachineInstr. Use this instead of `new MachineInstr'.
@@ -866,7 +913,7 @@ MachineFunction::getCallSiteInfo(const MachineInstr *MI) {
   assert(MI->isCandidateForCallSiteEntry() &&
          "Call site info refers only to call (MI) candidates");
 
-  if (!Target.Options.EnableDebugEntryValues)
+  if (!Target.Options.EmitCallSiteInfo)
     return CallSitesInfo.end();
   return CallSitesInfo.find(MI);
 }

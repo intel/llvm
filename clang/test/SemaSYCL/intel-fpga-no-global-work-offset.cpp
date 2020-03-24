@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -Wno-return-type -fsycl-is-device -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 struct FuncObj {
   [[intelfpga::no_global_work_offset]] void operator()() {}

@@ -1055,7 +1055,7 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
 void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
   bool IsReqOnBuffer =
       MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
@@ -1361,7 +1361,7 @@ void ExecCGCommand::emitInstrumentationData() {
 void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "EXEC CG ON " << deviceToString(MQueue->get_device()) << "\\n";
 
   switch (MCommandGroup->getType()) {

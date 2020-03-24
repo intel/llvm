@@ -71,14 +71,6 @@ class StdLibraryFunctionsChecker : public Checker<check::PostCall, eval::Call> {
   /// to us. If he doesn't, he performs additional invalidations.
   enum InvalidationKind { NoEvalCall, EvalCallAsPure };
 
-  /// A pair of ValueRangeKind and IntRangeVector would describe a range
-  /// imposed on a particular argument or return value symbol.
-  ///
-  /// Given a range, should the argument stay inside or outside this range?
-  /// The special `ComparesToArgument' value indicates that we should
-  /// impose a constraint that involves other argument or return value symbols.
-  enum ValueRangeKind { OutOfRange, WithinRange, ComparesToArgument };
-
   // The universal integral type to use in value range descriptions.
   // Unsigned to make sure overflows are well-defined.
   typedef uint64_t RangeInt;
@@ -93,44 +85,42 @@ class StdLibraryFunctionsChecker : public Checker<check::PostCall, eval::Call> {
   /// ArgNo in CallExpr and CallEvent is defined as Unsigned, but
   /// obviously uint32_t should be enough for all practical purposes.
   typedef uint32_t ArgNo;
-  static const ArgNo Ret = std::numeric_limits<ArgNo>::max();
+  static const ArgNo Ret;
 
-  /// Incapsulates a single range on a single symbol within a branch.
-  class ValueRange {
-    ArgNo ArgN;          // Argument to which we apply the range.
-    ValueRangeKind Kind; // Kind of range definition.
+  /// Polymorphic base class that represents a constraint on a given argument
+  /// (or return value) of a function. Derived classes implement different kind
+  /// of constraints, e.g range constraints or correlation between two
+  /// arguments.
+  class ValueConstraint {
+  public:
+    ValueConstraint(ArgNo ArgN) : ArgN(ArgN) {}
+    virtual ~ValueConstraint() {}
+    /// Apply the effects of the constraint on the given program state. If null
+    /// is returned then the constraint is not feasible.
+    virtual ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
+                                  const Summary &Summary) const = 0;
+    ArgNo getArgNo() const { return ArgN; }
+
+  protected:
+    ArgNo ArgN; // Argument to which we apply the constraint.
+  };
+
+  /// Given a range, should the argument stay inside or outside this range?
+  enum RangeKind { OutOfRange, WithinRange };
+
+  /// Encapsulates a single range on a single symbol within a branch.
+  class RangeConstraint : public ValueConstraint {
+    RangeKind Kind;      // Kind of range definition.
     IntRangeVector Args; // Polymorphic arguments.
 
   public:
-    ValueRange(ArgNo ArgN, ValueRangeKind Kind, const IntRangeVector &Args)
-        : ArgN(ArgN), Kind(Kind), Args(Args) {}
-
-    ArgNo getArgNo() const { return ArgN; }
-    ValueRangeKind getKind() const { return Kind; }
-
-    BinaryOperator::Opcode getOpcode() const {
-      assert(Kind == ComparesToArgument);
-      assert(Args.size() == 1);
-      BinaryOperator::Opcode Op =
-          static_cast<BinaryOperator::Opcode>(Args[0].first);
-      assert(BinaryOperator::isComparisonOp(Op) &&
-             "Only comparison ops are supported for ComparesToArgument");
-      return Op;
-    }
-
-    ArgNo getOtherArgNo() const {
-      assert(Kind == ComparesToArgument);
-      assert(Args.size() == 1);
-      return static_cast<ArgNo>(Args[0].second);
-    }
+    RangeConstraint(ArgNo ArgN, RangeKind Kind, const IntRangeVector &Args)
+        : ValueConstraint(ArgN), Kind(Kind), Args(Args) {}
 
     const IntRangeVector &getRanges() const {
-      assert(Kind != ComparesToArgument);
       return Args;
     }
 
-    // We avoid creating a virtual apply() method because
-    // it makes initializer lists harder to write.
   private:
     ProgramStateRef applyAsOutOfRange(ProgramStateRef State,
                                       const CallEvent &Call,
@@ -138,30 +128,44 @@ class StdLibraryFunctionsChecker : public Checker<check::PostCall, eval::Call> {
     ProgramStateRef applyAsWithinRange(ProgramStateRef State,
                                        const CallEvent &Call,
                                        const Summary &Summary) const;
-    ProgramStateRef applyAsComparesToArgument(ProgramStateRef State,
-                                              const CallEvent &Call,
-                                              const Summary &Summary) const;
-
   public:
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
-                          const Summary &Summary) const {
+                          const Summary &Summary) const override {
       switch (Kind) {
       case OutOfRange:
         return applyAsOutOfRange(State, Call, Summary);
       case WithinRange:
         return applyAsWithinRange(State, Call, Summary);
-      case ComparesToArgument:
-        return applyAsComparesToArgument(State, Call, Summary);
       }
-      llvm_unreachable("Unknown ValueRange kind!");
+      llvm_unreachable("Unknown range kind!");
     }
   };
 
-  /// The complete list of ranges that defines a single branch.
-  typedef std::vector<ValueRange> ValueRangeSet;
+  class ComparisonConstraint : public ValueConstraint {
+    BinaryOperator::Opcode Opcode;
+    ArgNo OtherArgN;
+
+  public:
+    ComparisonConstraint(ArgNo ArgN, BinaryOperator::Opcode Opcode,
+                         ArgNo OtherArgN)
+        : ValueConstraint(ArgN), Opcode(Opcode), OtherArgN(OtherArgN) {}
+    ArgNo getOtherArgNo() const { return OtherArgN; }
+    BinaryOperator::Opcode getOpcode() const { return Opcode; }
+    ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
+                          const Summary &Summary) const override;
+  };
+
+  // Pointer to the ValueConstraint. We need a copyable, polymorphic and
+  // default initialize able type (vector needs that). A raw pointer was good,
+  // however, we cannot default initialize that. unique_ptr makes the Summary
+  // class non-copyable, therefore not an option. Releasing the copyability
+  // requirement would render the initialization of the Summary map infeasible.
+  using ValueConstraintPtr = std::shared_ptr<ValueConstraint>;
+  /// The complete list of constraints that defines a single branch.
+  typedef std::vector<ValueConstraintPtr> ConstraintSet;
 
   using ArgTypes = std::vector<QualType>;
-  using Ranges = std::vector<ValueRangeSet>;
+  using Cases = std::vector<ConstraintSet>;
 
   /// Includes information about function prototype (which is necessary to
   /// ensure we're modeling the right function and casting values properly),
@@ -171,14 +175,14 @@ class StdLibraryFunctionsChecker : public Checker<check::PostCall, eval::Call> {
     const ArgTypes ArgTys;
     const QualType RetTy;
     const InvalidationKind InvalidationKd;
-    Ranges Cases;
-    ValueRangeSet ArgConstraints;
+    Cases CaseConstraints;
+    ConstraintSet ArgConstraints;
 
     Summary(ArgTypes ArgTys, QualType RetTy, InvalidationKind InvalidationKd)
         : ArgTys(ArgTys), RetTy(RetTy), InvalidationKd(InvalidationKd) {}
 
-    Summary &Case(ValueRangeSet VRS) {
-      Cases.push_back(VRS);
+    Summary &Case(ConstraintSet&& CS) {
+      CaseConstraints.push_back(std::move(CS));
       return *this;
     }
 
@@ -244,9 +248,13 @@ private:
 
   void initFunctionSummaries(CheckerContext &C) const;
 };
+
+const StdLibraryFunctionsChecker::ArgNo StdLibraryFunctionsChecker::Ret =
+    std::numeric_limits<ArgNo>::max();
+
 } // end of anonymous namespace
 
-ProgramStateRef StdLibraryFunctionsChecker::ValueRange::applyAsOutOfRange(
+ProgramStateRef StdLibraryFunctionsChecker::RangeConstraint::applyAsOutOfRange(
     ProgramStateRef State, const CallEvent &Call,
     const Summary &Summary) const {
 
@@ -273,7 +281,7 @@ ProgramStateRef StdLibraryFunctionsChecker::ValueRange::applyAsOutOfRange(
   return State;
 }
 
-ProgramStateRef StdLibraryFunctionsChecker::ValueRange::applyAsWithinRange(
+ProgramStateRef StdLibraryFunctionsChecker::RangeConstraint::applyAsWithinRange(
     ProgramStateRef State, const CallEvent &Call,
     const Summary &Summary) const {
 
@@ -330,8 +338,7 @@ ProgramStateRef StdLibraryFunctionsChecker::ValueRange::applyAsWithinRange(
   return State;
 }
 
-ProgramStateRef
-StdLibraryFunctionsChecker::ValueRange::applyAsComparesToArgument(
+ProgramStateRef StdLibraryFunctionsChecker::ComparisonConstraint::apply(
     ProgramStateRef State, const CallEvent &Call,
     const Summary &Summary) const {
 
@@ -367,15 +374,15 @@ void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
   if (!FoundSummary)
     return;
 
-  // Now apply ranges.
+  // Now apply the constraints.
   const Summary &Summary = *FoundSummary;
   ProgramStateRef State = C.getState();
 
   // Apply case/branch specifications.
-  for (const auto &VRS : Summary.Cases) {
+  for (const auto &VRS : Summary.CaseConstraints) {
     ProgramStateRef NewState = State;
     for (const auto &VR: VRS) {
-      NewState = VR.apply(NewState, Call, Summary);
+      NewState = VR->apply(NewState, Call, Summary);
       if (!NewState)
         break;
     }
@@ -500,7 +507,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   // or long long, so three summary variants would be enough).
   // Of course, function variants are also useful for C++ overloads.
   const QualType
-      Irrelevant; // A placeholder, whenever we do not care about the type.
+      Irrelevant{}; // A placeholder, whenever we do not care about the type.
   const QualType IntTy = ACtx.IntTy;
   const QualType LongTy = ACtx.LongTy;
   const QualType LongLongTy = ACtx.LongLongTy;
@@ -510,8 +517,14 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   const RangeInt LongMax = BVF.getMaxValue(LongTy).getLimitedValue();
   const RangeInt LongLongMax = BVF.getMaxValue(LongLongTy).getLimitedValue();
 
-  const RangeInt UCharMax =
-      BVF.getMaxValue(ACtx.UnsignedCharTy).getLimitedValue();
+  // Set UCharRangeMax to min of int or uchar maximum value.
+  // The C standard states that the arguments of functions like isalpha must
+  // be representable as an unsigned char. Their type is 'int', so the max
+  // value of the argument should be min(UCharMax, IntMax). This just happen
+  // to be true for commonly used and well tested instruction set
+  // architectures, but not for others.
+  const RangeInt UCharRangeMax =
+      std::min(BVF.getMaxValue(ACtx.UnsignedCharTy).getLimitedValue(), IntMax);
 
   // The platform dependent value of EOF.
   // Try our best to parse this from the Preprocessor, otherwise fallback to -1.
@@ -549,44 +562,46 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   // Please update the list of functions in the header after editing!
   //
 
-  // Below are helper functions to create the summaries.
-  auto ArgumentCondition = [](ArgNo ArgN, ValueRangeKind Kind,
-                              IntRangeVector Ranges) -> ValueRange {
-    ValueRange VR{ArgN, Kind, Ranges};
-    return VR;
+  // Below are helpers functions to create the summaries.
+  auto ArgumentCondition = [](ArgNo ArgN, RangeKind Kind,
+                              IntRangeVector Ranges) {
+    return std::make_shared<RangeConstraint>(ArgN, Kind, Ranges);
   };
-  auto ReturnValueCondition = [](ValueRangeKind Kind,
-                                 IntRangeVector Ranges) -> ValueRange {
-    ValueRange VR{Ret, Kind, Ranges};
-    return VR;
-  };
+  struct {
+    auto operator()(RangeKind Kind, IntRangeVector Ranges) {
+      return std::make_shared<RangeConstraint>(Ret, Kind, Ranges);
+    }
+    auto operator()(BinaryOperator::Opcode Op, ArgNo OtherArgN) {
+      return std::make_shared<ComparisonConstraint>(Ret, Op, OtherArgN);
+    }
+  } ReturnValueCondition;
   auto Range = [](RangeInt b, RangeInt e) {
     return IntRangeVector{std::pair<RangeInt, RangeInt>{b, e}};
   };
   auto SingleValue = [](RangeInt v) {
     return IntRangeVector{std::pair<RangeInt, RangeInt>{v, v}};
   };
-  auto IsLessThan = [](ArgNo ArgN) { return IntRangeVector{{BO_LE, ArgN}}; };
+  auto LessThanOrEq = BO_LE;
 
   using RetType = QualType;
 
   // Templates for summaries that are reused by many functions.
   auto Getc = [&]() {
     return Summary(ArgTypes{Irrelevant}, RetType{IntTy}, NoEvalCall)
-        .Case(
-            {ReturnValueCondition(WithinRange, {{EOFv, EOFv}, {0, UCharMax}})});
+        .Case({ReturnValueCondition(WithinRange,
+                                    {{EOFv, EOFv}, {0, UCharRangeMax}})});
   };
   auto Read = [&](RetType R, RangeInt Max) {
     return Summary(ArgTypes{Irrelevant, Irrelevant, SizeTy}, RetType{R},
                    NoEvalCall)
-        .Case({ReturnValueCondition(ComparesToArgument, IsLessThan(2)),
+        .Case({ReturnValueCondition(LessThanOrEq, ArgNo(2)),
                ReturnValueCondition(WithinRange, Range(-1, Max))});
   };
   auto Fread = [&]() {
     return Summary(ArgTypes{Irrelevant, Irrelevant, SizeTy, Irrelevant},
                    RetType{SizeTy}, NoEvalCall)
         .Case({
-            ReturnValueCondition(ComparesToArgument, IsLessThan(2)),
+            ReturnValueCondition(LessThanOrEq, ArgNo(2)),
         });
   };
   auto Getline = [&](RetType R, RangeInt Max) {
@@ -609,12 +624,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                   // The locale-specific range.
                   // No post-condition. We are completely unaware of
                   // locale-specific return values.
-                  .Case({ArgumentCondition(0U, WithinRange, {{128, UCharMax}})})
+                  .Case({ArgumentCondition(0U, WithinRange,
+                                           {{128, UCharRangeMax}})})
                   .Case({ArgumentCondition(0U, OutOfRange,
                                            {{'0', '9'},
                                             {'A', 'Z'},
                                             {'a', 'z'},
-                                            {128, UCharMax}}),
+                                            {128, UCharRangeMax}}),
                          ReturnValueCondition(WithinRange, SingleValue(0))})},
       },
       {
@@ -625,10 +641,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                            {{'A', 'Z'}, {'a', 'z'}}),
                          ReturnValueCondition(OutOfRange, SingleValue(0))})
                   // The locale-specific range.
-                  .Case({ArgumentCondition(0U, WithinRange, {{128, UCharMax}})})
+                  .Case({ArgumentCondition(0U, WithinRange,
+                                           {{128, UCharRangeMax}})})
                   .Case({ArgumentCondition(
                              0U, OutOfRange,
-                             {{'A', 'Z'}, {'a', 'z'}, {128, UCharMax}}),
+                             {{'A', 'Z'}, {'a', 'z'}, {128, UCharRangeMax}}),
                          ReturnValueCondition(WithinRange, SingleValue(0))})},
       },
       {
@@ -692,9 +709,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                          ArgumentCondition(0U, OutOfRange, Range('a', 'z')),
                          ReturnValueCondition(WithinRange, SingleValue(0))})
                   // The locale-specific range.
-                  .Case({ArgumentCondition(0U, WithinRange, {{128, UCharMax}})})
+                  .Case({ArgumentCondition(0U, WithinRange,
+                                           {{128, UCharRangeMax}})})
                   // Is not an unsigned char.
-                  .Case({ArgumentCondition(0U, OutOfRange, Range(0, UCharMax)),
+                  .Case({ArgumentCondition(0U, OutOfRange,
+                                           Range(0, UCharRangeMax)),
                          ReturnValueCondition(WithinRange, SingleValue(0))})},
       },
       {
@@ -728,10 +747,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                            {{9, 13}, {' ', ' '}}),
                          ReturnValueCondition(OutOfRange, SingleValue(0))})
                   // The locale-specific range.
-                  .Case({ArgumentCondition(0U, WithinRange, {{128, UCharMax}})})
+                  .Case({ArgumentCondition(0U, WithinRange,
+                                           {{128, UCharRangeMax}})})
                   .Case({ArgumentCondition(
                              0U, OutOfRange,
-                             {{9, 13}, {' ', ' '}, {128, UCharMax}}),
+                             {{9, 13}, {' ', ' '}, {128, UCharRangeMax}}),
                          ReturnValueCondition(WithinRange, SingleValue(0))})},
       },
       {
@@ -742,10 +762,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                   .Case({ArgumentCondition(0U, WithinRange, Range('A', 'Z')),
                          ReturnValueCondition(OutOfRange, SingleValue(0))})
                   // The locale-specific range.
-                  .Case({ArgumentCondition(0U, WithinRange, {{128, UCharMax}})})
+                  .Case({ArgumentCondition(0U, WithinRange,
+                                           {{128, UCharRangeMax}})})
                   // Other.
                   .Case({ArgumentCondition(0U, OutOfRange,
-                                           {{'A', 'Z'}, {128, UCharMax}}),
+                                           {{'A', 'Z'}, {128, UCharRangeMax}}),
                          ReturnValueCondition(WithinRange, SingleValue(0))})},
       },
       {
@@ -768,7 +789,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       {"getchar",
        Summaries{Summary(ArgTypes{}, RetType{IntTy}, NoEvalCall)
                      .Case({ReturnValueCondition(
-                         WithinRange, {{EOFv, EOFv}, {0, UCharMax}})})}},
+                         WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})})}},
 
       // read()-like functions that never return more than buffer size.
       // We are not sure how ssize_t is defined on every platform, so we

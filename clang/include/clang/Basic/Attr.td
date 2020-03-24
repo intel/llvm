@@ -312,6 +312,7 @@ class SubjectList<list<AttrSubject> subjects, SubjectDiag diag = WarnDiag,
 }
 
 class LangOpt<string name, code customCode = [{}]> {
+  // The language option to test; ignored when custom code is supplied.
   string Name = name;
 
   // A custom predicate, written as an expression evaluated in a context with
@@ -322,17 +323,18 @@ def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
+def SYCL : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def HIP : LangOpt<"HIP">;
-def COnly : LangOpt<"COnly", "!LangOpts.CPlusPlus">;
+def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
 def RenderScript : LangOpt<"RenderScript">;
 def ObjC : LangOpt<"ObjC">;
 def BlocksSupported : LangOpt<"Blocks">;
 def ObjCAutoRefCount : LangOpt<"ObjCAutoRefCount">;
-def ObjCNonFragileRuntime : LangOpt<"ObjCNonFragileRuntime",
-                                    "LangOpts.ObjCRuntime.allowsClassStubs()">;
+def ObjCNonFragileRuntime
+    : LangOpt<"", "LangOpts.ObjCRuntime.allowsClassStubs()">;
 
 // Language option for CMSE extensions
 def Cmse : LangOpt<"Cmse">;
@@ -626,11 +628,11 @@ def Alias : Attr {
   let Documentation = [Undocumented];
 }
 
-def ArmMveAlias : InheritableAttr, TargetSpecificAttr<TargetARM> {
-  let Spellings = [Clang<"__clang_arm_mve_alias">];
+def ArmBuiltinAlias : InheritableAttr, TargetSpecificAttr<TargetARM> {
+  let Spellings = [Clang<"__clang_arm_builtin_alias">];
   let Args = [IdentifierArgument<"BuiltinName">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [ArmMveAliasDocs];
+  let Documentation = [ArmBuiltinAliasDocs];
 }
 
 def Aligned : InheritableAttr {
@@ -680,7 +682,7 @@ def AlwaysInline : InheritableAttr {
 
 def Artificial : InheritableAttr {
   let Spellings = [GCC<"artificial">];
-  let Subjects = SubjectList<[InlineFunction], WarnDiag>;
+  let Subjects = SubjectList<[InlineFunction]>;
   let Documentation = [ArtificialDocs];
 }
 
@@ -1846,6 +1848,23 @@ def IntelFPGABankBits : Attr {
     }
     static unsigned getMaxValue() {
       return 1024*1024;
+    }
+  }];
+}
+
+def IntelFPGAForcePow2Depth : Attr {
+  let Spellings = [CXX11<"intelfpga","force_pow2_depth">];
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1;
     }
   }];
 }
@@ -3502,57 +3521,14 @@ def LoopHint : Attr {
     llvm_unreachable("Unhandled LoopHint option.");
   }
 
-  void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const {
-    unsigned SpellingIndex = getAttributeSpellingListIndex();
-    // For "#pragma unroll" and "#pragma nounroll" the string "unroll" or
-    // "nounroll" is already emitted as the pragma name.
-    if (SpellingIndex == Pragma_nounroll || SpellingIndex == Pragma_nounroll_and_jam)
-      return;
-    else if (SpellingIndex == Pragma_unroll || SpellingIndex == Pragma_unroll_and_jam) {
-      OS << ' ' << getValueString(Policy);
-      return;
-    }
-
-    assert(SpellingIndex == Pragma_clang_loop && "Unexpected spelling");
-    OS << ' ' << getOptionName(option) << getValueString(Policy);
-  }
+  void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
 
   // Return a string containing the loop hint argument including the
   // enclosing parentheses.
-  std::string getValueString(const PrintingPolicy &Policy) const {
-    std::string ValueName;
-    llvm::raw_string_ostream OS(ValueName);
-    OS << "(";
-    if (state == Numeric)
-      value->printPretty(OS, nullptr, Policy);
-    else if (state == Enable)
-      OS << "enable";
-    else if (state == Full)
-      OS << "full";
-    else if (state == AssumeSafety)
-      OS << "assume_safety";
-    else
-      OS << "disable";
-    OS << ")";
-    return OS.str();
-  }
+  std::string getValueString(const PrintingPolicy &Policy) const;
 
   // Return a string suitable for identifying this attribute in diagnostics.
-  std::string getDiagnosticName(const PrintingPolicy &Policy) const {
-    unsigned SpellingIndex = getAttributeSpellingListIndex();
-    if (SpellingIndex == Pragma_nounroll)
-      return "#pragma nounroll";
-    else if (SpellingIndex == Pragma_unroll)
-      return "#pragma unroll" + (option == UnrollCount ? getValueString(Policy) : "");
-    else if (SpellingIndex == Pragma_nounroll_and_jam)
-      return "#pragma nounroll_and_jam";
-    else if (SpellingIndex == Pragma_unroll_and_jam)
-      return "#pragma unroll_and_jam" +
-        (option == UnrollAndJamCount ? getValueString(Policy) : "");
-
-    assert(SpellingIndex == Pragma_clang_loop && "Unexpected spelling");
-    return getOptionName(option) + getValueString(Policy);
-  }
+  std::string getDiagnosticName(const PrintingPolicy &Policy) const;
   }];
 
   let Documentation = [LoopHintDocs, UnrollHintDocs];
@@ -3612,53 +3588,7 @@ def OMPDeclareSimdDecl : Attr {
   ];
   let AdditionalMembers = [{
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
-        const {
-      if (getBranchState() != BS_Undefined)
-        OS << ' ' << ConvertBranchStateTyToStr(getBranchState());
-      if (auto *E = getSimdlen()) {
-        OS << " simdlen(";
-        E->printPretty(OS, nullptr, Policy);
-        OS << ")";
-      }
-      if (uniforms_size() > 0) {
-        OS << " uniform";
-        StringRef Sep = "(";
-        for (auto *E : uniforms()) {
-          OS << Sep;
-          E->printPretty(OS, nullptr, Policy);
-          Sep = ", ";
-        }
-        OS << ")";
-      }
-      alignments_iterator NI = alignments_begin();
-      for (auto *E : aligneds()) {
-        OS << " aligned(";
-        E->printPretty(OS, nullptr, Policy);
-        if (*NI) {
-          OS << ": ";
-          (*NI)->printPretty(OS, nullptr, Policy);
-        }
-        OS << ")";
-        ++NI;
-      }
-      steps_iterator I = steps_begin();
-      modifiers_iterator MI = modifiers_begin();
-      for (auto *E : linears()) {
-        OS << " linear(";
-        if (*MI != OMPC_LINEAR_unknown)
-          OS << getOpenMPSimpleClauseTypeName(OMPC_linear, *MI) << "(";
-        E->printPretty(OS, nullptr, Policy);
-        if (*MI != OMPC_LINEAR_unknown)
-          OS << ")";
-        if (*I) {
-          OS << ": ";
-          (*I)->printPretty(OS, nullptr, Policy);
-        }
-        OS << ")";
-        ++I;
-        ++MI;
-      }
-    }
+        const;
   }];
 }
 
@@ -3676,30 +3606,10 @@ def OMPDeclareTargetDecl : InheritableAttr {
                  [ "DT_Host", "DT_NoHost", "DT_Any" ]>
   ];
   let AdditionalMembers = [{
-    void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const {
-      // Use fake syntax because it is for testing and debugging purpose only.
-      if (getDevType() != DT_Any)
-        OS << " device_type(" << ConvertDevTypeTyToStr(getDevType()) << ")";
-      if (getMapType() != MT_To)
-        OS << ' ' << ConvertMapTypeTyToStr(getMapType());
-    }
+    void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
     static llvm::Optional<MapTypeTy>
-    isDeclareTargetDeclaration(const ValueDecl *VD) {
-      if (!VD->hasAttrs())
-        return llvm::None;
-      if (const auto *Attr = VD->getAttr<OMPDeclareTargetDeclAttr>())
-        return Attr->getMapType();
-
-      return llvm::None;
-    }
-    static llvm::Optional<DevTypeTy> getDeviceType(const ValueDecl *VD) {
-      if (!VD->hasAttrs())
-        return llvm::None;
-      if (const auto *Attr = VD->getAttr<OMPDeclareTargetDeclAttr>())
-        return Attr->getDevType();
-
-      return llvm::None;
-    }
+    isDeclareTargetDeclaration(const ValueDecl *VD);
+    static llvm::Optional<DevTypeTy> getDeviceType(const ValueDecl *VD);
   }];
 }
 
@@ -3740,16 +3650,7 @@ def OMPDeclareVariant : InheritableAttr {
   let AdditionalMembers = [{
     OMPTraitInfo &getTraitInfo() { return traitInfos; }
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
-        const {
-      if (const Expr *E = getVariantFuncRef()) {
-        OS << "(";
-        E->printPretty(OS, nullptr, Policy);
-        OS << ")";
-      }
-      OS << " match(";
-      traitInfos.print(OS, Policy);
-      OS << ")";
-    }
+        const;
   }];
 }
 
@@ -3800,6 +3701,12 @@ def Uninitialized : InheritableAttr {
   let Spellings = [Clang<"uninitialized", 0>];
   let Subjects = SubjectList<[LocalVar]>;
   let Documentation = [UninitializedDocs];
+}
+
+def LoaderUninitialized : Attr {
+  let Spellings = [Clang<"loader_uninitialized">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  let Documentation = [LoaderUninitializedDocs];
 }
 
 def ObjCExternallyRetained : InheritableAttr {

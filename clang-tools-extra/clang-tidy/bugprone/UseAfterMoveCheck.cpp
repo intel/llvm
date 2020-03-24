@@ -276,13 +276,11 @@ void UseAfterMoveFinder::getDeclRefs(
                               .bind("declref");
 
     addDeclRefs(match(findAll(DeclRefMatcher), *S->getStmt(), *Context));
-    addDeclRefs(match(
-        findAll(cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("*"),
-                                          hasOverloadedOperatorName("->"),
-                                          hasOverloadedOperatorName("[]")),
-                                    hasArgument(0, DeclRefMatcher))
-                    .bind("operator")),
-        *S->getStmt(), *Context));
+    addDeclRefs(match(findAll(cxxOperatorCallExpr(
+                                  hasAnyOverloadedOperatorName("*", "->", "[]"),
+                                  hasArgument(0, DeclRefMatcher))
+                                  .bind("operator")),
+                      *S->getStmt(), *Context));
   }
 }
 
@@ -396,9 +394,6 @@ static void emitDiagnostic(const Expr *MovingCall, const DeclRefExpr *MoveArg,
 }
 
 void UseAfterMoveCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   auto CallMoveMatcher =
       callExpr(callee(functionDecl(hasName("::std::move"))), argumentCountIs(1),
                hasArgument(0, declRefExpr().bind("arg")),

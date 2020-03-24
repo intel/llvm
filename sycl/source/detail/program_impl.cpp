@@ -80,17 +80,32 @@ program_impl::program_impl(
   }
 }
 
-program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
+program_impl::program_impl(ContextImplPtr Context,
+                           program_interop_handle_t InteropProgram)
+    : program_impl(Context, InteropProgram, nullptr) {}
+
+program_impl::program_impl(ContextImplPtr Context,
+                           program_interop_handle_t InteropProgram,
+                           RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
+
+  const detail::plugin &Plugin = getPlugin();
+  if (MProgram == nullptr) {
+    assert(InteropProgram != nullptr &&
+           "No InteropProgram/PiProgram defined with piextProgramConvert");
+    // Translate the raw program handle into PI program.
+    Plugin.call<PiApiKind::piextProgramConvert>(
+        Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
+  } else
+    Plugin.call<PiApiKind::piProgramRetain>(Program);
 
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
-                                           sizeof(pi_uint32), &NumDevices,
-                                           nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
+      nullptr);
   vector_class<RT::PiDevice> PiDevices(NumDevices);
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
+  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
                                            sizeof(RT::PiDevice) * NumDevices,
                                            PiDevices.data(), nullptr);
   vector_class<device> SyclContextDevices =
@@ -109,16 +124,17 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
   SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
   MDevices = SyclContextDevices;
   RT::PiDevice Device = getSyclObjImpl(MDevices[0])->getHandleRef();
+  assert(!MDevices.empty() && "No device found for this program");
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-      Program, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
+      MProgram, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
       &BinaryType, nullptr);
   size_t Size = 0;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-      Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
+      MProgram, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  Plugin.call<PiApiKind::piProgramGetBuildInfo>(Program, Device,
+  Plugin.call<PiApiKind::piProgramGetBuildInfo>(MProgram, Device,
                                                 CL_PROGRAM_BUILD_OPTIONS, Size,
                                                 OptionsVector.data(), nullptr);
   string_class Options(OptionsVector.begin(), OptionsVector.end());
@@ -137,12 +153,11 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiProgram Program)
     MLinkOptions = "";
     MBuildOptions = Options;
   }
-  Plugin.call<PiApiKind::piProgramRetain>(Program);
 }
 
 program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
-    : program_impl(Context,
-                   ProgramManager::getInstance().getClProgramFromClKernel(
+    : program_impl(Context, nullptr,
+                   ProgramManager::getInstance().getPiProgramFromPiKernel(
                        Kernel, Context)) {}
 
 program_impl::~program_impl() {

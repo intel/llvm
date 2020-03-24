@@ -2,7 +2,7 @@
 // RUN: llvm-mc %s -o %t.o -filetype=obj -triple=armv7a-linux-gnueabi
 // RUN: ld.lld %t.o -o %t.so -shared
 // RUN: llvm-readobj -S --dyn-relocations %t.so | FileCheck --check-prefix=SEC %s
-// RUN: llvm-objdump -d -triple=armv7a-linux-gnueabi %t.so | FileCheck %s
+// RUN: llvm-objdump -d --triple=armv7a-linux-gnueabi %t.so | FileCheck %s
 
 // Test the handling of the initial-exec TLS model. Relative location within
 // static TLS is a run-time constant computed by dynamic loader as a result
@@ -84,7 +84,7 @@ x:
 
 // CHECK: Disassembly of section .text:
 // CHECK-EMPTY:
-// CHECK-NEXT: func:
+// CHECK-NEXT: <func>:
 // CHECK-NEXT:    11e8: 00 f0 20 e3     nop
 // CHECK-NEXT:    11ec: 00 f0 20 e3     nop
 // CHECK-NEXT:    11f0: 00 f0 20 e3     nop

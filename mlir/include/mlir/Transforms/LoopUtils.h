@@ -24,6 +24,7 @@ class AffineForOp;
 class FuncOp;
 class OpBuilder;
 class Value;
+struct MemRefRegion;
 
 namespace loop {
 class ForOp;
@@ -78,13 +79,14 @@ void getCleanupLoopLowerBound(AffineForOp forOp, unsigned unrollFactor,
                               AffineMap *map, SmallVectorImpl<Value> *operands,
                               OpBuilder &builder);
 
-/// Skew the operations in the body of a 'affine.for' operation with the
+/// Skew the operations in the body of an affine.for operation with the
 /// specified operation-wise shifts. The shifts are with respect to the
 /// original execution order, and are multiplied by the loop 'step' before being
-/// applied.
+/// applied. If `unrollPrologueEpilogue` is set, fully unroll the prologue and
+/// epilogue loops when possible.
 LLVM_NODISCARD
-LogicalResult instBodySkew(AffineForOp forOp, ArrayRef<uint64_t> shifts,
-                           bool unrollPrologueEpilogue = false);
+LogicalResult affineForOpBodySkew(AffineForOp forOp, ArrayRef<uint64_t> shifts,
+                                  bool unrollPrologueEpilogue = false);
 
 /// Tiles the specified band of perfectly nested loops creating tile-space loops
 /// and intra-tile loops. A band is a contiguous set of loops.
@@ -177,6 +179,41 @@ uint64_t affineDataCopyGenerate(Block::iterator begin, Block::iterator end,
                                 const AffineCopyOptions &copyOptions,
                                 Optional<Value> filterMemRef,
                                 DenseSet<Operation *> &copyNests);
+
+/// A convenience version of affineDataCopyGenerate for all ops in the body of
+/// an AffineForOp.
+uint64_t affineDataCopyGenerate(AffineForOp forOp,
+                                const AffineCopyOptions &copyOptions,
+                                Optional<Value> filterMemRef,
+                                DenseSet<Operation *> &copyNests);
+
+/// Result for calling generateCopyForMemRegion.
+struct CopyGenerateResult {
+  // Number of bytes used by alloc.
+  uint64_t sizeInBytes;
+
+  // The newly created buffer allocation.
+  Operation *alloc;
+
+  // Generated loop nest for copying data between the allocated buffer and the
+  // original memref.
+  Operation *copyNest;
+};
+
+/// generateCopyForMemRegion is similar to affineDataCopyGenerate, but works
+/// with a single memref region. `memrefRegion` is supposed to contain analysis
+/// information within analyzedOp. The generated prologue and epilogue always
+/// surround `analyzedOp`.
+///
+/// Note that `analyzedOp` is a single op for API convenience, and the
+/// [begin, end) version can be added as needed.
+///
+/// Also note that certain options in `copyOptions` aren't looked at anymore,
+/// like slowMemorySpace.
+LogicalResult generateCopyForMemRegion(const MemRefRegion &memrefRegion,
+                                       Operation *analyzedOp,
+                                       const AffineCopyOptions &copyOptions,
+                                       CopyGenerateResult &result);
 
 /// Tile a nest of standard for loops rooted at `rootForOp` by finding such
 /// parametric tile sizes that the outer loops have a fixed number of iterations

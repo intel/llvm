@@ -195,6 +195,14 @@ template <typename T>
 struct is_arithmetic
     : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
 
+template <typename T>
+struct is_scalar_arithmetic
+    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+
+template <typename T>
+struct is_vector_arithmetic
+    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
 

@@ -1104,8 +1104,8 @@ static void computeKnownBitsFromOperator(const Operator *I,
     break;
   case Instruction::And: {
     // If either the LHS or the RHS are Zero, the result is zero.
-    computeKnownBits(I->getOperand(1), Known, Depth + 1, Q);
-    computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+    computeKnownBits(I->getOperand(1), DemandedElts, Known, Depth + 1, Q);
+    computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
 
     // Output known-1 bits are only known if set in both the LHS & RHS.
     Known.One &= Known2.One;
@@ -1128,8 +1128,8 @@ static void computeKnownBitsFromOperator(const Operator *I,
     break;
   }
   case Instruction::Or:
-    computeKnownBits(I->getOperand(1), Known, Depth + 1, Q);
-    computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+    computeKnownBits(I->getOperand(1), DemandedElts, Known, Depth + 1, Q);
+    computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
 
     // Output known-0 bits are only known if clear in both the LHS & RHS.
     Known.Zero &= Known2.Zero;
@@ -1137,8 +1137,8 @@ static void computeKnownBitsFromOperator(const Operator *I,
     Known.One |= Known2.One;
     break;
   case Instruction::Xor: {
-    computeKnownBits(I->getOperand(1), Known, Depth + 1, Q);
-    computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+    computeKnownBits(I->getOperand(1), DemandedElts, Known, Depth + 1, Q);
+    computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
 
     // Output known-0 bits are known if clear or set in both the LHS & RHS.
     APInt KnownZeroOut = (Known.Zero & Known2.Zero) | (Known.One & Known2.One);
@@ -1447,7 +1447,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
           break;
         }
         unsigned GEPOpiBits = Index->getType()->getScalarSizeInBits();
-        uint64_t TypeSize = Q.DL.getTypeAllocSize(IndexedTy);
+        uint64_t TypeSize = Q.DL.getTypeAllocSize(IndexedTy).getKnownMinSize();
         LocalKnown.Zero = LocalKnown.One = APInt(GEPOpiBits, 0);
         computeKnownBits(Index, LocalKnown, Depth + 1, Q);
         TrailZ = std::min(TrailZ,
@@ -1605,12 +1605,12 @@ static void computeKnownBitsFromOperator(const Operator *I,
       switch (II->getIntrinsicID()) {
       default: break;
       case Intrinsic::bitreverse:
-        computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+        computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
         Known.Zero |= Known2.Zero.reverseBits();
         Known.One |= Known2.One.reverseBits();
         break;
       case Intrinsic::bswap:
-        computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+        computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
         Known.Zero |= Known2.Zero.byteSwap();
         Known.One |= Known2.One.byteSwap();
         break;
@@ -1762,13 +1762,20 @@ static void computeKnownBitsFromOperator(const Operator *I,
     }
     break;
   }
-  case Instruction::ExtractElement:
-    // Look through extract element. At the moment we keep this simple and skip
-    // tracking the specific element. But at least we might find information
-    // valid for all elements of the vector (for example if vector is sign
-    // extended, shifted, etc).
-    computeKnownBits(I->getOperand(0), Known, Depth + 1, Q);
+  case Instruction::ExtractElement: {
+    // Look through extract element. If the index is non-constant or
+    // out-of-range demand all elements, otherwise just the extracted element.
+    auto* EEI = cast<ExtractElementInst>(I);
+    const Value* Vec = EEI->getVectorOperand();
+    const Value* Idx = EEI->getIndexOperand();
+    auto *CIdx = dyn_cast<ConstantInt>(Idx);
+    unsigned NumElts = Vec->getType()->getVectorNumElements();
+    APInt DemandedVecElts = APInt::getAllOnesValue(NumElts);
+    if (CIdx && CIdx->getValue().ult(NumElts))
+      DemandedVecElts = APInt::getOneBitSet(NumElts, CIdx->getZExtValue());
+    computeKnownBits(Vec, DemandedVecElts, Known, Depth + 1, Q);
     break;
+  }
   case Instruction::ExtractValue:
     if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I->getOperand(0))) {
       const ExtractValueInst *EVI = cast<ExtractValueInst>(I);
@@ -2084,7 +2091,7 @@ static bool isGEPKnownNonNull(const GEPOperator *GEP, unsigned Depth,
     }
 
     // If we have a zero-sized type, the index doesn't matter. Keep looping.
-    if (Q.DL.getTypeAllocSize(GTI.getIndexedType()) == 0)
+    if (Q.DL.getTypeAllocSize(GTI.getIndexedType()).getKnownMinSize() == 0)
       continue;
 
     // Fast path the constant operand case both for efficiency and so we don't
@@ -4525,7 +4532,9 @@ bool llvm::isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
   return llvm::any_of(GuardingBranches, AllUsesGuardedByBranch);
 }
 
-bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V) {
+bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V,
+                                            const Instruction *CtxI,
+                                            const DominatorTree *DT) {
   // If the value is a freeze instruction, then it can never
   // be undef or poison.
   if (isa<FreezeInst>(V))
@@ -4556,6 +4565,30 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V) {
       // Note: once we have an agreement that poison is a value-wise concept,
       // we can remove the isIntegerTy(1) constraint.
       return true;
+  }
+
+  // CxtI may be null or a cloned instruction.
+  if (!CtxI || !CtxI->getParent() || !DT)
+    return false;
+
+  // If V is used as a branch condition before reaching CtxI, V cannot be
+  // undef or poison.
+  //   br V, BB1, BB2
+  // BB1:
+  //   CtxI ; V cannot be undef or poison here
+  auto Dominator = DT->getNode(CtxI->getParent())->getIDom();
+  while (Dominator) {
+    auto *TI = Dominator->getBlock()->getTerminator();
+
+    if (auto BI = dyn_cast<BranchInst>(TI)) {
+      if (BI->isConditional() && BI->getCondition() == V)
+        return true;
+    } else if (auto SI = dyn_cast<SwitchInst>(TI)) {
+      if (SI->getCondition() == V)
+        return true;
+    }
+
+    Dominator = Dominator->getIDom();
   }
 
   return false;
@@ -4860,7 +4893,7 @@ static SelectPatternResult matchFastFloatClamp(CmpInst::Predicate Pred,
     if (match(FalseVal,
               m_CombineOr(m_OrdFMin(m_Specific(CmpLHS), m_APFloat(FC2)),
                           m_UnordFMin(m_Specific(CmpLHS), m_APFloat(FC2)))) &&
-        FC1->compare(*FC2) == APFloat::cmpResult::cmpLessThan)
+        *FC1 < *FC2)
       return {SPF_FMAXNUM, SPNB_RETURNS_ANY, false};
     break;
   case CmpInst::FCMP_OGT:
@@ -4870,7 +4903,7 @@ static SelectPatternResult matchFastFloatClamp(CmpInst::Predicate Pred,
     if (match(FalseVal,
               m_CombineOr(m_OrdFMax(m_Specific(CmpLHS), m_APFloat(FC2)),
                           m_UnordFMax(m_Specific(CmpLHS), m_APFloat(FC2)))) &&
-        FC1->compare(*FC2) == APFloat::cmpResult::cmpGreaterThan)
+        *FC1 > *FC2)
       return {SPF_FMINNUM, SPNB_RETURNS_ANY, false};
     break;
   default:
