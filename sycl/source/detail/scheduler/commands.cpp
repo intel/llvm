@@ -1422,14 +1422,19 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
 
   if (WGSize[0] == 0) {
     // kernel does not request specific workgroup shape - set one
-    // TODO maximum work group size as the local size might not be the best
-    //      choice for CPU or FPGA devices
+    id<3> MaxWGSizes =
+        get_device_info<id<3>, cl::sycl::info::device::max_work_item_sizes>::
+            get(DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
+
     size_t WGSize1D = get_kernel_work_group_info<
         size_t, cl::sycl::info::kernel_work_group::work_group_size>::
         get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
-    assert(WGSize1D != 0);
-    // TODO implement better default for 2D/3D case:
-    WGSize = {WGSize1D, 1, 1};
+
+    assert(MaxWGSizes[2] != 0);
+
+    // Set default work-group size in the Z-direction to either the max
+    // number of work-items or the maximum work-group size in the Z-direction.
+    WGSize = {1, 1, min(WGSize1D, MaxWGSizes[2])};
   }
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
