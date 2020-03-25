@@ -51,6 +51,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 #include <CL/sycl/multi_ptr.hpp>
+#include "CL/__spirv/spirv_ops.hpp"
 
 #include <array>
 #include <cmath>
@@ -266,7 +267,6 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   };
 #else
   // TODO implement device side conversion.
-#include "/localdisk2/icl/fadeeval/sycl_workspace/llvm/llvm-spirv/lib/SPIRV/runtime/OpenCL/inc/spirv_convert.h"
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
