@@ -166,7 +166,6 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   // program source.
 
   // Fallback
-
   constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
       "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
@@ -178,6 +177,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
+
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -222,11 +222,12 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
   Plugin.call<PiApiKind::piDeviceGetInfo>(
       Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
       nullptr);
-  for (int i = 0; i < NDRDesc.Dims; i++) {
-    if (NDRDesc.LocalSize[i] > MaxWISize[i])
+  for (int I = 0; I < NDRDesc.Dims; I++) {
+    if (NDRDesc.LocalSize[I] > MaxWISize[I])
       throw sycl::nd_range_error(
-          "Number of work-items in a work-group exceed limit for dimension "
-          "{I}: {NDRDesc.LocalSize[I]} > {MaxWISize[I]}",
+          "Number of work-items in a work-group exceed limit for dimension " +
+              std::to_string(I) + " : " + std::to_string(NDRDesc.LocalSize[I]) +
+              " > " + std::to_string(MaxWISize[I]),
           PI_INVALID_WORK_ITEM_SIZE);
   }
   return 0;
