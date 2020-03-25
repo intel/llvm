@@ -3,6 +3,7 @@
 // expected-no-diagnostics
 
 #include "windows.h"
+
 #include "CL/sycl.hpp"
 
 int main() {
