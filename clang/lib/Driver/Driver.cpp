@@ -3717,8 +3717,11 @@ class OffloadingActionBuilder final {
               continue;
             }
             // We want to move the AOCX/AOCR binary to the front of the objects
-            // allowing it to be picked up before the other device objects at
-            // runtime.
+            // allowing it to be picked up instead of the other device objects
+            // at runtime.
+            // TODO: In the presense of existing FPGA Device binaries (AOCX)
+            // we do not need to perform/add the SPIR-V generated device
+            // binaries from sources or objects.
             if (types::isFPGA(I->getType())) {
               // Do not perform a device link and only pass the aocr
               // file to the offline compilation before wrapping.  Just
