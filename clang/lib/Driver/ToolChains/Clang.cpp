@@ -4109,10 +4109,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
 
-    if (Triple.isSPIR()) {
-      CmdArgs.push_back("-disable-llvm-passes");
-    }
-
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
