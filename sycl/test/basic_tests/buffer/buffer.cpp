@@ -434,7 +434,7 @@ int main() {
             range<1>{3}, [=](id<1> index) { B[index] = 20; });
       });
     }
-    // Data is not copied back in the desctruction of the buffer created
+    // Data is not copied back in the destruction of the buffer created
     // from a pair of non-const iterators
     for (int i = 0; i < 10; i++)
       assert(data1[i] == -1);
