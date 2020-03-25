@@ -98,6 +98,7 @@ public:
   void setVolatile(bool IsVolatile);
   void setNoSignedWrap(bool HasNoSignedWrap);
   void setNoUnsignedWrap(bool HasNoUnsignedWrap);
+  void setFPFastMathMode(SPIRVWord FPFastMathMode);
 
   void validate() const override {
     SPIRVEntry::validate();
