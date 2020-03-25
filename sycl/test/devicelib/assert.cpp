@@ -1,6 +1,5 @@
 // REQUIRES: cpu,linux
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-glibc.o -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves
