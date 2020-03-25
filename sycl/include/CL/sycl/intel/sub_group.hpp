@@ -162,14 +162,16 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::any_of instead.")]]
 #endif
-  bool any(bool predicate) const {
+  bool
+  any(bool predicate) const {
     return __spirv_GroupAny(__spv::Scope::Subgroup, predicate);
   }
 
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::all_of instead.")]]
 #endif
-  bool all(bool predicate) const {
+  bool
+  all(bool predicate) const {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
 
@@ -183,7 +185,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::broadcast instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
+  EnableIfIsScalarArithmetic<T>
+  broadcast(T x, id<1> local_id) const {
     return detail::spirv::GroupBroadcast<__spv::Scope::Subgroup>(x, local_id);
   }
 
@@ -191,7 +194,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::reduce instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
+  EnableIfIsScalarArithmetic<T>
+  reduce(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::Reduce,
                         __spv::Scope::Subgroup>(
         typename detail::GroupOpTag<T>::type(), x, op);
@@ -201,7 +205,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::reduce instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
+  EnableIfIsScalarArithmetic<T>
+  reduce(T x, T init, BinaryOperation op) const {
     return op(init, reduce(x, op));
   }
 
@@ -209,7 +214,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::exclusive_scan instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
+  EnableIfIsScalarArithmetic<T>
+  exclusive_scan(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::ExclusiveScan,
                         __spv::Scope::Subgroup>(
         typename detail::GroupOpTag<T>::type(), x, op);
@@ -219,8 +225,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::exclusive_scan instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
-                                               BinaryOperation op) const {
+  EnableIfIsScalarArithmetic<T>
+  exclusive_scan(T x, T init, BinaryOperation op) const {
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
@@ -235,7 +241,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::inclusive_scan instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
+  EnableIfIsScalarArithmetic<T>
+  inclusive_scan(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::InclusiveScan,
                         __spv::Scope::Subgroup>(
         typename detail::GroupOpTag<T>::type(), x, op);
@@ -245,8 +252,8 @@ struct sub_group {
 #if __cplusplus >= 201402L
   [[deprecated("Use sycl::intel::inclusive_scan instead.")]]
 #endif
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                               T init) const {
+  EnableIfIsScalarArithmetic<T>
+  inclusive_scan(T x, BinaryOperation op, T init) const {
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
