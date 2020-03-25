@@ -4131,9 +4131,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if ((Args.hasArg(options::OPT_fsycl_device_only) ||
-       Args.hasArg(options::OPT_fsycl) || IsSYCL) &&
-      !SYCLStdArg) {
+  if (UseSYCLTriple && !SYCLStdArg) {
     // The user had not pass SYCL version, thus we'll employ no-sycl-strict
     // to allow address-space unqualified pointers in function params/return
     // along with marking the same function with explicit SYCL_EXTERNAL
