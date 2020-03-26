@@ -109,13 +109,13 @@ add_custom_command(
   TARGET libsycldevice-inc POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${include_dir}/CL/sycl/devicelib
         COMMAND ${CMAKE_COMMAND} -E copy
-	        ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
-		${include_dir}/CL/sycl/devicelib
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
+                ${include_dir}/CL/sycl/devicelib
         COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h
-		${include_dir}/CL/sycl/devicelib
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h
+                ${include_dir}/CL/sycl/devicelib
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
-		${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h)
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h)
 
 add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-complex}

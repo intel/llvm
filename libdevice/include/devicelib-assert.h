@@ -24,7 +24,6 @@ void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
                              uint64_t gid2, uint64_t lid0, uint64_t lid1,
                              uint64_t lid2);
 
-
 #ifdef __DEVICELIB_GLIBC__
 EXTERN_C inline void __assert_fail(const char *expr, const char *file,
                                    unsigned int line, const char *func) {
@@ -33,13 +32,12 @@ EXTERN_C inline void __assert_fail(const char *expr, const char *file,
       __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
-
 }
 #elif defined(__DEVICELIB_MSLIBC__)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.
 static inline void __truncate_wchar_char_str(const wchar_t *wstr, char *str,
-                                      size_t str_size) {
+                                             size_t str_size) {
   str_size -= 1; // reserve for NULL terminator
   while (str_size > 0 && *wstr != L'\0') {
     wchar_t w = *wstr++;
