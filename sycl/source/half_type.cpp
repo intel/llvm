@@ -28,21 +28,21 @@ static uint16_t float2Half(const float &Val) {
   const int16_t Exp32Diff = Exp32 - 127;
 
   // intialize to 0, covers the case for 0 and small numbers
-  uint16_t Exp16=0, Frac16=0;
+  uint16_t Exp16 = 0, Frac16 = 0;
 
   if (__builtin_expect(Exp32Diff > 15, 0)) {
     // Infinity and big numbers convert to infinity
     Exp16 = 0x1f;
   } else if (__builtin_expect(Exp32Diff < -14, 0)) {
     // subnormals
-    Frac16 = (Frac32 | (1<<23)) >> (-Exp32Diff-1);
+    Frac16 = (Frac32 | (1 << 23)) >> (-Exp32Diff - 1);
   } else {
     // normal range for half type
     Exp16 = Exp32Diff + 15;
     // convert 23-bit mantissa to 10-bit mantissa.
     Frac16 = Frac32 >> 13;
-    // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half data
-    // type.
+    // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
+    // data type.
     if (Frac32 >> 12 & 0x01)
       Frac16 += 1;
   }
@@ -57,7 +57,7 @@ static uint16_t float2Half(const float &Val) {
   uint16_t Ret = 0;
   Ret |= Sign;
   Ret |= Exp16 << 10;
-  Ret += Frac16;// Add the carry bit from operation Frac16 += 1;
+  Ret += Frac16; // Add the carry bit from operation Frac16 += 1;
 
   return Ret;
 }
@@ -171,7 +171,7 @@ bool operator==(const half &LHS, const half &RHS) {
 }
 
 bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
-} // namespace half_impl
+} // namespace host_half_impl
 
 } // namespace detail
 } // namespace sycl
