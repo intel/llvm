@@ -286,7 +286,7 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"BoolTy">, 1>;
-def TrueChar      : IntType<"char",      QualType<"CharTy", 0, 1>, 8>;
+def TrueChar  : IntType<"char",      QualType<"CharTy", 0, 1>, 8>;
 def Char      : IntType<"schar",      QualType<"SignedCharTy", 0, 1>, 8>;
 def SChar     : IntType<"schar",     QualType<"SignedCharTy", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"UnsignedCharTy">, 8>;
@@ -294,8 +294,8 @@ def Short     : IntType<"short",     QualType<"ShortTy", 0, 1>, 16>;
 def UShort    : UIntType<"ushort",    QualType<"UnsignedShortTy">, 16>;
 def Int       : IntType<"int",       QualType<"IntTy", 0, 1>, 32>;
 def UInt      : UIntType<"uint",      QualType<"UnsignedIntTy">, 32>;
-def Long      : IntType<"long",      QualType<"LongTy", 0, 1>, 64>;
-def ULong     : UIntType<"ulong",     QualType<"UnsignedLongTy">, 64>;
+def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
+def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
 def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
 def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
 def Half      : FPType<"half",      QualType<"Float16Ty">, 16>;

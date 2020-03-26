@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DECL event_t __spirv_GroupAsyncCopy(
-    unsigned int scope, __SPIRV_DST_ADDR_SPACE __SPIRV_GENTYPE *dst,
-    const __SPIRV_SRC_ADDR_SPACE __SPIRV_GENTYPE *src, size_t num_elements,
-    size_t stride, event_t event);
+#include "../../../generic/lib/clcmacro.h"
+#include "../../include/libdevice.h"
+#include <spirv/spirv.h>
+
+#define __CLC_FUNCTION __spirv_ocl_fmod
+#define __CLC_BUILTIN __nv_fmod
+#include "binary_builtin.inc"
