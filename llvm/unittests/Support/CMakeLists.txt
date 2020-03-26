@@ -60,6 +60,7 @@ add_llvm_unittest(SupportTests
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
   ScaledNumberTest.cpp
+  SimpleTableTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   StringPool.cpp

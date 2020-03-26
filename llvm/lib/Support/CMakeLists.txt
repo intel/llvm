@@ -126,6 +126,7 @@ add_llvm_component_library(LLVMSupport
   ScopedPrinter.cpp
   SHA1.cpp
   Signposts.cpp
+  SimpleTable.cpp
   SmallPtrSet.cpp
   SmallVector.cpp
   SourceMgr.cpp
