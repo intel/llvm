@@ -7,6 +7,8 @@ llvm-spirv/ @AlexeySotkin, @AlexeySachkov
 
 opencl-aot/ @dm-vodopyanov
 
+libdevice/ @asavonic, @vzakhari
+
 sycl/doc/extensions/ @mkinsner, @jbrodman
 
 sycl/doc/ @pvchupin, @kbobrovs
