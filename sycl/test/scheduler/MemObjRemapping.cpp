@@ -20,9 +20,9 @@ int main() {
   range<1> Range{Size};
   buffer<int, 1> Buf{Range};
 
-  Q.submit([&](handler &Cgh){
+  Q.submit([&](handler &Cgh) {
     auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
-    Cgh.parallel_for<Foo>(Range, [=](id<1> Idx){
+    Cgh.parallel_for<Foo>(Range, [=](id<1> Idx) {
       Acc[Idx] = Idx[0];
     });
   });
@@ -44,9 +44,9 @@ int main() {
   queue HostQ{host_selector()};
   // CHECK: piEnqueueMemUnmap
   // CHECK: piEnqueueMemBufferMap
-  HostQ.submit([&](handler &Cgh){
+  HostQ.submit([&](handler &Cgh) {
     auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
-    Cgh.parallel_for<Bar>(Range, [=](id<1> Idx){
+    Cgh.parallel_for<Bar>(Range, [=](id<1> Idx) {
       Acc[Idx] *= 2;
     });
   });
