@@ -49,17 +49,54 @@ template <typename SampledType, typename TempRetT, typename TempArgT>
 extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
                                                              TempArgT, int,
                                                              float);
-template <typename TValue>
- extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rte(TValue Value);
 
 template <typename TValue>
- extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtz(TValue Value);
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rte(TValue Value);
 
 template <typename TValue>
- extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtp(TValue Value);
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rchar_rte(TValue Value);
 
 template <typename TValue>
- extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtn(TValue Value);
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rshort_rte(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rlong_rte(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtz(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rchar_rtz(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rshort_rtz(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rlong_rtz(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtp(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rchar_rtp(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rshort_rtp(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rlong_rtp(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rint_rtn(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rchar_rtn(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rshort_rtn(TValue Value);
+
+template <typename TValue>
+extern SYCL_EXTERNAL int __spirv_ConvertFToS_Rlong_rtn(TValue Value);
 
 #define OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy

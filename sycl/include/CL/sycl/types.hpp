@@ -272,19 +272,44 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   case rounding_mode::automatic:
     // Round to nearest even.
   case rounding_mode::rte: 
+          if (std::is_same<R, int>::value)
     return __spirv_ConvertFToS_Rint_rte(Value);
+    else if (std::is_same<R, char>::value)
+    return __spirv_ConvertFToS_Rchar_rte(Value);
+    else if (std::is_same<R, short>::value)
+    return __spirv_ConvertFToS_Rshort_rte(Value);
+    else if (std::is_same<R, long>::value)
+    return __spirv_ConvertFToS_Rlong_rte(Value);
     // Round toward zero.
   case rounding_mode::rtz:
+          if (std::is_same<R, int>::value)
     return __spirv_ConvertFToS_Rint_rtz(Value);
+    else if (std::is_same<R, char>::value)
+    return __spirv_ConvertFToS_Rchar_rtz(Value);
+    else if (std::is_same<R, short>::value)
+    return __spirv_ConvertFToS_Rshort_rtz(Value);
+    else if (std::is_same<R, long>::value)
+    return __spirv_ConvertFToS_Rlong_rtz(Value);
     // Round toward positive infinity.
   case rounding_mode::rtp:
+          if (std::is_same<R, int>::value)
     return __spirv_ConvertFToS_Rint_rtp(Value);
+    else if (std::is_same<R, char>::value)
+    return __spirv_ConvertFToS_Rchar_rtp(Value);
+    else if (std::is_same<R, short>::value)
+    return __spirv_ConvertFToS_Rshort_rtp(Value);
+    else if (std::is_same<R, long>::value)
+    return __spirv_ConvertFToS_Rlong_rtp(Value);
     // Round toward negative infinity.
   case rounding_mode::rtn:
+          if (std::is_same<R, int>::value)
     return __spirv_ConvertFToS_Rint_rtn(Value);
-  default:
-    assert(!"Unsupported rounding mode!");
-    return static_cast<R>(Value);
+    else if (std::is_same<R, char>::value)
+    return __spirv_ConvertFToS_Rchar_rtn(Value);
+    else if (std::is_same<R, short>::value)
+    return __spirv_ConvertFToS_Rshort_rtn(Value);
+    else if (std::is_same<R, long>::value)
+    return __spirv_ConvertFToS_Rlong_rtn(Value);
   };
 #endif
 }
