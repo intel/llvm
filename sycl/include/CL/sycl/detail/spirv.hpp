@@ -20,7 +20,7 @@ namespace detail {
 namespace spirv {
 
 // Broadcast with scalar local index
-template <__spv::Scope S, typename T, typename IdT>
+template <__spv::Scope::Flag S, typename T, typename IdT>
 detail::enable_if_t<std::is_integral<IdT>::value, T>
 GroupBroadcast(T x, IdT local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
@@ -31,7 +31,7 @@ GroupBroadcast(T x, IdT local_id) {
 }
 
 // Broadcast with vector local index
-template <__spv::Scope S, typename T, int Dimensions>
+template <__spv::Scope::Flag S, typename T, int Dimensions>
 T GroupBroadcast(T x, id<Dimensions> local_id) {
   if (Dimensions == 1) {
     return GroupBroadcast<S>(x, local_id[0]);

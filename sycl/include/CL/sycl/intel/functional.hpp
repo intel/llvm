@@ -81,11 +81,12 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
 };
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
-  template <typename T, __spv::GroupOperation O, __spv::Scope S>               \
+  template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S>         \
   static T calc(GroupTag, T x, BinaryOperation op) {                           \
     using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
     OCLT Arg = x;                                                              \
-    OCLT Ret = __spirv_Group##SPIRVOperation(S, O, Arg);                       \
+    OCLT Ret =                                                                 \
+        __spirv_Group##SPIRVOperation(S, static_cast<unsigned int>(O), Arg);   \
     return Ret;                                                                \
   }
 
@@ -101,7 +102,7 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
-template <typename T, __spv::GroupOperation O, __spv::Scope S,
+template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S,
           template <typename> class BinaryOperation>
 static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
   return calc<T, O, S>(typename GroupOpTag<T>::type(), x, BinaryOperation<T>());

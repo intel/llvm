@@ -6,7 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DECL event_t __spirv_GroupAsyncCopy(
-    unsigned int scope, __SPIRV_DST_ADDR_SPACE __SPIRV_GENTYPE *dst,
-    const __SPIRV_SRC_ADDR_SPACE __SPIRV_GENTYPE *src, size_t num_elements,
-    size_t stride, event_t event);
+#include <spirv/spirv.h>
+
+#include <math/clc_fmod.h>
+
+#define __CLC_FUNC __spirv_ocl_fmod
+#define __CLC_SW_FUNC __clc_fmod
+#define __CLC_BODY <clc_sw_binary.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_SW_FUNC
