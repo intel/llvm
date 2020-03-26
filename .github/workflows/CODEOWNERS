@@ -1,0 +1,15 @@
+clang/ @erichkeane, @Fznamznon
+
+llvm-spirv/ @AlexeySotkin, @AlexeySachkov
+
+opencl-aot/ @dm-vodopyanov
+
+sycl/doc/extensions/ @mkinsner, @jbrodman
+
+sycl/doc/ @pvchupin, @kbobrovs
+
+sycl/ @romanovvlad
+
+xpti/ @tovinkere
+
+* @bader
