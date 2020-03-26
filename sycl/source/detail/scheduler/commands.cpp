@@ -191,11 +191,19 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
       Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                             &GlueEventHandle);
 
+#if 1
+      EventImplPtr *GlueEventCopy = 
+        new EventImplPtr(GlueEvent); // To increase the reference count by 1.
+      Plugin.call<PiApiKind::piEventSetCallback>(
+          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
+          /*void *data=*/(GlueEventCopy));
+#else
       Event->when_complete(Event, [GlueEvent] () {
         RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
         const detail::plugin &Plugin = GlueEvent->getPlugin();
         Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
       });
+#endif
 
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
@@ -1466,11 +1474,33 @@ struct HostTaskContext {
   CGHostTask *HostTask;
 
   // TODO events dependencies
+  const size_t RequiredAmount;
+  size_t CompletedAmount;
+
   // TODO buffer dependencies, though a buffer dependency may be expressed via event
 
   std::mutex RequirementsMutex;
   std::condition_variable AnotherRequirementFulfilledCV;
+
+  ContextImplPtr Context;
 };
+
+void DispatchHostTask2(pi_event Event, pi_int32 EventStatus, void *UD) {
+  HostTaskContext *Ctx = reinterpret_cast<HostTaskContext *>(UD);
+
+  if (EventStatus == PI_EVENT_COMPLETE)
+    ++Ctx->CompletedAmount;
+
+  assert(Ctx->CompletedAmount <= Ctx->RequiredAmount && 
+         "Invalid event completion reported");
+
+  if (Ctx->CompletedAmount < Ctx->RequiredAmount)
+    return;
+
+  Ctx->HostTask->MHostTask->call();
+
+  delete Ctx;
+}
 
 bool CheckHostTaskRequirements(const std::shared_ptr<HostTaskContext> &Ctx) {
   (void)Ctx;
@@ -1789,8 +1819,18 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
     const QueueImplPtr &Queue = HostTask->MQueue;
-
+#if 0
+    auto *Ctx = new HostTaskContext{
+      static_cast<CGHostTask *>(MCommandGroup.get()),
+      RawEvents.size(),
+      0,
+      {},
+      {},
+      MQueue->getContextImplPtr()
+    };
+#else
     std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
+#endif
 
     size_t ArgIdx = 0, ReqIdx = 0;
     while (ArgIdx < HostTask->MArgs.size()) {
@@ -1812,10 +1852,33 @@ cl_int ExecCGCommand::enqueueImp() {
 
       ++ArgIdx;
     }
+#if 0
+    const detail::plugin &Plugin = MQueue->getPlugin();
+    ContextImplPtr Context = MQueue->getContextImplPtr();
+    EventImplPtr HostTaskEvent(new detail::event_impl());
+    HostTaskEvent->setContextImpl(Context);
+    RT::PiEvent &HostTaskEventHandle = HostTaskEvent->getHandleRef();
+    Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                          &HostTaskEventHandle);
+    // Increment refcount for pi_event
+    EventImplPtr *HostTaskEventCopy = new EventImplPtr(HostTaskEvent);
 
+    // set callback for each and every dependency event
+    Plugin.call<PiApiKind::piEventSetCallback>();
+#endif
+
+#if 0
+    const detail::plugin &Plugin = MQueue->getPlugin();
+
+    for (const RT::PiEvent &Event : RawEvents)
+        Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
+                                                   DispatchHostTask2, Ctx);
+#else
+    // TODO create user event and set its callback to dispatch host task
     Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
       DispatchHostTask(Ctx);
     });
+#endif
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

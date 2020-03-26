@@ -250,7 +250,11 @@ event_impl::get_info<info::event::command_execution_status>() const {
 
 void event_impl::when_complete(std::shared_ptr<event_impl> Self,
                                std::function<void ()> &&Func) {
+#if 1
   if (auto Queue = MQueue.lock()) {
+#else
+    auto Queue = Scheduler::getInstance().getDefaultHostQueue();
+#endif
     const detail::code_location &CodeLoc = {};
     auto Lambda = [Func, Self] (handler &CGH) mutable {
       auto SelfEvent = createSyclObjFromImpl<event>(Self);
@@ -259,9 +263,11 @@ void event_impl::when_complete(std::shared_ptr<event_impl> Self,
       CGH.codeplay_host_task(std::move(Func));
     };
     Queue->submit(Lambda, Queue, CodeLoc);
+#if 1
   }
   else
     throw runtime_error("Queue not available", PI_ERROR_UNKNOWN);
+#endif
 }
 
 static uint64_t getTimestamp() {
