@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #ifdef __SYCL_DEVICE_ONLY__
 
 #ifdef __SYCL_NVPTX__
