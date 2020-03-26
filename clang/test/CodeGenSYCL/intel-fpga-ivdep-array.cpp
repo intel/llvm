@@ -186,12 +186,15 @@ int main() {
 // CHECK-DAG: ![[IVDEP_MUL_ARR_VAL]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_MUL_ARR]], ![[IDX_GROUP_B_MUL_ARR]], i32 5}
 // CHECK-DAG: ![[IVDEP_MUL_ARR_INF]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_C_MUL_ARR]], ![[IDX_GROUP_D_MUL_ARR]]}
 
+// Find the single instance of a legacy "IVDep enable" MD node.
+// CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
+
 /// Global INF safelen and specific array INF safelen
 /// The array-specific ivdep can be ignored, so it's the same as just global ivdep with safelen INF
 //
 // CHECK-DAG: ![[IDX_GROUP_A_ARR_AND_GLOB]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_ARR_AND_GLOB]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_ARR_AND_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_GLOB]], ![[IVDEP_ARR_AND_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_ARR_AND_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_GLOB]], ![[IVDEP_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_LEGACY_ENABLE]]}
 // CHECK-DAG: ![[IVDEP_ARR_AND_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_ARR_AND_GLOB]], ![[IDX_GROUP_B_ARR_AND_GLOB]]}
 
 /// Global INF safelen and specific array non-INF safelen
@@ -199,7 +202,7 @@ int main() {
 //
 // CHECK-DAG: ![[IDX_GROUP_A_ARR_AND_INF_GLOB]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_ARR_AND_INF_GLOB]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_ARR_AND_INF_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_INF_GLOB]], ![[IVDEP_ARR_AND_INF_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_ARR_AND_INF_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_INF_GLOB]], ![[IVDEP_ARR_AND_INF_GLOB:[0-9]+]], ![[IVDEP_LEGACY_ENABLE]]}
 // CHECK-DAG: ![[IVDEP_ARR_AND_INF_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_ARR_AND_INF_GLOB]], ![[IDX_GROUP_B_ARR_AND_INF_GLOB]]}
 
 /// Global safelen and specific array with lesser safelen
@@ -207,7 +210,8 @@ int main() {
 //
 // CHECK-DAG: ![[IDX_GROUP_A_ARR_AND_GREAT_GLOB]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_ARR_AND_GREAT_GLOB]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_ARR_AND_GREAT_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_GREAT_GLOB]], ![[IVDEP_ARR_AND_GREAT_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_ARR_AND_GREAT_GLOB]] = distinct !{![[MD_LOOP_ARR_AND_GREAT_GLOB]], ![[IVDEP_ARR_AND_GREAT_GLOB:[0-9]+]], ![[IVDEP_LEGACY_ARR_AND_GREAT_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[IVDEP_LEGACY_ARR_AND_GREAT_GLOB]] = !{!"llvm.loop.ivdep.safelen", i32 9}
 // CHECK-DAG: ![[IVDEP_ARR_AND_GREAT_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_ARR_AND_GREAT_GLOB]], ![[IDX_GROUP_B_ARR_AND_GREAT_GLOB]], i32 9}
 
 /// Multiple arrays with specific safelens and lesser global safelen
@@ -216,8 +220,8 @@ int main() {
 // CHECK-DAG: ![[IDX_GROUP_A_MUL_ARR_AND_GLOB]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_MUL_ARR_AND_GLOB]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_C_MUL_ARR_AND_GLOB]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_MUL_ARR_AND_GLOB]] = distinct !{![[MD_LOOP_MUL_ARR_AND_GLOB]], ![[IVDEP_A_MUL_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_B_MUL_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_C_MUL_ARR_AND_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_MUL_ARR_AND_GLOB]] = distinct !{![[MD_LOOP_MUL_ARR_AND_GLOB]], ![[IVDEP_A_MUL_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_LEGACY_MUL_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_B_MUL_ARR_AND_GLOB:[0-9]+]], ![[IVDEP_C_MUL_ARR_AND_GLOB:[0-9]+]]}
+// CHECK-DAG: ![[IVDEP_LEGACY_MUL_ARR_AND_GLOB]] = !{!"llvm.loop.ivdep.safelen", i32 5}
 // CHECK-DAG: ![[IVDEP_A_MUL_ARR_AND_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_MUL_ARR_AND_GLOB]], i32 5}
 // CHECK-DAG: ![[IVDEP_B_MUL_ARR_AND_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_B_MUL_ARR_AND_GLOB]], i32 6}
 // CHECK-DAG: ![[IVDEP_C_MUL_ARR_AND_GLOB]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_C_MUL_ARR_AND_GLOB]]}
-//

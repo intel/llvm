@@ -780,7 +780,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
           Args.getLastArg(OPT_emit_llvm_uselists, OPT_no_emit_llvm_uselists))
     Opts.EmitLLVMUseLists = A->getOption().getID() == OPT_emit_llvm_uselists;
 
-  Opts.DisableLLVMPasses = Args.hasArg(OPT_disable_llvm_passes);
+  Opts.DisableLLVMPasses =
+      Args.hasArg(OPT_disable_llvm_passes) ||
+      (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
+       !Args.hasArg(OPT_fsycl_enable_optimizations));
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -2577,6 +2580,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
   Opts.DeclareOpenCLBuiltins = Args.hasArg(OPT_fdeclare_opencl_builtins);
+  Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
 
   llvm::Triple T(TargetOpts.Triple);
   CompilerInvocation::setLangDefaults(Opts, IK, T, PPOpts, LangStd);
@@ -2950,6 +2954,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.PackStruct = getLastArgIntValue(Args, OPT_fpack_struct_EQ, 0, Diags);
   Opts.MaxTypeAlign = getLastArgIntValue(Args, OPT_fmax_type_align_EQ, 0, Diags);
   Opts.AlignDouble = Args.hasArg(OPT_malign_double);
+  Opts.DoubleSize = getLastArgIntValue(Args, OPT_mdouble_EQ, 0, Diags);
   Opts.LongDoubleSize = Args.hasArg(OPT_mlong_double_128)
                             ? 128
                             : Args.hasArg(OPT_mlong_double_64) ? 64 : 0;

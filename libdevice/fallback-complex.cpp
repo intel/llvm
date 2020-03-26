@@ -285,7 +285,7 @@ DEVICE_EXTERN_C
 float __complex__ __sqrf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
-  return CMPLXF((z_real + z_imag) * (z_real - z_imag), 2.0 * z_real * z_imag);
+  return CMPLXF((z_real + z_imag) * (z_real - z_imag), 2.0f * z_real * z_imag);
 }
 
 DEVICE_EXTERN_C

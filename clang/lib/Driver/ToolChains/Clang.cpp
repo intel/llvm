@@ -4086,6 +4086,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // We want to compile sycl kernels.
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
+    CmdArgs.push_back("-fdeclare-spirv-builtins");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -4107,10 +4108,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(
             Twine("-fms-compatibility-version=") + LowestMSVCSupported));
       }
-    }
-
-    if (Triple.isSPIR()) {
-      CmdArgs.push_back("-disable-llvm-passes");
     }
 
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
@@ -4670,6 +4667,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs,
                              JA.getOffloadingDeviceKind());
+
+  if (Arg *A = Args.getLastArg(options::OPT_mdouble_EQ)) {
+    if (TC.getArch() == llvm::Triple::avr)
+      A->render(Args, CmdArgs);
+    else
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+  }
 
   if (Arg *A = Args.getLastArg(options::OPT_LongDouble_Group)) {
     if (TC.getTriple().isX86())
@@ -6796,9 +6801,12 @@ const char *Clang::getDependencyFileName(const ArgList &Args,
 
   if (Arg *OutputOpt =
           Args.getLastArg(options::OPT_o, options::OPT__SLASH_Fo)) {
-    SmallString<128> OutputFilename(OutputOpt->getValue());
-    llvm::sys::path::replace_extension(OutputFilename, llvm::Twine('d'));
-    return Args.MakeArgString(OutputFilename);
+    SmallString<128> OutputArgument(OutputOpt->getValue());
+    if (llvm::sys::path::is_separator(OutputArgument.back()))
+      // If the argument is a directory, output to BaseName in that dir.
+      llvm::sys::path::append(OutputArgument, getBaseInputStem(Args, Inputs));
+    llvm::sys::path::replace_extension(OutputArgument, llvm::Twine('d'));
+    return Args.MakeArgString(OutputArgument);
   }
 
   return Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");

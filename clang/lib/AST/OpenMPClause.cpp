@@ -145,6 +145,7 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_nontemporal:
   case OMPC_order:
   case OMPC_destroy:
+  case OMPC_detach:
     break;
   }
 
@@ -231,6 +232,7 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_nontemporal:
   case OMPC_order:
   case OMPC_destroy:
+  case OMPC_detach:
     break;
   }
 
@@ -1294,6 +1296,12 @@ void OMPClausePrinter::VisitOMPCollapseClause(OMPCollapseClause *Node) {
   OS << ")";
 }
 
+void OMPClausePrinter::VisitOMPDetachClause(OMPDetachClause *Node) {
+  OS << "detach(";
+  Node->getEventHandler()->printPretty(OS, nullptr, Policy, 0);
+  OS << ")";
+}
+
 void OMPClausePrinter::VisitOMPDefaultClause(OMPDefaultClause *Node) {
   OS << "default("
      << getOpenMPSimpleClauseTypeName(OMPC_default,
@@ -1425,6 +1433,11 @@ void OMPClausePrinter::VisitOMPSIMDClause(OMPSIMDClause *) { OS << "simd"; }
 
 void OMPClausePrinter::VisitOMPDeviceClause(OMPDeviceClause *Node) {
   OS << "device(";
+  OpenMPDeviceClauseModifier Modifier = Node->getModifier();
+  if (Modifier != OMPC_DEVICE_unknown) {
+    OS << getOpenMPSimpleClauseTypeName(Node->getClauseKind(), Modifier)
+       << ": ";
+  }
   Node->getDevice()->printPretty(OS, nullptr, Policy, 0);
   OS << ")";
 }

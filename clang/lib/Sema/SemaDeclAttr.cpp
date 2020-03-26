@@ -2922,14 +2922,22 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   uint32_t WGSize[3];
+  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
+      AL.getAttributeSpellingListIndex() ==
+          ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size) {
+    WGSize[1] = ReqdWorkGroupSizeAttr::DefaultYDim;
+    WGSize[2] = ReqdWorkGroupSizeAttr::DefaultZDim;
+  } else if (!checkAttributeNumArgs(S, AL, 3))
+    return;
+
   for (unsigned i = 0; i < 3; ++i) {
-    const Expr *E = AL.getArgAsExpr(i);
-    if (!checkUInt32Argument(S, AL, E, WGSize[i], i,
+    if (i < AL.getNumArgs() &&
+        !checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
     if (WGSize[i] == 0) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-          << AL << E->getSourceRange();
+          << AL << AL.getArgAsExpr(i)->getSourceRange();
       return;
     }
   }
@@ -4428,13 +4436,7 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0 /* static function or anonymous namespace */;
-    return;
-  }
-  if (isa<CXXMethodDecl>(FD)) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* class member function */;
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
     return;
   }
   if (FD->getReturnType()->isPointerType()) {
@@ -4447,7 +4449,6 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
           << AL << 1 /* function with a raw pointer parameter type */;
     }
 
-  S.addSyclDeviceDecl(D);
   handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
 }
 
@@ -4455,17 +4456,10 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0 /* static function or anonymous namespace */;
-    return;
-  }
-  if (isa<CXXMethodDecl>(FD)) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 1 /* class member function */;
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
     return;
   }
 
-  S.addSyclDeviceDecl(D);
   D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context));
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
@@ -8119,6 +8113,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   case ParsedAttr::AT_Uninitialized:
     handleUninitializedAttr(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_LoaderUninitialized:
+    handleSimpleAttribute<LoaderUninitializedAttr>(S, D, AL);
     break;
 
   case ParsedAttr::AT_ObjCExternallyRetained:

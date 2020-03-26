@@ -163,31 +163,37 @@ template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
   std::cout << "       ";
   print(arg0);
-  printArgs(std::forward<Args>(args)...);
+  pi::printArgs(std::forward<Args>(args)...);
 }
 } // namespace pi
 
 namespace RT = cl::sycl::detail::pi;
 
+// Workaround for build with GCC 5.x
+// An explicit specialization shall be declared in the namespace block.
+// Having namespace as part of template name is not supported by GCC
+// older than 7.x.
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
+namespace pi {
 // Want all the needed casts be explicit, do not define conversion
 // operators.
-template <class To, class From> To inline pi::cast(From value) {
+template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
   RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
   return (To)(value);
 }
 
 // These conversions should use PI interop API.
-template <> pi::PiProgram inline pi::cast(cl_program interop) {
+template <> inline pi::PiProgram cast(cl_program interop) {
   RT::assertion(false, "pi::cast -> use piextProgramConvert");
   return {};
 }
 
-template <> pi::PiDevice inline pi::cast(cl_device_id interop) {
+template <> inline pi::PiDevice cast(cl_device_id interop) {
   RT::assertion(false, "pi::cast -> use piextDeviceConvert");
   return {};
 }
-
+} // namespace pi
 } // namespace detail
 
 // For shortness of using PI from the top-level sycl files.

@@ -1817,6 +1817,7 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
   case LangAS::sycl_constant:
     return "__constant";
   case LangAS::opencl_generic:
+  case LangAS::sycl_generic:
     return "__generic";
   case LangAS::cuda_device:
     return "__device__";
