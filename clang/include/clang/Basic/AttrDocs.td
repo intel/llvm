@@ -2140,6 +2140,53 @@ be applied multiple times to the same loop.
   }];
 }
 
+def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "loop_coalesce";
+  let Content = [{
+This attribute applies to a loop. Indicates that the loop nest should be
+coalesced into a single loop without affecting functionality. Parameter N is
+optional. If specified, it shall be a positive integer, and indicates how many
+of the nested loop levels should be coalesced.
+  }];
+}
+
+def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "disable_loop_pipelining";
+  let Content = [{
+This attribute applies to a loop. Disables pipelining of the loop data path,
+causing the loop to be executed serially. Cannot be used on the same loop in
+conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
+or ivdep.
+  }];
+}
+
+def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "max_interleaving";
+  let Content = [{
+This attribute applies to a loop. Places a maximum limit N on the number of
+interleaved invocations of an inner loop by an outer loop (note, this does not
+mean that this attribute can only be applied to inner loops in user code - outer
+loops in user code may still be contained in an implicit loop due to NDRange).
+Parameter N is mandatory, and shall be non-negative integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
+def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "speculated_iterations";
+  let Content = [{
+This attribute applies to a loop. Specifies the number of concurrent speculated
+iterations that will be in flight for a loop invocation (i.e. the exit
+condition for these iterations will not have been evaluated yet).
+Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";

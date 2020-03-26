@@ -1754,7 +1754,7 @@ public:
                               Expr *Expr2);
   template <typename FPGALoopAttrT>
   FPGALoopAttrT *BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
-                                            Expr *E);
+                                            Expr *E = nullptr);
 
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);

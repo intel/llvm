@@ -1660,6 +1660,57 @@ def SYCLIntelFPGAMaxConcurrency : Attr {
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
 }
 
+def SYCLIntelFPGALoopCoalesce : Attr {
+  let Spellings = [CXX11<"intelfpga","loop_coalesce">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "loop_coalesce";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
+}
+
+def SYCLIntelFPGADisableLoopPipelining : Attr {
+  let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "disable_loop_pipelining";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
+}
+
+def SYCLIntelFPGAMaxInterleaving : Attr {
+  let Spellings = [CXX11<"intelfpga","max_interleaving">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "max_interleaving";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
+}
+
+def SYCLIntelFPGASpeculatedIterations : Attr {
+  let Spellings = [CXX11<"intelfpga","speculated_iterations">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "speculated_iterations";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
+}
+
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
