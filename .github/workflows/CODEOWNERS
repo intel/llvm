@@ -1,7 +1,6 @@
 clang/ @erichkeane, @Fznamznon
 
-clang/include/clang/Driver/ @mdtoguchi @AGindinson
-clang/lib/Driver/ @mdtoguchi @AGindinson
+clang/**/Driver @mdtoguchi @AGindinson
 
 llvm-spirv/ @AlexeySotkin, @AlexeySachkov
 
