@@ -5,7 +5,7 @@ clang/lib/Driver/ @mdtoguchi @AGindinson
 
 llvm-spirv/ @AlexeySotkin, @AlexeySachkov
 
-opencl-aot/ @dm-vodopyanov
+opencl-aot/ @dm-vodopyanov, @AlexeySachkov, @romanovvlad
 
 libdevice/ @asavonic, @vzakhari
 
@@ -13,7 +13,7 @@ sycl/doc/extensions/ @mkinsner, @jbrodman
 
 sycl/doc/ @pvchupin, @kbobrovs
 
-sycl/ @romanovvlad
+sycl/ @romanovvlad, @bader
 
 xpti/ @tovinkere
 
