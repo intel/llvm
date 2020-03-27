@@ -703,8 +703,22 @@ static void shareByValParams(Function &F, const Triple &TT) {
         spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
 
     // 3) replace argument with shadow in all uses
+    Value *RepVal = Shadow;
+    if (TT.isNVPTX()) {
+      // For NVPTX target address space inference for kernel arguments and
+      // allocas is happening in the backend (NVPTXLowerArgs and
+      // NVPTXLowerAlloca passes). After the frontend these pointers are in LLVM
+      // default address space 0 which is the generic address space for NVPTX
+      // target.
+      assert(Arg.getType()->getPointerAddressSpace() == 0);
+
+      // Cast a pointer in the shared address space to the generic address
+      // space.
+      RepVal =
+          ConstantExpr::getPointerBitCastOrAddrSpaceCast(Shadow, Arg.getType());
+    }
     for (auto *U : Arg.users())
-      U->replaceUsesOfWith(&Arg, Shadow);
+      U->replaceUsesOfWith(&Arg, RepVal);
 
     // 4) fill the shadow from the argument for the leader WI only
     LLVMContext &Ctx = At.getContext();
