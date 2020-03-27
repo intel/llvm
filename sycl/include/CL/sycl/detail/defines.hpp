@@ -37,5 +37,5 @@
 #elif !defined _MSC_VER
 #define __SYCL_DEPRECATED__(message) __attribute__((deprecated(message)))
 #else
-#define __SYCL_DEPRECATED__
+#define __SYCL_DEPRECATED__(message)
 #endif
