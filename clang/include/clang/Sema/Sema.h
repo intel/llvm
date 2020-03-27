@@ -339,6 +339,9 @@ public:
   /// invocation descriptor has finished.
   void endKernel();
 
+  /// Registers a specialization constant to emit info for it into the header.
+  void addSpecConstant(StringRef IDName, QualType IDType);
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -406,6 +409,13 @@ private:
   /// Keeps invocation descriptors for each kernel invocation started by
   /// SYCLIntegrationHeader::startKernel
   SmallVector<KernelDesc, 4> KernelDescs;
+
+  using SpecConstID = std::pair<QualType, std::string>;
+
+  /// Keeps specialization constants met in the translation unit. Maps spec
+  /// constant's ID type to generated unique name. Duplicates are removed at
+  /// integration header emission time.
+  llvm::SmallVector<SpecConstID, 4> SpecConsts;
 
   /// Used for emitting diagnostics.
   DiagnosticsEngine &Diag;

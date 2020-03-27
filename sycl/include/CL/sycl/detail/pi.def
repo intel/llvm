@@ -57,6 +57,7 @@ _PI_API(piProgramLink)
 _PI_API(piProgramGetBuildInfo)
 _PI_API(piProgramRetain)
 _PI_API(piProgramRelease)
+_PI_API(piextProgramSetSpecializationConstant)
 // Kernel
 _PI_API(piKernelCreate)
 _PI_API(piKernelSetArg)

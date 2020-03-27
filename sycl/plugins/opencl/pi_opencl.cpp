@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 /// \defgroup sycl_pi_ocl OpenCL Plugin
 /// \ingroup sycl_pi
 
@@ -20,6 +19,8 @@
 
 #include <cassert>
 #include <cstring>
+#include <iostream>
+#include <limits>
 #include <map>
 #include <string>
 #include <vector>
@@ -58,6 +59,8 @@ CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
 CONSTFIX char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+CONSTFIX char clSetProgramSpecializationConstantName[] =
+    "clSetProgramSpecializationConstant";
 
 #undef CONSTFIX
 
@@ -215,7 +218,7 @@ pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
 pi_result OCL(piextDeviceSelectBinary)(pi_device device,
                                        pi_device_binary *images,
                                        pi_uint32 num_images,
-                                       pi_device_binary *selected_image) {
+                                       pi_uint32 *selected_image_ind) {
 
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
@@ -234,11 +237,12 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
   const char *image_target = nullptr;
   // Get the type of the device
   cl_device_type device_type;
+  constexpr pi_uint32 invalid_ind = std::numeric_limits<pi_uint32>::max();
   cl_int ret_err =
       clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
                       sizeof(cl_device_type), &device_type, nullptr);
   if (ret_err != CL_SUCCESS) {
-    *selected_image = nullptr;
+    *selected_image_ind = invalid_ind;
     return cast<pi_result>(ret_err);
   }
 
@@ -266,18 +270,18 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
   }
 
   // Find the appropriate device image, fallback to spirv if not found
-  pi_device_binary fallback = nullptr;
-  for (size_t i = 0; i < num_images; ++i) {
+  pi_uint32 fallback = invalid_ind;
+  for (pi_uint32 i = 0; i < num_images; ++i) {
     if (strcmp(images[i]->DeviceTargetSpec, image_target) == 0) {
-      *selected_image = images[i];
+      *selected_image_ind = i;
       return PI_SUCCESS;
     }
     if (strcmp(images[i]->DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64) ==
         0)
-      fallback = images[i];
+      fallback = i;
   }
   // Points to a spirv image, if such indeed was found
-  if ((*selected_image = fallback))
+  if ((*selected_image_ind = fallback) != invalid_ind)
     return PI_SUCCESS;
   // No image can be loaded for the given device
   return PI_INVALID_BINARY;
@@ -1013,6 +1017,32 @@ pi_result OCL(piKernelSetExecInfo)(pi_kernel kernel,
   }
 }
 
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
+    cl_program program, cl_uint spec_id, size_t spec_size,
+    const void *spec_value);
+
+static pi_result OCL(piextProgramSetSpecializationConstantImpl)(
+    pi_program prog, unsigned int spec_id, size_t spec_size,
+    const void *spec_value) {
+  cl_program ClProg = cast<cl_program>(prog);
+  cl_context Ctx = nullptr;
+  size_t RetSize = 0;
+  cl_int Res =
+      clGetProgramInfo(ClProg, CL_PROGRAM_CONTEXT, sizeof(Ctx), &Ctx, &RetSize);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clSetProgramSpecializationConstant_fn F = nullptr;
+  Res = getExtFuncFromContext<clSetProgramSpecializationConstantName,
+                              decltype(F)>(cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_INVALID_OPERATION;
+  Res = F(ClProg, spec_id, spec_size, spec_value);
+  return cast<pi_result>(Res);
+}
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
@@ -1070,6 +1100,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
   _PI_CL(piProgramRetain, clRetainProgram)
   _PI_CL(piProgramRelease, clReleaseProgram)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         OCL(piextProgramSetSpecializationConstantImpl))
+
   // Kernel
   _PI_CL(piKernelCreate, OCL(piKernelCreate))
   _PI_CL(piKernelSetArg, clSetKernelArg)

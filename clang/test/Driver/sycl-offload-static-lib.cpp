@@ -59,9 +59,12 @@
 // FOFFLOAD_STATIC_LIB_SRC: 13: partial-link, {9, 12}, object
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, object
 // FOFFLOAD_STATIC_LIB_SRC: 15: linker, {11, 14}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 16: llvm-spirv, {15}, spirv, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: clang-offload-wrapper, {16}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {17}, image
+// FOFFLOAD_STATIC_LIB_SRC: 16: sycl-post-link, {15}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: file-table-tform, {16}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: llvm-spirv, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {16, 18}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {20}, image
 
 /// ###########################################################################
 
@@ -123,6 +126,9 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: partial-link, {2}, object
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: clang-offload-unbundler, {3}, object
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: linker, {4}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: llvm-spirv, {5}, spirv, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 7: clang-offload-wrapper, {6}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, image
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: sycl-post-link, {5}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 7: file-table-tform, {6}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 8: llvm-spirv, {7}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: file-table-tform, {6, 8}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: clang-offload-wrapper, {9}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {10}, image
