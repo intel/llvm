@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
-// a struct with non-trivially copyable type as SYCL kernel parameter.
+// a struct containing a member of non-trivially copyable type as SYCL kernel parameter.
 
 struct A {
   int i;

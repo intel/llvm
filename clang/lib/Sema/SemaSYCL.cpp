@@ -790,8 +790,9 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                       getExprForWrappedAccessorInit(WrapperFldCRD, NewBase);
                     }
                   } else if (FldType->isConstantArrayType()) {
-                    auto CAT = cast<ConstantArrayType>(FldType);
-                    auto ET = CAT->getElementType();
+                    const ConstantArrayType *CAT =
+                        cast<ConstantArrayType>(FldType);
+                    QualType ET = CAT->getElementType();
                     if (Util::isSyclAccessorType(ET)) {
                       size_t NumElements =
                           static_cast<size_t>(CAT->getSize().getZExtValue());
@@ -809,10 +810,11 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                                                 SourceLocation()),
                             nullptr, Field->getType(), VK_LValue, OK_Ordinary,
                             NOUR_None);
-                        auto Loc = SourceLocation();
-                        ExprResult IndexExpr = S.ActOnIntegerConstant(Loc, I);
+                        ExprResult IndexExpr =
+                            S.ActOnIntegerConstant(SourceLocation(), I);
                         auto MA = S.CreateBuiltinArraySubscriptExpr(
-                            SpecialObjME, Loc, IndexExpr.get(), Loc);
+                            SpecialObjME, SourceLocation(), IndexExpr.get(),
+                            SourceLocation());
                         KernelFuncParam++;
                         getExprForSpecialSYCLObj(ET, WrapperFld, MA.get(),
                                                  ET->getAsCXXRecordDecl(), Base,
@@ -896,24 +898,23 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
           }
         }
       } else if (FieldType->isConstantArrayType()) {
-        auto Loc = Field->getLocation();
-        auto CAT = cast<ConstantArrayType>(FieldType);
-        auto ET = CAT->getElementType();
+        const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldType);
+        QualType ET = CAT->getElementType();
         if (Util::isSyclAccessorType(ET)) {
           size_t NumElements =
               static_cast<size_t>(CAT->getSize().getZExtValue());
           DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
           auto Lhs = MemberExpr::Create(
-              S.Context, KernelObjCloneRef, false, Loc,
-              NestedNameSpecifierLoc(), Loc, Field, FieldDAP,
-              DeclarationNameInfo(Field->getDeclName(), Loc), nullptr,
-              Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+              S.Context, KernelObjCloneRef, false, SourceLocation(),
+              NestedNameSpecifierLoc(), SourceLocation(), Field, FieldDAP,
+              DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
+              nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
           // Treat each element of accessor array as a separate item
           // Call its __init function
           for (size_t I = 0; I < NumElements; ++I) {
-            ExprResult IndexExpr = S.ActOnIntegerConstant(Loc, I);
-            auto MA = S.CreateBuiltinArraySubscriptExpr(Lhs, Loc,
-                                                        IndexExpr.get(), Loc);
+            ExprResult IndexExpr = S.ActOnIntegerConstant(SourceLocation(), I);
+            auto MA = S.CreateBuiltinArraySubscriptExpr(
+                Lhs, SourceLocation(), IndexExpr.get(), SourceLocation());
             getExprForSpecialSYCLObj(ET, nullptr, MA.get(),
                                      ET->getAsCXXRecordDecl(), nullptr,
                                      InitMethodName, BodyStmts);
@@ -923,19 +924,21 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
           QualType ParamType = (*KernelFuncParam)->getOriginalType();
           CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
           // The first and only field of the wrapper struct is the array
-          auto Array = *(WrapperStruct->field_begin());
-          auto DRE = DeclRefExpr::Create(
-              S.Context, NestedNameSpecifierLoc(), Loc, *KernelFuncParam, false,
-              DeclarationNameInfo(), ParamType, VK_LValue);
+          FieldDecl *Array = *(WrapperStruct->field_begin());
+          auto DRE =
+              DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                                  SourceLocation(), *KernelFuncParam, false,
+                                  DeclarationNameInfo(), ParamType, VK_LValue);
           DeclAccessPair ArrayDAP = DeclAccessPair::make(Array, AS_none);
           Expr *InitExpr = MemberExpr::Create(
-              S.Context, DRE, false, Loc, NestedNameSpecifierLoc(), Loc, Array,
-              ArrayDAP, DeclarationNameInfo(Array->getDeclName(), Loc), nullptr,
-              Array->getType(), VK_LValue, OK_Ordinary, NOUR_None);
-          InitializationKind InitKind =
-              InitializationKind::CreateDirect(Loc, Loc, Loc);
+              S.Context, DRE, false, SourceLocation(), NestedNameSpecifierLoc(),
+              SourceLocation(), Array, ArrayDAP,
+              DeclarationNameInfo(Array->getDeclName(), SourceLocation()),
+              nullptr, Array->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+          InitializationKind InitKind = InitializationKind::CreateDirect(
+              SourceLocation(), SourceLocation(), SourceLocation());
           InitializedEntity Entity = InitializedEntity::InitializeLambdaCapture(
-              nullptr, Array->getType(), Loc);
+              nullptr, Array->getType(), SourceLocation());
           InitializationSequence InitSeq(S, Entity, InitKind, InitExpr);
           ExprResult MemberInit =
               InitSeq.Perform(S, Entity, InitKind, InitExpr);
@@ -1046,8 +1049,8 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
                   createParamDescForWrappedAccessors(WrapperFld, FldType);
                 }
               } else if (FldType->isConstantArrayType()) {
-                auto CAT = cast<ConstantArrayType>(FldType);
-                auto ET = CAT->getElementType();
+                const ConstantArrayType *CAT = cast<ConstantArrayType>(FldType);
+                QualType ET = CAT->getElementType();
                 if (Util::isSyclAccessorType(ET)) {
                   size_t NumElements =
                       static_cast<size_t>(CAT->getSize().getZExtValue());
@@ -1119,8 +1122,8 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
           Fld->getLocation(), diag::err_bad_kernel_param_type) << ArgTy;
       AllArgsAreValid = false;
     } else if (ArgTy->isConstantArrayType()) {
-      auto CAT = cast<ConstantArrayType>(ArgTy);
-      auto ET = CAT->getElementType();
+      const ConstantArrayType *CAT = cast<ConstantArrayType>(ArgTy);
+      QualType ET = CAT->getElementType();
       if (Util::isSyclAccessorType(ET)) {
         size_t NumElements = static_cast<size_t>(CAT->getSize().getZExtValue());
         // Treat each element of accessor array as a separate item
@@ -1203,6 +1206,43 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
     H.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, Offset);
   };
 
+  auto populateHeaderIfAccessorArray = [&](const CXXRecordDecl *Wrapper,
+                                           const FieldDecl *Fld,
+                                           const QualType &ArgTy,
+                                           uint64_t Offset) {
+    // Wrapper is relevant when there the accessor array is nested
+    // more than one level deep
+    const ConstantArrayType *CAT = cast<ConstantArrayType>(ArgTy);
+    QualType ET = CAT->getElementType();
+    if (Util::isSyclAccessorType(ET)) {
+      size_t NumElements = static_cast<size_t>(CAT->getSize().getZExtValue());
+      const auto *Accessor = ET->getAsCXXRecordDecl();
+      ASTContext &AccessorCtx = Accessor->getASTContext();
+      const ASTRecordLayout &AccessorLayout =
+          AccessorCtx.getASTRecordLayout(Accessor);
+      int64_t AccessorSize = AccessorCtx.toBits(AccessorLayout.getSize()) / 8;
+      // Start with offset of array, i.e., offset of first element of array
+      uint64_t OffsetInArray = Offset;
+      if (Wrapper) {
+        ASTContext &WrapperCtx = Wrapper->getASTContext();
+        const ASTRecordLayout &WrapperLayout =
+            WrapperCtx.getASTRecordLayout(Wrapper);
+        OffsetInArray += WrapperLayout.getFieldOffset(Fld->getFieldIndex()) / 8;
+      }
+      // Treat each element of accessor array as a separate item
+      // Create a parameter descriptor for it
+      for (size_t I = 0; I < NumElements; ++I) {
+        populateHeaderForAccessor(ET, OffsetInArray);
+        OffsetInArray += AccessorSize;
+      }
+    } else if (!Wrapper) {
+      // Check for standard layout array has been done earlier
+      uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
+      H.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
+                     static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
+    }
+  };
+
   std::function<void(const QualType &, uint64_t Offset)>
       populateHeaderForWrappedAccessors = [&](const QualType &ArgTy,
                                               uint64_t Offset) {
@@ -1226,31 +1266,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
                                                 Offset + OffsetInWrapper);
             }
           } else if (FldType->isConstantArrayType()) {
-            auto CAT = cast<ConstantArrayType>(FldType);
-            auto ET = CAT->getElementType();
-            if (Util::isSyclAccessorType(ET)) {
-              ASTContext &WrapperCtx = Wrapper->getASTContext();
-              size_t NumElements =
-                  static_cast<size_t>(CAT->getSize().getZExtValue());
-              const auto *Accessor = ET->getAsCXXRecordDecl();
-              ASTContext &AccessorCtx = Accessor->getASTContext();
-              const ASTRecordLayout &AccessorLayout =
-                  AccessorCtx.getASTRecordLayout(Accessor);
-              auto AccessorSize =
-                  AccessorCtx.toBits(AccessorLayout.getSize()) / 8;
-              const ASTRecordLayout &WrapperLayout =
-                  WrapperCtx.getASTRecordLayout(Wrapper);
-              // Get byte offset of the array in wrapper class or struct
-              uint64_t OffsetInWrapper =
-                  WrapperLayout.getFieldOffset(WrapperFld->getFieldIndex()) / 8;
-              // Treat each element of accessor array as a separate item
-              // Create a parameter descriptor for it
-              for (size_t I = 0; I < NumElements; ++I) {
-                // This is an accesor - populate the header appropriately
-                populateHeaderForAccessor(ET, Offset + OffsetInWrapper);
-                OffsetInWrapper += AccessorSize;
-              }
-            }
+            populateHeaderIfAccessorArray(Wrapper, WrapperFld, FldType, Offset);
           }
         }
       };
@@ -1296,30 +1312,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
         populateHeaderForWrappedAccessors(ArgTy, Offset);
       }
     } else if (ArgTy->isConstantArrayType()) {
-      auto CAT = cast<ConstantArrayType>(ArgTy);
-      auto ET = CAT->getElementType();
-      if (Util::isSyclAccessorType(ET)) {
-        size_t NumElements = static_cast<size_t>(CAT->getSize().getZExtValue());
-        const auto *Accessor = ET->getAsCXXRecordDecl();
-        ASTContext &AccessorCtx = Accessor->getASTContext();
-        const ASTRecordLayout &AccessorLayout =
-            AccessorCtx.getASTRecordLayout(Accessor);
-        auto AccessorSize = AccessorCtx.toBits(AccessorLayout.getSize()) / 8;
-        // Start with offset of array, i.e., offset of first element of array
-        uint64_t OffsetInArray = Offset;
-        // Treat each element of accessor array as a separate item
-        // Create a parameter descriptor for it
-        for (size_t I = 0; I < NumElements; ++I) {
-          populateHeaderForAccessor(ET, OffsetInArray);
-          OffsetInArray += AccessorSize;
-        }
-      } else {
-        // Check for standard layout array has been done earlier
-        uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
-        H.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
-                       static_cast<unsigned>(Sz),
-                       static_cast<unsigned>(Offset));
-      }
+      populateHeaderIfAccessorArray(nullptr, Fld, ArgTy, Offset);
     } else {
       llvm_unreachable("unsupported kernel parameter type");
     }

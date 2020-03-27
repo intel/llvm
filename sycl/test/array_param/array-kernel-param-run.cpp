@@ -1,9 +1,10 @@
 // This test checks array kernel parameters
 
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o -o %t.out
-// RUN: %t.out | FileCheck %s
-// CHECK: PASSED
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -38,7 +39,8 @@ static bool verify_1D(const char *name, int X, T A, T A_ref) {
   return false;
 }
 
-template <typename T> void init(T &A, int value, int increment) {
+template <typename T>
+void init(T &A, int value, int increment) {
   for (int i = 0; i < c_num_items; i++) {
     A[i] = value;
     value += increment;
@@ -62,13 +64,11 @@ bool test_one_array(queue &myQueue) {
       output_accessor[index] = input1[index] + 1;
     });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<cl::sycl::access::mode::read>();
 
   return verify_1D<int *>("One array", c_num_items, output, ref);
 }
 
-#if 1
 bool test_two_arrays(queue &myQueue) {
   int input1[c_num_items];
   int input2[c_num_items];
@@ -87,8 +87,7 @@ bool test_two_arrays(queue &myQueue) {
       output_accessor[index] = input1[index] + input2[index];
     });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<cl::sycl::access::mode::read>();
 
   return verify_1D<int *>("Two arrays", c_num_items, output, ref);
 }
@@ -105,22 +104,20 @@ bool test_accessor_arrays_1(queue &myQueue) {
   auto in_buffer2 = buffer<int, 1>(input2.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
     Accessor a[2] = {
         in_buffer1.get_access<access::mode::read_write>(cgh),
         in_buffer2.get_access<access::mode::read_write>(cgh),
     };
 
-    cgh.parallel_for<class accessor_arrays_1>(
-        num_items,
-        [=](cl::sycl::id<1> index) { a[0][index] = a[1][index] + 2; });
+    cgh.parallel_for<class accessor_arrays_1>(num_items, [=](cl::sycl::id<1> index) {
+      a[0][index] = a[1][index] + 2;
+    });
   });
-  const auto HostAccessor =
-      in_buffer1.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = in_buffer1.get_access<cl::sycl::access::mode::read>();
 
-  return verify_1D<std::array<int, c_num_items>>("Accessor arrays 1",
-                                                 c_num_items, input1, ref);
+  return verify_1D<std::array<int, c_num_items>>("Accessor arrays 1", c_num_items, input1, ref);
 }
 
 bool test_accessor_arrays_2(queue &myQueue) {
@@ -137,24 +134,21 @@ bool test_accessor_arrays_2(queue &myQueue) {
   auto out_buffer = buffer<int, 1>(output.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
     Accessor a[4] = {in_buffer1.get_access<access::mode::read_write>(cgh),
                      in_buffer2.get_access<access::mode::read_write>(cgh),
                      in_buffer1.get_access<access::mode::read_write>(cgh),
                      in_buffer2.get_access<access::mode::read_write>(cgh)};
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
-    cgh.parallel_for<class accessor_arrays_2>(
-        num_items, [=](cl::sycl::id<1> index) {
-          output_accessor[index] = a[0][index] + a[3][index];
-        });
+    cgh.parallel_for<class accessor_arrays_2>(num_items, [=](cl::sycl::id<1> index) {
+      output_accessor[index] = a[0][index] + a[3][index];
+    });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<cl::sycl::access::mode::read>();
 
-  return verify_1D<std::array<int, c_num_items>>("Accessor arrays 2",
-                                                 c_num_items, output, ref);
+  return verify_1D<std::array<int, c_num_items>>("Accessor arrays 2", c_num_items, output, ref);
 }
 
 bool test_accessor_array_in_struct(queue &myQueue) {
@@ -164,34 +158,35 @@ bool test_accessor_array_in_struct(queue &myQueue) {
   std::array<int, c_num_items> ref;
   init(input1, 1, 1);
   init(input2, 22, 1);
-  init(ref, 25, 2);
+  init(ref, 35, 2);
 
   auto in_buffer1 = buffer<int, 1>(input1.data(), num_items);
   auto in_buffer2 = buffer<int, 1>(input2.data(), num_items);
   auto out_buffer = buffer<int, 1>(output.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
     struct S {
+      int w;
+      int x;
       Accessor a[2];
-    } S = {{in_buffer1.get_access<access::mode::read_write>(cgh),
-            in_buffer2.get_access<access::mode::read_write>(cgh)}};
+      int y;
+      int z;
+    } S = {
+        3, 3, {in_buffer1.get_access<access::mode::read_write>(cgh), in_buffer2.get_access<access::mode::read_write>(cgh)}, 7, 7};
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
-    cgh.parallel_for<class accessor_array_in_struct>(
-        num_items, [=](cl::sycl::id<1> index) {
-          S.a[0][index]++;
-          S.a[1][index]++;
-          output_accessor[index] = S.a[0][index] + S.a[1][index];
-        });
+    cgh.parallel_for<class accessor_array_in_struct>(num_items, [=](cl::sycl::id<1> index) {
+      S.a[0][index]++;
+      S.a[1][index]++;
+      output_accessor[index] = S.a[0][index] + S.a[1][index] + S.x + S.y;
+    });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<cl::sycl::access::mode::read>();
 
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
-#endif
 
 bool run_tests() {
   queue Q([](exception_list L) {
@@ -209,12 +204,9 @@ bool run_tests() {
   });
 
   passCount = 0;
-#if 1
   if (test_one_array(Q)) {
     ++passCount;
   }
-#endif
-#if 1
   if (test_two_arrays(Q)) {
     ++passCount;
   }
@@ -227,7 +219,6 @@ bool run_tests() {
   if (test_accessor_array_in_struct(Q)) {
     ++passCount;
   }
-#endif
 
   auto D = Q.get_device();
   const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
