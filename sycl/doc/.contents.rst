@@ -1,7 +1,7 @@
 Data Parallel C++ Documentation
 ===============================
 
-Using oneAPI DPC++ for Application Development
+Using oneAPI DPC++ for Apllication Development
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
