@@ -1,7 +1,7 @@
 Data Parallel C++ Documentation
 ===============================
 
-Using oneAPI DPC++ for Apllication Development
+Using oneAPI DPC++ for Application Development
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
@@ -10,7 +10,7 @@ Using oneAPI DPC++ for Apllication Development
    GetStartedGuide
    UsersManual
    PreprocessorMacros
-   cuda/index
+   cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
    FAQ
 
