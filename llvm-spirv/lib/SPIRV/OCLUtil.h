@@ -636,6 +636,7 @@ template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("non_uniform_reduce_logical", GroupOperationReduce);
   add("non_uniform_scan_inclusive_logical", GroupOperationInclusiveScan);
   add("non_uniform_scan_exclusive_logical", GroupOperationExclusiveScan);
+  add("clustered_reduce", GroupOperationClusteredReduce);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVFPRoundingModeKind>::init() {
@@ -892,6 +893,24 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_subgroup_clustered_reduce
+  _SPIRV_OP(group_clustered_iadd, GroupNonUniformIAdd)
+  _SPIRV_OP(group_clustered_iadd, GroupNonUniformIAdd)
+  _SPIRV_OP(group_clustered_fadd, GroupNonUniformFAdd)
+  _SPIRV_OP(group_clustered_imul, GroupNonUniformIMul)
+  _SPIRV_OP(group_clustered_fmul, GroupNonUniformFMul)
+  _SPIRV_OP(group_clustered_smin, GroupNonUniformSMin)
+  _SPIRV_OP(group_clustered_umin, GroupNonUniformUMin)
+  _SPIRV_OP(group_clustered_fmin, GroupNonUniformFMin)
+  _SPIRV_OP(group_clustered_smax, GroupNonUniformSMax)
+  _SPIRV_OP(group_clustered_umax, GroupNonUniformUMax)
+  _SPIRV_OP(group_clustered_fmax, GroupNonUniformFMax)
+  _SPIRV_OP(group_clustered_iand, GroupNonUniformBitwiseAnd)
+  _SPIRV_OP(group_clustered_ior, GroupNonUniformBitwiseOr)
+  _SPIRV_OP(group_clustered_ixor, GroupNonUniformBitwiseXor)
+  _SPIRV_OP(group_clustered_logical_iand, GroupNonUniformLogicalAnd)
+  _SPIRV_OP(group_clustered_logical_ior, GroupNonUniformLogicalOr)
+  _SPIRV_OP(group_clustered_logical_ixor, GroupNonUniformLogicalXor)
 #undef _SPIRV_OP
 }
 

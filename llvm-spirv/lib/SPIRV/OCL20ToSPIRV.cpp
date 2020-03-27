@@ -942,6 +942,9 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
             .StartsWith("ballot", "group_ballot_bit_count_")
             .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
             .Default(kSPIRVName::GroupPrefix);
+          StringRef ClusteredOp =
+            FuncName.contains("clustered_") ?
+            "clustered_" : "";
           StringRef LogicalOp =
             FuncName.contains("logical_") ?
             "logical_" : "";
@@ -970,7 +973,8 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           } else
             llvm_unreachable("Invalid OpenCL group builtin argument type");
 
-          DemangledName = Op.str() + LogicalOp.str() + OpTyC + GroupOp.str();
+          DemangledName = Op.str() + ClusteredOp.str() + LogicalOp.str() +
+            OpTyC + GroupOp.str();
           return false; // break out of loop
         });
   }
