@@ -267,8 +267,8 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   };
 #else
   // TODO implement device side conversion.
-  using OpenCLT= cl::sycl::detail::ConvertToOpenCLType_t<T>;
-  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value); 
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
