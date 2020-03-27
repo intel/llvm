@@ -20,6 +20,7 @@ def do_configure(args):
     sycl_build_pi_cuda = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
+    llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
 
     if platform.system() == 'Linux':
@@ -38,6 +39,7 @@ def do_configure(args):
 
     if args.docs:
         llvm_enable_doxygen = 'ON'
+        llvm_enable_sphinx = 'ON'
 
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
@@ -63,6 +65,7 @@ def do_configure(args):
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
+        "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING=ON", # Explicitly turn on XPTI tracing
         llvm_dir
