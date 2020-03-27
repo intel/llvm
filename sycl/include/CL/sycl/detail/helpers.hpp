@@ -164,7 +164,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-inline constexpr __spv::MemorySemanticsMask
+inline constexpr __spv::MemorySemanticsMask::Flag
 getSPIRVMemorySemanticsMask(memory_order) {
   return __spv::MemorySemanticsMask::None;
 }

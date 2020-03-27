@@ -119,12 +119,14 @@ add_llvm_component_library(LLVMSupport
   Parallel.cpp
   PluginLoader.cpp
   PrettyStackTrace.cpp
+  PropertySetIO.cpp
   RandomNumberGenerator.cpp
   Regex.cpp
   ScaledNumber.cpp
   ScopedPrinter.cpp
   SHA1.cpp
   Signposts.cpp
+  SimpleTable.cpp
   SmallPtrSet.cpp
   SmallVector.cpp
   SourceMgr.cpp

@@ -39,8 +39,12 @@ with the same name.
 **Linux**
 
 ```bash
-export DPCPP_HOME=/export/home/sycl_workspace
-mkdir $DPCPP_HOME
+export DPCPP_HOME=~/sycl_workspace
+mkdir -p $DPCPP_HOME/build
+cd $DPCPP_HOME
+
+git clone https://github.com/intel/llvm -b sycl
+cd $DPCPP_HOME/build
 ```
 
 **Windows (64-bit)**
@@ -55,54 +59,48 @@ Open a developer command prompt using one of two methods:
 ```bat
 set DPCPP_HOME=%USERPROFILE%\sycl_workspace
 mkdir %DPCPP_HOME%
+cd %DPCPP_HOME%
+
+git clone https://github.com/intel/llvm -b sycl
+mkdir %DPCPP_HOME%\build
+cd %DPCPP_HOME%\build
 ```
 
 ## Build DPC++ toolchain
 
+The easiest way to get started is to use the buildbot [configure](../../buildbot/configure.py)
+and [compile](../../buildbot/configure.py) scripts.
+
+In case you want to configure CMake manually the up-to-date reference for variables is in these files.
+
 **Linux**
+
 ```bash
-cd $DPCPP_HOME
-git clone https://github.com/intel/llvm -b sycl
-mkdir $DPCPP_HOME/build
-cd $DPCPP_HOME/build
-
-cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$DPCPP_HOME/llvm/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$DPCPP_HOME/llvm/llvm-spirv \
-$DPCPP_HOME/llvm/llvm
-
-make -j`nproc` sycl-toolchain
+python $DPCPP_HOME/llvm/buildbot/configure.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build -t release
+python $DPCPP_HOME/llvm/buildbot/compile.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build
 ```
 
-**Windows (64-bit)**
+**Windows**
+
 ```bat
-cd %DPCPP_HOME%
-git clone https://github.com/intel/llvm -b sycl
-mkdir %DPCPP_HOME%\build
-cd %DPCPP_HOME%\build
-
-cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" ^
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%DPCPP_HOME%\llvm\sycl" ^
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%DPCPP_HOME%\llvm\llvm-spirv" ^
--DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
-"%DPCPP_HOME%\llvm\llvm"
-
-ninja sycl-toolchain
+python %DPCPP_HOME%\llvm\buildbot\configure.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build -t release
+python %DPCPP_HOME%\llvm\buildbot\compile.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build
 ```
 
-To use ahead-of-time compilation for the Intel&reg; processors, additionally
-build opencl-aot target:
+**Options**
 
-1. add ```opencl-aot``` to ```-DLLVM_EXTERNAL_PROJECTS``` and
-```-DLLVM_ENABLE_PROJECTS``` variables above
-2. add ```opencl-aot``` to
-```make``` (for Linux) or ```ninja``` (for Windows) commands above
+You can use the following flags with `configure.py`:
 
+ * `--no-ocl` -> Download OpenCL deps via cmake (can be useful in case of troubles)
+ * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
+ * `--shared-libs` -> Build shared libraries
+ * `-t` -> Build type (debug or release)
+
+
+Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
+
+**Deployment**
 
 TODO: add instructions how to deploy built DPC++ toolchain.
 
@@ -124,20 +122,7 @@ should be used.
 There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux
-DPC++ toolchain, but replace the cmake command with the following one:
-
-
-```
-cmake -DCMAKE_BUILD_TYPE=Release \
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$DPCPP_HOME/llvm/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$DPCPP_HOME/llvm/llvm-spirv \
--DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc" \
--DSYCL_BUILD_PI_CUDA=ON \
--DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
--DLIBCLC_TARGETS_TO_BUILD="nvptx64--;nvptx64--nvidiacl"
-```
+DPC++ toolchain, but add the `--cuda` flag to `configure.py`
 
 Enabling this flag requires an installation of
 [CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on the system,

@@ -235,6 +235,39 @@ struct _pi_queue {
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 };
 
+typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
+                           void *userData);
+
+class event_callback {
+public:
+  void trigger_callback(pi_event event, pi_int32 currentEventStatus) const {
+
+    auto validParameters = callback_ && event;
+
+    // As a pi_event_status value approaches 0, it gets closer to completion.
+    // If the calling pi_event's status is less than or equal to the event
+    // status the user is interested in, invoke the callback anyway. The event
+    // will have passed through that state anyway.
+    auto validStatus = currentEventStatus <= observedEventStatus_;
+
+    if (validParameters && validStatus) {
+
+      callback_(event, currentEventStatus, userData_);
+    }
+  }
+
+  event_callback(pi_event_status status, pfn_notify callback, void *userData)
+      : observedEventStatus_{status}, callback_{callback}, userData_{userData} {
+  }
+
+  pi_event_status get_status() const noexcept { return observedEventStatus_; }
+
+private:
+  pi_event_status observedEventStatus_;
+  pfn_notify callback_;
+  void *userData_;
+};
+
 class _pi_event {
 public:
   using native_type = CUevent;
@@ -247,18 +280,39 @@ public:
 
   native_type get() const noexcept { return evEnd_; };
 
-  pi_result set_user_event_complete() noexcept {
+  pi_result set_event_complete() noexcept {
 
     if (isCompleted_) {
       return PI_INVALID_OPERATION;
     }
 
-    if (is_user_event()) {
-      isRecorded_ = true;
-      isCompleted_ = true;
-      return PI_SUCCESS;
+    isRecorded_ = true;
+    isCompleted_ = true;
+
+    trigger_callback(get_execution_status());
+
+    return PI_SUCCESS;
+  }
+
+  void trigger_callback(pi_int32 status) {
+
+    std::vector<event_callback> callbacks;
+
+    // Here we move all callbacks into local variable before we call them.
+    // This is a defensive maneuver; if any of the callbacks attempt to
+    // add additional callbacks, we will end up in a bad spot. Our mutex
+    // will be locked twice and the vector will be modified as it is being
+    // iterated over! By moving everything locally, we can call all of these
+    // callbacks and let them modify the original vector without much worry.
+
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      event_callbacks_.swap(callbacks);
     }
-    return PI_INVALID_EVENT;
+
+    for (auto &event_callback : callbacks) {
+      event_callback.trigger_callback(this, status);
+    }
   }
 
   pi_queue get_queue() const noexcept { return queue_; }
@@ -273,7 +327,27 @@ public:
 
   bool is_started() const noexcept { return isStarted_; }
 
-  pi_event_status get_execution_status() const noexcept;
+  pi_int32 get_execution_status() const noexcept {
+
+    if (!is_recorded()) {
+      return PI_EVENT_SUBMITTED;
+    }
+
+    if (!is_completed()) {
+      return PI_EVENT_RUNNING;
+    }
+    return PI_EVENT_COMPLETE;
+  }
+
+  void set_event_callback(const event_callback &callback) {
+    auto current_status = get_execution_status();
+    if (current_status <= callback.get_status()) {
+      callback.trigger_callback(this, current_status);
+    } else {
+      std::lock_guard<std::mutex> lock(mutex_);
+      event_callbacks_.emplace_back(callback);
+    }
+  }
 
   pi_context get_context() const noexcept { return context_; };
 
@@ -343,6 +417,12 @@ private:
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
                        // with the queue_ member.
+
+  std::mutex mutex_; // Protect access to event_callbacks_. TODO: There might be
+                     // a lock-free data structure we can use here.
+  std::vector<event_callback>
+      event_callbacks_; // Callbacks that can be triggered when an event's state
+                        // changes.
 };
 
 struct _pi_program {

@@ -1312,6 +1312,9 @@ createArgument(const Record &Arg, StringRef Attr,
     Ptr = std::make_unique<TypeArgument>(Arg, Attr);
   else if (ArgName == "UnsignedArgument")
     Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "unsigned");
+  else if (ArgName == "DefaultUnsignedArgument")
+    Ptr = std::make_unique<DefaultSimpleArgument>(Arg, Attr, "unsigned",
+                                                  Arg.getValueAsInt("Default"));
   else if (ArgName == "VariadicUnsignedArgument")
     Ptr = std::make_unique<VariadicArgument>(Arg, Attr, "unsigned");
   else if (ArgName == "VariadicStringArgument")
@@ -2329,7 +2332,7 @@ static void emitAttributes(RecordKeeper &Records, raw_ostream &OS,
     SemanticSpellingMap SemanticToSyntacticMap;
 
     std::string SpellingEnum;
-    if (!ElideSpelling)
+    if (Spellings.size() > 1)
       SpellingEnum = CreateSemanticSpellings(Spellings, SemanticToSyntacticMap);
     if (Header)
       OS << SpellingEnum;

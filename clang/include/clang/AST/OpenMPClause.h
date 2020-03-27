@@ -4433,6 +4433,12 @@ class OMPDeviceClause : public OMPClause, public OMPClauseWithPreInit {
   /// Location of '('.
   SourceLocation LParenLoc;
 
+  /// Device clause modifier.
+  OpenMPDeviceClauseModifier Modifier = OMPC_DEVICE_unknown;
+
+  /// Location of the modifier.
+  SourceLocation ModifierLoc;
+
   /// Device number.
   Stmt *Device = nullptr;
 
@@ -4441,20 +4447,30 @@ class OMPDeviceClause : public OMPClause, public OMPClauseWithPreInit {
   /// \param E Device number.
   void setDevice(Expr *E) { Device = E; }
 
+  /// Sets modifier.
+  void setModifier(OpenMPDeviceClauseModifier M) { Modifier = M; }
+
+  /// Setst modifier location.
+  void setModifierLoc(SourceLocation Loc) { ModifierLoc = Loc; }
+
 public:
   /// Build 'device' clause.
   ///
+  /// \param Modifier Clause modifier.
   /// \param E Expression associated with this clause.
   /// \param CaptureRegion Innermost OpenMP region where expressions in this
   /// clause must be captured.
   /// \param StartLoc Starting location of the clause.
+  /// \param ModifierLoc Modifier location.
   /// \param LParenLoc Location of '('.
   /// \param EndLoc Ending location of the clause.
-  OMPDeviceClause(Expr *E, Stmt *HelperE, OpenMPDirectiveKind CaptureRegion,
-                  SourceLocation StartLoc, SourceLocation LParenLoc,
+  OMPDeviceClause(OpenMPDeviceClauseModifier Modifier, Expr *E, Stmt *HelperE,
+                  OpenMPDirectiveKind CaptureRegion, SourceLocation StartLoc,
+                  SourceLocation LParenLoc, SourceLocation ModifierLoc,
                   SourceLocation EndLoc)
       : OMPClause(OMPC_device, StartLoc, EndLoc), OMPClauseWithPreInit(this),
-        LParenLoc(LParenLoc), Device(E) {
+        LParenLoc(LParenLoc), Modifier(Modifier), ModifierLoc(ModifierLoc),
+        Device(E) {
     setPreInitStmt(HelperE, CaptureRegion);
   }
 
@@ -4474,6 +4490,12 @@ public:
 
   /// Return device number.
   Expr *getDevice() const { return cast<Expr>(Device); }
+
+  /// Gets modifier.
+  OpenMPDeviceClauseModifier getModifier() const { return Modifier; }
+
+  /// Gets modifier location.
+  SourceLocation getModifierLoc() const { return ModifierLoc; }
 
   child_range children() { return child_range(&Device, &Device + 1); }
 
@@ -6824,6 +6846,68 @@ public:
 
   static bool classof(const OMPClause *T) {
     return T->getClauseKind() == OMPC_destroy;
+  }
+};
+
+/// This represents 'detach' clause in the '#pragma omp task' directive.
+///
+/// \code
+/// #pragma omp task detach(evt)
+/// \endcode
+/// In this example directive '#pragma omp detach' has simple 'detach' clause
+/// with the variable 'evt'.
+class OMPDetachClause final : public OMPClause {
+  friend class OMPClauseReader;
+
+  /// Location of '('.
+  SourceLocation LParenLoc;
+
+  /// Expression of the 'detach' clause.
+  Stmt *Evt = nullptr;
+
+  /// Set condition.
+  void setEventHandler(Expr *E) { Evt = E; }
+
+  /// Sets the location of '('.
+  void setLParenLoc(SourceLocation Loc) { LParenLoc = Loc; }
+
+public:
+  /// Build 'detach' clause with event-handler \a Evt.
+  ///
+  /// \param Evt Event handler expression.
+  /// \param StartLoc Starting location of the clause.
+  /// \param LParenLoc Location of '('.
+  /// \param EndLoc Ending location of the clause.
+  OMPDetachClause(Expr *Evt, SourceLocation StartLoc, SourceLocation LParenLoc,
+                  SourceLocation EndLoc)
+      : OMPClause(OMPC_detach, StartLoc, EndLoc), LParenLoc(LParenLoc),
+        Evt(Evt) {}
+
+  /// Build an empty clause.
+  OMPDetachClause()
+      : OMPClause(OMPC_detach, SourceLocation(), SourceLocation()) {}
+
+  /// Returns the location of '('.
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+
+  /// Returns event-handler expression.
+  Expr *getEventHandler() const { return cast_or_null<Expr>(Evt); }
+
+  child_range children() { return child_range(&Evt, &Evt + 1); }
+
+  const_child_range children() const {
+    return const_child_range(&Evt, &Evt + 1);
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == OMPC_detach;
   }
 };
 

@@ -92,6 +92,9 @@ void forwardDeclFn() {
 }
 
 int main() {
+  // No problems in host code
+  undefined();
+
   kernel_single_task<class CallToUndefinedFnTester>([]() {
     // expected-note@-1 {{called by 'operator()'}}
     // expected-note@-2 {{called by 'operator()'}}

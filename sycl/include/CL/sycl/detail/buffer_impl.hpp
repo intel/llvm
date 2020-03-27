@@ -81,12 +81,6 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
-    // TODO: There is contradiction in the spec, in one place it says
-    // the data is not copied back at all if the buffer is construted
-    // using this c'tor, another section says that the data will be
-    // copied back if iterators passed are not const ( 4.7.2.3 Buffer
-    // Synchronization Rules and this constructor description)
-    BaseT::set_final_data(First);
   }
 
   template <typename T>

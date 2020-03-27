@@ -367,8 +367,8 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram Prg = createPIProgram(Img, Context);
-    ProgramPtr ProgramManaged(Prg,
-                              Plugin.MPlugin.PiFunctionTable.piProgramRelease);
+    ProgramPtr ProgramManaged(
+        Prg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.

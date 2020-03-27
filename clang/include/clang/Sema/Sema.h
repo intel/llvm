@@ -329,7 +329,7 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName);
+                   StringRef KernelStableName, SourceLocation Loc);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -367,6 +367,8 @@ private:
     /// Kernel name with stable lambda name mangling
     std::string StableName;
 
+    SourceLocation KernelLocation;
+
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
@@ -381,7 +383,8 @@ private:
   }
 
   /// Emits a forward declaration for given declaration.
-  void emitFwdDecl(raw_ostream &O, const Decl *D);
+  void emitFwdDecl(raw_ostream &O, const Decl *D,
+                   SourceLocation KernelLocation);
 
   /// Emits forward declarations of classes and template classes on which
   /// declaration of given type depends. See example in the comments for the
@@ -390,10 +393,14 @@ private:
   ///     stream to emit to
   /// \param T
   ///     type to emit forward declarations for
+  /// \param KernelLocation
+  ///     source location of the SYCL kernel function, used to emit nicer
+  ///     diagnostic messages if kernel name is missing
   /// \param Emitted
   ///     a set of declarations forward declrations has been emitted for already
   void emitForwardClassDecls(raw_ostream &O, QualType T,
-                             llvm::SmallPtrSetImpl<const void*> &Emitted);
+                             SourceLocation KernelLocation,
+                             llvm::SmallPtrSetImpl<const void *> &Emitted);
 
 private:
   /// Keeps invocation descriptors for each kernel invocation started by
@@ -1747,7 +1754,7 @@ public:
                               Expr *Expr2);
   template <typename FPGALoopAttrT>
   FPGALoopAttrT *BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
-                                            Expr *E);
+                                            Expr *E = nullptr);
 
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);
@@ -7129,7 +7136,8 @@ public:
                           QualType ObjectType, bool EnteringContext,
                           bool &MemberOfUnknownSpecialization,
                           SourceLocation TemplateKWLoc = SourceLocation(),
-                          AssumedTemplateKind *ATK = nullptr);
+                          AssumedTemplateKind *ATK = nullptr,
+                          bool Disambiguation = false);
 
   TemplateNameKind isTemplateName(Scope *S,
                                   CXXScopeSpec &SS,
@@ -7138,7 +7146,8 @@ public:
                                   ParsedType ObjectType,
                                   bool EnteringContext,
                                   TemplateTy &Template,
-                                  bool &MemberOfUnknownSpecialization);
+                                  bool &MemberOfUnknownSpecialization,
+                                  bool Disambiguation = false);
 
   /// Try to resolve an undeclared template name as a type template.
   ///
@@ -10520,6 +10529,10 @@ public:
   OMPClause *ActOnOpenMPHintClause(Expr *Hint, SourceLocation StartLoc,
                                    SourceLocation LParenLoc,
                                    SourceLocation EndLoc);
+  /// Called on well-formed 'detach' clause.
+  OMPClause *ActOnOpenMPDetachClause(Expr *Evt, SourceLocation StartLoc,
+                                     SourceLocation LParenLoc,
+                                     SourceLocation EndLoc);
 
   OMPClause *ActOnOpenMPSimpleClause(OpenMPClauseKind Kind,
                                      unsigned Argument,
@@ -10728,8 +10741,10 @@ public:
                           SourceLocation StartLoc, SourceLocation LParenLoc,
                           SourceLocation EndLoc);
   /// Called on well-formed 'device' clause.
-  OMPClause *ActOnOpenMPDeviceClause(Expr *Device, SourceLocation StartLoc,
+  OMPClause *ActOnOpenMPDeviceClause(OpenMPDeviceClauseModifier Modifier,
+                                     Expr *Device, SourceLocation StartLoc,
                                      SourceLocation LParenLoc,
+                                     SourceLocation ModifierLoc,
                                      SourceLocation EndLoc);
   /// Called on well-formed 'map' clause.
   OMPClause *

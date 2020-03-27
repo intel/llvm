@@ -8,11 +8,14 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-_CLC_DEF void _Z22__spirv_ControlBarrierN5__spv5ScopeES0_j(enum Scope scope, enum Scope memory, unsigned int semantics) {
-  __syncthreads();
+_CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
+                                                  unsigned int semantics) {
+  __nvvm_membar_cta();
 }
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-_CLC_DEF void _Z21__spirv_MemoryBarrierN5__spv5ScopeEj(enum Scope scope, unsigned int semantics) {
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
+__spirv_ControlBarrier(unsigned int scope, unsigned int memory,
+                       unsigned int semantics) {
+  __syncthreads();
+  __spirv_MemoryBarrier(memory, semantics);
 }

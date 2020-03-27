@@ -1851,11 +1851,13 @@ public:
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  OMPClause *RebuildOMPDeviceClause(Expr *Device, SourceLocation StartLoc,
+  OMPClause *RebuildOMPDeviceClause(OpenMPDeviceClauseModifier Modifier,
+                                    Expr *Device, SourceLocation StartLoc,
                                     SourceLocation LParenLoc,
+                                    SourceLocation ModifierLoc,
                                     SourceLocation EndLoc) {
-    return getSema().ActOnOpenMPDeviceClause(Device, StartLoc, LParenLoc,
-                                             EndLoc);
+    return getSema().ActOnOpenMPDeviceClause(Modifier, Device, StartLoc,
+                                             LParenLoc, ModifierLoc, EndLoc);
   }
 
   /// Build a new OpenMP 'map' clause.
@@ -1952,6 +1954,16 @@ public:
                                   SourceLocation LParenLoc,
                                   SourceLocation EndLoc) {
     return getSema().ActOnOpenMPHintClause(Hint, StartLoc, LParenLoc, EndLoc);
+  }
+
+  /// Build a new OpenMP 'detach' clause.
+  ///
+  /// By default, performs semantic analysis to build the new statement.
+  /// Subclasses may override this routine to provide different behavior.
+  OMPClause *RebuildOMPDetachClause(Expr *Evt, SourceLocation StartLoc,
+                                    SourceLocation LParenLoc,
+                                    SourceLocation EndLoc) {
+    return getSema().ActOnOpenMPDetachClause(Evt, StartLoc, LParenLoc, EndLoc);
   }
 
   /// Build a new OpenMP 'dist_schedule' clause.
@@ -8788,6 +8800,19 @@ TreeTransform<Derived>::TransformOMPOrderedClause(OMPOrderedClause *C) {
 
 template <typename Derived>
 OMPClause *
+TreeTransform<Derived>::TransformOMPDetachClause(OMPDetachClause *C) {
+  ExprResult E;
+  if (Expr *Evt = C->getEventHandler()) {
+    E = getDerived().TransformExpr(Evt);
+    if (E.isInvalid())
+      return nullptr;
+  }
+  return getDerived().RebuildOMPDetachClause(E.get(), C->getBeginLoc(),
+                                             C->getLParenLoc(), C->getEndLoc());
+}
+
+template <typename Derived>
+OMPClause *
 TreeTransform<Derived>::TransformOMPNowaitClause(OMPNowaitClause *C) {
   // No need to rebuild this clause, no template-dependent parameters.
   return C;
@@ -9240,8 +9265,9 @@ TreeTransform<Derived>::TransformOMPDeviceClause(OMPDeviceClause *C) {
   ExprResult E = getDerived().TransformExpr(C->getDevice());
   if (E.isInvalid())
     return nullptr;
-  return getDerived().RebuildOMPDeviceClause(E.get(), C->getBeginLoc(),
-                                             C->getLParenLoc(), C->getEndLoc());
+  return getDerived().RebuildOMPDeviceClause(
+      C->getModifier(), E.get(), C->getBeginLoc(), C->getLParenLoc(),
+      C->getModifierLoc(), C->getEndLoc());
 }
 
 template <typename Derived, class T>

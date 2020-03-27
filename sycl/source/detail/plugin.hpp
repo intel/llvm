@@ -29,6 +29,8 @@ public:
 
   ~plugin() = default;
 
+  const RT::PiPlugin &getPiPlugin() const { return MPlugin; }
+
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
@@ -71,11 +73,9 @@ public:
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
     checkPiResult(Err);
   }
-  // TODO: Make this private. Currently used in program_manager to create a
-  // pointer to PiProgram.
-  RT::PiPlugin MPlugin;
 
 private:
+  RT::PiPlugin MPlugin;
   bool MPiEnableTrace;
 
 }; // class plugin

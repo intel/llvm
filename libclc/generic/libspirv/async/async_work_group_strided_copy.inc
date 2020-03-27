@@ -21,30 +21,18 @@
     dst[i * DST_STRIDE] = src[i * SRC_STRIDE];                             \
   }
 
-#define __CLC_CONCAT(a, b, c) a ## b ## c
-#define __CLC_XCONCAT(a, b, c) __CLC_CONCAT(a, b, c)
-
-_CLC_DEF event_t __CLC_XCONCAT(_Z22__spirv_GroupAsyncCopyI, __CLC_GENTYPE_MANGLED, E9ocl_eventN5__spv5ScopeEPU3AS1T_PU3AS3S3_mmS0_) (
-    enum Scope scope,
-    global __CLC_GENTYPE *dst,
-    const local __CLC_GENTYPE *src,
-    size_t num_gentypes,
-    size_t stride,
-    event_t event) {
+_CLC_OVERLOAD _CLC_DEF event_t
+__spirv_GroupAsyncCopy(unsigned int scope, global __CLC_GENTYPE *dst,
+                       const local __CLC_GENTYPE *src, size_t num_gentypes,
+                       size_t stride, event_t event) {
   STRIDED_COPY(global, local, stride, 1);
   return event;
 }
 
-_CLC_DEF event_t __CLC_XCONCAT(_Z22__spirv_GroupAsyncCopyI, __CLC_GENTYPE_MANGLED, E9ocl_eventN5__spv5ScopeEPU3AS3T_PU3AS1S3_mmS0_) (
-    enum Scope scope,
-    local __CLC_GENTYPE *dst,
-    const global __CLC_GENTYPE *src,
-    size_t num_gentypes,
-    size_t stride,
-    event_t event) {
+_CLC_OVERLOAD _CLC_DEF event_t
+__spirv_GroupAsyncCopy(unsigned int scope, local __CLC_GENTYPE *dst,
+                       const global __CLC_GENTYPE *src, size_t num_gentypes,
+                       size_t stride, event_t event) {
   STRIDED_COPY(local, global, 1, stride);
   return event;
 }
-
-#undef __CLC_XCONCAT
-#undef __CLC_CONCAT
