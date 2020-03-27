@@ -14,11 +14,14 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+import datetime
 
 # -- Project information -----------------------------------------------------
 
+now = datetime.datetime.now()
+
 project = 'oneAPI DPC++ Compiler'
-copyright = '2020, Intel Corporation'
+copyright = str(now.year) + ', Intel Corporation'
 author = 'Intel Corporation'
 
 # -- General configuration ---------------------------------------------------

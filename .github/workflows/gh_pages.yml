@@ -35,7 +35,8 @@ jobs:
         ssh-add -k ~/.ssh/id_rsa
         git clone git@github.com:intel/llvm-docs.git docs
         cd $GITHUB_WORKSPACE/docs
-        rm -rf *
+        git rm -rf .
+        touch .nojekyll
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
         mkdir doxygen
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* doxygen/
