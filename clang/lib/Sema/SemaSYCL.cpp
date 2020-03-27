@@ -1534,7 +1534,7 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                 ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
                                 : dyn_cast<TagDecl>(D);
 
-        if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
+        if (TD && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
           const bool KernelNameIsMissing = TD->getName().empty();
@@ -1543,8 +1543,12 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                 << /* kernel name is missing */ 0;
             // Don't emit note if kernel name was completely omitted
           } else {
-            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-                << /* kernel name is not globally-visible */ 1;
+            if (TD->isCompleteDefinition())
+              Diag.Report(KernelLocation,
+                          diag::err_sycl_kernel_incorrectly_named)
+                  << /* kernel name is not globally-visible */ 1;
+            else
+              Diag.Report(KernelLocation, diag::warn_sycl_implicit_decl);
             Diag.Report(D->getSourceRange().getBegin(),
                         diag::note_previous_decl)
                 << TD->getName();
