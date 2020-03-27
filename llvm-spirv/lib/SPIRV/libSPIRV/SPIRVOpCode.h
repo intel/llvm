@@ -74,6 +74,10 @@ inline bool isLogicalOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpLogicalEqual && (unsigned)OpCode <= OpLogicalNot;
 }
 
+inline bool isUnaryPredicateOpCode(Op OpCode) {
+  return (unsigned)OpCode >= OpAny && (unsigned)OpCode <= OpSignBitSet;
+}
+
 inline bool isBitwiseOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpBitwiseOr && (unsigned)OpCode <= OpBitwiseAnd;
 }
