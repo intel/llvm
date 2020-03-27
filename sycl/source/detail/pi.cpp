@@ -217,9 +217,13 @@ vector_class<plugin> initialize() {
   PiPlugin PluginInformation; // TODO: include.
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I]);
-    if (!Library && EnableTrace) {
-      std::cerr << "Check if plugin is present. Failed to load plugin: "
-                << PluginNames[I] << std::endl;
+
+    if (!Library) {
+      if (EnableTrace) {
+        std::cerr << "Check if plugin is present. Failed to load plugin: "
+                  << PluginNames[I] << std::endl;
+      }
+      continue;
     }
 
     if (!bindPlugin(Library, &PluginInformation) && EnableTrace) {
