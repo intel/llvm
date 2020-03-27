@@ -198,8 +198,6 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
                                             &GlueEventHandle);
 
 #if 1
-      EventImplPtr *GlueEventCopy = 
-        new EventImplPtr(GlueEvent); // To increase the reference count by 1.
       DepPlugin.call<PiApiKind::piEventSetCallback>(
           DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
