@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // TODO: re-enable after OpenCL RT is fixed:
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 //
