@@ -112,10 +112,10 @@ add_custom_command(
                 ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
                 ${include_dir}/CL/sycl/devicelib
         COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/assert.h
                 ${include_dir}/CL/sycl/devicelib
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib-assert.h)
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/assert.h)
 
 add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-complex}
@@ -141,7 +141,7 @@ else()
 endif()
 
 install(FILES ${include_dir}/CL/sycl/devicelib/devicelib.h
-              ${include_dir}/CL/sycl/devicelib/devicelib-assert.h
+              ${include_dir}/CL/sycl/devicelib/assert.h
         DESTINATION include/sycl/CL/sycl/devicelib
         COMPONENT libsycldevice)
 

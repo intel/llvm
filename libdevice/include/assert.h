@@ -6,9 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __DEVICELIB_ASSERT_H__
+#define __DEVICELIB_ASSERT_H__
+
+#include_next "assert.h"
 #include "devicelib.h"
-#include <cstddef>
-#include <cstdint>
+
+#ifdef __DEVICELIB_DEVICE_ONLY__
+
+#include <stddef.h>
+#include <stdint.h>
 
 DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
@@ -64,3 +71,6 @@ EXTERN_C inline void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
 }
 
 #endif
+
+#endif // __DEVICELIB_DEVICE_ONLY__
+#endif // __DEVICELIB_ASSERT_H__

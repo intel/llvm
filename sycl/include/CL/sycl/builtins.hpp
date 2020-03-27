@@ -1546,8 +1546,4 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include "devicelib/devicelib-assert.h"
-#endif // __SYCL_DEVICE_ONLY__
-
 #undef __NOEXC

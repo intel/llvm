@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __DEVICELIB_H__
+#define __DEVICELIB_H__
+
 #ifndef _WIN32
 #include <features.h> // for GLIBC macro
 #endif
@@ -40,3 +43,9 @@
 #endif // CL_SYCL_LANGUAGE_VERSION
 
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DEVICELIB_DEVICE_ONLY__ 1
+#endif
+
+#endif // __DEVICELIB_H__
