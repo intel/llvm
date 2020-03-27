@@ -1,9 +1,9 @@
-# Overview
+# Getting Started with oneAPI DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
-# Table of contents
+**Table of contents**
 
 * [Prerequisites](#prerequisites)
   * [Create DPC++ workspace](#create-dpc-workspace)
@@ -19,7 +19,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * [CUDA backend limitations](#cuda-backend-limitations)
 * [Find More](#find-more)
 
-# Prerequisites
+## Prerequisites
 
 * `git` - https://git-scm.com/downloads
 * `cmake` version 3.2 or later - http://www.cmake.org/download/
@@ -30,7 +30,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     https://visualstudio.microsoft.com/downloads/
 
-## Create DPC++ workspace
+### Create DPC++ workspace
 
 Throughout this document `DPCPP_HOME` denotes the path to the local directory
 created as DPC++ workspace. It might be useful to create an environment variable
@@ -66,7 +66,7 @@ mkdir %DPCPP_HOME%\build
 cd %DPCPP_HOME%\build
 ```
 
-# Build DPC++ toolchain
+## Build DPC++ toolchain
 
 The easiest way to get started is to use the buildbot [configure](../../buildbot/configure.py)
 and [compile](../../buildbot/configure.py) scripts.
@@ -104,7 +104,7 @@ For more, see [opencl-aot documentation](../../opencl-aot/README.md).
 
 TODO: add instructions how to deploy built DPC++ toolchain.
 
-## Build DPC++ toolchain with libc++ library
+### Build DPC++ toolchain with libc++ library
 
 There is experimental support for building and linking DPC++ runtime with
 libc++ library instead of libstdc++. To enable it the following CMake options
@@ -117,7 +117,7 @@ should be used.
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
 
-## Build DPC++ toolchain with support for NVIDIA CUDA
+### Build DPC++ toolchain with support for NVIDIA CUDA
 
 There is experimental support for DPC++ for CUDA devices.
 
@@ -133,9 +133,9 @@ Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above.
 
-# Use DPC++ toolchain
+## Use DPC++ toolchain
 
-## Using the DPC++ toolchain on CUDA platforms
+### Using the DPC++ toolchain on CUDA platforms
 
 The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
@@ -153,7 +153,7 @@ Instead of installing the low level CPU runtime, it is possible to build and
 install the [Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader), 
 which contains all the symbols required.
 
-## Install low level runtime
+### Install low level runtime
 
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
@@ -251,9 +251,9 @@ command:
 c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
 ```
 
-## Test DPC++ toolchain
+### Test DPC++ toolchain
 
-### Run regression tests
+#### Run regression tests
 
 To verify that built DPC++ toolchain is working correctly, run:
 
@@ -273,7 +273,7 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices 
 available.
 
-### Run Khronos\* SYCL\* conformance test suite (optional)
+#### Run Khronos\* SYCL\* conformance test suite (optional)
 
 Khronos\* SYCL\* conformance test suite (CTS) is intended to validate
 implementation conformance to Khronos\* SYCL\* specification. DPC++ compiler is
@@ -313,7 +313,7 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `/path/to/build/tools/sycl/doc/html` directory.
 
-## Run simple DPC++ application
+### Run simple DPC++ application
 
 A simple DPC++ or SYCL\* program consists of following parts:
 1. Header section
@@ -442,7 +442,7 @@ selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
-## Code the program for a specific GPU
+### Code the program for a specific GPU
 
 To specify OpenCL device SYCL provides the abstract `cl::sycl::device_selector`
 class which the can be used to define how the runtime should select the best
@@ -506,11 +506,11 @@ class CUDASelector : public cl::sycl::device_selector {
 };
 ```
 
-# C++ standard
+## C++ standard
 
 - Minimal supported C++ standard is C++11 on Linux and C++14 on Windows.
 
-# Known Issues and Limitations
+## Known Issues and Limitations
 
 - DPC++ device compiler fails if the same kernel was used in different
   translation units.
@@ -521,7 +521,7 @@ class CUDASelector : public cl::sycl::device_selector {
 - On Windows linking DPC++ applications with `/MTd` flag is known to cause
   crashes.
 
-## CUDA back-end limitations
+### CUDA back-end limitations
 
 - Backend is only supported on Linux
 - The only combination tested is Ubuntu 18.04 with CUDA 10.2 using a Titan RTX
@@ -529,7 +529,7 @@ class CUDASelector : public cl::sycl::device_selector {
 - The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
 
-# Find More
+## Find More
 
 DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
