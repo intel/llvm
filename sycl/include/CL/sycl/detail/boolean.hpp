@@ -101,30 +101,28 @@ private:
 };
 
 template <> struct Boolean<1> {
-  using DataType = bool;
+  Boolean() = default;
 
-  Boolean() : value(false) {}
-
-  Boolean(const Boolean &rhs) : value(rhs.value) {}
-
+  // Build from a signed interger type
   template <typename T> Boolean(T val) : value(val) {
     static_assert(is_sgeninteger<T>::value, "Invalid constructor");
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
-  using vector_t = DataType;
-  Boolean(const vector_t rhs) : value(rhs) {}
-
-  operator vector_t() const { return value; }
-#endif
-
+  // Cast to a signed interger type
   template <typename T> operator T() const {
     static_assert(is_sgeninteger<T>::value, "Invalid conversion");
     return value;
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  // Build from a boolean type
+  Boolean(bool f) : value(f) {}
+  // Cast to a boolean type
+  operator bool() const { return value; }
+#endif
+
 private:
-  alignas(1) DataType value;
+  alignas(1) bool value = false;
 };
 
 } // namespace detail
