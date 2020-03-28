@@ -23,42 +23,66 @@
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/sampler.hpp>
 
-// The file contains implementations of accessor class. Objects of accessor
-// class define a requirement to access some SYCL memory object or local memory
-// of the device.
-//
-// Basically there are 3 distinct types of accessors.
-//
-// One of them is an accessor to a SYCL buffer object(Buffer accessor) which has
-// the richest interface. It supports things like accessing only a part of
-// buffer, multidimensional access using sycl::id, conversions to various
-// multi_ptr and atomic classes.
-//
-// Second type is an accessor to a SYCL image object(Image accessor) which has
-// "image" specific methods for reading and writing.
-//
-// Finally, accessor to local memory(Local accessor) doesn't require access to
-// any SYCL memory object, but asks for some local memory on device to be
-// available. Some methods overlap with ones that "Buffer accessor" provides.
-//
-// Buffer and Image accessors create the requirement to access some SYCL memory
-// object(or part of it). SYCL RT must detect when two kernels want to access
-// the same memory objects and make sure they are executed in correct order.
-//
-// "accessor_common" class that contains several common methods between Buffer
-// and Local accessors.
-//
-// Accessors have different representation on host and on device. On host they
-// have non-templated base class, that is needed to safely work with any
-// accessor type. Furhermore on host we need some additional fields in order
-// to implement functionality required by Specification, for example during
-// lifetime of a host accessor other operations with memory object the accessor
-// refers to should be blocked and when all references to the host accessor are
-// desctructed, the memory this host accessor refers to should be "written
-// back".
-//
-// The scheme of inheritance for host side:
-//
+/// \file accessor.hpp
+/// The file contains implementations of accessor class.
+
+/// \addtogroup sycl_api_acc
+///
+/// Objects of accessor class define a requirement to access some SYCL memory
+/// object or local memory of the device.
+///
+/// Basically there are 3 distinct types of accessors.
+///
+/// One of them is an accessor to a SYCL buffer object(Buffer accessor) which has
+/// the richest interface. It supports things like accessing only a part of
+/// buffer, multidimensional access using sycl::id, conversions to various
+/// multi_ptr and atomic classes.
+///
+/// Second type is an accessor to a SYCL image object(Image accessor) which has
+/// "image" specific methods for reading and writing.
+///
+/// Finally, accessor to local memory(Local accessor) doesn't require access to
+/// any SYCL memory object, but asks for some local memory on device to be
+/// available. Some methods overlap with ones that "Buffer accessor" provides.
+///
+/// Buffer and Image accessors create the requirement to access some SYCL memory
+/// object(or part of it). SYCL RT must detect when two kernels want to access
+/// the same memory objects and make sure they are executed in correct order.
+///
+/// "accessor_common" class that contains several common methods between Buffer
+/// and Local accessors.
+///
+/// Accessors have different representation on host and on device. On host they
+/// have non-templated base class, that is needed to safely work with any
+/// accessor type. Furhermore on host we need some additional fields in order
+/// to implement functionality required by Specification, for example during
+/// lifetime of a host accessor other operations with memory object the accessor
+/// refers to should be blocked and when all references to the host accessor are
+/// desctructed, the memory this host accessor refers to should be "written
+/// back".
+///
+/// The scheme of inheritance for host side:
+///
+/// \dot
+/// digraph G {
+///    node [shape="box"];
+///    graph [splines=ortho];
+///    a1 [label = "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
+///    a2 [label = "accessor(2)\nFor targets:\n host_image"];
+///    a3 [label = "accessor(3)\nFor targets:\nlocal"];
+///    a4 [label = "accessor(4)\nFor targets:\nimage"];
+///    a5 [label = "accessor(5)\nFor targets:\nimage_array"];
+///    "AccessorBaseHost" -> "image_accessor";
+///    "AccessorBaseHost" -> a1;
+///    "accessor_common" -> a1;
+///    "accessor_common" -> a3;
+///    "LocalAccessorBaseHost" -> a3;
+///    "image_accessor" -> a2;
+///    "image_accessor" -> a4;
+///    "image_accessor" -> a5;
+/// }
+/// \enddot
+///
 //  +------------------+     +-----------------+     +-----------------------+
 //  |                  |     |                 |     |                       |
 //  | AccessorBaseHost |     | accessor_common |     | LocalAccessorBaseHost |
@@ -90,10 +114,28 @@
 //  | host_image      |    |  image       |    | image_array |
 //  +-----------------+    +--------------+    +-------------+
 //
-// For host side AccessorBaseHost/LocalAccessorBaseHost contains shared_ptr
-// which points to AccessorImplHost/LocalAccessorImplHost object.
-//
-// The scheme of inheritance for device side:
+/// \addtogroup sycl_api_acc
+///
+/// For host side AccessorBaseHost/LocalAccessorBaseHost contains shared_ptr
+/// which points to AccessorImplHost/LocalAccessorImplHost object.
+///
+/// The scheme of inheritance for device side:
+/// \dot
+/// digraph Diagram {
+///    node [shape="box"];
+///    a1 [label = "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
+///    a2 [label = "accessor(2)\nFor targets:\nhost_image"];
+///    a3 [label = "accessor(3)\nFor targets:\nlocal"];
+///    a4 [label = "accessor(4)\nFor targets:\nimage"];
+///    a5 [label = "accessor(5)\nFor targets:\nimage_array"];
+///    "accessor_common" -> a1;
+///    "accessor_common" -> a3;
+///    "image_accessor" -> a2;
+///    "image_accessor" -> a4;
+///    "image_accessor" -> a5;
+/// }
+/// \enddot
+///
 //
 //                            +-----------------+
 //                            |                 |
@@ -126,21 +168,23 @@
 //  | host_image      |    |  image       |    | image_array |
 //  +-----------------+    +--------------+    +-------------+
 //
-// For device side AccessorImplHost/LocalAccessorImplHost are fileds of
-// accessor(1) and accessor(3).
-//
-// accessor(1) declares accessor as a template class and implements accessor
-// class for access targets: host_buffer, global_buffer and constant_buffer.
-//
-// accessor(3) specializes accessor(1) for the local access target.
-//
-// image_accessor contains implements interfaces for access targets: host_image,
-// image and image_array. But there are three distinct specializations of the
-// accessor(1) (accessor(2), accessor(4), accessor(5)) that are just inherited
-// from image_accessor.
-//
-// accessor_common contains several helpers common for both accessor(1) and
-// accessor(3)
+/// \addtogroup sycl_api_acc
+///
+/// For device side AccessorImplHost/LocalAccessorImplHost are fileds of
+/// accessor(1) and accessor(3).
+///
+/// accessor(1) declares accessor as a template class and implements accessor
+/// class for access targets: host_buffer, global_buffer and constant_buffer.
+///
+/// accessor(3) specializes accessor(1) for the local access target.
+///
+/// image_accessor contains implements interfaces for access targets: host_image,
+/// image and image_array. But there are three distinct specializations of the
+/// accessor(1) (accessor(2), accessor(4), accessor(5)) that are just inherited
+/// from image_accessor.
+///
+/// accessor_common contains several helpers common for both accessor(1) and
+/// accessor(3)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -646,6 +690,11 @@ private:
 
 } // namespace detail
 
+/// Buffer accessor.
+///
+/// \sa buffer
+///
+/// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class accessor :
@@ -997,7 +1046,9 @@ public:
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 };
 
-// Local accessor
+/// Local accessor
+///
+/// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class accessor<DataT, Dimensions, AccessMode, access::target::local,
@@ -1159,10 +1210,11 @@ public:
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 };
 
-// Image accessors
-// Available only when: accessTarget == access::target::image
-// template <typename AllocatorT>
-// accessor(image<dimensions, AllocatorT> &imageRef);
+/// Image accessors.
+///
+/// Available only when accessTarget == access::target::image.
+///
+/// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class accessor<DataT, Dimensions, AccessMode, access::target::image,
@@ -1195,10 +1247,13 @@ public:
 #endif
 };
 
-// Available only when: accessTarget == access::target::host_image
-// template <typename AllocatorT>
-// accessor(image<dimensions, AllocatorT> &imageRef,
-// handler &commandGroupHandlerRef);
+/// Host image accessor.
+///
+/// Available only when accessTarget == access::target::host_image.
+///
+/// \sa image
+///
+/// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
@@ -1213,10 +1268,14 @@ public:
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 };
 
-// Available only when: accessTarget == access::target::image_array &&
-// dimensions < 3
-// template <typename AllocatorT> accessor(image<dimensions + 1,
-// AllocatorT> &imageRef, handler &commandGroupHandlerRef);
+/// Image array accessor.
+///
+/// Available only when accessTarget == access::target::image_array and
+/// dimensions < 3.
+///
+/// \sa image
+///
+/// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class accessor<DataT, Dimensions, AccessMode, access::target::image_array,

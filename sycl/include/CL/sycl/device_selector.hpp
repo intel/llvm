@@ -16,6 +16,12 @@ namespace sycl {
 // Forward declarations
 class device;
 
+/// The device_selector class provides ability to choose the best SYCL device
+/// based on heuristics specified by the user.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class device_selector {
 public:
   virtual ~device_selector() = default;
@@ -25,26 +31,56 @@ public:
   virtual int operator()(const device &device) const = 0;
 };
 
+/// The default selector chooses the first available SYCL device. Devices of
+/// different kinds are prioritized in the following order:
+/// 1. GPU
+/// 2. Accelerator
+/// 3. CPU
+/// 4. Host
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class default_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
+/// Selects any SYCL GPU device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class gpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
+/// Selects any SYCL CPU device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class cpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
+/// Selects any SYCL accelerator device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class accelerator_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
+/// Selects SYCL host device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_devices
 class host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;

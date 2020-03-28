@@ -16,7 +16,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Sub-projects Documentation
  - oneAPI Data Parallel C++ compiler - See
-   [GetStartedGuide.md](sycl/doc/GetStartedGuide.md)
+   - [GetStartedGuide.md](sycl/doc/GetStartedGuide.md)
+   - [DPC++ Documentation](https://intel.github.io/llvm-docs/)
 
 ## DPC++ extensions
 

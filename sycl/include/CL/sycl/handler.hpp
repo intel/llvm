@@ -107,7 +107,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 device getDeviceFromHandler(handler &);
 } // namespace detail
 
-/// 4.8.3 Command group handler class
+/// Command group handler class.
 ///
 /// Objects of the handler class collect information about command group, such
 /// as kernel, requirements to the memory, arguments for the kernel.
@@ -134,6 +134,11 @@ device getDeviceFromHandler(handler &);
 /// end. So, handler class contains all fields simultaneously, then during
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
+///
+/// \sa sycl_api_exec
+/// \sa queue
+///
+/// \ingroup sycl_api_exec
 class handler {
 private:
   /// Constructs SYCL handler from queue.

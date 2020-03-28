@@ -30,6 +30,18 @@ namespace detail {
 class queue_impl;
 }
 
+/// The queue class encapsulates a single SYCL queue which shcedules kernels
+/// on a SYCL device.
+///
+/// A SYCL queue can be used to submit command groups to be executed by the SYCL
+/// runtime.
+///
+/// \sa sycl_api_devices
+/// \sa handler
+/// \sa event
+/// \sa kernel
+///
+/// \ingroup sycl_api_exec
 class queue {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
