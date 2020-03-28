@@ -93,7 +93,7 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME
 
 You can use the following flags with `configure.py`:
 
- * `--no-ocl` -> Download OpenCL deps via cmake (can be useful in case of troubles)
+ * `--system-ocl` -> Don't Download OpenCL deps via cmake but use the system ones
  * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
  * `--shared-libs` -> Build shared libraries
  * `-t` -> Build type (debug or release)

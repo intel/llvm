@@ -35,7 +35,7 @@ jobs:
          mkdir -p $GITHUB_WORKSPACE/build
          cd $GITHUB_WORKSPACE/build
          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --no-ocl $ARGS
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --werror $ARGS
      - name: Compile
        run: |
          python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \
