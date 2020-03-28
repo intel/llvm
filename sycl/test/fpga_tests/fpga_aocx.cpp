@@ -29,15 +29,15 @@ using namespace cl::sycl;
 
 #ifdef DEVICE_PART
 
-const double big[] = {3, 2, 1, 5, 6,7};
+const double big[] = {3, 2, 1, 5, 6, 7};
 void foo(double &result, queue q, int x) {
   buffer<double> buf(&result, 1);
   buffer<double, 1> big_buf(big, sizeof(big) / sizeof(double));
-  q.submit([&](handler& cgh) {
+  q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::discard_write>(cgh);
     auto big_acc = big_buf.get_access<access::mode::read>(cgh);
     cgh.single_task<class test>([=]() {
-        acc[0] = big_acc[x];
+      acc[0] = big_acc[x];
     });
   });
 }
@@ -49,7 +49,7 @@ void foo(double &result, queue q, int x) {
 void foo(double &, queue q, int x);
 
 int main(void) {
-  queue q(accelerator_selector{});;
+  queue q(accelerator_selector{});
 
   double result;
   foo(result, q, 3);
