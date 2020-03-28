@@ -28,7 +28,7 @@ template <int Num> struct Assigner {
   static void init(R &r, const T x) {
     Assigner<Num - 1>::template init<R, T, ET>(r, x);
     ET v = x.template swizzle<Num>();
-    r.value[Num] = msbIsSet(v)*(-1);
+    r.value[Num] = msbIsSet(v) * (-1);
   }
 };
 
@@ -39,7 +39,7 @@ template <> struct Assigner<0> {
   template <typename R, typename T, typename ET>
   static void init(R &r, const T x) {
     ET v = x.template swizzle<0>();
-    r.value[0] = msbIsSet(v)*(-1);
+    r.value[0] = msbIsSet(v) * (-1);
   }
 };
 
@@ -60,7 +60,7 @@ template <int N> struct Boolean {
 
   Boolean(std::initializer_list<element_type> l) {
     for (size_t I = 0; I < N; ++I) {
-      value[I] = (!!*(l.begin() + I))*(-1);
+      value[I] = (!!*(l.begin() + I)) * (-1);
     }
   }
 
