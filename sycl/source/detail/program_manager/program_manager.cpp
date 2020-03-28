@@ -628,9 +628,7 @@ void ProgramManager::populateSpecConstRegistry() {
   }
   for (const auto &Entry : m_DeviceImages) {
     const std::vector<RTDeviceBinaryImageUPtr> &Imgs = *Entry.second.get();
-
-    if (Imgs.size() == 0)
-      continue;
+    assert((Imgs.size() > 0) && "no device binary image for a kernel set");
     OSModuleHandle H = Imgs[0]->getOSModuleHandle();
     SpecConstMapTy &GlobalIDMap = SpecConstRegistry[H];
 
