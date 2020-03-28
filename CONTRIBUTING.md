@@ -73,19 +73,32 @@ commit automatically with `git commit -s`.
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
     changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
 - Prepare your patch (follow
-  [LLVM coding standards](https://llvm.org/docs/CodingStandards.html))
-- Build the project and run all tests
+  [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)).
+  [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and [clang-tidy](
+  https://clang.llvm.org/extra/clang-tidy/) tools can be integrated into your
+  workflow to ensure formatting and stylistic compliance of your changes.
+- Build the project and run all tests.
+
+### Commit message
+
+- When writing your commit message, please make sure to follow
+  [LLVM developer policies](
+  https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
+- For any DPC++-related commit\**, the `[SYCL]` tag should be present in the
+  commit message title. To a reasonable extent, additional tags can be used
+  to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
 ### Review and acceptance testing
 
 - Create a pull request for your changes following [Creating a pull request
-instructions](https://help.github.com/articles/creating-a-pull-request/)
-- CI will run signed-off check as soon as PR is created, see **check_pr** CI
-check for results
-- CI will run build and functional testing check as soon as PR is approved by
-Intel representative
-  - New approval is needed if PR was updated (e.g. during code review)
-- Once PR is approved and all checks pass, the pull request is ready for merge
+instructions](https://help.github.com/articles/creating-a-pull-request/).
+- CI will run a signed-off check as soon as your PR is created - see the
+**check_pr** CI action results.
+- CI will run several build and functional testing checks as soon as the PR is
+approved by an Intel representative.
+  - A new approval is needed if the PR was updated (e.g. during code review).
+- Once the PR is approved and all checks have passed, the pull request is
+ready for merge.
 
 ### Merge
 
@@ -99,3 +112,7 @@ commits pulled from the LLVM community repository
 
 *Other names and brands may be claimed as the property of others.
 
+**For any commit not related to DPC++, but rather to LLVM in general, it is
+strongly encouraged that you submit the patch to https://llvm.org/ directly.
+See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
+for more information.
