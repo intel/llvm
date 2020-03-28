@@ -3714,7 +3714,15 @@ class OffloadingActionBuilder final {
               auto *DeviceCheckAction =
                   C.MakeAction<SPIRCheckJobAction>(I, types::TY_Object);
               DeviceObjects.push_back(DeviceCheckAction);
-            } else {
+              continue;
+            }
+            // We want to move the AOCX/AOCR binary to the front of the objects
+            // allowing it to be picked up instead of the other device objects
+            // at runtime.
+            // TODO: In the presense of existing FPGA Device binaries (AOCX)
+            // we do not need to perform/add the SPIR-V generated device
+            // binaries from sources or objects.
+            if (types::isFPGA(I->getType())) {
               // Do not perform a device link and only pass the aocr
               // file to the offline compilation before wrapping.  Just
               // wrap an aocx file.
@@ -3729,7 +3737,9 @@ class OffloadingActionBuilder final {
                     C.MakeAction<OffloadWrapperJobAction>(I, types::TY_Object);
               DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                      Action::OFK_SYCL);
+              continue;
             }
+            DeviceObjects.push_back(I);
           }
           if (!DeviceObjects.empty()) {
             // When aocx or aocr is found, there is an expectation that none of
