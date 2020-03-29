@@ -57,6 +57,7 @@ struct ModuleInfo {
 };
 
 constexpr OSModuleHandle OSUtil::ExeModuleHandle;
+constexpr OSModuleHandle OSUtil::DummyModuleHandle;
 
 static int callback(struct dl_phdr_info *Info, size_t Size, void *Data) {
   auto Base = reinterpret_cast<unsigned char *>(Info->dlpi_addr);

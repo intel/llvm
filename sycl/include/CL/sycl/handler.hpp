@@ -452,7 +452,8 @@ private:
 
   template <typename KernelName, typename KernelType, int Dims,
             EnableIfNDItem<KernelType, Dims> = 0>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for_nd_range(KernelType KernelFunc) {
     KernelFunc(detail::Builder::getNDItem<Dims>());
   }
 
@@ -657,7 +658,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
@@ -894,7 +895,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));

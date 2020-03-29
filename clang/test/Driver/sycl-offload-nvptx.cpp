@@ -28,9 +28,10 @@
 // CHK-PHASES-NO-CC: 9: linker, {8}, image, (host-sycl)
 // CHK-PHASES-NO-CC: 10: compiler, {3}, ir, (device-sycl, sm_30)
 // CHK-PHASES-NO-CC: 11: linker, {10}, ir, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 12: backend, {11}, assembler, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 13: clang-offload-wrapper, {12}, object, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_30)" {13}, image
+// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 13: backend, {12}, assembler, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_30)" {14}, image
 
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
@@ -49,6 +50,7 @@
 // CHK-PHASES: 9: linker, {8}, image, (host-sycl)
 // CHK-PHASES: 10: compiler, {3}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 11: linker, {10}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 12: backend, {11}, assembler, (device-sycl, sm_35)
-// CHK-PHASES: 13: clang-offload-wrapper, {12}, object, (device-sycl, sm_35)
-// CHK-PHASES: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {13}, image
+// CHK-PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 13: backend, {12}, assembler, (device-sycl, sm_35)
+// CHK-PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_35)
+// CHK-PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {14}, image

@@ -28,7 +28,7 @@ namespace detail {
 class queue_impl;
 }
 
-class __SYCL_DEPRECATED__ ordered_queue {
+class __SYCL_DEPRECATED__("Replaced by in_order queue property") ordered_queue {
 
 public:
   explicit ordered_queue(const property_list &propList = {})
@@ -256,8 +256,6 @@ private:
                     ordered_queue &secondQueue,
                     const detail::code_location &CodeLoc);
 };
-
-#undef __SYCL_DEPRECATED__
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

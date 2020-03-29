@@ -20,6 +20,12 @@ namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {
 struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = 1;
+
   /* --- common interface members --- */
 
   id<1> get_local_id() const {

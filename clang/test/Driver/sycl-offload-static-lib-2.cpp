@@ -99,8 +99,11 @@
 // STATIC_LIB_NOSRC: ld{{.*}} "-r" "-o" "[[PARTIALOBJ:.+\.o]]" "{{.*}}crt1.o" {{.*}} "-L/dummy/dir" {{.*}} "[[INPUTLIB]]"
 // STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=oo" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs=[[PARTIALOBJ]]" "-outputs=[[DEVICELIST:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"
-// STATIC_LIB_NOSRC: llvm-spirv{{.*}} "-o" "[[SPVFILE:.+\.spv]]" {{.*}} "[[BCFILE]]"
-// STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64" "-kind=sycl" "[[SPVFILE]]"
+// STATIC_LIB_NOSRC: sycl-post-link{{.*}} "-o" "[[TABLE:.+\.table]]" "[[BCFILE]]"
+// STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[LIST:.+\.txt]]" "[[TABLE]]"
+// STATIC_LIB_NOSRC: llvm-foreach{{.*}}llvm-spirv{{.*}} "-o" "[[SPVLIST:.+\.txt]]"{{.*}}  "[[LIST]]"
+// STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[TABLE1:.+\.table]]" "[[TABLE]]" "[[SPVLIST]]"
+// STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64" "-kind=sycl" "-batch" "[[TABLE1]]"
 // STATIC_LIB_NOSRC: llc{{.*}} "-filetype=obj" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"
 // STATIC_LIB_NOSRC: ld{{.*}} "-L/dummy/dir" {{.*}} "[[INPUTLIB]]" "[[FINALOBJ]]"
 
