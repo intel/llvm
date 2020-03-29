@@ -6,8 +6,7 @@
 bool foo1() {
   // Throw exception which is not allowed on device. Error is expected
   // only when the function is called in evaluated context.
-  // expected-error@+1 1{{SYCL kernel cannot use exceptions}}
-  throw 10;
+  throw 10; // expected-error {{SYCL kernel cannot use exceptions}}
 
   return false;
 }
@@ -25,8 +24,7 @@ bool foo3() {
 
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  // expected-note@+1 1{{called by}}
-  kernelFunc();
+  kernelFunc(); // expected-note {{called by}}
 }
 
 int main() {
@@ -34,8 +32,7 @@ int main() {
   kernel_single_task<class fake_kernel>([]() {
     using T2 = decltype(foo1());
 
-    // expected-note@+1 1{{called by}}
-    auto S1 = foo1();
+    auto S1 = foo1(); // expected-note {{called by}}
     auto S2 = sizeof(foo1());
 
     using T3 = decltype(foo2(decltype(foo1()){}));
