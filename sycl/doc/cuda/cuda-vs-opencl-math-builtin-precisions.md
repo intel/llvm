@@ -1,4 +1,6 @@
-# CUDA Guarantees
+# CUDA vs OpenCL math builtin precision
+
+## CUDA Guarantees
 From [Appendix E.1 of the CUDA C Programming Guide][cuda_c_ulp]:
 
 > This section specifies the error bounds of each function when executed on the device and also
@@ -14,7 +16,7 @@ Compiler Flags, there are mentions of the precision of math built-ins.
 [cuda_best_prac]: https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#math-libraries
 [cuda_best_prac_precision]: https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#precision-related-compiler-flags
 
-# Single Precision
+## Single Precision
 The following table uses the following sources:
 
 - [Section 7.4 of the OpenCL 1.2 Specification][opencl_1.2_ulp]
@@ -181,7 +183,7 @@ Precision of SPIR-V math instructions for use in an OpenCL environment, can be
 [opencl_2.1_ulp]: https://www.khronos.org/registry/OpenCL/specs/2.2/html/OpenCL_C.html#relative-error-as-ulps
 [opencl_env_ulp]: https://www.khronos.org/registry/OpenCL/specs/2.2/html/OpenCL_Env.html#relative-error-as-ulps
 
-# Double Precision
+## Double Precision
 The following table uses the following sources:
 
 - [Section 7.4 of the OpenCL 1.2 Specification][opencl_1.2_dp_ulp]
@@ -307,7 +309,7 @@ and `sqrt` from OpenCL. All built-in names changed for CUDA and many precisions 
 [cuda_math_double]: https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__DOUBLE.html#group__CUDA__MATH__DOUBLE
 [opencl_1.2_dp_ulp]: https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf#page=322
 
-# Half Precision
+## Half Precision
 The following tables uses the following sources:
 
 - [Section 7.4 of the OpenCL 1.2 Specification][opencl_1.2_dp_ulp]

@@ -94,17 +94,21 @@ int main() {
   return 0;
 }
 
+// Find recurring instances of legacy "IVDep enable/safelen" MD nodes.
+// CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
+// CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
+
 /// Global ivdep w/o safelen specified
 /// All arrays have the same INF safelen - put access groups into the same parallel_access_indices metadata
 //
 // CHECK-DAG: ![[IDX_GROUP_A_NO_PARAM]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_NO_PARAM]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_NO_PARAM]] = distinct !{![[MD_LOOP_NO_PARAM]], ![[IVDEP_NO_PARAM:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_NO_PARAM]] = distinct !{![[MD_LOOP_NO_PARAM]], ![[IVDEP_NO_PARAM:[0-9]+]], ![[IVDEP_LEGACY_ENABLE]]}
 // CHECK-DAG: ![[IVDEP_NO_PARAM]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_NO_PARAM]], ![[IDX_GROUP_B_NO_PARAM]]}
 //
 // CHECK-DAG: ![[IDX_GROUP_A_MUL_GEPS]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_MUL_GEPS]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_MUL_GEPS]] = distinct !{![[MD_LOOP_MUL_GEPS]], ![[IVDEP_MUL_GEPS:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_MUL_GEPS]] = distinct !{![[MD_LOOP_MUL_GEPS]], ![[IVDEP_MUL_GEPS:[0-9]+]], ![[IVDEP_LEGACY_ENABLE]]}
 // CHECK-DAG: ![[IVDEP_MUL_GEPS]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_MUL_GEPS]], ![[IDX_GROUP_B_MUL_GEPS]]}
 
 /// Global ivdep w/ safelen specified
@@ -112,7 +116,7 @@ int main() {
 //
 // CHECK-DAG: ![[IDX_GROUP_A_SAFELEN]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_SAFELEN]] = distinct !{![[MD_LOOP_SAFELEN]], ![[IVDEP_SAFELEN:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_SAFELEN]] = distinct !{![[MD_LOOP_SAFELEN]], ![[IVDEP_SAFELEN:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_5]]}
 // CHECK-DAG: ![[IVDEP_SAFELEN]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_SAFELEN]], ![[IDX_GROUP_B_SAFELEN]], i32 5}
 
 /// Conflicting global ivdeps, different safelens specified
@@ -120,5 +124,5 @@ int main() {
 //
 // CHECK-DAG: ![[IDX_GROUP_A_CONFL_SAFELEN]] = distinct !{}
 // CHECK-DAG: ![[IDX_GROUP_B_CONFL_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_CONFL_SAFELEN]] = distinct !{![[MD_LOOP_CONFL_SAFELEN]], ![[IVDEP_CONFL_SAFELEN:[0-9]+]]}
+// CHECK-DAG: ![[MD_LOOP_CONFL_SAFELEN]] = distinct !{![[MD_LOOP_CONFL_SAFELEN]], ![[IVDEP_CONFL_SAFELEN:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_5]]}
 // CHECK-DAG: ![[IVDEP_CONFL_SAFELEN]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_CONFL_SAFELEN]], ![[IDX_GROUP_B_CONFL_SAFELEN]], i32 5}

@@ -3,10 +3,12 @@
 
 #ifdef cl_khr_int64_base_atomics
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED) \
-_CLC_OVERLOAD _CLC_DEF TYPE atom_cmpxchg(volatile AS TYPE *p, TYPE cmp, TYPE val) { \
-  return _Z29__spirv_AtomicCompareExchangePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskES3_##TYPE_MANGLED##TYPE_MANGLED(p, Device, SequentiallyConsistent, SequentiallyConsistent, cmp, val); \
-}
+#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                                                              \
+  _CLC_OVERLOAD _CLC_DEF TYPE atom_cmpxchg(volatile AS TYPE *p, TYPE cmp,                                                                                     \
+                                           TYPE val) {                                                                                                        \
+    return _Z29__spirv_AtomicCompareExchangePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES3_##TYPE_MANGLED##TYPE_MANGLED( \
+        p, Device, SequentiallyConsistent, SequentiallyConsistent, cmp, val);                                                                                 \
+  }
 
 IMPL(long, l, global, AS1)
 IMPL(unsigned long, m, global, AS1)

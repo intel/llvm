@@ -23,6 +23,7 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <fstream>
@@ -136,12 +137,29 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_TempEntriesfilelist) {
-      std::ifstream ListFile(File.first);
-      if (ListFile) {
-        // These are temporary files and need to be removed.
+        File.second == types::TY_Tempfiletable) {
+      // These are temporary files and need to be removed.
+      bool IsTable = File.second == types::TY_Tempfiletable;
+
+      if (IsTable) {
+        if (llvm::sys::fs::exists(File.first)) {
+          auto T = llvm::util::SimpleTable::read(File.first);
+          if (!T) {
+            Success = false;
+            continue;
+          }
+          std::vector<std::string> TmpFileNames;
+          T->get()->linearize(TmpFileNames);
+
+          for (const auto &TmpFileName : TmpFileNames) {
+            if (!TmpFileName.empty())
+              Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
+          }
+        }
+      } else {
+        std::ifstream ListFile(File.first);
         std::string TmpFileName;
-        while(std::getline(ListFile, TmpFileName) && !TmpFileName.empty())
+        while (std::getline(ListFile, TmpFileName) && !TmpFileName.empty())
           Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
       }
     }

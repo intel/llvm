@@ -98,8 +98,8 @@ int main() {
   // parallel_for, 30 global, 1(implicit) local -> pass.
   try {
     Q.submit([&](handler &CGH) {
-        CGH.parallel_for<class g>(range<1>(30),
-            [=](nd_item<1>) {});
+      CGH.parallel_for<class g>(range<1>(30),
+                                [=](id<1>) {});
     });
     Q.wait_and_throw();
   } catch (nd_range_error) {

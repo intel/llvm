@@ -959,7 +959,7 @@ detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
 // half dot (half p0, half p1)
 template <typename T>
 detail::enable_if_t<detail::is_sgenfloat<T>::value, T> dot(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_FMul<T>(p0, p1);
+  return p0 * p1;
 }
 
 // float dot (vgengeofloat p0, vgengeofloat p1)

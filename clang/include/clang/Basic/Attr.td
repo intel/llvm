@@ -236,6 +236,10 @@ class DefaultIntArgument<string name, int default> : IntArgument<name, 1> {
   int Default = default;
 }
 
+class DefaultUnsignedArgument<string name, int default> : UnsignedArgument<name, 1> {
+  int Default = default;
+}
+
 // This argument is more complex, it includes the enumerator type name,
 // a list of strings to accept, and a list of enumerators to map them to.
 class EnumArgument<string name, string type, list<string> values,
@@ -1656,6 +1660,57 @@ def SYCLIntelFPGAMaxConcurrency : Attr {
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
 }
 
+def SYCLIntelFPGALoopCoalesce : Attr {
+  let Spellings = [CXX11<"intelfpga","loop_coalesce">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "loop_coalesce";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
+}
+
+def SYCLIntelFPGADisableLoopPipelining : Attr {
+  let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "disable_loop_pipelining";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
+}
+
+def SYCLIntelFPGAMaxInterleaving : Attr {
+  let Spellings = [CXX11<"intelfpga","max_interleaving">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "max_interleaving";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
+}
+
+def SYCLIntelFPGASpeculatedIterations : Attr {
+  let Spellings = [CXX11<"intelfpga","speculated_iterations">];
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "speculated_iterations";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
+}
+
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
@@ -2430,13 +2485,16 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
+// Default arguments in ReqWorkGroupSize can be used only with
+// intel::reqd_work_group_size spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"cl","reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+                   CXX11<"intel","reqd_work_group_size">, 
+                   CXX11<"cl","reqd_work_group_size">]; 
+  let Args = [UnsignedArgument<"XDim">, DefaultUnsignedArgument<"YDim", 1>,
+              DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [ReqdWorkGroupSizeAttrDocs];
 }
 
 def WorkGroupSizeHint :  InheritableAttr {

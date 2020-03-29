@@ -18,4 +18,4 @@
 type = Tool
 name = sycl-post-link
 parent = Tools
-required_libraries = AsmParser BitReader BitWriter IRReader IPO
+required_libraries = AsmParser BitReader BitWriter IRReader IPO Support

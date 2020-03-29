@@ -2390,24 +2390,31 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transType(CI->getType()),
                               transValue(CI->getArgOperand(0), BB), BB);
-    } else if (isCmpOpCode(OC)) {
-      assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+    } else if (isCmpOpCode(OC) || isUnaryPredicateOpCode(OC)) {
       auto ResultTy = CI->getType();
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
         BoolTy = VectorType::get(BoolTy, ResultTy->getVectorNumElements());
       auto BBT = transType(BoolTy);
-      auto Cmp = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
-                                transValue(CI->getArgOperand(1), BB), BB);
+      SPIRVInstruction *Res;
+      if (isCmpOpCode(OC)) {
+        assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+        Res = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
+                             transValue(CI->getArgOperand(1), BB), BB);
+      } else {
+        assert(CI && CI->getNumArgOperands() == 1 && "Invalid call inst");
+        Res =
+            BM->addUnaryInst(OC, BBT, transValue(CI->getArgOperand(0), BB), BB);
+      }
       // OpenCL C and OpenCL C++ built-ins may have different return type
       if (ResultTy == BoolTy)
-        return Cmp;
+        return Res;
       assert(IsVector || (!IsVector && ResultTy->isIntegerTy(32)));
       auto Zero = transValue(Constant::getNullValue(ResultTy), BB);
       auto One = transValue(
           IsVector ? Constant::getAllOnesValue(ResultTy) : getInt32(M, 1), BB);
-      return BM->addSelectInst(Cmp, One, Zero, BB);
+      return BM->addSelectInst(Res, One, Zero, BB);
     } else if (isBinaryOpCode(OC)) {
       assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
       return BM->addBinaryInst(OC, transType(CI->getType()),

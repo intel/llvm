@@ -10,8 +10,9 @@
 #include <clc/clc.h>
 
 _CLC_DEF void barrier(cl_mem_fence_flags flags) {
-  unsigned int mem_semantic = (flag & CLK_GLOBAL_MEM_FENCE ? 0x200 : 0) |
-                              (flag & CLK_LOCAL_MEM_FENCE ? 0x100 : 0)
-  // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-  _Z22__spirv_ControlBarrierN5__spv5ScopeES0_j(Workgroup, Workgroup, mem_semantic);
+  unsigned int mem_semantic =
+      SequentiallyConsistent |
+      (flag & CLK_GLOBAL_MEM_FENCE ? CrossWorkgroupMemory : 0) |
+      (flag & CLK_LOCAL_MEM_FENCE ? WorkgroupMemory : 0)
+          __spirv_ControlBarrier(Workgroup, Workgroup, SequentiallyConsistent);
 }

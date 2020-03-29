@@ -16,25 +16,46 @@
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace intel {
+struct sub_group;
+} // namespace intel
 namespace detail {
 namespace spirv {
 
+template <typename Group> struct group_scope {};
+
+template <int Dimensions> struct group_scope<group<Dimensions>> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
+};
+
+template <> struct group_scope<intel::sub_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
+};
+
+template <typename Group> bool GroupAll(bool pred) {
+  return __spirv_GroupAll(group_scope<Group>::value, pred);
+}
+
+template <typename Group> bool GroupAny(bool pred) {
+  return __spirv_GroupAny(group_scope<Group>::value, pred);
+}
+
 // Broadcast with scalar local index
-template <__spv::Scope S, typename T, typename IdT>
+template <typename Group, typename T, typename IdT>
 detail::enable_if_t<std::is_integral<IdT>::value, T>
 GroupBroadcast(T x, IdT local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
   OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(local_id);
-  return __spirv_GroupBroadcast(S, ocl_x, ocl_id);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
 }
 
 // Broadcast with vector local index
-template <__spv::Scope S, typename T, int Dimensions>
+template <typename Group, typename T, int Dimensions>
 T GroupBroadcast(T x, id<Dimensions> local_id) {
   if (Dimensions == 1) {
-    return GroupBroadcast<S>(x, local_id[0]);
+    return GroupBroadcast<Group>(x, local_id[0]);
   }
   using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
@@ -45,7 +66,7 @@ T GroupBroadcast(T x, id<Dimensions> local_id) {
   }
   OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
   OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(vec_id);
-  return __spirv_GroupBroadcast(S, ocl_x, ocl_id);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
 }
 
 } // namespace spirv

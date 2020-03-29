@@ -1,0 +1,11 @@
+-- Remove column B:
+RUN: file-table-tform --extract=A,C,D %S/Inputs/a.txt -o b.txt
+
+-- Rename column A to AA:
+RUN: file-table-tform --rename=A,AA b.txt -o c.txt
+
+-- Replace column AA in c.txt to column 11 from %S/Inputs/a0.txt
+RUN: file-table-tform --replace=AA,11 c.txt %S/Inputs/a0.txt -o d.txt
+
+-- Verify result
+RUN: diff d.txt %S/Inputs/gold.txt

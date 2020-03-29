@@ -1,7 +1,9 @@
-# Sub-group function mapping
+# CUDA crosslane vs OpenCL sub-groups
+
+## Sub-group function mapping
 This document describes the mapping of the SYCL subgroup operations (based on the proposal [SYCL subgroup proposal](../extensions/sub_group_ndrange/sub_group_ndrange.md)) to CUDA (queries responses and PTX instruction mapping)
 
-# Sub-group device Queries
+### Sub-group device Queries
 
 | Query                                                  | CUDA backend result                           |
 | ---------------                                        | -------------------------                     |
@@ -9,7 +11,7 @@ This document describes the mapping of the SYCL subgroup operations (based on th
 | `info::device::sub_group_independent_forward_progress` | `true`                                        |
 | `info::device::sub_group_sizes`                        | {32}                                          |
 
-# Sub-group function mapping
+### Sub-group function mapping
 
 
 | Sub-group function        | PTX mapping               | LLVM Intrinsic                      | Min version     | Note                                                                                     |
