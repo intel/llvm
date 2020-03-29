@@ -100,10 +100,18 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
+#ifndef PARENT_PROCESS
 #include <CL/sycl.hpp>
+#endif
+
 #include <array>
 #include <assert.h>
 #include <stdlib.h>
+
+#ifdef PARENT_PROCESS
+#include <string.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
