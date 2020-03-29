@@ -531,11 +531,10 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## Find More
 
-DPC++ specification:
+- DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-SYCL\* 1.2.1 specification:
+- SYCL\* 1.2.1 specification:
 [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
 
 
 \*Other names and brands may be claimed as the property of others.
-
