@@ -1893,22 +1893,20 @@ public:
   }
 };
 
-union PredefExprStorage {
-  Stmt *S;
-  Expr *E;
-  TypeSourceInfo *T;
-};
-
 /// [C99 6.4.2.2] - A predefined identifier such as __func__.
 class PredefinedExpr final
     : public Expr,
-      private llvm::TrailingObjects<PredefinedExpr, PredefExprStorage> {
+      private llvm::TrailingObjects<PredefinedExpr, Stmt *, Expr *,
+                                    TypeSourceInfo *> {
   friend class ASTStmtReader;
   friend TrailingObjects;
 
   // PredefinedExpr is optionally followed by a single trailing
   // "Stmt *" for the predefined identifier. It is present if and only if
   // hasFunctionName() is true and is always a "StringLiteral *".
+  // It can also be followed by a Expr* in the case of a
+  // __builtin_unique_stable_name with an expression, or TypeSourceInfo * if
+  // __builtin_unique_stable_name with a type.
 
 public:
   enum IdentKind {
@@ -1942,32 +1940,41 @@ private:
   void setFunctionName(StringLiteral *SL) {
     assert(hasFunctionName() &&
            "This PredefinedExpr has no storage for a function name!");
-    getTrailingObjects<PredefExprStorage>()->S = SL;
+    *getTrailingObjects<Stmt *>() = SL;
   }
 
   void setTypeSourceInfo(TypeSourceInfo *Info) {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    getTrailingObjects<PredefExprStorage>()->T = Info;
+    *getTrailingObjects<TypeSourceInfo *>() = Info;
   }
 
   void setExpr(Expr *E) {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    getTrailingObjects<PredefExprStorage>()->E = E;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    *getTrailingObjects<Expr *>() = E;
+  }
+
+  size_t numTrailingObjects(OverloadToken<Stmt *>) const {
+    return hasFunctionName();
+  }
+
+  size_t numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
+    return getIdentKind() == UniqueStableNameType && !hasFunctionName();
+  }
+  size_t numTrailingObjects(OverloadToken<Expr *>) const {
+    return getIdentKind() == UniqueStableNameExpr && !hasFunctionName();
   }
 
 public:
   /// Create a PredefinedExpr.
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
                                 QualType FNTy, IdentKind IK, StringLiteral *SL);
-
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FnTy, IdentKind IK, StringLiteral *SL,
+                                QualType FNTy, IdentKind IK, StringLiteral *SL,
                                 TypeSourceInfo *Info);
-
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FnTy, IdentKind IK, StringLiteral *SL,
+                                QualType FNTy, IdentKind IK, StringLiteral *SL,
                                 Expr *E);
 
   /// Create an empty PredefinedExpr.
@@ -1981,47 +1988,45 @@ public:
   SourceLocation getLocation() const { return PredefinedExprBits.Loc; }
   void setLocation(SourceLocation L) { PredefinedExprBits.Loc = L; }
 
+  StringLiteral *getFunctionName() {
+    return hasFunctionName()
+               ? static_cast<StringLiteral *>(*getTrailingObjects<Stmt *>())
+               : nullptr;
+  }
+
+  const StringLiteral *getFunctionName() const {
+    return hasFunctionName()
+               ? static_cast<StringLiteral *>(*getTrailingObjects<Stmt *>())
+               : nullptr;
+  }
+
   TypeSourceInfo *getTypeSourceInfo() {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return getTrailingObjects<PredefExprStorage>()->T;
+    return *getTrailingObjects<TypeSourceInfo *>();
   }
 
   const TypeSourceInfo *getTypeSourceInfo() const {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return getTrailingObjects<PredefExprStorage>()->T;
+    return *getTrailingObjects<TypeSourceInfo *>();
   }
 
   Expr *getExpr() {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    return getTrailingObjects<PredefExprStorage>()->E;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    return *getTrailingObjects<Expr *>();
   }
 
   const Expr *getExpr() const {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    return getTrailingObjects<PredefExprStorage>()->E;
-  }
-
-
-  StringLiteral *getFunctionName() {
-    return hasFunctionName() ? static_cast<StringLiteral *>(
-                                   getTrailingObjects<PredefExprStorage>()->S)
-                             : nullptr;
-  }
-
-  const StringLiteral *getFunctionName() const {
-    return hasFunctionName() ? static_cast<StringLiteral *>(
-                                   getTrailingObjects<PredefExprStorage>()->S)
-                             : nullptr;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    return *getTrailingObjects<Expr *>();
   }
 
   static StringRef getIdentKindName(IdentKind IK);
   static std::string ComputeName(IdentKind IK, const Decl *CurrentDecl);
-  static std::string ComputeName(ASTContext &Ctx, IdentKind IK,
-                                 const QualType Ty);
+  static std::string ComputeName(ASTContext &Ctx, IdentKind IK, const QualType Ty);
 
   SourceLocation getBeginLoc() const { return getLocation(); }
   SourceLocation getEndLoc() const { return getLocation(); }
@@ -2032,15 +2037,13 @@ public:
 
   // Iterators
   child_range children() {
-    return child_range(&getTrailingObjects<PredefExprStorage>()->S,
-                       &getTrailingObjects<PredefExprStorage>()->S +
-                           hasFunctionName());
+    return child_range(getTrailingObjects<Stmt *>(),
+                       getTrailingObjects<Stmt *>() + hasFunctionName());
   }
 
   const_child_range children() const {
-    return const_child_range(&getTrailingObjects<PredefExprStorage>()->S,
-                             &getTrailingObjects<PredefExprStorage>()->S +
-                                 hasFunctionName());
+    return const_child_range(getTrailingObjects<Stmt *>(),
+                             getTrailingObjects<Stmt *>() + hasFunctionName());
   }
 };
 

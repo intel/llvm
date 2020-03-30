@@ -507,12 +507,12 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   setDependence(computeDependence(this));
 }
 
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
+PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
                                TypeSourceInfo *Info)
-    : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
+    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
   PredefinedExprBits.Kind = IK;
   assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitfields!");
+         "IdentKind do not fit in PredefinedExprBitFields!");
   assert(IK == UniqueStableNameType &&
          "Constructor only valid with UniqueStableNameType");
   PredefinedExprBits.HasFunctionName = false;
@@ -521,12 +521,12 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   setDependence(computeDependence(this));
 }
 
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
+PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
                                Expr *Info)
-    : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
+    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
   PredefinedExprBits.Kind = IK;
   assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitfields!");
+         "IdentKind do not fit in PredefinedExprBitFields!");
   assert(IK == UniqueStableNameExpr &&
          "Constructor only valid with UniqueStableNameExpr");
   PredefinedExprBits.HasFunctionName = false;
@@ -544,9 +544,9 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
                                        StringLiteral *SL) {
   bool HasFunctionName = SL != nullptr;
-  void *Mem =
-      Ctx.Allocate(totalSizeToAlloc<PredefExprStorage>(HasFunctionName),
-                   alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(
+      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
+      alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
 }
 
@@ -554,12 +554,11 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
                                        StringLiteral *SL,
                                        TypeSourceInfo *Info) {
-  assert(IK == UniqueStableNameType && "Wrong Type");
+  assert(IK == UniqueStableNameType && "Only valid with UniqueStableNameType");
   bool HasFunctionName = SL != nullptr;
-  void *Mem =
-      Ctx.Allocate(totalSizeToAlloc<PredefExprStorage>(1),
-                   alignof(PredefinedExpr));
-
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
+                               HasFunctionName, 0, !HasFunctionName),
+                           alignof(PredefinedExpr));
   if (HasFunctionName)
     return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
   return new (Mem) PredefinedExpr(L, FNTy, IK, Info);
@@ -568,11 +567,11 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
 PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
                                        StringLiteral *SL, Expr *E) {
-  assert(IK == UniqueStableNameExpr && "Wrong Type");
+  assert(IK == UniqueStableNameExpr && "Only valid with UniqueStableNameExpr");
   bool HasFunctionName = SL != nullptr;
-  void *Mem =
-      Ctx.Allocate(totalSizeToAlloc<PredefExprStorage>(1),
-                   alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
+                               HasFunctionName, !HasFunctionName, 0),
+                           alignof(PredefinedExpr));
   if (HasFunctionName)
     return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
   return new (Mem) PredefinedExpr(L, FNTy, IK, E);
@@ -580,8 +579,9 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
 
 PredefinedExpr *PredefinedExpr::CreateEmpty(const ASTContext &Ctx,
                                             bool HasFunctionName) {
-  void *Mem = Ctx.Allocate(totalSizeToAlloc<PredefExprStorage>(HasFunctionName),
-                           alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(
+      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
+      alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(EmptyShell(), HasFunctionName);
 }
 
@@ -603,7 +603,7 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
     return "L__FUNCSIG__";
   case UniqueStableNameType:
   case UniqueStableNameExpr:
-    return "__unique_stable_name";
+    return "__builtin_unique_stable_name";
   case PrettyFunctionNoVirtual:
     break;
   }
@@ -612,8 +612,9 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
 
 std::string PredefinedExpr::ComputeName(ASTContext &Context, IdentKind IK,
                                         QualType Ty) {
-  std::unique_ptr<MangleContext> Ctx{
-      ItaniumMangleContext::create(Context, Context.getDiagnostics(), true)};
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), /*IsUniqueNameMangler*/ true)};
+
   Ty = Ty.getCanonicalType();
 
   SmallString<256> Buffer;

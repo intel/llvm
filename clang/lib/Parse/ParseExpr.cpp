@@ -1442,9 +1442,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
       *NotPrimaryExpression = true;
     Res = ParseCXXTypeid();
     break;
-  case tok::kw___unique_stable_name:
-    Res = ParseUniqueStableNameExpression();
-    break;
   case tok::kw___uuidof:
     if (NotPrimaryExpression)
       *NotPrimaryExpression = true;
@@ -1453,7 +1450,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-
+  case tok::kw___builtin_unique_stable_name:
+    Res = ParseUniqueStableNameExpression();
+    break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       ParsedType Type = getTypeAnnotation(Tok);
@@ -2224,47 +2223,42 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
   return Operand;
 }
 
+
 ExprResult Parser::ParseUniqueStableNameExpression() {
-  assert(Tok.is(tok::kw___unique_stable_name) && "Not unique stable name");
+  assert(Tok.is(tok::kw___builtin_unique_stable_name) &&
+         "Not __bulitin_unique_stable_name");
 
   SourceLocation OpLoc = ConsumeToken();
   BalancedDelimiterTracker T(*this, tok::l_paren);
 
   // typeid expressions are always parenthesized.
   if (T.expectAndConsume(diag::err_expected_lparen_after,
-                         "__unique_stable_name"))
+                         "__builtin_unique_stable_name"))
     return ExprError();
-
-  ExprResult Result;
 
   if (isTypeIdInParens()) {
     TypeResult Ty = ParseTypeName();
-
-    // Match the ')'.
     T.consumeClose();
 
     if (Ty.isInvalid())
       return ExprError();
 
-    Result = Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                               T.getCloseLocation(), Ty.get());
-  } else {
-    EnterExpressionEvaluationContext Unevaluated(
-        Actions, Sema::ExpressionEvaluationContext::Unevaluated);
-    Result = ParseExpression();
-
-    // Match the ')'.
-    if (Result.isInvalid())
-      SkipUntil(tok::r_paren, StopAtSemi);
-    else {
-      T.consumeClose();
-
-      Result = Actions.ActOnUniqueStableNameExpr(
-          OpLoc, T.getOpenLocation(), T.getCloseLocation(), Result.get());
-    }
+    return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
+                                             T.getCloseLocation(), Ty.get());
   }
 
-  return Result;
+  EnterExpressionEvaluationContext Unevaluated(
+      Actions, Sema::ExpressionEvaluationContext::Unevaluated);
+  ExprResult Result = ParseExpression();
+
+  if (Result.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return Result;
+  }
+
+  T.consumeClose();
+  return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
+                                           T.getCloseLocation(), Result.get());
 }
 
 /// Parse a sizeof or alignof expression.
