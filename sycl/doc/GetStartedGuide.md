@@ -68,10 +68,12 @@ cd %DPCPP_HOME%\build
 
 ## Build DPC++ toolchain
 
-The easiest way to get started is to use the buildbot [configure](../../buildbot/configure.py)
-and [compile](../../buildbot/configure.py) scripts.
+The easiest way to get started is to use the buildbot
+[configure](../../buildbot/configure.py) and
+[compile](../../buildbot/compile.py) scripts.
 
-In case you want to configure CMake manually the up-to-date reference for variables is in these files.
+In case you want to configure CMake manually the up-to-date reference for
+variables is in these files.
 
 **Linux**
 
@@ -95,7 +97,6 @@ You can use the following flags with `configure.py`:
  * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
  * `--shared-libs` -> Build shared libraries
  * `-t` -> Build type (debug or release)
-
 
 Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
