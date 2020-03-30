@@ -69,6 +69,11 @@ commit automatically with `git commit -s`.
 
 ### Development
 
+**NB**: For any changes not related to DPC++, but rather to LLVM in general, it
+is strongly encouraged that you submit the patch to https://llvm.org/ directly.
+See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
+for more information.
+
 - Create a personal fork of the project on GitHub
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
     changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
@@ -84,7 +89,7 @@ commit automatically with `git commit -s`.
 - When writing your commit message, please make sure to follow
   [LLVM developer policies](
   https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
-- For any DPC++-related commit\**, the `[SYCL]` tag should be present in the
+- For any DPC++-related commit, the `[SYCL]` tag should be present in the
   commit message title. To a reasonable extent, additional tags can be used
   to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
@@ -111,8 +116,3 @@ commits pulled from the LLVM community repository
 
 
 *Other names and brands may be claimed as the property of others.
-
-**For any commit not related to DPC++, but rather to LLVM in general, it is
-strongly encouraged that you submit the patch to https://llvm.org/ directly.
-See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
-for more information.
