@@ -984,11 +984,12 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
                            DemangledName.find("_any") != std::string::npos);
   const bool IsAllEqual = DemangledName.find("_all_equal") != std::string::npos;
   const bool IsBallot = DemangledName == "group_ballot";
+  const bool IsInverseBallot = DemangledName == "group_inverse_ballot";
   const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;
-  if (IsElect || IsAllOrAny || IsAllEqual || IsLogical)
+  if (IsElect || IsAllOrAny || IsAllEqual || IsInverseBallot || IsLogical)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
   Info.PostProc = [=](std::vector<Value *> &Ops) {
