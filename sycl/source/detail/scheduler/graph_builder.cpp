@@ -54,6 +54,7 @@ static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
   case access::mode::read:
     return (Required == Current);
   case access::mode::write:
+    assert(false && "Write only access is expected to be mapped as read_write");
     return (Required == Current || Required == access::mode::discard_write);
   case access::mode::read_write:
   case access::mode::atomic:
@@ -295,9 +296,12 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
   Command *NewCmd = nullptr;
 
   if (AllocaCmdSrc->MLinkedAllocaCmd == AllocaCmdDst) {
-    NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst,
-                                         Req->MAccessMode);
-    Record->MHostAccess = Req->MAccessMode;
+    // Map write only as read-write
+    access::mode MapMode = Req->MAccessMode;
+    if (MapMode == access::mode::write)
+      MapMode = access::mode::read_write;
+    NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst, MapMode);
+    Record->MHostAccess = MapMode;
   } else {
 
     // Full copy of buffer is needed to avoid loss of data that may be caused
@@ -333,10 +337,13 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
       LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
       &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getQueue());
 
-  MapMemObject *MapCmd =
-      new MapMemObject(LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
-                       &HostAllocaCmd->MMemAllocation,
-                       LinkedAllocaCmd->getQueue(), Req->MAccessMode);
+  // Map write only as read-write
+  access::mode MapMode = Req->MAccessMode;
+  if (MapMode == access::mode::write)
+    MapMode = access::mode::read_write;
+  MapMemObject *MapCmd = new MapMemObject(
+      LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
+      &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getQueue(), MapMode);
 
   for (Command *Dep : Deps) {
     UnMapCmd->addDep(DepDesc{Dep, UnMapCmd->getRequirement(), LinkedAllocaCmd});
@@ -348,7 +355,7 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 
   updateLeaves(Deps, Record, access::mode::read_write);
   addNodeToLeaves(Record, MapCmd, access::mode::read_write);
-  Record->MHostAccess = Req->MAccessMode;
+  Record->MHostAccess = MapMode;
   return MapCmd;
 }
 
