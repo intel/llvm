@@ -26,7 +26,7 @@ public:
   int den() const { return d; }
 };
 bool operator==(const Fraction &lhs, const Fraction &rhs) {
-  new int; // expected-error {{SYCL kernel cannot allocate storage}}
+  new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
   return lhs.num() == rhs.num() && lhs.den() == rhs.den();
 }
 } // namespace Check_User_Operators
@@ -36,8 +36,7 @@ void no_restriction(int p) {
   int index[p + 2];
 }
 void restriction(int p) {
-  // expected-error@+1 {{variable length arrays are not supported for the current target}}
-  int index[p + 2];
+  int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction
 
@@ -54,8 +53,7 @@ struct B : public A {
 struct OverloadedNewDelete {
   // This overload allocates storage, give diagnostic.
   void *operator new(std::size_t size) throw() {
-    // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-    float *pt = new float;
+    float *pt = new float; // expected-error 2{{SYCL kernel cannot allocate storage}}
     return 0;
   }
   // This overload does not allocate: no diagnostic.
@@ -66,26 +64,22 @@ struct OverloadedNewDelete {
 
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
-  if (f1 == f2)
+  if (f1 == f2) // expected-note 2{{called by 'isa_B'}}
     return false;
 
   Check_VLA_Restriction::restriction(7);
-  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-  int *ip = new int;
+  int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int; // no error on placement new
-  // expected-note@+1 {{called by 'isa_B'}}
-  OverloadedNewDelete *x = new (struct OverloadedNewDelete);
+  OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
   auto y = new struct OverloadedNewDelete[5];
-  // expected-error@+1 {{SYCL kernel cannot use rtti}}
-  (void)typeid(int);
-  // expected-error@+1 {{SYCL kernel cannot use rtti}}
-  return dynamic_cast<B *>(a) != 0;
+  (void)typeid(int); // expected-error {{SYCL kernel cannot use rtti}}
+  return dynamic_cast<B *>(a) != 0; // expected-error {{SYCL kernel cannot use rtti}}
 }
 
 template <typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
-  l();
+  l(); // expected-note 6{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
 
@@ -99,8 +93,7 @@ typedef struct A {
   constexpr static int constexpr_stat_member = 0;
 
   int fm(void) {
-    // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
-    return stat_member;
+    return stat_member; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
   }
 } a_type;
 
@@ -119,19 +112,16 @@ void eh_ok(void) {
 }
 
 void eh_not_ok(void) {
-  // expected-error@+1 {{SYCL kernel cannot use exceptions}}
-  try {
+  try { // expected-error {{SYCL kernel cannot use exceptions}}
     ;
   } catch (...) {
     ;
   }
-  // expected-error@+1 {{SYCL kernel cannot use exceptions}}
-  throw 20;
+  throw 20; // expected-error {{SYCL kernel cannot use exceptions}}
 }
 
 void usage(myFuncDef functionPtr) {
-
-  eh_not_ok();
+  eh_not_ok(); // expected-note {{called by 'usage'}}
 
 #if ALLOW_FP
   // No error message for function pointer.
@@ -139,18 +129,16 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+2 {{SYCL kernel cannot use a non-const global variable}}
-    // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
-    b.f();
-  Check_RTTI_Restriction::kernel1<class kernel_name>([]() {
+    // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
+    b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
+
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 3{{called by 'usage'}}
   Check_RTTI_Restriction::A *a;
-  Check_RTTI_Restriction::isa_B(a); });
+  Check_RTTI_Restriction::isa_B(a); }); // expected-note 6{{called by 'operator()'}}
 
-  // expected-error@+1 {{__float128 is not supported on this target}}
-  __float128 A;
+  __float128 A; // expected-error {{__float128 is not supported on this target}}
 
-  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
-  int BadArray[0];
+  int BadArray[0]; // expected-error {{zero-length arrays are not permitted in C++}}
 }
 
 namespace ns {
@@ -173,45 +161,30 @@ int use2(a_type ab, a_type *abp) {
     return 2;
   if (ab.const_stat_member)
     return 1;
-  // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
-  if (ab.stat_member)
+  if (ab.stat_member)  // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
-  // expected-error@+1 {{SYCL kernel cannot use a non-const static data variable}}
-  if (abp->stat_member)
+  if (abp->stat_member) // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
-  // expected-note@+1 {{called by 'use2'}}
-  if (ab.fm())
+  if (ab.fm()) // expected-note {{called by 'use2'}}
     return 0;
-  // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
-  return another_global;
-  // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
-  return ns::glob +
-         // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
-         AnotherNS::moar_globals;
-  // expected-note@+1 {{called by 'use2'}}
-  eh_not_ok();
-  Check_RTTI_Restriction::A *a;
-  // expected-note@+1 2{{called by 'use2'}}
-  Check_RTTI_Restriction::isa_B(a);
-  // expected-note@+1 {{called by 'use2'}}
-  usage(&addInt);
-  Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
-  // expected-note@+1 {{called by 'use2'}}
-  if (f1 == f2)
-    return false;
+
+  return another_global; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+
+  return ns::glob + // expected-error {{SYCL kernel cannot use a non-const global variable}}
+         AnotherNS::moar_globals; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 }
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc();
-  a_type ab;
-  a_type *p;
-  // expected-note@+1 7{{called by 'kernel_single_task}}
-  use2(ab, p);
+  kernelFunc(); // expected-note 7{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 
 int main() {
   a_type ab;
-  kernel_single_task<class fake_kernel>([]() { usage(&addInt); });
+  kernel_single_task<class fake_kernel>([=]() {
+    usage(&addInt); // expected-note 5{{called by 'operator()'}}
+    a_type *p;
+    use2(ab, p); // expected-note 2{{called by 'operator()'}}
+  });
   return 0;
 }
