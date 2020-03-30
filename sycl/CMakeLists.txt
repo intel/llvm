@@ -289,6 +289,9 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      libsycldevice
 )
+if(OpenCL_INSTALL_KHRONOS_ICD_LOADER)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)
+endif()
 
 
 if(SYCL_BUILD_PI_CUDA)
