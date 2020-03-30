@@ -51,7 +51,6 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 #include <CL/sycl/multi_ptr.hpp>
-#include "CL/__spirv/spirv_ops.hpp"
 
 #include <array>
 #include <cmath>

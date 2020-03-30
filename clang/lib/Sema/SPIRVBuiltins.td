@@ -715,6 +715,9 @@ foreach IType = [UChar, UShort, UInt, ULong] in {
   foreach FType = [Float, Double, Half] in {
     def : SPVBuiltin<"ConvertFToU_R" # IType.Name, [IType, FType], Attr.Const>;
     def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
+      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+    }
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v,
                        [VectorType<IType, v>, VectorType<FType, v>],
@@ -726,10 +729,12 @@ foreach IType = [UChar, UShort, UInt, ULong] in {
   }
 }
 
-foreach IType = [Char, Short, Int, Long] in {
+foreach IType = [TrueChar, Short, Int, Long] in {
   foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertFToS_R" # IType.Name, [IType, FType], Attr.Const>;
     def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
+      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+    }
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v,
                        [VectorType<IType, v>, VectorType<FType, v>],
