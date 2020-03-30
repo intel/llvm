@@ -5100,6 +5100,7 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
       case OMPC_order:
       case OMPC_destroy:
       case OMPC_inclusive:
+      case OMPC_exclusive:
         continue;
       case OMPC_allocator:
       case OMPC_flush:
@@ -5702,7 +5703,7 @@ void Sema::ActOnOpenMPDeclareVariantDirective(FunctionDecl *FD,
                                               OMPTraitInfo &TI,
                                               SourceRange SR) {
   auto *NewAttr =
-      OMPDeclareVariantAttr::CreateImplicit(Context, VariantRef, TI, SR);
+      OMPDeclareVariantAttr::CreateImplicit(Context, VariantRef, &TI, SR);
   FD->addAttr(NewAttr);
 }
 
@@ -11084,6 +11085,7 @@ OMPClause *Sema::ActOnOpenMPSingleExprClause(OpenMPClauseKind Kind, Expr *Expr,
   case OMPC_order:
   case OMPC_destroy:
   case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Clause is not allowed.");
   }
   return Res;
@@ -11820,6 +11822,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
   case OMPC_destroy:
   case OMPC_detach:
   case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Unexpected OpenMP clause.");
   }
   return CaptureRegion;
@@ -12258,6 +12261,7 @@ OMPClause *Sema::ActOnOpenMPSimpleClause(
   case OMPC_destroy:
   case OMPC_detach:
   case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Clause is not allowed.");
   }
   return Res;
@@ -12482,6 +12486,7 @@ OMPClause *Sema::ActOnOpenMPSingleExprWithArgClause(
   case OMPC_destroy:
   case OMPC_detach:
   case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Clause is not allowed.");
   }
   return Res;
@@ -12713,6 +12718,7 @@ OMPClause *Sema::ActOnOpenMPClause(OpenMPClauseKind Kind,
   case OMPC_order:
   case OMPC_detach:
   case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Clause is not allowed.");
   }
   return Res;
@@ -12826,7 +12832,7 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
     DeclarationNameInfo &ReductionOrMapperId, int ExtraModifier,
     ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
     ArrayRef<SourceLocation> MapTypeModifiersLoc, bool IsMapTypeImplicit,
-    SourceLocation DepLinMapLastLoc) {
+    SourceLocation ExtraModifierLoc) {
   SourceLocation StartLoc = Locs.StartLoc;
   SourceLocation LParenLoc = Locs.LParenLoc;
   SourceLocation EndLoc = Locs.EndLoc;
@@ -12843,15 +12849,18 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
            "Unexpected lastprivate modifier.");
     Res = ActOnOpenMPLastprivateClause(
         VarList, static_cast<OpenMPLastprivateModifier>(ExtraModifier),
-        DepLinMapLastLoc, ColonLoc, StartLoc, LParenLoc, EndLoc);
+        ExtraModifierLoc, ColonLoc, StartLoc, LParenLoc, EndLoc);
     break;
   case OMPC_shared:
     Res = ActOnOpenMPSharedClause(VarList, StartLoc, LParenLoc, EndLoc);
     break;
   case OMPC_reduction:
-    Res = ActOnOpenMPReductionClause(VarList, StartLoc, LParenLoc, ColonLoc,
-                                     EndLoc, ReductionOrMapperIdScopeSpec,
-                                     ReductionOrMapperId);
+    assert(0 <= ExtraModifier && ExtraModifier <= OMPC_REDUCTION_unknown &&
+           "Unexpected lastprivate modifier.");
+    Res = ActOnOpenMPReductionClause(
+        VarList, static_cast<OpenMPReductionClauseModifier>(ExtraModifier),
+        StartLoc, LParenLoc, ExtraModifierLoc, ColonLoc, EndLoc,
+        ReductionOrMapperIdScopeSpec, ReductionOrMapperId);
     break;
   case OMPC_task_reduction:
     Res = ActOnOpenMPTaskReductionClause(VarList, StartLoc, LParenLoc, ColonLoc,
@@ -12868,7 +12877,7 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
            "Unexpected linear modifier.");
     Res = ActOnOpenMPLinearClause(
         VarList, TailExpr, StartLoc, LParenLoc,
-        static_cast<OpenMPLinearClauseKind>(ExtraModifier), DepLinMapLastLoc,
+        static_cast<OpenMPLinearClauseKind>(ExtraModifier), ExtraModifierLoc,
         ColonLoc, EndLoc);
     break;
   case OMPC_aligned:
@@ -12888,7 +12897,7 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
     assert(0 <= ExtraModifier && ExtraModifier <= OMPC_DEPEND_unknown &&
            "Unexpected depend modifier.");
     Res = ActOnOpenMPDependClause(
-        static_cast<OpenMPDependClauseKind>(ExtraModifier), DepLinMapLastLoc,
+        static_cast<OpenMPDependClauseKind>(ExtraModifier), ExtraModifierLoc,
         ColonLoc, VarList, StartLoc, LParenLoc, EndLoc);
     break;
   case OMPC_map:
@@ -12897,7 +12906,7 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
     Res = ActOnOpenMPMapClause(
         MapTypeModifiers, MapTypeModifiersLoc, ReductionOrMapperIdScopeSpec,
         ReductionOrMapperId, static_cast<OpenMPMapClauseKind>(ExtraModifier),
-        IsMapTypeImplicit, DepLinMapLastLoc, ColonLoc, VarList, Locs);
+        IsMapTypeImplicit, ExtraModifierLoc, ColonLoc, VarList, Locs);
     break;
   case OMPC_to:
     Res = ActOnOpenMPToClause(VarList, ReductionOrMapperIdScopeSpec,
@@ -12922,6 +12931,9 @@ OMPClause *Sema::ActOnOpenMPVarListClause(
     break;
   case OMPC_inclusive:
     Res = ActOnOpenMPInclusiveClause(VarList, StartLoc, LParenLoc, EndLoc);
+    break;
+  case OMPC_exclusive:
+    Res = ActOnOpenMPExclusiveClause(VarList, StartLoc, LParenLoc, EndLoc);
     break;
   case OMPC_if:
   case OMPC_depobj:
@@ -14694,10 +14706,19 @@ static bool actOnOMPReductionKindClause(
 }
 
 OMPClause *Sema::ActOnOpenMPReductionClause(
-    ArrayRef<Expr *> VarList, SourceLocation StartLoc, SourceLocation LParenLoc,
-    SourceLocation ColonLoc, SourceLocation EndLoc,
+    ArrayRef<Expr *> VarList, OpenMPReductionClauseModifier Modifier,
+    SourceLocation StartLoc, SourceLocation LParenLoc,
+    SourceLocation ModifierLoc, SourceLocation ColonLoc, SourceLocation EndLoc,
     CXXScopeSpec &ReductionIdScopeSpec, const DeclarationNameInfo &ReductionId,
     ArrayRef<Expr *> UnresolvedReductions) {
+  if (ModifierLoc.isValid() && Modifier == OMPC_REDUCTION_unknown) {
+    Diag(LParenLoc, diag::err_omp_unexpected_clause_value)
+        << getListOfPossibleValues(OMPC_reduction, /*First=*/0,
+                                   /*Last=*/OMPC_REDUCTION_unknown)
+        << getOpenMPClauseName(OMPC_reduction);
+    return nullptr;
+  }
+
   ReductionData RD(VarList.size());
   if (actOnOMPReductionKindClause(*this, DSAStack, OMPC_reduction, VarList,
                                   StartLoc, LParenLoc, ColonLoc, EndLoc,
@@ -14706,8 +14727,8 @@ OMPClause *Sema::ActOnOpenMPReductionClause(
     return nullptr;
 
   return OMPReductionClause::Create(
-      Context, StartLoc, LParenLoc, ColonLoc, EndLoc, RD.Vars,
-      ReductionIdScopeSpec.getWithLocInContext(Context), ReductionId,
+      Context, StartLoc, LParenLoc, ModifierLoc, ColonLoc, EndLoc, Modifier,
+      RD.Vars, ReductionIdScopeSpec.getWithLocInContext(Context), ReductionId,
       RD.Privates, RD.LHSs, RD.RHSs, RD.ReductionOps,
       buildPreInits(Context, RD.ExprCaptures),
       buildPostUpdate(*this, RD.ExprPostUpdates));
@@ -18007,4 +18028,32 @@ OMPClause *Sema::ActOnOpenMPInclusiveClause(ArrayRef<Expr *> VarList,
     return nullptr;
 
   return OMPInclusiveClause::Create(Context, StartLoc, LParenLoc, EndLoc, Vars);
+}
+
+OMPClause *Sema::ActOnOpenMPExclusiveClause(ArrayRef<Expr *> VarList,
+                                            SourceLocation StartLoc,
+                                            SourceLocation LParenLoc,
+                                            SourceLocation EndLoc) {
+  SmallVector<Expr *, 8> Vars;
+  for (Expr *RefExpr : VarList) {
+    assert(RefExpr && "NULL expr in OpenMP nontemporal clause.");
+    SourceLocation ELoc;
+    SourceRange ERange;
+    Expr *SimpleRefExpr = RefExpr;
+    auto Res = getPrivateItem(*this, SimpleRefExpr, ELoc, ERange,
+                              /*AllowArraySection=*/true);
+    if (Res.second)
+      // It will be analyzed later.
+      Vars.push_back(RefExpr);
+    ValueDecl *D = Res.first;
+    if (!D)
+      continue;
+
+    Vars.push_back(RefExpr);
+  }
+
+  if (Vars.empty())
+    return nullptr;
+
+  return OMPExclusiveClause::Create(Context, StartLoc, LParenLoc, EndLoc, Vars);
 }

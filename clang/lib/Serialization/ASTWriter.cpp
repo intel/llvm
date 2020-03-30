@@ -6242,7 +6242,9 @@ void OMPClauseWriter::VisitOMPReductionClause(OMPReductionClause *C) {
   Record.push_back(C->varlist_size());
   VisitOMPClauseWithPostUpdate(C);
   Record.AddSourceLocation(C->getLParenLoc());
+  Record.AddSourceLocation(C->getModifierLoc());
   Record.AddSourceLocation(C->getColonLoc());
+  Record.writeEnum(C->getModifier());
   Record.AddNestedNameSpecifierLoc(C->getQualifierLoc());
   Record.AddDeclarationNameInfo(C->getNameInfo());
   for (auto *VE : C->varlists())
@@ -6611,15 +6613,22 @@ void OMPClauseWriter::VisitOMPInclusiveClause(OMPInclusiveClause *C) {
     Record.AddStmt(VE);
 }
 
+void OMPClauseWriter::VisitOMPExclusiveClause(OMPExclusiveClause *C) {
+  Record.push_back(C->varlist_size());
+  Record.AddSourceLocation(C->getLParenLoc());
+  for (auto *VE : C->varlists())
+    Record.AddStmt(VE);
+}
+
 void OMPClauseWriter::VisitOMPOrderClause(OMPOrderClause *C) {
   Record.writeEnum(C->getKind());
   Record.AddSourceLocation(C->getLParenLoc());
   Record.AddSourceLocation(C->getKindKwLoc());
 }
 
-void ASTRecordWriter::writeOMPTraitInfo(const OMPTraitInfo &TI) {
-  writeUInt32(TI.Sets.size());
-  for (const auto &Set : TI.Sets) {
+void ASTRecordWriter::writeOMPTraitInfo(const OMPTraitInfo *TI) {
+  writeUInt32(TI->Sets.size());
+  for (const auto &Set : TI->Sets) {
     writeEnum(Set.Kind);
     writeUInt32(Set.Selectors.size());
     for (const auto &Selector : Set.Selectors) {

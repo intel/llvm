@@ -3086,7 +3086,7 @@ public:
     SmallVector<SourceLocation, OMPMapClause::NumberOfModifiers>
     MapTypeModifiersLoc;
     bool IsMapTypeImplicit = false;
-    SourceLocation DepLinMapLastLoc;
+    SourceLocation ExtraModifierLoc;
   };
 
   /// Parses clauses with list.

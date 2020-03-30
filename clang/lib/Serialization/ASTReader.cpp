@@ -11845,6 +11845,9 @@ OMPClause *OMPClauseReader::readClause() {
   case OMPC_inclusive:
     C = OMPInclusiveClause::CreateEmpty(Context, Record.readInt());
     break;
+  case OMPC_exclusive:
+    C = OMPExclusiveClause::CreateEmpty(Context, Record.readInt());
+    break;
   case OMPC_order:
     C = new (Context) OMPOrderClause();
     break;
@@ -12090,7 +12093,9 @@ void OMPClauseReader::VisitOMPSharedClause(OMPSharedClause *C) {
 void OMPClauseReader::VisitOMPReductionClause(OMPReductionClause *C) {
   VisitOMPClauseWithPostUpdate(C);
   C->setLParenLoc(Record.readSourceLocation());
+  C->setModifierLoc(Record.readSourceLocation());
   C->setColonLoc(Record.readSourceLocation());
+  C->setModifier(Record.readEnum<OpenMPReductionClauseModifier>());
   NestedNameSpecifierLoc NNSL = Record.readNestedNameSpecifierLoc();
   DeclarationNameInfo DNI = Record.readDeclarationNameInfo();
   C->setQualifierLoc(NNSL);
@@ -12665,14 +12670,24 @@ void OMPClauseReader::VisitOMPInclusiveClause(OMPInclusiveClause *C) {
   C->setVarRefs(Vars);
 }
 
+void OMPClauseReader::VisitOMPExclusiveClause(OMPExclusiveClause *C) {
+  C->setLParenLoc(Record.readSourceLocation());
+  unsigned NumVars = C->varlist_size();
+  SmallVector<Expr *, 16> Vars;
+  Vars.reserve(NumVars);
+  for (unsigned i = 0; i != NumVars; ++i)
+    Vars.push_back(Record.readSubExpr());
+  C->setVarRefs(Vars);
+}
+
 void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {
   C->setKind(Record.readEnum<OpenMPOrderClauseKind>());
   C->setLParenLoc(Record.readSourceLocation());
   C->setKindKwLoc(Record.readSourceLocation());
 }
 
-OMPTraitInfo ASTRecordReader::readOMPTraitInfo() {
-  OMPTraitInfo TI;
+OMPTraitInfo *ASTRecordReader::readOMPTraitInfo() {
+  OMPTraitInfo &TI = getContext().getNewOMPTraitInfo();
   TI.Sets.resize(readUInt32());
   for (auto &Set : TI.Sets) {
     Set.Kind = readEnum<llvm::omp::TraitSet>();
@@ -12687,5 +12702,5 @@ OMPTraitInfo ASTRecordReader::readOMPTraitInfo() {
         Property.Kind = readEnum<llvm::omp::TraitProperty>();
     }
   }
-  return TI;
+  return &TI;
 }
