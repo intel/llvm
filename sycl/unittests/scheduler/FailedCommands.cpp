@@ -25,7 +25,7 @@ public:
   cl_int enqueueImp() override { return CL_SUCCESS; }
 };
 
-class TestScheduler : public detail::Scheduler {
+class MockScheduler : public detail::Scheduler {
 public:
   static bool enqueueCommand(detail::Command *Cmd,
                              detail::EnqueueResultT &EnqueueResult,
@@ -48,7 +48,7 @@ TEST_F(SchedulerTest, FailedDependency) {
 
   detail::EnqueueResultT Res;
   bool Enqueued =
-      TestScheduler::enqueueCommand(&MUser, Res, detail::NON_BLOCKING);
+      MockScheduler::enqueueCommand(&MUser, Res, detail::NON_BLOCKING);
 
   ASSERT_FALSE(Enqueued) << "Enqueue process must fail\n";
   ASSERT_EQ(Res.MCmd, &MDep) << "Wrong failed command\n";

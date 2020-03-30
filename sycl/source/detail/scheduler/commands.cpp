@@ -501,6 +501,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     return false;
   }
 
+  // Command status set to "failed" beforehand, so this command
+  // has already been marked as "failed" if enqueueImp throws an exception.
+  // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   cl_int Res = enqueueImp();
 

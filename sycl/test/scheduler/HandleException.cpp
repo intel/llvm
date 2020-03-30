@@ -15,7 +15,7 @@ using ArrayType = std::array<unsigned, SIZE>;
 class kernelCompute;
 
 // Return 'true' if an exception was thrown.
-bool run_kernel(const uint wg_size) {
+bool run_kernel(const unsigned wg_size) {
   ArrayType index;
   const unsigned N = index.size();
   {

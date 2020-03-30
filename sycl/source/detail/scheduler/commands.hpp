@@ -115,7 +115,7 @@ public:
 
   bool isFinished();
 
-  bool isEnqueued() const {
+  bool isSuccessfullyEnqueued() const {
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
