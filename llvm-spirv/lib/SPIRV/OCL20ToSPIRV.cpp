@@ -979,19 +979,20 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
         });
   }
 
-  bool IsGroupAllAny = (DemangledName.find("_all") != std::string::npos ||
-                        DemangledName.find("_any") != std::string::npos);
-  bool IsGroupAllEqual = DemangledName.find("_all_equal") != std::string::npos;
-
-  // TODO: Need to convert arg to sub_group_ballot to i1!
+  const bool IsElect = DemangledName == "group_elect";
+  const bool IsAllOrAny = (DemangledName.find("_all") != std::string::npos ||
+                           DemangledName.find("_any") != std::string::npos);
+  const bool IsAllEqual = DemangledName.find("_all_equal") != std::string::npos;
+  const bool IsBallot = DemangledName == "group_ballot";
+  const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;
-  if (IsGroupAllAny || IsGroupAllEqual)
+  if (IsElect || IsAllOrAny || IsAllEqual || IsLogical)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
   Info.PostProc = [=](std::vector<Value *> &Ops) {
-    if (IsGroupAllAny && !IsGroupAllEqual) {
+    if ((IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical) {
       IRBuilder<> IRB(CI);
       Ops[0] =
           IRB.CreateICmpNE(Ops[0], ConstantInt::get(Type::getInt32Ty(*Ctx), 0));
