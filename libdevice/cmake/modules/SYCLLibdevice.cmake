@@ -6,8 +6,6 @@ endif()
 
 set(clang $<TARGET_FILE:clang>)
 
-set(sycl_spirv_headers ${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/include/CL/__spirv)
-
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
   # a function with a raw pointer parameter.
@@ -18,9 +16,6 @@ set(compile_opts
   # Force definition of CL_SYCL_LANGUAGE_VERSION, as long as
   # SYCL specific code is guarded by it.
   -sycl-std=2017
-  # We require the spirv_vars.hpp header from the sycl project
-  # for access to all the required spirv builtin vars
-  -I${sycl_spirv_headers}
   )
 
 if (WIN32)
