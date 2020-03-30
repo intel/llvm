@@ -821,6 +821,7 @@ CGFunctionInfo *CGFunctionInfo::create(unsigned llvmCC,
   FI->ASTCallingConvention = info.getCC();
   FI->InstanceMethod = instanceMethod;
   FI->ChainCall = chainCall;
+  FI->CmseNSCall = info.getCmseNSCall();
   FI->NoReturn = info.getNoReturn();
   FI->ReturnsRetained = info.getProducesResult();
   FI->NoCallerSavedRegs = info.getNoCallerSavedRegs();
@@ -1883,6 +1884,9 @@ void CodeGenModule::ConstructAttributeList(
   if (FI.isNoReturn())
     FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
 
+  if (FI.isCmseNSCall())
+    FuncAttrs.addAttribute("cmse_nonsecure_call");
+
   // If we have information about the function prototype, we can learn
   // attributes from there.
   AddAttributesFromFunctionProtoType(getContext(), FuncAttrs,
@@ -2010,6 +2014,9 @@ void CodeGenModule::ConstructAttributeList(
   }
 
   if (!AttrOnCallSite) {
+    if (TargetDecl && TargetDecl->hasAttr<CmseNSEntryAttr>())
+      FuncAttrs.addAttribute("cmse_nonsecure_entry");
+
     bool DisableTailCalls = false;
 
     if (CodeGenOpts.DisableTailCalls)
