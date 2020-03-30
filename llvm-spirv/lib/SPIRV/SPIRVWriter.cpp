@@ -40,6 +40,7 @@
 
 #include "SPIRVWriter.h"
 #include "LLVMToSPIRVDbgTran.h"
+#include "SPIRVAsm.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
@@ -60,6 +61,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -1268,6 +1270,10 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return BV ? mapValue(V, BV) : nullptr;
   }
 
+  if (InlineAsm *IA = dyn_cast<InlineAsm>(V))
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
+      return mapValue(V, transAsmINTEL(IA));
+
   if (CallInst *CI = dyn_cast<CallInst>(V))
     return mapValue(V, transCallInst(CI, BB));
 
@@ -1777,6 +1783,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 }
 
 SPIRVValue *LLVMToSPIRV::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
+  assert(CI);
+  if (isa<InlineAsm>(CI->getCalledOperand()) &&
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
+    return transAsmCallINTEL(CI, BB);
+
   if (CI->isIndirectCall())
     return transIndirectCallInst(CI, BB);
   return transDirectCallInst(CI, BB);
@@ -1827,6 +1838,32 @@ SPIRVValue *LLVMToSPIRV::transIndirectCallInst(CallInst *CI,
   return BM->addIndirectCallInst(
       transValue(CI->getCalledValue(), BB), transType(CI->getType()),
       transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
+      BB);
+}
+
+SPIRVValue *LLVMToSPIRV::transAsmINTEL(InlineAsm *IA) {
+  assert(IA);
+
+  // TODO: intention here is to provide information about actual target
+  //       but in fact spir-64 is substituted as triple when translator works
+  //       eventually we need to fix it (not urgent)
+  StringRef TripleStr(M->getTargetTriple());
+  auto AsmTarget = static_cast<SPIRVAsmTargetINTEL *>(
+      BM->getOrAddAsmTargetINTEL(TripleStr.str()));
+  auto SIA = BM->addAsmINTEL(
+      static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
+      AsmTarget, IA->getAsmString(), IA->getConstraintString());
+  if (IA->hasSideEffects())
+    SIA->addDecorate(DecorationSideEffectsINTEL);
+  return SIA;
+}
+
+SPIRVValue *LLVMToSPIRV::transAsmCallINTEL(CallInst *CI, SPIRVBasicBlock *BB) {
+  assert(CI);
+  auto IA = cast<InlineAsm>(CI->getCalledOperand());
+  return BM->addAsmCallINTELInst(
+      static_cast<SPIRVAsmINTEL *>(transValue(IA, BB, false)),
+      transArguments(CI, BB, SPIRVEntry::createUnique(OpAsmCallINTEL).get()),
       BB);
 }
 
@@ -2353,24 +2390,31 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transType(CI->getType()),
                               transValue(CI->getArgOperand(0), BB), BB);
-    } else if (isCmpOpCode(OC)) {
-      assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+    } else if (isCmpOpCode(OC) || isUnaryPredicateOpCode(OC)) {
       auto ResultTy = CI->getType();
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
         BoolTy = VectorType::get(BoolTy, ResultTy->getVectorNumElements());
       auto BBT = transType(BoolTy);
-      auto Cmp = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
-                                transValue(CI->getArgOperand(1), BB), BB);
+      SPIRVInstruction *Res;
+      if (isCmpOpCode(OC)) {
+        assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+        Res = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
+                             transValue(CI->getArgOperand(1), BB), BB);
+      } else {
+        assert(CI && CI->getNumArgOperands() == 1 && "Invalid call inst");
+        Res =
+            BM->addUnaryInst(OC, BBT, transValue(CI->getArgOperand(0), BB), BB);
+      }
       // OpenCL C and OpenCL C++ built-ins may have different return type
       if (ResultTy == BoolTy)
-        return Cmp;
+        return Res;
       assert(IsVector || (!IsVector && ResultTy->isIntegerTy(32)));
       auto Zero = transValue(Constant::getNullValue(ResultTy), BB);
       auto One = transValue(
           IsVector ? Constant::getAllOnesValue(ResultTy) : getInt32(M, 1), BB);
-      return BM->addSelectInst(Cmp, One, Zero, BB);
+      return BM->addSelectInst(Res, One, Zero, BB);
     } else if (isBinaryOpCode(OC)) {
       assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
       return BM->addBinaryInst(OC, transType(CI->getType()),

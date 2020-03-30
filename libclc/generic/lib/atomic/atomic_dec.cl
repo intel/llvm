@@ -1,12 +1,13 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED) \
-_CLC_OVERLOAD _CLC_DEF TYPE atomic_dec(volatile AS TYPE *p) { \
-  /* TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling. */ \
-  return _Z24__spirv_AtomicIDecrementPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskE( \
-      p, Device, SequentiallyConsistent); \
-}
+#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                          \
+  _CLC_OVERLOAD _CLC_DEF TYPE atomic_dec(volatile AS TYPE *p) {                                                           \
+    /* TODO: Stop manually mangling this name. Need C++ namespaces to get the                                             \
+     * exact mangling. */                                                                                                 \
+    return _Z24__spirv_AtomicIDecrementPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
+        p, Device, SequentiallyConsistent);                                                                               \
+  }
 
 IMPL(int, i, global, AS1)
 IMPL(unsigned int, j, global, AS1)

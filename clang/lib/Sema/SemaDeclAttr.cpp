@@ -2922,14 +2922,22 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   uint32_t WGSize[3];
+  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
+      AL.getAttributeSpellingListIndex() ==
+          ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size) {
+    WGSize[1] = ReqdWorkGroupSizeAttr::DefaultYDim;
+    WGSize[2] = ReqdWorkGroupSizeAttr::DefaultZDim;
+  } else if (!checkAttributeNumArgs(S, AL, 3))
+    return;
+
   for (unsigned i = 0; i < 3; ++i) {
-    const Expr *E = AL.getArgAsExpr(i);
-    if (!checkUInt32Argument(S, AL, E, WGSize[i], i,
+    if (i < AL.getNumArgs() &&
+        !checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
     if (WGSize[i] == 0) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-          << AL << E->getSourceRange();
+          << AL << AL.getArgAsExpr(i)->getSourceRange();
       return;
     }
   }

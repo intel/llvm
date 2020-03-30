@@ -329,7 +329,7 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName);
+                   StringRef KernelStableName, SourceLocation Loc);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -338,6 +338,9 @@ public:
   /// Signals that addition of parameter descriptors to current kernel
   /// invocation descriptor has finished.
   void endKernel();
+
+  /// Registers a specialization constant to emit info for it into the header.
+  void addSpecConstant(StringRef IDName, QualType IDType);
 
 private:
   // Kernel actual parameter descriptor.
@@ -367,6 +370,8 @@ private:
     /// Kernel name with stable lambda name mangling
     std::string StableName;
 
+    SourceLocation KernelLocation;
+
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
@@ -381,7 +386,8 @@ private:
   }
 
   /// Emits a forward declaration for given declaration.
-  void emitFwdDecl(raw_ostream &O, const Decl *D);
+  void emitFwdDecl(raw_ostream &O, const Decl *D,
+                   SourceLocation KernelLocation);
 
   /// Emits forward declarations of classes and template classes on which
   /// declaration of given type depends. See example in the comments for the
@@ -390,15 +396,26 @@ private:
   ///     stream to emit to
   /// \param T
   ///     type to emit forward declarations for
+  /// \param KernelLocation
+  ///     source location of the SYCL kernel function, used to emit nicer
+  ///     diagnostic messages if kernel name is missing
   /// \param Emitted
   ///     a set of declarations forward declrations has been emitted for already
   void emitForwardClassDecls(raw_ostream &O, QualType T,
-                             llvm::SmallPtrSetImpl<const void*> &Emitted);
+                             SourceLocation KernelLocation,
+                             llvm::SmallPtrSetImpl<const void *> &Emitted);
 
 private:
   /// Keeps invocation descriptors for each kernel invocation started by
   /// SYCLIntegrationHeader::startKernel
   SmallVector<KernelDesc, 4> KernelDescs;
+
+  using SpecConstID = std::pair<QualType, std::string>;
+
+  /// Keeps specialization constants met in the translation unit. Maps spec
+  /// constant's ID type to generated unique name. Duplicates are removed at
+  /// integration header emission time.
+  llvm::SmallVector<SpecConstID, 4> SpecConsts;
 
   /// Used for emitting diagnostics.
   DiagnosticsEngine &Diag;
@@ -1759,7 +1776,7 @@ public:
                               Expr *Expr2);
   template <typename FPGALoopAttrT>
   FPGALoopAttrT *BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
-                                            Expr *E);
+                                            Expr *E = nullptr);
 
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);

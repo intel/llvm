@@ -206,6 +206,20 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// File table transformation tool.
+class LLVM_LIBRARY_VISIBILITY FileTableTform final : public Tool {
+public:
+  FileTableTform(const ToolChain &TC)
+      : Tool("File table transformation", "file-table-tform", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 /// Partially link objects and archives.
 class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
 public:
@@ -218,6 +232,7 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
 } // end namespace tools
 
 } // end namespace driver

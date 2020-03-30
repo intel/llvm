@@ -1,4 +1,4 @@
-# Overview
+# Users Manual
 
 The DPC++ Compiler contains many options to generate the desired binaries for
 your application.
@@ -167,7 +167,7 @@ your application.
 
     Allow unnamed SYCL lambda kernels.
 
-# SYCL device code compilation
+## SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.
 
@@ -183,18 +183,18 @@ By default the output format for SYCL device is LLVM bytecode.
 $ clang++ -fsycl-device-only -fno-sycl-use-bitcode sycl-app.cpp -o sycl-app.spv
 ```
 
-# Static archives with SYCL device code
+## Static archives with SYCL device code
 
 The DPC++ Compiler contains support to create and use static archives that
 contain device enabled fat objects.
 
-## Build your objects
+### Build your objects
 
 ```console
 $ clang++ -fsycl sycl-app1.cpp sycl-app2.cpp -c
 ```
 
-## Create the static archive
+### Create the static archive
 
 Build the static archive in the same manner as you would any other normal
 static archive, using the objects that were created using the above step.
@@ -203,7 +203,7 @@ static archive, using the objects that were created using the above step.
 $ ar cr libsyclapp.a sycl-app1.o sycl-app2.o
 ```
 
-## Use the static archive
+### Use the static archive
 
 Once you have created the archive, you can use it when creating your final
 application.  The fat archives are treated differently than a regular archive

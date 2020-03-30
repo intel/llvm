@@ -53,8 +53,8 @@ int main() {
     });
 
     nd_range<1> NDR(range<1>{N}, range<1>{2});
-    q.parallel_for<class NDFoo>(NDR, [=](id<1> ID) {
-      auto i = ID[0];
+    q.parallel_for<class NDFoo>(NDR, [=](nd_item<1> Item) {
+      auto i = Item.get_global_id(0);
       A[i]++;
     });
 

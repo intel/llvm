@@ -9,6 +9,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
+  SpecConstants.cpp
 
   DEPENDS
   intrinsics_gen

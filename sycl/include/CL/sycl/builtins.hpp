@@ -959,7 +959,7 @@ detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
 // half dot (half p0, half p1)
 template <typename T>
 detail::enable_if_t<detail::is_sgenfloat<T>::value, T> dot(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_FMul<T>(p0, p1);
+  return p0 * p1;
 }
 
 // float dot (vgengeofloat p0, vgengeofloat p1)
@@ -1543,17 +1543,17 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef __GLIBC__
 extern "C" {
 extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
                                         unsigned int line, const char *func);
 }
-#elif defined(_MSC_VER)
+#elif defined(_WIN32)
 extern "C" {
 extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
                                    unsigned line);
 }
-#endif // defined(_MSC_VER_)
+#endif
 #endif // __SYCL_DEVICE_ONLY__
 
 #undef __NOEXC

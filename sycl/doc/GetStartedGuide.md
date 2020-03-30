@@ -1,9 +1,9 @@
-# Overview
+# Getting Started with oneAPI DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
-# Table of contents
+**Table of contents**
 
 * [Prerequisites](#prerequisites)
   * [Create DPC++ workspace](#create-dpc-workspace)
@@ -19,7 +19,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * [CUDA backend limitations](#cuda-backend-limitations)
 * [Find More](#find-more)
 
-# Prerequisites
+## Prerequisites
 
 * `git` - https://git-scm.com/downloads
 * `cmake` version 3.2 or later - http://www.cmake.org/download/
@@ -30,7 +30,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     https://visualstudio.microsoft.com/downloads/
 
-## Create DPC++ workspace
+### Create DPC++ workspace
 
 Throughout this document `DPCPP_HOME` denotes the path to the local directory
 created as DPC++ workspace. It might be useful to create an environment variable
@@ -39,8 +39,12 @@ with the same name.
 **Linux**
 
 ```bash
-export DPCPP_HOME=/export/home/sycl_workspace
-mkdir $DPCPP_HOME
+export DPCPP_HOME=~/sycl_workspace
+mkdir -p $DPCPP_HOME/build
+cd $DPCPP_HOME
+
+git clone https://github.com/intel/llvm -b sycl
+cd $DPCPP_HOME/build
 ```
 
 **Windows (64-bit)**
@@ -55,58 +59,52 @@ Open a developer command prompt using one of two methods:
 ```bat
 set DPCPP_HOME=%USERPROFILE%\sycl_workspace
 mkdir %DPCPP_HOME%
-```
-
-# Build DPC++ toolchain
-
-**Linux**
-```bash
-cd $DPCPP_HOME
-git clone https://github.com/intel/llvm -b sycl
-mkdir $DPCPP_HOME/build
-cd $DPCPP_HOME/build
-
-cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$DPCPP_HOME/llvm/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$DPCPP_HOME/llvm/llvm-spirv \
-$DPCPP_HOME/llvm/llvm
-
-make -j`nproc` sycl-toolchain
-```
-
-**Windows (64-bit)**
-```bat
 cd %DPCPP_HOME%
+
 git clone https://github.com/intel/llvm -b sycl
 mkdir %DPCPP_HOME%\build
 cd %DPCPP_HOME%\build
-
-cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" ^
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%DPCPP_HOME%\llvm\sycl" ^
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%DPCPP_HOME%\llvm\llvm-spirv" ^
--DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
-"%DPCPP_HOME%\llvm\llvm"
-
-ninja sycl-toolchain
 ```
 
-To use ahead-of-time compilation for the Intel&reg; processors, additionally
-build opencl-aot target:
+## Build DPC++ toolchain
 
-1. add ```opencl-aot``` to ```-DLLVM_EXTERNAL_PROJECTS``` and
-```-DLLVM_ENABLE_PROJECTS``` variables above
-2. add ```opencl-aot``` to
-```make``` (for Linux) or ```ninja``` (for Windows) commands above
+The easiest way to get started is to use the buildbot [configure](../../buildbot/configure.py)
+and [compile](../../buildbot/configure.py) scripts.
 
+In case you want to configure CMake manually the up-to-date reference for variables is in these files.
+
+**Linux**
+
+```bash
+python $DPCPP_HOME/llvm/buildbot/configure.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build -t release
+python $DPCPP_HOME/llvm/buildbot/compile.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build
+```
+
+**Windows**
+
+```bat
+python %DPCPP_HOME%\llvm\buildbot\configure.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build -t release
+python %DPCPP_HOME%\llvm\buildbot\compile.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build
+```
+
+**Options**
+
+You can use the following flags with `configure.py`:
+
+ * `--no-ocl` -> Download OpenCL deps via cmake (can be useful in case of troubles)
+ * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
+ * `--shared-libs` -> Build shared libraries
+ * `-t` -> Build type (debug or release)
+
+
+Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
+
+**Deployment**
 
 TODO: add instructions how to deploy built DPC++ toolchain.
 
-## Build DPC++ toolchain with libc++ library
+### Build DPC++ toolchain with libc++ library
 
 There is experimental support for building and linking DPC++ runtime with
 libc++ library instead of libstdc++. To enable it the following CMake options
@@ -119,25 +117,12 @@ should be used.
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
 
-## Build DPC++ toolchain with support for NVIDIA CUDA
+### Build DPC++ toolchain with support for NVIDIA CUDA
 
 There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux
-DPC++ toolchain, but replace the cmake command with the following one:
-
-
-```
-cmake -DCMAKE_BUILD_TYPE=Release \
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$DPCPP_HOME/llvm/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$DPCPP_HOME/llvm/llvm-spirv \
--DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda/ \
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl;libclc" \
--DSYCL_BUILD_PI_CUDA=ON \
--DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
--DLIBCLC_TARGETS_TO_BUILD="nvptx64--;nvptx64--nvidiacl"
-```
+DPC++ toolchain, but add the `--cuda` flag to `configure.py`
 
 Enabling this flag requires an installation of
 [CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on the system,
@@ -148,9 +133,9 @@ Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above.
 
-# Use DPC++ toolchain
+## Use DPC++ toolchain
 
-## Using the DPC++ toolchain on CUDA platforms
+### Using the DPC++ toolchain on CUDA platforms
 
 The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
@@ -168,7 +153,7 @@ Instead of installing the low level CPU runtime, it is possible to build and
 install the [Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader), 
 which contains all the symbols required.
 
-## Install low level runtime
+### Install low level runtime
 
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
@@ -266,9 +251,9 @@ command:
 c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
 ```
 
-## Test DPC++ toolchain
+### Test DPC++ toolchain
 
-### Run regression tests
+#### Run regression tests
 
 To verify that built DPC++ toolchain is working correctly, run:
 
@@ -288,7 +273,7 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices 
 available.
 
-### Run Khronos\* SYCL\* conformance test suite (optional)
+#### Run Khronos\* SYCL\* conformance test suite (optional)
 
 Khronos\* SYCL\* conformance test suite (CTS) is intended to validate
 implementation conformance to Khronos\* SYCL\* specification. DPC++ compiler is
@@ -328,7 +313,7 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `/path/to/build/tools/sycl/doc/html` directory.
 
-## Run simple DPC++ application
+### Run simple DPC++ application
 
 A simple DPC++ or SYCL\* program consists of following parts:
 1. Header section
@@ -457,7 +442,7 @@ selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
-## Code the program for a specific GPU
+### Code the program for a specific GPU
 
 To specify OpenCL device SYCL provides the abstract `cl::sycl::device_selector`
 class which the can be used to define how the runtime should select the best
@@ -521,11 +506,11 @@ class CUDASelector : public cl::sycl::device_selector {
 };
 ```
 
-# C++ standard
+## C++ standard
 
 - Minimal supported C++ standard is C++11 on Linux and C++14 on Windows.
 
-# Known Issues and Limitations
+## Known Issues and Limitations
 
 - DPC++ device compiler fails if the same kernel was used in different
   translation units.
@@ -536,7 +521,7 @@ class CUDASelector : public cl::sycl::device_selector {
 - On Windows linking DPC++ applications with `/MTd` flag is known to cause
   crashes.
 
-## CUDA back-end limitations
+### CUDA back-end limitations
 
 - Backend is only supported on Linux
 - The only combination tested is Ubuntu 18.04 with CUDA 10.2 using a Titan RTX
@@ -544,13 +529,12 @@ class CUDASelector : public cl::sycl::device_selector {
 - The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
 
-# Find More
+## Find More
 
-DPC++ specification:
+- DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-SYCL\* 1.2.1 specification:
+- SYCL\* 1.2.1 specification:
 [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
 
 
 \*Other names and brands may be claimed as the property of others.
-

@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===////
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
@@ -39,6 +39,11 @@ struct kernel_param_desc_t {
   // offset of the captured value of the parameter in the lambda or function
   // object
   int offset;
+};
+
+// Translates specialization constant type to its name.
+template <class Name> struct SpecConstantInfo {
+  static constexpr const char *getName() { return ""; }
 };
 
 #ifndef __SYCL_UNNAMED_LAMBDA__

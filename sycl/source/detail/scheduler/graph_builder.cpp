@@ -240,9 +240,6 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     if (AllocaCmdDst->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdDst =
           static_cast<AllocaSubBufCommand *>(AllocaCmdDst)->getParentAlloca();
-    else
-      assert(
-          !"Inappropriate alloca command. AllocaSubBufCommand was expected.");
   }
 
   AllocaCommandBase *AllocaCmdSrc =

@@ -163,8 +163,126 @@ template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
   std::cout << "       ";
   print(arg0);
-  printArgs(std::forward<Args>(args)...);
+  pi::printArgs(std::forward<Args>(args)...);
 }
+
+// C++ wrapper over the _pi_device_binary_property_struct structure.
+class DeviceBinaryProperty {
+public:
+  DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
+      : Prop(Prop) {}
+
+  pi_uint32 asUint32() const;
+  const char *asCString() const;
+
+protected:
+  friend std::ostream &operator<<(std::ostream &Out,
+                                  const DeviceBinaryProperty &P);
+  const _pi_device_binary_property_struct *Prop;
+};
+
+std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
+
+// C++ convenience wrapper over the pi_device_binary_struct structure.
+class DeviceBinaryImage {
+public:
+  // Represents a range of properties to enable iteration over them.
+  // Implements the standard C++ STL input iterator interface.
+  class PropertyRange {
+  public:
+    using ValTy = std::remove_pointer<pi_device_binary_property>::type;
+
+    class ConstIterator
+        : public std::iterator<std::input_iterator_tag, // iterator_category
+                               ValTy,                   // value_type
+                               ptrdiff_t,               // difference_type
+                               const pi_device_binary_property, // pointer
+                               pi_device_binary_property>       // reference
+    {
+      pi_device_binary_property Cur;
+
+    public:
+      ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
+      ConstIterator &operator++() {
+        Cur++;
+        return *this;
+      }
+      ConstIterator operator++(int) {
+        ConstIterator Ret = *this;
+        ++(*this);
+        return Ret;
+      }
+      bool operator==(ConstIterator Other) const { return Cur == Other.Cur; }
+      bool operator!=(ConstIterator Other) const { return !(*this == Other); }
+      reference operator*() const { return Cur; }
+    };
+    ConstIterator begin() const { return ConstIterator(Begin); }
+    ConstIterator end() const { return ConstIterator(End); }
+    friend class DeviceBinaryImage;
+
+  private:
+    PropertyRange() : Begin(nullptr), End(nullptr) {}
+    // Searches for a property set with given name and constructs a
+    // PropertyRange spanning all its elements. If property set is not found,
+    // the range will span zero elements.
+    PropertyRange(pi_device_binary Bin, const char *PropSetName)
+        : PropertyRange() {
+      init(Bin, PropSetName);
+    };
+    void init(pi_device_binary Bin, const char *PropSetName);
+    pi_device_binary_property Begin;
+    pi_device_binary_property End;
+  };
+
+public:
+  DeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
+  DeviceBinaryImage() : Bin(nullptr){};
+
+  virtual void print() const;
+  virtual void dump(std::ostream &Out) const;
+
+  size_t getSize() const {
+    assert(Bin && "binary image data not set");
+    return static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
+  }
+
+  const char *getCompileOptions() const {
+    assert(Bin && "binary image data not set");
+    return Bin->CompileOptions;
+  }
+
+  const char *getLinkOptions() const {
+    assert(Bin && "binary image data not set");
+    return Bin->LinkOptions;
+  }
+
+  /// Returns the format of the binary image
+  pi::PiDeviceBinaryType getFormat() const {
+    assert(Bin && "binary image data not set");
+    return Format;
+  }
+
+  /// Gets the iterator range over specialization constants in this this binary
+  /// image. For each property pointed to by an iterator within the range, the
+  /// name of the property is the specializaion constant symbolic ID and the
+  /// value is 32-bit unsigned integer ID.
+  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  virtual ~DeviceBinaryImage() {}
+
+protected:
+  void init(pi_device_binary Bin);
+  pi_device_binary get() const { return Bin; }
+
+  pi_device_binary Bin;
+  pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
+  DeviceBinaryImage::PropertyRange SpecConstIDMap;
+};
+
+/// Tries to determine the device binary image foramat. Returns
+/// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.
+PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
+                                        size_t ImgSize);
+
 } // namespace pi
 
 namespace RT = cl::sycl::detail::pi;

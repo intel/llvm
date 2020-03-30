@@ -313,9 +313,9 @@ double __complex__ __devicelib_cacos(double __complex__ z) {
   double __complex__ w =
       __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
   if (__spirv_SignBitSet(z_imag))
-    return CMPLX(__spirv_ocl_fabs(__devicelib_cimagf(w)),
+    return CMPLX(__spirv_ocl_fabs(__devicelib_cimag(w)),
                  __spirv_ocl_fabs(__devicelib_creal(w)));
-  return CMPLX(__spirv_ocl_fabs(__devicelib_cimagf(w)),
+  return CMPLX(__spirv_ocl_fabs(__devicelib_cimag(w)),
                -__spirv_ocl_fabs(__devicelib_creal(w)));
 }
 

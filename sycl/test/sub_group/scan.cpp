@@ -18,7 +18,8 @@
 #include <CL/sycl.hpp>
 #include <limits>
 
-template <typename T, class BinaryOperation> class sycl_subgr;
+template <typename T, class BinaryOperation>
+class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -36,14 +37,14 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
             } else {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), init, op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), init, op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op, init);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op, init);
             }
           });
     });
@@ -75,7 +76,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
+template <typename T>
+void check(queue &Queue, size_t G = 120, size_t L = 60) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;

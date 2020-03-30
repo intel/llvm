@@ -132,6 +132,12 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
 namespace intel {
 
 struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = 1;
+
   /* --- common interface members --- */
 
   id<1> get_local_id() const {
@@ -153,10 +159,12 @@ struct sub_group {
 
   /* --- vote / ballot functions --- */
 
+  __SYCL_DEPRECATED__("Use sycl::intel::any_of instead.")
   bool any(bool predicate) const {
     return __spirv_GroupAny(__spv::Scope::Subgroup, predicate);
   }
 
+  __SYCL_DEPRECATED__("Use sycl::intel::all_of instead.")
   bool all(bool predicate) const {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
@@ -168,11 +176,13 @@ struct sub_group {
   /* --- collectives --- */
 
   template <typename T>
+  __SYCL_DEPRECATED__("Use sycl::intel::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
     return detail::spirv::GroupBroadcast<__spv::Scope::Subgroup>(x, local_id);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::Reduce,
                         __spv::Scope::Subgroup>(
@@ -180,11 +190,13 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
     return op(init, reduce(x, op));
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::ExclusiveScan,
                         __spv::Scope::Subgroup>(
@@ -192,6 +204,7 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
     if (get_local_id().get(0) == 0) {
@@ -205,6 +218,7 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
     return detail::calc<T, __spv::GroupOperation::InclusiveScan,
                         __spv::Scope::Subgroup>(
@@ -212,6 +226,7 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
                                                T init) const {
     if (get_local_id().get(0) == 0) {

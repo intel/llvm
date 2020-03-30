@@ -1063,6 +1063,14 @@ namespace {
         const SYCLIntelFPGAMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
+    const SYCLIntelFPGALoopCoalesceAttr *TransformSYCLIntelFPGALoopCoalesceAttr(
+        const SYCLIntelFPGALoopCoalesceAttr *LC);
+    const SYCLIntelFPGAMaxInterleavingAttr *
+    TransformSYCLIntelFPGAMaxInterleavingAttr(
+        const SYCLIntelFPGAMaxInterleavingAttr *MI);
+    const SYCLIntelFPGASpeculatedIterationsAttr *
+    TransformSYCLIntelFPGASpeculatedIterationsAttr(
+        const SYCLIntelFPGASpeculatedIterationsAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1527,6 +1535,31 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
   return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
       *MC, TransformedExpr);
+}
+
+const SYCLIntelFPGALoopCoalesceAttr *
+TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
+    const SYCLIntelFPGALoopCoalesceAttr *LC) {
+  Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(
+      *LC, TransformedExpr);
+}
+
+const SYCLIntelFPGAMaxInterleavingAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
+    const SYCLIntelFPGAMaxInterleavingAttr *MI) {
+  Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(
+      *MI, TransformedExpr);
+}
+
+const SYCLIntelFPGASpeculatedIterationsAttr *
+TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
+    const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
+  Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
+  return getSema()
+      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
+          *SI, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(

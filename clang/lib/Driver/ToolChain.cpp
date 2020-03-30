@@ -342,6 +342,12 @@ Tool *ToolChain::getBackendCompiler() const {
   return BackendCompiler.get();
 }
 
+Tool *ToolChain::getTableTform() const {
+  if (!FileTableTform)
+    FileTableTform.reset(new tools::FileTableTform(*this));
+  return FileTableTform.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -392,6 +398,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::BackendCompileJobClass:
     return getBackendCompiler();
+
+  case Action::FileTableTformJobClass:
+    return getTableTform();
   }
 
   llvm_unreachable("Invalid tool kind.");

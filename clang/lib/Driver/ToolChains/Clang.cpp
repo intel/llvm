@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Clang.h"
+#include "AMDGPU.h"
 #include "Arch/AArch64.h"
 #include "Arch/ARM.h"
 #include "Arch/Mips.h"
@@ -15,11 +16,10 @@
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
 #include "Arch/X86.h"
-#include "AMDGPU.h"
 #include "CommonArgs.h"
 #include "Hexagon.h"
-#include "MSP430.h"
 #include "InputInfo.h"
+#include "MSP430.h"
 #include "PS4CPU.h"
 #include "SYCL.h"
 #include "clang/Basic/CharInfo.h"
@@ -35,6 +35,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/FileSystem.h"
@@ -4118,6 +4119,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // We want to compile sycl kernels.
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
+    CmdArgs.push_back("-fdeclare-spirv-builtins");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -4139,10 +4141,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(
             Twine("-fms-compatibility-version=") + LowestMSVCSupported));
       }
-    }
-
-    if (Triple.isSPIR()) {
-      CmdArgs.push_back("-disable-llvm-passes");
     }
 
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
@@ -6836,9 +6834,12 @@ const char *Clang::getDependencyFileName(const ArgList &Args,
 
   if (Arg *OutputOpt =
           Args.getLastArg(options::OPT_o, options::OPT__SLASH_Fo)) {
-    SmallString<128> OutputFilename(OutputOpt->getValue());
-    llvm::sys::path::replace_extension(OutputFilename, llvm::Twine('d'));
-    return Args.MakeArgString(OutputFilename);
+    SmallString<128> OutputArgument(OutputOpt->getValue());
+    if (llvm::sys::path::is_separator(OutputArgument.back()))
+      // If the argument is a directory, output to BaseName in that dir.
+      llvm::sys::path::append(OutputArgument, getBaseInputStem(Args, Inputs));
+    llvm::sys::path::replace_extension(OutputArgument, llvm::Twine('d'));
+    return Args.MakeArgString(OutputArgument);
   }
 
   return Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
@@ -7427,70 +7428,23 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
-    ArgStringList ForeachArgs;
+    assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
+    assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
+            (Inputs.size() == 1)) &&
+           "wrong usage of clang-offload-wrapper with SYCL");
+    const InputInfo &I = Inputs[0];
+    assert(I.isFilename() && "Invalid input.");
 
-    for (const InputInfo &I : Inputs) {
-      assert(I.isFilename() && "Invalid input.");
-      std::string FileName(I.getFilename());
-      if (I.getType() == types::TY_Tempfilelist ||
-          I.getType() == types::TY_TempEntriesfilelist) {
-        ForeachArgs.push_back(
-            C.getArgs().MakeArgString("--in-file-list=" + FileName));
-        ForeachArgs.push_back(
-            C.getArgs().MakeArgString("--in-replace=" + FileName));
-
-        if (I.getType() == types::TY_TempEntriesfilelist) {
-          WrapperArgs.push_back(
-              C.getArgs().MakeArgString("-entries=" + FileName));
-          continue;
-        }
-      }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(FileName));
-    }
+    if (I.getType() == types::TY_Tempfiletable)
+      // wrapper actual input files are passed via the batch job file table:
+      WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
+    WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
 
     auto Cmd = std::make_unique<Command>(
         JA, *this,
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
         WrapperArgs, None);
-    if (!ForeachArgs.empty()) {
-      std::string ForeachOutName =
-          C.getDriver().GetTemporaryPath("wrapper-linker", "txt");
-      const char *ForeachOutput = C.addTempFile(
-          C.getArgs().MakeArgString(ForeachOutName), types::TY_Tempfilelist);
-      SmallString<128> OutOpt("--out-file-list=");
-      OutOpt += ForeachOutput;
-
-      // Construct llvm-foreach command.
-      // The llvm-foreach command looks like this:
-      // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
-      ForeachArgs.push_back(C.getArgs().MakeArgString(OutOpt));
-      ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--out-replace=" + OutTmpName));
-      ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
-
-      ForeachArgs.push_back(Cmd->getExecutable());
-      for (auto &Arg : WrapperArgs)
-        ForeachArgs.push_back(Arg);
-
-      SmallString<128> ForeachPath(C.getDriver().Dir);
-      llvm::sys::path::append(ForeachPath, "llvm-foreach");
-      const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
-      C.addCommand(
-          std::make_unique<Command>(JA, *this, Foreach, ForeachArgs, None));
-
-      // Construct llvm-link command.
-      SmallString<128> InOpt("@");
-      InOpt += ForeachOutName;
-      ArgStringList LLVMLinkArgs{C.getArgs().MakeArgString("-o"),
-                                 WrapperFileName,
-                                 C.getArgs().MakeArgString(InOpt)};
-      SmallString<128> LLVMLinkPath(C.getDriver().Dir);
-      llvm::sys::path::append(LLVMLinkPath, "llvm-link");
-      const char *LLVMLink = C.getArgs().MakeArgString(LLVMLinkPath);
-      C.addCommand(
-          std::make_unique<Command>(JA, *this, LLVMLink, LLVMLinkArgs, None));
-    } else
-      C.addCommand(std::move(Cmd));
+    C.addCommand(std::move(Cmd));
 
     // Construct llc command.
     // The output is an object file
@@ -7512,7 +7466,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const char *Llc = C.getArgs().MakeArgString(LlcPath);
     C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
     return;
-  }
+  } // end of SYCL flavor of offload wrapper command creation
 
   ArgStringList CmdArgs;
 
@@ -7661,6 +7615,19 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::move(Cmd));
 }
 
+static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
+                    ArrayRef<StringRef> SrcArgs) {
+  for (const auto Arg : SrcArgs) {
+    DstArgs.push_back(Alloc.MakeArgString(Arg));
+  }
+}
+
+// sycl-post-link tool normally outputs a file table (see the tool sources for
+// format description) which lists all the other output files associated with
+// the device LLVMIR bitcode. This is basically a triple of bitcode, symbols
+// and specialization constant files. Single LLVM IR output can be generated as
+// well under an option.
+//
 void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                              const InputInfo &Output,
                              const InputInfoList &Inputs,
@@ -7668,39 +7635,115 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                              const char *LinkingOutput) const {
   // Construct sycl-post-link command.
   assert(isa<SYCLPostLinkJobAction>(JA) && "Expecting SYCL post link job!");
-
-  // Variants of split command look like this:
-  // sycl-post-link input_file.bc -ir-files-list=ir.txt -o base_output - for
-  // IR files generation.
-  // sycl-post-link input_file.bc -txt-files-list=files.txt -o base_output - for
-  // entries files generation.
-
   ArgStringList CmdArgs;
-  InputInfo Input = Inputs.front();
-  const char *InputFileName = Input.getFilename();
 
-  CmdArgs.push_back(InputFileName);
+  // See if device code splitting is requested
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
+    if (StringRef(A->getValue()) == "per_kernel")
+      addArgs(CmdArgs, TCArgs, {"-split=kernel"});
+    else if (StringRef(A->getValue()) == "per_source")
+      addArgs(CmdArgs, TCArgs, {"-split=source"});
+    else
+      // split must be off
+      assert(StringRef(A->getValue()) == "off");
+  }
+  // OPT_fsycl_device_code_split is not checked as it is an alias to
+  // -fsycl-device-code-split=per_source
+
+  if (JA.getType() == types::TY_LLVM_BC) {
+    // single file output requested - this means only perform necessary IR
+    // transformations (like specialization constant intrinsic lowering) and
+    // output LLVMIR
+    addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
+  } else {
+    assert(JA.getType() == types::TY_Tempfiletable);
+    // Symbol file and specialization constant info generation is mandatory -
+    // add options unconditionally
+    addArgs(CmdArgs, TCArgs, {"-symbols"});
+  }
+  // specialization constants processing is mandatory
+  if (llvm::dyn_cast<SYCLPostLinkJobAction>(&JA)->getRTSetsSpecConstants())
+    addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
+  else
+    addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
+
+  // Add output file table file option
+  assert(Output.isFilename() && "output must be a filename");
+  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  // Add input file
+  assert(Inputs.size() == 1 && Inputs.front().isFilename() &&
+         "single input file expected");
+  addArgs(CmdArgs, TCArgs, {Inputs.front().getFilename()});
   std::string OutputFileName(Output.getFilename());
-  if (Output.getType() == types::TY_Tempfilelist)
-    CmdArgs.push_back(TCArgs.MakeArgString("-ir-files-list=" + OutputFileName));
-  else if (Output.getType() == types::TY_TempEntriesfilelist)
-    CmdArgs.push_back(
-        TCArgs.MakeArgString("-txt-files-list=" + OutputFileName));
-  SmallString<128> TmpName;
-  llvm::sys::fs::createUniquePath("split-%%%%%%", TmpName,
-                                  /*MakeAbsolute*/ true);
-  CmdArgs.push_back(TCArgs.MakeArgString("-o"));
-  CmdArgs.push_back(TCArgs.MakeArgString(TmpName));
-
-  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ))
-    if (A->getValue() == StringRef("per_kernel"))
-      CmdArgs.push_back("-one-kernel");
 
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, None));
+      CmdArgs, Inputs));
+}
+
+// Transforms the abstract representation (JA + Inputs + Outputs) of a file
+// table transformation action to concrete command line (job) with actual
+// inputs/outputs/options, and adds it to given compilation object.
+void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
+                                  const InputInfo &Output,
+                                  const InputInfoList &Inputs,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  const char *LinkingOutput) const {
+
+  const auto &TformJob = *llvm::dyn_cast<FileTableTformJobAction>(&JA);
+  ArgStringList CmdArgs;
+
+  // don't try to assert here whether the number of inputs is OK, argumnets are
+  // OK, etc. - better invoke the tool and see good error diagnostics
+
+  // 1) add transformations
+  for (const auto &Tf : TformJob.getTforms()) {
+    switch (Tf.TheKind) {
+    case FileTableTformJobAction::Tform::EXTRACT:
+    case FileTableTformJobAction::Tform::EXTRACT_DROP_TITLE: {
+      SmallString<128> Arg("-extract=");
+      Arg += Tf.TheArgs[0];
+
+      for (unsigned I = 1; I < Tf.TheArgs.size(); ++I) {
+        Arg += ",";
+        Arg += Tf.TheArgs[I];
+      }
+      addArgs(CmdArgs, TCArgs, {Arg});
+
+      if (Tf.TheKind == FileTableTformJobAction::Tform::EXTRACT_DROP_TITLE)
+        addArgs(CmdArgs, TCArgs, {"-drop_titles"});
+      break;
+    }
+    case FileTableTformJobAction::Tform::REPLACE: {
+      assert(Tf.TheArgs.size() == 2 && "from/to column names expected");
+      SmallString<128> Arg("-replace=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
+    default:
+      llvm_unreachable("unknown file table transformation kind");
+    }
+  }
+  // 2) add output option
+  assert(Output.isFilename() && "table tform output must be a file");
+  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  // 3) add inputs
+  for (const auto &Input : Inputs) {
+    assert(Input.isFilename() && "table tform input must be a file");
+    addArgs(CmdArgs, TCArgs, {Input.getFilename()});
+  }
+  // 4) finally construct and add a command to the compilation
+  C.addCommand(std::make_unique<Command>(
+      JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, Inputs));
 }
 
 // For Linux, we have initial support for fat archives (archives which
