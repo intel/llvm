@@ -659,17 +659,17 @@
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xs "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS %s
 // CHK-TOOLS-FPGA-OPTS: aoc{{.*}} "-o" {{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-FPGA-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-FPGA-OPTS-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS %s
 // CHK-TOOLS-GEN-OPTS: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-GEN-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-GEN-OPTS-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS %s
 // CHK-TOOLS-CPU-OPTS: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-CPU-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-CPU-OPTS-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
@@ -679,21 +679,30 @@
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS2 %s
 // CHK-TOOLS-FPGA-OPTS2: aoc{{.*}} "-o" {{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-FPGA-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-FPGA-OPTS2-NOT: clang-offload-wrapper{{.*}} "-link-opts={{.*}}
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS2 %s
 // CHK-TOOLS-GEN-OPTS2: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-GEN-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-GEN-OPTS2-NOT: clang-offload-wrapper{{.*}} "-link-opts={{.*}}
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS2 %s
 // CHK-TOOLS-CPU-OPTS2: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
-// CHK-TOOLS-CPU-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+// CHK-TOOLS-CPU-OPTS2-NOT: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=\"-DFOO1 -DFOO2\""
+
+// Sane-check "-compile-opts" and "-link-opts" passing for multiple targets
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice \
+// RUN:   -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl -cl-opt-disable" -Xsycl-target-linker=spir64-unknown-unknown-sycldevice "-cl-denorms-are-zero" %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-TOOLS-MULT-OPTS,CHK-TOOLS-MULT-OPTS-NEG %s
+// CHK-TOOLS-MULT-OPTS: clang-offload-wrapper{{.*}} "-link-opts=\"-cl-denorms-are-zero\""{{.*}} "-target=spir64"
+// CHK-TOOLS-MULT-OPTS: ocloc{{.*}} "-device" "skl"{{.*}} "-cl-opt-disable"
+// CHK-TOOLS-MULT-OPTS-NEG-NOT: clang-offload-wrapper{{.*}} "-compile-opts=\"-device skl -cl-opt-disable\""{{.*}} "-target=spir64"
+// CHK-TOOLS-MULT-OPTS-NEG-NOT: clang-offload-wrapper{{.*}} "-link-opts=\"-cl-denorms-are-zero\""{{.*}} "-target=spir64_gen"
 
 /// ###########################################################################
 
