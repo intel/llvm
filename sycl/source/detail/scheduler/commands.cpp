@@ -186,8 +186,10 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
     if (DepEventContext != Context && !Context->is_host()) {
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
+#if 1
       EventImplPtr *GlueEventCopy =
           new EventImplPtr(GlueEvent); // To increase the reference count by 1.
+#endif
 
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       auto Plugin = Context->getPlugin();
@@ -202,7 +204,7 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
           DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
 #else
-      Event->when_complete(Event, [GlueEvent] () {
+      DepEvent->when_complete(DepEvent, [GlueEvent] () {
         RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
         const detail::plugin &Plugin = GlueEvent->getPlugin();
         Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
@@ -1492,6 +1494,8 @@ struct HostTaskContext {
   std::condition_variable AnotherRequirementFulfilledCV;
 
   ContextImplPtr Context;
+
+  EventImplPtr SelfEvent;
 };
 
 void DispatchHostTask2(pi_event Event, pi_int32 EventStatus, void *UD) {
@@ -1533,6 +1537,9 @@ void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
     Ctx->HostTask->MHostTask->call();
   });
 
+  const detail::plugin &Plugin = Ctx->SelfEvent->getPlugin();
+  Plugin.call<PiApiKind::piEventSetStatus>(Ctx->SelfEvent->getHandleRef(),
+                                           CL_COMPLETE);
   // Ctx will be deleted automatically by shared_ptr
 }
 
@@ -1825,6 +1832,8 @@ cl_int ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+    // MQueue is host queue here thus we'll employ the one host task is
+    // submitted to
     const QueueImplPtr &Queue = HostTask->MQueue;
 #if 0
     auto *Ctx = new HostTaskContext{
@@ -1838,6 +1847,16 @@ cl_int ExecCGCommand::enqueueImp() {
 #else
     std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
 #endif
+
+    if (true /*false*/) {
+      Ctx->SelfEvent = MEvent;
+      RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
+
+      const detail::plugin &Plugin = Queue->getPlugin();
+      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+
+      Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
+    }
 
     size_t ArgIdx = 0, ReqIdx = 0;
     while (ArgIdx < HostTask->MArgs.size()) {
@@ -1859,23 +1878,9 @@ cl_int ExecCGCommand::enqueueImp() {
 
       ++ArgIdx;
     }
-#if 0
-    const detail::plugin &Plugin = MQueue->getPlugin();
-    ContextImplPtr Context = MQueue->getContextImplPtr();
-    EventImplPtr HostTaskEvent(new detail::event_impl());
-    HostTaskEvent->setContextImpl(Context);
-    RT::PiEvent &HostTaskEventHandle = HostTaskEvent->getHandleRef();
-    Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                          &HostTaskEventHandle);
-    // Increment refcount for pi_event
-    EventImplPtr *HostTaskEventCopy = new EventImplPtr(HostTaskEvent);
-
-    // set callback for each and every dependency event
-    Plugin.call<PiApiKind::piEventSetCallback>();
-#endif
 
 #if 0
-    const detail::plugin &Plugin = MQueue->getPlugin();
+    const detail::plugin &Plugin = Queue->getPlugin();
 
     for (const RT::PiEvent &Event : RawEvents)
         Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
