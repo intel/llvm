@@ -817,9 +817,6 @@ foreach name = ["Dot"] in {
 
 foreach name = ["Any", "All"] in {
   def : SPVBuiltin<name, [Bool, Bool], Attr.Const>;
-}
-
-foreach name = ["Any", "All"] in {
   def : SPVBuiltin<name, [Bool, GenTypeSCharVecNoScalar], Attr.Const>;
 }
 
