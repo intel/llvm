@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// RUN: %clangxx -fsyntax-only -Xclang -verify %s -I %sycl_include -Xclang
+// RUN: %clangxx -fsyntax-only -Xclang -verify %s -I %sycl_include
 // expected-no-diagnostics
 
 #include "windows.h"
