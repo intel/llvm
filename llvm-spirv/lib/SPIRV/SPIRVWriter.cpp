@@ -40,6 +40,7 @@
 
 #include "SPIRVWriter.h"
 #include "LLVMToSPIRVDbgTran.h"
+#include "SPIRVAsm.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
@@ -60,6 +61,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -208,7 +210,7 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
   std::function<bool(const Type *Ty)> Run = [&](const Type *Ty) {
-    if (!isa<CompositeType>(Ty) && !Ty->isPointerTy())
+    if (!(isa<StructType>(Ty) || isa<SequentialType>(Ty)) && !Ty->isPointerTy())
       return false;
 
     if (auto *StructTy = dyn_cast<StructType>(Ty)) {
@@ -387,7 +389,8 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
 
     for (unsigned I = 0, E = T->getStructNumElements(); I != E; ++I) {
       auto *ElemTy = ST->getElementType(I);
-      if ((isa<CompositeType>(ElemTy) || isa<PointerType>(ElemTy)) &&
+      if ((isa<StructType>(ElemTy) || isa<SequentialType>(ElemTy) ||
+           isa<PointerType>(ElemTy)) &&
           recursiveType(ST, ElemTy))
         ForwardRefs.push_back(I);
       else
@@ -779,9 +782,9 @@ private:
 /// Go through the operands !llvm.loop metadata attached to the branch
 /// instruction, fill the Loop Control mask and possible parameters for its
 /// fields.
-static spv::LoopControlMask
-getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
-               LLVMToSPIRV::LLVMToSPIRVMetadataMap &IndexGroupArrayMap) {
+spv::LoopControlMask
+LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
+                            std::vector<SPIRVWord> &Parameters) {
   if (!Branch)
     return spv::LoopControlMaskNone;
   MDNode *LoopMD = Branch->getMetadata("llvm.loop");
@@ -821,26 +824,34 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
         size_t I = getMDOperandAsInt(Node, 1);
         Parameters.push_back(I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
-      } else if (S == "llvm.loop.ii.count") {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlInitiationIntervalINTEL;
-      } else if (S == "llvm.loop.max_concurrency.count") {
-        size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
-        LoopControl |= spv::LoopControlMaxConcurrencyINTEL;
-      } else if (S == "llvm.loop.parallel_access_indices") {
-        // Intel FPGA IVDep loop attribute
-        LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
-        IVDep.initialize();
-        // Store IVDep-specific parameters into an intermediate
-        // container to address the case when there're multiple
-        // IVDep metadata nodes and this condition gets entered multiple
-        // times. The update of the main parameters vector & the loop control
-        // mask will be done later, in the main scope of the function
-        unsigned SafeLen = IVDep.getSafeLen();
-        for (auto &ArrayId : IVDep.getArrayVariables())
-          DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+      } else if (BM->isAllowedToUseExtension(
+                     ExtensionID::SPV_INTEL_fpga_loop_controls)) {
+        // Add Intel specific Loop Control masks
+        if (S == "llvm.loop.ii.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlInitiationIntervalINTEL;
+        } else if (S == "llvm.loop.max_concurrency.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlMaxConcurrencyINTEL;
+        } else if (S == "llvm.loop.parallel_access_indices") {
+          // Intel FPGA IVDep loop attribute
+          LLVMParallelAccessIndices IVDep(Node, IndexGroupArrayMap);
+          IVDep.initialize();
+          // Store IVDep-specific parameters into an intermediate
+          // container to address the case when there're multiple
+          // IVDep metadata nodes and this condition gets entered multiple
+          // times. The update of the main parameters vector & the loop control
+          // mask will be done later, in the main scope of the function
+          unsigned SafeLen = IVDep.getSafeLen();
+          for (auto &ArrayId : IVDep.getArrayVariables())
+            DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+        }
       }
     }
   }
@@ -855,6 +866,8 @@ getLoopControl(const BranchInst *Branch, std::vector<SPIRVWord> &Parameters,
       Parameters.push_back(ArraySflnPair.first);
       Parameters.push_back(ArraySflnPair.second);
     }
+    BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+    BM->addCapability(CapabilityFPGALoopControlsINTEL);
     LoopControl |= spv::LoopControlDependencyArrayINTEL;
   }
 
@@ -1066,8 +1079,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     /// with true edge going to the header and the false edge going out of
     /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
     std::vector<SPIRVWord> Parameters;
-    spv::LoopControlMask LoopControl =
-        getLoopControl(Branch, Parameters, IndexGroupArrayMap);
+    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
     if (Branch->isUnconditional()) {
       // For "for" and "while" loops llvm.loop metadata is attached to
@@ -1257,6 +1269,10 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     SPIRVValue *BV = transIntrinsicInst(II, BB);
     return BV ? mapValue(V, BV) : nullptr;
   }
+
+  if (InlineAsm *IA = dyn_cast<InlineAsm>(V))
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
+      return mapValue(V, transAsmINTEL(IA));
 
   if (CallInst *CI = dyn_cast<CallInst>(V))
     return mapValue(V, transCallInst(CI, BB));
@@ -1767,6 +1783,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 }
 
 SPIRVValue *LLVMToSPIRV::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
+  assert(CI);
+  if (isa<InlineAsm>(CI->getCalledOperand()) &&
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
+    return transAsmCallINTEL(CI, BB);
+
   if (CI->isIndirectCall())
     return transIndirectCallInst(CI, BB);
   return transDirectCallInst(CI, BB);
@@ -1817,6 +1838,32 @@ SPIRVValue *LLVMToSPIRV::transIndirectCallInst(CallInst *CI,
   return BM->addIndirectCallInst(
       transValue(CI->getCalledValue(), BB), transType(CI->getType()),
       transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
+      BB);
+}
+
+SPIRVValue *LLVMToSPIRV::transAsmINTEL(InlineAsm *IA) {
+  assert(IA);
+
+  // TODO: intention here is to provide information about actual target
+  //       but in fact spir-64 is substituted as triple when translator works
+  //       eventually we need to fix it (not urgent)
+  StringRef TripleStr(M->getTargetTriple());
+  auto AsmTarget = static_cast<SPIRVAsmTargetINTEL *>(
+      BM->getOrAddAsmTargetINTEL(TripleStr.str()));
+  auto SIA = BM->addAsmINTEL(
+      static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
+      AsmTarget, IA->getAsmString(), IA->getConstraintString());
+  if (IA->hasSideEffects())
+    SIA->addDecorate(DecorationSideEffectsINTEL);
+  return SIA;
+}
+
+SPIRVValue *LLVMToSPIRV::transAsmCallINTEL(CallInst *CI, SPIRVBasicBlock *BB) {
+  assert(CI);
+  auto IA = cast<InlineAsm>(CI->getCalledOperand());
+  return BM->addAsmCallINTELInst(
+      static_cast<SPIRVAsmINTEL *>(transValue(IA, BB, false)),
+      transArguments(CI, BB, SPIRVEntry::createUnique(OpAsmCallINTEL).get()),
       BB);
 }
 
@@ -1902,10 +1949,23 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
   }
 }
 
+void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
+  SPIRVDBG(dbgs() << "[transGlobalIOPipeStorage] " << *V << '\n');
+  SPIRVValue *SV = transValue(V, nullptr);
+  assert(SV && "Failed to process OCL PipeStorage object");
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
+    BM->addCapability(CapabilityIOPipeINTEL);
+    unsigned ID = getMDOperandAsInt(IO, 0);
+    SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
+  }
+}
+
 bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
+    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+      transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
   }
@@ -2330,24 +2390,31 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transType(CI->getType()),
                               transValue(CI->getArgOperand(0), BB), BB);
-    } else if (isCmpOpCode(OC)) {
-      assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+    } else if (isCmpOpCode(OC) || isUnaryPredicateOpCode(OC)) {
       auto ResultTy = CI->getType();
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
         BoolTy = VectorType::get(BoolTy, ResultTy->getVectorNumElements());
       auto BBT = transType(BoolTy);
-      auto Cmp = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
-                                transValue(CI->getArgOperand(1), BB), BB);
+      SPIRVInstruction *Res;
+      if (isCmpOpCode(OC)) {
+        assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+        Res = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
+                             transValue(CI->getArgOperand(1), BB), BB);
+      } else {
+        assert(CI && CI->getNumArgOperands() == 1 && "Invalid call inst");
+        Res =
+            BM->addUnaryInst(OC, BBT, transValue(CI->getArgOperand(0), BB), BB);
+      }
       // OpenCL C and OpenCL C++ built-ins may have different return type
       if (ResultTy == BoolTy)
-        return Cmp;
+        return Res;
       assert(IsVector || (!IsVector && ResultTy->isIntegerTy(32)));
       auto Zero = transValue(Constant::getNullValue(ResultTy), BB);
       auto One = transValue(
           IsVector ? Constant::getAllOnesValue(ResultTy) : getInt32(M, 1), BB);
-      return BM->addSelectInst(Cmp, One, Zero, BB);
+      return BM->addSelectInst(Res, One, Zero, BB);
     } else if (isBinaryOpCode(OC)) {
       assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
       return BM->addBinaryInst(OC, transType(CI->getType()),

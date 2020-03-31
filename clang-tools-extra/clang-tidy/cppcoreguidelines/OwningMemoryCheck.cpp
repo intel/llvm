@@ -39,9 +39,6 @@ void OwningMemoryCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 /// Match common cases, where the owner semantic is relevant, like function
 /// calls, delete expressions and others.
 void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   const auto OwnerDecl = typeAliasTemplateDecl(hasName("::gsl::owner"));
   const auto IsOwnerType = hasType(OwnerDecl);
 
@@ -94,8 +91,7 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
 
   // Matching assignment to owners, with the rhs not being an owner nor creating
   // one.
-  Finder->addMatcher(binaryOperator(matchers::isAssignmentOperator(),
-                                    hasLHS(IsOwnerType),
+  Finder->addMatcher(binaryOperator(isAssignmentOperator(), hasLHS(IsOwnerType),
                                     hasRHS(unless(ConsideredOwner)))
                          .bind("owner_assignment"),
                      this);
@@ -122,7 +118,7 @@ void OwningMemoryCheck::registerMatchers(MatchFinder *Finder) {
 
   // Matching on assignment operations where the RHS is a newly created owner,
   // but the LHS is not an owner.
-  Finder->addMatcher(binaryOperator(matchers::isAssignmentOperator(),
+  Finder->addMatcher(binaryOperator(isAssignmentOperator(),
                                     hasLHS(unless(IsOwnerType)),
                                     hasRHS(CreatesOwner))
                          .bind("bad_owner_creation_assignment"),

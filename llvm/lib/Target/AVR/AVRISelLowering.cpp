@@ -259,6 +259,8 @@ const char *AVRTargetLowering::getTargetNodeName(unsigned Opcode) const {
     NODE(ASR);
     NODE(LSLLOOP);
     NODE(LSRLOOP);
+    NODE(ROLLOOP);
+    NODE(RORLOOP);
     NODE(ASRLOOP);
     NODE(BRCOND);
     NODE(CMP);
@@ -282,6 +284,8 @@ SDValue AVRTargetLowering::LowerShifts(SDValue Op, SelectionDAG &DAG) const {
   const SDNode *N = Op.getNode();
   EVT VT = Op.getValueType();
   SDLoc dl(N);
+  assert(isPowerOf2_32(VT.getSizeInBits()) &&
+         "Expected power-of-2 shift amount");
 
   // Expand non-constant shifts to loops.
   if (!isa<ConstantSDNode>(N->getOperand(1))) {
@@ -294,12 +298,20 @@ SDValue AVRTargetLowering::LowerShifts(SDValue Op, SelectionDAG &DAG) const {
     case ISD::SRL:
       return DAG.getNode(AVRISD::LSRLOOP, dl, VT, N->getOperand(0),
                          N->getOperand(1));
-    case ISD::ROTL:
-      return DAG.getNode(AVRISD::ROLLOOP, dl, VT, N->getOperand(0),
-                         N->getOperand(1));
-    case ISD::ROTR:
-      return DAG.getNode(AVRISD::RORLOOP, dl, VT, N->getOperand(0),
-                         N->getOperand(1));
+    case ISD::ROTL: {
+      SDValue Amt = N->getOperand(1);
+      EVT AmtVT = Amt.getValueType();
+      Amt = DAG.getNode(ISD::AND, dl, AmtVT, Amt,
+                        DAG.getConstant(VT.getSizeInBits() - 1, dl, AmtVT));
+      return DAG.getNode(AVRISD::ROLLOOP, dl, VT, N->getOperand(0), Amt);
+    }
+    case ISD::ROTR: {
+      SDValue Amt = N->getOperand(1);
+      EVT AmtVT = Amt.getValueType();
+      Amt = DAG.getNode(ISD::AND, dl, AmtVT, Amt,
+                        DAG.getConstant(VT.getSizeInBits() - 1, dl, AmtVT));
+      return DAG.getNode(AVRISD::RORLOOP, dl, VT, N->getOperand(0), Amt);
+    }
     case ISD::SRA:
       return DAG.getNode(AVRISD::ASRLOOP, dl, VT, N->getOperand(0),
                          N->getOperand(1));
@@ -315,9 +327,11 @@ SDValue AVRTargetLowering::LowerShifts(SDValue Op, SelectionDAG &DAG) const {
     break;
   case ISD::ROTL:
     Opc8 = AVRISD::ROL;
+    ShiftAmount = ShiftAmount % VT.getSizeInBits();
     break;
   case ISD::ROTR:
     Opc8 = AVRISD::ROR;
+    ShiftAmount = ShiftAmount % VT.getSizeInBits();
     break;
   case ISD::SRL:
     Opc8 = AVRISD::LSR;
@@ -1514,8 +1528,8 @@ MachineBasicBlock *AVRTargetLowering::insertShift(MachineInstr &MI,
   LoopBB->addSuccessor(RemBB);
   LoopBB->addSuccessor(LoopBB);
 
-  unsigned ShiftAmtReg = RI.createVirtualRegister(&AVR::LD8RegClass);
-  unsigned ShiftAmtReg2 = RI.createVirtualRegister(&AVR::LD8RegClass);
+  Register ShiftAmtReg = RI.createVirtualRegister(&AVR::LD8RegClass);
+  Register ShiftAmtReg2 = RI.createVirtualRegister(&AVR::LD8RegClass);
   Register ShiftReg = RI.createVirtualRegister(RC);
   Register ShiftReg2 = RI.createVirtualRegister(RC);
   Register ShiftAmtSrcReg = MI.getOperand(2).getReg();

@@ -8,10 +8,9 @@
 // RUN: -fsycl-targets=nvptx64-nvidia-nvcl-sycldevice --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
-// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-nvcl-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-sycl-std=1.2.1"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_30"{{.*}} "-std=c++11"{{.*}}
+// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-nvcl-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-sycl-std=2017"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_30"{{.*}} "-std=c++11"{{.*}}
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=nvptx64" "-kind=sycl"{{.*}}
-// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-nvcl-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-sycl-std=1.2.1"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION]]"{{.*}} "-target-cpu" "sm_30"{{.*}} "-std=c++11"{{.*}}
-// CHK-ACTIONS: "-cc1" "-triple" "x86_64-unknown-linux-gnu" "-sycl-std=1.2.1"{{.*}} "-std=c++11"{{.*}} "-fsycl-is-host"{{.*}}
+// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-nvcl-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-sycl-std=2017"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}}  "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION]]"{{.*}} "-target-cpu" "sm_30"{{.*}} "-std=c++11"{{.*}}
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
@@ -29,9 +28,10 @@
 // CHK-PHASES-NO-CC: 9: linker, {8}, image, (host-sycl)
 // CHK-PHASES-NO-CC: 10: compiler, {3}, ir, (device-sycl, sm_30)
 // CHK-PHASES-NO-CC: 11: linker, {10}, ir, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 12: backend, {11}, assembler, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 13: clang-offload-wrapper, {12}, object, (device-sycl, sm_30)
-// CHK-PHASES-NO-CC: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_30)" {13}, image
+// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 13: backend, {12}, assembler, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_30)
+// CHK-PHASES-NO-CC: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_30)" {14}, image
 
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
@@ -50,6 +50,7 @@
 // CHK-PHASES: 9: linker, {8}, image, (host-sycl)
 // CHK-PHASES: 10: compiler, {3}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 11: linker, {10}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 12: backend, {11}, assembler, (device-sycl, sm_35)
-// CHK-PHASES: 13: clang-offload-wrapper, {12}, object, (device-sycl, sm_35)
-// CHK-PHASES: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {13}, image
+// CHK-PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 13: backend, {12}, assembler, (device-sycl, sm_35)
+// CHK-PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_35)
+// CHK-PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {14}, image

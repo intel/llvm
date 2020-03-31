@@ -3262,6 +3262,7 @@ public:
   void EmitOMPTaskwaitDirective(const OMPTaskwaitDirective &S);
   void EmitOMPTaskgroupDirective(const OMPTaskgroupDirective &S);
   void EmitOMPFlushDirective(const OMPFlushDirective &S);
+  void EmitOMPDepobjDirective(const OMPDepobjDirective &S);
   void EmitOMPOrderedDirective(const OMPOrderedDirective &S);
   void EmitOMPAtomicDirective(const OMPAtomicDirective &S);
   void EmitOMPTargetDirective(const OMPTargetDirective &S);
@@ -3872,6 +3873,9 @@ public:
   llvm::Value *EmitARMMVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                      ReturnValueSlot ReturnValue,
                                      llvm::Triple::ArchType Arch);
+  llvm::Value *EmitARMCDEBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
+                                     ReturnValueSlot ReturnValue,
+                                     llvm::Triple::ArchType Arch);
 
   llvm::Value *EmitCommonNeonBuiltinExpr(unsigned BuiltinID,
                                          unsigned LLVMIntrinsic,
@@ -3896,6 +3900,12 @@ public:
   llvm::Value *EmitNeonRShiftImm(llvm::Value *Vec, llvm::Value *Amt,
                                  llvm::Type *Ty, bool usgn, const char *name);
   llvm::Value *vectorWrapScalar16(llvm::Value *Op);
+
+  llvm::Value *EmitSVEPredicateCast(llvm::Value *Pred, llvm::VectorType *VTy);
+  llvm::Value *EmitSVEMaskedLoad(llvm::Type *ReturnTy,
+                                 SmallVectorImpl<llvm::Value *> &Ops);
+  llvm::Value *EmitAArch64SVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                       llvm::Triple::ArchType Arch);
   llvm::Value *EmitBPFBuiltinExpr(unsigned BuiltinID, const CallExpr *E);

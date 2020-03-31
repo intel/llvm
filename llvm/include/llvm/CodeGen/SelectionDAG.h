@@ -935,7 +935,7 @@ public:
   SDValue getNode(unsigned Opcode, const SDLoc &DL, ArrayRef<EVT> ResultTys,
                   ArrayRef<SDValue> Ops);
   SDValue getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
-                  ArrayRef<SDValue> Ops);
+                  ArrayRef<SDValue> Ops, const SDNodeFlags Flags = SDNodeFlags());
 
   // Specialize based on number of operands.
   SDValue getNode(unsigned Opcode, const SDLoc &DL, EVT VT);
@@ -1077,7 +1077,8 @@ public:
 
   /// Try to simplify a floating-point binary operation into 1 of its operands
   /// or a constant.
-  SDValue simplifyFPBinop(unsigned Opcode, SDValue X, SDValue Y);
+  SDValue simplifyFPBinop(unsigned Opcode, SDValue X, SDValue Y,
+                          SDNodeFlags Flags);
 
   /// VAArg produces a result and token chain, and takes a pointer
   /// and a source value as input.
@@ -1739,10 +1740,13 @@ public:
   /// Widen the vector up to the next power of two using INSERT_SUBVECTOR.
   SDValue WidenVector(const SDValue &N, const SDLoc &DL);
 
-  /// Append the extracted elements from Start to Count out of the vector Op
-  /// in Args. If Count is 0, all of the elements will be extracted.
+  /// Append the extracted elements from Start to Count out of the vector Op in
+  /// Args. If Count is 0, all of the elements will be extracted. The extracted
+  /// elements will have type EVT if it is provided, and otherwise their type
+  /// will be Op's element type.
   void ExtractVectorElements(SDValue Op, SmallVectorImpl<SDValue> &Args,
-                             unsigned Start = 0, unsigned Count = 0);
+                             unsigned Start = 0, unsigned Count = 0,
+                             EVT EltVT = EVT());
 
   /// Compute the default alignment value for the given type.
   unsigned getEVTAlignment(EVT MemoryVT) const;

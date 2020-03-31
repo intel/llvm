@@ -491,15 +491,15 @@ define i64 @const_shift_i64(i64 %x, i64 %y) nounwind {
 ; X86-SLOW:       # %bb.0:
 ; X86-SLOW-NEXT:    pushl %esi
 ; X86-SLOW-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; X86-SLOW-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-SLOW-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-SLOW-NEXT:    movl %ecx, %esi
-; X86-SLOW-NEXT:    shll $25, %esi
-; X86-SLOW-NEXT:    shrl $7, %eax
-; X86-SLOW-NEXT:    orl %esi, %eax
+; X86-SLOW-NEXT:    movl {{[0-9]+}}(%esp), %esi
 ; X86-SLOW-NEXT:    shrl $7, %ecx
+; X86-SLOW-NEXT:    movl %esi, %eax
+; X86-SLOW-NEXT:    shll $25, %eax
+; X86-SLOW-NEXT:    orl %ecx, %eax
+; X86-SLOW-NEXT:    shrl $7, %esi
 ; X86-SLOW-NEXT:    shll $25, %edx
-; X86-SLOW-NEXT:    orl %ecx, %edx
+; X86-SLOW-NEXT:    orl %esi, %edx
 ; X86-SLOW-NEXT:    popl %esi
 ; X86-SLOW-NEXT:    retl
 ;
@@ -517,6 +517,86 @@ define i64 @const_shift_i64(i64 %x, i64 %y) nounwind {
 ; X64-SLOW-NEXT:    retq
   %tmp = tail call i64 @llvm.fshr.i64(i64 %x, i64 %y, i64 7)
   ret i64 %tmp
+}
+
+;
+; Combine Consecutive Loads
+;
+
+define i8 @combine_fshr_load_i8(i8* %p) nounwind {
+; X86-LABEL: combine_fshr_load_i8:
+; X86:       # %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movb (%eax), %al
+; X86-NEXT:    retl
+;
+; X64-LABEL: combine_fshr_load_i8:
+; X64:       # %bb.0:
+; X64-NEXT:    movb (%rdi), %al
+; X64-NEXT:    retq
+  %p1 = getelementptr i8, i8* %p, i32 1
+  %ld0 = load i8, i8 *%p
+  %ld1 = load i8, i8 *%p1
+  %res = call i8 @llvm.fshr.i8(i8 %ld1, i8 %ld0, i8 8)
+  ret i8 %res
+}
+
+define i16 @combine_fshr_load_i16(i16* %p) nounwind {
+; X86-LABEL: combine_fshr_load_i16:
+; X86:       # %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movzwl 1(%eax), %eax
+; X86-NEXT:    retl
+;
+; X64-LABEL: combine_fshr_load_i16:
+; X64:       # %bb.0:
+; X64-NEXT:    movzwl 1(%rdi), %eax
+; X64-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i32 0
+  %p1 = getelementptr i16, i16* %p, i32 1
+  %ld0 = load i16, i16 *%p0
+  %ld1 = load i16, i16 *%p1
+  %res = call i16 @llvm.fshr.i16(i16 %ld1, i16 %ld0, i16 8)
+  ret i16 %res
+}
+
+define i32 @combine_fshr_load_i32(i32* %p) nounwind {
+; X86-LABEL: combine_fshr_load_i32:
+; X86:       # %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl 9(%eax), %eax
+; X86-NEXT:    retl
+;
+; X64-LABEL: combine_fshr_load_i32:
+; X64:       # %bb.0:
+; X64-NEXT:    movl 9(%rdi), %eax
+; X64-NEXT:    retq
+  %p0 = getelementptr i32, i32* %p, i32 2
+  %p1 = getelementptr i32, i32* %p, i32 3
+  %ld0 = load i32, i32 *%p0
+  %ld1 = load i32, i32 *%p1
+  %res = call i32 @llvm.fshr.i32(i32 %ld1, i32 %ld0, i32 8)
+  ret i32 %res
+}
+
+define i64 @combine_fshr_load_i64(i64* %p) nounwind {
+; X86-LABEL: combine_fshr_load_i64:
+; X86:       # %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl 11(%ecx), %eax
+; X86-NEXT:    movl 15(%ecx), %edx
+; X86-NEXT:    retl
+;
+; X64-LABEL: combine_fshr_load_i64:
+; X64:       # %bb.0:
+; X64-NEXT:    movq 11(%rdi), %rax
+; X64-NEXT:    retq
+  %p0 = getelementptr i64, i64* %p, i64 1
+  %p1 = getelementptr i64, i64* %p, i64 2
+  %ld0 = load i64, i64 *%p0
+  %ld1 = load i64, i64 *%p1
+  %res = call i64 @llvm.fshr.i64(i64 %ld1, i64 %ld0, i64 24)
+  ret i64 %res
 }
 
 !llvm.module.flags = !{!0}

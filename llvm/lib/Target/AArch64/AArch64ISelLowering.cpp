@@ -1440,6 +1440,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::GLDFF1S_IMM:       return "AArch64ISD::GLDFF1S_IMM";
 
   case AArch64ISD::GLDNT1:            return "AArch64ISD::GLDNT1";
+  case AArch64ISD::GLDNT1_INDEX:      return "AArch64ISD::GLDNT1_INDEX";
   case AArch64ISD::GLDNT1S:           return "AArch64ISD::GLDNT1S";
 
   case AArch64ISD::SST1:              return "AArch64ISD::SST1";
@@ -1451,6 +1452,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::SST1_IMM:          return "AArch64ISD::SST1_IMM";
 
   case AArch64ISD::SSTNT1:            return "AArch64ISD::SSTNT1";
+  case AArch64ISD::SSTNT1_INDEX:      return "AArch64ISD::SSTNT1_INDEX";
 
   case AArch64ISD::LDP:               return "AArch64ISD::LDP";
   case AArch64ISD::STP:               return "AArch64ISD::STP";
@@ -4264,7 +4266,7 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
         RegsToPass.emplace_back(VA.getLocReg(), Arg);
         RegsUsed.insert(VA.getLocReg());
         const TargetOptions &Options = DAG.getTarget().Options;
-        if (Options.EnableDebugEntryValues)
+        if (Options.EmitCallSiteInfo)
           CSInfo.emplace_back(VA.getLocReg(), i);
       }
     } else {
@@ -8979,7 +8981,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::aarch64_sve_ldnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(1)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getElementType());
+    Info.memVT = MVT::getVT(I.getType());
     Info.ptrVal = I.getArgOperand(1);
     Info.offset = 0;
     Info.align = MaybeAlign(DL.getABITypeAlignment(PtrTy->getElementType()));
@@ -8989,7 +8991,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::aarch64_sve_stnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(2)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getElementType());
+    Info.memVT = MVT::getVT(I.getOperand(0)->getType());
     Info.ptrVal = I.getArgOperand(2);
     Info.offset = 0;
     Info.align = MaybeAlign(DL.getABITypeAlignment(PtrTy->getElementType()));
@@ -11294,8 +11296,14 @@ static SDValue performIntrinsicCombine(SDNode *N,
     return LowerSVEIntrinsicIndex(N, DAG);
   case Intrinsic::aarch64_sve_dup:
     return LowerSVEIntrinsicDUP(N, DAG);
+  case Intrinsic::aarch64_sve_dup_x:
+    return DAG.getNode(ISD::SPLAT_VECTOR, SDLoc(N), N->getValueType(0),
+                       N->getOperand(1));
   case Intrinsic::aarch64_sve_ext:
     return LowerSVEIntrinsicEXT(N, DAG);
+  case Intrinsic::aarch64_sve_sel:
+    return DAG.getNode(ISD::VSELECT, SDLoc(N), N->getValueType(0),
+                       N->getOperand(1), N->getOperand(2), N->getOperand(3));
   case Intrinsic::aarch64_sve_cmpeq_wide:
     return tryConvertSVEWideCompare(N, Intrinsic::aarch64_sve_cmpeq,
                                     false, DCI, DAG);
@@ -12625,6 +12633,54 @@ static SDValue performGlobalAddressCombine(SDNode *N, SelectionDAG &DAG,
                      DAG.getConstant(MinOffset, DL, MVT::i64));
 }
 
+// Turns the vector of indices into a vector of byte offstes by scaling Offset
+// by (BitWidth / 8).
+static SDValue getScaledOffsetForBitWidth(SelectionDAG &DAG, SDValue Offset,
+                                          SDLoc DL, unsigned BitWidth) {
+  assert(Offset.getValueType().isScalableVector() &&
+         "This method is only for scalable vectors of offsets");
+
+  SDValue Shift = DAG.getConstant(Log2_32(BitWidth / 8), DL, MVT::i64);
+  SDValue SplatShift = DAG.getNode(ISD::SPLAT_VECTOR, DL, MVT::nxv2i64, Shift);
+
+  return DAG.getNode(ISD::SHL, DL, MVT::nxv2i64, Offset, SplatShift);
+}
+
+/// Check if the value of \p OffsetInBytes can be used as an immediate for
+/// the gather load/prefetch and scatter store instructions with vector base and
+/// immediate offset addressing mode:
+///
+///      [<Zn>.[S|D]{, #<imm>}]
+///
+/// where <imm> = sizeof(<T>) * k, for k = 0, 1, ..., 31.
+
+inline static bool isValidImmForSVEVecImmAddrMode(unsigned OffsetInBytes,
+                                                  unsigned ScalarSizeInBytes) {
+  // The immediate is not a multiple of the scalar size.
+  if (OffsetInBytes % ScalarSizeInBytes)
+    return false;
+
+  // The immediate is out of range.
+  if (OffsetInBytes / ScalarSizeInBytes > 31)
+    return false;
+
+  return true;
+}
+
+/// Check if the value of \p Offset represents a valid immediate for the SVE
+/// gather load/prefetch and scatter store instructiona with vector base and
+/// immediate offset addressing mode:
+///
+///      [<Zn>.[S|D]{, #<imm>}]
+///
+/// where <imm> = sizeof(<T>) * k, for k = 0, 1, ..., 31.
+static bool isValidImmForSVEVecImmAddrMode(SDValue Offset,
+                                           unsigned ScalarSizeInBytes) {
+  ConstantSDNode *OffsetConst = dyn_cast<ConstantSDNode>(Offset.getNode());
+  return OffsetConst && isValidImmForSVEVecImmAddrMode(
+                            OffsetConst->getZExtValue(), ScalarSizeInBytes);
+}
+
 static SDValue performScatterStoreCombine(SDNode *N, SelectionDAG &DAG,
                                           unsigned Opcode,
                                           bool OnlyPackedOffsets = true) {
@@ -12652,6 +12708,15 @@ static SDValue performScatterStoreCombine(SDNode *N, SelectionDAG &DAG,
   // vector of offsets  (that fits into one register)
   SDValue Offset = N->getOperand(5);
 
+  // For "scalar + vector of indices", just scale the indices. This only
+  // applies to non-temporal scatters because there's no instruction that takes
+  // indicies.
+  if (Opcode == AArch64ISD::SSTNT1_INDEX) {
+    Offset =
+        getScaledOffsetForBitWidth(DAG, Offset, DL, SrcElVT.getSizeInBits());
+    Opcode = AArch64ISD::SSTNT1;
+  }
+
   // In the case of non-temporal gather loads there's only one SVE instruction
   // per data-size: "scalar + vector", i.e.
   //    * stnt1{b|h|w|d} { z0.s }, p0/z, [z0.s, x0]
@@ -12667,13 +12732,8 @@ static SDValue performScatterStoreCombine(SDNode *N, SelectionDAG &DAG,
   // immediates outside that range and non-immediate scalar offsets use SST1 or
   // SST1_UXTW instead.
   if (Opcode == AArch64ISD::SST1_IMM) {
-    uint64_t MaxIndex = 31;
-    uint64_t SrcElSize = SrcElVT.getStoreSize().getKnownMinSize();
-
-    ConstantSDNode *OffsetConst = dyn_cast<ConstantSDNode>(Offset.getNode());
-    if (nullptr == OffsetConst ||
-        OffsetConst->getZExtValue() > MaxIndex * SrcElSize ||
-        OffsetConst->getZExtValue() % SrcElSize) {
+    if (!isValidImmForSVEVecImmAddrMode(Offset,
+                                        SrcVT.getScalarSizeInBits() / 8)) {
       if (MVT::nxv4i32 == Base.getValueType().getSimpleVT().SimpleTy)
         Opcode = AArch64ISD::SST1_UXTW;
       else
@@ -12733,7 +12793,6 @@ static SDValue performGatherLoadCombine(SDNode *N, SelectionDAG &DAG,
          "Gather loads are only possible for SVE vectors");
 
   SDLoc DL(N);
-  MVT RetElVT = RetVT.getVectorElementType().getSimpleVT();
 
   // Make sure that the loaded data will fit into an SVE register
   if (RetVT.getSizeInBits().getKnownMinSize() > AArch64::SVEBitsPerBlock)
@@ -12745,6 +12804,15 @@ static SDValue performGatherLoadCombine(SDNode *N, SelectionDAG &DAG,
   // Depending on the addressing mode, this is either a single offset or a
   // vector of offsets  (that fits into one register)
   SDValue Offset = N->getOperand(4);
+
+  // For "scalar + vector of indices", just scale the indices. This only
+  // applies to non-temporal gathers because there's no instruction that takes
+  // indicies.
+  if (Opcode == AArch64ISD::GLDNT1_INDEX) {
+    Offset = getScaledOffsetForBitWidth(DAG, Offset, DL,
+                                        RetVT.getScalarSizeInBits());
+    Opcode = AArch64ISD::GLDNT1;
+  }
 
   // In the case of non-temporal gather loads there's only one SVE instruction
   // per data-size: "scalar + vector", i.e.
@@ -12761,13 +12829,8 @@ static SDValue performGatherLoadCombine(SDNode *N, SelectionDAG &DAG,
   // immediates outside that range and non-immediate scalar offsets use GLD1 or
   // GLD1_UXTW instead.
   if (Opcode == AArch64ISD::GLD1_IMM || Opcode == AArch64ISD::GLDFF1_IMM) {
-    uint64_t MaxIndex = 31;
-    uint64_t RetElSize = RetElVT.getStoreSize().getKnownMinSize();
-
-    ConstantSDNode *OffsetConst = dyn_cast<ConstantSDNode>(Offset.getNode());
-    if (nullptr == OffsetConst ||
-        OffsetConst->getZExtValue() > MaxIndex * RetElSize ||
-        OffsetConst->getZExtValue() % RetElSize) {
+    if (!isValidImmForSVEVecImmAddrMode(Offset,
+                                        RetVT.getScalarSizeInBits() / 8)) {
       if (MVT::nxv4i32 == Base.getValueType().getSimpleVT().SimpleTy)
         Opcode = (Opcode == AArch64ISD::GLD1_IMM) ? AArch64ISD::GLD1_UXTW
                                                   : AArch64ISD::GLDFF1_UXTW;
@@ -12911,6 +12974,51 @@ performSignExtendInRegCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
   return SDValue(N, 0);
 }
 
+/// Legalize the gather prefetch (scalar + vector addressing mode) when the
+/// offset vector is an unpacked 32-bit scalable vector. The other cases (Offset
+/// != nxv2i32) do not need legalization.
+static SDValue legalizeSVEGatherPrefetchOffsVec(SDNode *N, SelectionDAG &DAG) {
+  const unsigned OffsetPos = 4;
+  SDValue Offset = N->getOperand(OffsetPos);
+
+  // Not an unpacked vector, bail out.
+  if (Offset.getValueType().getSimpleVT().SimpleTy != MVT::nxv2i32)
+    return SDValue();
+
+  // Extend the unpacked offset vector to 64-bit lanes.
+  SDLoc DL(N);
+  Offset = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::nxv2i64, Offset);
+  SmallVector<SDValue, 5> Ops(N->op_begin(), N->op_end());
+  // Replace the offset operand with the 64-bit one.
+  Ops[OffsetPos] = Offset;
+
+  return DAG.getNode(N->getOpcode(), DL, DAG.getVTList(MVT::Other), Ops);
+}
+
+/// Combines a node carrying the intrinsic `aarch64_sve_gather_prf<T>` into a
+/// node that uses `aarch64_sve_gather_prf<T>_scaled_uxtw` when the scalar
+/// offset passed to `aarch64_sve_gather_prf<T>` is not a valid immediate for
+/// the sve gather prefetch instruction with vector plus immediate addressing
+/// mode.
+static SDValue combineSVEPrefetchVecBaseImmOff(SDNode *N, SelectionDAG &DAG,
+                                               unsigned NewIID,
+                                               unsigned ScalarSizeInBytes) {
+  const unsigned ImmPos = 4, OffsetPos = 3;
+  // No need to combine the node if the immediate is valid...
+  if (isValidImmForSVEVecImmAddrMode(N->getOperand(ImmPos), ScalarSizeInBytes))
+    return SDValue();
+
+  // ...otherwise swap the offset base with the offset...
+  SmallVector<SDValue, 5> Ops(N->op_begin(), N->op_end());
+  std::swap(Ops[ImmPos], Ops[OffsetPos]);
+  // ...and remap the intrinsic `aarch64_sve_gather_prf<T>` to
+  // `aarch64_sve_gather_prf<T>_scaled_uxtw`.
+  SDLoc DL(N);
+  Ops[1] = DAG.getConstant(NewIID, DL, MVT::i64);
+
+  return DAG.getNode(N->getOpcode(), DL, DAG.getVTList(MVT::Other), Ops);
+}
+
 SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
                                                  DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -12975,6 +13083,31 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
     switch (cast<ConstantSDNode>(N->getOperand(1))->getZExtValue()) {
+    case Intrinsic::aarch64_sve_gather_prfb:
+      return combineSVEPrefetchVecBaseImmOff(
+          N, DAG, Intrinsic::aarch64_sve_gather_prfb_scaled_uxtw,
+          1 /*=ScalarSizeInBytes*/);
+    case Intrinsic::aarch64_sve_gather_prfh:
+      return combineSVEPrefetchVecBaseImmOff(
+          N, DAG, Intrinsic::aarch64_sve_gather_prfh_scaled_uxtw,
+          2 /*=ScalarSizeInBytes*/);
+    case Intrinsic::aarch64_sve_gather_prfw:
+      return combineSVEPrefetchVecBaseImmOff(
+          N, DAG, Intrinsic::aarch64_sve_gather_prfw_scaled_uxtw,
+          4 /*=ScalarSizeInBytes*/);
+    case Intrinsic::aarch64_sve_gather_prfd:
+      return combineSVEPrefetchVecBaseImmOff(
+          N, DAG, Intrinsic::aarch64_sve_gather_prfd_scaled_uxtw,
+          8 /*=ScalarSizeInBytes*/);
+    case Intrinsic::aarch64_sve_gather_prfb_scaled_uxtw:
+    case Intrinsic::aarch64_sve_gather_prfb_scaled_sxtw:
+    case Intrinsic::aarch64_sve_gather_prfh_scaled_uxtw:
+    case Intrinsic::aarch64_sve_gather_prfh_scaled_sxtw:
+    case Intrinsic::aarch64_sve_gather_prfw_scaled_uxtw:
+    case Intrinsic::aarch64_sve_gather_prfw_scaled_sxtw:
+    case Intrinsic::aarch64_sve_gather_prfd_scaled_uxtw:
+    case Intrinsic::aarch64_sve_gather_prfd_scaled_sxtw:
+      return legalizeSVEGatherPrefetchOffsVec(N, DAG);
     case Intrinsic::aarch64_neon_ld2:
     case Intrinsic::aarch64_neon_ld3:
     case Intrinsic::aarch64_neon_ld4:
@@ -13003,6 +13136,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
     case Intrinsic::aarch64_sve_ldnt1_gather:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
+    case Intrinsic::aarch64_sve_ldnt1_gather_index:
+      return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1_INDEX);
     case Intrinsic::aarch64_sve_ldnt1_gather_uxtw:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
     case Intrinsic::aarch64_sve_ldnf1:
@@ -13017,6 +13152,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
       return performScatterStoreCombine(N, DAG, AArch64ISD::SSTNT1);
     case Intrinsic::aarch64_sve_stnt1_scatter:
       return performScatterStoreCombine(N, DAG, AArch64ISD::SSTNT1);
+    case Intrinsic::aarch64_sve_stnt1_scatter_index:
+      return performScatterStoreCombine(N, DAG, AArch64ISD::SSTNT1_INDEX);
     case Intrinsic::aarch64_sve_ld1_gather:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLD1);
     case Intrinsic::aarch64_sve_ld1_gather_index:

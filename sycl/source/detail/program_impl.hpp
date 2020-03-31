@@ -31,6 +31,11 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
+// TODO: SYCL BE generalization will change this to something better.
+// For now this saves us from unwanted implicit casts.
+struct _program_interop_handle_t;
+using program_interop_handle_t = _program_interop_handle_t *;
+
 class program_impl {
 public:
   program_impl() = delete;
@@ -71,21 +76,20 @@ public:
   program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
                string_class LinkOptions = "");
 
-  /// Constructs a program instance from plugin interface interoperability
-  /// handle.
+  /// Constructs a program instance from an interop raw BE program handle.
+  /// TODO: BE generalization will change that to something better.
   ///
   /// The state of the constructed program can be either
   /// program_state::compiled or program_state::linked, depending on the state
-  /// of the ClProgram. Otherwise an invalid_object_error SYCL exception is
+  /// of the InteropProgram. Otherwise an invalid_object_error SYCL exception is
   /// thrown.
   ///
-  /// The instance of plugin interface program will be retained on
-  /// construction.
+  /// The instance of the program will be retained on construction.
   ///
   /// \param Context is a pointer to SYCL context impl.
-  /// \param Program is an instance of plugin interface interoperability
+  /// \param InteropProgram is an instance of plugin interface interoperability
   /// program.
-  program_impl(ContextImplPtr Context, RT::PiProgram Program);
+  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
@@ -289,7 +293,20 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
+  void set_spec_constant_impl(const char *Name, const void *ValAddr,
+                              size_t ValSize);
+
+  /// Returns the OS module handle this program belongs to. A program belongs to
+  /// an OS module if it was built from device image(s) belonging to that
+  /// module.
+  /// TODO Some programs can be linked from images belonging to different
+  ///      modules. May need a special fake handle for the resulting program.
+  OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
+
 private:
+  // Deligating Constructor used in Implementation.
+  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram,
+               RT::PiProgram Program);
   /// Checks feature support for specific devices.
   ///
   /// If there's at least one device that does not support this feature,

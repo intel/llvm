@@ -2119,8 +2119,9 @@ An assume operand bundle has the form:
 
       "<tag>"([ <holds for value> [, <attribute argument>] ])
 
-* The tag of the operand bundle is the name of attribute that can be assumed
-  to hold.
+* The tag of the operand bundle is usually the name of attribute that can be
+  assumed to hold. It can also be `ignore`, this tag doesn't contain any
+  information and should be ignored.
 * The first argument if present is the value for which the attribute hold.
 * The second argument if present is an argument of the attribute.
 
@@ -2456,10 +2457,11 @@ The compiler may assume execution will continue after a volatile operation,
 so operations which modify memory or may have undefined behavior can be
 hoisted past a volatile operation.
 
-IR-level volatile loads and stores cannot safely be optimized into
-llvm.memcpy or llvm.memmove intrinsics even when those intrinsics are
-flagged volatile. Likewise, the backend should never split or merge
-target-legal volatile load/store instructions.
+IR-level volatile loads and stores cannot safely be optimized into llvm.memcpy
+or llvm.memmove intrinsics even when those intrinsics are flagged volatile.
+Likewise, the backend should never split or merge target-legal volatile
+load/store instructions. Similarly, IR-level volatile loads and stores cannot
+change from integer to floating-point or vice versa.
 
 .. admonition:: Rationale
 
@@ -4566,7 +4568,7 @@ DIFile
 
 Files are sometimes used in ``scope:`` fields, and are the only valid target
 for ``file:`` fields.
-Valid values for ``checksumkind:`` field are: {CSK_None, CSK_MD5, CSK_SHA1}
+Valid values for ``checksumkind:`` field are: {CSK_None, CSK_MD5, CSK_SHA1, CSK_SHA256}
 
 .. _DIBasicType:
 

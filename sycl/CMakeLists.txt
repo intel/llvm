@@ -54,9 +54,9 @@ endif()
 # Unlike PACKAGE_VERSION, CLANG_VERSION does not include LLVM_VERSION_SUFFIX.
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
-set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
-set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
-set(dst_deploy_dir ${CMAKE_INSTALL_PREFIX}/lib/clang/${CLANG_VERSION}/include)
+set(SYCL_INCLUDE_DIR "include/sycl")
+set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
+set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 
 # Find OpenCL headers and libraries installed in the system and use them to
 # build SYCL runtime.
@@ -78,7 +78,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
     GIT_TAG           origin/master
     SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc"
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${dst_dir}/CL
+    BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     INSTALL_COMMAND   ""
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
@@ -86,7 +86,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
 else()
   add_custom_target( ocl-headers ALL
     DEPENDS ${OpenCL_INCLUDE_DIRS}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${dst_dir}/CL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     COMMENT "Copying OpenCL headers ..."
   )
 endif()
@@ -137,13 +137,12 @@ target_include_directories(OpenCL-Headers
   INTERFACE ${OPENCL_INCLUDE}
 )
 install(DIRECTORY ${OPENCL_INCLUDE}/CL
-  DESTINATION ${LLVM_INST_INC_DIRECTORY}
+  DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}
   COMPONENT opencl-headers
 )
 
 option(SYCL_BUILD_PI_CUDA
-  "Selects the PI API backend. When set to ON, the CUDA backend is selected. \
-   When set to OFF, the OpenCL backend is selected." OFF)
+  "Enables the CUDA backend for the Plugin Interface" OFF)
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -155,11 +154,11 @@ configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${dst_dir}/CL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
-install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/." DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR} COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
@@ -211,6 +210,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
+          file-table-tform
           llc
           llvm-ar
           llvm-foreach
@@ -257,6 +257,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang
      clang-offload-wrapper
      clang-offload-bundler
+     file-table-tform
      llc
      llvm-ar
      llvm-foreach
@@ -271,6 +272,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      pi_opencl
+     libsycldevice
 )
 
 

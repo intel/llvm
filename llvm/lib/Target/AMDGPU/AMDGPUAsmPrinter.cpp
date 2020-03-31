@@ -541,7 +541,7 @@ bool AMDGPUAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   if (DumpCodeInstEmitter) {
 
     OutStreamer->SwitchSection(
-        Context.getELFSection(".AMDGPU.disasm", ELF::SHT_NOTE, 0));
+        Context.getELFSection(".AMDGPU.disasm", ELF::SHT_PROGBITS, 0));
 
     for (size_t i = 0; i < DisasmLines.size(); ++i) {
       std::string Comment = "\n";
@@ -601,6 +601,15 @@ int32_t AMDGPUAsmPrinter::SIFunctionResourceInfo::getTotalNumVGPRs(
   return std::max(NumVGPR, NumAGPR);
 }
 
+static const Function *getCalleeFunction(const MachineOperand &Op) {
+  if (Op.isImm()) {
+    assert(Op.getImm() == 0);
+    return nullptr;
+  }
+
+  return cast<Function>(Op.getGlobal());
+}
+
 AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
   const MachineFunction &MF) const {
   SIFunctionResourceInfo Info;
@@ -631,8 +640,7 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
   Info.HasDynamicallySizedStack = FrameInfo.hasVarSizedObjects();
   Info.PrivateSegmentSize = FrameInfo.getStackSize();
   if (MFI->isStackRealigned())
-    Info.PrivateSegmentSize += FrameInfo.getMaxAlignment();
-
+    Info.PrivateSegmentSize += FrameInfo.getMaxAlign().value();
 
   Info.UsesVCC = MRI.isPhysRegUsed(AMDGPU::VCC_LO) ||
                  MRI.isPhysRegUsed(AMDGPU::VCC_HI);
@@ -854,8 +862,9 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
 
         const MachineOperand *CalleeOp
           = TII->getNamedOperand(MI, AMDGPU::OpName::callee);
-        const Function *Callee = cast<Function>(CalleeOp->getGlobal());
-        if (Callee->isDeclaration()) {
+
+        const Function *Callee = getCalleeFunction(*CalleeOp);
+        if (!Callee || Callee->isDeclaration()) {
           // If this is a call to an external function, we can't do much. Make
           // conservative guesses.
 
@@ -898,7 +907,8 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           Info.HasRecursion |= I->second.HasRecursion;
         }
 
-        if (!Callee->doesNotRecurse())
+        // FIXME: Call site could have norecurse on it
+        if (!Callee || !Callee->doesNotRecurse())
           Info.HasRecursion = true;
       }
     }

@@ -16,5 +16,6 @@
 // RUN: %clang -### -fsycl -fsycl-device-code-split %s 2>&1 | \
 // RUN:       FileCheck -DDIRNAME=%t_dir --check-prefix=CHECK-TEMPFILE-SPLIT %s
 // RUN: not ls %t_dir/*
-// CHECK-TEMPFILE-SPLIT: llvm-foreach{{.*}} "--out-file-list=[[DIRNAME]]{{\/|\\}}[[OUTPUT:.+\.txt]]" {{.*}}clang-offload-wrapper{{.*}}
-// CHECK-TEMPFILE-SPLIT: llvm-link{{.*}} "@[[DIRNAME]]{{\/|\\}}[[OUTPUT]]"
+// CHECK-TEMPFILE-SPLIT: sycl-post-link{{.*}} "-o" "[[DIRNAME]]{{\/|\\}}[[TABLE:.+\.table]]"
+// CHECK-TEMPFILE-SPLIT: file-table-tform{{.*}} "-o" "[[DIRNAME]]{{\/|\\}}{{.+}}.txt"{{.*}} "[[DIRNAME]]{{\/|\\}}[[TABLE]]"
+// CHECK-TEMPFILE-SPLIT: llvm-foreach{{.*}} "--out-file-list=[[DIRNAME]]{{\/|\\}}[[OUTPUT:.+\.txt]]" {{.*}}llvm-spirv{{.*}}

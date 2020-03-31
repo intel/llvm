@@ -807,6 +807,8 @@ def finclude_default_header : Flag<["-"], "finclude-default-header">,
   HelpText<"Include default header file for OpenCL">;
 def fdeclare_opencl_builtins : Flag<["-"], "fdeclare-opencl-builtins">,
   HelpText<"Add OpenCL builtin function declarations (experimental)">;
+def fdeclare_spirv_builtins : Flag<["-"], "fdeclare-spirv-builtins">,
+  HelpText<"Add SPIR-V builtin function declarations (experimental)">;
 def fpreserve_vec3_type : Flag<["-"], "fpreserve-vec3-type">,
   HelpText<"Preserve 3-component vector type">;
 def fwchar_type_EQ : Joined<["-"], "fwchar-type=">,
@@ -917,6 +919,8 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   HelpText<"Allow function pointers in SYCL device.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
+def fsycl_enable_optimizations: Flag<["-"], "fsycl-enable-optimizations">,
+  HelpText<"Experimental flag enabling standard optimization in the front-end.">;
 
 } // let Flags = [CC1Option]
 

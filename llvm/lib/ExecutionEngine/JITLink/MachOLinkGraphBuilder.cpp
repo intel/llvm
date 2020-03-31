@@ -64,12 +64,14 @@ Linkage MachOLinkGraphBuilder::getLinkage(uint16_t Desc) {
 }
 
 Scope MachOLinkGraphBuilder::getScope(StringRef Name, uint8_t Type) {
-  if (Name.startswith("l"))
-    return Scope::Local;
   if (Type & MachO::N_PEXT)
     return Scope::Hidden;
-  if (Type & MachO::N_EXT)
-    return Scope::Default;
+  if (Type & MachO::N_EXT) {
+    if (Name.startswith("l"))
+      return Scope::Hidden;
+    else
+      return Scope::Default;
+  }
   return Scope::Local;
 }
 
@@ -274,7 +276,7 @@ Error MachOLinkGraphBuilder::createNormalizedSymbols() {
 
     IndexToSymbol[SymbolIndex] =
         &createNormalizedSymbol(*Name, Value, Type, Sect, Desc,
-                                getLinkage(Type), getScope(*Name, Type));
+                                getLinkage(Desc), getScope(*Name, Type));
   }
 
   return Error::success();

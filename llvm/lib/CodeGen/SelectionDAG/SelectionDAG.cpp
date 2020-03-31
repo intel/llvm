@@ -5229,7 +5229,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     assert(VT.isFloatingPoint() && "This operator only applies to FP types!");
     assert(N1.getValueType() == N2.getValueType() &&
            N1.getValueType() == VT && "Binary operator types must match!");
-    if (SDValue V = simplifyFPBinop(Opcode, N1, N2))
+    if (SDValue V = simplifyFPBinop(Opcode, N1, N2, Flags))
       return V;
     break;
   case ISD::FCOPYSIGN:   // N1 and result must match.  N1/N2 need not match.
@@ -5262,7 +5262,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     // amounts.  This catches things like trying to shift an i1024 value by an
     // i8, which is easy to fall into in generic code that uses
     // TLI.getShiftAmount().
-    assert(N2.getValueSizeInBits() >= Log2_32_Ceil(N1.getValueSizeInBits()) &&
+    assert(N2.getValueType().getScalarSizeInBits().getFixedSize() >=
+               Log2_32_Ceil(VT.getScalarSizeInBits().getFixedSize()) &&
            "Invalid use of small shift amount with oversized value!");
 
     // Always fold shifts of i1 values so the code generator doesn't need to
@@ -7301,9 +7302,24 @@ SDValue SelectionDAG::simplifyShift(SDValue X, SDValue Y) {
   return SDValue();
 }
 
-// TODO: Use fast-math-flags to enable more simplifications.
-SDValue SelectionDAG::simplifyFPBinop(unsigned Opcode, SDValue X, SDValue Y) {
+SDValue SelectionDAG::simplifyFPBinop(unsigned Opcode, SDValue X, SDValue Y,
+                                      SDNodeFlags Flags) {
+  // If this operation has 'nnan' or 'ninf' and at least 1 disallowed operand
+  // (an undef operand can be chosen to be Nan/Inf), then the result of this
+  // operation is poison. That result can be relaxed to undef.
+  ConstantFPSDNode *XC = isConstOrConstSplatFP(X, /* AllowUndefs */ true);
   ConstantFPSDNode *YC = isConstOrConstSplatFP(Y, /* AllowUndefs */ true);
+  bool HasNan = (XC && XC->getValueAPF().isNaN()) ||
+                (YC && YC->getValueAPF().isNaN());
+  bool HasInf = (XC && XC->getValueAPF().isInfinity()) ||
+                (YC && YC->getValueAPF().isInfinity());
+
+  if (Flags.hasNoNaNs() && (HasNan || X.isUndef() || Y.isUndef()))
+    return getUNDEF(X.getValueType());
+
+  if (Flags.hasNoInfs() && (HasInf || X.isUndef() || Y.isUndef()))
+    return getUNDEF(X.getValueType());
+
   if (!YC)
     return SDValue();
 
@@ -7419,7 +7435,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL,
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
-                              ArrayRef<SDValue> Ops) {
+                              ArrayRef<SDValue> Ops, const SDNodeFlags Flags) {
   if (VTList.NumVTs == 1)
     return getNode(Opcode, DL, VTList.VTs[0], Ops);
 
@@ -7488,6 +7504,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
       return SDValue(E, 0);
 
     N = newSDNode<SDNode>(Opcode, DL.getIROrder(), DL.getDebugLoc(), VTList);
+    N->setFlags(Flags);
     createOperands(N, Ops);
     CSEMap.InsertNode(N, IP);
   } else {
@@ -9485,12 +9502,13 @@ SDValue SelectionDAG::WidenVector(const SDValue &N, const SDLoc &DL) {
 
 void SelectionDAG::ExtractVectorElements(SDValue Op,
                                          SmallVectorImpl<SDValue> &Args,
-                                         unsigned Start, unsigned Count) {
+                                         unsigned Start, unsigned Count,
+                                         EVT EltVT) {
   EVT VT = Op.getValueType();
   if (Count == 0)
     Count = VT.getVectorNumElements();
-
-  EVT EltVT = VT.getVectorElementType();
+  if (EltVT == EVT())
+    EltVT = VT.getVectorElementType();
   SDLoc SL(Op);
   for (unsigned i = Start, e = Start + Count; i != e; ++i) {
     Args.push_back(getNode(ISD::EXTRACT_VECTOR_ELT, SL, EltVT, Op,

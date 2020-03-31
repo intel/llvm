@@ -2712,6 +2712,18 @@ static void checkNewAttributesAfterDef(Sema &S, Decl *New, const Decl *Old) {
         --E;
         continue;
       }
+    } else if (isa<LoaderUninitializedAttr>(NewAttribute)) {
+      // If there is a C definition followed by a redeclaration with this
+      // attribute then there are two different definitions. In C++, prefer the
+      // standard diagnostics.
+      if (!S.getLangOpts().CPlusPlus) {
+        S.Diag(NewAttribute->getLocation(),
+               diag::err_loader_uninitialized_redeclaration);
+        S.Diag(Def->getLocation(), diag::note_previous_definition);
+        NewAttributes.erase(NewAttributes.begin() + I);
+        --E;
+        continue;
+      }
     } else if (isa<SelectAnyAttr>(NewAttribute) &&
                cast<VarDecl>(New)->isInline() &&
                !cast<VarDecl>(New)->isInlineSpecified()) {
@@ -5247,8 +5259,8 @@ Decl *Sema::BuildMicrosoftCAnonymousStruct(Scope *S, DeclSpec &DS,
   Chain.push_back(Anon);
 
   RecordDecl *RecordDef = Record->getDefinition();
-  if (RequireCompleteType(Anon->getLocation(), RecTy,
-                          diag::err_field_incomplete) ||
+  if (RequireCompleteSizedType(Anon->getLocation(), RecTy,
+                               diag::err_field_incomplete_or_sizeless) ||
       InjectAnonymousStructOrUnionMembers(*this, S, CurContext, RecordDef,
                                           AS_none, Chain)) {
     Anon->setInvalidDecl();
@@ -7060,10 +7072,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   // Static variables declared inside SYCL device code must be const or
   // constexpr
-  if (getLangOpts().SYCLIsDevice && SCSpec == DeclSpec::SCS_static &&
-      !R.isConstant(Context))
-    SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
-        << Sema::KernelNonConstStaticDataVariable;
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
+          << Sema::KernelNonConstStaticDataVariable;
+    else if (NewVD->getTSCSpec() == DeclSpec::TSCS_thread_local)
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case CSK_unspecified:
@@ -7953,6 +7968,12 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     return;
   }
 
+  if (!NewVD->hasLocalStorage() && T->isSizelessType()) {
+    Diag(NewVD->getLocation(), diag::err_sizeless_nonlocal) << T;
+    NewVD->setInvalidDecl();
+    return;
+  }
+
   if (isVM && NewVD->hasAttr<BlocksAttr>()) {
     Diag(NewVD->getLocation(), diag::err_block_on_vm);
     NewVD->setInvalidDecl();
@@ -8040,29 +8061,7 @@ struct FindOverriddenMethod {
     return false;
   }
 };
-
-enum OverrideErrorKind { OEK_All, OEK_NonDeleted, OEK_Deleted };
 } // end anonymous namespace
-
-/// Report an error regarding overriding, along with any relevant
-/// overridden methods.
-///
-/// \param DiagID the primary error to report.
-/// \param MD the overriding method.
-/// \param OEK which overrides to include as notes.
-static void ReportOverrides(Sema& S, unsigned DiagID, const CXXMethodDecl *MD,
-                            OverrideErrorKind OEK = OEK_All) {
-  S.Diag(MD->getLocation(), DiagID) << MD->getDeclName();
-  for (const CXXMethodDecl *O : MD->overridden_methods()) {
-    // This check (& the OEK parameter) could be replaced by a predicate, but
-    // without lambdas that would be overkill. This is still nicer than writing
-    // out the diag loop 3 times.
-    if ((OEK == OEK_All) ||
-        (OEK == OEK_NonDeleted && !O->isDeleted()) ||
-        (OEK == OEK_Deleted && O->isDeleted()))
-      S.Diag(O->getLocation(), diag::note_overridden_virtual_function);
-  }
-}
 
 /// AddOverriddenMethods - See if a method overrides any in the base classes,
 /// and if so, check that it's a valid override and remember it.
@@ -8072,8 +8071,6 @@ bool Sema::AddOverriddenMethods(CXXRecordDecl *DC, CXXMethodDecl *MD) {
   FindOverriddenMethod FOM;
   FOM.Method = MD;
   FOM.S = this;
-  bool hasDeletedOverridenMethods = false;
-  bool hasNonDeletedOverridenMethods = false;
   bool AddedAny = false;
   if (DC->lookupInBases(FOM, Paths)) {
     for (auto *I : Paths.found_decls()) {
@@ -8083,19 +8080,10 @@ bool Sema::AddOverriddenMethods(CXXRecordDecl *DC, CXXMethodDecl *MD) {
             !CheckOverridingFunctionAttributes(MD, OldMD) &&
             !CheckOverridingFunctionExceptionSpec(MD, OldMD) &&
             !CheckIfOverriddenFunctionIsMarkedFinal(MD, OldMD)) {
-          hasDeletedOverridenMethods |= OldMD->isDeleted();
-          hasNonDeletedOverridenMethods |= !OldMD->isDeleted();
           AddedAny = true;
         }
       }
     }
-  }
-
-  if (hasDeletedOverridenMethods && !MD->isDeleted()) {
-    ReportOverrides(*this, diag::err_non_deleted_override, MD, OEK_Deleted);
-  }
-  if (hasNonDeletedOverridenMethods && MD->isDeleted()) {
-    ReportOverrides(*this, diag::err_deleted_override, MD, OEK_NonDeleted);
   }
 
   return AddedAny;
@@ -9103,8 +9091,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
 
     // If a function is defined as defaulted or deleted, mark it as such now.
-    // FIXME: Does this ever happen? ActOnStartOfFunctionDef forces the function
-    // definition kind to FDK_Definition.
+    // We'll do the relevant checks on defaulted / deleted functions later.
     switch (D.getFunctionDefinitionKind()) {
       case FDK_Declaration:
       case FDK_Definition:
@@ -9962,6 +9949,18 @@ static bool CheckMultiVersionValue(Sema &S, const FunctionDecl *FD) {
   return false;
 }
 
+// Provide a white-list of attributes that are allowed to be combined with
+// multiversion functions.
+static bool AttrCompatibleWithMultiVersion(attr::Kind Kind,
+                                           MultiVersionKind MVType) {
+  switch (Kind) {
+  default:
+    return false;
+  case attr::Used:
+    return MVType == MultiVersionKind::Target;
+  }
+}
+
 static bool HasNonMultiVersionAttributes(const FunctionDecl *FD,
                                          MultiVersionKind MVType) {
   for (const Attr *A : FD->attrs()) {
@@ -9977,7 +9976,9 @@ static bool HasNonMultiVersionAttributes(const FunctionDecl *FD,
         return true;
       break;
     default:
-      return true;
+      if (!AttrCompatibleWithMultiVersion(A->getKind(), MVType))
+        return true;
+      break;
     }
   }
   return false;
@@ -10735,12 +10736,7 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       if (!Method->isFunctionTemplateSpecialization() &&
           !Method->getDescribedFunctionTemplate() &&
           Method->isCanonicalDecl()) {
-        if (AddOverriddenMethods(Method->getParent(), Method)) {
-          // If the function was marked as "static", we have a problem.
-          if (NewFD->getStorageClass() == SC_Static) {
-            ReportOverrides(*this, diag::err_static_overrides_virtual, Method);
-          }
-        }
+        AddOverriddenMethods(Method->getParent(), Method);
       }
       if (Method->isVirtual() && NewFD->getTrailingRequiresClause())
         // C++2a [class.virtual]p6
@@ -11944,6 +11940,13 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     return;
   }
 
+  // The LoaderUninitialized attribute acts as a definition (of undef).
+  if (VDecl->hasAttr<LoaderUninitializedAttr>()) {
+    Diag(VDecl->getLocation(), diag::err_loader_uninitialized_cant_init);
+    VDecl->setInvalidDecl();
+    return;
+  }
+
   // Get the decls type and save a reference for later, since
   // CheckInitializerTypes may change it.
   QualType DclT = VDecl->getType(), SavT = DclT;
@@ -12357,6 +12360,22 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       return;
     }
 
+    if (!Var->isInvalidDecl() && RealDecl->hasAttr<LoaderUninitializedAttr>()) {
+      if (CXXRecordDecl *RD = Var->getType()->getAsCXXRecordDecl()) {
+        if (!RD->hasTrivialDefaultConstructor()) {
+          Diag(Var->getLocation(), diag::err_loader_uninitialized_trivial_ctor);
+          Var->setInvalidDecl();
+          return;
+        }
+      }
+      if (Var->getStorageClass() == SC_Extern) {
+        Diag(Var->getLocation(), diag::err_loader_uninitialized_extern_decl)
+            << Var;
+        Var->setInvalidDecl();
+        return;
+      }
+    }
+
     VarDecl::DefinitionKind DefKind = Var->isThisDeclarationADefinition();
     if (!Var->isInvalidDecl() && DefKind != VarDecl::DeclarationOnly &&
         Var->getType().hasNonTrivialToPrimitiveDefaultInitializeCUnion())
@@ -12414,9 +12433,9 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (!Var->isInvalidDecl()) {
         if (const IncompleteArrayType *ArrayT
                                     = Context.getAsIncompleteArrayType(Type)) {
-          if (RequireCompleteType(Var->getLocation(),
-                                  ArrayT->getElementType(),
-                                  diag::err_illegal_decl_array_incomplete_type))
+          if (RequireCompleteSizedType(
+                  Var->getLocation(), ArrayT->getElementType(),
+                  diag::err_array_incomplete_or_sizeless_type))
             Var->setInvalidDecl();
         } else if (Var->getStorageClass() == SC_Static) {
           // C99 6.9.2p3: If the declaration of an identifier for an object is
@@ -13748,13 +13767,12 @@ static void RebuildLambdaScopeInfo(CXXMethodDecl *CallOperator,
       VarDecl *VD = C.getCapturedVar();
       if (VD->isInitCapture())
         S.CurrentInstantiationScope->InstantiatedLocal(VD, VD);
-      QualType CaptureType = VD->getType();
       const bool ByRef = C.getCaptureKind() == LCK_ByRef;
       LSI->addCapture(VD, /*IsBlock*/false, ByRef,
           /*RefersToEnclosingVariableOrCapture*/true, C.getLocation(),
           /*EllipsisLoc*/C.isPackExpansion()
                          ? C.getEllipsisLoc() : SourceLocation(),
-          CaptureType, /*Invalid*/false);
+          I->getType(), /*Invalid*/false);
 
     } else if (C.capturesThis()) {
       LSI->addThisCapture(/*Nested*/ false, C.getLocation(), I->getType(),
@@ -16133,8 +16151,9 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
   // C99 6.7.2.1p4 - verify the field type.
   // C++ 9.6p3: A bit-field shall have integral or enumeration type.
   if (!FieldTy->isDependentType() && !FieldTy->isIntegralOrEnumerationType()) {
-    // Handle incomplete types with specific error.
-    if (RequireCompleteType(FieldLoc, FieldTy, diag::err_field_incomplete))
+    // Handle incomplete and sizeless types with a specific error.
+    if (RequireCompleteSizedType(FieldLoc, FieldTy,
+                                 diag::err_field_incomplete_or_sizeless))
       return ExprError();
     if (FieldName)
       return Diag(FieldLoc, diag::err_not_integral_type_bitfield)
@@ -16351,7 +16370,8 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
 
   QualType EltTy = Context.getBaseElementType(T);
   if (!EltTy->isDependentType()) {
-    if (RequireCompleteType(Loc, EltTy, diag::err_field_incomplete)) {
+    if (RequireCompleteSizedType(Loc, EltTy,
+                                 diag::err_field_incomplete_or_sizeless)) {
       // Fields of incomplete type force their record to be invalid.
       Record->setInvalidDecl();
       InvalidDecl = true;
@@ -16895,8 +16915,9 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
         // elsewhere, after synthesized ivars are known.
       }
     } else if (!FDTy->isDependentType() &&
-               RequireCompleteType(FD->getLocation(), FD->getType(),
-                                   diag::err_field_incomplete)) {
+               RequireCompleteSizedType(
+                   FD->getLocation(), FD->getType(),
+                   diag::err_field_incomplete_or_sizeless)) {
       // Incomplete type
       FD->setInvalidDecl();
       EnclosingDecl->setInvalidDecl();
@@ -16954,8 +16975,8 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
           Context, "", UnavailableAttr::IR_ARCFieldWithOwnership,
           FD->getLocation()));
     } else if (getLangOpts().ObjC &&
-               getLangOpts().getGC() != LangOptions::NonGC &&
-               Record && !Record->hasObjectMember()) {
+               getLangOpts().getGC() != LangOptions::NonGC && Record &&
+               !Record->hasObjectMember()) {
       if (FD->getType()->isObjCObjectPointerType() ||
           FD->getType().isObjCGCStrong())
         Record->setHasObjectMember(true);

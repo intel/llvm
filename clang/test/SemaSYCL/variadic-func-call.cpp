@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown -fsyntax-only -verify %s
 
 void variadic(int, ...) {}
 namespace NS {

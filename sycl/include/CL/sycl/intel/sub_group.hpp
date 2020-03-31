@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/intel/functional.hpp>
@@ -32,12 +33,6 @@ template <typename T, access::address_space Space> class multi_ptr;
 namespace detail {
 
 namespace sub_group {
-
-template <typename T> T broadcast(T x, id<1> local_id) {
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_GroupBroadcast(__spv::Scope::Subgroup, OCLT(x),
-                                local_id.get(0));
-}
 
 #define __SYCL_SG_GENERATE_BODY_1ARG(name, SPIRVOperation)                     \
   template <typename T> T name(T x, id<1> local_id) {                          \
@@ -130,52 +125,6 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
                                   bit_cast<VecT>(x));
 }
 
-struct GroupOpISigned {}; struct GroupOpIUnsigned {}; struct GroupOpFP {};
-
-template <typename T, typename = void> struct GroupOpTag;
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
-  using type = GroupOpISigned;
-};
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
-  using type = GroupOpIUnsigned;
-};
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
-  using type = GroupOpFP;
-};
-
-#define __SYCL_SG_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)     \
-  template <typename T, __spv::GroupOperation O>                               \
-  static T calc(GroupTag, T x, BinaryOperation op) {                           \
-    using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
-    OCLT Arg = x;                                                              \
-    OCLT Ret = __spirv_Group##SPIRVOperation(__spv::Scope::Subgroup, O, Arg);  \
-    return Ret;                                                                \
-  }
-
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
-
-#undef __SYCL_SG_CALC_OVERLOAD
-
-template <typename T, __spv::GroupOperation O,
-          template <typename> class BinaryOperation>
-static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
-  return calc<T, O>(typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
-}
-
 } // namespace sub_group
 
 } // namespace detail
@@ -183,6 +132,12 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 namespace intel {
 
 struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = 1;
+
   /* --- common interface members --- */
 
   id<1> get_local_id() const {
@@ -204,43 +159,52 @@ struct sub_group {
 
   /* --- vote / ballot functions --- */
 
+  __SYCL_DEPRECATED__("Use sycl::intel::any_of instead.")
   bool any(bool predicate) const {
     return __spirv_GroupAny(__spv::Scope::Subgroup, predicate);
   }
 
+  __SYCL_DEPRECATED__("Use sycl::intel::all_of instead.")
   bool all(bool predicate) const {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
 
   template <typename T>
-  using EnableIfIsScalarArithmetic = detail::enable_if_t<
-    !detail::is_vec<T>::value && detail::is_arithmetic<T>::value, T>;
+  using EnableIfIsScalarArithmetic =
+      detail::enable_if_t<detail::is_scalar_arithmetic<T>::value, T>;
 
   /* --- collectives --- */
 
   template <typename T>
+  __SYCL_DEPRECATED__("Use sycl::intel::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-    return detail::sub_group::broadcast(x, local_id);
+    return detail::spirv::GroupBroadcast<__spv::Scope::Subgroup>(x, local_id);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::Reduce>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return detail::calc<T, __spv::GroupOperation::Reduce,
+                        __spv::Scope::Subgroup>(
+        typename detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
     return op(init, reduce(x, op));
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::ExclusiveScan>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return detail::calc<T, __spv::GroupOperation::ExclusiveScan,
+                        __spv::Scope::Subgroup>(
+        typename detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
     if (get_local_id().get(0) == 0) {
@@ -254,14 +218,17 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::InclusiveScan>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return detail::calc<T, __spv::GroupOperation::InclusiveScan,
+                        __spv::Scope::Subgroup>(
+        typename detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_DEPRECATED__("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                         T init) const {
+                                               T init) const {
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
@@ -271,8 +238,7 @@ struct sub_group {
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
 
-  template <typename T>
-  T shuffle(T x, id<1> local_id) const {
+  template <typename T> T shuffle(T x, id<1> local_id) const {
     return detail::sub_group::shuffle(x, local_id);
   }
 
@@ -280,21 +246,18 @@ struct sub_group {
     return detail::sub_group::shuffle_down(x, x, delta);
   }
 
-  template <typename T>
-  T shuffle_up(T x, uint32_t delta) const {
+  template <typename T> T shuffle_up(T x, uint32_t delta) const {
     return detail::sub_group::shuffle_up(x, x, delta);
   }
 
-  template <typename T>
-  T shuffle_xor(T x, id<1> value) const {
+  template <typename T> T shuffle_xor(T x, id<1> value) const {
     return detail::sub_group::shuffle_xor(x, value);
   }
 
   /* --- two-input shuffles --- */
   /* indices in [0 , 2 * sub_group size) */
 
-  template <typename T>
-  T shuffle(T x, T y, id<1> local_id) const {
+  template <typename T> T shuffle(T x, T y, id<1> local_id) const {
     return detail::sub_group::shuffle_down(x, y,
                                            (local_id - get_local_id()).get(0));
   }

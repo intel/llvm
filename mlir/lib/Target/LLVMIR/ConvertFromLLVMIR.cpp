@@ -485,8 +485,7 @@ static const DenseMap<unsigned, StringRef> opcMap = {
     INST(Or, Or), INST(Xor, XOr), INST(Alloca, Alloca), INST(Load, Load),
     INST(Store, Store),
     // Getelementptr is handled specially.
-    INST(Ret, Return),
-    // FIXME: fence
+    INST(Ret, Return), INST(Fence, Fence),
     // FIXME: atomiccmpxchg
     // FIXME: atomicrmw
     INST(Trunc, Trunc), INST(ZExt, ZExt), INST(SExt, SExt),
@@ -537,6 +536,26 @@ static ICmpPredicate getICmpPredicate(llvm::CmpInst::Predicate p) {
     return LLVM::ICmpPredicate::uge;
   }
   llvm_unreachable("incorrect comparison predicate");
+}
+
+static AtomicOrdering getLLVMAtomicOrdering(llvm::AtomicOrdering ordering) {
+  switch (ordering) {
+  case llvm::AtomicOrdering::NotAtomic:
+    return LLVM::AtomicOrdering::not_atomic;
+  case llvm::AtomicOrdering::Unordered:
+    return LLVM::AtomicOrdering::unordered;
+  case llvm::AtomicOrdering::Monotonic:
+    return LLVM::AtomicOrdering::monotonic;
+  case llvm::AtomicOrdering::Acquire:
+    return LLVM::AtomicOrdering::acquire;
+  case llvm::AtomicOrdering::Release:
+    return LLVM::AtomicOrdering::release;
+  case llvm::AtomicOrdering::AcquireRelease:
+    return LLVM::AtomicOrdering::acq_rel;
+  case llvm::AtomicOrdering::SequentiallyConsistent:
+    return LLVM::AtomicOrdering::seq_cst;
+  }
+  llvm_unreachable("incorrect atomic ordering");
 }
 
 // `br` branches to `target`. Return the branch arguments to `br`, in the
@@ -634,21 +653,29 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     auto *brInst = cast<llvm::BranchInst>(inst);
     OperationState state(loc,
                          brInst->isConditional() ? "llvm.cond_br" : "llvm.br");
-    SmallVector<Value, 4> ops;
     if (brInst->isConditional()) {
       Value condition = processValue(brInst->getCondition());
       if (!condition)
         return failure();
-      ops.push_back(condition);
+      state.addOperands(condition);
     }
-    state.addOperands(ops);
-    SmallVector<Block *, 4> succs;
-    for (auto *succ : llvm::reverse(brInst->successors())) {
+
+    std::array<int32_t, 3> operandSegmentSizes = {1, 0, 0};
+    for (int i : llvm::seq<int>(0, brInst->getNumSuccessors())) {
+      auto *succ = brInst->getSuccessor(i);
       SmallVector<Value, 4> blockArguments;
       if (failed(processBranchArgs(brInst, succ, blockArguments)))
         return failure();
-      state.addSuccessor(blocks[succ], blockArguments);
+      state.addSuccessors(blocks[succ]);
+      state.addOperands(blockArguments);
+      operandSegmentSizes[i + 1] = blockArguments.size();
     }
+
+    if (brInst->isConditional()) {
+      state.addAttribute(LLVM::CondBrOp::getOperandSegmentSizeAttr(),
+                         b.getI32VectorAttr(operandSegmentSizes));
+    }
+
     b.createOperation(state);
     return success();
   }
@@ -733,6 +760,23 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     if (!ii->getType()->isVoidTy())
       v = op->getResult(0);
+    return success();
+  }
+  case llvm::Instruction::Fence: {
+    StringRef syncscope;
+    SmallVector<StringRef, 4> ssNs;
+    llvm::LLVMContext &llvmContext = dialect->getLLVMContext();
+    llvm::FenceInst *fence = cast<llvm::FenceInst>(inst);
+    llvmContext.getSyncScopeNames(ssNs);
+    int fenceSyncScopeID = fence->getSyncScopeID();
+    for (unsigned i = 0, e = ssNs.size(); i != e; i++) {
+      if (fenceSyncScopeID == llvmContext.getOrInsertSyncScopeID(ssNs[i])) {
+        syncscope = ssNs[i];
+        break;
+      }
+    }
+    b.create<FenceOp>(loc, getLLVMAtomicOrdering(fence->getOrdering()),
+                      syncscope);
     return success();
   }
   case llvm::Instruction::GetElementPtr: {

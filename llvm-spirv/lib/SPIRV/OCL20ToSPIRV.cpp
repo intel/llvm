@@ -1178,7 +1178,7 @@ void OCL20ToSPIRV::visitCallGetImageSize(CallInst *CI,
         if (DemangledName == kOCLBuiltinName::GetImageDim) {
           if (Desc.Dim == Dim3D) {
             auto ZeroVec = ConstantVector::getSplat(
-                3,
+                {3, false},
                 Constant::getNullValue(NCI->getType()->getVectorElementType()));
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
                                  getInt32(M, 3)};
@@ -1493,15 +1493,15 @@ void OCL20ToSPIRV::visitCallScalToVec(CallInst *CI, StringRef MangledName,
         for (auto I : VecPos) {
           Args[I] = CI->getOperand(I);
         }
-        auto VecArgWidth =
-            CI->getOperand(VecPos[0])->getType()->getVectorNumElements();
+        auto VecElemCount =
+            CI->getOperand(VecPos[0])->getType()->getVectorElementCount();
         for (auto I : ScalarPos) {
           Instruction *Inst = InsertElementInst::Create(
               UndefValue::get(CI->getOperand(VecPos[0])->getType()),
               CI->getOperand(I), getInt32(M, 0), "", CI);
           Value *NewVec = new ShuffleVectorInst(
               Inst, UndefValue::get(CI->getOperand(VecPos[0])->getType()),
-              ConstantVector::getSplat(VecArgWidth, getInt32(M, 0)), "", CI);
+              ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
 
           Args[I] = NewVec;
         }

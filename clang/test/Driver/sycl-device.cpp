@@ -6,4 +6,4 @@
 /// Check "-fsycl-is-device" is passed when compiling for device:
 // RUN:   %clang -### -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-DEV %s
-// CHECK-SYCL-DEV: "-fsycl-is-device"
+// CHECK-SYCL-DEV: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"

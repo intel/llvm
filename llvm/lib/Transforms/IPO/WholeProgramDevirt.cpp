@@ -91,6 +91,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/FunctionAttrs.h"
@@ -155,6 +156,29 @@ cl::opt<bool> DisableWholeProgramVisibility(
     "disable-whole-program-visibility", cl::init(false), cl::Hidden,
     cl::ZeroOrMore,
     cl::desc("Disable whole program visibility (overrides enabling options)"));
+
+/// Provide way to prevent certain function from being devirtualized
+cl::list<std::string>
+    SkipFunctionNames("wholeprogramdevirt-skip",
+                      cl::desc("Prevent function(s) from being devirtualized"),
+                      cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated);
+
+namespace {
+struct PatternList {
+  std::vector<GlobPattern> Patterns;
+  template <class T> void init(const T &StringList) {
+    for (const auto &S : StringList)
+      if (Expected<GlobPattern> Pat = GlobPattern::create(S))
+        Patterns.push_back(std::move(*Pat));
+  }
+  bool match(StringRef S) {
+    for (const GlobPattern &P : Patterns)
+      if (P.match(S))
+        return true;
+    return false;
+  }
+};
+} // namespace
 
 // Find the minimum offset that we may store a value of size Size bits at. If
 // IsAfter is set, look for an offset before the object, otherwise look for an
@@ -491,6 +515,7 @@ struct DevirtModule {
   // eliminate the type check by RAUWing the associated llvm.type.test call with
   // true.
   std::map<CallInst *, unsigned> NumUnsafeUsesForTypeTest;
+  PatternList FunctionsToSkip;
 
   DevirtModule(Module &M, function_ref<AAResults &(Function &)> AARGetter,
                function_ref<OptimizationRemarkEmitter &(Function *)> OREGetter,
@@ -506,13 +531,12 @@ struct DevirtModule {
         IntPtrTy(M.getDataLayout().getIntPtrType(M.getContext(), 0)),
         RemarksEnabled(areRemarksEnabled()), OREGetter(OREGetter) {
     assert(!(ExportSummary && ImportSummary));
+    FunctionsToSkip.init(SkipFunctionNames);
   }
 
   bool areRemarksEnabled();
 
-  void
-  scanTypeTestUsers(Function *TypeTestFunc,
-                    DenseMap<Metadata *, std::set<TypeMemberInfo>> &TypeIdMap);
+  void scanTypeTestUsers(Function *TypeTestFunc);
   void scanTypeCheckedLoadUsers(Function *TypeCheckedLoadFunc);
 
   void buildTypeIdentifierMap(
@@ -616,12 +640,16 @@ struct DevirtIndex {
 
   MapVector<VTableSlotSummary, VTableSlotInfo> CallSlots;
 
+  PatternList FunctionsToSkip;
+
   DevirtIndex(
       ModuleSummaryIndex &ExportSummary,
       std::set<GlobalValue::GUID> &ExportedGUIDs,
       std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap)
       : ExportSummary(ExportSummary), ExportedGUIDs(ExportedGUIDs),
-        LocalWPDTargetsMap(LocalWPDTargetsMap) {}
+        LocalWPDTargetsMap(LocalWPDTargetsMap) {
+    FunctionsToSkip.init(SkipFunctionNames);
+  }
 
   bool tryFindVirtualCallTargets(std::vector<ValueInfo> &TargetsForSlot,
                                  const TypeIdCompatibleVtableInfo TIdInfo,
@@ -928,6 +956,9 @@ bool DevirtModule::tryFindVirtualCallTargets(
     if (!Fn)
       return false;
 
+    if (FunctionsToSkip.match(Fn->getName()))
+      return false;
+
     // We can disregard __cxa_pure_virtual as a possible call target, as
     // calls to pure virtuals are UB.
     if (Fn->getName() == "__cxa_pure_virtual")
@@ -1105,6 +1136,11 @@ bool DevirtIndex::trySingleImplDevirt(MutableArrayRef<ValueInfo> TargetsForSlot,
   // Don't devirtualize if we don't have target definition.
   auto Size = TheFn.getSummaryList().size();
   if (!Size)
+    return false;
+
+  // Don't devirtualize function if we're told to skip it
+  // in -wholeprogramdevirt-skip.
+  if (FunctionsToSkip.match(TheFn.name()))
     return false;
 
   // If the summary list contains multiple summaries where at least one is
@@ -1668,9 +1704,7 @@ bool DevirtModule::areRemarksEnabled() {
   return false;
 }
 
-void DevirtModule::scanTypeTestUsers(
-    Function *TypeTestFunc,
-    DenseMap<Metadata *, std::set<TypeMemberInfo>> &TypeIdMap) {
+void DevirtModule::scanTypeTestUsers(Function *TypeTestFunc) {
   // Find all virtual calls via a virtual table pointer %p under an assumption
   // of the form llvm.assume(llvm.type.test(%p, %md)). This indicates that %p
   // points to a member of the type identifier %md. Group calls by (type ID,
@@ -1690,10 +1724,10 @@ void DevirtModule::scanTypeTestUsers(
     auto &DT = LookupDomTree(*CI->getFunction());
     findDevirtualizableCallsForTypeTest(DevirtCalls, Assumes, CI, DT);
 
-    Metadata *TypeId =
-        cast<MetadataAsValue>(CI->getArgOperand(1))->getMetadata();
     // If we found any, add them to CallSlots.
     if (!Assumes.empty()) {
+      Metadata *TypeId =
+          cast<MetadataAsValue>(CI->getArgOperand(1))->getMetadata();
       Value *Ptr = CI->getArgOperand(0)->stripPointerCasts();
       for (DevirtCallSite Call : DevirtCalls) {
         // Only add this CallSite if we haven't seen it before. The vtable
@@ -1705,13 +1739,6 @@ void DevirtModule::scanTypeTestUsers(
           CallSlots[{TypeId, Call.Offset}].addCallSite(Ptr, Call.CS, nullptr);
       }
     }
-
-    // If we have any uses on type metadata, keep the type test assumes for
-    // later analysis. Otherwise remove as they aren't useful, and
-    // LowerTypeTests will think they are Unsat and lower to False, which
-    // breaks any uses on assumes.
-    if (TypeIdMap.count(TypeId))
-      continue;
 
     // We no longer need the assumes or the type test.
     for (auto Assume : Assumes)
@@ -1911,13 +1938,8 @@ bool DevirtModule::run() {
       (!TypeCheckedLoadFunc || TypeCheckedLoadFunc->use_empty()))
     return false;
 
-  // Rebuild type metadata into a map for easy lookup.
-  std::vector<VTableBits> Bits;
-  DenseMap<Metadata *, std::set<TypeMemberInfo>> TypeIdMap;
-  buildTypeIdentifierMap(Bits, TypeIdMap);
-
   if (TypeTestFunc && AssumeFunc)
-    scanTypeTestUsers(TypeTestFunc, TypeIdMap);
+    scanTypeTestUsers(TypeTestFunc);
 
   if (TypeCheckedLoadFunc)
     scanTypeCheckedLoadUsers(TypeCheckedLoadFunc);
@@ -1939,6 +1961,10 @@ bool DevirtModule::run() {
     return true;
   }
 
+  // Rebuild type metadata into a map for easy lookup.
+  std::vector<VTableBits> Bits;
+  DenseMap<Metadata *, std::set<TypeMemberInfo>> TypeIdMap;
+  buildTypeIdentifierMap(Bits, TypeIdMap);
   if (TypeIdMap.empty())
     return true;
 
@@ -1995,18 +2021,14 @@ bool DevirtModule::run() {
     // function implementation at offset S.first.ByteOffset, and add to
     // TargetsForSlot.
     std::vector<VirtualCallTarget> TargetsForSlot;
-    WholeProgramDevirtResolution *Res = nullptr;
-    if (ExportSummary && isa<MDString>(S.first.TypeID) &&
-        TypeIdMap.count(S.first.TypeID))
-      // For any type id used on a global's type metadata, create the type id
-      // summary resolution regardless of whether we can devirtualize, so that
-      // lower type tests knows the type id is not Unsat.
-      Res = &ExportSummary
-                 ->getOrInsertTypeIdSummary(
-                     cast<MDString>(S.first.TypeID)->getString())
-                 .WPDRes[S.first.ByteOffset];
     if (tryFindVirtualCallTargets(TargetsForSlot, TypeIdMap[S.first.TypeID],
                                   S.first.ByteOffset)) {
+      WholeProgramDevirtResolution *Res = nullptr;
+      if (ExportSummary && isa<MDString>(S.first.TypeID))
+        Res = &ExportSummary
+                   ->getOrInsertTypeIdSummary(
+                       cast<MDString>(S.first.TypeID)->getString())
+                   .WPDRes[S.first.ByteOffset];
 
       if (!trySingleImplDevirt(ExportSummary, TargetsForSlot, S.second, Res)) {
         DidVirtualConstProp |=
@@ -2120,14 +2142,11 @@ void DevirtIndex::run() {
     std::vector<ValueInfo> TargetsForSlot;
     auto TidSummary = ExportSummary.getTypeIdCompatibleVtableSummary(S.first.TypeID);
     assert(TidSummary);
-    // Create the type id summary resolution regardlness of whether we can
-    // devirtualize, so that lower type tests knows the type id is used on
-    // a global and not Unsat.
-    WholeProgramDevirtResolution *Res =
-        &ExportSummary.getOrInsertTypeIdSummary(S.first.TypeID)
-             .WPDRes[S.first.ByteOffset];
     if (tryFindVirtualCallTargets(TargetsForSlot, *TidSummary,
                                   S.first.ByteOffset)) {
+      WholeProgramDevirtResolution *Res =
+          &ExportSummary.getOrInsertTypeIdSummary(S.first.TypeID)
+               .WPDRes[S.first.ByteOffset];
 
       if (!trySingleImplDevirt(TargetsForSlot, S.first, S.second, Res,
                                DevirtTargets))

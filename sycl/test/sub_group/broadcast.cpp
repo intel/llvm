@@ -15,9 +15,11 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T> class sycl_subgr;
+template <typename T>
+class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue) {
+template <typename T>
+void check(queue &Queue) {
   const int G = 240, L = 60;
   try {
     nd_range<1> NdRange(G, L);
@@ -30,7 +32,7 @@ template <typename T> void check(queue &Queue) {
         intel::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID */
         syclacc[NdItem.get_global_id()] =
-            SG.broadcast<T>(NdItem.get_global_id(0), SG.get_group_id());
+            broadcast(SG, T(NdItem.get_global_id(0)), SG.get_group_id());
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });

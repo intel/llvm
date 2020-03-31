@@ -612,15 +612,9 @@ static Value *getShiftedValue(Value *V, unsigned NumBits, bool isLeftShift,
   // We can always evaluate constants shifted.
   if (Constant *C = dyn_cast<Constant>(V)) {
     if (isLeftShift)
-      V = IC.Builder.CreateShl(C, NumBits);
+      return IC.Builder.CreateShl(C, NumBits);
     else
-      V = IC.Builder.CreateLShr(C, NumBits);
-    // If we got a constantexpr back, try to simplify it with TD info.
-    if (auto *C = dyn_cast<Constant>(V))
-      if (auto *FoldedC =
-              ConstantFoldConstant(C, DL, &IC.getTargetLibraryInfo()))
-        V = FoldedC;
-    return V;
+      return IC.Builder.CreateLShr(C, NumBits);
   }
 
   Instruction *I = cast<Instruction>(V);
@@ -780,7 +774,7 @@ Instruction *InstCombiner::FoldShiftByConstant(Value *Op0, Constant *Op1,
           APInt Bits = APInt::getHighBitsSet(TypeBits, TypeBits - Op1Val);
           Constant *Mask = ConstantInt::get(I.getContext(), Bits);
           if (VectorType *VT = dyn_cast<VectorType>(X->getType()))
-            Mask = ConstantVector::getSplat(VT->getNumElements(), Mask);
+            Mask = ConstantVector::getSplat(VT->getElementCount(), Mask);
           return BinaryOperator::CreateAnd(X, Mask);
         }
 
@@ -815,7 +809,7 @@ Instruction *InstCombiner::FoldShiftByConstant(Value *Op0, Constant *Op1,
           APInt Bits = APInt::getHighBitsSet(TypeBits, TypeBits - Op1Val);
           Constant *Mask = ConstantInt::get(I.getContext(), Bits);
           if (VectorType *VT = dyn_cast<VectorType>(X->getType()))
-            Mask = ConstantVector::getSplat(VT->getNumElements(), Mask);
+            Mask = ConstantVector::getSplat(VT->getElementCount(), Mask);
           return BinaryOperator::CreateAnd(X, Mask);
         }
 

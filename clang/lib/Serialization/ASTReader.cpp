@@ -4502,7 +4502,7 @@ ASTReader::ReadASTCore(StringRef FileName,
     if (ShouldFinalizePCM)
       MC.finalizePCM(FileName);
     else
-      MC.tryToRemovePCM(FileName);
+      MC.tryToDropPCM(FileName);
   });
   ModuleFile &F = *M;
   BitstreamCursor &Stream = F.Stream;
@@ -8491,10 +8491,10 @@ unsigned ASTReader::getModuleFileID(ModuleFile *F) {
   return (I - PCHModules.end()) << 1;
 }
 
-llvm::Optional<ExternalASTSource::ASTSourceDescriptor>
+llvm::Optional<ASTSourceDescriptor>
 ASTReader::getSourceDescriptor(unsigned ID) {
   if (const Module *M = getSubmodule(ID))
-    return ExternalASTSource::ASTSourceDescriptor(*M);
+    return ASTSourceDescriptor(*M);
 
   // If there is only a single PCH, return it instead.
   // Chained PCH are not supported.
@@ -8503,8 +8503,8 @@ ASTReader::getSourceDescriptor(unsigned ID) {
     ModuleFile &MF = ModuleMgr.getPrimaryModule();
     StringRef ModuleName = llvm::sys::path::filename(MF.OriginalSourceFileName);
     StringRef FileName = llvm::sys::path::filename(MF.FileName);
-    return ASTReader::ASTSourceDescriptor(ModuleName, MF.OriginalDir, FileName,
-                                          MF.Signature);
+    return ASTSourceDescriptor(ModuleName, MF.OriginalDir, FileName,
+                               MF.Signature);
   }
   return None;
 }
@@ -11657,7 +11657,7 @@ OMPClause *OMPClauseReader::readClause() {
     C = new (Context) OMPWriteClause();
     break;
   case OMPC_update:
-    C = new (Context) OMPUpdateClause();
+    C = OMPUpdateClause::CreateEmpty(Context, Record.readInt());
     break;
   case OMPC_capture:
     C = new (Context) OMPCaptureClause();
@@ -11736,6 +11736,9 @@ OMPClause *OMPClauseReader::readClause() {
     break;
   case OMPC_flush:
     C = OMPFlushClause::CreateEmpty(Context, Record.readInt());
+    break;
+  case OMPC_depobj:
+    C = OMPDepobjClause::CreateEmpty(Context);
     break;
   case OMPC_depend: {
     unsigned NumVars = Record.readInt();
@@ -11823,6 +11826,12 @@ OMPClause *OMPClauseReader::readClause() {
     break;
   case OMPC_order:
     C = new (Context) OMPOrderClause();
+    break;
+  case OMPC_destroy:
+    C = new (Context) OMPDestroyClause();
+    break;
+  case OMPC_detach:
+    C = new (Context) OMPDetachClause();
     break;
   }
   assert(C && "Unknown OMPClause type");
@@ -11922,6 +11931,11 @@ void OMPClauseReader::VisitOMPOrderedClause(OMPOrderedClause *C) {
   C->setLParenLoc(Record.readSourceLocation());
 }
 
+void OMPClauseReader::VisitOMPDetachClause(OMPDetachClause *C) {
+  C->setEventHandler(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
+}
+
 void OMPClauseReader::VisitOMPNowaitClause(OMPNowaitClause *) {}
 
 void OMPClauseReader::VisitOMPUntiedClause(OMPUntiedClause *) {}
@@ -11932,7 +11946,13 @@ void OMPClauseReader::VisitOMPReadClause(OMPReadClause *) {}
 
 void OMPClauseReader::VisitOMPWriteClause(OMPWriteClause *) {}
 
-void OMPClauseReader::VisitOMPUpdateClause(OMPUpdateClause *) {}
+void OMPClauseReader::VisitOMPUpdateClause(OMPUpdateClause *C) {
+  if (C->isExtended()) {
+    C->setLParenLoc(Record.readSourceLocation());
+    C->setArgumentLoc(Record.readSourceLocation());
+    C->setDependencyKind(Record.readEnum<OpenMPDependClauseKind>());
+  }
+}
 
 void OMPClauseReader::VisitOMPCaptureClause(OMPCaptureClause *) {}
 
@@ -11951,6 +11971,8 @@ void OMPClauseReader::VisitOMPThreadsClause(OMPThreadsClause *) {}
 void OMPClauseReader::VisitOMPSIMDClause(OMPSIMDClause *) {}
 
 void OMPClauseReader::VisitOMPNogroupClause(OMPNogroupClause *) {}
+
+void OMPClauseReader::VisitOMPDestroyClause(OMPDestroyClause *) {}
 
 void OMPClauseReader::VisitOMPUnifiedAddressClause(OMPUnifiedAddressClause *) {}
 
@@ -12249,6 +12271,11 @@ void OMPClauseReader::VisitOMPFlushClause(OMPFlushClause *C) {
   C->setVarRefs(Vars);
 }
 
+void OMPClauseReader::VisitOMPDepobjClause(OMPDepobjClause *C) {
+  C->setDepobj(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
+}
+
 void OMPClauseReader::VisitOMPDependClause(OMPDependClause *C) {
   C->setLParenLoc(Record.readSourceLocation());
   C->setDependencyKind(
@@ -12267,7 +12294,9 @@ void OMPClauseReader::VisitOMPDependClause(OMPDependClause *C) {
 
 void OMPClauseReader::VisitOMPDeviceClause(OMPDeviceClause *C) {
   VisitOMPClauseWithPreInit(C);
+  C->setModifier(Record.readEnum<OpenMPDeviceClauseModifier>());
   C->setDevice(Record.readSubExpr());
+  C->setModifierLoc(Record.readSourceLocation());
   C->setLParenLoc(Record.readSourceLocation());
 }
 

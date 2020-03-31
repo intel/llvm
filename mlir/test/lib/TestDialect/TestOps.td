@@ -11,20 +11,35 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
-include "mlir/Analysis/CallInterfaces.td"
-include "mlir/Analysis/InferTypeOpInterface.td"
+include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/SideEffects.td"
 
-def TEST_Dialect : Dialect {
+def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "";
+  let hasOperationAttrVerify = 1;
+  let hasRegionArgAttrVerify = 1;
+  let hasRegionResultAttrVerify = 1;
 }
 
 class TEST_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<TEST_Dialect, mnemonic, traits>;
+    Op<Test_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
 // Test Types
 //===----------------------------------------------------------------------===//
+
+def IntTypesOp : TEST_Op<"int_types"> {
+  let results = (outs
+    AnyI16:$any_i16,
+    SI32:$si32,
+    UI64:$ui64,
+    AnyInteger:$any_int
+  );
+}
 
 def ComplexF64 : Complex<F64>;
 def ComplexOp : TEST_Op<"complex_f64"> {
@@ -127,15 +142,15 @@ def MixedNormalVariadicResults : TEST_Op<
 
 def NonNegIntAttrOp : TEST_Op<"non_negative_int_attr"> {
   let arguments = (ins
-      NonNegativeI32Attr:$i32attr,
-      NonNegativeI64Attr:$i64attr
+      Confined<I32Attr, [IntNonNegative]>:$i32attr,
+      Confined<I64Attr, [IntNonNegative]>:$i64attr
   );
 }
 
 def PositiveIntAttrOp : TEST_Op<"positive_int_attr"> {
   let arguments = (ins
-      PositiveI32Attr:$i32attr,
-      PositiveI64Attr:$i64attr
+      Confined<I32Attr, [IntPositive]>:$i32attr,
+      Confined<I64Attr, [IntPositive]>:$i64attr
   );
 }
 
@@ -187,6 +202,15 @@ def I64EnumAttrOp : TEST_Op<"i64_enum_attr"> {
   let results = (outs I32:$val);
 }
 
+
+def IntAttrOp : TEST_Op<"int_attrs"> {
+  let arguments = (ins
+    AnyI32Attr:$any_i32_attr,
+    UI32Attr:$ui32_attr,
+    SI32Attr:$si32_attr
+  );
+}
+
 def FloatElementsAttrOp : TEST_Op<"float_elements_attr"> {
   let arguments = (ins
       RankedF32ElementsAttr<[2]>:$scalar_f32_attr,
@@ -205,6 +229,13 @@ def UpdateFloatElementsAttr : Pat<
     $f64attr)>;
 
 def IntElementsAttrOp : TEST_Op<"int_elements_attr"> {
+  let arguments = (ins
+      AnyI32ElementsAttr:$any_i32_attr,
+      I32ElementsAttr:$i32_attr
+  );
+}
+
+def RankedIntElementsAttrOp : TEST_Op<"ranked_int_elements_attr"> {
   let arguments = (ins
       RankedI32ElementsAttr<[2]>:$vector_i32_attr,
       RankedI64ElementsAttr<[4, 8]>:$matrix_i64_attr
@@ -422,6 +453,11 @@ def OpWithShapedTypeInferTypeInterfaceOp : TEST_Op<"op_with_shaped_type_infer_ty
    ]> {
   let arguments = (ins AnyTensor, AnyTensor);
   let results = (outs AnyTensor);
+
+  let extraClassDeclaration = [{
+    LogicalResult reifyReturnTypeShapes(OpBuilder &builder,
+                                        SmallVectorImpl<Value> &shapes);
+  }];
 }
 
 def IsNotScalar : Constraint<CPred<"$0.getType().getRank() != 0">>;
@@ -430,7 +466,9 @@ def UpdateAttr : Pat<(I32ElementsAttrOp $attr),
                      (I32ElementsAttrOp ConstantAttr<I32ElementsAttr, "0">),
                      [(IsNotScalar $attr)]>;
 
-def TestBranchOp : TEST_Op<"br", [Terminator]> {
+def TestBranchOp : TEST_Op<"br",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
+  let arguments = (ins Variadic<AnyType>:$targetOperands);
   let successors = (successor AnySuccessor:$target);
 }
 
@@ -1142,6 +1180,15 @@ def FormatOperandEOp : FormatOperandBase<"format_operand_e_op", [{
 def FormatSuccessorAOp : TEST_Op<"format_successor_a_op", [Terminator]> {
   let successors = (successor VariadicSuccessor<AnySuccessor>:$targets);
   let assemblyFormat = "$targets attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// Test SideEffects
+//===----------------------------------------------------------------------===//
+
+def SideEffectOp : TEST_Op<"side_effect_op",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let results = (outs AnyType:$result);
 }
 
 #endif // TEST_OPS

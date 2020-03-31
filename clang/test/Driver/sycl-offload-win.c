@@ -6,8 +6,10 @@
 // REQUIRES: x86-registered-target
 
 /// Test behaviors of -foffload-static-lib=<lib> with single object.
-// RUN: touch %t.lib
-// RUN: touch %t.obj
+// Build the offload library that is used for the tests.
+// RUN: echo "void foo() {}" > %t.c
+// RUN: %clang_cl -fsycl -c -Fo%t.obj %t.c
+// RUN: llvm-ar cr %t.lib %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB=%t.lib %s -check-prefixes=FOFFLOAD_STATIC_LIB,FOFFLOAD_STATIC_LIB_DEFAULT
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
@@ -40,8 +42,8 @@
 /// ###########################################################################
 
 /// Test behaviors with multiple -foffload-static-lib=<lib> options.
-// RUN: touch %t1.lib
-// RUN: touch %t2.lib
+// RUN: cp %t.lib %t1.lib
+// RUN: cp %t.lib %t2.lib
 // RUN: touch %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t1.lib -foffload-static-lib=%t2.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB1=%t1.lib -DLIB2=%t2.lib %s -check-prefixes=FOFFLOAD_STATIC_MULTI_LIB,FOFFLOAD_STATIC_MULTI_LIB_DEFAULT
@@ -79,9 +81,12 @@
 // FOFFLOAD_STATIC_LIB_SRC: 12: input, "[[INPUTLIB]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, archive
 // FOFFLOAD_STATIC_LIB_SRC: 14: linker, {11, 13}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 15: llvm-spirv, {14}, spirv, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-wrapper, {15}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice{{(-coff)?}})" {16}, image
+// FOFFLOAD_STATIC_LIB_SRC: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice{{(-coff)?}})" {19}, image
 
 /// ###########################################################################
 

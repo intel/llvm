@@ -13,8 +13,10 @@
 #define __SPIRV_INT64_BASE
 
 // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-_CLC_DECL float _Z22__spirv_AtomicExchangePU3AS3fN5__spv5ScopeENS1_19MemorySemanticsMaskEf(
+_CLC_DECL float
+_Z22__spirv_AtomicExchangePU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     volatile local float *, enum Scope, enum MemorySemanticsMask, float);
-_CLC_DECL float _Z22__spirv_AtomicExchangePU3AS1fN5__spv5ScopeENS1_19MemorySemanticsMaskEf(
+_CLC_DECL float
+_Z22__spirv_AtomicExchangePU3AS1fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     volatile global float *, enum Scope, enum MemorySemanticsMask, float);
 #include <spirv/atomic/atomic_decl.inc>

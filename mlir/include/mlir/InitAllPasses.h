@@ -26,9 +26,10 @@
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRVPass.h"
 #include "mlir/Dialect/FxpMathOps/Passes.h"
 #include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/LoopOps/Passes.h"
-#include "mlir/Dialect/QuantOps/Passes.h"
+#include "mlir/Dialect/Quant/Passes.h"
 #include "mlir/Dialect/SPIRV/Passes.h"
 #include "mlir/Quantizer/Transforms/Passes.h"
 #include "mlir/Transforms/LocationSnapshot.h"
@@ -107,6 +108,9 @@ inline void registerAllPasses() {
   createConvertLinalgToAffineLoopsPass();
   createConvertLinalgToLLVMPass();
 
+  // LLVM
+  LLVM::createLegalizeForExportPass();
+
   // LoopOps
   createParallelLoopFusionPass();
   createParallelLoopSpecializationPass();
@@ -122,13 +126,15 @@ inline void registerAllPasses() {
   // SPIR-V
   spirv::createDecorateSPIRVCompositeTypeLayoutPass();
   spirv::createLowerABIAttributesPass();
+  spirv::createUpdateVersionCapabilityExtensionPass();
   createConvertGPUToSPIRVPass();
   createConvertStandardToSPIRVPass();
   createLegalizeStdOpsForSPIRVLoweringPass();
   createLinalgToSPIRVPass();
 
   // Vulkan
-  createConvertGpuLaunchFuncToVulkanCallsPass();
+  createConvertGpuLaunchFuncToVulkanLaunchFuncPass();
+  createConvertVulkanLaunchFuncToVulkanCallsPass();
 }
 
 } // namespace mlir

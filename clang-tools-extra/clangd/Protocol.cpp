@@ -90,6 +90,19 @@ bool fromJSON(const llvm::json::Value &Params, TextDocumentIdentifier &R) {
   return O && O.map("uri", R.uri);
 }
 
+llvm::json::Value toJSON(const VersionedTextDocumentIdentifier &R) {
+  auto Result = toJSON(static_cast<const TextDocumentIdentifier &>(R));
+  Result.getAsObject()->try_emplace("version", R.version);
+  return Result;
+}
+
+bool fromJSON(const llvm::json::Value &Params,
+              VersionedTextDocumentIdentifier &R) {
+  llvm::json::ObjectMapper O(Params);
+  return fromJSON(Params, static_cast<TextDocumentIdentifier &>(R)) && O &&
+         O.map("version", R.version);
+}
+
 bool fromJSON(const llvm::json::Value &Params, Position &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("line", R.line) && O.map("character", R.character);
@@ -394,7 +407,9 @@ llvm::json::Value toJSON(const WorkDoneProgressBegin &P) {
     Result["cancellable"] = true;
   if (P.percentage)
     Result["percentage"] = 0;
-  return Result;
+
+  // FIXME: workaround for older gcc/clang
+  return std::move(Result);
 }
 
 llvm::json::Value toJSON(const WorkDoneProgressReport &P) {
@@ -405,14 +420,16 @@ llvm::json::Value toJSON(const WorkDoneProgressReport &P) {
     Result["message"] = *P.message;
   if (P.percentage)
     Result["percentage"] = *P.percentage;
-  return Result;
+  // FIXME: workaround for older gcc/clang
+  return std::move(Result);
 }
 
 llvm::json::Value toJSON(const WorkDoneProgressEnd &P) {
   llvm::json::Object Result{{"kind", "end"}};
   if (P.message)
     Result["message"] = *P.message;
-  return Result;
+  // FIXME: workaround for older gcc/clang
+  return std::move(Result);
 }
 
 llvm::json::Value toJSON(const MessageType &R) {
@@ -517,6 +534,7 @@ llvm::json::Value toJSON(const Diagnostic &D) {
     Diag["source"] = D.source;
   if (D.relatedInformation)
     Diag["relatedInformation"] = *D.relatedInformation;
+  // FIXME: workaround for older gcc/clang
   return std::move(Diag);
 }
 
@@ -529,6 +547,14 @@ bool fromJSON(const llvm::json::Value &Params, Diagnostic &R) {
   O.map("code", R.code);
   O.map("source", R.source);
   return true;
+}
+
+llvm::json::Value toJSON(const PublishDiagnosticsParams &PDP) {
+  return llvm::json::Object{
+      {"uri", PDP.uri},
+      {"diagnostics", PDP.diagnostics},
+      {"version", PDP.version},
+  };
 }
 
 bool fromJSON(const llvm::json::Value &Params, CodeActionContext &R) {
@@ -627,8 +653,8 @@ llvm::json::Value toJSON(const SymbolDetails &P) {
   if (P.ID.hasValue())
     Result["id"] = P.ID.getValue().str();
 
-  // Older clang cannot compile 'return Result', even though it is legal.
-  return llvm::json::Value(std::move(Result));
+  // FIXME: workaround for older gcc/clang
+  return std::move(Result);
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O, const SymbolDetails &S) {
@@ -690,8 +716,8 @@ llvm::json::Value toJSON(const DocumentSymbol &S) {
     Result["children"] = S.children;
   if (S.deprecated)
     Result["deprecated"] = true;
-  // Older gcc cannot compile 'return Result', even though it is legal.
-  return llvm::json::Value(std::move(Result));
+  // FIXME: workaround for older gcc/clang
+  return std::move(Result);
 }
 
 llvm::json::Value toJSON(const WorkspaceEdit &WE) {

@@ -33,10 +33,12 @@ namespace llvm {
       /// Bit scan reverse.
       BSR,
 
-      /// Double shift instructions. These correspond to
-      /// X86::SHLDxx and X86::SHRDxx instructions.
-      SHLD,
-      SHRD,
+      /// X86 funnel/double shift i16 instructions. These correspond to
+      /// X86::SHLDW and X86::SHRDW instructions which have different amt
+      /// modulo rules to generic funnel shifts.
+      /// NOTE: The operand order matches ISD::FSHL/FSHR not SHLD/SHRD.
+      FSHL,
+      FSHR,
 
       /// Bitwise logical AND of floating point values. This corresponds
       /// to X86::ANDPS or X86::ANDPD.
@@ -720,7 +722,10 @@ namespace llvm {
 
     /// If Op is a constant whose elements are all the same constant or
     /// undefined, return true and return the constant value in \p SplatVal.
-    bool isConstantSplat(SDValue Op, APInt &SplatVal);
+    /// If we have undef bits that don't cover an entire element, we treat these
+    /// as zero if AllowPartialUndefs is set, else we fail and return false.
+    bool isConstantSplat(SDValue Op, APInt &SplatVal,
+                         bool AllowPartialUndefs = true);
   } // end namespace X86
 
   //===--------------------------------------------------------------------===//

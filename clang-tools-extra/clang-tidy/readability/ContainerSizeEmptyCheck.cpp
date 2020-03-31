@@ -26,11 +26,6 @@ ContainerSizeEmptyCheck::ContainerSizeEmptyCheck(StringRef Name,
     : ClangTidyCheck(Name, Context) {}
 
 void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto ValidContainer = qualType(hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(cxxRecordDecl(isSameOrDerivedFrom(
           namedDecl(
@@ -46,7 +41,7 @@ void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
 
   const auto WrongUse = anyOf(
       hasParent(binaryOperator(
-                    matchers::isComparisonOperator(),
+                    isComparisonOperator(),
                     hasEitherOperand(ignoringImpCasts(anyOf(
                         integerLiteral(equals(1)), integerLiteral(equals(0))))))
                     .bind("SizeBinaryOp")),
@@ -90,8 +85,7 @@ void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
             expr(hasType(ValidContainer)).bind("STLObject"));
   Finder->addMatcher(
       cxxOperatorCallExpr(
-          anyOf(hasOverloadedOperatorName("=="),
-                hasOverloadedOperatorName("!=")),
+          hasAnyOverloadedOperatorName("==", "!="),
           anyOf(allOf(hasArgument(0, WrongComparend), hasArgument(1, STLArg)),
                 allOf(hasArgument(0, STLArg), hasArgument(1, WrongComparend))),
           unless(hasAncestor(

@@ -682,7 +682,9 @@ void AsmPrinter::emitFunctionHeader() {
   emitConstantPool();
 
   // Print the 'header' of function.
-  OutStreamer->SwitchSection(getObjFileLowering().SectionForGlobal(&F, TM));
+  MF->setSection(getObjFileLowering().SectionForGlobal(&F, TM));
+  OutStreamer->SwitchSection(MF->getSection());
+
   emitVisibility(CurrentFnSym, F.getVisibility());
 
   if (MAI->needsFunctionDescriptors() &&
@@ -1095,6 +1097,15 @@ void AsmPrinter::emitFunctionBody() {
   // Print out code for the function.
   bool HasAnyRealCode = false;
   int NumInstsInFunction = 0;
+  bool emitBBSections = MF->hasBBSections();
+  MachineBasicBlock *EndOfRegularSectionMBB = nullptr;
+  if (emitBBSections) {
+    EndOfRegularSectionMBB =
+        const_cast<MachineBasicBlock *>(MF->front().getSectionEndMBB());
+    assert(EndOfRegularSectionMBB->isEndSection() &&
+           "The MBB at the end of the regular section must end a section");
+  }
+
   for (auto &MBB : *MF) {
     // Print a label for the basic block.
     emitBasicBlockStart(MBB);
@@ -1174,7 +1185,18 @@ void AsmPrinter::emitFunctionBody() {
         }
       }
     }
-
+    if (&MBB != EndOfRegularSectionMBB &&
+        (MF->hasBBLabels() || MBB.isEndSection())) {
+      // Emit size directive for the size of this basic block.  Create a symbol
+      // for the end of the basic block.
+      MCSymbol *CurrentBBEnd = OutContext.createTempSymbol();
+      const MCExpr *SizeExp = MCBinaryExpr::createSub(
+          MCSymbolRefExpr::create(CurrentBBEnd, OutContext),
+          MCSymbolRefExpr::create(MBB.getSymbol(), OutContext), OutContext);
+      OutStreamer->emitLabel(CurrentBBEnd);
+      MBB.setEndMCSymbol(CurrentBBEnd);
+      OutStreamer->emitELFSize(MBB.getSymbol(), SizeExp);
+    }
     emitBasicBlockEnd(MBB);
   }
 
@@ -1208,6 +1230,10 @@ void AsmPrinter::emitFunctionBody() {
     }
   }
 
+  // Switch to the original section if basic block sections was used.
+  if (emitBBSections)
+    OutStreamer->SwitchSection(MF->getSection());
+
   const Function &F = MF->getFunction();
   for (const auto &BB : F) {
     if (!BB.hasAddressTaken())
@@ -1223,7 +1249,7 @@ void AsmPrinter::emitFunctionBody() {
   emitFunctionBodyEnd();
 
   if (needFuncLabelsForEHOrDebugInfo(*MF, MMI) ||
-      MAI->hasDotTypeDotSizeDirective()) {
+      MAI->hasDotTypeDotSizeDirective() || emitBBSections) {
     // Create a symbol for the end of function.
     CurrentFnEnd = createTempSymbol("func_end");
     OutStreamer->emitLabel(CurrentFnEnd);
@@ -1245,6 +1271,9 @@ void AsmPrinter::emitFunctionBody() {
                        HI.TimerGroupDescription, TimePassesIsEnabled);
     HI.Handler->markFunctionEnd();
   }
+
+  if (emitBBSections)
+    EndOfRegularSectionMBB->setEndMCSymbol(CurrentFnEnd);
 
   // Print out jump tables referenced by the function.
   emitJumpTableInfo();
@@ -2249,23 +2278,22 @@ const MCExpr *AsmPrinter::lowerConstant(const Constant *CV) {
   }
 
   switch (CE->getOpcode()) {
-  default:
+  default: {
     // If the code isn't optimized, there may be outstanding folding
     // opportunities. Attempt to fold the expression using DataLayout as a
     // last resort before giving up.
-    if (Constant *C = ConstantFoldConstant(CE, getDataLayout()))
-      if (C != CE)
-        return lowerConstant(C);
+    Constant *C = ConstantFoldConstant(CE, getDataLayout());
+    if (C != CE)
+      return lowerConstant(C);
 
     // Otherwise report the problem to the user.
-    {
-      std::string S;
-      raw_string_ostream OS(S);
-      OS << "Unsupported expression in static initializer: ";
-      CE->printAsOperand(OS, /*PrintType=*/false,
-                     !MF ? nullptr : MF->getFunction().getParent());
-      report_fatal_error(OS.str());
-    }
+    std::string S;
+    raw_string_ostream OS(S);
+    OS << "Unsupported expression in static initializer: ";
+    CE->printAsOperand(OS, /*PrintType=*/false,
+                   !MF ? nullptr : MF->getFunction().getParent());
+    report_fatal_error(OS.str());
+  }
   case Instruction::GetElementPtr: {
     // Generate a symbolic expression for the byte address
     APInt OffsetAI(getDataLayout().getPointerTypeSizeInBits(CE->getType()), 0);
@@ -2790,7 +2818,7 @@ static void emitGlobalConstantImpl(const DataLayout &DL, const Constant *CV,
       // to emit the value in chunks. Try to constant fold the value and emit it
       // that way.
       Constant *New = ConstantFoldConstant(CE, DL);
-      if (New && New != CE)
+      if (New != CE)
         return emitGlobalConstantImpl(DL, New, AP);
     }
   }
@@ -2974,10 +3002,11 @@ static void emitBasicBlockLoopComments(const MachineBasicBlock &MBB,
   PrintChildLoopComment(OS, Loop, AP.getFunctionNumber());
 }
 
-/// EmitBasicBlockStart - This method prints the label for the specified
+/// emitBasicBlockStart - This method prints the label for the specified
 /// MachineBasicBlock, an alignment (if present) and a comment describing
 /// it if appropriate.
 void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
+  bool BBSections = MF->hasBBSections();
   // End the previous funclet and start a new one.
   if (MBB.isEHFuncletEntry()) {
     for (const HandlerInfo &HI : Handlers) {
@@ -2987,9 +3016,11 @@ void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
   }
 
   // Emit an alignment directive for this block, if needed.
-  const Align Alignment = MBB.getAlignment();
-  if (Alignment != Align(1))
-    emitAlignment(Alignment);
+  if (MBB.pred_empty() || !BBSections) {
+    const Align Alignment = MBB.getAlignment();
+    if (Alignment != Align(1))
+      emitAlignment(Alignment);
+  }
 
   // If the block has its address taken, emit any labels that were used to
   // reference the block.  It is possible that there is more than one label
@@ -3021,18 +3052,37 @@ void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
     emitBasicBlockLoopComments(MBB, MLI, *this);
   }
 
-  // Print the main label for the block.
+  bool emitBBLabels = BBSections || MF->hasBBLabels();
   if (MBB.pred_empty() ||
-      (isBlockOnlyReachableByFallthrough(&MBB) && !MBB.isEHFuncletEntry() &&
-       !MBB.hasLabelMustBeEmitted())) {
+      (!emitBBLabels && isBlockOnlyReachableByFallthrough(&MBB) &&
+       !MBB.isEHFuncletEntry() && !MBB.hasLabelMustBeEmitted())) {
     if (isVerbose()) {
       // NOTE: Want this comment at start of line, don't emit with AddComment.
       OutStreamer->emitRawComment(" %bb." + Twine(MBB.getNumber()) + ":",
                                   false);
     }
   } else {
-    if (isVerbose() && MBB.hasLabelMustBeEmitted())
+    if (isVerbose() && MBB.hasLabelMustBeEmitted()) {
       OutStreamer->AddComment("Label of block must be emitted");
+    }
+    // With -fbasicblock-sections, a basic block can start a new section.
+    if (MBB.getSectionType() == MachineBasicBlockSection::MBBS_Exception) {
+      // Create the exception section for this function.
+      OutStreamer->SwitchSection(
+          getObjFileLowering().getNamedSectionForMachineBasicBlock(
+              MF->getFunction(), MBB, TM, ".eh"));
+    } else if (MBB.getSectionType() == MachineBasicBlockSection::MBBS_Cold) {
+      // Create the cold section here.
+      OutStreamer->SwitchSection(
+          getObjFileLowering().getNamedSectionForMachineBasicBlock(
+              MF->getFunction(), MBB, TM, ".unlikely"));
+    } else if (MBB.isBeginSection() && MBB.isEndSection()) {
+      OutStreamer->SwitchSection(
+          getObjFileLowering().getSectionForMachineBasicBlock(MF->getFunction(),
+                                                              MBB, TM));
+    } else if (BBSections) {
+      OutStreamer->SwitchSection(MF->getSection());
+    }
     OutStreamer->emitLabel(MBB.getSymbol());
   }
 }
@@ -3065,6 +3115,10 @@ void AsmPrinter::emitVisibility(MCSymbol *Sym, unsigned Visibility,
 /// the predecessor and this block is a fall-through.
 bool AsmPrinter::
 isBlockOnlyReachableByFallthrough(const MachineBasicBlock *MBB) const {
+  // With BasicBlock Sections, no block is a fall through.
+  if (MBB->isBeginSection())
+    return false;
+
   // If this is a landing pad, it isn't a fall through.  If it has no preds,
   // then nothing falls through to it.
   if (MBB->isEHPad() || MBB->pred_empty())

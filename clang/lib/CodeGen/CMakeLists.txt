@@ -1,5 +1,3 @@
-add_subdirectory(SYCLLowerIR)
-
 set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
@@ -23,6 +21,7 @@ set(LLVM_LINK_COMPONENTS
   Remarks
   ScalarOpts
   Support
+  SYCLLowerIR
   Target
   TransformUtils
   )
@@ -112,5 +111,4 @@ add_clang_library(clangCodeGen
   clangFrontend
   clangLex
   clangSerialization
-  clangSYCLLowerIR
   )

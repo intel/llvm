@@ -330,10 +330,22 @@ Tool *ToolChain::getSYCLPostLink() const {
   return SYCLPostLink.get();
 }
 
+Tool *ToolChain::getPartialLink() const {
+  if (!PartialLink)
+    PartialLink.reset(new tools::PartialLink(*this));
+  return PartialLink.get();
+}
+
 Tool *ToolChain::getBackendCompiler() const {
   if (!BackendCompiler)
     BackendCompiler.reset(buildBackendCompiler());
   return BackendCompiler.get();
+}
+
+Tool *ToolChain::getTableTform() const {
+  if (!FileTableTform)
+    FileTableTform.reset(new tools::FileTableTform(*this));
+  return FileTableTform.get();
 }
 
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
@@ -381,8 +393,14 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::SYCLPostLinkJobClass:
     return getSYCLPostLink();
 
+  case Action::PartialLinkJobClass:
+    return getPartialLink();
+
   case Action::BackendCompileJobClass:
     return getBackendCompiler();
+
+  case Action::FileTableTformJobClass:
+    return getTableTform();
   }
 
   llvm_unreachable("Invalid tool kind.");

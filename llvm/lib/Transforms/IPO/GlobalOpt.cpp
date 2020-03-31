@@ -142,7 +142,7 @@ static bool isLeakCheckerRoot(GlobalVariable *GV) {
                  E = STy->element_end(); I != E; ++I) {
           Type *InnerTy = *I;
           if (isa<PointerType>(InnerTy)) return true;
-          if (isa<CompositeType>(InnerTy))
+          if (isa<StructType>(InnerTy) || isa<SequentialType>(InnerTy))
             Types.push_back(InnerTy);
         }
         break;
@@ -2385,7 +2385,7 @@ OptimizeGlobalVars(Module &M,
         // for that optional parameter, since we don't have a Function to
         // provide GetTLI anyway.
         Constant *New = ConstantFoldConstant(C, DL, /*TLI*/ nullptr);
-        if (New && New != C)
+        if (New != C)
           GV->setInitializer(New);
       }
 

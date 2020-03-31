@@ -9,6 +9,7 @@
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Host.h"
 
 #include "ThinLtoDiscoveryThread.h"
 #include "ThinLtoInstrumentationLayer.h"
@@ -190,7 +191,7 @@ Expected<ThreadSafeModule> ThinLtoJIT::setupMainModule(StringRef MainFunction) {
   }
 
   if (auto TSM = GlobalIndex->parseModuleFromFile(*M))
-    return TSM;
+    return std::move(TSM); // Not a redundant move: fix build on gcc-7.5
 
   return createStringError(inconvertibleErrorCode(),
                            "Failed to parse main module");

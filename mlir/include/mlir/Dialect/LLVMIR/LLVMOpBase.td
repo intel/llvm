@@ -19,11 +19,23 @@ include "mlir/IR/OpBase.td"
 def LLVM_Dialect : Dialect {
   let name = "llvm";
   let cppNamespace = "LLVM";
+  let hasRegionArgAttrVerify = 1;
+  let extraClassDeclaration = [{
+    ~LLVMDialect();
+    llvm::LLVMContext &getLLVMContext();
+    llvm::Module &getLLVMModule();
+
+  private:
+    friend LLVMType;
+
+    std::unique_ptr<detail::LLVMDialectImpl> impl;
+  }];
 }
 
 // LLVM IR type wrapped in MLIR.
-def LLVM_Type : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMType>()">,
-                     "LLVM dialect type">;
+def LLVM_Type : DialectType<LLVM_Dialect,
+                            CPred<"$_self.isa<::mlir::LLVM::LLVMType>()">,
+                            "LLVM dialect type">;
 
 // Type constraint accepting only wrapped LLVM integer types.
 def LLVMInt : TypeConstraint<

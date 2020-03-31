@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CodeGen/BackendUtil.h"
-#include "SYCLLowerIR/LowerWGScope.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
@@ -19,6 +18,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeReader.h"
@@ -352,6 +352,11 @@ static void addDataFlowSanitizerPass(const PassManagerBuilder &Builder,
   PM.add(createDataFlowSanitizerPass(LangOpts.SanitizerBlacklistFiles));
 }
 
+static void addMemTagOptimizationPasses(const PassManagerBuilder &Builder,
+                                        legacy::PassManagerBase &PM) {
+  PM.add(createStackSafetyGlobalInfoWrapperPass(/*SetMetadata=*/true));
+}
+
 static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
                                          const CodeGenOptions &CodeGenOpts) {
   TargetLibraryInfoImpl *TLII = new TargetLibraryInfoImpl(TargetTriple);
@@ -494,6 +499,7 @@ static void initTargetOptions(llvm::TargetOptions &Options,
   Options.EmitAddrsig = CodeGenOpts.Addrsig;
   Options.EnableDebugEntryValues = CodeGenOpts.EnableDebugEntryValues;
   Options.ForceDwarfFrameSection = CodeGenOpts.ForceDwarfFrameSection;
+  Options.EmitCallSiteInfo = CodeGenOpts.EmitCallSiteInfo;
 
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
@@ -700,6 +706,11 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addDataFlowSanitizerPass);
     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
                            addDataFlowSanitizerPass);
+  }
+
+  if (LangOpts.Sanitize.has(SanitizerKind::MemTag)) {
+    PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
+                           addMemTagOptimizationPasses);
   }
 
   // Set up the per-function pass manager.
@@ -1307,6 +1318,11 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     if (LangOpts.Sanitize.has(SanitizerKind::KernelHWAddress)) {
       MPM.addPass(HWAddressSanitizerPass(
           /*CompileKernel=*/true, /*Recover=*/true));
+    }
+
+    if (CodeGenOpts.OptimizationLevel > 0 &&
+        LangOpts.Sanitize.has(SanitizerKind::MemTag)) {
+      MPM.addPass(StackSafetyGlobalAnnotatorPass());
     }
 
     if (CodeGenOpts.OptimizationLevel == 0) {

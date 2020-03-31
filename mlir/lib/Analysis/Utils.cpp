@@ -314,7 +314,7 @@ static unsigned getMemRefEltSizeInBytes(MemRefType memRefType) {
   auto elementType = memRefType.getElementType();
 
   unsigned sizeInBits;
-  if (elementType.isSignlessIntOrFloat()) {
+  if (elementType.isIntOrFloat()) {
     sizeInBits = elementType.getIntOrFloatBitWidth();
   } else {
     auto vectorType = elementType.cast<VectorType>();
@@ -358,7 +358,7 @@ Optional<uint64_t> mlir::getMemRefSizeInBytes(MemRefType memRefType) {
   if (!memRefType.hasStaticShape())
     return None;
   auto elementType = memRefType.getElementType();
-  if (!elementType.isSignlessIntOrFloat() && !elementType.isa<VectorType>())
+  if (!elementType.isIntOrFloat() && !elementType.isa<VectorType>())
     return None;
 
   uint64_t sizeInBytes = getMemRefEltSizeInBytes(memRefType);
@@ -974,11 +974,12 @@ void mlir::getSequentialLoops(AffineForOp forOp,
 bool mlir::isLoopParallel(AffineForOp forOp) {
   // Collect all load and store ops in loop nest rooted at 'forOp'.
   SmallVector<Operation *, 8> loadAndStoreOpInsts;
-  auto walkResult = forOp.walk([&](Operation *opInst) {
+  auto walkResult = forOp.walk([&](Operation *opInst) -> WalkResult {
     if (isa<AffineLoadOp>(opInst) || isa<AffineStoreOp>(opInst))
       loadAndStoreOpInsts.push_back(opInst);
     else if (!isa<AffineForOp>(opInst) && !isa<AffineTerminatorOp>(opInst) &&
-             !isa<AffineIfOp>(opInst) && !opInst->hasNoSideEffect())
+             !isa<AffineIfOp>(opInst) &&
+             !MemoryEffectOpInterface::hasNoEffect(opInst))
       return WalkResult::interrupt();
 
     return WalkResult::advance();
