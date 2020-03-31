@@ -26,7 +26,7 @@ def do_configure(args):
     llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;xpti;libdevice'
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
-    sycl_werror = 'OFF'
+    sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
@@ -43,8 +43,8 @@ def do_configure(args):
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
 
-    if args.werror:
-        sycl_werror = 'ON'
+    if args.no_werror:
+        sycl_werror = 'OFF'
 
     if args.assertions:
         llvm_enable_assertions = 'ON'
@@ -125,7 +125,7 @@ def main():
     parser.add_argument("--assertions", action='store_true', help="build with assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")
-    parser.add_argument("--werror", action='store_true', help="Treat warnings as errors")
+    parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
 
