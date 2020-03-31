@@ -88,7 +88,8 @@ public:
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
-    EMPTY_TASK
+    EMPTY_TASK,
+    HOST_TASK
   };
 
   Command(CommandType Type, QueueImplPtr Queue);
@@ -427,6 +428,21 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
+};
+
+class HostTaskCommand : public Command {
+public:
+  HostTaskCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
+
+  void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData() final;
+
+private:
+  cl_int enqueueImp() final;
+
+  AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  std::unique_ptr<detail::CG> MCommandGroup;
 };
 
 } // namespace detail

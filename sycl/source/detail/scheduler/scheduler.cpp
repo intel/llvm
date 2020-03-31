@@ -79,6 +79,10 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
+    case CG::HOST_TASK:
+      NewCmd = MGraphBuilder.addCGHostTask(std::move(CommandGroup), 
+                                           DefaultHostQueue);
+      break;
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }

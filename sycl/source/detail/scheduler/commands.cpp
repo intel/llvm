@@ -1271,6 +1271,9 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
     break;
+  case detail::CG::HOST_TASK:
+    return "host task";
+    break;
   default:
     return "unknown";
     break;
@@ -1830,73 +1833,135 @@ cl_int ExecCGCommand::enqueueImp() {
     Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::HOST_TASK: {
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
-    // MQueue is host queue here thus we'll employ the one host task is
-    // submitted to
-    const QueueImplPtr &Queue = HostTask->MQueue;
-#if 0
-    auto *Ctx = new HostTaskContext{
-      static_cast<CGHostTask *>(MCommandGroup.get()),
-      RawEvents.size(),
-      0,
-      {},
-      {},
-      MQueue->getContextImplPtr()
-    };
-#else
-    std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
-#endif
-
-    if (true /*false*/) {
-      Ctx->SelfEvent = MEvent;
-      RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
-
-      const detail::plugin &Plugin = Queue->getPlugin();
-      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
-
-      Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
-    }
-
-    size_t ArgIdx = 0, ReqIdx = 0;
-    while (ArgIdx < HostTask->MArgs.size()) {
-      ArgDesc &Arg = HostTask->MArgs[ArgIdx];
-
-      switch (Arg.MType) {
-      case kernel_param_kind_t::kind_accessor: {
-        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
-        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-
-        detail::Requirement *TaskReq = HostTask->MRequirements[ReqIdx];
-        TaskReq->MData = AllocaCmd->getMemAllocation();
-        ++ReqIdx;
-        break;
-      }
-      default:
-        throw std::runtime_error("Yet unsupported arg type");
-      }
-
-      ++ArgIdx;
-    }
-
-#if 0
-    const detail::plugin &Plugin = Queue->getPlugin();
-
-    for (const RT::PiEvent &Event : RawEvents)
-        Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
-                                                   DispatchHostTask2, Ctx);
-#else
-    // TODO create user event and set its callback to dispatch host task
-    Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
-      DispatchHostTask(Ctx);
-    });
-#endif
-    return CL_SUCCESS;
-  }
   case CG::CGTYPE::NONE:
   default:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
+}
+
+HostTaskCommand::HostTaskCommand(std::unique_ptr<detail::CG> CommandGroup,
+                                 QueueImplPtr Queue)
+    : Command(CommandType::HOST_TASK, std::move(Queue)),
+      MCommandGroup(std::move(CommandGroup)) {
+
+  emitInstrumentationDataProxy();
+}
+
+void HostTaskCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "EXEC HOST TASK ON " << deviceToString(MQueue->get_device()) << "\\n";
+
+  switch (MCommandGroup->getType()) {
+  case detail::CG::KERNEL: {
+    auto KernelCG =
+        reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+    Stream << "Kernel name: ";
+    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
+      Stream << "created from source";
+    else
+      Stream << demangleKernelName(KernelCG->getKernelName());
+    Stream << "\\n";
+    break;
+  }
+  default:
+    Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
+    break;
+  }
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
+           << std::endl;
+  }
+}
+
+void HostTaskCommand::emitInstrumentationData() {
+  // TODO
+}
+
+cl_int HostTaskCommand::enqueueImp() {
+  std::vector<EventImplPtr> EventImpls =
+      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+
+  auto RawEvents = getPiEvents(EventImpls);
+
+  RT::PiEvent &Event = MEvent->getHandleRef();
+
+  CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+  // MQueue is host queue here thus we'll employ the one host task is
+  // submitted to
+  const QueueImplPtr &Queue = HostTask->MQueue;
+#if 0
+  auto *Ctx = new HostTaskContext{
+    static_cast<CGHostTask *>(MCommandGroup.get()),
+    RawEvents.size(),
+    0,
+    {},
+    {},
+    MQueue->getContextImplPtr()
+  };
+#else
+  std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
+#endif
+
+  if (true /*false*/) {
+    Ctx->SelfEvent = MEvent;
+    RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
+
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+
+    Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
+  }
+
+  size_t ArgIdx = 0, ReqIdx = 0;
+  while (ArgIdx < HostTask->MArgs.size()) {
+    ArgDesc &Arg = HostTask->MArgs[ArgIdx];
+
+    switch (Arg.MType) {
+    case kernel_param_kind_t::kind_accessor: {
+      Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+      detail::Requirement *TaskReq = HostTask->MRequirements[ReqIdx];
+      TaskReq->MData = AllocaCmd->getMemAllocation();
+      ++ReqIdx;
+      break;
+    }
+    default:
+      throw std::runtime_error("Yet unsupported arg type");
+    }
+
+    ++ArgIdx;
+  }
+
+#if 0
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  for (const RT::PiEvent &Event : RawEvents)
+      Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
+                                                 DispatchHostTask2, Ctx);
+#else
+  // TODO create user event and set its callback to dispatch host task
+  Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
+    DispatchHostTask(Ctx);
+  });
+#endif
+  return CL_SUCCESS;
+}
+
+AllocaCommandBase *HostTaskCommand::getAllocaForReq(Requirement *Req) {
+  for (const DepDesc &Dep : MDeps) {
+    if (Dep.MDepRequirement == Req)
+      return Dep.MAllocaCmd;
+  }
+  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
 } // namespace detail
