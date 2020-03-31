@@ -1413,18 +1413,6 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   if (!Caller)
     return true;
 
-  bool CallerKnownEmitted =
-      getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted;
-
-  // If the caller is known-emitted, mark the callee as known-emitted.
-  // Otherwise, mark the call in our call graph so we can traverse it later.
-  if (CallerKnownEmitted)
-    markKnownEmitted(*this, Caller, Callee, Loc, [](Sema &S, FunctionDecl *FD) {
-      return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
-    });
-  else
-    DeviceCallGraph[Caller].insert({Callee, Loc});
-
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
@@ -1439,9 +1427,9 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
          DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
 }
 
-static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
-                                      const FunctionDecl *Caller,
-                                      const SourceLocation &Loc) {
+void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
+                                       const FunctionDecl *Callee,
+                                       SourceLocation Loc) {
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
@@ -1464,26 +1452,10 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
   bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    SemaRef.Diag(Loc, diag::err_sycl_restrict)
+    Diag(Loc, diag::err_sycl_restrict)
         << Sema::KernelCallUndefinedFunction;
-    SemaRef.Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
-    SemaRef.Diag(Caller->getLocation(), diag::note_called_by) << Caller;
-  }
-}
-
-void Sema::finalizeSYCLDelayedAnalysis() {
-  assert(getLangOpts().SYCLIsDevice &&
-         "Should only be called during SYCL compilation");
-
-  llvm::DenseSet<const FunctionDecl *> Checked;
-
-  for (const auto &EmittedWithLoc : DeviceKnownEmittedFns) {
-    const FunctionDecl *Caller = EmittedWithLoc.getSecond().FD;
-    const SourceLocation &Loc = EmittedWithLoc.getSecond().Loc;
-    const FunctionDecl *Callee = EmittedWithLoc.getFirst();
-
-    if (Checked.insert(Callee).second)
-      emitCallToUndefinedFnDiag(*this, Callee, Caller, Loc);
+    Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
+    Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
 }
 

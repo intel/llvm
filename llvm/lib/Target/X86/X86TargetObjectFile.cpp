@@ -63,30 +63,3 @@ const MCExpr *X86ELFTargetObjectFile::getDebugThreadLocalSymbol(
     const MCSymbol *Sym) const {
   return MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_DTPOFF, getContext());
 }
-
-void
-X86FreeBSDTargetObjectFile::Initialize(MCContext &Ctx,
-                                       const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void
-X86FuchsiaTargetObjectFile::Initialize(MCContext &Ctx,
-                                       const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void
-X86LinuxNaClTargetObjectFile::Initialize(MCContext &Ctx,
-                                         const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void X86SolarisTargetObjectFile::Initialize(MCContext &Ctx,
-                                            const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}

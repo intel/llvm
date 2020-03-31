@@ -1632,6 +1632,18 @@ public:
 
   void emitAndClearUnusedLocalTypedefWarnings();
 
+  private:
+    /// Function or variable declarations to be checked for whether the deferred
+    /// diagnostics should be emitted.
+    SmallVector<Decl *, 4> DeclsToCheckForDeferredDiags;
+
+  public:
+  // Emit all deferred diagnostics.
+  void emitDeferredDiags();
+  // Emit any deferred diagnostics for FD and erase them from the map in which
+  // they're stored.
+  void emitDeferredDiags(FunctionDecl *FD, bool ShowCallStack);
+
   enum TUFragmentKind {
     /// The global module fragment, between 'module;' and a module-declaration.
     Global,
@@ -3918,7 +3930,8 @@ public:
     TemplateDiscarded, // Discarded due to uninstantiated templates
     Unknown,
   };
-  FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl);
+  FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl,
+                                           bool Final = false);
 
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
@@ -4022,6 +4035,10 @@ public:
 
   void DiagnoseAmbiguousLookup(LookupResult &Result);
   //@}
+
+  /// Attempts to produce a RecoveryExpr after some AST node cannot be created.
+  ExprResult CreateRecoveryExpr(SourceLocation Begin, SourceLocation End,
+                                ArrayRef<Expr *> SubExprs);
 
   ObjCInterfaceDecl *getObjCInterfaceDecl(IdentifierInfo *&Id,
                                           SourceLocation IdLoc,
@@ -4952,13 +4969,14 @@ public:
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);
   ExprResult ActOnIntegerConstant(SourceLocation Loc, uint64_t Val);
 
-  ExprResult BuildUniqueStableName(SourceLocation OpLoc,
-                                   TypeSourceInfo *Operand);
-  ExprResult BuildUniqueStableName(SourceLocation OpLoc, Expr *E);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc, SourceLocation L,
-                                       SourceLocation R, ParsedType Ty);
-  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc, SourceLocation L,
-                                       SourceLocation R, Expr *Operand);
+  ExprResult BuildUniqueStableName(SourceLocation Loc, TypeSourceInfo *Operand);
+  ExprResult BuildUniqueStableName(SourceLocation Loc, Expr *E);
+  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
+                                       SourceLocation LParen,
+                                       SourceLocation RParen, ParsedType Ty);
+  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc,
+                                       SourceLocation LParen,
+                                       SourceLocation RParen, Expr *Operand);
 
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
@@ -9942,21 +9960,9 @@ private:
   /// Pop OpenMP function region for non-capturing function.
   void popOpenMPFunctionRegion(const sema::FunctionScopeInfo *OldFSI);
 
-  /// Check whether we're allowed to call Callee from the current function.
-  void checkOpenMPDeviceFunction(SourceLocation Loc, FunctionDecl *Callee,
-                                 bool CheckForDelayedContext = true);
-
-  /// Check whether we're allowed to call Callee from the current function.
-  void checkOpenMPHostFunction(SourceLocation Loc, FunctionDecl *Callee,
-                               bool CheckCaller = true);
-
   /// Check if the expression is allowed to be used in expressions for the
   /// OpenMP devices.
   void checkOpenMPDeviceExpr(const Expr *E);
-
-  /// Finishes analysis of the deferred functions calls that may be declared as
-  /// host/nohost during device/host compilation.
-  void finalizeOpenMPDelayedAnalysis();
 
   /// Checks if a type or a declaration is disabled due to the owning extension
   /// being disabled, and emits diagnostic messages if it is disabled.
@@ -10148,6 +10154,11 @@ public:
   void
   checkDeclIsAllowedInOpenMPTarget(Expr *E, Decl *D,
                                    SourceLocation IdLoc = SourceLocation());
+  /// Finishes analysis of the deferred functions calls that may be declared as
+  /// host/nohost during device/host compilation.
+  void finalizeOpenMPDelayedAnalysis(const FunctionDecl *Caller,
+                                     const FunctionDecl *Callee,
+                                     SourceLocation Loc);
   /// Return true inside OpenMP declare target region.
   bool isInOpenMPDeclareTargetContext() const {
     return DeclareTargetNestingLevel > 0;
@@ -10269,6 +10280,10 @@ public:
   StmtResult ActOnOpenMPDepobjDirective(ArrayRef<OMPClause *> Clauses,
                                         SourceLocation StartLoc,
                                         SourceLocation EndLoc);
+  /// Called on well-formed '\#pragma omp scan'.
+  StmtResult ActOnOpenMPScanDirective(ArrayRef<OMPClause *> Clauses,
+                                      SourceLocation StartLoc,
+                                      SourceLocation EndLoc);
   /// Called on well-formed '\#pragma omp ordered' after parsing of the
   /// associated statement.
   StmtResult ActOnOpenMPOrderedDirective(ArrayRef<OMPClause *> Clauses,
@@ -10665,7 +10680,17 @@ public:
       DeclarationNameInfo &ReductionOrMapperId, int ExtraModifier,
       ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
       ArrayRef<SourceLocation> MapTypeModifiersLoc, bool IsMapTypeImplicit,
-      SourceLocation DepLinMapLastLoc);
+      SourceLocation ExtraModifierLoc);
+  /// Called on well-formed 'inclusive' clause.
+  OMPClause *ActOnOpenMPInclusiveClause(ArrayRef<Expr *> VarList,
+                                        SourceLocation StartLoc,
+                                        SourceLocation LParenLoc,
+                                        SourceLocation EndLoc);
+  /// Called on well-formed 'exclusive' clause.
+  OMPClause *ActOnOpenMPExclusiveClause(ArrayRef<Expr *> VarList,
+                                        SourceLocation StartLoc,
+                                        SourceLocation LParenLoc,
+                                        SourceLocation EndLoc);
   /// Called on well-formed 'allocate' clause.
   OMPClause *
   ActOnOpenMPAllocateClause(Expr *Allocator, ArrayRef<Expr *> VarList,
@@ -10693,9 +10718,10 @@ public:
                                      SourceLocation EndLoc);
   /// Called on well-formed 'reduction' clause.
   OMPClause *ActOnOpenMPReductionClause(
-      ArrayRef<Expr *> VarList, SourceLocation StartLoc,
-      SourceLocation LParenLoc, SourceLocation ColonLoc, SourceLocation EndLoc,
-      CXXScopeSpec &ReductionIdScopeSpec,
+      ArrayRef<Expr *> VarList, OpenMPReductionClauseModifier Modifier,
+      SourceLocation StartLoc, SourceLocation LParenLoc,
+      SourceLocation ModifierLoc, SourceLocation ColonLoc,
+      SourceLocation EndLoc, CXXScopeSpec &ReductionIdScopeSpec,
       const DeclarationNameInfo &ReductionId,
       ArrayRef<Expr *> UnresolvedReductions = llvm::None);
   /// Called on well-formed 'task_reduction' clause.
@@ -11525,18 +11551,6 @@ public:
                  /* Caller = */ FunctionDeclAndLoc>
       DeviceKnownEmittedFns;
 
-  /// A partial call graph maintained during CUDA/OpenMP device code compilation
-  /// to support deferred diagnostics.
-  ///
-  /// Functions are only added here if, at the time they're considered, they are
-  /// not known-emitted.  As soon as we discover that a function is
-  /// known-emitted, we remove it and everything it transitively calls from this
-  /// set and add those functions to DeviceKnownEmittedFns.
-  llvm::DenseMap</* Caller = */ CanonicalDeclPtr<FunctionDecl>,
-                 /* Callees = */ llvm::MapVector<CanonicalDeclPtr<FunctionDecl>,
-                                                 SourceLocation>>
-      DeviceCallGraph;
-
   /// Diagnostic builder for CUDA/OpenMP devices errors which may or may not be
   /// deferred.
   ///
@@ -11610,14 +11624,6 @@ public:
     llvm::Optional<SemaDiagnosticBuilder> ImmediateDiag;
     llvm::Optional<unsigned> PartialDiagId;
   };
-
-  /// Indicate that this function (and thus everything it transtively calls)
-  /// will be codegen'ed, and emit any deferred diagnostics on this function and
-  /// its (transitive) callees.
-  void markKnownEmitted(
-      Sema &S, FunctionDecl *OrigCaller, FunctionDecl *OrigCallee,
-      SourceLocation OrigLoc,
-      const llvm::function_ref<bool(Sema &, FunctionDecl *)> IsKnownEmitted);
 
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current context
   /// is "used as device code".
@@ -12486,10 +12492,11 @@ public:
   /// codegen'ed yet.
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
 
-  /// Emit diagnostic that can't be emitted with deferred diagnostics mechanism.
-  /// At this step we imply that all device functions are marked with
-  /// sycl_device attribute.
-  void finalizeSYCLDelayedAnalysis();
+  /// Finishes analysis of the deferred functions calls that may be not
+  /// properly declared for device compilation.
+  void finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
+                                   const FunctionDecl *Callee,
+                                   SourceLocation Loc);
 };
 
 template <typename AttrType>

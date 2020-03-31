@@ -2497,7 +2497,7 @@ def err_invalid_consteval_take_address : Error<
   "cannot take address of consteval function %0 outside"
   " of an immediate invocation">;
 def err_invalid_consteval_call : Error<
-  "call to consteval function '%q0' is not a constant expression">;
+  "call to consteval function %q0 is not a constant expression">;
 def err_invalid_consteval_decl_kind : Error<
   "%0 cannot be declared consteval">;
 def err_invalid_constexpr : Error<
@@ -2935,6 +2935,10 @@ def err_attribute_address_multiple_qualifiers : Error<
 def warn_attribute_address_multiple_identical_qualifiers : Warning<
   "multiple identical address spaces specified for type">,
   InGroup<DuplicateDeclSpecifier>;
+def err_attribute_not_clinkage : Error<
+  "function type with %0 attribute must have C linkage">;
+def err_function_decl_cmse_ns_call : Error<
+  "functions may not be declared with 'cmse_nonsecure_call' attribute">;
 def err_attribute_address_function_type : Error<
   "function type may not be qualified with an address space">;
 def err_as_qualified_auto_decl : Error<
@@ -3155,6 +3159,9 @@ def warn_attribute_weak_on_local : Warning<
   InGroup<IgnoredAttributes>;
 def warn_weak_identifier_undeclared : Warning<
   "weak identifier %0 never declared">;
+def warn_attribute_cmse_entry_static : Warning<
+  "'cmse_nonsecure_entry' cannot be applied to functions with internal linkage">,
+  InGroup<IgnoredAttributes>;
 def err_attribute_weak_static : Error<
   "weak declaration cannot have internal linkage">;
 def err_attribute_selectany_non_extern_data : Error<
@@ -4255,11 +4262,16 @@ def err_ovl_ambiguous_oper_binary : Error<
   "use of overloaded operator '%0' is ambiguous (with operand types %1 and %2)">;
 def ext_ovl_ambiguous_oper_binary_reversed : ExtWarn<
   "ISO C++20 considers use of overloaded operator '%0' (with operand types %1 "
-  "and %2) to be ambiguous despite there being a unique best viable function">,
+  "and %2) to be ambiguous despite there being a unique best viable function"
+  "%select{ with non-reversed arguments|}3">,
   InGroup<DiagGroup<"ambiguous-reversed-operator">>, SFINAEFailure;
-def note_ovl_ambiguous_oper_binary_reversed_candidate : Note<
+def note_ovl_ambiguous_oper_binary_reversed_self : Note<
   "ambiguity is between a regular call to this operator and a call with the "
   "argument order reversed">;
+def note_ovl_ambiguous_oper_binary_selected_candidate : Note<
+  "candidate function with non-reversed arguments">;
+def note_ovl_ambiguous_oper_binary_reversed_candidate : Note<
+  "ambiguous candidate function with reversed arguments">;
 def err_ovl_no_viable_oper : Error<"no viable overloaded '%0'">;
 def note_assign_lhs_incomplete : Note<"type %0 is incomplete">;
 def err_ovl_deleted_oper : Error<
@@ -4273,6 +4285,10 @@ def err_ovl_deleted_comparison : Error<
 def err_ovl_rewrite_equalequal_not_bool : Error<
   "return type %0 of selected 'operator==' function for rewritten "
   "'%1' comparison is not 'bool'">;
+def ext_ovl_rewrite_equalequal_not_bool : ExtWarn<
+  "ISO C++20 requires return type of selected 'operator==' function for "
+  "rewritten '%1' comparison to be 'bool', not %0">,
+  InGroup<DiagGroup<"rewrite-not-bool">>, SFINAEFailure;
 def err_ovl_no_viable_subscript :
     Error<"no viable overloaded operator[] for type %0">;
 def err_ovl_no_oper :
@@ -9864,15 +9880,20 @@ def err_omp_prohibited_region : Error<
   "%select{|; perhaps you forget to enclose 'omp %3' directive into a parallel region?|"
   "; perhaps you forget to enclose 'omp %3' directive into a for or a parallel for region with 'ordered' clause?|"
   "; perhaps you forget to enclose 'omp %3' directive into a target region?|"
-  "; perhaps you forget to enclose 'omp %3' directive into a teams region?}2">;
+  "; perhaps you forget to enclose 'omp %3' directive into a teams region?|"
+  "; perhaps you forget to enclose 'omp %3' directive into a for, simd, or for simd region?}2">;
 def err_omp_prohibited_region_simd : Error<
-  "OpenMP constructs may not be nested inside a simd region%select{| except for ordered simd, simd or atomic directive}0">;
+  "OpenMP constructs may not be nested inside a simd region%select{| except for ordered simd, simd, scan, or atomic directive}0">;
 def err_omp_prohibited_region_atomic : Error<
   "OpenMP constructs may not be nested inside an atomic region">;
 def err_omp_prohibited_region_critical_same_name : Error<
   "cannot nest 'critical' regions having the same name %0">;
 def note_omp_previous_critical_region : Note<
   "previous 'critical' region starts here">;
+def err_omp_several_scan_directives_in_region : Error<
+  "exactly one 'scan' directive must appear in the loop body of an enclosing directive">;
+def note_omp_previous_scan_directive : Note<
+  "previous 'scan' directive used here">;
 def err_omp_sections_not_compound_stmt : Error<
   "the statement for '#pragma omp sections' must be a compound statement">;
 def err_omp_parallel_sections_not_compound_stmt : Error<
@@ -10057,7 +10078,7 @@ def warn_omp_nesting_simd : Warning<
   InGroup<SourceUsesOpenMP>;
 def err_omp_orphaned_device_directive : Error<
   "orphaned 'omp %0' directives are prohibited"
-  "; perhaps you forget to enclose the directive into a %select{|||target |teams }1region?">;
+  "; perhaps you forget to enclose the directive into a %select{|||target |teams|for, simd, or for simd }1region?">;
 def err_omp_reduction_non_addressable_expression : Error<
   "expected addressable reduction item for the task-based directives">;
 def err_omp_reduction_with_nogroup : Error<
@@ -10095,6 +10116,8 @@ def err_omp_depobj_expected : Error<
   "expected depobj expression">;
 def err_omp_depobj_single_clause_expected : Error<
   "exactly one of 'depend', 'destroy', or 'update' clauses is expected">;
+def err_omp_scan_single_clause_expected : Error<
+  "exactly one of 'inclusive' or 'exclusive' clauses is expected">;
 def err_omp_expected_predefined_allocator : Error<
   "expected one of the predefined allocators for the variables with the static "
   "storage: 'omp_default_mem_alloc', 'omp_large_cap_mem_alloc', "

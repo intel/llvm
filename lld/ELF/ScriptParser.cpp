@@ -545,12 +545,6 @@ void ScriptParser::readSections() {
                                  v.end());
 
   if (atEOF() || !consume("INSERT")) {
-    // --no-rosegment is used to avoid placing read only non-executable sections
-    // in their own segment. We do the same if SECTIONS command is present in
-    // linker script. See comment for computeFlags().
-    // TODO This rule will be dropped in the future.
-    config->singleRoRx = true;
-
     script->hasSectionsCommand = true;
     return;
   }
@@ -848,9 +842,9 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
       // We handle the FILL command as an alias for =fillexp section attribute,
       // which is different from what GNU linkers do.
       // https://sourceware.org/binutils/docs/ld/Output-Section-Data.html
-      expect("(");
+      if (peek() != "(")
+        setError("( expected, but got " + peek());
       cmd->filler = readFill();
-      expect(")");
     } else if (tok == "SORT") {
       readSort();
     } else if (tok == "INCLUDE") {
@@ -905,8 +899,11 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
 // When reading a hexstring, ld.bfd handles it as a blob of arbitrary
 // size, while ld.gold always handles it as a 32-bit big-endian number.
 // We are compatible with ld.gold because it's easier to implement.
+// Also, we require that expressions with operators must be wrapped into
+// round brackets. We did it to resolve the ambiguity when parsing scripts like:
+// SECTIONS { .foo : { ... } =120+3 /DISCARD/ : { ... } }
 std::array<uint8_t, 4> ScriptParser::readFill() {
-  uint64_t value = readExpr()().val;
+  uint64_t value = readPrimary()().val;
   if (value > UINT32_MAX)
     setError("filler expression result does not fit 32-bit: 0x" +
              Twine::utohexstr(value));
