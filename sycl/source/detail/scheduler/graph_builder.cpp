@@ -426,7 +426,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   UpdateHostAccCmd->addUser(EmptyCmd);
 
   EmptyCmd->MIsBlockable = true;
-  EmptyCmd->MCanEnqueue = false;
+  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
   updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);

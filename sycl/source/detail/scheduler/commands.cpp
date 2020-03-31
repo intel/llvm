@@ -228,10 +228,11 @@ void Command::waitForEvents(QueueImplPtr Queue,
 }
 
 Command::Command(CommandType Type, QueueImplPtr Queue)
-    : MQueue(std::move(Queue)), MType(Type), MEnqueued(false) {
+    : MQueue(std::move(Queue)), MType(Type) {
   MEvent.reset(new detail::event_impl(MQueue));
   MEvent->setCommand(this);
   MEvent->setContextImpl(detail::getSyclObjImpl(MQueue->get_context()));
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -451,11 +452,11 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   // Exit if already enqueued
-  if (MEnqueued)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
   // If the command is blocked from enqueueing
-  if (MIsBlockable && !MCanEnqueue) {
+  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
@@ -478,7 +479,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
 #endif
 
     // Wait if blocking
-    while (!MCanEnqueue)
+    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
       ;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
@@ -488,13 +489,22 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
   // Exit if the command is already enqueued
-  if (MEnqueued)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentation(xpti::trace_task_begin, nullptr);
 #endif
 
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this);
+    return false;
+  }
+
+  // Command status set to "failed" beforehand, so this command
+  // has already been marked as "failed" if enqueueImp throws an exception.
+  // This will avoid execution of the same failed command twice.
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   cl_int Res = enqueueImp();
 
   if (CL_SUCCESS != Res)
@@ -503,14 +513,14 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   else
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
-    MEnqueued = true;
+    MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
 
   // Emit this correlation signal before the task end
   emitEnqueuedEventSignal(MEvent->getHandleRef());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentation(xpti::trace_task_end, nullptr);
 #endif
-  return static_cast<bool>(MEnqueued);
+  return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
 }
 
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {

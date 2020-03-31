@@ -15,8 +15,11 @@ namespace sycl {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
-  if (MBlockedCmd)
-    detail::Scheduler::getInstance().releaseHostAccessor(this);
+  try {
+    if (MBlockedCmd)
+      detail::Scheduler::getInstance().releaseHostAccessor(this);
+  } catch (...) {
+  }
 }
 
 void addHostAccessorAndWait(Requirement *Req) {
