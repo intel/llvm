@@ -20,7 +20,7 @@
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace experimental {
 
@@ -56,4 +56,4 @@ public:
 
 } // namespace experimental
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
