@@ -1439,9 +1439,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
 
   for (const Decl *Redecl : Callee->redecls()) {
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if ((FD->hasAttr<SYCLDeviceAttr>() &&
-           !FD->getAttr<SYCLDeviceAttr>()->isImplicit()) ||
-          FD->hasAttr<SYCLKernelAttr>()) {
+      if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) {
         RedeclHasAttr = true;
         break;
       }
