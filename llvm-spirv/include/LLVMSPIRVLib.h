@@ -140,6 +140,13 @@ bool getSpecConstInfo(std::istream &IS,
 std::unique_ptr<Module>
 convertSpirvToLLVM(LLVMContext &C, SPIRV::SPIRVModule &BM, std::string &ErrMsg);
 
+/// \brief Convert a SPIRVModule into LLVM IR using specified options
+/// \returns null on failure.
+std::unique_ptr<Module> convertSpirvToLLVM(LLVMContext &C,
+                                           SPIRV::SPIRVModule &BM,
+                                           const SPIRV::TranslatorOpts &Opts,
+                                           std::string &ErrMsg);
+
 /// \brief Regularize LLVM module by removing entities not representable by
 /// SPIRV.
 bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg);
@@ -183,7 +190,7 @@ ModulePass *createSPIRVRegularizeLLVM();
 
 /// Create a pass for translating SPIR-V builtin functions to OCL builtin
 /// functions.
-ModulePass *createSPIRVToOCL(Module &M);
+ModulePass *createSPIRVToOCL(Module &, SPIRV::BIsRepresentation);
 
 /// Create a pass for translating SPIR-V builtin functions to OCL 1.2 builtin
 /// functions.

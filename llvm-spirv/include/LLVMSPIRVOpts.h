@@ -65,6 +65,13 @@ enum class ExtensionID : uint32_t {
   Last,
 };
 
+enum class BIsRepresentation : uint32_t {
+  OpenCL12,
+  OpenCL20
+  // TODO: consider targeting SPIR-V friendly IR for some non-OpenCL backends,
+  // if there are any
+};
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -112,6 +119,14 @@ public:
     return true;
   }
 
+  void setDesiredBIsRepresentation(BIsRepresentation Value) {
+    DesiredRepresentationOfBIs = Value;
+  }
+
+  BIsRepresentation getDesiredBIsRepresentation() const {
+    return DesiredRepresentationOfBIs;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -119,6 +134,9 @@ private:
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Version of OpenCL C, which should be used while translating from SPIR-V to
+  // back to LLVM IR
+  BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
 };
 
 } // namespace SPIRV
