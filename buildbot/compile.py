@@ -1,5 +1,5 @@
 import argparse
-import os
+import multiprocessing
 import subprocess
 import sys
 
@@ -7,8 +7,9 @@ DEFAULT_CPU_COUNT = 4
 
 
 def do_compile(args):
-    cpu_count = os.cpu_count()
-    if cpu_count is None:
+    try:
+        cpu_count = multiprocessing.cpu_count()
+    except NotImplementedError:
         cpu_count = DEFAULT_CPU_COUNT
 
     make_cmd = ["ninja", "-j", str(cpu_count), "deploy-sycl-toolchain", "deploy-opencl-aot"]
