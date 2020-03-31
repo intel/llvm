@@ -795,5 +795,10 @@
 // LIB-NODEVICE: 1: linker, {0}, image, (host-sycl)
 // LIB-NODEVICE-NOT: linker, {{.*}}, spirv, (device-sycl)
 
+// Checking for an error if c-compilation is forced
+// RUN: %clangxx -### -c -fsycl -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: %clangxx -### -c -fsycl -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// CHECK_XC_FSYCL: The option -x c{{.*}} must not be used in conjunction with -fsycl{{.*}}
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
