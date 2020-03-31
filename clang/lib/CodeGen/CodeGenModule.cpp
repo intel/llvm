@@ -3690,8 +3690,8 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
       }
     }
 
-  if (LangOpts.SYCLIsDevice)
-    maybeEmitPipeStorageMetadata(D, GV, *this);
+    if (LangOpts.SYCLIsDevice)
+      maybeEmitPipeStorageMetadata(D, GV, *this);
   }
 
   if (GV->isDeclaration())
