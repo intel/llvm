@@ -60,7 +60,7 @@ template <int N> struct Boolean {
 
   Boolean(std::initializer_list<element_type> l) {
     for (size_t I = 0; I < N; ++I) {
-      value[I] = (!!*(l.begin() + I)) * (-1);
+      value[I] = *(l.begin() + I) ? -1 : 0;
     }
   }
 
