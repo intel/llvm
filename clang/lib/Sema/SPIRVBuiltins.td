@@ -367,7 +367,7 @@ def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats
 
 // GenType definitions for every single base type (e.g. fp32 only).
 // Names are like: GenTypeFloatVecAndScalar.
-foreach Type = [Bool, Char, UChar, SChar, Short, UShort,
+foreach Type = [Char, UChar, SChar, Short, UShort,
                 Int, UInt, Long, ULong,
                 Float, Double, Half] in {
   foreach VecSizes = [VecAndScalar, VecNoScalar] in {
