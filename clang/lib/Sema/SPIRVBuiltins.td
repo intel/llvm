@@ -824,9 +824,6 @@ foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [Bool, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half], Attr.Const>;
-}
-
-foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
@@ -843,16 +840,6 @@ foreach name = ["LessOrGreater",
   def : SPVBuiltin<name, [Bool, Float, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half, Half], Attr.Const>;
-}
-
-foreach name = ["LessOrGreater",
-                "Ordered", "Unordered",
-                "FOrdEqual", "FUnordEqual",
-                "FOrdNotEqual", "FUnordNotEqual",
-                "FOrdLessThan", "FUnordLessThan",
-                "FOrdGreaterThan", "FUnordGreaterThan",
-                "FOrdLessThanEqual", "FUnordLessThanEqual",
-                "FOrdGreaterThanEqual", "FUnordGreaterThanEqual"] in {
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
   def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
