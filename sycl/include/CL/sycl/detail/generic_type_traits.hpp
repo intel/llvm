@@ -480,7 +480,7 @@ convertDataToType(FROM t) {
   return TryToGetPointer(t);
 }
 
-// Used for all,any and select relational built-in functions
+// Used for all, any and select relational built-in functions
 template <typename T> inline constexpr T msbMask(T) {
   using UT = make_unsigned_t<T>;
   return T(UT(1) << (sizeof(T) * 8 - 1));
@@ -559,7 +559,7 @@ struct RelConverter<
 #ifdef __SYCL_DEVICE_ONLY__
     typename ret_t::vector_t result(0);
     for (size_t I = 0; I < N; ++I) {
-      result[I] = 0 - value[I];
+      result[I] = value[I];
     }
     return result;
 #else
