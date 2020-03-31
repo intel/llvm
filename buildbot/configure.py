@@ -76,13 +76,16 @@ def do_configure(args):
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
-    ] + args.cmake_opt
-
+    ]
 
     if not args.no_ocl:
       cmake_cmd.extend([
             "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
             "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
+
+    # Add additional CMake options if provided
+    if args.cmake_opt:
+      cmake_cmd += args.cmake_opt
 
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
