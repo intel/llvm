@@ -686,7 +686,10 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   // Set new command as user for dependencies and update leaves.
-  for (DepDesc &Dep : NewCmd->MDeps) {
+  // Node dependencies can be modified further when adding the node to leaves,
+  // iterate over their copy.
+  std::vector<DepDesc> Deps = NewCmd->MDeps;
+  for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
