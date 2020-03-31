@@ -2956,6 +2956,8 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 }
@@ -3005,6 +3007,9 @@ void generateIntelFPGAAnnotationForStructMember(
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
+                           &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
 
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,

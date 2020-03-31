@@ -150,6 +150,25 @@
 ;   s.field = 0;
 ; }
 ;
+; void force_pow2_depth_attr() {
+;   [[intelfpga::force_pow2_depth(0)]] int fp2d_var;
+;
+;   [[intelfpga::force_pow2_depth(1)]] struct fp2d_st {
+;     int field;
+;   } s;
+;   s.field = 0;
+; }
+;
+; template <int A>
+; void templ_force_pow2_depth_attr() {
+;   [[intelfpga::force_pow2_depth(A)]] int templ_fp2d_var;
+;
+;   [[intelfpga::force_pow2_depth(A)]] struct templ_fp2d_st {
+;     int field;
+;   } s;
+;   s.field = 0;
+; }
+;
 ; template <typename name, typename Func>
 ; __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 ;   kernelFunc();
@@ -173,6 +192,8 @@
 ;     simple_dual_port_attr();
 ;     bank_bits_attr();
 ;     templ_bank_bits_attr<4, 5>();
+;     force_pow2_depth_attr();
+;     templ_force_pow2_depth_attr<1>();
 ;   });
 ;   return 0;
 ; }
@@ -205,6 +226,7 @@
 ; CHECK-SPIRV: Decorate {{[0-9]+}} DoublepumpINTEL
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MaxReplicatesINTEL 8
 ; CHECK-SPIRV: Decorate {{[0-9]+}} SimpleDualPortINTEL
+; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 1
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "BLOCK_RAM"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 8
@@ -221,6 +243,7 @@
 ; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 5
 ; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 4 5
 ; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 2 1 0
+; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -242,6 +265,8 @@ target triple = "spir"
 %struct.simple_dual_port_st = type { i32 }
 %struct.bank_bits_st = type { i32 }
 %struct.templ_bank_bits_st = type { i32 }
+%struct.fp2d_st = type { i32 }
+%struct.templ_fp2d_st = type { i32 }
 
 ; CHECK-LLVM: [[STR_NMB_VAR:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:16}
 ; CHECK-LLVM: [[STR_NMB_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
@@ -275,6 +300,10 @@ target triple = "spir"
 ; CHECK-LLVM: [[STR_BBT_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}{bank_bits:2}
 ; CHECK-LLVM: [[STR_BBT_TE1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}{bank_bits:4,5}
 ; CHECK-LLVM: [[STR_BBT_TE2:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}{bank_bits:5}
+; CHECK-LLVM: [[STR_FP2_VAR:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:0}
+; CHECK-LLVM: [[STR_FP2_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
+; CHECK-LLVM: [[STR_FP2_TE1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
+; CHECK-LLVM: [[STR_FP2_TE2:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
 @.str = private unnamed_addr constant [42 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:16}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [25 x i8] c"intel-fpga-local-var.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}\00", section "llvm.metadata"
@@ -300,6 +329,8 @@ target triple = "spir"
 @.str.22 = private unnamed_addr constant [54 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{bank_bits:2}\00", section "llvm.metadata"
 @.str.23 = private unnamed_addr constant [56 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:4}{bank_bits:4,5}\00", section "llvm.metadata"
 @.str.24 = private unnamed_addr constant [54 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{bank_bits:5}\00", section "llvm.metadata"
+@.str.25 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}\00", section "llvm.metadata"
+@.str.26 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:1}\00", section "llvm.metadata"
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -338,6 +369,8 @@ entry:
   call spir_func void @_Z21simple_dual_port_attrv()
   call spir_func void @_Z14bank_bits_attrv()
   call spir_func void @_Z20templ_bank_bits_attrILi4ELi5EEvv()
+  call spir_func void @_Z21force_pow2_depth_attrv()
+  call spir_func void @_Z27templ_force_pow2_depth_attrILi1EEvv()
   ret void
 }
 
@@ -733,6 +766,54 @@ entry:
   ret void
 }
 
+; Function Attrs: norecurse nounwind
+define spir_func void @_Z21force_pow2_depth_attrv() #3 {
+entry:
+  %fp2d_var = alloca i32, align 4
+  %s = alloca %struct.fp2d_st, align 4
+  %0 = bitcast i32* %fp2d_var to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
+  %fp2d_var1 = bitcast i32* %fp2d_var to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{[a-zA-Z0-9_]+}}, i8* getelementptr inbounds ([{{[0-9]+}} x i8], [{{[0-9]+}} x i8]* [[STR_FP2_VAR]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %fp2d_var1, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.25, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 151)
+  %1 = bitcast %struct.fp2d_st* %s to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
+  %s2 = bitcast %struct.fp2d_st* %s to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{[a-zA-Z0-9_]+}}, i8* getelementptr inbounds ([{{[0-9]+}} x i8], [{{[0-9]+}} x i8]* [[STR_FP2_SCT]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 155)
+  %field = getelementptr inbounds %struct.fp2d_st, %struct.fp2d_st* %s, i32 0, i32 0
+  store i32 0, i32* %field, align 4, !tbaa !41
+  %2 = bitcast %struct.fp2d_st* %s to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
+  %3 = bitcast i32* %fp2d_var to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
+define linkonce_odr spir_func void @_Z27templ_force_pow2_depth_attrILi1EEvv() #3 {
+entry:
+  %templ_fp2d_var = alloca i32, align 4
+  %s = alloca %struct.templ_fp2d_st, align 4
+  %0 = bitcast i32* %templ_fp2d_var to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
+  %templ_fp2d_var1 = bitcast i32* %templ_fp2d_var to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{[a-zA-Z0-9_]+}}, i8* getelementptr inbounds ([{{[0-9]+}} x i8], [{{[0-9]+}} x i8]* [[STR_FP2_TE1]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %templ_fp2d_var1, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 161)
+  %1 = bitcast %struct.templ_fp2d_st* %s to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
+  %s2 = bitcast %struct.templ_fp2d_st* %s to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{[a-zA-Z0-9_]+}}, i8* getelementptr inbounds ([{{[0-9]+}} x i8], [{{[0-9]+}} x i8]* [[STR_FP2_TE2]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 165)
+  %field = getelementptr inbounds %struct.templ_fp2d_st, %struct.templ_fp2d_st* %s, i32 0, i32 0
+  store i32 0, i32* %field, align 4, !tbaa !43
+  %2 = bitcast %struct.templ_fp2d_st* %s to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
+  %3 = bitcast i32* %templ_fp2d_var to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  ret void
+}
+
 attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="intel-fpga-local-var.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
 attributes #2 = { inlinehint norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -786,3 +867,7 @@ attributes #5 = { nounwind }
 !38 = !{!"_ZTSZ14bank_bits_attrvE12bank_bits_st", !11, i64 0}
 !39 = !{!40, !11, i64 0}
 !40 = !{!"_ZTSZ20templ_bank_bits_attrILi4ELi5EEvvE18templ_bank_bits_st", !11, i64 0}
+!41 = !{!42, !11, i64 0}
+!42 = !{!"_ZTSZ21force_pow2_depth_attrvE7fp2d_st", !11, i64 0}
+!43 = !{!44, !11, i64 0}
+!44 = !{!"_ZTSZ27templ_force_pow2_depth_attrILi1EEvvE13templ_fp2d_st", !11, i64 0}

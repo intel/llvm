@@ -16,6 +16,11 @@
 ;   int c_two = c_one + c;
 ; }
 ;
+; void force_pow2_depth_stat(int fp2d) {
+;   static const int fp2d_stat [[intelfpga::force_pow2_depth(0)]] = 4;
+;   int fp2d_loc = fp2d_stat + fp2d;
+; }
+;
 ; template <typename name, typename Func>
 ; __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 ;   kernelFunc();
@@ -26,6 +31,7 @@
 ;     numbanks_stat(128);
 ;     memory_stat(42);
 ;     annotate_stat(16);
+;     force_pow2_depth_stat(25);
 ;   });
 ;   return 0;
 ; }
@@ -42,10 +48,11 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
+; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
+; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -55,8 +62,9 @@ target triple = "spir"
 ; CHECK-LLVM: [[STR_NMB_STAT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
 ; CHECK-LLVM: [[STR_MEM_STAT:@[0-9_.]+]] = {{.*}}{memory:MLAB}
 ; CHECK-LLVM: [[STR_ANN_STAT:@[0-9_.]+]] = {{.*}}foobarbaz
+; CHECK-LLVM: [[STR_FP2_STAT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:0}
 ; CHECK-LLVM: @llvm.global.annotations
-; CHECK-LLVM-SAME: _ZZ13numbanks_statiE5a_one{{.*}}[[STR_NMB_STAT]]{{.*}}_ZZ11memory_statcE5b_one{{.*}}[[STR_MEM_STAT]]{{.*}}_ZZ13annotate_statiE5c_one{{.*}}[[STR_ANN_STAT]]
+; CHECK-LLVM-SAME: _ZZ13numbanks_statiE5a_one{{.*}}[[STR_NMB_STAT]]{{.*}}_ZZ11memory_statcE5b_one{{.*}}[[STR_MEM_STAT]]{{.*}}_ZZ13annotate_statiE5c_one{{.*}}[[STR_ANN_STAT]]{{.*}}_ZZ21force_pow2_depth_statiE9fp2d_stat{{.*}}[[STR_FP2_STAT]]
 @_ZZ13numbanks_statiE5a_one = internal addrspace(1) constant i32 1, align 4
 @.str = private unnamed_addr constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [28 x i8] c"intel-fpga-local-static.cpp\00", section "llvm.metadata"
@@ -64,7 +72,9 @@ target triple = "spir"
 @.str.2 = private unnamed_addr constant [26 x i8] c"{memory:MLAB}{sizeinfo:1}\00", section "llvm.metadata"
 @_ZZ13annotate_statiE5c_one = internal addrspace(1) constant i32 3, align 4
 @.str.3 = private unnamed_addr constant [10 x i8] c"foobarbaz\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [3 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ13numbanks_statiE5a_one to i8 addrspace(1)*) to i8*), i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 2 }, { i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* @_ZZ11memory_statcE5b_one to i8*), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 7 }, { i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ13annotate_statiE5c_one to i8 addrspace(1)*) to i8*), i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 12 }], section "llvm.metadata"
+@_ZZ21force_pow2_depth_statiE9fp2d_stat = internal addrspace(1) constant i32 4, align 4
+@.str.4 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}\00", section "llvm.metadata"
+@llvm.global.annotations = appending global [4 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ13numbanks_statiE5a_one to i8 addrspace(1)*) to i8*), i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 2 }, { i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* @_ZZ11memory_statcE5b_one to i8*), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 7 }, { i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ13annotate_statiE5c_one to i8 addrspace(1)*) to i8*), i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 12 }, { i8*, i8*, i8*, i32 } { i8* addrspacecast (i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ21force_pow2_depth_statiE9fp2d_stat to i8 addrspace(1)*) to i8*), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 17 }], section "llvm.metadata"
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -90,6 +100,7 @@ entry:
   call spir_func void @_Z13numbanks_stati(i32 128)
   call spir_func void @_Z11memory_statc(i8 signext 42)
   call spir_func void @_Z13annotate_stati(i32 16)
+  call spir_func void @_Z21force_pow2_depth_stati(i32 25)
   ret void
 }
 
@@ -143,6 +154,23 @@ entry:
   %add = add nsw i32 3, %1
   store i32 %add, i32* %c_two, align 4, !tbaa !9
   %2 = bitcast i32* %c_two to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
+  ret void
+}
+
+; CHECK-LLVM: void @_Z21force_pow2_depth_stati(i32 %fp2d)
+; Function Attrs: norecurse nounwind
+define spir_func void @_Z21force_pow2_depth_stati(i32 %fp2d) #3 {
+entry:
+  %fp2d.addr = alloca i32, align 4
+  %fp2d_loc = alloca i32, align 4
+  store i32 %fp2d, i32* %fp2d.addr, align 4, !tbaa !9
+  %0 = bitcast i32* %fp2d_loc to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
+  %1 = load i32, i32* %fp2d.addr, align 4, !tbaa !9
+  %add = add nsw i32 4, %1
+  store i32 %add, i32* %fp2d_loc, align 4, !tbaa !9
+  %2 = bitcast i32* %fp2d_loc to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
   ret void
 }

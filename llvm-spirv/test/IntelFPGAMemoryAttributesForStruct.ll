@@ -118,6 +118,21 @@
 ;   s.field = 0;
 ; }
 ;
+; void field_force_pow2_depth_attr() {
+;   struct force_pow2_depth_st {
+;     [[intelfpga::force_pow2_depth(0)]] int field;
+;   } s;
+;   s.field = 0;
+; }
+;
+; template <int A>
+; void templ_field_force_pow2_depth_attr() {
+;   struct templ_force_pow2_depth_st {
+;     [[intelfpga::force_pow2_depth(A)]] int field;
+;   } s;
+;   s.field = 0;
+; }
+;
 ; void field_addrspace_cast() {
 ;   struct state {
 ;     [[intelfpga::numbanks(2)]] int mem[8];
@@ -156,6 +171,8 @@
 ;     field_simple_dual_port_attr();
 ;     field_bank_bits_attr();
 ;     templ_field_bank_bits_attr<2,3>();
+;     field_force_pow2_depth_attr();
+;     templ_field_force_pow2_depth_attr<1>();
 ;     field_addrspace_cast();
 ;   });
 ;   return 0;
@@ -197,6 +214,8 @@
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MergeINTEL "foobar" "width"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 2 3
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 42 41 40
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 0
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 1
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -218,6 +237,8 @@ target triple = "spir"
 %struct.simple_dual_port_st = type { i32 }
 %struct.bank_bits_st = type { i32 }
 %struct.templ_bank_bits_st = type { i32 }
+%struct.force_pow2_depth_st = type { i32 }
+%struct.templ_force_pow2_depth_st = type { i32 }
 %struct.state = type { [8 x i32] }
 
 ; CHECK-LLVM: [[STR_NMB_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
@@ -236,6 +257,8 @@ target triple = "spir"
 ; CHECK-LLVM: [[STR_SDP_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
 ; CHECK-LLVM: [[STR_BBT_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:8}{bank_bits:42,41,40}
 ; CHECK-LLVM: [[STR_BBT_STE:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}{bank_bits:2,3}
+; CHECK-LLVM: [[STR_FP2_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:0}
+; CHECK-LLVM: [[STR_FP2_STE:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{force_pow2_depth:1}
 ; CHECK-LLVM: [[STR_NMB_ASC:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
 @.str = private unnamed_addr constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:4}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [28 x i8] c"intel-fpga-local-struct.cpp\00", section "llvm.metadata"
@@ -254,7 +277,9 @@ target triple = "spir"
 @.str.14 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}\00", section "llvm.metadata"
 @.str.15 = private unnamed_addr constant [61 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:8}{bank_bits:42,41,40}\00", section "llvm.metadata"
 @.str.16 = private unnamed_addr constant [56 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:4}{bank_bits:2,3}\00", section "llvm.metadata"
-@.str.17 = private unnamed_addr constant [43 x i8] c"{memory:DEFAULT}{sizeinfo:4,8}{numbanks:2}\00", section "llvm.metadata"
+@.str.17 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}\00", section "llvm.metadata"
+@.str.18 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:1}\00", section "llvm.metadata"
+@.str.19 = private unnamed_addr constant [43 x i8] c"{memory:DEFAULT}{sizeinfo:4,8}{numbanks:2}\00", section "llvm.metadata"
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -293,6 +318,8 @@ entry:
   call spir_func void @_Z27field_simple_dual_port_attrv()
   call spir_func void @_Z20field_bank_bits_attrv()
   call spir_func void @_Z26templ_field_bank_bits_attrILi2ELi3EEvv()
+  call spir_func void @_Z27field_force_pow2_depth_attrv()
+  call spir_func void @_Z33templ_field_force_pow2_depth_attrILi1EEvv()
   call spir_func void @_Z20field_addrspace_castv()
   ret void
 }
@@ -557,6 +584,38 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
+define spir_func void @_Z27field_force_pow2_depth_attrv() #3 {
+entry:
+  %s = alloca %struct.force_pow2_depth_st, align 4
+  %0 = bitcast %struct.force_pow2_depth_st* %s to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
+  ; CHECK-LLVM: %[[FLD_FP2_SCT:.*]] = getelementptr inbounds %struct.force_pow2_depth_st, %struct.force_pow2_depth_st* %{{[a-zA-Z0-9]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FLD_FP2_SCT]]{{.*}}[[STR_FP2_SCT]]
+  %field = getelementptr inbounds %struct.force_pow2_depth_st, %struct.force_pow2_depth_st* %s, i32 0, i32 0
+  %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %field, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.17, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120)
+  store i32 0, i32* %1, align 4, !tbaa !43
+  %2 = bitcast %struct.force_pow2_depth_st* %s to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
+define linkonce_odr spir_func void @_Z33templ_field_force_pow2_depth_attrILi1EEvv() #3 {
+entry:
+  %s = alloca %struct.templ_force_pow2_depth_st, align 4
+  %0 = bitcast %struct.templ_force_pow2_depth_st* %s to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
+  ; CHECK-LLVM: %[[FLD_FP2_STE:.*]] = getelementptr inbounds %struct.templ_force_pow2_depth_st, %struct.templ_force_pow2_depth_st* %{{[a-zA-Z0-9]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FLD_FP2_STE]]{{.*}}[[STR_FP2_STE]]
+  %field = getelementptr inbounds %struct.templ_force_pow2_depth_st, %struct.templ_force_pow2_depth_st* %s, i32 0, i32 0
+  %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %field, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.18, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 128)
+  store i32 0, i32* %1, align 4, !tbaa !45
+  %2 = bitcast %struct.templ_force_pow2_depth_st* %s to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
 define spir_func void @_Z20field_addrspace_castv() #3 {
 entry:
   %state_var = alloca %struct.state, align 4
@@ -568,7 +627,7 @@ entry:
   ; CHECK-LLVM: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST]]{{.*}}[[STR_NMB_ASC]]
   %mem = getelementptr inbounds %struct.state, %struct.state* %state_var, i32 0, i32 0
   %1 = bitcast [8 x i32]* %mem to i8*
-  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %1, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.17, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120)
+  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %1, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.19, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120)
   %3 = bitcast i8* %2 to [8 x i32]*
   %arrayidx = getelementptr inbounds [8 x i32], [8 x i32]* %3, i32 0, i32 0
   store i32 42, i32* %arrayidx, align 4, !tbaa !12
@@ -614,7 +673,7 @@ for.body:                                         ; preds = %for.cond
   %mem = getelementptr inbounds %struct.state, %struct.state* %this1, i32 0, i32 0
   ; FIXME: currently llvm.ptr.annotation is not emitted for c'tors, need to fix it and add a check here
   %4 = bitcast [8 x i32]* %mem to i8*
-  %5 = call i8* @llvm.ptr.annotation.p0i8(i8* %4, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.17, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120)
+  %5 = call i8* @llvm.ptr.annotation.p0i8(i8* %4, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.19, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120)
   %6 = bitcast i8* %5 to [8 x i32]*
   %7 = load i32, i32* %i, align 4, !tbaa !12
   %arrayidx = getelementptr inbounds [8 x i32], [8 x i32]* %6, i32 0, i32 %7
@@ -692,3 +751,7 @@ attributes #5 = { nounwind }
 !40 = !{!"_ZTSZ20field_bank_bits_attrvE12bank_bits_st", !11, i64 0}
 !41 = !{!42, !11, i64 0}
 !42 = !{!"_ZTSZ26templ_field_bank_bits_attrILi2ELi3EEvvE18templ_bank_bits_st", !11, i64 0}
+!43 = !{!44, !11, i64 0}
+!44 = !{!"_ZTSZ27field_force_pow2_depth_attrvE19force_pow2_depth_st", !11, i64 0}
+!45 = !{!46, !11, i64 0}
+!46 = !{!"_ZTSZ33templ_field_force_pow2_depth_attrILi1EEvvE25templ_force_pow2_depth_st", !11, i64 0}

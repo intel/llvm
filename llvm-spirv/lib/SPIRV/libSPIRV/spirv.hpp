@@ -406,6 +406,7 @@ enum Decoration {
   DecorationSimpleDualPortINTEL = 5833,
   DecorationMergeINTEL = 5834,
   DecorationBankBitsINTEL = 5835,
+  DecorationForcePow2DepthINTEL = 5836,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationMax = 0x7fffffff,
 };
