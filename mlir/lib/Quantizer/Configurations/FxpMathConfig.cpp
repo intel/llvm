@@ -15,8 +15,8 @@
 #include "mlir/Quantizer/Configurations/FxpMathConfig.h"
 
 #include "mlir/Dialect/FxpMathOps/FxpMathOps.h"
-#include "mlir/Dialect/QuantOps/QuantOps.h"
-#include "mlir/Dialect/QuantOps/QuantTypes.h"
+#include "mlir/Dialect/Quant/QuantOps.h"
+#include "mlir/Dialect/Quant/QuantTypes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/StandardTypes.h"
@@ -60,7 +60,7 @@ struct FxpMathTargetConfigImpl : public FxpMathTargetConfig {
     // Op handlers.
     addOpHandler<ConstantOp>(
         std::bind(&FxpMathTargetConfigImpl::handleConstant, this, _1, _2));
-    addOpHandler<ReturnOp>(
+    addOpHandler<mlir::ReturnOp>(
         std::bind(&FxpMathTargetConfigImpl::handleTerminal, this, _1, _2));
     addOpHandler<quant::StatisticsOp>(
         std::bind(&FxpMathTargetConfigImpl::handleStats, this, _1, _2));

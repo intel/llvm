@@ -18,7 +18,7 @@ define internal spir_func void @wibble(%struct.baz* byval(%struct.baz) %arg1) !w
 ; CHECK-NEXT:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 8 bitcast (%struct.baz addrspace(3)* @[[SHADOW]] to i8 addrspace(3)*), i8* [[TMP2]], i64 8, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    call void @__spirv_ControlBarrier(i32 2, i32 2, i32 272)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    ret void
 ;
   ret void

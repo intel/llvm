@@ -39,7 +39,7 @@
 // For a kind 3 variable (alloca w/o metadata) this pass creates a WG-shared
 // local "shadow" variable. Before each PFWI invocation leader WI stores its
 // private copy of the variable into the shadow (under "is leader" guard), then
-// all WIs (ouside of "is leader" guard) load the shadow value into their
+// all WIs (outside of "is leader" guard) load the shadow value into their
 // private copies ("materialize" the private copy). This works because these
 // variables are uniform - i.e. have the same value in all WIs and are not
 // changed within PFWI. The only exceptions are captures of private_memory
@@ -67,7 +67,7 @@
 //
 // TODO The approach employed by this pass generates lots of barriers and data
 // copying between private and local memory, which might not be efficient. There
-// are optimization opportunities listed below. Also other aproaches can be
+// are optimization opportunities listed below. Also other approaches can be
 // considered like
 // "Efficient Fork-Join on GPUs through Warp Specialization" by Arpith C. Jacob
 // et. al.
@@ -148,10 +148,10 @@ static IntegerType *getSizeTTy(Module &M) {
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
-// Encaplulates SPIRV-dependent code generation.
+// Encapsulates SPIR-V-dependent code generation.
 // TODO this should be factored out into a separate project in clang
 namespace spirv {
-// There is no TargetMachine for SPIRV, so define those inline here
+// There is no TargetMachine for SPIR-V, so define those inline here
 enum class AddrSpace : unsigned {
   Private = 0,
   Global = 1,
@@ -185,7 +185,7 @@ enum class MemorySemantics : unsigned {
 };
 
 Instruction *genWGBarrier(Instruction &Before, const Triple &TT);
-Value *genLinearLocalID(Instruction &Before, const Triple &TT);
+Value *genPseudoLocalID(Instruction &Before, const Triple &TT);
 GlobalVariable *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
 } // namespace spirv
 
@@ -261,7 +261,7 @@ static void guardBlockWithIsLeaderCheck(BasicBlock *IfBB, BasicBlock *TrueBB,
                                         BasicBlock *MergeBB,
                                         const DebugLoc &DbgLoc,
                                         const Triple &TT) {
-  Value *LinearLocalID = spirv::genLinearLocalID(*IfBB->getTerminator(), TT);
+  Value *LinearLocalID = spirv::genPseudoLocalID(*IfBB->getTerminator(), TT);
   auto *Ty = LinearLocalID->getType();
   Value *Zero = Constant::getNullValue(Ty);
   IRBuilder<> Builder(IfBB->getContext());
@@ -302,7 +302,7 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
   auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
-  // 4) Finally, replace usages of I ouside the scope
+  // 4) Finally, replace usages of I outside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
 }
@@ -530,7 +530,7 @@ static bool localMustBeMaterialized(const AllocaInst *L, const BasicBlock &BB) {
 //   that BB to current.
 // - Avoid unnecessary '*p = *@Shadow_p' reloads and redirect p uses them to the
 //   @Shadow_p in case it can be proved it is safe (see note above). Might not
-//   have any noticible effect, though, as reading from Shadow always goes to a
+//   have any noticeable effect, though, as reading from Shadow always goes to a
 //   register file anyway.
 //
 void materializeLocalsInWIScopeBlocks(SmallPtrSetImpl<AllocaInst *> &Locals,
@@ -658,7 +658,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
       continue;
     PrivMemCaptures.push_back(CaptureDesc{AI, GEP});
   }
-  // now rewrite the captured addresss of a private_memory variables within the
+  // now rewrite the captured address of a private_memory variables within the
   // PFWI lambda object:
   for (auto &C : PrivMemCaptures) {
     GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
@@ -703,8 +703,22 @@ static void shareByValParams(Function &F, const Triple &TT) {
         spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
 
     // 3) replace argument with shadow in all uses
+    Value *RepVal = Shadow;
+    if (TT.isNVPTX()) {
+      // For NVPTX target address space inference for kernel arguments and
+      // allocas is happening in the backend (NVPTXLowerArgs and
+      // NVPTXLowerAlloca passes). After the frontend these pointers are in LLVM
+      // default address space 0 which is the generic address space for NVPTX
+      // target.
+      assert(Arg.getType()->getPointerAddressSpace() == 0);
+
+      // Cast a pointer in the shared address space to the generic address
+      // space.
+      RepVal =
+          ConstantExpr::getPointerBitCastOrAddrSpaceCast(Shadow, Arg.getType());
+    }
     for (auto *U : Arg.users())
-      U->replaceUsesOfWith(&Arg, Shadow);
+      U->replaceUsesOfWith(&Arg, RepVal);
 
     // 4) fill the shadow from the argument for the leader WI only
     LLVMContext &Ctx = At.getContext();
@@ -854,18 +868,15 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
   return G;
 }
 
-// Functions below expose SPIRV translator-specific intrinsics to the use
+// Functions below expose SPIR-V translator-specific intrinsics to the use
 // in LLVM IR. Those calls and global references will be translated to
-// corresponding SPIRV operations and builtin variables.
+// corresponding SPIR-V operations and builtin variables.
 //
-// TODO generalize to support all SPIRV intrinsic operations and builtin
+// TODO generalize to support all SPIR-V intrinsic operations and builtin
 //      variables
 
-// extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;
-// Must correspond to the code in
-// llvm-spirv/lib/SPIRV/OCL20ToSPIRV.cpp
-// OCL20ToSPIRV::transWorkItemBuiltinsToVariables()
-Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
+// Return a value equals to 0 if and only if the local linear id is 0.
+Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
   if (TT.isNVPTX()) {
     LLVMContext &Ctx = Before.getContext();
@@ -874,35 +885,29 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-    AttributeList Attr;
-    Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                             Attribute::Convergent);
-
 #define CREATE_CALLEE(NAME, FN_NAME)                                           \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, Attr, RetTy); \
+  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
   assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
-  auto NAME = Bld.CreateCall(FnCallee##NAME, {});                              \
-  NAME->addAttribute(AttributeList::FunctionIndex, Attribute::Convergent);
+  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
 
     CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
     CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
     CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
-    CREATE_CALLEE(WorkgroupSize_Y, "_Z23__spirv_WorkgroupSize_yv");
-    CREATE_CALLEE(WorkgroupSize_Z, "_Z23__spirv_WorkgroupSize_zv");
 
 #undef CREATE_CALLEE
 
-    // 1:   ((__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_z())
-    // 2:    * __spirv_LocalInvocationId_x())
-    // 3: + (__spirv_WorkgroupSize_z() * __spirv_LocalInvocationId_y())
-    // 4: + (__spirv_LocalInvocationId_z())
-    return Bld.CreateAdd(
-        Bld.CreateAdd(
-            Bld.CreateMul(Bld.CreateMul(WorkgroupSize_Y, WorkgroupSize_Z), // 1
-                          LocalInvocationId_X),                            // 2
-            Bld.CreateMul(WorkgroupSize_Z, LocalInvocationId_Y)),          // 3
-        LocalInvocationId_Z);                                              // 4
+    // 1: returns
+    //   __spirv_LocalInvocationId_x() |
+    //   __spirv_LocalInvocationId_y() |
+    //   __spirv_LocalInvocationId_z()
+    //
+    return Bld.CreateOr(LocalInvocationId_X,
+                        Bld.CreateOr(LocalInvocationId_Y, LocalInvocationId_Z));
   } else {
+    // extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;
+    // Must correspond to the code in
+    // llvm-spirv/lib/SPIRV/OCL20ToSPIRV.cpp
+    // OCL20ToSPIRV::transWorkItemBuiltinsToVariables()
     StringRef Name = "__spirv_BuiltInLocalInvocationIndex";
     GlobalVariable *G = M.getGlobalVariable(Name);
 
@@ -921,7 +926,7 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
                              asUInt(spirv::AddrSpace::Global) // AddressSpace
       );
       unsigned Align = M.getDataLayout().getPreferredAlignment(G);
-      G->setAlignment(Align);
+      G->setAlignment(MaybeAlign(Align));
     }
     Value *Res = new LoadInst(G, "", &Before);
     return Res;
@@ -932,11 +937,7 @@ Value *spirv::genLinearLocalID(Instruction &Before, const Triple &TT) {
 //  uint32_t Semantics) noexcept;
 Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  StringRef Name;
-  if (TT.isNVPTX())
-    Name = "_Z22__spirv_ControlBarrierN5__spv5ScopeES0_j";
-  else
-    Name = "__spirv_ControlBarrier";
+  StringRef Name = "_Z22__spirv_ControlBarrierjjj";
   LLVMContext &Ctx = Before.getContext();
   Type *ScopeTy = Type::getInt32Ty(Ctx);
   Type *SemanticsTy = Type::getInt32Ty(Ctx);

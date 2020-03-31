@@ -24,10 +24,10 @@
 #define __SYCL_EXTERN_IT2(Ret, prefix, call, Arg1, Arg2)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)
 #define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
-#define __SYCL_TPARAMS0(Type) <Type>
-#define __SYCL_TPARAMS1(Ret, A1) <Ret, A1>
-#define __SYCL_TPARAMS2(Ret, A1, A2) <Ret, A1, A2>
-#define __SYCL_TPARAMS3(Ret, A1, A2, A3) <Ret, A1, A2, A3>
+#define __SYCL_TPARAMS0(Type)
+#define __SYCL_TPARAMS1(Ret, A1)
+#define __SYCL_TPARAMS2(Ret, A1, A2)
+#define __SYCL_TPARAMS3(Ret, A1, A2, A3)
 #else
 #define __FUNC_PREFIX_OCL
 #define __FUNC_PREFIX_CORE

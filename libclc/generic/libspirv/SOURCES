@@ -55,6 +55,7 @@ math/floor.cl
 math/fma.cl
 math/fmax.cl
 math/fmin.cl
+math/fmod.cl
 math/fract.cl
 math/ldexp.cl
 math/log.cl

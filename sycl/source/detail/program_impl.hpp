@@ -293,6 +293,16 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
+  void set_spec_constant_impl(const char *Name, const void *ValAddr,
+                              size_t ValSize);
+
+  /// Returns the OS module handle this program belongs to. A program belongs to
+  /// an OS module if it was built from device image(s) belonging to that
+  /// module.
+  /// TODO Some programs can be linked from images belonging to different
+  ///      modules. May need a special fake handle for the resulting program.
+  OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram,

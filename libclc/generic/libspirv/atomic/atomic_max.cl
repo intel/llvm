@@ -10,11 +10,13 @@
 
 // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, NAME, PREFIX, SUFFIX) \
-_CLC_DEF TYPE _Z18##NAME##PU3##AS_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskE##TYPE_MANGLED ( \
-    volatile AS TYPE *p, enum Scope scope, enum MemorySemanticsMask semantics, TYPE val) { \
-  return PREFIX##__sync_fetch_and_##SUFFIX(p, val); \
-}
+#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, NAME, PREFIX, SUFFIX)                                             \
+  _CLC_DEF TYPE                                                                                                    \
+      _Z18##NAME##PU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+          volatile AS TYPE *p, enum Scope scope,                                                                   \
+          enum MemorySemanticsMask semantics, TYPE val) {                                                          \
+    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                                                              \
+  }
 
 IMPL(int, i, global, AS1, __spirv_AtomicSMax, , max)
 IMPL(unsigned int, j, global, AS1, __spirv_AtomicUMax, , umax)

@@ -803,7 +803,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
-        for (const char *Val : SYCLTargetsValues->getValues()) {
+        for (StringRef Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
           if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
@@ -821,7 +821,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
-          FoundNormalizedTriples[NormalizedName] = NormalizedName;
+          FoundNormalizedTriples[NormalizedName] = Val;
           UniqueSYCLTriplesVec.push_back(TT);
         }
       } else
@@ -857,7 +857,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
             // Store the current triple so that we can check for duplicates in
             // the following iterations.
-            FoundNormalizedTriples[NormalizedName] = NormalizedName;
+            FoundNormalizedTriples[NormalizedName] = Val;
             UniqueSYCLTriplesVec.push_back(TT);
           } else {
             // No colon found, do not use the input
@@ -3714,7 +3714,15 @@ class OffloadingActionBuilder final {
               auto *DeviceCheckAction =
                   C.MakeAction<SPIRCheckJobAction>(I, types::TY_Object);
               DeviceObjects.push_back(DeviceCheckAction);
-            } else {
+              continue;
+            }
+            // We want to move the AOCX/AOCR binary to the front of the objects
+            // allowing it to be picked up instead of the other device objects
+            // at runtime.
+            // TODO: In the presense of existing FPGA Device binaries (AOCX)
+            // we do not need to perform/add the SPIR-V generated device
+            // binaries from sources or objects.
+            if (types::isFPGA(I->getType())) {
               // Do not perform a device link and only pass the aocr
               // file to the offline compilation before wrapping.  Just
               // wrap an aocx file.
@@ -3729,7 +3737,9 @@ class OffloadingActionBuilder final {
                     C.MakeAction<OffloadWrapperJobAction>(I, types::TY_Object);
               DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                      Action::OFK_SYCL);
+              continue;
             }
+            DeviceObjects.push_back(I);
           }
           if (!DeviceObjects.empty()) {
             // When aocx or aocr is found, there is an expectation that none of
@@ -3756,74 +3766,161 @@ class OffloadingActionBuilder final {
           else
             LinkObjects.push_back(Input);
         }
+        // The linkage actions subgraph leading to the offload wrapper.
+        // [cond] Means incoming/outgoing dependence is created only when cond
+        //        is true. A function of:
+        //   n - target is NVPTX
+        //   a - SPIRV AOT compilation is requested
+        //   s - device code split requested
+        //   * - "all other cases"
+        //     - no condition means output/input is "always" present
+        // First symbol indicates output/input type
+        //   . - single file output (TY_SPIRV, TY_LLVM_BC,...)
+        //   - - TY_Tempfilelist
+        //   + - TY_Tempfiletable
+        //
+        //                   .-----------------.
+        //                   |Link(LinkObjects)|
+        //                   .-----------------.
+        //                            |
+        //         .--------------------------------------.
+        //         |               PostLink               |
+        //         .--------------------------------------.
+        //         [.n]       [.!na!s]    [+*]         [+*]
+        //           |           |          |            |
+        //           |           |  .----------------.   |
+        //           |           |  |FileTableTform  |   |
+        //           |           |  |(extract "Code")|   |
+        //           |           |  .----------------.   |
+        //           |           |         [-]           |
+        //           |           |          |            |
+        //           |         [.a!s]     [-*]           |
+        //    .-------------.  .---------------------.   |
+        //    |finalizeNVPTX|  |   SPIRVTranslator   |   |
+        //    .-------------.  .---------------------.   |
+        //           |         [.a!s]     [-as]  [-!a]   |
+        //           |           |          |      |     |
+        //           |         [.!s]      [-s]     |     |
+        //           |       .----------------.    |     |
+        //           |       | BackendCompile |    |     |
+        //           |       .----------------.    |     |
+        //           |         [.!s]      [-s]     |     |
+        //           |           |          |      |     |
+        //           |           |        [-a]   [-!a]  [+]
+        //           |           |        .----------------.
+        //           |           |        |FileTableTform  |
+        //           |           |        |(replace "Code")|
+        //           |           |        .----------------.
+        //           |           |                |
+        //         [.n]      [.!na!s]           [+*]
+        //         .--------------------------------------.
+        //         |            OffloadWrapper            |
+        //         .--------------------------------------.
+        //
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
-        ActionList WrapperInputs;
-        types::ID OutType = types::TY_SPIRV;
-        if (DeviceCodeSplit) {
-          auto *SplitAction = C.MakeAction<SYCLPostLinkJobAction>(
-              DeviceLinkAction, types::TY_Tempfilelist);
-          auto *EntryGenAction = C.MakeAction<SYCLPostLinkJobAction>(
-              DeviceLinkAction, types::TY_TempEntriesfilelist);
-          DeviceLinkAction = SplitAction;
-          WrapperInputs.push_back(EntryGenAction);
-          OutType = types::TY_Tempfilelist;
-        }
+        // setup some flags upfront
         auto isNVPTX = (*TC)->getTriple().isNVPTX();
-        if (isNVPTX) {
-          DeviceLinkAction =
-              finalizeNVPTXDependences(DeviceLinkAction, (*TC)->getTriple());
+
+        if (isNVPTX && DeviceCodeSplit) {
+          // TODO Temporary limitation, need to support code splitting for PTX
+          const Driver &D = C.getDriver();
+          const std::string &OptName =
+              D.getOpts()
+                  .getOption(options::OPT_fsycl_device_code_split)
+                  .getPrefixedName();
+          D.Diag(diag::err_drv_unsupported_opt_for_target)
+              << OptName << (*TC)->getTriple().str();
         }
-        else
-          DeviceLinkAction =
-            C.MakeAction<SPIRVTranslatorJobAction>(DeviceLinkAction, OutType);
-
         auto TT = SYCLTripleList[I];
-        bool SYCLAOTCompile =
-            (TT.getSubArch() != llvm::Triple::NoSubArch &&
-             (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-              TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-              TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64));
+        bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+        // reflects whether current target is ahead-of-time and can't support
+        // runtime setting of specialization constants
+        bool isAOT = isNVPTX || isSpirvAOT;
+        // TODO support device code split for NVPTX target
 
+        ActionList WrapperInputs;
+        // post link is not optional - even if not splitting, always need to
+        // process specialization constants
+        bool MultiFileActionDeps = !isSpirvAOT || DeviceCodeSplit;
+        types::ID PostLinkOutType = isNVPTX || !MultiFileActionDeps
+                                        ? types::TY_LLVM_BC
+                                        : types::TY_Tempfiletable;
+        auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
+            DeviceLinkAction, PostLinkOutType);
+        PostLinkAction->setRTSetsSpecConstants(!isAOT);
+
+        if (isNVPTX) {
+          Action *FinAction =
+              finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
+          WrapperInputs.push_back(FinAction);
+        } else {
+          // For SPIRV-based targets - translate to SPIRV then optionally
+          // compile ahead-of-time to native architecture
+          Action *SPIRVInput = PostLinkAction;
+          constexpr char COL_CODE[] = "Code";
+
+          if (MultiFileActionDeps) {
+            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+                PostLinkAction, types::TY_Tempfilelist);
+            // single column w/o title fits TY_Tempfilelist format
+            ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
+                                                        false /*drop titles*/);
+            SPIRVInput = ExtractIRFilesAction;
+          }
+          types::ID SPIRVOutType =
+              MultiFileActionDeps ? types::TY_Tempfilelist : types::TY_SPIRV;
+          Action *BuildCodeAction =
+              C.MakeAction<SPIRVTranslatorJobAction>(SPIRVInput, SPIRVOutType);
+
+          // After the Link, wrap the files before the final host link
+          if (isSpirvAOT) {
+            types::ID OutType = types::TY_Tempfilelist;
+            if (!DeviceCodeSplit) {
+              OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+                            ? FPGAOutType
+                            : types::TY_Image;
+            }
+            // Do the additional Ahead of Time compilation when the specific
+            // triple calls for it (provided a valid subarch).
+            ActionList BEInputs;
+            BEInputs.push_back(BuildCodeAction);
+            for (Action *A : FPGAObjectInputs) {
+              // Send any known objects through the unbundler to grab the
+              // dependency file associated.
+              ActionList AL;
+              AL.push_back(A);
+              Action *UnbundleAction = C.MakeAction<OffloadUnbundlingJobAction>(
+                  AL, types::TY_FPGA_Dependencies);
+              BEInputs.push_back(UnbundleAction);
+            }
+            for (const auto &A : DeviceLibObjects)
+              BEInputs.push_back(A);
+            BuildCodeAction =
+                C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
+          }
+          if (MultiFileActionDeps) {
+            ActionList TformInputs{PostLinkAction, BuildCodeAction};
+            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+                TformInputs, types::TY_Tempfiletable);
+            ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
+            BuildCodeAction = ReplaceFilesAction;
+          }
+          WrapperInputs.push_back(BuildCodeAction);
+        }
         // After the Link, wrap the files before the final host link
-        if (SYCLAOTCompile) {
-          OutType = types::TY_Tempfilelist;
-          if (!DeviceCodeSplit) {
-            OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-                          ? FPGAOutType
-                          : types::TY_Image;
-          }
-          // Do the additional Ahead of Time compilation when the specific
-          // triple calls for it (provided a valid subarch).
-          Action *DeviceBECompileAction;
-          ActionList BEActionList;
-          BEActionList.push_back(DeviceLinkAction);
-          for (Action *A : FPGAObjectInputs) {
-            // Send any known objects through the unbundler to grab the
-            // dependency file associated.
-            ActionList AL;
-            AL.push_back(A);
-            Action *UnbundleAction = C.MakeAction<OffloadUnbundlingJobAction>(
-                AL, types::TY_FPGA_Dependencies);
-            BEActionList.push_back(UnbundleAction);
-          }
-          for (const auto &A : DeviceLibObjects)
-            BEActionList.push_back(A);
-          DeviceBECompileAction =
-              C.MakeAction<BackendCompileJobAction>(BEActionList, OutType);
-          WrapperInputs.push_back(DeviceBECompileAction);
-          auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-              WrapperInputs, types::TY_Object);
+        auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+            WrapperInputs, types::TY_Object);
+
+        if (isSpirvAOT)
           DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                  Action::OFK_SYCL);
-        } else {
-          WrapperInputs.push_back(DeviceLinkAction);
-          auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-              WrapperInputs, types::TY_Object);
+        else
           withBoundArchForToolChain(*TC, [&](const char *BoundArch) {
             DA.add(*DeviceWrappingAction, **TC, BoundArch, Action::OFK_SYCL);
           });
-        }
         ++TC;
         ++I;
       }
@@ -3903,6 +4000,8 @@ class OffloadingActionBuilder final {
       WrapDeviceOnlyBinary = Args.hasArg(options::OPT_fsycl_link_EQ);
       auto *DeviceCodeSplitArg =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      // -fsycl-device-code-split is an alias to
+      // -fsycl-device-code-split=per_source
       DeviceCodeSplit = DeviceCodeSplitArg &&
                         DeviceCodeSplitArg->getValue() != StringRef("off");
       // Device only compilation for -fsycl-link (no FPGA) and

@@ -161,7 +161,7 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
   RT::PiEvent &EventHandle = (*Event)->getHandleRef();
   const detail::plugin &Plugin = (*Event)->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, CL_COMPLETE);
+  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, PI_EVENT_COMPLETE);
   delete (Event);
 }
 
@@ -169,37 +169,42 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
 std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> Result;
   std::vector<EventImplPtr> GlueEvents;
-  for (EventImplPtr &Event : MDepsEvents) {
+  for (EventImplPtr &DepEvent : MDepsEvents) {
     // Async work is not supported for host device.
-    if (Event->is_host()) {
-      Event->waitInternal();
+    if (DepEvent->is_host()) {
+      DepEvent->waitInternal();
       continue;
     }
     // The event handle can be null in case of, for example, alloca command,
     // which is currently synchrounious, so don't generate OpenCL event.
-    if (Event->getHandleRef() == nullptr) {
+    if (DepEvent->getHandleRef() == nullptr) {
       continue;
     }
-    ContextImplPtr EventContext = Event->getContextImpl();
-    const detail::plugin &Plugin = Event->getPlugin();
-    // If contexts don't match - connect them using user event
-    if (EventContext != Context && !Context->is_host()) {
+    ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
+    // If contexts don't match - connect them using user event
+    if (DepEventContext != Context && !Context->is_host()) {
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                            &GlueEventHandle);
       EventImplPtr *GlueEventCopy =
           new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-      Plugin.call<PiApiKind::piEventSetCallback>(
-          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
+
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      auto Plugin = Context->getPlugin();
+      auto DepPlugin = DepEventContext->getPlugin();
+      // Add an event on the current context that
+      // is triggered when the DepEvent is complete
+      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                            &GlueEventHandle);
+
+      DepPlugin.call<PiApiKind::piEventSetCallback>(
+          DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
       continue;
     }
-    Result.push_back(Event);
+    Result.push_back(DepEvent);
   }
   MDepsEvents.insert(MDepsEvents.end(), GlueEvents.begin(), GlueEvents.end());
   return Result;
@@ -823,9 +828,11 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
-                           void **DstPtr, QueueImplPtr Queue)
+                           void **DstPtr, QueueImplPtr Queue,
+                           access::mode MapMode)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
-      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr) {
+      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
+      MMapMode(MapMode) {
   emitInstrumentationDataProxy();
 }
 
@@ -856,9 +863,8 @@ cl_int MapMemObject::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
-      MSrcReq.MAccessMode, MSrcReq.MDims, MSrcReq.MMemoryRange,
-      MSrcReq.MAccessRange, MSrcReq.MOffset, MSrcReq.MElemSize,
-      std::move(RawEvents), Event);
+      MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
   return CL_SUCCESS;
 }
 
@@ -1417,14 +1423,19 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
 
   if (WGSize[0] == 0) {
     // kernel does not request specific workgroup shape - set one
-    // TODO maximum work group size as the local size might not be the best
-    //      choice for CPU or FPGA devices
+    id<3> MaxWGSizes =
+        get_device_info<id<3>, cl::sycl::info::device::max_work_item_sizes>::
+            get(DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
+
     size_t WGSize1D = get_kernel_work_group_info<
         size_t, cl::sycl::info::kernel_work_group::work_group_size>::
         get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
-    assert(WGSize1D != 0);
-    // TODO implement better default for 2D/3D case:
-    WGSize = {WGSize1D, 1, 1};
+
+    assert(MaxWGSizes[2] != 0);
+
+    // Set default work-group size in the Z-direction to either the max
+    // number of work-items or the maximum work-group size in the Z-direction.
+    WGSize = {1, 1, min(WGSize1D, MaxWGSizes[2])};
   }
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
@@ -1639,16 +1650,14 @@ cl_int ExecCGCommand::enqueueImp() {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-#if USE_PI_CUDA
-        pi_mem MemArg = (pi_mem)AllocaCmd->getMemAllocation();
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex, &MemArg);
-#else
         RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(RT::PiMem), &MemArg);
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(RT::PiMem), &MemArg);
-#endif
+        if (RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+          Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+                                                 sizeof(RT::PiMem), &MemArg);
+        } else {
+          Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
+                                                          &MemArg);
+        }
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {

@@ -103,6 +103,9 @@ public:
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   bool transFPContractMetadata();
   bool transKernelMetadata();
+  Value *transAsmINTEL(SPIRVAsmINTEL *BA);
+  CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
+                              BasicBlock *BB);
   bool transNonTemporalMetadata(Instruction *I);
   bool transSourceLanguage();
   bool transSourceExtension();

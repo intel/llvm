@@ -6,6 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-_CLC_DEF void _Z23__spirv_GroupWaitEventsN5__spv5ScopeEjP9ocl_event(
-    enum Scope scope, int num_events, event_t *event_list);
+_CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
+                                                    int num_events,
+                                                    event_t *event_list);

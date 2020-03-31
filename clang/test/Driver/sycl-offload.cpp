@@ -1,16 +1,16 @@
 /// Check "-aux-target-cpu" and "target-cpu" are passed when compiling for SYCL offload device and host codes:
 //  RUN:  %clang -### -fsycl -c %s 2>&1 | FileCheck -check-prefix=CHECK-OFFLOAD %s
 //  CHECK-OFFLOAD: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
-//  CHECK-OFFLOAD-SAME: "-aux-target-cpu" "x86-64"
+//  CHECK-OFFLOAD-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]"
 //  CHECK-OFFLOAD-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  CHECK-OFFLOAD-NEXT-SAME: "-fsycl-is-host"
-//  CHECK-OFFLOAD-NEXT-SAME: "-target-cpu" "x86-64"
+//  CHECK-OFFLOAD-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]"
 
 /// Check "-aux-target-cpu" with "-aux-target-feature" and "-target-cpu" with "-target-feature" are passed
 /// when compiling for SYCL offload device and host codes:
 //  RUN:  %clang -fsycl -mavx -c %s -### -o %t.o 2>&1 | FileCheck -check-prefix=OFFLOAD-AVX %s
 //  OFFLOAD-AVX: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
-//  OFFLOAD-AVX-SAME: "-aux-target-cpu" "x86-64" "-aux-target-feature" "+avx"
+//  OFFLOAD-AVX-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]" "-aux-target-feature" "+avx"
 //  OFFLOAD-AVX-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  OFFLOAD-AVX-NEXT-SAME: "-fsycl-is-host"
-//  OFFLOAD-AVX-NEXT-SAME: "-target-cpu" "x86-64" "-target-feature" "+avx"
+//  OFFLOAD-AVX-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]" "-target-feature" "+avx"

@@ -11,6 +11,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
@@ -293,6 +294,25 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const;
 
+  /// Set the value of the specialization constant identified by the 'ID' type
+  /// template parameter and return its instance.
+  /// \param cst the specialization constant value
+  /// \return a specialization constant instance corresponding to given type ID
+  ///         passed as a template parameter
+  template <typename ID, typename T>
+  experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
+    constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
+    static_assert(std::is_integral<T>::value ||
+                      std::is_floating_point<T>::value,
+                  "unsupported specialization constant type");
+#ifdef __SYCL_DEVICE_ONLY__
+    return experimental::spec_constant<T, ID>();
+#else
+    set_spec_constant_impl(Name, &Cst, sizeof(T));
+    return experimental::spec_constant<T, ID>(Cst);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
 private:
   program(shared_ptr_class<detail::program_impl> impl);
 
@@ -329,6 +349,8 @@ private:
   void build_with_kernel_name(string_class KernelName,
                               string_class buildOptions,
                               detail::OSModuleHandle M);
+
+  void set_spec_constant_impl(const char *Name, void *Data, size_t Size);
 
   shared_ptr_class<detail::program_impl> impl;
 

@@ -53,6 +53,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "partial-link";
   case BackendCompileJobClass:
     return "backend-compiler";
+  case FileTableTformJobClass:
+    return "file-table-tform";
   }
 
   llvm_unreachable("invalid class");
@@ -473,3 +475,23 @@ BackendCompileJobAction::BackendCompileJobAction(ActionList &Inputs,
 BackendCompileJobAction::BackendCompileJobAction(Action *Input,
                                                  types::ID Type)
     : JobAction(BackendCompileJobClass, Input, Type) {}
+
+void FileTableTformJobAction::anchor() {}
+
+FileTableTformJobAction::FileTableTformJobAction(Action *Input, types::ID Type)
+    : JobAction(FileTableTformJobClass, Input, Type) {}
+
+FileTableTformJobAction::FileTableTformJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+    : JobAction(FileTableTformJobClass, Inputs, Type) {}
+
+void FileTableTformJobAction::addExtractColumnTform(StringRef ColumnName,
+                                                    bool WithColTitle) {
+  auto K = WithColTitle ? Tform::EXTRACT : Tform::EXTRACT_DROP_TITLE;
+  Tforms.emplace_back(Tform(K, {ColumnName}));
+}
+
+void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
+                                                    StringRef To) {
+  Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
+}

@@ -103,6 +103,7 @@ set(SYCL_SOURCES
     "detail/scheduler/scheduler.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
+    "detail/spec_constant_impl.cpp"
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/clusm.cpp"
     "detail/usm/usm_dispatch.cpp"
@@ -179,6 +180,13 @@ if (MSVC)
   endif()
   target_compile_options(sycld PRIVATE ${SYCL_CXX_FLAGS_DEBUG})
 
+endif()
+
+# Enable new IN_LIST operator.
+cmake_policy(SET CMP0057 NEW)
+
+if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl libsycldevice)
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

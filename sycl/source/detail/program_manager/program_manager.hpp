@@ -11,6 +11,8 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/spec_constant_impl.hpp>
+#include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <map>
@@ -37,12 +39,7 @@ namespace detail {
 
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using DeviceImage = pi_device_binary_struct;
-
-// Custom deleter for the DeviceImage. Must only be called for "orphan" images
-// allocated by the runtime. Those Images which are part of binaries must not
-// be attempted to de-allocate.
-struct ImageDeleter;
+class program_impl;
 
 enum DeviceLibExt {
   cl_intel_devicelib_assert = 0,
@@ -52,6 +49,49 @@ enum DeviceLibExt {
   cl_intel_devicelib_complex_fp64
 };
 
+// SYCL RT wrapper over PI binary image.
+class RTDeviceBinaryImage : public pi::DeviceBinaryImage {
+public:
+  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
+      : pi::DeviceBinaryImage(), ModuleHandle(ModuleHandle) {}
+  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
+      : pi::DeviceBinaryImage(Bin), ModuleHandle(ModuleHandle) {}
+  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
+
+  ~RTDeviceBinaryImage() override {}
+
+  bool supportsSpecConstants() const {
+    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
+  }
+
+  const pi_device_binary_struct &getRawData() const { return *get(); }
+
+  void print() const override {
+    pi::DeviceBinaryImage::print();
+    std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
+  }
+
+protected:
+  OSModuleHandle ModuleHandle;
+};
+
+// Dynamically allocated device binary image, which de-allocates its binary data
+// in destructor.
+class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
+public:
+  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
+                         OSModuleHandle M);
+  ~DynRTDeviceBinaryImage() override;
+
+  void print() const override {
+    RTDeviceBinaryImage::print();
+    std::cerr << "    DYNAMICALLY CREATED\n";
+  }
+
+protected:
+  std::unique_ptr<char[]> Data;
+};
+
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
@@ -59,9 +99,11 @@ public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  DeviceImage &getDeviceImage(OSModuleHandle M, const string_class &KernelName,
-                              const context &Context);
-  RT::PiProgram createPIProgram(const DeviceImage &Img, const context &Context);
+  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
+                                      const string_class &KernelName,
+                                      const context &Context);
+  RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
+                                const context &Context);
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
@@ -70,10 +112,16 @@ public:
                                          const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
-  void debugDumpBinaryImages() const;
-  void debugDumpBinaryImage(const DeviceImage *Img) const;
+  void debugPrintBinaryImages() const;
   static string_class getProgramBuildLog(const RT::PiProgram &Program,
                                          const ContextImplPtr Context);
+
+  spec_constant_impl &resolveSpecConstant(const program_impl *P,
+                                          const char *Name);
+
+  // Takes current values of specialization constants and "injects" them into
+  // the program via specialization constant managemment PI APIs
+  void flushSpecConstants(pi::PiProgram Prg, context_impl &Ctx);
 
 private:
   ProgramManager();
@@ -81,8 +129,8 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  DeviceImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                              const context &Context);
+  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
+                                      const context &Context);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
@@ -97,10 +145,11 @@ private:
   /// cases (when reading images from file or using images with no entry info)
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const string_class &KernelName) const;
-  /// Returns the format of the binary image
-  RT::PiDeviceBinaryType getFormat(const DeviceImage &Img) const;
   /// Dumps image to current directory
-  void dumpImage(const DeviceImage &Img, KernelSetId KSId) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+
+  void populateSpecConstRegistryImpl(const RTDeviceBinaryImage &Img);
+  void populateSpecConstRegistry();
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -116,11 +165,14 @@ private:
   /// m_OSModuleKernelSets and device images associated with them are assumed
   /// to contain all kernels coming from that OS module.
 
+  using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
+
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a kernel set id to the vector of images
   /// containing kernels from that set.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::unordered_map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>
+  std::unordered_map<KernelSetId,
+                     std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
       m_DeviceImages;
 
   using StrToKSIdMap = std::unordered_map<string_class, KernelSetId>;
@@ -134,10 +186,33 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
-  /// Keeps device images not bound to a particular module. Program manager
-  /// allocated memory for these images, so they are auto-freed in destructor.
-  /// No image can out-live the Program manager.
-  std::vector<std::unique_ptr<DeviceImage, ImageDeleter>> m_OrphanDeviceImages;
+  // Maps specialization constant symbolic name to its integer ID.
+  // NOTE: a key in this map is a pointer into some existing device binary image
+  // and it is invalidated once the encompassing OS module gets unloaded.
+  using SpecConstMapTy =
+      std::unordered_map<const char *, spec_constant_impl, HashCStr, CmpCStr>;
+
+  // Keeps specialization constant map for each operating system module.
+  // The base approach is that there is a global name->id spec constant map for
+  // each OS module. This map is populated from the name->id pairs found in
+  // device binary image upon registration at startup for this OS module.
+  // If multiple images beloning to the same OS module have a specialization
+  // constant with the same name, its corresponding numeric id must also match.
+  // It is modified (populated) once at startup, so no locks are necessary.
+  std::unordered_map<OSModuleHandle, SpecConstMapTy> SpecConstRegistry;
+
+  // Keeps track of pi_program to image correspondence. Needed for:
+  // - knowing which specialization constants are used in the program and
+  //   injecting their current values before compiling the SPIRV; the binary
+  //   image object has info about all spec constants used in the module
+  // NOTE: using RTDeviceBinaryImage raw pointers is OK, since they are not
+  // referenced from outside SYCL runtime and RTDeviceBinaryImage object
+  // lifetime matches program manager's one.
+  // NOTE: keys in the map can be invalid (reference count went to zero and
+  // the underlying program disposed of), so the map can't be used in any way
+  // other than binary image lookup with known live PiProgram as the key.
+  // NOTE: access is synchronized via the same lock as program cache
+  std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
   /// True iff a SPIRV file has been specified with an environment variable
   bool m_UseSpvFile = false;

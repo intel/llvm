@@ -210,6 +210,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
+          file-table-tform
           llc
           llvm-ar
           llvm-foreach
@@ -226,13 +227,6 @@ if (SYCL_ENABLE_XPTI_TRACING)
   if (MSVC)
     add_dependencies( sycl-toolchain xptid)
   endif()
-endif()
-
-# Enable new IN_LIST operator.
-cmake_policy(SET CMP0057 NEW)
-
-if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl-toolchain libsycldevice)
 endif()
 
 if (NOT DEFINED LLVM_INCLUDE_TESTS)
@@ -263,6 +257,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang
      clang-offload-wrapper
      clang-offload-bundler
+     file-table-tform
      llc
      llvm-ar
      llvm-foreach

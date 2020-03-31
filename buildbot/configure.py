@@ -4,6 +4,10 @@ import subprocess
 import sys
 import platform
 
+# TODO:
+# 1. Add support for relative paths (e.g. relative path to source directory)
+# 2. Create obj_dir from the script if it doesn't exist
+
 def do_configure(args):
     ret = False
 
@@ -20,6 +24,7 @@ def do_configure(args):
     sycl_build_pi_cuda = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
+    llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
 
     if platform.system() == 'Linux':
@@ -38,6 +43,7 @@ def do_configure(args):
 
     if args.docs:
         llvm_enable_doxygen = 'ON'
+        llvm_enable_sphinx = 'ON'
 
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
@@ -63,8 +69,10 @@ def do_configure(args):
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
+        "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING=ON", # Explicitly turn on XPTI tracing
+        "{}".format(args.cmake_opts),
         llvm_dir
     ]
 
@@ -88,7 +96,7 @@ def do_configure(args):
 
 def main():
     parser = argparse.ArgumentParser(prog="configure.py",
-                                     description="script to do configure",
+                                     description="Generate build files from CMake configuration files",
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-n", "--build-number", metavar="BUILD_NUM", help="build number")
     parser.add_argument("-b", "--branch", metavar="BRANCH", help="pull request branch")
@@ -105,6 +113,7 @@ def main():
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
+    parser.add_argument("--cmake-opts", metavar="CMAKE_OPTS", help="Additional CMake options not configured via script parameters")
 
     args = parser.parse_args()
 

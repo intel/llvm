@@ -67,8 +67,8 @@ elif platform.system() == "Darwin":
 if 'OCL_ICD_FILENAMES' in os.environ:
     config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
 
-if 'SYCL_DEVICE_WHITE_LIST' in os.environ:
-    config.environment['SYCL_DEVICE_WHITE_LIST'] = os.environ['SYCL_DEVICE_WHITE_LIST']
+if 'SYCL_DEVICE_ALLOWLIST' in os.environ:
+    config.environment['SYCL_DEVICE_ALLOWLIST'] = os.environ['SYCL_DEVICE_ALLOWLIST']
 
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )

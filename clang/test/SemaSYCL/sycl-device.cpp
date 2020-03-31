@@ -21,11 +21,17 @@ namespace {
 }
 
 class A {
-  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a class member function}}
+  __attribute__((sycl_device))
   A() {}
 
-  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a class member function}}
-  int func3() {}
+  __attribute__((sycl_device)) void func3() {}
+};
+
+class B {
+public:
+  __attribute__((sycl_device)) virtual void foo() {}
+
+  __attribute__((sycl_device)) virtual void bar() = 0;
 };
 
 #if defined(NOT_STRICT)

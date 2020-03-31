@@ -467,6 +467,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
   }
 
+  if (LangOpts.DeclareSPIRVBuiltins) {
+    Builder.defineMacro("__SPIRV_BUILTIN_DECLARATIONS__");
+  }
+
   // Not "standard" per se, but available even with the -undef flag.
   if (LangOpts.AsmPreprocessor)
     Builder.defineMacro("__ASSEMBLER__");
