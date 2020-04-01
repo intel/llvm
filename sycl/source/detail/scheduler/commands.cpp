@@ -1478,7 +1478,8 @@ struct HostTaskContext {
   CGHostTask *HostTask;
 
   // events dependencies
-  std::map<detail::plugin *, std::vector<EventImplPtr>> RequiredEventsPerPlugin;
+  std::map<const detail::plugin *,
+           std::vector<EventImplPtr>> RequiredEventsPerPlugin;
 
   ContextImplPtr Context;
 
