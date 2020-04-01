@@ -42,8 +42,8 @@ def do_configure(args):
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
 
-    if args.assertions:
-        llvm_enable_assertions = 'ON'
+    if args.no_assertions:
+        llvm_enable_assertions = 'OFF'
 
     if args.docs:
         llvm_enable_doxygen = 'ON'
@@ -118,7 +118,7 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", required=True, help="build type, debug or release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--assertions", action='store_true', help="build with assertions")
+    parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")

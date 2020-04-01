@@ -28,8 +28,8 @@ jobs:
              SharedLibs)
                  export ARGS="--shared-libs"
                  ;;
-             Assertiosn)
-                 export ARGS="--assertions"
+             NoAssertions)
+                 export ARGS="--no-assertions"
                  ;;
          esac
          mkdir -p $GITHUB_WORKSPACE/build
