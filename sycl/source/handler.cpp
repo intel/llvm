@@ -77,23 +77,10 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
         std::move(MEvents), Payload));
     break;
   case detail::CG::HOST_TASK:
-//    CommandGroup.reset(new detail::CGHostTask(
-//        std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
-//        std::move(MArgsStorage), std::move(MAccStorage),
-//        std::move(MSharedPtrStorage), std::move(MRequirements),
-//        std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-//        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-//        Payload));
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, std::move(MArgs), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, Payload));
-//    CommandGroup.reset(new detail::CGHostTask(
-//        std::move(MHostTask), std::move(MArgsStorage), std::move(MAccStorage),
-//        std::move(MSharedPtrStorage), std::move(MRequirements),
-//        std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-//        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-//        Payload));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
