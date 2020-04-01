@@ -186,10 +186,8 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
     if (DepEventContext != Context && !Context->is_host()) {
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
-#if 1
       EventImplPtr *GlueEventCopy =
           new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-#endif
 
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       auto Plugin = Context->getPlugin();
@@ -199,17 +197,9 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
       Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                             &GlueEventHandle);
 
-#if 1
       DepPlugin.call<PiApiKind::piEventSetCallback>(
           DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
-#else
-      DepEvent->when_complete(DepEvent, [GlueEvent] () {
-        RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-        const detail::plugin &Plugin = GlueEvent->getPlugin();
-        Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
-      });
-#endif
 
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
@@ -1487,62 +1477,30 @@ void DispatchNativeKernel(void *Blob) {
 struct HostTaskContext {
   CGHostTask *HostTask;
 
-  // TODO events dependencies
-  const size_t RequiredAmount;
-  size_t CompletedAmount;
-
-  // TODO buffer dependencies, though a buffer dependency may be expressed via event
-
-  std::mutex RequirementsMutex;
-  std::condition_variable AnotherRequirementFulfilledCV;
+  // events dependencies
+  std::map<detail::plugin *, std::vector<EventImplPtr>> RequiredEventsPerPlugin;
 
   ContextImplPtr Context;
 
   EventImplPtr SelfEvent;
 };
 
-void DispatchHostTask2(pi_event Event, pi_int32 EventStatus, void *UD) {
-  HostTaskContext *Ctx = reinterpret_cast<HostTaskContext *>(UD);
-
-  if (EventStatus == PI_EVENT_COMPLETE)
-    ++Ctx->CompletedAmount;
-
-  assert(Ctx->CompletedAmount <= Ctx->RequiredAmount && 
-         "Invalid event completion reported");
-
-  if (Ctx->CompletedAmount < Ctx->RequiredAmount)
-    return;
-
-  Ctx->HostTask->MHostTask->call();
-
-  delete Ctx;
-}
-
-bool CheckHostTaskRequirements(const std::shared_ptr<HostTaskContext> &Ctx) {
-  (void)Ctx;
-  // TODO check if all the requirements are fullfiled i.e:
-  //  - event: use clGetEventInfo
-  //  - buffer: ??? maybe use copy_acc_to_acc?
-  return true;
-}
-
 void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
-  {
-    std::unique_lock<std::mutex> Lock(Ctx->RequirementsMutex);
-
-    Ctx->AnotherRequirementFulfilledCV.wait(Lock, [Ctx] () {
-      return CheckHostTaskRequirements(Ctx);
-    });
+  // wait for dependency events
+  // FIXME introduce a more sophisticated wait mechanism
+  for (auto &PluginWithEvents : Ctx->RequiredEventsPerPlugin) {
+    auto RawEvents = getPiEvents(PluginWithEvents.second);
+    PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                          RawEvents.data());
   }
 
-  const QueueImplPtr &Queue = Scheduler::getInstance().getDefaultHostQueue();
-  Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
-    Ctx->HostTask->MHostTask->call();
-  });
+  // we're ready to call the user-defined lambda now
+  Ctx->HostTask->MHostTask->call();
 
   const detail::plugin &Plugin = Ctx->SelfEvent->getPlugin();
   Plugin.call<PiApiKind::piEventSetStatus>(Ctx->SelfEvent->getHandleRef(),
                                            CL_COMPLETE);
+
   // Ctx will be deleted automatically by shared_ptr
 }
 
@@ -1897,28 +1855,23 @@ cl_int HostTaskCommand::enqueueImp() {
   // MQueue is host queue here thus we'll employ the one host task is
   // submitted to
   const QueueImplPtr &Queue = HostTask->MQueue;
-#if 0
-  auto *Ctx = new HostTaskContext{
-    static_cast<CGHostTask *>(MCommandGroup.get()),
-    RawEvents.size(),
-    0,
-    {},
-    {},
-    MQueue->getContextImplPtr()
-  };
-#else
   std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
-#endif
 
-  if (true /*false*/) {
-    Ctx->SelfEvent = MEvent;
-    RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
+  // Init self-event
+  Ctx->SelfEvent = MEvent;
+  RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
 
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
-    Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
+  Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
+
+  // init dependency events in Ctx
+  for (EventImplPtr &Event : EventImpls) {
+    const detail::plugin &Plugin = Event->getPlugin();
+    Ctx->RequiredEventsPerPlugin[&Plugin].push_back(Event);
   }
+
 
   size_t ArgIdx = 0, ReqIdx = 0;
   while (ArgIdx < HostTask->MArgs.size()) {
@@ -1941,18 +1894,10 @@ cl_int HostTaskCommand::enqueueImp() {
     ++ArgIdx;
   }
 
-#if 0
-  const detail::plugin &Plugin = Queue->getPlugin();
-
-  for (const RT::PiEvent &Event : RawEvents)
-      Plugin.call<PiApiKind::piEventSetCallback>(Event, PI_EVENT_COMPLETE,
-                                                 DispatchHostTask2, Ctx);
-#else
-  // TODO create user event and set its callback to dispatch host task
   Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
     DispatchHostTask(Ctx);
   });
-#endif
+
   return CL_SUCCESS;
 }
 
