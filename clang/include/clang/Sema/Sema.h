@@ -12557,6 +12557,50 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
+template <typename FPGALoopAttrT>
+FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
+                                                Expr *E) {
+  if (!E && !(A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce))
+    return nullptr;
+
+  if (E && !E->isInstantiationDependent()) {
+    llvm::APSInt ArgVal(32);
+
+    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << A.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return nullptr;
+    }
+
+    int Val = ArgVal.getSExtValue();
+
+    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
+        A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {
+      if (Val <= 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << A.getAttrName() << /* positive */ 0;
+        return nullptr;
+      }
+    } else if (A.getParsedKind() ==
+                   ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency ||
+               A.getParsedKind() ==
+                   ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
+               A.getParsedKind() ==
+                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
+      if (Val < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << A.getAttrName() << /* non-negative */ 1;
+        return nullptr;
+      }
+    } else {
+      llvm_unreachable("unknown sycl fpga loop attr");
+    }
+  }
+
+  return new (Context) FPGALoopAttrT(Context, A, E);
+}
+
 /// RAII object that enters a new expression evaluation context.
 class EnterExpressionEvaluationContext {
   Sema &Actions;
