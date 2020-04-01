@@ -55,7 +55,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
                                                EnqueueResultT &EnqueueResult,
                                                BlockingT Blocking) {
-  if (!Cmd || Cmd->isEnqueued())
+  if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
   // Indicates whether dependency cannot be enqueued

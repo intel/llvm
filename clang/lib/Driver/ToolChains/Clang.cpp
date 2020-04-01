@@ -7420,11 +7420,22 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
-    createArgString("-compile-opts=");
-    BuildArgs.clear();
-    TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
-    createArgString("-link-opts=");
+    // TODO: Consider separating the mechanisms for:
+    // - passing standard-defined options to AOT/JIT compilation steps;
+    // - passing AOT-compiler specific options.
+    // This would allow retaining standard language options in the
+    // image descriptor, while excluding tool-specific options that
+    // have been known to confuse RT implementations.
+    if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // Only store compile/link opts in the image descriptor for the SPIR-V
+      // target; AOT compilation has already been performed otherwise.
+      TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+      createArgString("-compile-opts=");
+      BuildArgs.clear();
+      TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+      createArgString("-link-opts=");
+    }
+
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 

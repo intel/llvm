@@ -1220,7 +1220,6 @@ CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
   }
   OpenCLKernel->setParams(Params);
 
-  OpenCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
   OpenCLKernel->addAttr(ArtificialAttr::CreateImplicit(Context));

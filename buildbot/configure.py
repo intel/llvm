@@ -4,16 +4,24 @@ import subprocess
 import sys
 import platform
 
+# TODO:
+# 1. Make all required options optional
+# 2. Create obj_dir from the script if it doesn't exist
+
 def do_configure(args):
     ret = False
 
-    llvm_dir = os.path.join(args.src_dir, "llvm")
-    sycl_dir = os.path.join(args.src_dir, "sycl")
-    spirv_dir = os.path.join(args.src_dir, "llvm-spirv")
-    xpti_dir = os.path.join(args.src_dir, "xpti")
-    libdevice_dir = os.path.join(args.src_dir, "libdevice")
-    ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
-    icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build")
+    # Get absolute paths
+    abs_src_dir = os.path.abspath(args.src_dir)
+    abs_obj_dir = os.path.abspath(args.obj_dir)
+
+    llvm_dir = os.path.join(abs_src_dir, "llvm")
+    sycl_dir = os.path.join(abs_src_dir, "sycl")
+    spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
+    xpti_dir = os.path.join(abs_src_dir, "xpti")
+    libdevice_dir = os.path.join(abs_src_dir, "libdevice")
+    ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
+    icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;xpti;libdevice'
     libclc_targets_to_build = ''
@@ -44,7 +52,7 @@ def do_configure(args):
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
 
-    install_dir = os.path.join(args.obj_dir, "install")
+    install_dir = os.path.join(abs_obj_dir, "install")
 
     cmake_cmd = [
         "cmake",
@@ -67,8 +75,7 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING=ON", # Explicitly turn on XPTI tracing
-        llvm_dir
+        "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
     ]
 
     if not args.no_ocl:
@@ -76,22 +83,29 @@ def do_configure(args):
             "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
             "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
 
+    # Add additional CMake options if provided
+    if args.cmake_opt:
+      cmake_cmd += args.cmake_opt
+
+    # Add path to root CMakeLists.txt
+    cmake_cmd.append(llvm_dir)
+
     print(cmake_cmd)
 
     try:
-        subprocess.check_call(cmake_cmd, cwd=args.obj_dir)
+        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
     except subprocess.CalledProcessError:
-        cmake_cache = os.path.join(args.obj_dir, "CMakeCache.txt")
+        cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
         if os.path.isfile(cmake_cache):
             os.remove(cmake_cache)
-        subprocess.check_call(cmake_cmd, cwd=args.obj_dir)
+        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
 
     ret = True
     return ret
 
 def main():
     parser = argparse.ArgumentParser(prog="configure.py",
-                                     description="script to do configure",
+                                     description="Generate build files from CMake configuration files",
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-n", "--build-number", metavar="BUILD_NUM", help="build number")
     parser.add_argument("-b", "--branch", metavar="BRANCH", help="pull request branch")
@@ -108,6 +122,7 @@ def main():
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
+    parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
 
     args = parser.parse_args()
 
