@@ -232,9 +232,9 @@ convertImpl(T Value) {
 }
 
 // float to int
+#ifndef __SYCL_DEVICE_ONLY__
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
-#ifndef __SYCL_DEVICE_ONLY__
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
@@ -264,56 +264,189 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     assert(!"Unsupported rounding mode!");
     return static_cast<R>(Value);
   };
+}
 #else
-  // TODO implement device side conversion.
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, int>::value &&
+                        (roundingMode == rounding_mode::automatic ||
+                         roundingMode == rounding_mode::rte),
+                    R>
+convertImpl(T Value) {
   using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
   OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
-  switch (roundingMode) {
-    // Round to nearest even is default rounding mode for floating-point types
-  case rounding_mode::automatic:
-    // Round to nearest even.
-  case rounding_mode::rte:
-    if (std::is_same<R, int>::value)
-      return __spirv_ConvertFToS_Rint_rte(OpValue);
-    else if (std::is_same<R, char>::value)
-      return __spirv_ConvertFToS_Rchar_rte(OpValue);
-    else if (std::is_same<R, short>::value)
-      return __spirv_ConvertFToS_Rshort_rte(OpValue);
-    else if (std::is_same<R, long>::value)
-      return __spirv_ConvertFToS_Rlong_rte(OpValue);
-    // Round toward zero.
-  case rounding_mode::rtz:
-    if (std::is_same<R, int>::value)
-      return __spirv_ConvertFToS_Rint_rtz(OpValue);
-    else if (std::is_same<R, char>::value)
-      return __spirv_ConvertFToS_Rchar_rtz(OpValue);
-    else if (std::is_same<R, short>::value)
-      return __spirv_ConvertFToS_Rshort_rtz(OpValue);
-    else if (std::is_same<R, long>::value)
-      return __spirv_ConvertFToS_Rlong_rtz(OpValue);
-    // Round toward positive infinity.
-  case rounding_mode::rtp:
-    if (std::is_same<R, int>::value)
-      return __spirv_ConvertFToS_Rint_rtp(OpValue);
-    else if (std::is_same<R, char>::value)
-      return __spirv_ConvertFToS_Rchar_rtp(OpValue);
-    else if (std::is_same<R, short>::value)
-      return __spirv_ConvertFToS_Rshort_rtp(OpValue);
-    else if (std::is_same<R, long>::value)
-      return __spirv_ConvertFToS_Rlong_rtp(OpValue);
-    // Round toward negative infinity.
-  case rounding_mode::rtn:
-    if (std::is_same<R, int>::value)
-      return __spirv_ConvertFToS_Rint_rtn(OpValue);
-    else if (std::is_same<R, char>::value)
-      return __spirv_ConvertFToS_Rchar_rtn(OpValue);
-    else if (std::is_same<R, short>::value)
-      return __spirv_ConvertFToS_Rshort_rtn(OpValue);
-    else if (std::is_same<R, long>::value)
-      return __spirv_ConvertFToS_Rlong_rtn(OpValue);
-  };
-#endif
+  return __spirv_ConvertFToS_Rint_rte(OpValue);
 }
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, int>::value &&
+                         roundingMode == rounding_mode::rtz,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rint_rtz(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, int>::value &&
+                         roundingMode == rounding_mode::rtp,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rint_rtp(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, int>::value &&
+                         roundingMode == rounding_mode::rtn,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rint_rtn(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, char>::value &&
+                        (roundingMode == rounding_mode::automatic ||
+                         roundingMode == rounding_mode::rte),
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rchar_rte(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, char>::value &&
+                         roundingMode == rounding_mode::rtz,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rchar_rtz(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, char>::value &&
+                         roundingMode == rounding_mode::rtp,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rchar_rtp(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, char>::value &&
+                         roundingMode == rounding_mode::rtn,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rchar_rtn(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, short>::value &&
+                        (roundingMode == rounding_mode::automatic ||
+                         roundingMode == rounding_mode::rte),
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rshort_rte(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, short>::value &&
+                         roundingMode == rounding_mode::rtz,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rshort_rtz(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, short>::value &&
+                         roundingMode == rounding_mode::rtp,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rshort_rtp(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, short>::value &&
+                         roundingMode == rounding_mode::rtn,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rshort_rtn(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, long>::value &&
+                        (roundingMode == rounding_mode::automatic ||
+                         roundingMode == rounding_mode::rte),
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rint_rte(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, long>::value &&
+                         roundingMode == rounding_mode::rtz,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rlong_rtz(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, long>::value &&
+                         roundingMode == rounding_mode::rtp,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rlong_rtp(OpValue);
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value &&
+                        std::is_same<R, long>::value &&
+                         roundingMode == rounding_mode::rtn,
+                    R>
+convertImpl(T Value) {
+  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);
+  return __spirv_ConvertFToS_Rlong_rtn(OpValue);
+}
+#endif
 
 } // namespace detail
 
