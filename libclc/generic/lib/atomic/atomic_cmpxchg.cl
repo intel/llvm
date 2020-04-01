@@ -6,7 +6,7 @@
                                              TYPE val) {                                                                                                      \
     /* TODO: Stop manually mangling this name. Need C++ namespaces to get the                                                                                 \
      * exact mangling. */                                                                                                                                     \
-    return _Z29__spirv_AtomicCompareExchangePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES3_##TYPE_MANGLED##TYPE_MANGLED( \
+    return _Z29__spirv_AtomicCompareExchangePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES5_##TYPE_MANGLED##TYPE_MANGLED( \
         p, Device, SequentiallyConsistent, SequentiallyConsistent, val, cmp);                                                                                 \
   }
 
