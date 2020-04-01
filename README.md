@@ -1,3 +1,6 @@
+![Linux Post Commit Checks](https://github.com/intel/llvm/workflows/Linux%20Post%20Commit%20Checks/badge.svg)
+![Generate Doxygen documentation](https://github.com/intel/llvm/workflows/Generate%20Doxygen%20documentation/badge.svg)
+
 # Intel Project for LLVM\* technology
 
 ## Introduction
